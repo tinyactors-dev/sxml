@@ -8043,6 +8043,65 @@ for XSLT 1.0 behaviour (`asks_xslt_1_behaviour` and its XTDE0160 in
   xpath-1.0-compatibility 1 of 5 (generate-id-018; the other four are
   the xs:numeric cases above). Unit test `tests/xslt_compatibility_test.c`.
 
+### D205. fn:put, revalidation, untyped copies and the 4.0 return clause (packets 7.7b, 7.7c)
+Recorded 2026-10-19, after D99, D165, D173, D184, D187. The rest of the
+XQuery Update Facility after 7.7a: fn:put and revalidation (7.7c), the
+4.0 draft's updating return clause (7.7b), and copies that drop schema
+identity.
+- **fn:put** (XQUF 3.0, 6.1; `src/xquery_update.c`): a row of XQuery's
+  function table (`src/xquery_load_module.c`, beside
+  fn:load-xquery-module), `fn:put($node, $uri, $params := ())`, whose call
+  the static rules treat as updating (XUST0001 as for any update). Its
+  value is one update primitive `upd:put`, the node as target and the URI
+  as parameter: FOUP0001 for a node that is not a document or element
+  (6.1 leaves other kinds implementation-defined), FOUP0002 for a $uri
+  with a character no URI or IRI reference has or that does not resolve
+  against the static base URI to an absolute URI. Application checks
+  XUDY0031 (two puts, one URI) and XUDY0037 (a put in a copy-modify's
+  modify clause) and changes no tree.
+- **The host** (`include/sxml/xquery.h`, additive): the update sink gets
+  `receive_put_document`, called after every changed tree (3.2.2: upd:put
+  last) with `sxml_xquery_put_document` (the absolute URI, the node as the
+  other updates left it, the $params). The library never writes it
+  (D184); NULL makes a query that calls fn:put fail with FOUP0002 before
+  any tree is handed over. The node of a put on the root of a changed
+  tree is the new root; a put on a node inside a changed tree gets the
+  node as it was (node identity across a rebuild is not kept, D187).
+- **Revalidation** (3.1, 3.2.4 upd:revalidate): XUST0026 is gone; lax
+  and strict are supported. Each rebuilt tree that a type-changing
+  primitive marked (upd:removeType reaches its root) is validated as
+  "validate lax|strict { $top }" does, with sxml_schema_validate_node
+  (D173) and the in-scope schemas (the schema declaring the root element;
+  for lax the first without one; XQDY0061, XQDY0084, XQDY0027), and its
+  validated copy is the updated tree. The mode is the main module's for
+  the query and the module's for copy-modify (modify-copies takes it as a
+  third argument). sxml's initial revalidation mode stays skip: the
+  static context table of 3.1 lets an implementation overwrite lax.
+- **Copies** (5.6 step 1.2; XQuery 3.1, 3.9.1.3): a copy-modify copy is
+  untyped whatever the construction mode, and copies made untyped drop
+  is-id and is-idrefs except for xml:id attributes. `tree.h` (frozen,
+  D99) gets one additive field, `sxml_copy_request.strips_identity`;
+  false, the old behaviour, is what XSLT needs (validation="strip" and
+  input-type-annotations="strip" keep is-id, copy-5034 and
+  strip-type-annotations-021). The update application sets it for its
+  copies. XQuery's own node constructors under construction strip still
+  keep is-id (`src/evaluator_construct.c` has no language flag): left.
+- **The updating return clause** (XQUF 4.0 draft, copy modify): a
+  copy-modify whose return clause is updating is updating, its pending
+  update list the return clause's; 3.0's XUST0001 there is gone.
+- **QT4 driver**: revalidation lax and strict are supported; what
+  fn:put stores is serialized, parsed again and added to the test case's
+  available documents at its URI (no file is written), and assertions
+  see the available documents.
+- **Left**: XUDY0038 for a simple dynamic call of an updating function
+  item (no QT4 test; the one place is the evaluator's dynamic call); two
+  cases where validating an element root checks IDREFs against its IDs
+  (cvc-id.1) and the tests expect no such check
+  (removeType-valskip-repnode-006, revalidate-valtrans-ins-002); six
+  propagateNamespace cases whose expected XML has other whitespace than
+  their queries make under boundary-space preserve (the suite's error:
+  assert-xml compares canonical forms, kept strict); 27 staticTyping.
+
 ## Proposed
 
 - **The CLI's WebAssembly budget after the Phase 7 features** (packet
