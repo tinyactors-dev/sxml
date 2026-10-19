@@ -447,6 +447,13 @@ typedef struct sxml_xslt_stylesheet_configuration {
        error raised while evaluating a static expression, or the location
        of a limit reached; may be NULL. Borrowed for the call. */
     sxml_error_record *error_record;
+    /* The user option of XSLT 4.0, 19.10: when true, a construct
+       declared streamable that is not guaranteed-streamable is processed
+       without streaming instead of raising XTSE3430. False, the zero
+       value, raises XTSE3430. Constructs that are guaranteed-streamable
+       are streamed either way where sxml streams them (D219). Added by
+       D219. */
+    bool falls_back_to_unstreamed;
 } sxml_xslt_stylesheet_configuration;
 
 /*

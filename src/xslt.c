@@ -407,10 +407,11 @@ static sxml_status sxml_xslt_compile(const sxml_xslt_stylesheet_configuration *c
                                     .error_record = configuration->error_record},
             &compiled->unit);
     }
-    if (status == SXML_STATUS_OK) {
+    if (status == SXML_STATUS_OK && !configuration->falls_back_to_unstreamed) {
         /* XSLT 4.0, 19.10: XTSE3430 for a construct declared streamable
            that is not guaranteed-streamable (packet 7.6a), after the
-           static errors lowering finds. */
+           static errors lowering finds, unless the user chose processing
+           without streaming instead (D219). */
         status = sxml_xslt_check_streamability(&(sxml_xslt_streamability_request){
             .ast = compiled->ast,
             .allocator = processor->allocator,

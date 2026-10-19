@@ -113,6 +113,19 @@ static bool sxml_xslt_test_find_principal(const sxml_xslt_test_case *test_case,
     return false;
 }
 
+/* True when dependencies require the feature streaming-fallback. */
+static bool sxml_xslt_test_depends_on_fallback(sxml_qt4_dependency_view dependencies) {
+    for (size_t index = 0; index < dependencies.dependency_count; index += 1) {
+        const sxml_qt4_dependency *dependency = &dependencies.dependencies[index];
+        if (dependency->requires_satisfaction &&
+            sxml_byte_view_equals(dependency->dependency_type, SXML_TEXT("feature")) &&
+            sxml_byte_view_equals(dependency->value, SXML_TEXT("streaming-fallback"))) {
+            return true;
+        }
+    }
+    return false;
+}
+
 sxml_status sxml_xslt_test_make_plan(const sxml_xslt_test_case *test_case,
                                      sxml_qt4_problem *problem,
                                      sxml_xslt_test_plan *plan) {
@@ -127,7 +140,10 @@ sxml_status sxml_xslt_test_make_plan(const sxml_xslt_test_case *test_case,
         .has_global_context_item = false,
         .global_context_source_index = 0,
         .invocation_kind = test_case->invocation.invocation_kind,
-        .result_delivery = sxml_xslt_test_delivery_of(&test_case->output)};
+        .result_delivery = sxml_xslt_test_delivery_of(&test_case->output),
+        .falls_back_to_unstreamed =
+            sxml_xslt_test_depends_on_fallback(test_case->dependencies) ||
+            sxml_xslt_test_depends_on_fallback(test_case->test_set_dependencies)};
     if (!sxml_xslt_test_find_principal(test_case, &result)) {
         if (problem != NULL) {
             *problem = (sxml_qt4_problem){

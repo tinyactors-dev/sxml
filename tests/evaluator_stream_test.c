@@ -142,6 +142,8 @@ typedef struct fixture {
     sxml_processor *processor;
     sxml_output_buffer *output_buffer;
     sxml_error_record error_record;
+    /* The option of XSLT 4.0, 19.10 for the stylesheets run_main makes. */
+    bool falls_back_to_unstreamed;
 } fixture;
 
 static sxml_allocator fixture_allocator(fixture *test_fixture) {
@@ -207,7 +209,8 @@ static sxml_status run_main(fixture *test_fixture, sxml_byte_view stylesheet_tex
             .principal_module_text = stylesheet_text,
             .static_context = {.static_base_uri = TEXT("http://example.com/x/main.xsl")},
             .principal_module_source = SXML_XSLT_PRINCIPAL_MODULE_SOURCE_TEXT,
-            .error_record = &test_fixture->error_record},
+            .error_record = &test_fixture->error_record,
+            .falls_back_to_unstreamed = test_fixture->falls_back_to_unstreamed},
         &stylesheet);
     if (status == SXML_STATUS_OK) {
         sxml_dynamic_context_configuration dynamic_context;
@@ -393,6 +396,29 @@ static void test_malformed_document_is_an_error(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
 }
 
+/* A body that is not guaranteed-streamable is XTSE3430, or, with the
+   option of 19.10, processed without streaming. */
+static void test_fallback_option_processes_unstreamed(sxml_test_state *state) {
+    fixture test_fixture;
+    sxml_status status = fixture_create(
+        &test_fixture, (sxml_byte_view){.bytes = (const uint8_t *)books, .byte_count = sizeof(books) - 1});
+    static const char not_streamable[] =
+        STREAMED("", "yes", "<xsl:value-of select='count(//book), count(//t)'/>");
+    if (status == SXML_STATUS_OK) {
+        status = run_main(&test_fixture, TEXT(not_streamable));
+    }
+    SXML_TEST_EXPECT(state, status == SXML_STATUS_STATIC_ERROR);
+    SXML_TEST_EXPECT(state, sxml_byte_view_equals(test_fixture.error_record.code.local_name,
+                                                  TEXT("XTSE3430")));
+    test_fixture.falls_back_to_unstreamed = true;
+    status = run_main(&test_fixture, TEXT(not_streamable));
+    SXML_TEST_EXPECT(state, status == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, sxml_byte_view_equals(
+                                sxml_output_buffer_get_bytes(test_fixture.output_buffer),
+                                TEXT(DECLARATION "<out>4 4</out>")));
+    SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
+}
+
 /* --------------------------------------------------------- Bounded memory */
 
 /* Records of a generated document: about 80 bytes each (2.4 MB). */
@@ -484,6 +510,8 @@ static const sxml_test_case evaluator_stream_test_cases[] = {
      .function = test_streamed_results_are_unstreamed_results},
     {.name = "document_node_is_read_as_a_tree", .function = test_document_node_is_read_as_a_tree},
     {.name = "malformed_document_is_an_error", .function = test_malformed_document_is_an_error},
+    {.name = "fallback_option_processes_unstreamed",
+     .function = test_fallback_option_processes_unstreamed},
     {.name = "large_document_streams_in_bounded_memory",
      .function = test_large_document_streams_in_bounded_memory},
 };

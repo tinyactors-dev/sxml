@@ -88,6 +88,10 @@ typedef struct sxml_xslt_test_plan {
     size_t global_context_source_index;
     sxml_xslt_invocation_kind invocation_kind;
     sxml_xslt_result_delivery result_delivery;
+    /* The test case or its test set depends on the feature
+       streaming-fallback: the stylesheet is compiled with
+       falls_back_to_unstreamed (XSLT 4.0, 19.10; D219). */
+    bool falls_back_to_unstreamed;
 } sxml_xslt_test_plan;
 
 /*

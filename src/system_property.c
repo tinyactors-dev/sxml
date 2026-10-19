@@ -2,8 +2,8 @@
  * The system properties (src/system_property_internal.h, D163): one table
  * for fn:system-properties (F&O 4.0, 17.1.9) and the XSLT fn:system-property
  * (XSLT 4.0, 24.2.1). sxml's XPath and XQuery are schema-aware and read
- * typed data (D174), XSLT not yet; sxml has neither XInclude nor
- * streaming (D97, delayed by D162). Dynamic XSLT, the EXPath modules, DTD
+ * typed data (D174), XSLT not yet; sxml has no XInclude (D97, delayed by
+ * D162) and streams XSLT's streamable constructs (D219). Dynamic XSLT, the EXPath modules, DTD
  * validation and invisible XML are optional features (D189, D211, D215). XSLT has
  * backwards-compatible behaviour (packet 7.4).
  *
@@ -78,7 +78,8 @@ static const sxml_system_property sxml_system_property_table[] = {
     /* XSLT 1.0 behaviour (3.8.1; packet 7.4, D197). */
     SXML_BOOLEAN_PROPERTY("", "supports-backwards-compatibility", true),
     SXML_BOOLEAN_PROPERTY("", "supports-namespace-axis", true),
-    SXML_BOOLEAN_PROPERTY("", "supports-streaming", false),
+    /* Streaming (18, 19; packets 7.6a and 7.6b, D212, D219). */
+    SXML_BOOLEAN_PROPERTY("", "supports-streaming", true),
     SXML_BOOLEAN_PROPERTY("", "supports-dynamic-evaluation", true),
     SXML_BOOLEAN_PROPERTY("", "supports-higher-order-functions", true),
     /* F&O only (17.1.9). */

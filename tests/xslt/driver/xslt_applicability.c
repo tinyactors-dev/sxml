@@ -84,14 +84,13 @@ static const sxml_xslt_test_supported_dependency
         SXML_XSLT_TEST_SUPPORTED("feature", "disabling_output_escaping"),
         /* XSLT 1.0 behaviour (XSLT 4.0, 3.8.1; D197). */
         SXML_XSLT_TEST_SUPPORTED("feature", "backwards_compatibility"),
-        /* The streamability analysis of XSLT 4.0, 19 (packet 7.6a, D212):
-           a construct declared streamable that is not guaranteed-
-           streamable is XTSE3430; a guaranteed-streamable one runs
-           unstreamed until packet 7.6b, which its results cannot tell
-           apart (19.10). sxml has no option to fall back to unstreamed
-           processing instead of XTSE3430, so streaming-fallback is not
-           claimed. */
+        /* Streaming (XSLT 4.0, 18 and 19): the streamability analysis
+           (packet 7.6a, D212) and streamed evaluation (packet 7.6b,
+           D219); a test case that depends on streaming-fallback is run
+           with the option of 19.10 to process a construct that is not
+           guaranteed-streamable without streaming. */
         SXML_XSLT_TEST_SUPPORTED("feature", "streaming"),
+        SXML_XSLT_TEST_SUPPORTED("feature", "streaming-fallback"),
         SXML_XSLT_TEST_SUPPORTED("default_language_for_numbering", "en"),
         SXML_XSLT_TEST_SUPPORTED("languages_for_numbering", "en"),
         /* The alphabets and symbol sequences of src/format.c (packet

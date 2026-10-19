@@ -282,10 +282,10 @@ test_dependency_table_lists_what_sxml_provides(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, is_supported(TEXT("feature"), TEXT("serialization")));
     /* Schema-aware since D179. */
     SXML_TEST_EXPECT(state, is_supported(TEXT("feature"), TEXT("schema_aware")));
-    /* Streamability analysis since packet 7.6a; no fallback option. */
+    /* Streaming since packets 7.6a and 7.6b, with the fallback option. */
     SXML_TEST_EXPECT(state, is_supported(TEXT("feature"), TEXT("streaming")));
     SXML_TEST_EXPECT(state,
-                     !is_supported(TEXT("feature"), TEXT("streaming-fallback")));
+                     is_supported(TEXT("feature"), TEXT("streaming-fallback")));
     SXML_TEST_EXPECT(state, is_supported(TEXT("feature"), TEXT("XPath_3.1")));
     SXML_TEST_EXPECT(state,
                      is_supported(TEXT("feature"), TEXT("dynamic_evaluation")));

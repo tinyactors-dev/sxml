@@ -1314,6 +1314,7 @@ static sxml_status sxml_xslt_test_compile(sxml_xslt_test_context *context,
         .variable_bindings = context->static_parameters.bindings,
         .variable_binding_count = context->static_parameters.binding_count};
     configuration.error_record = &context->error_record;
+    configuration.falls_back_to_unstreamed = plan->falls_back_to_unstreamed;
     /* The environment's schema is the host's (xslt.h, D179). */
     configuration.static_context.in_scope_schemas = (sxml_schema_view){
         .schemas = context->schema == NULL ? NULL

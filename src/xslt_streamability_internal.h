@@ -28,15 +28,13 @@
  * - xsl:attribute-set with streamable="yes" (10.2.3);
  * - xsl:accumulator with streamable="yes" (18.2.9);
  * - xsl:merge-source with streamable="yes" (15.4 "Streamable Merging").
- * The first one that is not is the static error XTSE3430 (19.10). sxml
- * offers no option to process such a stylesheet unstreamed instead (the
- * user option of 19.10), nor to stream it with extensions.
+ * The first one that is not is the static error XTSE3430 (19.10), unless
+ * the stylesheet's configuration asks to process it without streaming
+ * instead (the user option of 19.10, falls_back_to_unstreamed, D219).
  *
- * What the analysis does not change: guaranteed-streamable constructs are
- * evaluated as every other construct, unstreamed, which gives the results
- * streamed evaluation would (19.10: a processor without the streaming
- * feature evaluates them so; supports-streaming stays false until packet
- * 7.6b streams them).
+ * Streamed evaluation (packet 7.6b, D219) reads the sweeps of single
+ * constructs (sxml_xslt_assess_sweep below) to decide what it streams;
+ * the verdicts here only raise XTSE3430.
  *
  * How it walks (no C recursion, D71): a machine with an explicit stack of
  * frames in allocator memory, one frame per construct being assessed, in
