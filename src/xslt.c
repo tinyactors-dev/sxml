@@ -37,6 +37,8 @@
  */
 #include "sxml/xslt.h"
 
+#include "xslt_transform_internal.h"
+
 #include "function_library_internal.h"
 #include "memory_internal.h"
 #include "function_library_parts_internal.h"
@@ -1064,43 +1066,40 @@ static sxml_status sxml_transformation_open_writer(sxml_transformation *transfor
         &transformation->writer);
 }
 
-/* Evaluates the unit and delivers its raw result. */
-static sxml_status sxml_transformation_run(const sxml_transformation *transformation,
-                                           sxml_sequence *principal_result) {
-    const sxml_xslt_transformation_request *request = transformation->request;
+/* The dynamic context and the extension of the evaluation of the unit
+   (they borrow from transformation). */
+static void sxml_transformation_describe(const sxml_transformation *transformation,
+                                         sxml_dynamic_context_configuration *context,
+                                         sxml_unit_evaluation_extension *extension) {
     const sxml_xslt_stylesheet *stylesheet = transformation->stylesheet;
-    sxml_dynamic_context_configuration context = request->dynamic_context;
-    context.has_context_value = transformation->has_context_value;
-    context.context_value =
+    *context = transformation->request->dynamic_context;
+    context->has_context_value = transformation->has_context_value;
+    context->context_value =
         transformation->has_context_value ? transformation->context_value : sxml_sequence_empty();
-    context.variable_bindings = (sxml_variable_binding_view){
+    context->variable_bindings = (sxml_variable_binding_view){
         .variable_bindings = transformation->bindings,
         .variable_binding_count = transformation->binding_count};
     if (transformation->available_documents != NULL) {
-        context.available_documents = (sxml_available_document_view){
+        context->available_documents = (sxml_available_document_view){
             .available_documents = transformation->available_documents,
             .available_document_count = transformation->available_document_count};
     }
-    const sxml_unit_evaluation_extension extension = {
+    *extension = (sxml_unit_evaluation_extension){
         .function_table = sxml_function_library_as_table(stylesheet->function_library),
         .document_preparation =
             sxml_xslt_prepares_documents(stylesheet->ast)
                 ? sxml_xslt_whitespace_stripping_as_document_preparation(&stylesheet->stripping)
                 : (sxml_document_preparation){.state = NULL, .operations = NULL},
-        .result_writer = transformation->writer};
-    sxml_sequence raw_result = sxml_sequence_empty();
-    sxml_status status = sxml_evaluate_unit(
-        &(sxml_unit_evaluation){.processor = stylesheet->processor,
-                                .unit = transformation->unit,
-                                .static_base_uri = no_text,
-                                .dynamic_context = &context,
-                                .error_record = request->error_record,
-                                .extension = &extension},
-        &raw_result);
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    status = sxml_xslt_result_writer_deliver_principal_result(
+        .result_writer = transformation->writer,
+        .discards_messages = false};
+}
+
+/* Delivers the raw result as the request asks (2.4.6). */
+static sxml_status sxml_transformation_deliver(const sxml_transformation *transformation,
+                                               sxml_sequence raw_result,
+                                               sxml_sequence *principal_result) {
+    const sxml_xslt_transformation_request *request = transformation->request;
+    return sxml_xslt_result_writer_deliver_principal_result(
         transformation->writer,
         &(sxml_xslt_principal_result_request){.value = raw_result,
                                               .output_definition = request->output_definition,
@@ -1108,47 +1107,204 @@ static sxml_status sxml_transformation_run(const sxml_transformation *transforma
                                               .output_stream = request->output_stream,
                                               .error_record = request->error_record},
         principal_result);
+}
+
+/* Evaluates the unit and delivers its raw result. */
+static sxml_status sxml_transformation_run(const sxml_transformation *transformation,
+                                           sxml_sequence *principal_result) {
+    sxml_dynamic_context_configuration context;
+    sxml_unit_evaluation_extension extension;
+    sxml_transformation_describe(transformation, &context, &extension);
+    sxml_sequence raw_result = sxml_sequence_empty();
+    sxml_status status = sxml_evaluate_unit(
+        &(sxml_unit_evaluation){.processor = transformation->stylesheet->processor,
+                                .unit = transformation->unit,
+                                .static_base_uri = no_text,
+                                .dynamic_context = &context,
+                                .error_record = transformation->request->error_record,
+                                .extension = &extension},
+        &raw_result);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    status = sxml_transformation_deliver(transformation, raw_result, principal_result);
     sxml_sequence_release(raw_result);
     return status;
+}
+
+/* Everything before the evaluation (2.4.2): the unit of the invocation,
+   the stripped documents and context, the bindings and the writer. */
+static sxml_status sxml_transformation_prime(sxml_transformation *transformation) {
+    sxml_status status = sxml_transformation_choose_unit(transformation);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_transformation_prime_documents(transformation);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_transformation_prime_context(transformation);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_transformation_bind_parameters(transformation);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_transformation_open_writer(transformation);
+    }
+    return status;
+}
+
+static bool sxml_transformation_start_is_valid(const sxml_xslt_stylesheet *stylesheet,
+                                               const sxml_xslt_transformation_request *request) {
+    return stylesheet != NULL && stylesheet->unit != NULL && request != NULL &&
+           sxml_dynamic_context_configuration_is_valid(&request->dynamic_context) &&
+           sxml_transformation_request_is_valid(request);
+}
+
+static sxml_transformation sxml_transformation_start(
+    const sxml_xslt_stylesheet *stylesheet, const sxml_xslt_transformation_request *request) {
+    return (sxml_transformation){.stylesheet = stylesheet,
+                                 .request = request,
+                                 .unit = NULL,
+                                 .is_unit_owned = false,
+                                 .context_value = sxml_sequence_empty(),
+                                 .has_context_value = false,
+                                 .bindings = NULL,
+                                 .binding_count = 0,
+                                 .invocation_value_count = 0,
+                                 .writer = NULL,
+                                 .available_documents = NULL,
+                                 .available_document_count = 0};
 }
 
 sxml_status sxml_xslt_stylesheet_transform(const sxml_xslt_stylesheet *stylesheet,
                                            const sxml_xslt_transformation_request *request,
                                            sxml_sequence *principal_result) {
-    if (stylesheet == NULL || stylesheet->unit == NULL || request == NULL ||
-        principal_result == NULL ||
-        !sxml_dynamic_context_configuration_is_valid(&request->dynamic_context) ||
-        !sxml_transformation_request_is_valid(request)) {
+    if (principal_result == NULL || !sxml_transformation_start_is_valid(stylesheet, request)) {
         return SXML_STATUS_INVALID_ARGUMENT;
     }
-    sxml_transformation transformation = {.stylesheet = stylesheet,
-                                          .request = request,
-                                          .unit = NULL,
-                                          .is_unit_owned = false,
-                                          .context_value = sxml_sequence_empty(),
-                                          .has_context_value = false,
-                                          .bindings = NULL,
-                                          .binding_count = 0,
-                                          .invocation_value_count = 0,
-                                          .writer = NULL,
-                                          .available_documents = NULL,
-                                          .available_document_count = 0};
-    sxml_status status = sxml_transformation_choose_unit(&transformation);
-    if (status == SXML_STATUS_OK) {
-        status = sxml_transformation_prime_documents(&transformation);
-    }
-    if (status == SXML_STATUS_OK) {
-        status = sxml_transformation_prime_context(&transformation);
-    }
-    if (status == SXML_STATUS_OK) {
-        status = sxml_transformation_bind_parameters(&transformation);
-    }
-    if (status == SXML_STATUS_OK) {
-        status = sxml_transformation_open_writer(&transformation);
-    }
+    sxml_transformation transformation = sxml_transformation_start(stylesheet, request);
+    sxml_status status = sxml_transformation_prime(&transformation);
     if (status == SXML_STATUS_OK) {
         status = sxml_transformation_run(&transformation, principal_result);
     }
     sxml_transformation_release(&transformation);
     return status;
+}
+
+/* ----------------------------------------- Transformation on the machine */
+
+struct sxml_xslt_machine_transformation {
+    sxml_transformation transformation;
+    sxml_unit_evaluation_extension extension;
+    /* One slot per global of the unit; values borrowed from the
+       bindings. */
+    sxml_evaluator_slot *global_slots;
+    size_t global_slot_count;
+    sxml_evaluation_request evaluation;
+};
+
+sxml_status sxml_xslt_machine_transformation_create(
+    const sxml_xslt_machine_transformation_request *request,
+    sxml_xslt_machine_transformation **made) {
+    if (request == NULL || made == NULL ||
+        !sxml_transformation_start_is_valid(request->stylesheet, request->transformation)) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    sxml_processor *processor = request->stylesheet->processor;
+    void *memory = NULL;
+    sxml_status status = sxml_allocator_allocate(
+        processor->allocator,
+        (sxml_allocation_request){.byte_count = sizeof(sxml_xslt_machine_transformation),
+                                  .alignment = alignof(sxml_xslt_machine_transformation)},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_xslt_machine_transformation *running = memory;
+    memset(running, 0, sizeof(*running));
+    running->transformation =
+        sxml_transformation_start(request->stylesheet, request->transformation);
+    status = sxml_transformation_prime(&running->transformation);
+    sxml_dynamic_context_configuration context;
+    memset(&context, 0, sizeof(context));
+    if (status == SXML_STATUS_OK) {
+        sxml_transformation_describe(&running->transformation, &context, &running->extension);
+        running->extension.discards_messages = request->discards_messages;
+        const sxml_ir_unit *unit = running->transformation.unit;
+        running->global_slot_count =
+            unit->global_variable_count > 1 ? unit->global_variable_count - 1U : 0;
+    }
+    if (status == SXML_STATUS_OK && running->global_slot_count > 0) {
+        void *slots = NULL;
+        status = sxml_allocator_allocate_array(
+            processor->allocator,
+            (sxml_array_allocation_request){.element_count = running->global_slot_count,
+                                            .element_size = sizeof(sxml_evaluator_slot),
+                                            .element_alignment = alignof(sxml_evaluator_slot)},
+            &slots);
+        running->global_slots = slots;
+        if (status == SXML_STATUS_OK) {
+            sxml_global_binding_fill(&(sxml_global_binding){.unit = running->transformation.unit,
+                                                            .bindings = &context.variable_bindings,
+                                                            .slots = running->global_slots});
+        }
+    }
+    if (status != SXML_STATUS_OK) {
+        sxml_xslt_machine_transformation_destroy(running);
+        return status;
+    }
+    running->evaluation = (sxml_evaluation_request){
+        .unit = running->transformation.unit,
+        .has_context_value = context.has_context_value,
+        .context_value = context.context_value,
+        .global_values = {.slots = running->global_slots,
+                          .slot_count = running->global_slot_count},
+        .static_base_uri = no_text,
+        .error_record = NULL,
+        .extension = &running->extension};
+    *made = running;
+    return SXML_STATUS_OK;
+}
+
+const sxml_evaluation_request *sxml_xslt_machine_transformation_get_evaluation(
+    const sxml_xslt_machine_transformation *running) {
+    return &running->evaluation;
+}
+
+const sxml_unit_evaluation_extension *sxml_xslt_machine_transformation_get_extension(
+    const sxml_xslt_machine_transformation *running) {
+    return &running->extension;
+}
+
+sxml_status sxml_xslt_machine_transformation_deliver(sxml_xslt_machine_transformation *running,
+                                                     sxml_sequence raw_result,
+                                                     sxml_sequence *principal_result) {
+    return sxml_transformation_deliver(&running->transformation, raw_result, principal_result);
+}
+
+void sxml_xslt_machine_transformation_destroy(sxml_xslt_machine_transformation *running) {
+    if (running == NULL) {
+        return;
+    }
+    sxml_processor *processor = running->transformation.stylesheet->processor;
+    sxml_transformation_release(&running->transformation);
+    sxml_allocator_release(processor->allocator, running->global_slots);
+    sxml_allocator_release(processor->allocator, running);
+}
+
+bool sxml_xslt_stylesheet_holds_text(const sxml_xslt_stylesheet *stylesheet, sxml_byte_view text) {
+    if (stylesheet == NULL || text.bytes == NULL) {
+        return false;
+    }
+    if (stylesheet->unit != NULL && text.bytes == stylesheet->unit->source_name.bytes) {
+        return true;
+    }
+    const sxml_xslt_ast *ast = stylesheet->ast;
+    for (uint32_t module_index = 1; ast != NULL && module_index < ast->module_count;
+         module_index += 1) {
+        if (text.bytes ==
+            sxml_xslt_ast_get_module(ast, (sxml_xslt_ast_module_index){.value = module_index})
+                ->module_uri.bytes) {
+            return true;
+        }
+    }
+    return false;
 }

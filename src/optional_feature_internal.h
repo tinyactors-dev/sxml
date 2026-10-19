@@ -67,6 +67,10 @@ typedef enum sxml_optional_feature_kind {
        7.10a, D201); operations sxml_html_feature_operations
        (src/html_internal.h). */
     SXML_OPTIONAL_FEATURE_KIND_HTML,
+    /* sxml_xslt_transform_feature: fn:transform as library_functions
+       (src/xslt_transform_function.c, packet 7.11, D203); operations is
+       that view. */
+    SXML_OPTIONAL_FEATURE_KIND_XSLT_TRANSFORM,
     SXML_OPTIONAL_FEATURE_KIND_COUNT,
 } sxml_optional_feature_kind;
 
@@ -210,3 +214,5 @@ extern const sxml_optional_feature_definition sxml_expath_binary_feature_definit
 
 /* The HTML parser feature (src/html.c), for sxml_all_optional_features. */
 extern const sxml_optional_feature_definition sxml_html_feature_definition;
+/* src/xslt_transform_function.c. */
+extern const sxml_optional_feature_definition sxml_xslt_transform_feature_definition;

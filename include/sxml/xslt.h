@@ -684,3 +684,17 @@ SXML_NODISCARD SXML_EXPORT sxml_status sxml_xslt_stylesheet_transform(
     const sxml_xslt_stylesheet *stylesheet,
     const sxml_xslt_transformation_request *request,
     sxml_sequence *principal_result);
+
+/* ------------------------------------------------------------ fn:transform */
+
+/*
+ * The optional feature (include/sxml/processor.h, "Optional features")
+ * that adds fn:transform (F&O 4.0, 18.3) to XPath, XQuery and XSLT: a
+ * stylesheet compiled at run time, as sxml_xslt_stylesheet_initialize
+ * compiles one, and run as a unit evaluation of the calling evaluation,
+ * with fn:system-properties()?supports-dynamic-xslt true. Without it the
+ * function is absent (XPST0017), and a program that names neither it nor
+ * the rest of this header links no XSLT. sxml_all_optional_features()
+ * includes it. Its name is "xslt-transform" (packet 7.11, D203).
+ */
+SXML_EXPORT sxml_optional_feature sxml_xslt_transform_feature(void);

@@ -740,6 +740,32 @@ const sxml_ir_unit *sxml_dynamic_context_get_running_unit(
     return dynamic_context->unit;
 }
 
+const struct sxml_unit_evaluation_extension *sxml_dynamic_context_get_unit_extension(
+    const sxml_dynamic_context *dynamic_context) {
+    if (dynamic_context == NULL) {
+        return NULL;
+    }
+    const sxml_ir_unit *unit = sxml_dynamic_context_get_running_unit(dynamic_context);
+    for (size_t table_index = 0; unit != NULL && table_index < dynamic_context->global_table_count;
+         table_index += 1) {
+        if (dynamic_context->global_tables[table_index].unit == unit) {
+            return dynamic_context->global_tables[table_index].extension;
+        }
+    }
+    return NULL;
+}
+
+void sxml_dynamic_context_drop_unit_extension(
+    sxml_dynamic_context *dynamic_context,
+    const struct sxml_unit_evaluation_extension *extension) {
+    for (size_t table_index = 0; extension != NULL && table_index < dynamic_context->global_table_count;
+         table_index += 1) {
+        if (dynamic_context->global_tables[table_index].extension == extension) {
+            dynamic_context->global_tables[table_index].extension = NULL;
+        }
+    }
+}
+
 sxml_status sxml_dynamic_context_read_implicit_timezone(
     sxml_dynamic_context *dynamic_context, int16_t *offset_minutes) {
     if (!dynamic_context->has_clock_reading &&
@@ -1557,10 +1583,15 @@ static sxml_status sxml_machine_evaluate_unit(sxml_dynamic_context *context,
     if (context->evaluation_depth >= context->maximum_evaluation_depth) {
         return SXML_STATUS_LIMIT_EXCEEDED;
     }
+    /* Read before the table is added: the asking code's extension. */
+    const struct sxml_unit_evaluation_extension *extension =
+        request->extension != NULL ? request->extension
+                                   : sxml_dynamic_context_get_unit_extension(context);
     sxml_machine_top(context)->phase = 1;
     size_t table_index = 0;
     sxml_status status = sxml_add_global_table(context, request, &table_index);
     if (status == SXML_STATUS_OK) {
+        context->global_tables[table_index].extension = extension;
         status = sxml_start_main_function(context, request, table_index);
     }
     return status;
@@ -5345,7 +5376,8 @@ static sxml_status sxml_add_global_table(sxml_dynamic_context *context,
     sxml_ir_unit_retain(unit);
     *table_index = context->global_table_count;
     sxml_evaluator_global_table *table = &context->global_tables[context->global_table_count];
-    *table = (sxml_evaluator_global_table){.unit = unit, .slots = memory, .slot_count = global_count};
+    *table = (sxml_evaluator_global_table){
+        .unit = unit, .slots = memory, .slot_count = global_count, .extension = NULL};
     context->global_table_count += 1;
     for (size_t slot_index = 0; slot_index < global_count; slot_index += 1) {
         table->slots[slot_index] = (sxml_evaluator_slot){

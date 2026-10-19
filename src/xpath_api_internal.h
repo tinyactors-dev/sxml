@@ -66,7 +66,22 @@ typedef struct sxml_unit_evaluation_extension {
     sxml_document_preparation document_preparation;
     /* The transformation's result writer (src/xslt_output_internal.h). */
     struct sxml_xslt_result_writer *result_writer;
+    /* xsl:message hands nothing to the trace sink (fn:transform's
+       enable-messages false, F&O 4.0, 18.3). */
+    bool discards_messages;
 } sxml_unit_evaluation_extension;
+
+/* The global slots of one evaluation of unit: global n gets the binding
+   of its name in bindings, or stays absent (XPDY0002 when read; D63:
+   global n is variable declaration n). slots has unit's global count
+   minus one elements; values are borrowed from bindings. */
+typedef struct sxml_global_binding {
+    const sxml_ir_unit *unit;
+    const sxml_variable_binding_view *bindings;
+    sxml_evaluator_slot *slots;
+} sxml_global_binding;
+
+void sxml_global_binding_fill(const sxml_global_binding *binding);
 
 /*
  * Evaluates evaluation->unit as sxml_xpath_expression_evaluate does: each

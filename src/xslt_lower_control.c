@@ -34,6 +34,7 @@
 #include "sxml/types.h"
 #include "sxml/xdm.h"
 #include "xml_internal.h"
+#include "xpath_api_internal.h"
 
 #include <stdalign.h>
 #include <stdbool.h>
@@ -2695,7 +2696,10 @@ static sxml_status call_xslt_message(const sxml_function_call *call, sxml_sequen
     *result = sxml_sequence_empty();
     const sxml_processor_document_loader *loader =
         sxml_processor_document_loader_from_dynamic_context(call->dynamic_context);
-    if (loader == NULL) {
+    /* fn:transform's enable-messages false (F&O 4.0, 18.3). */
+    const sxml_unit_evaluation_extension *extension =
+        sxml_dynamic_context_get_unit_extension(call->dynamic_context);
+    if (loader == NULL || (extension != NULL && extension->discards_messages)) {
         return SXML_STATUS_OK;
     }
     sxml_optional_item terminating = {.has_item = false};

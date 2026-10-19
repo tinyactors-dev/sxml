@@ -472,16 +472,7 @@ bool sxml_dynamic_context_configuration_is_valid(
     return true;
 }
 
-/* The global slots of one evaluation: global n gets the binding of its
-   name, or stays absent (XPDY0002 when read; D63: global n is variable
-   declaration n). */
-typedef struct sxml_global_binding {
-    const sxml_ir_unit *unit;
-    const sxml_variable_binding_view *bindings;
-    sxml_evaluator_slot *slots;
-} sxml_global_binding;
-
-static void sxml_global_binding_fill(const sxml_global_binding *binding) {
+void sxml_global_binding_fill(const sxml_global_binding *binding) {
     const uint32_t global_count = binding->unit->global_variable_count;
     for (uint32_t global_number = 1; global_number < global_count; global_number += 1) {
         const sxml_ir_global_variable *global = sxml_ir_unit_get_global_variable(

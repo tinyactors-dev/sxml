@@ -112,6 +112,12 @@ typedef struct sxml_evaluator_global_table {
        without globals. */
     sxml_evaluator_slot *slots;
     size_t slot_count;
+    /* What the language of the unit evaluation adds to the code of the
+       unit (src/xpath_api_internal.h; fn:transform's transformation, packet
+       7.11); NULL for none. Borrowed from the native body that asked for
+       the unit evaluation, which drops it before it ends
+       (sxml_dynamic_context_drop_unit_extension). */
+    const struct sxml_unit_evaluation_extension *extension;
 } sxml_evaluator_global_table;
 
 /* The slots of every active frame, innermost last. */
@@ -409,6 +415,25 @@ const sxml_ir_unit *sxml_dynamic_context_get_running_unit(
     const sxml_dynamic_context *dynamic_context);
 
 /*
+ * The extension of the unit evaluation whose code is running (glossary
+ * `unit_evaluation`): the extension of the global table of
+ * sxml_dynamic_context_get_running_unit's unit, which a unit evaluation
+ * a native step asked for sets (sxml_evaluation_request.extension; a
+ * unit evaluation that gives none inherits the extension of the code that
+ * asked for it). NULL when the code runs in no such unit evaluation, or
+ * outside an evaluation: the evaluation's own extension is then the one
+ * its document loader carries (src/xpath_api_internal.h). Borrowed.
+ */
+const struct sxml_unit_evaluation_extension *sxml_dynamic_context_get_unit_extension(
+    const sxml_dynamic_context *dynamic_context);
+
+/* Clears extension from every global table that holds it: the native
+   body that lent it calls this before releasing it. */
+void sxml_dynamic_context_drop_unit_extension(
+    sxml_dynamic_context *dynamic_context,
+    const struct sxml_unit_evaluation_extension *extension);
+
+/*
  * Charges step_count evaluation steps to the evaluation running (D89):
  * leaf work that reads many items without running a task (a general
  * comparison of two long sequences) calls it before the work. Returns
@@ -480,6 +505,12 @@ typedef struct sxml_evaluation_request {
     sxml_byte_view static_base_uri;
     /* Receives the evaluation's error; may be NULL. */
     sxml_error_record *error_record;
+    /* A unit evaluation a native step asks for (EVALUATE_UNIT): what its
+       language adds to the unit's code (src/xpath_api_internal.h), or NULL
+       to inherit the asking code's. Borrowed until the native body is
+       released, which drops it first. sxml_evaluator_evaluate ignores
+       it. */
+    const struct sxml_unit_evaluation_extension *extension;
 } sxml_evaluation_request;
 
 /*

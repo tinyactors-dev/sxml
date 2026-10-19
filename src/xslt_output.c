@@ -31,6 +31,7 @@
 #include "xslt_lower_internal.h"
 #include "xslt_package_internal.h"
 #include "xml_internal.h"
+#include "xpath_api_internal.h"
 
 #include <stdalign.h>
 #include <stdbool.h>
@@ -2437,6 +2438,13 @@ const sxml_xslt_stylesheet_outputs *sxml_xslt_result_writer_get_outputs(
 }
 
 sxml_xslt_result_writer *sxml_xslt_result_writer_from_call(const sxml_function_call *call) {
+    /* A transformation fn:transform runs on the machine has its writer in
+       its unit evaluation's extension (packet 7.11). */
+    const sxml_unit_evaluation_extension *extension =
+        sxml_dynamic_context_get_unit_extension(call->dynamic_context);
+    if (extension != NULL) {
+        return extension->result_writer;
+    }
     const sxml_evaluation_environment *environment =
         sxml_processor_get_evaluation_environment(call->dynamic_context);
     return environment == NULL ? NULL : environment->result_writer;
