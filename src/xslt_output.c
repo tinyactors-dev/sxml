@@ -2500,12 +2500,14 @@ sxml_status sxml_xslt_result_writer_deliver_principal_result(
             writer->processor->item_heap,
             &(delivery_request){.result_delivery = request->result_delivery,
                                 .output_stream = request->output_stream,
+                                /* 26.1: the 1.0 preference for xml applies
+                                   to an implicit result only; this one
+                                   comes from xsl:result-document (D206). */
                                 .result = {.value = writer->principal_raw_result,
                                            .output_definition =
                                                &writer->principal_document.definition,
                                            .result_uri = writer->base_output_uri,
-                                           .prefers_xml_for_xhtml =
-                                               writer->prefers_xml_for_xhtml,
+                                           .prefers_xml_for_xhtml = false,
                                            .error_record = request->error_record}},
             principal_result);
     }

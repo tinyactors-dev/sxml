@@ -723,6 +723,11 @@ typedef struct value_template_locals {
        (5.6.1): each enclosed expression gives its first atomized item.
        Not for text value templates, which XSLT 1.0 did not have. */
     bool takes_first_items;
+    /* A text value template of such an element: static_context points at
+       context_without_compatibility, the element's context with XPath
+       1.0 compatibility mode off (3.8.1; D206). */
+    bool is_text_template;
+    sxml_xpath_static_context context_without_compatibility;
 } value_template_locals;
 
 /* Appends part_atom to the template's string with "||". */
@@ -780,6 +785,15 @@ static sxml_status continue_value_template(sxml_xpath_lowering_machine *machine,
         frame->step = 1;
         if (ast == NULL || locals->static_context == NULL) {
             return SXML_STATUS_INVALID_ARGUMENT;
+        }
+        if (locals->is_text_template && locals->static_context->has_xpath_1_compatibility_mode) {
+            /* XSLT 4.0, 3.8.1: the expressions of a text value template
+               are evaluated with XPath 1.0 compatibility mode false, even
+               in an element with XSLT 1.0 behaviour. The frame's locals
+               stay in place until the frame is popped. */
+            locals->context_without_compatibility = *locals->static_context;
+            locals->context_without_compatibility.has_xpath_1_compatibility_mode = false;
+            locals->static_context = &locals->context_without_compatibility;
         }
         const sxml_ast_node_index body = sxml_ast_find_child(
             ast, (sxml_ast_child_query){.parent = ast->root, .field = SXML_AST_FIELD_BODY});
@@ -863,7 +877,8 @@ static sxml_status push_value_template(sxml_xpath_lowering_machine *machine,
         .ast = call->ast,
         .static_context = call->static_context,
         .takes_first_items = !call->is_text_template && call->static_context != NULL &&
-                             call->static_context->has_xpath_1_compatibility_mode};
+                             call->static_context->has_xpath_1_compatibility_mode,
+        .is_text_template = call->is_text_template};
     sxml_xpath_lowering_frame *frame = NULL;
     return sxml_xpath_lowering_push_procedure(
         machine,
@@ -939,10 +954,8 @@ static sxml_status continue_text_template(sxml_xpath_lowering_machine *machine,
         const sxml_xslt_ast_expression_index expression =
             node_of(lowering, locals->head.node)->content.payload.expression;
         /* 5.6.1: a text value template keeps every item, even with XSLT
-           1.0 behaviour. 3.8.1 also asks for its expressions without
-           XPath 1.0 compatibility mode; they are lowered in the element's
-           static context, which has it (D197: a 1.0 element with
-           expand-text="yes" is the only case). */
+           1.0 behaviour; 3.8.1: its expressions are lowered without XPath
+           1.0 compatibility mode (continue_value_template, D206). */
         return push_value_template(
             machine,
             &(value_template_push){

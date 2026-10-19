@@ -62,6 +62,8 @@ static const sxml_byte_view sxml_well_known_namespace_uris
             SXML_BYTE_VIEW_INITIALIZER("http://expath.org/ns/binary"),
         [SXML_NAMESPACE_EXPATH_FILE] =
             SXML_BYTE_VIEW_INITIALIZER("http://expath.org/ns/file"),
+        [SXML_NAMESPACE_EXSLT_COMMON] =
+            SXML_BYTE_VIEW_INITIALIZER("http://exslt.org/common"),
 };
 
 /* --------------------------------------------------------------- Tables */

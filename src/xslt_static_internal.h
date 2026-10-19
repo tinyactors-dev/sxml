@@ -39,16 +39,17 @@
  */
 
 /* What the XSLT functions of static expressions know about the
-   stylesheet reader: whether an XSLT element is one sxml implements
-   (fn:element-available, XSLT 4.0, 24.3.2). */
+   stylesheet reader: whether an XSLT element or extension instruction is
+   one sxml implements (fn:element-available, XSLT 4.0, 24.3.2). */
 typedef struct sxml_xslt_element_query {
+    sxml_namespace_uri_identifier namespace_uri;
     sxml_byte_view local_name;
 } sxml_xslt_element_query;
 
 /*
- * True when local_name names an element of the XSLT namespace that sxml
- * reads and implements (not xsl:evaluate, D97). Defined in src/xslt_read.c
- * over its element table.
+ * True when the query names an element of the XSLT namespace that sxml
+ * reads and implements, or the extension instruction exsl:document (D206).
+ * Defined in src/xslt_read.c over its element table.
  */
 bool sxml_xslt_is_element_available(sxml_xslt_element_query query);
 

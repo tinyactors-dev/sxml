@@ -336,6 +336,45 @@ static const behaviour_case behaviour_cases[] = {
      VERSION_1("", "<xsl:value-of select=\"system-property('xsl:supports-backwards-"
                    "compatibility')\"/>"),
      SOURCE, "<out>yes</out>"},
+    /* 3.8.1: a text value template's expressions are evaluated without
+       XPath 1.0 compatibility mode (D206): the product is an xs:integer
+       there, an xs:double for xsl:value-of. */
+    {"text-value-template",
+     VERSION_1("", "<t xsl:expand-text='yes'>{1000000 * 1000000}</t>"
+                   "<xsl:value-of select='1000000 * 1000000'/>"),
+     SOURCE, "<out><t>1000000000000</t>1.0E12</out>"},
+    /* EXSLT Common (D206): exsl:node-set returns a temporary tree as it
+       is, function-available knows it, exsl:object-type names the XPath
+       1.0 types. */
+    {"exsl-node-set",
+     VERSION_1("<xsl:variable name='t'><i>a</i><i>b</i></xsl:variable>",
+               "<xsl:value-of select=\"count(exsl:node-set($t)/i)\" "
+               "xmlns:exsl='http://exslt.org/common'/>"),
+     SOURCE, "<out>2</out>"},
+    {"exsl-function-available",
+     VERSION_1("", "<xsl:value-of select=\"function-available('exsl:node-set')\" "
+                   "xmlns:exsl='http://exslt.org/common'/>"),
+     SOURCE, "<out>true</out>"},
+    {"exsl-object-type",
+     VERSION_1("", "<xsl:value-of xmlns:exsl='http://exslt.org/common' select=\""
+                   "concat(exsl:object-type('a'), ' ', exsl:object-type(1), ' ', "
+                   "exsl:object-type(true()), ' ', exsl:object-type(//v), ' ', "
+                   "exsl:object-type(/doc/none))\"/>"),
+     SOURCE, "<out>string number boolean node-set node-set</out>"},
+    /* exsl:document is xsl:result-document in an extension namespace,
+       and a literal result element outside one (D206). */
+    {"exsl-document-available",
+     VERSION_1("", "<xsl:value-of select=\"element-available('exsl:document')\" "
+                   "xmlns:exsl='http://exslt.org/common'/>"),
+     SOURCE, "<out>true</out>"},
+    {"exsl-document-principal",
+     "<xsl:stylesheet version='1.0' " XSL_NAMESPACE " xmlns:exsl='http://exslt.org/common' "
+     "extension-element-prefixes='exsl'><xsl:template name='main'>"
+     "<exsl:document method='text'><i>x</i></exsl:document></xsl:template></xsl:stylesheet>",
+     SOURCE, "x"},
+    {"exsl-document-literal",
+     VERSION_1("", "<e:document xmlns:e='http://exslt.org/common'/>"), SOURCE,
+     "<out><e:document xmlns:e=\"http://exslt.org/common\"/></out>"},
 };
 
 static void test_xslt_1_behaviour(sxml_test_state *state) {

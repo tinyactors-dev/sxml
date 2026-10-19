@@ -441,7 +441,7 @@ static sxml_status call_function_available(const sxml_function_call *call, sxml_
 }
 
 /* fn:element-available($name) (XSLT 4.0, 24.3.2): XSLT elements sxml
-   implements; sxml knows no extension instructions. */
+   implements, and exsl:document (D206). */
 static sxml_status call_element_available(const sxml_function_call *call, sxml_sequence *result) {
     sxml_name_identifier name = {.index = 0};
     sxml_status status =
@@ -458,9 +458,9 @@ static sxml_status call_element_available(const sxml_function_call *call, sxml_s
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    const bool is_available =
-        parts.namespace_uri.index == SXML_NAMESPACE_XSLT &&
-        sxml_xslt_is_element_available((sxml_xslt_element_query){.local_name = parts.local_name});
+    const bool is_available = sxml_xslt_is_element_available(
+        (sxml_xslt_element_query){.namespace_uri = parts.namespace_uri,
+                                  .local_name = parts.local_name});
     *result = sxml_function_library_make_boolean((sxml_boolean_result){.is_true = is_available});
     return SXML_STATUS_OK;
 }

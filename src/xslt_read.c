@@ -2042,11 +2042,24 @@ static const element_rule *find_element_rule(sxml_byte_view local_name) {
     return NULL;
 }
 
+/* EXSLT Common's exsl:document (D206): an extension instruction sxml
+   reads as xsl:result-document, whose attributes it shares (XSLT 4.0,
+   26.2), when its namespace is an extension namespace (24.2). */
+static bool is_exslt_document(sxml_namespace_uri_identifier namespace_uri,
+                              sxml_byte_view local_name) {
+    return namespace_uri.index == SXML_NAMESPACE_EXSLT_COMMON &&
+           sxml_byte_view_equals(local_name, SXML_BYTE_VIEW_FROM_LITERAL("document"));
+}
+
 bool sxml_xslt_is_element_available(sxml_xslt_element_query query) {
+    if (is_exslt_document(query.namespace_uri, query.local_name)) {
+        return true;
+    }
     /* xsl:note is no element of the AST but is implemented: it is
        ignored, as 3.11.2 says. */
-    return find_element_rule(query.local_name) != NULL ||
-           sxml_byte_view_equals(query.local_name, SXML_BYTE_VIEW_FROM_LITERAL("note"));
+    return query.namespace_uri.index == SXML_NAMESPACE_XSLT &&
+           (find_element_rule(query.local_name) != NULL ||
+            sxml_byte_view_equals(query.local_name, SXML_BYTE_VIEW_FROM_LITERAL("note")));
 }
 
 static const attribute_rule *find_attribute_rule(const element_rule *rule,
@@ -5748,13 +5761,22 @@ static sxml_status read_element(stylesheet_reader *reader, element_input input) 
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    const bool is_xslt = parts.namespace_uri.index == SXML_NAMESPACE_XSLT;
+    /* exsl:document in an extension namespace is read as
+       xsl:result-document (D206). */
+    const bool is_result_document_alias =
+        is_exslt_document(parts.namespace_uri, parts.local_name) &&
+        is_extension_namespace(reader, parent.static_context, parts.namespace_uri);
+    const bool is_xslt =
+        parts.namespace_uri.index == SXML_NAMESPACE_XSLT || is_result_document_alias;
     const element_facts facts = {
         .element_name = description->node_name,
         .namespace_uri = parts.namespace_uri,
         .local_name = parts.local_name,
         .is_xslt = is_xslt,
-        .rule = is_xslt ? find_element_rule(parts.local_name) : NULL,
+        .rule = is_xslt ? find_element_rule(is_result_document_alias
+                                                ? SXML_BYTE_VIEW_FROM_LITERAL("result-document")
+                                                : parts.local_name)
+                        : NULL,
         .source = {.tree = parent.tree,
                    .element = input.element,
                    .attribute_count = description->attribute_count},

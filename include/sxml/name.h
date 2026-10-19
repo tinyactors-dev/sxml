@@ -98,8 +98,12 @@ typedef enum sxml_well_known_namespace {
     /* http://expath.org/ns/file, "file": the EXPath File functions and
        their errors (EXPath File 4.0, section 1.7; D200). */
     SXML_NAMESPACE_EXPATH_FILE = 14,
+    /* http://exslt.org/common, "exsl": the EXSLT common functions
+       exsl:node-set and exsl:object-type, which XSLT 1.0 stylesheets
+       call (D206). */
+    SXML_NAMESPACE_EXSLT_COMMON = 15,
     /* One more than the largest well-known namespace. */
-    SXML_NAMESPACE_WELL_KNOWN_COUNT = 15,
+    SXML_NAMESPACE_WELL_KNOWN_COUNT = 16,
 } sxml_well_known_namespace;
 
 /*
