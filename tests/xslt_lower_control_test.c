@@ -37,7 +37,7 @@ static const char source_document[] =
 typedef struct transform_outcome {
     sxml_status status;
     sxml_error_record error_record;
-    char text[4096];
+    char text[32768];
 } transform_outcome;
 
 /* Writes value by the adaptive method into outcome->text. */
@@ -507,7 +507,36 @@ static void test_global_variables(sxml_test_state *state) {
                                    .builds_result_document = false});
 }
 
+/* The IR text of streamed constructs (src/ir.c; D223, D228): a fold, a
+   STREAM's focus applied to, a grounding stream. */
+static void test_streamed_ir_is_written(sxml_test_state *state) {
+    static transform_outcome outcome;
+    run_transform(
+        (transform_request){
+            .stylesheet =
+                "<xsl:stylesheet version='3.0' " XSL_NAMESPACE ">"
+                "<xsl:mode streamable='yes'/>"
+                "<xsl:template match='item'><xsl:copy-of select='.'/></xsl:template>"
+                "<xsl:template name='xsl:initial-template'>"
+                "<xsl:source-document streamable='yes' href='in.xml'>"
+                "<xsl:value-of select='sum(doc/item)'/></xsl:source-document>"
+                "<xsl:source-document streamable='yes' href='in.xml'>"
+                "<xsl:apply-templates select='doc/item'/></xsl:source-document>"
+                "</xsl:template></xsl:stylesheet>",
+            .builds_result_document = false,
+            .writes_ir = true},
+        &outcome);
+    SXML_TEST_EXPECT(state, outcome.status == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, strstr(outcome.text, " fold $") != NULL);
+    SXML_TEST_EXPECT(state, strstr(outcome.text, "(stream $1 self ") != NULL);
+    SXML_TEST_EXPECT(state, strstr(outcome.text, "(apply-templates (focus $") != NULL);
+    if (outcome.status != SXML_STATUS_OK || strstr(outcome.text, " fold $") == NULL) {
+        printf("%s\n", outcome.text);
+    }
+}
+
 static const sxml_test_case xslt_lower_control_test_cases[] = {
+    {.name = "streamed_ir_is_written", .function = test_streamed_ir_is_written},
     {.name = "conditionals", .function = test_conditionals},
     {.name = "for_each_and_variables", .function = test_for_each_and_variables},
     {.name = "iterate", .function = test_iterate},

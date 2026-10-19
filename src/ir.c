@@ -2693,13 +2693,17 @@ static sxml_status print_expression(text_writer *writer, print_stack *stack,
         return SXML_STATUS_OK;
     }
     case SXML_IR_EXPRESSION_KIND_STREAM: {
-        /* "(stream ORIGIN document FOCUS BODY)" or "(stream ORIGIN AXIS
-           TEST FOCUS [counter $n] [shallow] [PREDICATE] BODY)" (D219). */
+        /* "(stream ORIGIN document FOCUS BODY)", "(stream ORIGIN self
+           FOCUS BODY)" (a grounding stream, D228) or "(stream ORIGIN AXIS
+           TEST FOCUS [counter $n] [fold $f] [shallow] [PREDICATE] BODY)"
+           (D219, D223). */
         const sxml_ir_stream *stream = &expression->stream;
         write_text(writer, " ");
         write_atom(writer, stream->origin);
         if ((stream->flags & (uint32_t)SXML_IR_STREAM_OPENS_DOCUMENT) != 0) {
             write_text(writer, " document");
+        } else if (stream->axis == SXML_AXIS_SELF) {
+            write_text(writer, " self");
         } else {
             write_text(writer, " ");
             write_text(writer, axis_name(stream->axis));
@@ -2711,6 +2715,10 @@ static sxml_status print_expression(text_writer *writer, print_stack *stack,
         if (stream->position_counter.value != 0) {
             write_text(writer, " counter ");
             write_slot(writer, stream->position_counter);
+        }
+        if (stream->fold.value != 0) {
+            write_text(writer, " fold ");
+            write_slot(writer, stream->fold);
         }
         if ((stream->flags & (uint32_t)SXML_IR_STREAM_SHALLOW_WINDOWS) != 0) {
             write_text(writer, " shallow");
@@ -2819,11 +2827,14 @@ static sxml_status print_expression(text_writer *writer, print_stack *stack,
                              .indent = indent});
     case SXML_IR_EXPRESSION_KIND_APPLY_TEMPLATES: {
         /* "(apply-templates SELECT mode N SEARCH [params P] [tunnel T]
-           [separator S])", "." for the function's focus, mode 0 the
-           current one. */
+           [separator S])", "." for the function's focus or FOCUS for a
+           STREAM's (D223), mode 0 the current one. */
         const sxml_ir_apply_templates *apply = &expression->apply_templates;
         write_text(writer, " ");
-        if (apply->select.atom_kind == SXML_IR_ATOM_KIND_NONE) {
+        if (apply->select.atom_kind == SXML_IR_ATOM_KIND_NONE &&
+            apply->focus.context_value.value != 0) {
+            write_focus(writer, apply->focus);
+        } else if (apply->select.atom_kind == SXML_IR_ATOM_KIND_NONE) {
             write_text(writer, ".");
         } else {
             write_atom(writer, apply->select);

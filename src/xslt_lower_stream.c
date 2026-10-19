@@ -113,6 +113,9 @@ typedef enum stream_grounding {
        atomized values, folded one node at a time in the chain's fold slot
        (F&O 4.0, 14.4: each is a fold of its pairwise form). */
     SXML_STREAM_GROUNDING_FOLDED,
+    /* fn:avg of one argument: the sum folded as for FOLDED, divided by
+       the chain's counter after it (D228). */
+    SXML_STREAM_GROUNDING_AVERAGED,
 } stream_grounding;
 
 /* A stream point found in a streamed body. */
@@ -956,6 +959,9 @@ static const char *const atomizing_function_names[] = {"sum", "avg", "min", "max
                                                        "distinct-values", "data", "string-join"};
 static const char *const counting_function_names[] = {"count", "exists", "empty"};
 static const char *const folding_function_names[] = {"sum", "min", "max"};
+/* fn:avg of one argument folds as fn:sum and divides by the count (F&O
+   4.0, 14.4.2: sum($values) div count($values); D228). */
+static const char *const averaging_function_names[] = {"avg"};
 
 /* Whether a function call is of the function namespace's name: no prefix
    (XSLT's default function namespace, 5.1.1) or Q{fn}. */
@@ -1034,6 +1040,16 @@ static stream_grounding grounding_of(const sxml_ast *ast, sxml_ast_node_index pa
                                                         sizeof(folding_function_names[0])}) &&
         counting_call_of(ast, path).value == call.value) {
         return SXML_STREAM_GROUNDING_FOLDED;
+    }
+    if (!has_attribute_step &&
+        is_standard_call(ast, call,
+                         (function_names){.names = averaging_function_names,
+                                          .name_count = sizeof(averaging_function_names) /
+                                                        sizeof(averaging_function_names[0])}) &&
+        counting_call_of(ast, path).value == call.value) {
+        /* One atomized value per element (no schema types in a streamed
+           document): the counter counts the values. */
+        return SXML_STREAM_GROUNDING_AVERAGED;
     }
     if (is_standard_call(ast, call,
                          (function_names){.names = atomizing_function_names,
@@ -1320,7 +1336,8 @@ static sxml_status is_path_point(const sxml_xslt_lowering *lowering, point_quest
         .path = finding.path,
         .grounding = grounding,
         .lowered = grounding == SXML_STREAM_GROUNDING_COUNTED ||
-                           grounding == SXML_STREAM_GROUNDING_FOLDED
+                           grounding == SXML_STREAM_GROUNDING_FOLDED ||
+                           grounding == SXML_STREAM_GROUNDING_AVERAGED
                        ? counting_call_of(select->ast, finding.path)
                        : finding.path,
         .document = {0},
@@ -2108,8 +2125,9 @@ static sxml_status ground_item(sxml_xpath_lowerer *lowerer, streamed_path_locals
                                       .local_name = SXML_BYTE_VIEW_FROM_LITERAL("data"),
                                       .arguments = {.atoms = &locals->item, .atom_count = 1}},
             &chain->body);
-    case SXML_STREAM_GROUNDING_FOLDED: {
-        /* fn:F((the aggregate so far, fn:data(node))). */
+    case SXML_STREAM_GROUNDING_FOLDED:
+    case SXML_STREAM_GROUNDING_AVERAGED: {
+        /* fn:F((the aggregate so far, fn:data(node))); fn:sum for avg. */
         sxml_ir_atom value = {0};
         sxml_status status = sxml_xslt_lowering_bind_library_call(
             lowerer,
@@ -2141,7 +2159,10 @@ static sxml_status ground_item(sxml_xpath_lowerer *lowerer, streamed_path_locals
             lowerer,
             &(sxml_xslt_library_call){.block = &chain->body_block,
                                       .function_namespace = SXML_NAMESPACE_FUNCTIONS,
-                                      .local_name = called_name(lowerer->ast, locals->point.lowered),
+                                      .local_name =
+                                          locals->point.grounding == SXML_STREAM_GROUNDING_AVERAGED
+                                              ? SXML_BYTE_VIEW_FROM_LITERAL("sum")
+                                              : called_name(lowerer->ast, locals->point.lowered),
                                       .arguments = {.atoms = &sequence, .atom_count = 1}},
             &chain->body);
     }
@@ -2183,11 +2204,22 @@ static sxml_status finish_aggregate_path(sxml_xpath_lowering_machine *machine,
                                                       .expression = expression},
             &ignored);
     }
+    const bool is_averaged = locals->point.grounding == SXML_STREAM_GROUNDING_AVERAGED;
     const bool is_folded = locals->point.grounding == SXML_STREAM_GROUNDING_FOLDED;
     sxml_ir_atom count = sxml_ir_slot_atom(is_folded ? chain->fold : chain->counter);
     const sxml_byte_view local_name = called_name(lowerer->ast, locals->point.lowered);
     sxml_ir_atom result = count;
-    if (status == SXML_STATUS_OK && is_folded) {
+    if (status == SXML_STATUS_OK && is_averaged) {
+        /* The sum, () for no node, div the count (F&O 4.0, 14.4.2). */
+        status = sxml_xslt_lowering_bind_expression(
+            lowerer, &(sxml_xslt_expression_to_bind){
+                         .block = frame->block,
+                         .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_BINARY,
+                                        .binary = {.operator = SXML_IR_BINARY_OPERATOR_DIVIDE,
+                                                   .left_operand = sxml_ir_slot_atom(chain->fold),
+                                                   .right_operand = count}}},
+            &result);
+    } else if (status == SXML_STATUS_OK && is_folded) {
         status = sxml_xslt_lowering_bind_library_call(
             lowerer,
             &(sxml_xslt_library_call){.block = frame->block,
@@ -2254,8 +2286,10 @@ static sxml_status continue_streamed_path(sxml_xpath_lowering_machine *machine,
         chain->ast = lowerer->ast;
         chain->static_context = NULL;
         chain->is_shallow = locals->point.is_shallow;
-        chain->needs_counter = locals->point.grounding == SXML_STREAM_GROUNDING_COUNTED;
-        chain->needs_fold = locals->point.grounding == SXML_STREAM_GROUNDING_FOLDED;
+        chain->needs_counter = locals->point.grounding == SXML_STREAM_GROUNDING_COUNTED ||
+                               locals->point.grounding == SXML_STREAM_GROUNDING_AVERAGED;
+        chain->needs_fold = locals->point.grounding == SXML_STREAM_GROUNDING_FOLDED ||
+                            locals->point.grounding == SXML_STREAM_GROUNDING_AVERAGED;
         status = start_chain((chain_start){.lowerer = lowerer, .block = frame->block}, chain);
         if (status != SXML_STATUS_OK) {
             return status;
@@ -2296,7 +2330,8 @@ static sxml_status continue_streamed_path(sxml_xpath_lowering_machine *machine,
         }
     }
     if (locals->point.grounding == SXML_STREAM_GROUNDING_COUNTED ||
-        locals->point.grounding == SXML_STREAM_GROUNDING_FOLDED) {
+        locals->point.grounding == SXML_STREAM_GROUNDING_FOLDED ||
+        locals->point.grounding == SXML_STREAM_GROUNDING_AVERAGED) {
         return finish_aggregate_path(machine, frame, locals);
     }
     return finish_chain(machine, frame, chain);

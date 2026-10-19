@@ -330,6 +330,10 @@ static const stream_case stream_cases[] = {
                 DECLARATION "<out>4</out>"),
     STREAM_CASE("atomized-sum", "", "<xsl:value-of select='sum(shop/book/p) * 2'/>", books,
                 DECLARATION "<out>30</out>"),
+    STREAM_CASE("averaged-values", "", "<xsl:value-of select='avg(shop/book/p) * 2'/>", books,
+                DECLARATION "<out>10</out>"),
+    STREAM_CASE("averaged-nothing", "", "<a><xsl:value-of select='avg(//none)'/></a>", books,
+                DECLARATION "<out><a/></out>"),
     STREAM_CASE("atomized-attributes", "",
                 "<xsl:value-of select='string-join(/shop/book/@id, \"-\")'/>", books,
                 DECLARATION "<out>1-2-3</out>"),
@@ -588,6 +592,8 @@ static const large_path_case large_path_cases[] = {
     LARGE_PATH_CASE("", "<xsl:value-of select='sum(records/record/price)'/>", "1.4925E6"),
     LARGE_PATH_CASE("", "<xsl:value-of select='sum(//record/@id) div 1000'/>", "450015"),
     LARGE_PATH_CASE("", "<xsl:value-of select='max(records/record/@id)'/>", "30000"),
+    /* avg folded as sum and count (D228). */
+    LARGE_PATH_CASE("", "<xsl:value-of select='avg(records/record/price)'/>", "49.75"),
     LARGE_PATH_CASE("", "<c><xsl:copy-of select='records/record[@hot = \"yes\"]/name'/></c>",
                     "<c><name>item 10000</name><name>item 20000</name><name>item 30000</name></c>"),
     LARGE_PATH_CASE("<xsl:mode name='s' streamable='yes' on-no-match='shallow-skip'/>"
