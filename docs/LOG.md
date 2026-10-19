@@ -4,6 +4,11 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- CLI docs split (D181): the user reference of the sxml command moved to
+  `apps/sxml/README.md`, every example re-run on a release build;
+  `docs/CLI.md` keeps the design rules, planned commands and the
+  implementation map. README links it and states the status after the
+  Phase 5 gate (all public headers stable, D182).
 - 7.1 done (D183): Phase 7 is planned in `docs/tasks/phase-7.md`, with
   one packet or packet group per deferred feature, each with its
   specifications, unlocked cases, D162 place, header changes, owned files,
