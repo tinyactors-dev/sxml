@@ -2167,19 +2167,8 @@ static sxml_status sxml_serializer_write_byte_order_mark(sxml_serializer *serial
     return SXML_STATUS_OK;
 }
 
-/* Places a serializer for parameters over output_stream in *serializer,
-   checks the parameters every method shares and writes the byte order
-   mark. The caller releases it with sxml_serializer_release, also on
-   failure. */
-typedef struct sxml_serializer_setup {
-    sxml_item_heap *item_heap;
-    const sxml_serialization_parameters *parameters;
-    sxml_output_stream output_stream;
-    sxml_error_record *error_record;
-} sxml_serializer_setup;
-
-static sxml_status sxml_serializer_start(const sxml_serializer_setup *setup,
-                                         sxml_serializer *serializer) {
+sxml_status sxml_serializer_start(const sxml_serializer_setup *setup,
+                                  sxml_serializer *serializer) {
     const sxml_serialization_parameters *parameters = setup->parameters;
     *serializer = (sxml_serializer){
         .item_heap = setup->item_heap,
@@ -2221,7 +2210,7 @@ static sxml_status sxml_serializer_start(const sxml_serializer_setup *setup,
     return status;
 }
 
-static void sxml_serializer_release(sxml_serializer *serializer) {
+void sxml_serializer_release(sxml_serializer *serializer) {
     sxml_allocator_release(serializer->allocator, serializer->frames);
     sxml_allocator_release(serializer->allocator, serializer->sorted_mappings);
     serializer->frames = NULL;

@@ -32,7 +32,7 @@
  * axis of origin's tree instead: the same IR serves streamed and
  * unstreamed nodes, and the results are those of unstreamed evaluation.
  *
- * Accumulators (D230; XSLT 4.0, 18.2.9 and 19.3): the STREAM that opens a
+ * Accumulators (D231; XSLT 4.0, 18.2.9 and 19.3): the STREAM that opens a
  * document whose accumulators are read (sxml_ir_stream_accumulators)
  * computes their values as the events pass. Each event a STREAM task
  * takes calls the accumulator functions before the task goes on: an
@@ -177,7 +177,7 @@ typedef struct sxml_stream_window_build {
 } sxml_stream_window_build;
 
 /* The accumulator values of one node of a streamed document whose
-   accumulators are computed as its events pass (D230): the node in the
+   accumulators are computed as its events pass (D231): the node in the
    window its events were read in, and the values maps (from accumulator
    numbers) after its start and after its end; for an element whose
    subtree went into a full window, that window and the "nodes" map its
@@ -231,7 +231,7 @@ typedef struct sxml_stream_document {
     sxml_item open_node;
     size_t open_depth;
     bool is_open_node_consumed;
-    /* The document computes accumulators (D230); its end was accumulated;
+    /* The document computes accumulators (D231); its end was accumulated;
        the rounds of the call running, and whether one runs; set by
        accumulator-streamed when a rule reads a value of the node the call
        has not computed yet (that accumulator waits a round); a call
@@ -862,7 +862,7 @@ static sxml_status sxml_stream_element_window(sxml_dynamic_context *dynamic_cont
     const size_t depth = sxml_stream_depth(document);
     if (!is_full && document->accumulates && depth < document->accumulated.element_count) {
         /* The window the element's accumulators were computed in, so the
-           node's values are found (D230). */
+           node's values are found (D231). */
         const sxml_stream_accumulated *entry = sxml_xml_array_at(&document->accumulated, depth);
         if (entry->serial == document->event_serial && entry->window.representation != 0) {
             sxml_item_retain(entry->window);
@@ -938,7 +938,7 @@ static sxml_status sxml_stream_leaf_window(sxml_stream_document *document,
                                            const sxml_stream_event *event, sxml_item *node) {
     if (document->accumulates && document->accumulated_leaf.serial == document->event_serial &&
         document->accumulated_leaf.window.representation != 0) {
-        /* As for an element (D230). */
+        /* As for an element (D231). */
         sxml_item_retain(document->accumulated_leaf.window);
         *node = document->accumulated_leaf.window;
         return SXML_STATUS_OK;
@@ -1274,12 +1274,12 @@ typedef enum sxml_stream_phase {
     SXML_STREAM_PHASE_PREDICATE,
     /* The body of the selected node ended. */
     SXML_STREAM_PHASE_BODY,
-    /* A call of an accumulator function ended (D230). */
+    /* A call of an accumulator function ended (D231). */
     SXML_STREAM_PHASE_ACCUMULATED,
 } sxml_stream_phase;
 
 /* What the task does once the accumulator calls of an event or a window
-   have ended (D230). */
+   have ended (D231). */
 typedef enum sxml_stream_continuation {
     /* sxml_stream_next, the stashed event first. */
     SXML_STREAM_CONTINUE_NEXT,
@@ -1293,7 +1293,7 @@ typedef enum sxml_stream_continuation {
     SXML_STREAM_CONTINUE_GROUNDING_BODY,
 } sxml_stream_continuation;
 
-/* What one call of an accumulator function computes (D230). */
+/* What one call of an accumulator function computes (D231). */
 typedef enum sxml_stream_accumulation_kind {
     /* The initial values for the document node. */
     SXML_STREAM_ACCUMULATION_INITIAL,
@@ -1354,7 +1354,7 @@ typedef struct sxml_stream_state {
     uint64_t selected_count;
     /* Owned; made on the first value. */
     sxml_sequence_builder *builder;
-    /* Accumulator calls waiting (D230): call_next of call_count, then the
+    /* Accumulator calls waiting (D231): call_next of call_count, then the
        task resumes as resume says; an event taken before them is stashed
        for sxml_stream_next. is_suspended is set while they run, so the
        functions that took the event return at once. */
@@ -1548,7 +1548,7 @@ static sxml_status sxml_stream_begin_call(sxml_dynamic_context *dynamic_context,
 
 /* Moves number_cursor to the next accumulator whose value the call has not
    computed; false when it has them all. An accumulator a rule of another
-   needed first is computed in a later round (D230: the values of one node
+   needed first is computed in a later round (D231: the values of one node
    depend on each other, 19.4); a round without progress is the last, in
    which the rule's error is raised (XTDE3400). */
 static bool sxml_stream_next_number(sxml_stream_document *document) {
@@ -1603,7 +1603,7 @@ static sxml_status sxml_stream_start_calls(sxml_dynamic_context *dynamic_context
     return sxml_stream_begin_call(dynamic_context, state);
 }
 
-/* The calls event needs, just taken by the task (D230): an element's start
+/* The calls event needs, just taken by the task (D231): an element's start
    in a shallow window of its own, its end, a leaf's start and end, the
    document's end; then the event is stashed for sxml_stream_next. */
 static sxml_status sxml_stream_plan_event(sxml_dynamic_context *dynamic_context,
@@ -1694,7 +1694,7 @@ static sxml_status sxml_stream_plan_event(sxml_dynamic_context *dynamic_context,
         break;
     }
     if (document->has_accumulation_failed) {
-        /* The nodes are known, their values not (D230). */
+        /* The nodes are known, their values not (D231). */
         for (size_t call_index = 0; call_index < state->call_count; call_index += 1) {
             sxml_item_release(state->calls[call_index].node);
         }
@@ -1721,7 +1721,7 @@ static sxml_status sxml_stream_take_event(sxml_dynamic_context *dynamic_context,
 }
 
 /* Skips the rest of the element at depth. With accumulators computed
-   (D230) every event is taken for its calls: the task may suspend, and
+   (D231) every event is taken for its calls: the task may suspend, and
    resumes the skip after them. */
 static sxml_status sxml_stream_skip_to(sxml_dynamic_context *dynamic_context,
                                        sxml_stream_state *state, size_t depth) {
@@ -2040,7 +2040,7 @@ static sxml_status sxml_stream_select(sxml_dynamic_context *dynamic_context,
                 return status;
             }
             state->candidate_source = SXML_STREAM_CANDIDATE_CAPTURED_ELEMENT;
-            /* D230: the values of its subtree, before the body reads them. */
+            /* D231: the values of its subtree, before the body reads them. */
             const sxml_status descended = sxml_stream_descend(
                 dynamic_context, state,
                 (sxml_stream_descent){.window = state->candidate,
@@ -2117,7 +2117,7 @@ static sxml_status sxml_stream_next_event_candidate(sxml_dynamic_context *dynami
         sxml_stream_event event;
         sxml_status status = SXML_STATUS_OK;
         if (state->has_stashed_event) {
-            /* Taken before its accumulator calls (D230). */
+            /* Taken before its accumulator calls (D231). */
             event = state->stashed_event;
             state->has_stashed_event = false;
         } else {
@@ -2314,7 +2314,7 @@ static sxml_status sxml_stream_take_body(sxml_dynamic_context *dynamic_context,
         sxml_stream_set_open_node(document, state->origin, state->base_depth);
         document->is_open_node_consumed = true;
         if (state->stream->axis != SXML_AXIS_DESCENDANT || was_consumed) {
-            /* The candidate goes first: the skip may suspend (D230). */
+            /* The candidate goes first: the skip may suspend (D231). */
             sxml_item_release(state->candidate);
             state->candidate = (sxml_item){.representation = 0};
             status = sxml_stream_skip_to(dynamic_context, state, state->candidate_depth);
@@ -2401,7 +2401,7 @@ static sxml_status sxml_stream_push_document_body(sxml_dynamic_context *dynamic_
                                                        .phase = SXML_STREAM_PHASE_BODY});
 }
 
-/* OPENS_DOCUMENT with accumulators (D230): the document computes them as
+/* OPENS_DOCUMENT with accumulators (D231): the document computes them as
    its events pass, from the initial values and the document node's start,
    whose calls are added. */
 static sxml_status sxml_stream_start_accumulators(sxml_dynamic_context *dynamic_context,
@@ -2595,7 +2595,7 @@ static sxml_status sxml_stream_start_grounding(sxml_dynamic_context *dynamic_con
             sxml_evaluator_machine_bind_slot(dynamic_context, focus.context_value,
                                              sxml_sequence_from_item(state->candidate));
         }
-        /* D230: the values of the window's nodes, before the body reads
+        /* D231: the values of the window's nodes, before the body reads
            them (the document is not this task's). */
         state->document = document;
         status = sxml_stream_descend(
@@ -2652,7 +2652,7 @@ static sxml_status sxml_stream_start(sxml_dynamic_context *dynamic_context,
 }
 
 /* Keeps a copy of the error a call failed with (the error record's,
-   status caught) for the reads of the values it leaves out (D230). */
+   status caught) for the reads of the values it leaves out (D231). */
 static sxml_status sxml_stream_keep_failure(const sxml_dynamic_context *dynamic_context,
                                             sxml_stream_state *state, sxml_status caught) {
     sxml_stream_document *document = state->document;
@@ -2701,7 +2701,7 @@ static sxml_status sxml_stream_keep_failure(const sxml_dynamic_context *dynamic_
     return SXML_STATUS_OK;
 }
 
-/* An accumulator call ended (D230): its value kept, the next accumulator
+/* An accumulator call ended (D231): its value kept, the next accumulator
    or call, or what the task was doing before them. A rule that read a
    value not computed yet makes its accumulator wait a round; any other
    error is kept for the reads (19.5) and ends the calls. */

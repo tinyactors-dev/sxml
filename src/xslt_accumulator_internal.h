@@ -120,7 +120,7 @@ SXML_NODISCARD sxml_status sxml_xslt_bind_accumulator_link(
 
 /*
  * Accumulators computed while a document streams (XSLT 4.0, 18.2.9 and
- * 19.3; D230). The functions STREAM with OPENS_DOCUMENT calls as the
+ * 19.3; D231). The functions STREAM with OPENS_DOCUMENT calls as the
  * document's events pass (src/ir_internal.h, sxml_ir_stream_accumulators):
  * stream-initial-N($root) for the accumulators applicable to the document
  * (19.2: use-accumulators of xsl:source-document, or of the initial mode

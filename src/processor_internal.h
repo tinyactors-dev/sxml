@@ -209,6 +209,13 @@ typedef struct sxml_evaluation_environment {
        (src/xslt_output_internal.h, packet 4.13, D156): xsl:result-document
        and fn:current-output-uri reach it here. NULL outside one. */
     struct sxml_xslt_result_writer *result_writer;
+    /* Where a DOCUMENT constructor with PRINCIPAL_RESULT builds (D231):
+       the result writer's principal stream; the null builder otherwise. */
+    sxml_tree_builder principal_result_builder;
+    /* With principal_result_builder: set when the raw result is not a
+       tree's content (its first item a map, an array or a JNode, so the
+       method chosen is json, 26.1.2); the value is then returned raw. */
+    bool *principal_result_is_raw;
 } sxml_evaluation_environment;
 
 /* ----------------------------------------------------- Document loader */

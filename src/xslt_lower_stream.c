@@ -55,7 +55,7 @@
  * whose body has another shape reads the whole document (fn:doc), which
  * gives the same results (19.10). Not streamed yet: accumulators whose
  * end rules capture (19.9) when any is read (other accumulators are
- * computed as the document's events pass, D230), validation and type on xsl:source-document, xsl:fork,
+ * computed as the document's events pass, D231), validation and type on xsl:source-document, xsl:fork,
  * xsl:merge, a streamed principal source, and bodies that
  * read fn:has-children, fn:path or fn:last (motionless by 19.8.9, but
  * they need what a window lacks).
@@ -81,7 +81,7 @@
 /* The most steps of a streamed path. */
 #define STREAM_MAXIMUM_STEP_COUNT 16U
 
-/* The most prongs of a streamed xsl:fork (D230). */
+/* The most prongs of a streamed xsl:fork (D231). */
 #define STREAM_MAXIMUM_PRONG_COUNT 32U
 
 static const sxml_ast_node_index no_ast_node = {.value = 0};
@@ -100,7 +100,7 @@ typedef enum stream_point_kind {
        override (src/xpath_lower_internal.h). */
     SXML_STREAM_POINT_PATH,
     /* A prong of an xsl:fork whose focus is the document node of a
-       streamed xsl:source-document (glossary `streamed_prong`, D230): an
+       streamed xsl:source-document (glossary `streamed_prong`, D231): an
        xsl:sequence streamed in a pass of its own over the document. */
     SXML_STREAM_POINT_PRONG,
 } stream_point_kind;
@@ -172,7 +172,7 @@ struct sxml_xslt_stream_plan {
     size_t override_count;
     size_t override_capacity;
     /* The href of the streamed xsl:source-document being lowered, for the
-       passes of its prongs (D230). */
+       passes of its prongs (D231). */
     sxml_ir_atom document_href;
 };
 
@@ -518,7 +518,7 @@ typedef struct sweep_question {
     bool requires_grounded;
     /* The instruction comes after the stream point of its body, which
        has read the node's content (19.8.9.1: fn:accumulator-after is then
-       motionless, D230). */
+       motionless, D231). */
     bool follows_consuming;
 } sweep_question;
 
@@ -769,7 +769,7 @@ static const sxml_xslt_ast_expression *select_of(const sxml_xslt_lowering *lower
 typedef struct point_question {
     sxml_xslt_ast_node_index node;
     bool is_document_focus;
-    /* After the body's stream point (D230). */
+    /* After the body's stream point (D231). */
     bool follows_point;
 } point_question;
 
@@ -1209,7 +1209,7 @@ static sxml_status find_streamed_path(const sxml_xslt_lowering *lowering, path_f
 }
 
 /* The accumulator functions (19.6, 19.7), which a streamed document
-   answers for its windows when it computes its accumulators (D230). */
+   answers for its windows when it computes its accumulators (D231). */
 static const char *const accumulator_function_names[] = {"accumulator-before",
                                                          "accumulator-after"};
 
@@ -1518,7 +1518,7 @@ typedef struct body_planning {
 } body_planning;
 
 /* The prongs of an xsl:fork in a body whose document can be read again
-   (D230; XSLT 4.0, 16.1 and 18.3): when every child is an xsl:sequence,
+   (D231; XSLT 4.0, 16.1 and 18.3): when every child is an xsl:sequence,
    each becomes a PRONG point and a body of its own, a pass over the
    document; *has_prongs is false otherwise. */
 static sxml_status add_prongs(const body_planning *planning, sxml_xslt_ast_node_index fork,
@@ -1588,7 +1588,7 @@ static sxml_status plan_one_body(const body_planning *planning, bool *is_streame
                                           : node_of(lowering, node)->next_sibling;
         if (body.allows_passes && is_document_focus &&
             node_of(lowering, node)->kind == SXML_XSLT_AST_KIND_FORK) {
-            /* D230: each prong in a pass of its own, unless none reads
+            /* D231: each prong in a pass of its own, unless none reads
                the document's content. */
             bool motionless = false;
             status = is_motionless_instruction(
@@ -1695,7 +1695,7 @@ static sxml_status plan_one_body(const body_planning *planning, bool *is_streame
 
 /* Whether the stylesheet declares accumulators and an expression calls
    fn:accumulator-before or fn:accumulator-after: only then are the values
-   of a streamed document's nodes read, and computed (D230). */
+   of a streamed document's nodes read, and computed (D231). */
 static bool calls_accumulator_functions(const sxml_xslt_ast *ast) {
     bool has_accumulators = false;
     for (uint32_t order = 1; !has_accumulators && sxml_xslt_ast_get_declaration(ast, order).value != 0;
@@ -1741,7 +1741,7 @@ static sxml_status plan_streamed_body(const sxml_xslt_lowering *lowering, stream
             (!is_body_streamed &&
              plan->points[point_number - 1U].kind == SXML_STREAM_POINT_PRONG)) {
             /* A prong that does not stream leaves the fork to the whole
-               document (D230). */
+               document (D231). */
             *is_streamed = is_body_streamed;
             if (!is_body_streamed) {
                 break;
@@ -2471,7 +2471,7 @@ typedef struct streamed_document_locals {
     sxml_xpath_lowering_focus document_focus;
     sxml_xpath_lowering_block body_block;
     sxml_ir_atom body;
-    /* A prong of an xsl:fork (head.node its xsl:sequence, D230), a pass
+    /* A prong of an xsl:fork (head.node its xsl:sequence, D231), a pass
        of its own over the document of scope, the xsl:source-document. */
     bool is_prong;
     sxml_xslt_ast_node_index scope;
@@ -2550,7 +2550,7 @@ static sxml_status continue_streamed_document(sxml_xpath_lowering_machine *machi
             &body);
     }
     /* 19.2: the accumulators use-accumulators names, computed as the
-       document's events pass (D230). */
+       document's events pass (D231). */
     sxml_ir_stream_accumulators accumulators = {
         .initial = {0}, .start = {0}, .end = {0}, .descend = {0}};
     if (status == SXML_STATUS_OK) {
@@ -2621,7 +2621,7 @@ bool sxml_xslt_is_streamed_fork(const sxml_xslt_lowering *lowering,
     return false;
 }
 
-/* A streamed xsl:fork (D230; XSLT 4.0, 16.1 and 18.3): each prong a
+/* A streamed xsl:fork (D231; XSLT 4.0, 16.1 and 18.3): each prong a
    STREAM with OPENS_DOCUMENT over the href of the document again, in a
    pass of its own, the values concatenated in the order of the prongs. */
 typedef struct streamed_fork_locals {

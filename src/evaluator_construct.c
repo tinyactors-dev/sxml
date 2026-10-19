@@ -55,6 +55,7 @@
  */
 #include "cast_internal.h"
 #include "evaluator_machine_internal.h"
+#include "processor_internal.h"
 #include "sxml/name.h"
 #include "sxml/tree.h"
 #include "sxml/types.h"
@@ -877,9 +878,20 @@ typedef struct sxml_construct_content_frame {
  */
 typedef struct sxml_construction {
     sxml_dynamic_context *dynamic_context;
-    /* Owned; NULL for a construction built into enclosing. */
+    /* Owned; NULL for a construction built into enclosing, or into the
+       principal stream's builder (is_external). */
     sxml_arena_tree *arena_tree;
     sxml_tree_builder builder;
+    /* The tree is the principal result's, built into the builder of the
+       evaluation's principal stream (D231): no tree, the empty sequence. */
+    bool is_external;
+    /* With is_external, when the method is chosen from the raw result
+       (26.1.2): the environment's flag, set when the first item is a map,
+       an array or a JNode, so the raw result is not a tree's content and
+       is kept in raw_value; NULL otherwise. */
+    bool *raw_flag;
+    bool has_content_item;
+    sxml_sequence raw_value;
     /* The construction of the receiving task this one builds into; NULL
        for one with a tree of its own. Borrowed: the receiving task stays
        below this one's task. */
@@ -933,6 +945,10 @@ static sxml_construction sxml_construction_empty(sxml_dynamic_context *context,
     return (sxml_construction){.dynamic_context = context,
                                .arena_tree = NULL,
                                .builder = {.state = NULL, .operations = NULL},
+                               .is_external = false,
+                               .raw_flag = NULL,
+                               .has_content_item = false,
+                               .raw_value = sxml_sequence_empty(),
                                .enclosing = NULL,
                                .rules = sxml_construct_top_rules(context, rules),
                                .construction_flags = sxml_construct_top_flags(context),
@@ -1005,7 +1021,10 @@ typedef struct sxml_construct_flag_pair {
 
 static bool sxml_construct_flags_allow_delivery(sxml_construct_flag_pair pair) {
     const uint32_t preserves = (uint32_t)SXML_IR_CONSTRUCTION_PRESERVES_TYPES;
-    return (pair.receiver_flags & ~preserves) == (pair.own_flags & ~preserves) &&
+    /* Where the receiver's tree goes is no property of its content
+       (D231). */
+    const uint32_t ignored = preserves | (uint32_t)SXML_IR_CONSTRUCTION_PRINCIPAL_RESULT;
+    return (pair.receiver_flags & ~ignored) == (pair.own_flags & ~ignored) &&
            ((pair.receiver_flags & preserves) != 0 || (pair.own_flags & preserves) == 0);
 }
 
@@ -1033,6 +1052,8 @@ static sxml_status sxml_construction_open(sxml_dynamic_context *context,
 static void sxml_construction_abandon(sxml_construction *construction) {
     sxml_arena_tree_destroy(construction->arena_tree);
     construction->arena_tree = NULL;
+    sxml_sequence_release(construction->raw_value);
+    construction->raw_value = sxml_sequence_empty();
     if (construction->frames != NULL) {
         sxml_allocator_release(construction->dynamic_context->allocator, construction->frames);
         construction->frames = NULL;
@@ -1328,8 +1349,57 @@ static sxml_status sxml_construction_next_frame_item(sxml_construction *construc
 }
 
 /* Adds the items of value, arrays flattened, as content. */
+static bool sxml_construction_is_raw(const sxml_construction *construction) {
+    return construction->raw_flag != NULL && *construction->raw_flag;
+}
+
+/* The principal result's first item, when its method is chosen from the
+   raw result: a map, an array or a JNode makes the method json, which
+   builds no tree (26.1, 26.1.2), so the raw result is kept as it is. */
+static sxml_status sxml_construction_check_raw(sxml_construction *construction,
+                                               sxml_sequence value) {
+    sxml_sequence_iterator iterator = sxml_sequence_iterator_start(value);
+    sxml_iteration_step step;
+    const sxml_status status = sxml_sequence_iterator_next(
+        &iterator, construction->dynamic_context->error_record, &step);
+    if (status != SXML_STATUS_OK || !step.has_item) {
+        return status;
+    }
+    construction->has_content_item = true;
+    const sxml_item_kind kind = sxml_item_get_kind(step.item);
+    if (kind == SXML_ITEM_KIND_MAP || kind == SXML_ITEM_KIND_ARRAY ||
+        kind == SXML_ITEM_KIND_JSON_NODE) {
+        *construction->raw_flag = true;
+    }
+    return SXML_STATUS_OK;
+}
+
+/* Keeps value as more of the raw result. */
+static sxml_status sxml_construction_keep_raw(sxml_construction *construction,
+                                              sxml_sequence value) {
+    const sxml_sequence parts[2] = {construction->raw_value, value};
+    sxml_sequence joined = sxml_sequence_empty();
+    const sxml_status status = sxml_sequence_concatenate(
+        construction->dynamic_context->item_heap,
+        (sxml_sequence_view){.sequences = parts, .sequence_count = 2}, &joined);
+    if (status == SXML_STATUS_OK) {
+        sxml_sequence_release(construction->raw_value);
+        construction->raw_value = joined;
+    }
+    return status;
+}
+
 static sxml_status sxml_construction_add_items(sxml_construction *construction,
                                                sxml_sequence value) {
+    if (construction->raw_flag != NULL && !construction->has_content_item) {
+        const sxml_status status = sxml_construction_check_raw(construction, value);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+    }
+    if (sxml_construction_is_raw(construction)) {
+        return sxml_construction_keep_raw(construction, value);
+    }
     sxml_sequence_iterator iterator = sxml_sequence_iterator_start(value);
     for (;;) {
         sxml_iteration_step step;
@@ -1513,6 +1583,10 @@ static sxml_status sxml_construction_end(sxml_construction *construction,
     sxml_status status = SXML_STATUS_OK;
     if (!construction->is_document) {
         status = construction->builder.operations->end_element(construction->builder.state);
+    } else if (sxml_construction_is_raw(construction)) {
+        /* The raw result itself (26.1). */
+        *result = construction->raw_value;
+        construction->raw_value = sxml_sequence_empty();
     } else if (construction->enclosing == NULL) {
         status = construction->builder.operations->end_document(construction->builder.state);
     } else if (construction->has_children) {
@@ -1520,7 +1594,8 @@ static sxml_status sxml_construction_end(sxml_construction *construction,
            section 4.12.1.3, step 2). */
         construction->enclosing->has_children = true;
     }
-    if (status != SXML_STATUS_OK || construction->enclosing != NULL) {
+    if (status != SXML_STATUS_OK || construction->enclosing != NULL ||
+        construction->is_external) {
         sxml_construction_abandon(construction);
         return status;
     }
@@ -1563,6 +1638,25 @@ static sxml_status sxml_construction_start_document(sxml_construction *construct
             .location = sxml_construct_no_location});
 }
 
+/* The environment whose principal stream a DOCUMENT with
+   PRINCIPAL_RESULT on top of the task stack builds into (D231); NULL
+   when it has none. */
+static const sxml_evaluation_environment *
+sxml_construct_principal_environment(sxml_dynamic_context *context) {
+    if ((sxml_construct_top_flags(context) & (uint32_t)SXML_IR_CONSTRUCTION_PRINCIPAL_RESULT) ==
+        0) {
+        return NULL;
+    }
+    sxml_processor_document_loader *loader =
+        sxml_processor_document_loader_from_dynamic_context(context);
+    if (loader == NULL) {
+        return NULL;
+    }
+    const sxml_evaluation_environment *environment =
+        sxml_processor_document_loader_get_environment(loader);
+    return environment->principal_result_builder.operations == NULL ? NULL : environment;
+}
+
 /* DOCUMENT (XQuery 4.0, section 4.12.3.3). */
 static sxml_status sxml_construct_step_document(sxml_dynamic_context *dynamic_context,
                                                 sxml_evaluator_task *task) {
@@ -1573,7 +1667,14 @@ static sxml_status sxml_construct_step_document(sxml_dynamic_context *dynamic_co
         sxml_construct_expression(task)->node_construction.content;
     sxml_construction *construction = NULL;
     sxml_status status = sxml_construct_allocate(dynamic_context, &construction);
-    if (status == SXML_STATUS_OK) {
+    const sxml_evaluation_environment *principal =
+        sxml_construct_principal_environment(dynamic_context);
+    if (status == SXML_STATUS_OK && principal != NULL) {
+        /* The principal result as it is made (D231). */
+        construction->builder = principal->principal_result_builder;
+        construction->raw_flag = principal->principal_result_is_raw;
+        construction->is_external = true;
+    } else if (status == SXML_STATUS_OK) {
         status = sxml_construction_open(
             dynamic_context,
             &(sxml_construction_request){.rules = SXML_CONSTRUCT_RULES_XQUERY,

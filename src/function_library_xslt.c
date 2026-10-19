@@ -19,7 +19,7 @@
  * that call them. The rows behind the accumulator functions
  * (sxml_xslt_accumulator_functions, packet 4.14, D155): accumulator-name,
  * accumulator-scope, accumulator-values, accumulator-link,
- * accumulator-original and accumulator-streamed (D230), for
+ * accumulator-original and accumulator-streamed (D231), for
  * src/xslt_accumulator.c.
  *
  * Golden file: src/function_library_format.c (rows of one part, bodies
@@ -2034,7 +2034,7 @@ static bool is_after_requested(const sxml_function_call *call) {
 
 /* accumulator-streamed($number, $node, $id, $after): for a node of a
    streamed document whose accumulators are computed as its events pass
-   (D230), {"v": the value of accumulator $number before or after the node},
+   (D231), {"v": the value of accumulator $number before or after the node},
    $id being the node's fn:generate-id; the empty sequence for any other
    node, whose values accumulator-values builds. */
 static sxml_status call_accumulator_streamed(const sxml_function_call *call,

@@ -66,6 +66,12 @@ typedef struct sxml_unit_evaluation_extension {
     sxml_document_preparation document_preparation;
     /* The transformation's result writer (src/xslt_output_internal.h). */
     struct sxml_xslt_result_writer *result_writer;
+    /* The tree builder the principal result's tree is built into as it is
+       made (D231; sxml_ir_construction_flag PRINCIPAL_RESULT); the null
+       builder builds it as a tree. */
+    sxml_tree_builder principal_result_builder;
+    /* sxml_evaluation_environment.principal_result_is_raw. */
+    bool *principal_result_is_raw;
     /* xsl:message hands nothing to the trace sink (fn:transform's
        enable-messages false, F&O 4.0, 18.3). */
     bool discards_messages;

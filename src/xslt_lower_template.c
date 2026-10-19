@@ -3507,7 +3507,7 @@ static void find_applicable_modes(const sxml_xslt_lowering *lowering, const temp
 /* Whether the mode at mode_index (of templates->modes) is streamed
    (D228): declared streamable with every template rule
    guaranteed-streamable (6.6.4, 7.6a's analysis), and no accumulator
-   read that a streamed document cannot compute (D230). Its template rules and built-in template are then
+   read that a streamed document cannot compute (D231). Its template rules and built-in template are then
    prepared for open nodes: a streamed body, or the grounding of the
    node's full window. Asked once per mode. */
 static sxml_status mode_is_streamed(const sxml_xslt_lowering *lowering, size_t mode_index,
@@ -4319,7 +4319,7 @@ static sxml_status bind_streamed_source(sxml_xpath_lowerer *lowerer, const focus
                                                             .origin = sxml_ir_slot_atom(value)});
     }
     /* 19.2: the accumulators use-accumulators of the initial mode names,
-       computed as the document's events pass (D230). */
+       computed as the document's events pass (D231). */
     sxml_ir_stream_accumulators accumulators = {
         .initial = {0}, .start = {0}, .end = {0}, .descend = {0}};
     if (status == SXML_STATUS_OK) {

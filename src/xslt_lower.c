@@ -2142,6 +2142,7 @@ typedef struct main_request {
     const sxml_xslt_lowering *lowering;
     sxml_xslt_invocation invocation;
     bool builds_result_document;
+    bool streams_result_document;
 } main_request;
 
 static sxml_status lower_main_function(sxml_xpath_lowerer *lowerer, const main_request *request) {
@@ -2204,34 +2205,37 @@ static sxml_status lower_main_function(sxml_xpath_lowerer *lowerer, const main_r
     }
     sxml_ir_expression_index result = {0};
     if (status == SXML_STATUS_OK) {
-        sxml_ir_expression expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_ATOM,
-                                         .atom = value};
-        if (request->builds_result_document) {
-            /* 2.4: the principal result's tree is built from the raw
-               result as a document node's content (5.7.1). */
-            status = sxml_xpath_lowerer_add_expression(
-                lowerer,
-                (sxml_xpath_lowering_expression_to_add){.node = no_ast_node,
-                                                        .expression = expression},
-                &result);
-            expression = (sxml_ir_expression){
-                .expression_kind = SXML_IR_EXPRESSION_KIND_DOCUMENT_CONSTRUCTOR,
-                .node_construction = {.content = result,
-                                      .construction_flags =
-                                          (uint32_t)SXML_IR_CONSTRUCTION_XSLT_RULES}};
-        }
-        if (status == SXML_STATUS_OK) {
-            status = sxml_xpath_lowerer_add_expression(
-                lowerer,
-                (sxml_xpath_lowering_expression_to_add){.node = no_ast_node,
-                                                        .expression = expression},
-                &result);
-        }
+        status = sxml_xpath_lowerer_add_expression(
+            lowerer,
+            (sxml_xpath_lowering_expression_to_add){
+                .node = no_ast_node,
+                .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_ATOM, .atom = value}},
+            &result);
     }
     sxml_ir_expression_index body = {0};
     if (status == SXML_STATUS_OK) {
         status = sxml_xpath_lowerer_finish_block(
             lowerer, (sxml_xpath_lowering_block_result){.block = block, .result = result}, &body);
+    }
+    if (status == SXML_STATUS_OK &&
+        (request->builds_result_document || request->streams_result_document)) {
+        /* 2.4: the principal result's tree is built from the raw result
+           as a document node's content (5.7.1). The whole body is the
+           content, so the invocation delivers into the tree as it is made
+           (D166); into the principal stream when it streams (D231). */
+        status = sxml_xpath_lowerer_add_expression(
+            lowerer,
+            (sxml_xpath_lowering_expression_to_add){
+                .node = no_ast_node,
+                .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_DOCUMENT_CONSTRUCTOR,
+                               .node_construction = {
+                                   .content = body,
+                                   .construction_flags =
+                                       (uint32_t)SXML_IR_CONSTRUCTION_XSLT_RULES |
+                                       (request->streams_result_document
+                                            ? (uint32_t)SXML_IR_CONSTRUCTION_PRINCIPAL_RESULT
+                                            : 0U)}}},
+            &body);
     }
     sxml_xpath_lowerer_leave_function(lowerer, &function_frame);
     if (status != SXML_STATUS_OK) {
@@ -2587,7 +2591,8 @@ static sxml_status lower_into_unit(const unit_lowering *work) {
         status = lower_main_function(
             lowerer, &(main_request){.lowering = &lowering,
                                      .invocation = invocation,
-                                     .builds_result_document = request->builds_result_document});
+                                     .builds_result_document = request->builds_result_document,
+                                     .streams_result_document = request->streams_result_document});
     }
     if (status == SXML_STATUS_OK) {
         /* While the templates are there (a key's sequence constructor may

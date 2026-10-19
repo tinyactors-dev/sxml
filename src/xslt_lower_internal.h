@@ -588,7 +588,7 @@ typedef struct sxml_xslt_accumulator_reading {
    expression calls fn:accumulator-before or fn:accumulator-after, and a
    streamed document could not compute them as its events pass (an end
    rule that captures, or one declared streamable that is not
-   guaranteed-streamable, D230): then nothing is streamed that they could
+   guaranteed-streamable, D231): then nothing is streamed that they could
    read (D223, D228). Returns the allocator's failures. */
 SXML_NODISCARD sxml_status sxml_xslt_reads_accumulators(
     const sxml_xslt_accumulator_reading *reading, bool *reads);
@@ -610,7 +610,7 @@ typedef struct sxml_xslt_stream_call {
 
 /* True when node is an xsl:fork whose prongs are streamed each in a pass
    of its own over the document of its streamed xsl:source-document
-   (glossary `streamed_prong`, D230). */
+   (glossary `streamed_prong`, D231). */
 bool sxml_xslt_is_streamed_fork(const sxml_xslt_lowering *lowering,
                                 sxml_xslt_ast_node_index node);
 
@@ -981,6 +981,10 @@ typedef struct sxml_xslt_lowering_request {
        constructor with XSLT's rules around the value. Otherwise it returns
        the raw result. */
     bool builds_result_document;
+    /* As builds_result_document, the DOCUMENT constructor with
+       PRINCIPAL_RESULT: the tree goes to the principal stream as it is
+       made (D231), and the main function returns the empty sequence. */
+    bool streams_result_document;
     /* sxml_ir_unit_configuration.maximum_expression_count. */
     uint32_t maximum_expression_count;
     sxml_error_record *error_record;

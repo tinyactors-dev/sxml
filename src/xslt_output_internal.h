@@ -10,6 +10,7 @@
 #include "sxml/processor.h"
 #include "sxml/serialize.h"
 #include "sxml/status.h"
+#include "sxml/tree.h"
 #include "sxml/view.h"
 #include "sxml/xdm.h"
 #include "sxml/xslt.h"
@@ -261,6 +262,36 @@ typedef struct sxml_xslt_principal_result_request {
 SXML_NODISCARD sxml_status sxml_xslt_result_writer_deliver_principal_result(
     sxml_xslt_result_writer *writer, const sxml_xslt_principal_result_request *request,
     sxml_sequence *principal_result);
+
+/*
+ * The principal result delivered as it is made (glossary
+ * `principal_stream`, D231), for a SERIALIZED request whose definition
+ * builds a tree (build-tree yes, or a method given that builds one, or
+ * no method, 26.1) without an item separator, in a stylesheet without
+ * xsl:result-document: writes true to *streams and makes the tree builder
+ * the main function builds the principal result's tree into
+ * (sxml_xslt_result_writer_principal_builder); its events are serialized
+ * as they come when the method is xml (given, or chosen by the first
+ * element, 26.1.2) with parameters a streamed serialization takes, else
+ * built into a tree serialized after the evaluation.
+ * sxml_xslt_result_writer_deliver_principal_result then finishes it.
+ * *streams false, and nothing made, otherwise. Returns the allocator's
+ * failures.
+ */
+SXML_NODISCARD sxml_status sxml_xslt_result_writer_start_principal_stream(
+    sxml_xslt_result_writer *writer, const sxml_xslt_principal_result_request *request,
+    bool *streams);
+
+/* The tree builder of the principal stream; the null builder (operations
+   NULL) without one. Valid until the principal result is delivered. */
+sxml_tree_builder sxml_xslt_result_writer_principal_builder(sxml_xslt_result_writer *writer);
+
+/* The flag the main function sets when the raw result turns out not to
+   be a tree's content (sxml_evaluation_environment.principal_result_is_raw):
+   the principal stream is then dropped and the raw result delivered as
+   without one. NULL without a principal stream, or when the output
+   definition gives build-tree or a method (26.1). */
+bool *sxml_xslt_result_writer_principal_raw_flag(sxml_xslt_result_writer *writer);
 
 /* The current output URI (26.3): the absolute URI of the innermost result
    document being written, else the base output URI; absent in temporary

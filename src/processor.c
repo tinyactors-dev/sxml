@@ -1569,7 +1569,10 @@ sxml_status sxml_processor_compile_document_loader_initialize(
                                        .default_language = SXML_BYTE_VIEW_FROM_LITERAL("en"),
                                        .environment_variables = {.environment_variables = NULL,
                                                                  .environment_variable_count = 0},
-                                       .result_writer = NULL},
+                                       .result_writer = NULL,
+                                       .principal_result_builder = {.state = NULL,
+                                                                    .operations = NULL},
+                                       .principal_result_is_raw = NULL},
             .available_documents = {.available_documents = NULL, .available_document_count = 0},
             .document_preparation = {.state = NULL, .operations = NULL}},
         loader);

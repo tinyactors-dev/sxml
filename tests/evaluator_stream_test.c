@@ -259,7 +259,7 @@ typedef struct stream_case {
     const char *expected_output;
 } stream_case;
 
-/* Accumulators computed as the document streams (D230), with the same
+/* Accumulators computed as the document streams (D231), with the same
    values unstreamed. */
 #define ACCUMULATOR_CASE(name, declarations, used, body, document, expected)                       \
     {                                                                                              \
@@ -399,7 +399,7 @@ static const stream_case stream_cases[] = {
     STREAM_CASE("counted-text-after-child-elements", "",
                 "<xsl:value-of select='count(r/text())'/>", "<r>a<e/>b<e></e>c<e>d</e></r>",
                 DECLARATION "<out>3</out>"),
-    /* D230: values of shallow windows (before), of full windows' nodes
+    /* D231: values of shallow windows (before), of full windows' nodes
        (the t of a copied book), after a node's end, and of the document
        node after its end. */
     ACCUMULATOR_CASE("accumulators-of-open-nodes", BOOK_ACCUMULATORS, "#all",
@@ -446,7 +446,7 @@ static const stream_case stream_cases[] = {
                      "<xsl:for-each select='shop/book'>"
                      "<xsl:value-of select='accumulator-before(\"a\")'/>;</xsl:for-each>",
                      books, DECLARATION "<out>10;20;30;</out>"),
-    /* xsl:fork: each prong a pass of its own over the document (D230). */
+    /* xsl:fork: each prong a pass of its own over the document (D231). */
     STREAM_CASE("fork-prongs-in-passes", "",
                 "<xsl:fork><xsl:sequence><a><xsl:value-of select='count(shop/book)'/></a>"
                 "</xsl:sequence><xsl:sequence select='sum(shop/book/p)'/>"
@@ -672,7 +672,7 @@ static const large_path_case large_path_cases[] = {
     LARGE_PATH_CASE("", "<xsl:value-of select='sum(records/record/price)'/>", "1.4925E6"),
     LARGE_PATH_CASE("", "<xsl:value-of select='sum(//record/@id) div 1000'/>", "450015"),
     LARGE_PATH_CASE("", "<xsl:value-of select='max(records/record/@id)'/>", "30000"),
-    /* Two consuming prongs of an xsl:fork, a pass each (D230). */
+    /* Two consuming prongs of an xsl:fork, a pass each (D231). */
     LARGE_PATH_CASE("",
                     "<xsl:fork><xsl:sequence select='count(records/record)'/>"
                     "<xsl:sequence select='sum(records/record/price)'/></xsl:fork>",
@@ -742,7 +742,7 @@ static void test_large_document_paths_stream_in_bounded_memory(sxml_test_state *
     "<xsl:mode streamable='" streamable "' on-no-match='" on_no_match                              \
     "' use-accumulators='#all'/>" templates "</xsl:stylesheet>"
 
-/* Counts the records (D230). */
+/* Counts the records (D231). */
 #define RECORD_COUNTER                                                                             \
     "<xsl:accumulator name='n' initial-value='0' streamable='yes'>"                                \
     "<xsl:accumulator-rule match='record' select='$value + 1'/></xsl:accumulator>"
@@ -818,14 +818,13 @@ static const principal_case principal_cases[] = {
                    "</xsl:template>",
                    NULL),
     /* The identity, as the document streams: the shallow copies' content
-       is delivered as it is made (the result itself is held whole, so it
-       is kept small here). */
+       is delivered as it is made. */
     PRINCIPAL_CASE("shallow-copy",
                    "<xsl:template match='record[@hot = \"no\"]'/>"
                    "<xsl:template match='price'><p><xsl:value-of select='. * 2'/></p>"
                    "</xsl:template>",
                    NULL),
-    /* Accumulators computed as the document streams (D230): before each
+    /* Accumulators computed as the document streams (D231): before each
        hot record, after the document node. */
     {.streamed_text = PRINCIPAL_ACCUMULATED(
          "yes", "shallow-skip",
@@ -841,6 +840,14 @@ static const principal_case principal_cases[] = {
                         "n='{accumulator-before(\"n\")}'/></xsl:template>"),
      .expected_output = DECLARATION "<out><r n=\"10000\"/><r n=\"20000\"/><r n=\"30000\"/>"
                                     "<total n=\"30000\"/></out>"},
+    /* The whole identity, serialized as it is made (D231): the principal
+       result is not held, so its size is not in the limit. */
+    PRINCIPAL_CASE("shallow-copy", "", NULL),
+    /* The same under a wrapper the rule for "/" makes. */
+    PRINCIPAL_CASE("shallow-copy",
+                   "<xsl:template match='/'><out><xsl:apply-templates/></out></xsl:template>"
+                   "<xsl:template match='name'><n><xsl:value-of select='.'/></n></xsl:template>",
+                   NULL),
     /* An aggregate over the document from the rule for "/". */
     PRINCIPAL_CASE("shallow-skip",
                    "<xsl:template match='/'><n><xsl:value-of "

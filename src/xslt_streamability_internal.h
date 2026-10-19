@@ -113,7 +113,7 @@ typedef struct sxml_xslt_sweep_query {
     bool requires_grounded;
     /* The construct is an instruction of a sequence constructor after a
        consuming one (19.8.9.1 rule 8: fn:accumulator-after of the context
-       item is then motionless; D230). */
+       item is then motionless; D231). */
     bool follows_consuming;
 } sxml_xslt_sweep_query;
 
@@ -154,7 +154,7 @@ SXML_NODISCARD sxml_status sxml_xslt_assess_mode(const sxml_xslt_mode_query *que
                                                 bool *is_guaranteed);
 
 /* The xsl:accumulator declarations of an AST declared streamable, for
-   streamed evaluation (D230): their rules run in shallow stream windows,
+   streamed evaluation (D231): their rules run in shallow stream windows,
    so each must be guaranteed-streamable (18.2.9), none uncertain. */
 typedef struct sxml_xslt_accumulator_query {
     /* A sealed AST, borrowed for the call. */

@@ -1844,6 +1844,36 @@ typedef struct evidence_request {
     sxml_node_reference node;
 } evidence_request;
 
+/* What an element of the result tree named element_name says (26.1.2). */
+typedef struct name_evidence_request {
+    const sxml_name_pool *name_pool;
+    sxml_name_identifier element_name;
+} name_evidence_request;
+
+static sxml_status read_name_evidence(name_evidence_request request, method_evidence *evidence) {
+    sxml_name_parts parts;
+    sxml_byte_view namespace_uri = {.bytes = NULL, .byte_count = 0};
+    sxml_status status =
+        sxml_name_pool_get_name_parts(request.name_pool, request.element_name, &parts);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_name_pool_get_namespace_uri(request.name_pool, parts.namespace_uri,
+                                                  &namespace_uri);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    const sxml_byte_view html = SXML_BYTE_VIEW_FROM_LITERAL("html");
+    if (sxml_byte_view_equals(parts.local_name, html) &&
+        sxml_byte_view_equals(namespace_uri, xhtml_namespace_uri)) {
+        *evidence = SXML_METHOD_EVIDENCE_XHTML;
+    } else if (namespace_uri.byte_count == 0 && equals_ignoring_case(parts.local_name, html)) {
+        *evidence = SXML_METHOD_EVIDENCE_HTML;
+    } else {
+        *evidence = SXML_METHOD_EVIDENCE_XML;
+    }
+    return SXML_STATUS_OK;
+}
+
 static sxml_status read_evidence(evidence_request request, method_evidence *evidence) {
     sxml_node_description description;
     sxml_status status = sxml_node_describe(request.node, &description);
@@ -1852,28 +1882,10 @@ static sxml_status read_evidence(evidence_request request, method_evidence *evid
         return status;
     }
     switch (description.node_kind) {
-    case SXML_NODE_KIND_ELEMENT: {
-        sxml_name_parts parts;
-        sxml_byte_view namespace_uri = {.bytes = NULL, .byte_count = 0};
-        status = sxml_name_pool_get_name_parts(request.name_pool, description.node_name, &parts);
-        if (status == SXML_STATUS_OK) {
-            status = sxml_name_pool_get_namespace_uri(request.name_pool, parts.namespace_uri,
-                                                      &namespace_uri);
-        }
-        if (status != SXML_STATUS_OK) {
-            return status;
-        }
-        const sxml_byte_view html = SXML_BYTE_VIEW_FROM_LITERAL("html");
-        if (sxml_byte_view_equals(parts.local_name, html) &&
-            sxml_byte_view_equals(namespace_uri, xhtml_namespace_uri)) {
-            *evidence = SXML_METHOD_EVIDENCE_XHTML;
-        } else if (namespace_uri.byte_count == 0 && equals_ignoring_case(parts.local_name, html)) {
-            *evidence = SXML_METHOD_EVIDENCE_HTML;
-        } else {
-            *evidence = SXML_METHOD_EVIDENCE_XML;
-        }
-        return SXML_STATUS_OK;
-    }
+    case SXML_NODE_KIND_ELEMENT:
+        return read_name_evidence((name_evidence_request){.name_pool = request.name_pool,
+                                                          .element_name = description.node_name},
+                                  evidence);
     case SXML_NODE_KIND_TEXT: {
         sxml_byte_view content = {.bytes = NULL, .byte_count = 0};
         status = sxml_node_get_content(request.node, &content);
@@ -2228,7 +2240,12 @@ struct sxml_xslt_result_writer {
     bool has_principal_document;
     open_result_document principal_document;
     sxml_sequence principal_raw_result;
+    /* The principal result delivered as it is made (D231); NULL when it
+       is delivered after the evaluation. */
+    struct principal_stream *principal_stream;
 };
+
+static void destroy_principal_stream(sxml_xslt_result_writer *writer);
 
 /* Makes room for one more element of a heap array. */
 typedef struct array_growth {
@@ -2358,6 +2375,7 @@ void sxml_xslt_result_writer_finalize(sxml_xslt_result_writer *writer) {
         return;
     }
     (void)abandon_documents(writer, 0);
+    destroy_principal_stream(writer);
     if (writer->has_principal_document) {
         release_open_document(writer, &writer->principal_document);
         sxml_sequence_release(writer->principal_raw_result);
@@ -2473,6 +2491,379 @@ static sxml_status raise_dynamic(sxml_error_record *error_record, sxml_byte_view
                                              .byte_count = text.byte_count - 9}});
 }
 
+/* ======================================================= Principal stream */
+
+/*
+ * The principal result delivered as it is made (glossary
+ * `principal_stream`, D231): the main function builds its result tree into
+ * the stream's tree builder (src/evaluator_construct.c). Until the first
+ * element or non-whitespace text of the tree, its top-level nodes are
+ * kept in a tree; then the method is known (26.1.2): the xml method whose
+ * parameters a streamed serialization accepts (src/serialize_internal.h)
+ * writes the kept nodes and every later event as it comes; any other
+ * keeps building the tree, which is serialized after the evaluation, as
+ * before.
+ */
+typedef enum principal_stream_state {
+    SXML_PRINCIPAL_STREAM_UNDECIDED,
+    SXML_PRINCIPAL_STREAM_SERIALIZED,
+    SXML_PRINCIPAL_STREAM_BUILT,
+} principal_stream_state;
+
+typedef struct principal_stream {
+    sxml_xslt_result_writer *writer;
+    principal_stream_state state;
+    sxml_xslt_output_definition definition;
+    sxml_output_stream output_stream;
+    sxml_error_record *error_record;
+    /* UNDECIDED: the top-level nodes so far; BUILT: the whole tree. */
+    sxml_arena_tree *arena_tree;
+    sxml_streamed_serialization *serialization;
+    /* The elements open (0 at the top level). */
+    size_t depth;
+    /* Set by the main function: the raw result is returned raw. */
+    bool is_raw;
+} principal_stream;
+
+static sxml_item_heap *stream_heap(const principal_stream *stream) {
+    return stream->writer->processor->item_heap;
+}
+
+/* The builder events go to now. */
+static sxml_tree_builder stream_target(const principal_stream *stream) {
+    if (stream->state == SXML_PRINCIPAL_STREAM_SERIALIZED) {
+        return sxml_streamed_serialization_as_tree_builder(stream->serialization);
+    }
+    return sxml_arena_tree_as_tree_builder(stream->arena_tree);
+}
+
+/* The kept top-level nodes, written by the serialization. */
+static sxml_status replay_kept_nodes(principal_stream *stream) {
+    const sxml_tree_builder kept = sxml_arena_tree_as_tree_builder(stream->arena_tree);
+    sxml_status status = kept.operations->end_document(kept.state);
+    sxml_tree *tree = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_arena_tree_finish(stream->arena_tree, &tree);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    stream->arena_tree = NULL;
+    const sxml_tree_builder target =
+        sxml_streamed_serialization_as_tree_builder(stream->serialization);
+    status = target.operations->start_document(
+        target.state, &(sxml_document_start_event){.document_uri = {.bytes = NULL, .byte_count = 0},
+                                                   .base_uri = {.bytes = NULL, .byte_count = 0},
+                                                   .location = {.source_name = {.bytes = NULL,
+                                                                                .byte_count = 0},
+                                                                .line_number = 0,
+                                                                .column_number = 0,
+                                                                .byte_offset = 0}});
+    sxml_node_description description;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_node_describe(
+            (sxml_node_reference){.tree = tree, .node_index = {.index = 0}, .namespace_number = 0},
+            &description);
+    }
+    bool has_child = status == SXML_STATUS_OK && description.has_children;
+    sxml_node_index child = description.first_child;
+    while (status == SXML_STATUS_OK && has_child) {
+        const sxml_node_reference node = {.tree = tree, .node_index = child, .namespace_number = 0};
+        status = sxml_tree_builder_copy_node(target, &(sxml_copy_request){
+                                                         .node = node,
+                                                         .preserves_namespaces = true,
+                                                         .inherits_namespaces = true,
+                                                         .preserves_type_annotations = true});
+        sxml_node_description child_description;
+        if (status == SXML_STATUS_OK) {
+            status = sxml_node_describe(node, &child_description);
+        }
+        has_child = status == SXML_STATUS_OK && child_description.has_next_sibling;
+        child = child_description.next_sibling;
+    }
+    sxml_tree_release(tree);
+    return status;
+}
+
+/* The method is known from evidence (26.1.2): streamed for the xml method
+   with parameters a streamed serialization takes; built otherwise. */
+static sxml_status decide_stream(principal_stream *stream, method_evidence evidence) {
+    sxml_serialization_parameters parameters = stream->definition.serialization_parameters;
+    if (!stream->definition.has_serialization_method) {
+        parameters.serialization_method = SXML_SERIALIZATION_METHOD_XML;
+        if (evidence == SXML_METHOD_EVIDENCE_XHTML && !stream->writer->prefers_xml_for_xhtml) {
+            parameters.serialization_method = SXML_SERIALIZATION_METHOD_XHTML;
+        } else if (evidence == SXML_METHOD_EVIDENCE_HTML) {
+            parameters.serialization_method = SXML_SERIALIZATION_METHOD_HTML;
+        }
+    }
+    stream->state = SXML_PRINCIPAL_STREAM_BUILT;
+    if (!sxml_serialization_streams(&parameters)) {
+        return SXML_STATUS_OK;
+    }
+    sxml_status status = sxml_streamed_serialization_create(
+        stream->writer->processor->allocator,
+        &(sxml_streamed_serialization_request){.item_heap = stream_heap(stream),
+                                               .parameters = &parameters,
+                                               .output_stream = stream->output_stream,
+                                               .error_record = stream->error_record},
+        &stream->serialization);
+    if (status == SXML_STATUS_OK) {
+        stream->state = SXML_PRINCIPAL_STREAM_SERIALIZED;
+        status = replay_kept_nodes(stream);
+    }
+    return status;
+}
+
+static principal_stream *stream_from_state(void *state) {
+    return state;
+}
+
+static sxml_status on_stream_start_document(void *state, const sxml_document_start_event *event) {
+    principal_stream *stream = stream_from_state(state);
+    const sxml_tree_builder kept = sxml_arena_tree_as_tree_builder(stream->arena_tree);
+    const sxml_status status = kept.operations->start_document(kept.state, event);
+    if (status == SXML_STATUS_OK && stream->definition.has_serialization_method) {
+        return decide_stream(stream, SXML_METHOD_EVIDENCE_NONE);
+    }
+    return status;
+}
+
+static sxml_status on_stream_end_document(void *state) {
+    principal_stream *stream = stream_from_state(state);
+    if (stream->state == SXML_PRINCIPAL_STREAM_UNDECIDED) {
+        /* No element: the tree is small; it is serialized whole. */
+        stream->state = SXML_PRINCIPAL_STREAM_BUILT;
+    }
+    const sxml_tree_builder target = stream_target(stream);
+    return target.operations->end_document(target.state);
+}
+
+static sxml_status on_stream_start_element(void *state, const sxml_element_start_event *event) {
+    principal_stream *stream = stream_from_state(state);
+    sxml_status status = SXML_STATUS_OK;
+    if (stream->state == SXML_PRINCIPAL_STREAM_UNDECIDED) {
+        method_evidence evidence = SXML_METHOD_EVIDENCE_NONE;
+        status = read_name_evidence(
+            (name_evidence_request){.name_pool = sxml_item_heap_get_name_pool(stream_heap(stream)),
+                                    .element_name = event->element_name},
+            &evidence);
+        if (status == SXML_STATUS_OK) {
+            status = decide_stream(stream, evidence);
+        }
+    }
+    stream->depth += 1;
+    const sxml_tree_builder target = stream_target(stream);
+    return status == SXML_STATUS_OK ? target.operations->start_element(target.state, event)
+                                    : status;
+}
+
+static sxml_status on_stream_namespace_binding(void *state, const sxml_namespace_binding *binding) {
+    const sxml_tree_builder target = stream_target(stream_from_state(state));
+    return target.operations->add_namespace_binding(target.state, binding);
+}
+
+static sxml_status on_stream_attribute(void *state, const sxml_attribute_event *event) {
+    const sxml_tree_builder target = stream_target(stream_from_state(state));
+    return target.operations->add_attribute(target.state, event);
+}
+
+static sxml_status on_stream_end_element(void *state) {
+    principal_stream *stream = stream_from_state(state);
+    stream->depth -= 1;
+    const sxml_tree_builder target = stream_target(stream);
+    return target.operations->end_element(target.state);
+}
+
+static sxml_status on_stream_text(void *state, const sxml_text_event *event) {
+    principal_stream *stream = stream_from_state(state);
+    sxml_status status = SXML_STATUS_OK;
+    if (stream->state == SXML_PRINCIPAL_STREAM_UNDECIDED && stream->depth == 0 &&
+        !sxml_xml_text_is_whitespace(event->text)) {
+        status = decide_stream(stream, SXML_METHOD_EVIDENCE_XML);
+    }
+    const sxml_tree_builder target = stream_target(stream);
+    return status == SXML_STATUS_OK ? target.operations->add_text(target.state, event) : status;
+}
+
+static sxml_status on_stream_comment(void *state, const sxml_comment_event *event) {
+    const sxml_tree_builder target = stream_target(stream_from_state(state));
+    return target.operations->add_comment(target.state, event);
+}
+
+static sxml_status on_stream_processing_instruction(
+    void *state, const sxml_processing_instruction_event *event) {
+    const sxml_tree_builder target = stream_target(stream_from_state(state));
+    return target.operations->add_processing_instruction(target.state, event);
+}
+
+static sxml_status on_stream_unparsed_entity(void *state, const sxml_unparsed_entity *entity) {
+    const sxml_tree_builder target = stream_target(stream_from_state(state));
+    return target.operations->add_unparsed_entity(target.state, entity);
+}
+
+static const sxml_tree_builder_operations principal_stream_operations = {
+    .start_document = on_stream_start_document,
+    .end_document = on_stream_end_document,
+    .start_element = on_stream_start_element,
+    .add_namespace_binding = on_stream_namespace_binding,
+    .add_attribute = on_stream_attribute,
+    .end_element = on_stream_end_element,
+    .add_text = on_stream_text,
+    .add_comment = on_stream_comment,
+    .add_processing_instruction = on_stream_processing_instruction,
+    .add_unparsed_entity = on_stream_unparsed_entity,
+};
+
+static void destroy_principal_stream(sxml_xslt_result_writer *writer) {
+    principal_stream *stream = writer->principal_stream;
+    if (stream == NULL) {
+        return;
+    }
+    sxml_arena_tree_destroy(stream->arena_tree);
+    sxml_streamed_serialization_destroy(stream->serialization);
+    sxml_allocator_release(writer->processor->allocator, stream);
+    writer->principal_stream = NULL;
+}
+
+sxml_status sxml_xslt_result_writer_start_principal_stream(
+    sxml_xslt_result_writer *writer, const sxml_xslt_principal_result_request *request,
+    bool *streams) {
+    *streams = false;
+    if (writer == NULL || request == NULL || writer->principal_stream != NULL) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    sxml_xslt_output_definition definition;
+    sxml_status status = SXML_STATUS_OK;
+    if (request->output_definition != NULL) {
+        definition = *request->output_definition;
+    } else {
+        status = sxml_xslt_stylesheet_outputs_get_definition(
+            writer->outputs, (sxml_name_identifier){.index = 0}, &definition);
+    }
+    /* 26.1: a tree is built and serialized; no xsl:result-document could
+       take the principal result's URI (26.2.2). */
+    /* 26.1: a given method other than xml, xhtml, html and text builds no
+       tree by default; without a method the first item decides, which the
+       main function reports (is_raw). */
+    const sxml_serialization_method method = definition.serialization_parameters.serialization_method;
+    const bool method_builds_tree =
+        !definition.has_serialization_method || method == SXML_SERIALIZATION_METHOD_XML ||
+        method == SXML_SERIALIZATION_METHOD_XHTML || method == SXML_SERIALIZATION_METHOD_HTML ||
+        method == SXML_SERIALIZATION_METHOD_TEXT;
+    if (status != SXML_STATUS_OK || request->result_delivery != SXML_XSLT_RESULT_DELIVERY_SERIALIZED ||
+        request->output_stream.operations == NULL ||
+        definition.build_tree == SXML_SERIALIZATION_FLAG_NO ||
+        (definition.build_tree != SXML_SERIALIZATION_FLAG_YES && !method_builds_tree) ||
+        definition.serialization_parameters.has_item_separator ||
+        writer->outputs->instruction_count > 0) {
+        return status;
+    }
+    void *memory = NULL;
+    status = sxml_allocator_allocate(
+        writer->processor->allocator,
+        (sxml_allocation_request){.byte_count = sizeof(principal_stream),
+                                  .alignment = alignof(principal_stream)},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    principal_stream *stream = memory;
+    *stream = (principal_stream){.writer = writer,
+                                 .state = SXML_PRINCIPAL_STREAM_UNDECIDED,
+                                 .definition = definition,
+                                 .output_stream = request->output_stream,
+                                 .error_record = request->error_record,
+                                 .arena_tree = NULL,
+                                 .serialization = NULL,
+                                 .depth = 0,
+                                 .is_raw = false};
+    const sxml_allocator tree_allocator = sxml_item_heap_as_allocator(stream_heap(stream));
+    status = sxml_arena_tree_create(
+        tree_allocator,
+        &(sxml_arena_tree_configuration){
+            .allocator = tree_allocator,
+            .initial_memory = {.bytes = NULL, .byte_count = 0},
+            .item_heap = stream_heap(stream),
+            .maximum_node_count = 0,
+            .maximum_depth = 0,
+            .maximum_text_byte_count = 0,
+            .keeps_locations = false,
+            .duplicate_attribute_policy = SXML_DUPLICATE_ATTRIBUTE_POLICY_REPLACE,
+            .is_destroyed_when_unreferenced = true,
+            .error_record = request->error_record,
+            .base_uri = writer->base_output_uri},
+        &stream->arena_tree);
+    if (status != SXML_STATUS_OK) {
+        sxml_allocator_release(writer->processor->allocator, stream);
+        return status;
+    }
+    writer->principal_stream = stream;
+    *streams = true;
+    return SXML_STATUS_OK;
+}
+
+sxml_tree_builder sxml_xslt_result_writer_principal_builder(sxml_xslt_result_writer *writer) {
+    if (writer == NULL || writer->principal_stream == NULL) {
+        return (sxml_tree_builder){.state = NULL, .operations = NULL};
+    }
+    return (sxml_tree_builder){.state = writer->principal_stream,
+                               .operations = &principal_stream_operations};
+}
+
+bool *sxml_xslt_result_writer_principal_raw_flag(sxml_xslt_result_writer *writer) {
+    if (writer == NULL || writer->principal_stream == NULL) {
+        return NULL;
+    }
+    /* Only the method chosen from the raw result can build no tree. */
+    const sxml_xslt_output_definition *definition = &writer->principal_stream->definition;
+    return definition->build_tree == SXML_SERIALIZATION_FLAG_DEFAULT &&
+                   !definition->has_serialization_method
+               ? &writer->principal_stream->is_raw
+               : NULL;
+}
+
+/* After the evaluation (D231): the streamed serialization's last bytes,
+   or the tree built, serialized as the principal result is. */
+static sxml_status finish_principal_stream(sxml_xslt_result_writer *writer,
+                                           const sxml_xslt_principal_result_request *request,
+                                           sxml_sequence *principal_result) {
+    principal_stream *stream = writer->principal_stream;
+    sxml_status status = SXML_STATUS_OK;
+    if (stream->state == SXML_PRINCIPAL_STREAM_SERIALIZED) {
+        status = sxml_streamed_serialization_finish(stream->serialization);
+        if (status == SXML_STATUS_OK) {
+            *principal_result = sxml_sequence_empty();
+        }
+        destroy_principal_stream(writer);
+        return status;
+    }
+    sxml_tree *tree = NULL;
+    status = sxml_arena_tree_finish(stream->arena_tree, &tree);
+    if (status != SXML_STATUS_OK) {
+        destroy_principal_stream(writer);
+        return status;
+    }
+    stream->arena_tree = NULL;
+    const sxml_item document = sxml_node_item_make(
+        (sxml_node_reference){.tree = tree, .node_index = {.index = 0}, .namespace_number = 0});
+    sxml_tree_release(tree);
+    const sxml_xslt_output_definition definition = stream->definition;
+    destroy_principal_stream(writer);
+    status = deliver_result(writer->processor->item_heap,
+                            &(delivery_request){.result_delivery = request->result_delivery,
+                                                .output_stream = request->output_stream,
+                                                .result = {.value = sxml_sequence_from_item(document),
+                                                           .output_definition = &definition,
+                                                           .result_uri = writer->base_output_uri,
+                                                           .prefers_xml_for_xhtml =
+                                                               writer->prefers_xml_for_xhtml,
+                                                           .error_record = request->error_record}},
+                            principal_result);
+    sxml_item_release(document);
+    return status;
+}
+
 sxml_status sxml_xslt_result_writer_deliver_principal_result(
     sxml_xslt_result_writer *writer, const sxml_xslt_principal_result_request *request,
     sxml_sequence *principal_result) {
@@ -2482,6 +2873,14 @@ sxml_status sxml_xslt_result_writer_deliver_principal_result(
     sxml_status status = abandon_documents(writer, 0);
     if (status != SXML_STATUS_OK) {
         return status;
+    }
+    if (writer->principal_stream != NULL && writer->principal_stream->is_raw) {
+        /* Nothing was written: the first item was a map, an array or a
+           JNode, before any event. */
+        destroy_principal_stream(writer);
+    }
+    if (writer->principal_stream != NULL) {
+        return finish_principal_stream(writer, request, principal_result);
     }
     if (writer->has_principal_document) {
         /* 26.2.2: the result document of the base output URI is the

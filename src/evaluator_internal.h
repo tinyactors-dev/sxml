@@ -478,7 +478,7 @@ SXML_NODISCARD sxml_status sxml_dynamic_context_store_memo(
 
 /*
  * The accumulator values of a node of a streamed document (XSLT 4.0,
- * 18.2.9; D230), for the row accumulator-streamed: the streamed documents
+ * 18.2.9; D231), for the row accumulator-streamed: the streamed documents
  * of the running STREAM tasks whose accumulators are computed as their
  * events pass hold the values of the nodes their windows hold now. Values
  * are maps from accumulator numbers (from 1) to values, borrowed until

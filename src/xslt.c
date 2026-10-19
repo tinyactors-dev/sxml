@@ -250,6 +250,8 @@ typedef struct sxml_unit_invocation {
     bool has_initial_match_selection;
     /* D228: the initial match selection is a streamed principal source. */
     bool has_streamed_source;
+    /* D231: the principal result goes to the principal stream. */
+    bool streams_result_document;
     sxml_error_record *error_record;
 } sxml_unit_invocation;
 
@@ -285,6 +287,8 @@ static sxml_status sxml_xslt_lower_invocation(const sxml_unit_invocation *invoca
                                       .has_streamed_source = invocation->has_streamed_source,
                                       .reads_invocation_parameters = true,
                                       .builds_result_document = false,
+                                      .streams_result_document =
+                                          invocation->streams_result_document,
                                       .maximum_expression_count = 0,
                                       .error_record = invocation->error_record},
         unit);
@@ -701,6 +705,9 @@ typedef struct sxml_transformation {
        copy. */
     sxml_available_document *available_documents;
     size_t available_document_count;
+    /* The principal result goes to the writer's principal stream as it is
+       made (D231). */
+    bool streams_result_document;
 } sxml_transformation;
 
 /* The source name of an error's location in memory of the stylesheet:
@@ -794,6 +801,7 @@ static sxml_status sxml_transformation_choose_unit(sxml_transformation *transfor
         .selects_unnamed_mode = request->selects_unnamed_mode,
         .has_initial_match_selection = request->has_initial_match_selection,
         .has_streamed_source = has_streamed_source,
+        .streams_result_document = transformation->streams_result_document,
         .error_record = request->error_record};
     if (request->invocation_kind == SXML_XSLT_INVOCATION_KIND_CALL_TEMPLATE &&
         invocation.initial_template.index == 0) {
@@ -1142,6 +1150,10 @@ static void sxml_transformation_describe(const sxml_transformation *transformati
                 ? sxml_xslt_whitespace_stripping_as_document_preparation(&stylesheet->stripping)
                 : (sxml_document_preparation){.state = NULL, .operations = NULL},
         .result_writer = transformation->writer,
+        .principal_result_builder =
+            sxml_xslt_result_writer_principal_builder(transformation->writer),
+        .principal_result_is_raw =
+            sxml_xslt_result_writer_principal_raw_flag(transformation->writer),
         .discards_messages = false,
         .disables_assertions = false};
 }
@@ -1186,8 +1198,34 @@ static sxml_status sxml_transformation_run(const sxml_transformation *transforma
 
 /* Everything before the evaluation (2.4.2): the unit of the invocation,
    the stripped documents and context, the bindings and the writer. */
+/* D231: a transformation that streams its principal source delivers a
+   serialized principal result as it is made, when the result writer can
+   (sxml_xslt_result_writer_start_principal_stream). */
+static sxml_status sxml_transformation_open_stream(sxml_transformation *transformation) {
+    const sxml_xslt_transformation_request *request = transformation->request;
+    if (request->streamed_source_uri.byte_count == 0 ||
+        request->result_delivery != SXML_XSLT_RESULT_DELIVERY_SERIALIZED) {
+        return SXML_STATUS_OK;
+    }
+    return sxml_xslt_result_writer_start_principal_stream(
+        transformation->writer,
+        &(sxml_xslt_principal_result_request){.value = sxml_sequence_empty(),
+                                              .output_definition = request->output_definition,
+                                              .result_delivery = request->result_delivery,
+                                              .output_stream = request->output_stream,
+                                              .error_record = request->error_record},
+        &transformation->streams_result_document);
+}
+
 static sxml_status sxml_transformation_prime(sxml_transformation *transformation) {
-    sxml_status status = sxml_transformation_choose_unit(transformation);
+    /* The writer first: whether the result streams changes the unit. */
+    sxml_status status = sxml_transformation_open_writer(transformation);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_transformation_open_stream(transformation);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_transformation_choose_unit(transformation);
+    }
     if (status == SXML_STATUS_OK) {
         status = sxml_transformation_prime_documents(transformation);
     }
@@ -1196,9 +1234,6 @@ static sxml_status sxml_transformation_prime(sxml_transformation *transformation
     }
     if (status == SXML_STATUS_OK) {
         status = sxml_transformation_bind_parameters(transformation);
-    }
-    if (status == SXML_STATUS_OK) {
-        status = sxml_transformation_open_writer(transformation);
     }
     return status;
 }
@@ -1223,7 +1258,8 @@ static sxml_transformation sxml_transformation_start(
                                  .invocation_value_count = 0,
                                  .writer = NULL,
                                  .available_documents = NULL,
-                                 .available_document_count = 0};
+                                 .available_document_count = 0,
+                                 .streams_result_document = false};
 }
 
 sxml_status sxml_xslt_stylesheet_transform(const sxml_xslt_stylesheet *stylesheet,

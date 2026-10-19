@@ -2426,6 +2426,7 @@ static void write_construction_flags(text_writer *writer, uint32_t flags) {
         {(uint32_t)SXML_IR_CONSTRUCTION_XSLT_RULES, " xslt-rules"},
         {(uint32_t)SXML_IR_CONSTRUCTION_CDATA_SECTION, " cdata-section"},
         {(uint32_t)SXML_IR_CONSTRUCTION_DISABLES_OUTPUT_ESCAPING, " disables-output-escaping"},
+        {(uint32_t)SXML_IR_CONSTRUCTION_PRINCIPAL_RESULT, " principal-result"},
     };
     for (size_t flag_index = 0;
          flag_index < sizeof(flag_names) / sizeof(flag_names[0]);
@@ -2726,7 +2727,7 @@ static sxml_status print_expression(text_writer *writer, print_stack *stack,
         }
         if (stream->accumulators.initial.value != 0) {
             /* " accumulators function:I function:S function:E function:D"
-               (D230). */
+               (D231). */
             const sxml_ir_function_index functions[] = {
                 stream->accumulators.initial, stream->accumulators.start,
                 stream->accumulators.end, stream->accumulators.descend};

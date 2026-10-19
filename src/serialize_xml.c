@@ -1468,30 +1468,36 @@ typedef struct sxml_closing {
     uint64_t node_index;
 } sxml_closing;
 
+/* Closes the innermost open element, an element of tree, writing its
+   end tag. */
+static sxml_status sxml_xml_writer_close_top(sxml_xml_writer *writer, sxml_tree *tree) {
+    const sxml_xml_open_element open = writer->open_elements[writer->open_element_count - 1];
+    writer->open_element_count -= 1;
+    writer->binding_count = open.binding_mark;
+    sxml_status status = SXML_STATUS_OK;
+    if (open.is_indenting && open.has_written_child) {
+        status = sxml_xml_writer_indent(writer, open.depth);
+    }
+    sxml_element_facts facts;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xml_writer_describe_element(
+            writer,
+            (sxml_node_reference){.tree = tree, .node_index = open.element, .namespace_number = 0},
+            &facts);
+    }
+    if (status == SXML_STATUS_OK) {
+        facts.is_unprefixed = open.is_unprefixed;
+        status = sxml_xml_writer_write_end_tag(writer, &facts);
+    }
+    return status;
+}
+
 static sxml_status sxml_xml_writer_close_elements(sxml_xml_writer *writer, sxml_closing closing) {
     sxml_status status = SXML_STATUS_OK;
-    while (status == SXML_STATUS_OK && writer->open_element_count > 0) {
-        const sxml_xml_open_element open = writer->open_elements[writer->open_element_count - 1];
-        if (open.last_descendant.index >= closing.node_index) {
-            break;
-        }
-        writer->open_element_count -= 1;
-        writer->binding_count = open.binding_mark;
-        if (open.is_indenting && open.has_written_child) {
-            status = sxml_xml_writer_indent(writer, open.depth);
-        }
-        sxml_element_facts facts;
-        if (status == SXML_STATUS_OK) {
-            status = sxml_xml_writer_describe_element(
-                writer,
-                (sxml_node_reference){.tree = closing.tree, .node_index = open.element,
-                                      .namespace_number = 0},
-                &facts);
-        }
-        if (status == SXML_STATUS_OK) {
-            facts.is_unprefixed = open.is_unprefixed;
-            status = sxml_xml_writer_write_end_tag(writer, &facts);
-        }
+    while (status == SXML_STATUS_OK && writer->open_element_count > 0 &&
+           writer->open_elements[writer->open_element_count - 1].last_descendant.index <
+               closing.node_index) {
+        status = sxml_xml_writer_close_top(writer, closing.tree);
     }
     return status;
 }
@@ -1518,6 +1524,90 @@ static sxml_status sxml_xml_writer_check_construct(sxml_xml_writer *writer, sxml
                   : SXML_STATUS_OK;
 }
 
+/* A text node's content and what it asks for. */
+typedef struct sxml_xml_text {
+    sxml_byte_view content;
+    bool is_cdata_section;
+    bool disables_output_escaping;
+} sxml_xml_text;
+
+/* Writes a text node's content in the innermost open element. */
+static sxml_status sxml_xml_writer_write_text(sxml_xml_writer *writer, sxml_xml_text text) {
+    const sxml_xml_open_element *parent = sxml_xml_writer_top(writer);
+    sxml_character_context character_context = SXML_CHARACTER_CONTEXT_TEXT;
+    /* XSLT 4.0, section 11.4.3: a text node that asks for CDATA sections
+       is written as if its parent were listed in cdata-section-elements;
+       sxml honours it with the XML and XHTML methods (it is
+       implementation-defined, D163). */
+    const bool asks_cdata_section =
+        text.is_cdata_section && !writer->is_canonical && !writer->is_html;
+    if (text.disables_output_escaping && !writer->is_canonical) {
+        /* XSLT 4.0, section 26.1.8: the XML, XHTML and HTML methods write
+           it unescaped, and not in CDATA sections ("CDATA is treated as an
+           alternative escaping mechanism"); canonical output keeps
+           escaping (D188). */
+        character_context = SXML_CHARACTER_CONTEXT_UNESCAPED_TEXT;
+    } else if ((parent != NULL && parent->is_cdata_parent) ||
+               (asks_cdata_section && (parent == NULL || !parent->is_raw_text))) {
+        character_context = SXML_CHARACTER_CONTEXT_CDATA_SECTION;
+    } else if (parent != NULL && parent->is_raw_text) {
+        character_context = SXML_CHARACTER_CONTEXT_RAW_TEXT;
+    }
+    return sxml_serializer_write_character_data(
+        writer->serializer,
+        &(sxml_character_data){.text = text.content, .character_context = character_context});
+}
+
+/* Writes a comment. */
+static sxml_status sxml_xml_writer_write_comment(sxml_xml_writer *writer, sxml_byte_view content) {
+    sxml_status status = SXML_STATUS_OK;
+    if (writer->checks_xml_constructs) {
+        status = sxml_xml_writer_check_construct(writer, SXML_NODE_KIND_COMMENT, content);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xml_writer_markup(writer, SXML_BYTE_VIEW_FROM_LITERAL("<!--"));
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xml_writer_markup(writer, content);
+    }
+    return status == SXML_STATUS_OK ? sxml_xml_writer_markup(writer, SXML_BYTE_VIEW_FROM_LITERAL("-->")) : status;
+}
+
+/* Writes a processing instruction of target. */
+typedef struct sxml_xml_instruction {
+    sxml_byte_view target;
+    sxml_byte_view content;
+} sxml_xml_instruction;
+
+static sxml_status sxml_xml_writer_write_instruction(sxml_xml_writer *writer,
+                                                     sxml_xml_instruction instruction) {
+    sxml_status status = SXML_STATUS_OK;
+    if (writer->checks_xml_constructs) {
+        status = sxml_xml_writer_check_construct(writer, SXML_NODE_KIND_PROCESSING_INSTRUCTION,
+                                                 instruction.content);
+    }
+    if (status == SXML_STATUS_OK && writer->is_html) {
+        return sxml_serializer_write_html_processing_instruction(
+            writer->serializer,
+            &(sxml_html_processing_instruction){.target = instruction.target,
+                                                .data = instruction.content,
+                                                .is_html5 = writer->is_html5});
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xml_writer_markup(writer, SXML_BYTE_VIEW_FROM_LITERAL("<?"));
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xml_writer_markup(writer, instruction.target);
+    }
+    if (status == SXML_STATUS_OK && instruction.content.byte_count > 0) {
+        status = sxml_xml_writer_markup(writer, SXML_BYTE_VIEW_FROM_LITERAL(" "));
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xml_writer_markup(writer, instruction.content);
+        }
+    }
+    return status == SXML_STATUS_OK ? sxml_xml_writer_markup(writer, SXML_BYTE_VIEW_FROM_LITERAL("?>")) : status;
+}
+
 /* Writes a text node's content, a comment or a processing instruction. */
 static sxml_status sxml_xml_writer_write_leaf(sxml_xml_writer *writer, sxml_node_reference node,
                                               const sxml_node_description *description) {
@@ -1527,65 +1617,23 @@ static sxml_status sxml_xml_writer_write_leaf(sxml_xml_writer *writer, sxml_node
         return status;
     }
     if (description->node_kind == SXML_NODE_KIND_TEXT) {
-        const sxml_xml_open_element *parent = sxml_xml_writer_top(writer);
-        sxml_character_context character_context = SXML_CHARACTER_CONTEXT_TEXT;
-        /* XSLT 4.0, section 11.4.3: a text node that asks for CDATA
-           sections is written as if its parent were listed in
-           cdata-section-elements; sxml honours it with the XML and XHTML
-           methods (it is implementation-defined, D163). */
-        const bool asks_cdata_section =
-            description->is_cdata_section && !writer->is_canonical && !writer->is_html;
-        if (description->disables_output_escaping && !writer->is_canonical) {
-            /* XSLT 4.0, section 26.1.8: the XML, XHTML and HTML methods
-               write it unescaped, and not in CDATA sections ("CDATA is
-               treated as an alternative escaping mechanism"); canonical
-               output keeps escaping (D188). */
-            character_context = SXML_CHARACTER_CONTEXT_UNESCAPED_TEXT;
-        } else if ((parent != NULL && parent->is_cdata_parent) ||
-                   (asks_cdata_section && (parent == NULL || !parent->is_raw_text))) {
-            character_context = SXML_CHARACTER_CONTEXT_CDATA_SECTION;
-        } else if (parent != NULL && parent->is_raw_text) {
-            character_context = SXML_CHARACTER_CONTEXT_RAW_TEXT;
-        }
-        return sxml_serializer_write_character_data(
-            writer->serializer,
-            &(sxml_character_data){.text = content, .character_context = character_context});
-    }
-    if (writer->checks_xml_constructs) {
-        status = sxml_xml_writer_check_construct(writer, description->node_kind, content);
-        if (status != SXML_STATUS_OK) {
-            return status;
-        }
+        return sxml_xml_writer_write_text(
+            writer, (sxml_xml_text){.content = content,
+                                    .is_cdata_section = description->is_cdata_section,
+                                    .disables_output_escaping =
+                                        description->disables_output_escaping});
     }
     if (description->node_kind == SXML_NODE_KIND_COMMENT) {
-        status = sxml_xml_writer_markup(writer, SXML_BYTE_VIEW_FROM_LITERAL("<!--"));
-        if (status == SXML_STATUS_OK) {
-            status = sxml_xml_writer_markup(writer, content);
-        }
-        return status == SXML_STATUS_OK ? sxml_xml_writer_markup(writer, SXML_BYTE_VIEW_FROM_LITERAL("-->")) : status;
+        return sxml_xml_writer_write_comment(writer, content);
     }
     sxml_name_parts parts;
     status = sxml_name_pool_get_name_parts(writer->serializer->name_pool, description->node_name,
                                            &parts);
-    if (status == SXML_STATUS_OK && writer->is_html) {
-        return sxml_serializer_write_html_processing_instruction(
-            writer->serializer,
-            &(sxml_html_processing_instruction){
-                .target = parts.local_name, .data = content, .is_html5 = writer->is_html5});
+    if (status != SXML_STATUS_OK) {
+        return status;
     }
-    if (status == SXML_STATUS_OK) {
-        status = sxml_xml_writer_markup(writer, SXML_BYTE_VIEW_FROM_LITERAL("<?"));
-    }
-    if (status == SXML_STATUS_OK) {
-        status = sxml_xml_writer_markup(writer, parts.local_name);
-    }
-    if (status == SXML_STATUS_OK && content.byte_count > 0) {
-        status = sxml_xml_writer_markup(writer, SXML_BYTE_VIEW_FROM_LITERAL(" "));
-        if (status == SXML_STATUS_OK) {
-            status = sxml_xml_writer_markup(writer, content);
-        }
-    }
-    return status == SXML_STATUS_OK ? sxml_xml_writer_markup(writer, SXML_BYTE_VIEW_FROM_LITERAL("?>")) : status;
+    return sxml_xml_writer_write_instruction(
+        writer, (sxml_xml_instruction){.target = parts.local_name, .content = content});
 }
 
 /* ------------------------------------------------------------- Subtrees */
@@ -2182,4 +2230,503 @@ sxml_status sxml_serializer_write_adaptive_node(sxml_serializer *serializer,
     }
     sxml_xml_writer_finish(&writer);
     return status;
+}
+
+/* ------------------------------------------------- Streamed serialization */
+
+/* An attribute of the element whose start tag waits; its value is in the
+   serialization's attribute text. */
+typedef struct sxml_streamed_attribute {
+    sxml_attribute_event event;
+    sxml_byte_range value;
+} sxml_streamed_attribute;
+
+/*
+ * A streamed serialization (glossary `streamed_serialization`, D231): the
+ * XML method fed by tree builder events. An element's start tag is
+ * written when its first content event or its end comes (its namespaces
+ * and attributes are known then): the element is built alone in a small
+ * tree (a window) with the in-scope namespaces of its parent's window,
+ * and written by sxml_xml_writer_open_element as the tree walk would
+ * write it; its end tag by sxml_xml_writer_close_top. Text events are
+ * joined into one text node before they are written. So what is written
+ * is what serializing the whole tree would write, and the memory held is
+ * the windows of the open elements.
+ */
+struct sxml_streamed_serialization {
+    sxml_allocator allocator;
+    sxml_serialization_parameters parameters;
+    sxml_serializer serializer;
+    sxml_xml_writer writer;
+    /* The element whose start tag waits, its bindings and attributes. */
+    bool has_pending_element;
+    sxml_element_start_event pending_element;
+    sxml_xml_array pending_bindings;
+    sxml_xml_array pending_attributes;
+    sxml_xml_buffer attribute_text;
+    /* Text events not written yet: one text node. */
+    sxml_xml_buffer text;
+    bool is_text_cdata_section;
+    bool is_text_unescaped;
+    /* The windows of the open elements (sxml_tree *, owned), innermost
+       last; the element of each is its node 1. */
+    sxml_xml_array windows;
+};
+
+bool sxml_serialization_streams(const sxml_serialization_parameters *parameters) {
+    /* Indentation and Canonical XML look at an element's children before
+       its start tag; a document type declaration, standalone and
+       SEPM0004 at the whole tree (Serialization 4.0, 5.1.4, 5.1.7). */
+    return parameters->serialization_method == SXML_SERIALIZATION_METHOD_XML &&
+           parameters->indent != SXML_SERIALIZATION_FLAG_YES &&
+           parameters->canonical != SXML_SERIALIZATION_FLAG_YES &&
+           !parameters->has_doctype_system && !parameters->has_doctype_public &&
+           parameters->standalone == SXML_STANDALONE_OMIT;
+}
+
+static sxml_streamed_serialization *sxml_streamed_from_state(void *state) {
+    return state;
+}
+
+/* Writes the joined text. */
+static sxml_status sxml_streamed_flush_text(sxml_streamed_serialization *serialization) {
+    if (serialization->text.byte_count == 0) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_status status = sxml_xml_writer_write_text(
+        &serialization->writer,
+        (sxml_xml_text){.content = sxml_xml_buffer_view(
+                            &serialization->text,
+                            (sxml_byte_range){.byte_offset = 0,
+                                              .byte_count = serialization->text.byte_count}),
+                        .is_cdata_section = serialization->is_text_cdata_section,
+                        .disables_output_escaping = serialization->is_text_unescaped});
+    serialization->text.byte_count = 0;
+    serialization->is_text_cdata_section = false;
+    serialization->is_text_unescaped = false;
+    return status;
+}
+
+/* The window of the innermost open element; NULL at the top level. */
+static sxml_tree *sxml_streamed_top_window(const sxml_streamed_serialization *serialization) {
+    if (serialization->windows.element_count == 0) {
+        return NULL;
+    }
+    sxml_tree *const *window = (sxml_tree *const *)sxml_xml_array_at(
+        &serialization->windows, serialization->windows.element_count - 1U);
+    return *window;
+}
+
+/* Whether the pending element declares a binding of prefix. */
+/* True when the pending element binds prefix itself: one of its own
+   bindings, or the prefix of its name or of an attribute's, which the
+   window's namespace fixup binds (XDM 4.0, section 6.2.1). The parent's
+   binding of that prefix is not inherited then. */
+static bool sxml_streamed_binds(const sxml_streamed_serialization *serialization,
+                                sxml_namespace_prefix_identifier prefix) {
+    if (serialization->pending_element.namespace_prefix.index == prefix.index) {
+        return true;
+    }
+    for (size_t binding_index = 0; binding_index < serialization->pending_bindings.element_count;
+         binding_index += 1) {
+        const sxml_namespace_binding *binding =
+            sxml_xml_array_at(&serialization->pending_bindings, binding_index);
+        if (binding->namespace_prefix.index == prefix.index) {
+            return true;
+        }
+    }
+    for (size_t attribute_index = 0;
+         attribute_index < serialization->pending_attributes.element_count;
+         attribute_index += 1) {
+        const sxml_streamed_attribute *attribute =
+            sxml_xml_array_at(&serialization->pending_attributes, attribute_index);
+        if (prefix.index != 0 && attribute->event.namespace_prefix.index == prefix.index) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/* Sends the pending element to builder: its start, the in-scope bindings
+   of the parent's window it inherits and does not redefine, its own
+   bindings, its attributes; with has_children an empty comment, so the
+   window says the element has content. */
+typedef struct sxml_streamed_window_request {
+    sxml_tree_builder builder;
+    bool has_children;
+} sxml_streamed_window_request;
+
+static sxml_status sxml_streamed_send_element(const sxml_streamed_serialization *serialization,
+                                              sxml_streamed_window_request request) {
+    const sxml_tree_builder builder = request.builder;
+    sxml_status status =
+        builder.operations->start_element(builder.state, &serialization->pending_element);
+    sxml_tree *parent = sxml_streamed_top_window(serialization);
+    if (status == SXML_STATUS_OK && parent != NULL &&
+        !serialization->pending_element.ignores_parent_namespaces) {
+        sxml_namespace_binding_view inherited = {.namespace_bindings = NULL,
+                                                 .namespace_binding_count = 0};
+        status = sxml_node_get_in_scope_namespaces(
+            (sxml_node_reference){
+                .tree = parent, .node_index = {.index = 1}, .namespace_number = 0},
+            &inherited);
+        for (size_t binding_index = 0;
+             status == SXML_STATUS_OK && binding_index < inherited.namespace_binding_count;
+             binding_index += 1) {
+            const sxml_namespace_binding binding = inherited.namespace_bindings[binding_index];
+            if (binding.namespace_uri.index == SXML_NAMESPACE_XML ||
+                sxml_streamed_binds(serialization, binding.namespace_prefix)) {
+                continue;
+            }
+            status = builder.operations->add_namespace_binding(builder.state, &binding);
+        }
+    }
+    for (size_t binding_index = 0;
+         status == SXML_STATUS_OK && binding_index < serialization->pending_bindings.element_count;
+         binding_index += 1) {
+        status = builder.operations->add_namespace_binding(
+            builder.state, sxml_xml_array_at(&serialization->pending_bindings, binding_index));
+    }
+    for (size_t attribute_index = 0;
+         status == SXML_STATUS_OK &&
+         attribute_index < serialization->pending_attributes.element_count;
+         attribute_index += 1) {
+        const sxml_streamed_attribute *attribute =
+            sxml_xml_array_at(&serialization->pending_attributes, attribute_index);
+        sxml_attribute_event event = attribute->event;
+        event.attribute_value =
+            sxml_xml_buffer_view(&serialization->attribute_text, attribute->value);
+        status = builder.operations->add_attribute(builder.state, &event);
+    }
+    if (status == SXML_STATUS_OK && request.has_children) {
+        status = builder.operations->add_comment(
+            builder.state,
+            &(sxml_comment_event){.comment = {.bytes = NULL, .byte_count = 0},
+                                  .location = serialization->pending_element.location});
+    }
+    if (status == SXML_STATUS_OK) {
+        status = builder.operations->end_element(builder.state);
+    }
+    return status;
+}
+
+/* Writes the start tag of the pending element from a window of its own;
+   with has_children the element stays open (its window kept), else it is
+   written whole. */
+static sxml_status sxml_streamed_write_pending(sxml_streamed_serialization *serialization,
+                                               bool has_children) {
+    serialization->has_pending_element = false;
+    sxml_serializer *serializer = &serialization->serializer;
+    sxml_arena_tree *arena_tree = NULL;
+    sxml_status status = sxml_arena_tree_create(
+        serialization->allocator,
+        &(sxml_arena_tree_configuration){
+            .allocator = serialization->allocator,
+            .initial_memory = {.bytes = NULL, .byte_count = 0},
+            .item_heap = serializer->item_heap,
+            .maximum_node_count = 0,
+            .maximum_depth = 0,
+            .maximum_text_byte_count = 0,
+            .keeps_locations = false,
+            .duplicate_attribute_policy = SXML_DUPLICATE_ATTRIBUTE_POLICY_REPLACE,
+            .is_destroyed_when_unreferenced = true,
+            .error_record = serializer->error_record,
+            .base_uri = {.bytes = NULL, .byte_count = 0}},
+        &arena_tree);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    const sxml_tree_builder builder = sxml_arena_tree_as_tree_builder(arena_tree);
+    status = builder.operations->start_document(
+        builder.state, &(sxml_document_start_event){.document_uri = {.bytes = NULL, .byte_count = 0},
+                                                    .base_uri = {.bytes = NULL, .byte_count = 0},
+                                                    .location = {.source_name = {.bytes = NULL,
+                                                                                 .byte_count = 0},
+                                                                 .line_number = 0,
+                                                                 .column_number = 0,
+                                                                 .byte_offset = 0}});
+    if (status == SXML_STATUS_OK) {
+        status = sxml_streamed_send_element(
+            serialization,
+            (sxml_streamed_window_request){.builder = builder, .has_children = has_children});
+    }
+    if (status == SXML_STATUS_OK) {
+        status = builder.operations->end_document(builder.state);
+    }
+    sxml_tree *window = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_arena_tree_finish(arena_tree, &window);
+    }
+    if (status != SXML_STATUS_OK) {
+        sxml_arena_tree_destroy(arena_tree);
+        return status;
+    }
+    status = sxml_xml_writer_open_element(
+        &serialization->writer,
+        (sxml_node_reference){.tree = window, .node_index = {.index = 1}, .namespace_number = 0},
+        sxml_xml_writer_top(&serialization->writer));
+    if (status == SXML_STATUS_OK && has_children) {
+        void *memory = NULL;
+        status = sxml_xml_array_push(&serialization->windows, &memory);
+        if (status == SXML_STATUS_OK) {
+            *(sxml_tree **)memory = window;
+            return SXML_STATUS_OK;
+        }
+    }
+    sxml_tree_release(window);
+    return status;
+}
+
+/* Before content: the joined text when content of another kind comes,
+   and the start tag that waits for its first content. */
+typedef struct sxml_streamed_content {
+    bool is_text;
+} sxml_streamed_content;
+
+static sxml_status sxml_streamed_before_content(sxml_streamed_serialization *serialization,
+                                                sxml_streamed_content content) {
+    sxml_status status = SXML_STATUS_OK;
+    if (!content.is_text) {
+        status = sxml_streamed_flush_text(serialization);
+    }
+    if (status == SXML_STATUS_OK && serialization->has_pending_element) {
+        status = sxml_streamed_write_pending(serialization, true);
+    }
+    return status;
+}
+
+static sxml_status sxml_streamed_on_start_document(void *state,
+                                                   const sxml_document_start_event *event) {
+    (void)event;
+    sxml_streamed_serialization *serialization = sxml_streamed_from_state(state);
+    if (serialization->parameters.omit_xml_declaration != SXML_SERIALIZATION_FLAG_NO) {
+        return SXML_STATUS_OK;
+    }
+    return sxml_xml_writer_write_declaration_of_xml(&serialization->writer);
+}
+
+static sxml_status sxml_streamed_on_end_document(void *state) {
+    return sxml_streamed_flush_text(sxml_streamed_from_state(state));
+}
+
+static sxml_status sxml_streamed_on_start_element(void *state,
+                                                  const sxml_element_start_event *event) {
+    sxml_streamed_serialization *serialization = sxml_streamed_from_state(state);
+    const sxml_status status =
+        sxml_streamed_before_content(serialization, (sxml_streamed_content){.is_text = false});
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    serialization->has_pending_element = true;
+    serialization->pending_element = *event;
+    serialization->pending_element.entity_base_uri = (sxml_byte_view){.bytes = NULL, .byte_count = 0};
+    serialization->pending_bindings.element_count = 0;
+    serialization->pending_attributes.element_count = 0;
+    serialization->attribute_text.byte_count = 0;
+    return SXML_STATUS_OK;
+}
+
+static sxml_status sxml_streamed_on_namespace_binding(void *state,
+                                                      const sxml_namespace_binding *binding) {
+    sxml_streamed_serialization *serialization = sxml_streamed_from_state(state);
+    if (!serialization->has_pending_element) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    void *memory = NULL;
+    const sxml_status status = sxml_xml_array_push(&serialization->pending_bindings, &memory);
+    if (status == SXML_STATUS_OK) {
+        *(sxml_namespace_binding *)memory = *binding;
+    }
+    return status;
+}
+
+static sxml_status sxml_streamed_on_attribute(void *state, const sxml_attribute_event *event) {
+    sxml_streamed_serialization *serialization = sxml_streamed_from_state(state);
+    if (!serialization->has_pending_element) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    void *memory = NULL;
+    sxml_status status = sxml_xml_array_push(&serialization->pending_attributes, &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_streamed_attribute *attribute = memory;
+    attribute->event = *event;
+    attribute->event.attribute_value = (sxml_byte_view){.bytes = NULL, .byte_count = 0};
+    attribute->value = (sxml_byte_range){.byte_offset = serialization->attribute_text.byte_count,
+                                         .byte_count = event->attribute_value.byte_count};
+    if (event->attribute_value.byte_count > 0) {
+        status = sxml_xml_buffer_append(&serialization->attribute_text, event->attribute_value);
+    }
+    return status;
+}
+
+static sxml_status sxml_streamed_on_end_element(void *state) {
+    sxml_streamed_serialization *serialization = sxml_streamed_from_state(state);
+    sxml_status status = sxml_streamed_flush_text(serialization);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (serialization->has_pending_element) {
+        return sxml_streamed_write_pending(serialization, false);
+    }
+    sxml_tree *window = sxml_streamed_top_window(serialization);
+    if (window == NULL || serialization->writer.open_element_count == 0) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    status = sxml_xml_writer_close_top(&serialization->writer, window);
+    serialization->windows.element_count -= 1;
+    sxml_tree_release(window);
+    return status;
+}
+
+static sxml_status sxml_streamed_on_text(void *state, const sxml_text_event *event) {
+    sxml_streamed_serialization *serialization = sxml_streamed_from_state(state);
+    if (event->text.byte_count == 0) {
+        return SXML_STATUS_OK;
+    }
+    sxml_status status = SXML_STATUS_OK;
+    if (serialization->text.byte_count > 0 &&
+        serialization->is_text_unescaped != event->disables_output_escaping) {
+        /* D188: they are two text nodes. */
+        status = sxml_streamed_flush_text(serialization);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_streamed_before_content(serialization,
+                                              (sxml_streamed_content){.is_text = true});
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    serialization->is_text_cdata_section =
+        serialization->is_text_cdata_section || event->is_cdata_section;
+    serialization->is_text_unescaped = event->disables_output_escaping;
+    return sxml_xml_buffer_append(&serialization->text, event->text);
+}
+
+static sxml_status sxml_streamed_on_comment(void *state, const sxml_comment_event *event) {
+    sxml_streamed_serialization *serialization = sxml_streamed_from_state(state);
+    const sxml_status status =
+        sxml_streamed_before_content(serialization, (sxml_streamed_content){.is_text = false});
+    return status == SXML_STATUS_OK
+               ? sxml_xml_writer_write_comment(&serialization->writer, event->comment)
+               : status;
+}
+
+static sxml_status
+sxml_streamed_on_processing_instruction(void *state,
+                                        const sxml_processing_instruction_event *event) {
+    sxml_streamed_serialization *serialization = sxml_streamed_from_state(state);
+    const sxml_status status =
+        sxml_streamed_before_content(serialization, (sxml_streamed_content){.is_text = false});
+    return status == SXML_STATUS_OK
+               ? sxml_xml_writer_write_instruction(
+                     &serialization->writer,
+                     (sxml_xml_instruction){.target = event->target, .content = event->data})
+               : status;
+}
+
+static sxml_status sxml_streamed_on_unparsed_entity(void *state,
+                                                    const sxml_unparsed_entity *entity) {
+    (void)state;
+    (void)entity;
+    /* Not serialized (Serialization 4.0, 2). */
+    return SXML_STATUS_OK;
+}
+
+static const sxml_tree_builder_operations sxml_streamed_builder_operations = {
+    .start_document = sxml_streamed_on_start_document,
+    .end_document = sxml_streamed_on_end_document,
+    .start_element = sxml_streamed_on_start_element,
+    .add_namespace_binding = sxml_streamed_on_namespace_binding,
+    .add_attribute = sxml_streamed_on_attribute,
+    .end_element = sxml_streamed_on_end_element,
+    .add_text = sxml_streamed_on_text,
+    .add_comment = sxml_streamed_on_comment,
+    .add_processing_instruction = sxml_streamed_on_processing_instruction,
+    .add_unparsed_entity = sxml_streamed_on_unparsed_entity,
+};
+
+static sxml_xml_array sxml_streamed_array(sxml_allocator allocator, size_t element_byte_count) {
+    return sxml_xml_array_empty((sxml_xml_array_configuration){
+        .allocator = allocator, .element_byte_count = element_byte_count});
+}
+
+sxml_status sxml_streamed_serialization_create(sxml_allocator allocator,
+                                               const sxml_streamed_serialization_request *request,
+                                               sxml_streamed_serialization **serialization) {
+    *serialization = NULL;
+    if (request == NULL || request->item_heap == NULL || request->parameters == NULL ||
+        !sxml_serialization_streams(request->parameters) ||
+        request->output_stream.operations == NULL) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    void *memory = NULL;
+    sxml_status status = sxml_allocator_allocate(
+        allocator,
+        (sxml_allocation_request){.byte_count = sizeof(sxml_streamed_serialization),
+                                  .alignment = alignof(sxml_streamed_serialization)},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_streamed_serialization *made = memory;
+    memset(made, 0, sizeof(*made));
+    made->allocator = allocator;
+    made->parameters = *request->parameters;
+    made->pending_bindings = sxml_streamed_array(allocator, sizeof(sxml_namespace_binding));
+    made->pending_attributes = sxml_streamed_array(allocator, sizeof(sxml_streamed_attribute));
+    made->attribute_text = sxml_xml_buffer_empty(allocator);
+    made->text = sxml_xml_buffer_empty(allocator);
+    made->windows = sxml_streamed_array(allocator, sizeof(sxml_tree *));
+    status = sxml_serializer_start(
+        &(sxml_serializer_setup){.item_heap = request->item_heap,
+                                 .parameters = &made->parameters,
+                                 .output_stream = request->output_stream,
+                                 .error_record = request->error_record},
+        &made->serializer);
+    sxml_xml_writer_start(&made->serializer, &made->writer);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xml_writer_check_parameters(&made->writer);
+    }
+    if (status != SXML_STATUS_OK) {
+        sxml_streamed_serialization_destroy(made);
+        return status;
+    }
+    *serialization = made;
+    return SXML_STATUS_OK;
+}
+
+sxml_tree_builder
+sxml_streamed_serialization_as_tree_builder(sxml_streamed_serialization *serialization) {
+    return (sxml_tree_builder){.state = serialization,
+                               .operations = &sxml_streamed_builder_operations};
+}
+
+sxml_status sxml_streamed_serialization_finish(sxml_streamed_serialization *serialization) {
+    if (serialization == NULL || serialization->windows.element_count != 0 ||
+        serialization->has_pending_element) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    return sxml_serializer_flush(&serialization->serializer);
+}
+
+void sxml_streamed_serialization_destroy(sxml_streamed_serialization *serialization) {
+    if (serialization == NULL) {
+        return;
+    }
+    for (size_t window_index = 0; window_index < serialization->windows.element_count;
+         window_index += 1) {
+        sxml_tree *const *window =
+            (sxml_tree *const *)sxml_xml_array_at(&serialization->windows, window_index);
+        sxml_tree_release(*window);
+    }
+    sxml_xml_array_release(&serialization->windows);
+    sxml_xml_array_release(&serialization->pending_bindings);
+    sxml_xml_array_release(&serialization->pending_attributes);
+    sxml_xml_buffer_release(&serialization->attribute_text);
+    sxml_xml_buffer_release(&serialization->text);
+    sxml_xml_writer_finish(&serialization->writer);
+    sxml_serializer_release(&serialization->serializer);
+    sxml_allocator_release(serialization->allocator, serialization);
 }

@@ -177,11 +177,11 @@ typedef struct accumulator_definition {
     table_function close;
     table_function build;
     /* descend-K($node, $value): build-K's traversal of $node's subtree,
-       for a streamed document's window (D230). */
+       for a streamed document's window (D231). */
     table_function descend;
 } accumulator_definition;
 
-/* The initial function of one streamed document (D230): the initial
+/* The initial function of one streamed document (D231): the initial
    values of the accumulators applicable to it. */
 typedef struct stream_initial {
     table_function function;
@@ -236,9 +236,9 @@ struct sxml_xslt_accumulator_table {
     sxml_name_identifier variable_names[SXML_SNIPPET_VARIABLE_COUNT];
     sxml_namespace_uri_identifier private_namespace;
     /* Some accumulator is declared streamable="yes": the accumulator
-       functions then ask a streamed document first (D230). */
+       functions then ask a streamed document first (D231). */
     bool has_streamable;
-    /* The functions a streamed document calls (D230), declared when one
+    /* The functions a streamed document calls (D231), declared when one
        asks for them (streams), and one initial function per streamed
        document. */
     bool streams;
@@ -839,7 +839,7 @@ static sxml_status check_modes(const sxml_xslt_accumulator_table *table) {
     return status;
 }
 
-/* The functions a streamed document calls (D230): stream-start-0,
+/* The functions a streamed document calls (D231): stream-start-0,
    stream-end-0 and stream-descend-0 over the values of every accumulator
    (maps from their numbers). */
 static sxml_status prepare_stream_functions(sxml_xslt_accumulator_table *table) {
@@ -1447,7 +1447,7 @@ static void write_build_text(size_t number, sxml_xslt_snippet_text *text) {
     SXML_XSLT_SNIPPET_APPEND(text, "$final, reverse($final?s))");
 }
 
-/* The text of descend-K($node, $value) (D230): build-K's traversal of
+/* The text of descend-K($node, $value) (D231): build-K's traversal of
    the subtree of $node, whose start event gave $value, closed by its end
    event; $base makes the depths relative to $node. */
 static void write_descend_text(size_t number, sxml_xslt_snippet_text *text) {
@@ -1474,7 +1474,7 @@ static void write_descend_text(size_t number, sxml_xslt_snippet_text *text) {
     SXML_XSLT_SNIPPET_APPEND(text, "$final, reverse($final?s))");
 }
 
-/* The text of stream-start-0, stream-end-0 or stream-descend-0 (D230):
+/* The text of stream-start-0, stream-end-0 or stream-descend-0 (D231):
    prefix-K($node, $value) for the accumulator numbered $number. */
 typedef struct stream_text_request {
     const char *prefix;
@@ -1644,7 +1644,7 @@ static void write_function_text(const sxml_xslt_accumulator_table *table,
             table->accumulators[accumulator_index].accumulator_name);
         SXML_XSLT_SNIPPET_APPEND(text, ") then ");
         if (table->has_streamable) {
-            /* D230: a node of a streamed document has the values its
+            /* D231: a node of a streamed document has the values its
                events gave. */
             SXML_XSLT_SNIPPET_APPEND(text, "(let $streamed := Q{}accumulator-streamed(");
             sxml_xslt_snippet_text_append_number(text, accumulator_index + 1);
@@ -1718,7 +1718,7 @@ static bool has_body(const sxml_xslt_accumulator_table *table, const table_funct
                ->body.value != 0;
 }
 
-/* The text of stream-initial-N($root) (D230): a map from the number of
+/* The text of stream-initial-N($root) (D231): a map from the number of
    each accumulator applicable to the document to initial-K($root). */
 static void write_stream_initial_text(const sxml_xslt_accumulator_table *table,
                                       const stream_initial *initial,
@@ -1760,7 +1760,7 @@ typedef struct stream_phase {
     stream_text_request request;
 } stream_phase;
 
-/* The functions streamed documents asked for (D230), after every
+/* The functions streamed documents asked for (D231), after every
    accumulator's. */
 static sxml_status lower_stream_functions(sxml_xslt_accumulator_table *table) {
     static const snippet_variable node_value_number[] = {

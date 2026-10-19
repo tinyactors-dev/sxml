@@ -541,7 +541,9 @@ static sxml_status sxml_evaluation_resources_acquire(const sxml_unit_evaluation 
     const sxml_unit_evaluation_extension no_extension = {
         .function_table = {.state = NULL, .operations = NULL},
         .document_preparation = {.state = NULL, .operations = NULL},
-        .result_writer = NULL};
+        .result_writer = NULL,
+        .principal_result_builder = {.state = NULL, .operations = NULL},
+        .principal_result_is_raw = NULL};
     const sxml_unit_evaluation_extension *extension =
         evaluation->extension == NULL ? &no_extension : evaluation->extension;
     status = sxml_processor_document_loader_initialize(
@@ -559,7 +561,9 @@ static sxml_status sxml_evaluation_resources_acquire(const sxml_unit_evaluation 
                                          ? SXML_BYTE_VIEW_FROM_LITERAL("en")
                                          : context->default_language,
                  .environment_variables = context->environment_variables,
-                 .result_writer = extension->result_writer},
+                 .result_writer = extension->result_writer,
+                 .principal_result_builder = extension->principal_result_builder,
+                 .principal_result_is_raw = extension->principal_result_is_raw},
             .available_documents = context->available_documents,
             .document_preparation = extension->document_preparation},
         &resources->loader);

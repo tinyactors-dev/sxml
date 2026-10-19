@@ -583,7 +583,7 @@ static sxml_status check_stream(verifier *checker, const sxml_ir_stream *stream)
         stream->fold.value > current_function(checker)->slot_count) {
         return report(checker, "a stream counter or fold is beyond the function's slots");
     }
-    /* D230: the accumulator functions of a streamed document, all or none. */
+    /* D231: the accumulator functions of a streamed document, all or none. */
     const sxml_ir_stream_accumulators *accumulators = &stream->accumulators;
     const sxml_ir_function_index functions[] = {accumulators->initial, accumulators->start,
                                                 accumulators->end, accumulators->descend};

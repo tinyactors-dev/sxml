@@ -906,6 +906,12 @@ typedef enum sxml_ir_construction_flag {
        (glossary disable_output_escaping; XSLT 4.0, section 26.1.8;
        D188). */
     SXML_IR_CONSTRUCTION_DISABLES_OUTPUT_ESCAPING = 1U << 5U,
+    /* DOCUMENT only: the principal result's tree of an XSLT
+       transformation, built into the tree builder of its principal
+       stream when the evaluation has one (glossary `principal_stream`,
+       D231), the constructor's value then the empty sequence; else as any
+       document. Content built into it in place is not affected. */
+    SXML_IR_CONSTRUCTION_PRINCIPAL_RESULT = 1U << 6U,
 } sxml_ir_construction_flag;
 
 /* Every bit of sxml_ir_construction_flag. */
@@ -915,7 +921,8 @@ typedef enum sxml_ir_construction_flag {
      (uint32_t)SXML_IR_CONSTRUCTION_PRESERVES_TYPES |                         \
      (uint32_t)SXML_IR_CONSTRUCTION_XSLT_RULES |                              \
      (uint32_t)SXML_IR_CONSTRUCTION_CDATA_SECTION |                           \
-     (uint32_t)SXML_IR_CONSTRUCTION_DISABLES_OUTPUT_ESCAPING)
+     (uint32_t)SXML_IR_CONSTRUCTION_DISABLES_OUTPUT_ESCAPING |                \
+     (uint32_t)SXML_IR_CONSTRUCTION_PRINCIPAL_RESULT)
 
 /*
  * The node constructor kinds and SHALLOW_COPY. Which fields apply:
@@ -1047,7 +1054,7 @@ typedef enum sxml_ir_stream_flag {
  */
 /*
  * The accumulators a streamed document computes as its events pass (XSLT
- * 4.0, 18.2.9 and 19.3; D230), for STREAM with OPENS_DOCUMENT: functions
+ * 4.0, 18.2.9 and 19.3; D231), for STREAM with OPENS_DOCUMENT: functions
  * of the unit, all 0 for none. The values of the accumulators applicable
  * to the document are a map from their numbers (from 1).
  */
@@ -1083,7 +1090,7 @@ typedef struct sxml_ir_stream {
        own value is then empty): an aggregate folded as the nodes pass
        (fn:sum over a streamed path, D223). */
     sxml_ir_slot fold;
-    /* OPENS_DOCUMENT: the accumulators the document computes (D230). */
+    /* OPENS_DOCUMENT: the accumulators the document computes (D231). */
     sxml_ir_stream_accumulators accumulators;
 } sxml_ir_stream;
 

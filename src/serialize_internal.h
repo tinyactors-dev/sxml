@@ -160,6 +160,22 @@ typedef struct sxml_serializer {
     size_t frame_capacity;
 } sxml_serializer;
 
+/* Places a serializer for parameters (borrowed for its life) over
+   output_stream in *serializer, checks the parameters every method
+   shares and writes the byte order mark. The caller releases it with
+   sxml_serializer_release, also on failure. */
+typedef struct sxml_serializer_setup {
+    sxml_item_heap *item_heap;
+    const sxml_serialization_parameters *parameters;
+    sxml_output_stream output_stream;
+    sxml_error_record *error_record;
+} sxml_serializer_setup;
+
+SXML_NODISCARD sxml_status sxml_serializer_start(const sxml_serializer_setup *setup,
+                                                 sxml_serializer *serializer);
+
+void sxml_serializer_release(sxml_serializer *serializer);
+
 /* The answer of a yes-or-no question a fallible function writes (so no
    output parameter is a bare bool). */
 typedef struct sxml_answer {
@@ -322,6 +338,53 @@ void sxml_sequence_normalizer_finish(sxml_sequence_normalizer *normalizer);
  */
 SXML_NODISCARD sxml_status sxml_serialize_xml_method(sxml_serializer *serializer,
                                                      sxml_sequence value);
+
+/*
+ * A streamed serialization (glossary `streamed_serialization`, D231): the
+ * XML method fed by the events of a tree builder, which writes each part
+ * of the result tree as its events arrive instead of a tree it walks:
+ * what it writes is what sxml_serialize_xml_method writes for the
+ * document those events build. The tree builder takes one document's
+ * events (start_document, its content, end_document); errors are those of
+ * the XML method and of building (a start tag's namespaces, duplicate
+ * attributes replaced as XSLT's rules do). Defined in
+ * src/serialize_xml.c.
+ */
+typedef struct sxml_streamed_serialization sxml_streamed_serialization;
+
+/* Whether parameters can be serialized as the events come: the xml method
+   without indent, canonical, a document type declaration or standalone,
+   which read the tree first (Serialization 4.0, 5.1.4, 5.1.7). */
+bool sxml_serialization_streams(const sxml_serialization_parameters *parameters);
+
+typedef struct sxml_streamed_serialization_request {
+    sxml_item_heap *item_heap;
+    /* Copied; sxml_serialization_streams must accept them. */
+    const sxml_serialization_parameters *parameters;
+    sxml_output_stream output_stream;
+    /* Receives errors; may be NULL. Borrowed for the life of the
+       serialization. */
+    sxml_error_record *error_record;
+} sxml_streamed_serialization_request;
+
+/* Makes a streamed serialization through allocator. Returns
+   SXML_STATUS_INVALID_ARGUMENT for parameters it cannot stream, the
+   checks of the parameters (SEPM0009, SEPM0010, SESU0013 ...) and the
+   allocator's failures. */
+SXML_NODISCARD sxml_status sxml_streamed_serialization_create(
+    sxml_allocator allocator, const sxml_streamed_serialization_request *request,
+    sxml_streamed_serialization **serialization);
+
+/* The tree builder whose events are serialized; valid until destroy. */
+sxml_tree_builder
+sxml_streamed_serialization_as_tree_builder(sxml_streamed_serialization *serialization);
+
+/* After end_document: writes what is staged to the output stream. */
+SXML_NODISCARD sxml_status
+sxml_streamed_serialization_finish(sxml_streamed_serialization *serialization);
+
+/* Releases the serialization; accepts NULL. */
+void sxml_streamed_serialization_destroy(sxml_streamed_serialization *serialization);
 
 /*
  * Writes one node as the adaptive method does (Serialization 4.0, section
