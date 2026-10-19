@@ -73,8 +73,11 @@ static const sxml_system_property sxml_system_property_table[] = {
     /* F&O only (17.1.9). */
     SXML_BOOLEAN_PROPERTY("accepts-typed-data", "", true),
     SXML_BOOLEAN_PROPERTY("supports-xinclude", "", false),
-    SXML_BOOLEAN_PROPERTY("supports-dtd-validation", "", false),
-    SXML_BOOLEAN_PROPERTY("supports-dtd-attribute-typing", "", false),
+    /* fn:doc and fn:parse-xml validate with dtd-validation true, and the
+       tree has is-id and is-idrefs from the DTD (packets 7.14b, 7.14c;
+       D199, D210). */
+    SXML_BOOLEAN_PROPERTY("supports-dtd-validation", "", true),
+    SXML_BOOLEAN_PROPERTY("supports-dtd-attribute-typing", "", true),
     SXML_BOOLEAN_PROPERTY("supports-invisible-xml", "", false),
     SXML_KNOWN_FUNCTION_PROPERTY("supports-dynamic-xquery", SXML_NAMESPACE_FUNCTIONS,
                                  "load-xquery-module", 1),

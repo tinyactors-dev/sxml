@@ -111,6 +111,13 @@ static const sxml_qt4_supported_dependency sxml_qt4_supported_dependencies[] = {
      SXML_BYTE_VIEW_INITIALIZER("fn-transform-XSLT30")},
     {SXML_BYTE_VIEW_INITIALIZER("feature"),
      SXML_BYTE_VIEW_INITIALIZER("expath-file")},
+    /* DTD processing (packets 7.14a to 7.14c, D199, D210): the DTD's
+       infoset (is-id, is-idrefs, unparsed entities) and fn:doc's and
+       fn:parse-xml's dtd-validation option. */
+    {SXML_BYTE_VIEW_INITIALIZER("feature"),
+     SXML_BYTE_VIEW_INITIALIZER("infoset-dtd")},
+    {SXML_BYTE_VIEW_INITIALIZER("feature"),
+     SXML_BYTE_VIEW_INITIALIZER("dtd-validation-option")},
 };
 
 /* The features of schema awareness (the area "schema-aware",

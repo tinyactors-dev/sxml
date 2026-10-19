@@ -505,7 +505,11 @@ static sxml_status sxml_qt4_parse_source(sxml_qt4_test_context *context,
                                       .base_uri = document_uri,
                                       .encoding_name = sxml_qt4_empty_text,
                                       .diagnostic =
-                                          &context->error_record.diagnostic},
+                                          &context->error_record.diagnostic,
+                                      /* External DTDs and entities are
+                                         suite files (D199, D210). */
+                                      .entity_resolver = sxml_processor_entity_resolver(
+                                          context->processor)},
             &document_node);
         sxml_allocator_release(context->allocator, (void *)contents.bytes);
     }
