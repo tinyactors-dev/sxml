@@ -7421,6 +7421,82 @@ expressions and their application (the task file's 7.7a and 7.7b);
   order, each updating one's changed trees replace the sources they
   came from, and the last test's result is checked.
 
+### D189. Optional features and the size budgets (packet 7.2)
+Recorded 2026-10-19, after D71, D138, D162, D183, D184. Carries out the
+owner's size choice (D184): link-time optional features through one
+additive `processor.h` view, one build, no `#if`, large data from the
+host through the resolver.
+- **Public** (`include/sxml/processor.h`, additive):
+  `sxml_optional_feature` (a handle to a static const definition, opaque
+  to hosts), `sxml_optional_feature_view` as the last field of
+  `sxml_processor_configuration` (zero means none, so every existing
+  configuration is unchanged; copied at initialize; a NULL definition is
+  INVALID_ARGUMENT), `sxml_test_optional_feature()` (named "test", adds
+  nothing), `sxml_all_optional_features()` (every feature, for hosts that
+  want them all), `sxml_optional_feature_get_name()` and
+  `sxml_processor_has_optional_feature()`.
+- **Internal** (`src/optional_feature_internal.h`, `src/optional_feature.c`):
+  - one `sxml_optional_feature_kind` per feature; a definition holds its
+    kind, name, a `static const` operations table (`const void *`, cast
+    by kind) and an optional `finalize_state`;
+  - the processor keeps one slot per kind (definition, state):
+    `sxml_processor_find_optional_feature(processor, kind)` gives the
+    table or NULL. NULL is the D162 place's answer: the specification's
+    behaviour without the feature stays where it is. No global state; a
+    feature never calls another feature or back through its caller (D71);
+  - `sxml_processor_set_optional_feature_state` keeps per-processor state
+    (tables built from feature data), finalized with the processor.
+- **Feature data** (glossary `feature_data`, D184's option 4):
+  `sxml_optional_feature_read_data` asks the processor's resolver for an
+  absolute URI as a resource kind whose form is BYTES, lends the bytes to
+  a reader, and gives them back. It goes through the compile document
+  loader (`sxml_processor_compile_document_loader_initialize`), so URI
+  resolution and form checks are the existing ones. The packets with
+  data add their resource kinds to `processor.h` (DUCET `allkeys.txt`,
+  CLDR rule text, TZif), each with its record. The test feature reads
+  `urn:sxml:test-feature-data` (TEXT) once and keeps its byte count.
+- **Hosts**: the sxml command and the QT4, XSLT and XSD drivers name
+  `sxml_all_optional_features()` (one line each). JavaScript: `sxml.wasm`
+  (core) and `sxml-full.wasm` (every feature) are two links of the same
+  shim, which differ only in `sxml_javascript_core_features.c` and
+  `sxml_javascript_full_features.c`. `Sxml.features` lists the module's
+  features; `createProcessor({ features })` picks some (default all; an
+  unknown name throws). Up to 32 features (one mask word).
+- **Budgets** (`bindings/javascript/CMakeLists.txt`): core 2,100,000
+  stripped / 735,000 gzipped, full 3,000,000 / 1,050,000 (the owner's
+  stripped budgets; the gzipped ones keep D138's 7:20 ratio). CLI
+  unchanged (5,500,000 / 1,250,000). `javascript/package_full` runs the
+  package tests on the full module.
+- **Sizes** at 2459034, before and after (stripped / gzipped):
+  `sxml.wasm` 2,003,575 / 697,928 to 2,004,485 / 698,244 (+910 bytes:
+  the shim's feature exports 430, the slots and checks 350, export names);
+  `sxml-full.wasm` 2,005,513 / 698,677; the CLI 4,966,649 / 1,160,916 to
+  4,967,809 / 1,161,287. HEAD was already 3,575 bytes over the old
+  2,000,000 budget. The 910 bytes are the mechanism's fixed cost; no
+  feature links into the core.
+- **Existing parts not moved** (measured in `sxml.wasm` from the linker
+  map, code and data): schema validation for fn:xsd-validator and
+  friends 70,958; XQuery lowering parts linked through the lowering
+  registry (D103) 59,879; XSLT-only library and evaluator parts 15,072;
+  Unicode tables 146,058. The first is a candidate feature
+  ("schema-aware"); the second and third are not features but registry
+  links an XPath-only program does not need: splitting the registries per
+  language would save about 75 KB without any API. All are owned by
+  running packets (2.21, 4.19), so this packet changes none of them.
+- **Later packets** (7.8 to 7.18) each: add a kind before
+  `SXML_OPTIONAL_FEATURE_KIND_COUNT`; define the definition, operations
+  table and exported `sxml_<name>_feature()` in their own files; add the
+  definition to `sxml_all_optional_features`; make their D162 place ask
+  `sxml_processor_find_optional_feature`; add a resource kind for any
+  data and read it with `sxml_optional_feature_read_data`; extend the
+  CLI's resolver to serve that data (for example `/usr/share/zoneinfo`)
+  and the JavaScript resolver to forward the kind; check the full
+  module's budget. A feature that gives access beyond the resolver
+  (EXPath File, D184) stays out of `sxml_all_optional_features` and is
+  named by the CLI only under `--allow-file-access`. The fuzz fixtures do
+  not name features yet: the packet that adds a parser names its feature
+  there.
+
 ## Proposed
 
 - **Phase 7: four more features and the size of optional parts** (packet
