@@ -12,8 +12,8 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 - Passes: XP40 31,098, XQ40 42,490, XT40 8,931+, XSD in scope 41,483 of
   41,518. Zero error outcomes in every suite.
 - Optional features (D189). Budgets (D202, D207, D208): core `sxml.wasm`
-  2,200,000 / 770,000 (2,180,960 / 762,788 after health-3, D225, moved the
-  built-in schemas behind a feature), `sxml-full.wasm` 7,500,000 /
+  2,200,000 / 770,000 (2,077,439 / 725,473 after size-2, D227: each module
+  links only its languages' parts), `sxml-full.wasm` 7,500,000 /
   2,625,000, CLI 9,000,000 / 2,000,000. The size test compares the core's
   linker map with a baseline and prints the top growths (D225).
 - EXPath Binary (D198) 646 of 646 and File (D200) 270 of 270 in XQ40; File
@@ -23,7 +23,6 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 
 - perf-3: XML parsing speed.
 - 7.6e streaming: accumulators, fork/merge, streamed result delivery, incremental resolver.
-- size-2: part registries split by language (core has about 7 KB gzipped room).
 
 ## Next
 
