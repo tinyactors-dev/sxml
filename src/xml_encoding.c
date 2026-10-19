@@ -832,6 +832,64 @@ sxml_xml_position_tracker_move_back(sxml_xml_position_tracker *tracker,
     tracker->text_offset = text_offset;
 }
 
+/*
+ * The forward walk of sxml_xml_position_tracker_locate for a text that is
+ * its input (UTF-8 and US-ASCII), a byte at a time without a call (the
+ * walk passes every byte of the document once): a codepoint's lead byte
+ * counts a column and the input bytes of the codepoint, a continuation
+ * byte nothing, as in the general walk.
+ */
+static void
+sxml_xml_position_tracker_advance_in_place(sxml_xml_position_tracker *tracker,
+                                           size_t text_offset) {
+    const size_t end_offset = text_offset < tracker->text.byte_count
+                                  ? text_offset
+                                  : tracker->text.byte_count;
+    if (tracker->text_offset >= end_offset) {
+        return;
+    }
+    const bool is_utf8 = tracker->input_encoding == SXML_XML_ENCODING_UTF8;
+    const uint8_t *bytes = tracker->text.bytes;
+    size_t input_offset = tracker->input_offset;
+    uint32_t line_number = tracker->line_number;
+    uint32_t column_number = tracker->column_number;
+    bool follows_carriage_return = tracker->follows_carriage_return;
+    for (size_t byte_offset = tracker->text_offset; byte_offset < end_offset;
+         byte_offset++) {
+        const uint8_t byte = bytes[byte_offset];
+        if (byte >= 0x80) {
+            if ((byte & 0xC0) != 0x80) {
+                input_offset +=
+                    is_utf8 ? sxml_xml_utf8_sequence_byte_count(byte) : 1;
+                column_number += 1;
+                follows_carriage_return = false;
+            }
+            continue;
+        }
+        input_offset += 1;
+        if (byte == '\r') {
+            /* XML 1.0, section 2.11: CR LF, CR and LF each end a line. */
+            line_number += 1;
+            column_number = 1;
+            follows_carriage_return = true;
+        } else if (byte == '\n') {
+            if (!follows_carriage_return) {
+                line_number += 1;
+                column_number = 1;
+            }
+            follows_carriage_return = false;
+        } else {
+            column_number += 1;
+            follows_carriage_return = false;
+        }
+    }
+    tracker->input_offset = input_offset;
+    tracker->text_offset = end_offset;
+    tracker->line_number = line_number;
+    tracker->column_number = column_number;
+    tracker->follows_carriage_return = follows_carriage_return;
+}
+
 sxml_xml_position
 sxml_xml_position_tracker_locate(sxml_xml_position_tracker *tracker,
                                  size_t text_offset) {
@@ -852,6 +910,10 @@ sxml_xml_position_tracker_locate(sxml_xml_position_tracker *tracker,
                     .input_encoding = tracker->input_encoding,
                     .has_byte_order_mark = tracker->input_start_offset != 0});
         }
+    }
+    if (tracker->input_encoding == SXML_XML_ENCODING_UTF8 ||
+        tracker->input_encoding == SXML_XML_ENCODING_US_ASCII) {
+        sxml_xml_position_tracker_advance_in_place(tracker, text_offset);
     }
     while (tracker->text_offset < text_offset &&
            tracker->text_offset < tracker->text.byte_count) {

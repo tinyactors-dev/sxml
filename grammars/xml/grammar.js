@@ -176,11 +176,19 @@ module.exports = grammar({
   // Markup is whitespace-sensitive: every [3] S is explicit.
   extras: (_) => [],
 
+  // A tag that is one token is a node without children: these rules only
+  // choose between the token and the full rule, and inlining them saves
+  // the parser a reduction per tag (packet perf-3).
+  inline: ($) => [$._start_tag, $._empty_element_tag, $._end_tag, $._attribute],
+
   // Tokens produced by src/scanner.c. The order must match its token_type enum.
   externals: ($) => [
-    $._start_tag_name,
-    $._end_tag_name,
+    $._start_tag_open,
+    $._start_tag_whole,
+    $._empty_element_tag_whole,
+    $._end_tag_token,
     $._empty_element_tag_close,
+    $._attribute_whole,
     $.character_data,
     $.cdata_text,
     $.comment_text,
@@ -225,7 +233,7 @@ module.exports = grammar({
         ...prolog($),
         field('root', alias($._document_element_start, $.element)),
       ),
-      seq($._content_segment_marker, repeat($._content_segment_item)),
+      seq($._content_segment_marker, optional($._content_segment_items)),
     ),
 
     _external_subset_marker: (_) => '\u0001S',
@@ -235,14 +243,22 @@ module.exports = grammar({
 
     // [39] element up to the end of its start tag: the content follows in
     // content segments.
-    _document_element_start: ($) => choice($.start_tag, $.empty_element_tag),
+    _document_element_start: ($) => choice($._start_tag, $._empty_element_tag),
+
+    // The items of a content segment, a left-recursive rule rather than a
+    // repeat: tree-sitter rebalances the tree of a long repeat after the
+    // parse, which cost a sixth of parsing a segment (packet perf-3).
+    _content_segment_items: ($) => choice(
+      $._content_segment_item,
+      seq($._content_segment_items, $._content_segment_item),
+    ),
 
     // [43] content, [27] Misc: the items of a content segment.
     _content_segment_item: ($) => choice(
       $.character_data,
-      $.start_tag,
-      $.end_tag,
-      $.empty_element_tag,
+      $._start_tag,
+      $._end_tag,
+      $._empty_element_tag,
       $.entity_reference,
       $.character_reference,
       $.cdata_section,
@@ -672,8 +688,8 @@ module.exports = grammar({
     // [43] content ::= CharData? ((element | Reference | CDSect | PI | Comment) CharData?)*
     // The content items are children of the element, between its tags.
     element: ($) => choice(
-      $.empty_element_tag,
-      seq($.start_tag, repeat($._content), $.end_tag),
+      $._empty_element_tag,
+      seq($._start_tag, repeat($._content), $._end_tag),
     ),
 
     _content: ($) => choice(
@@ -687,34 +703,42 @@ module.exports = grammar({
     ),
 
     // [40] STag ::= '<' Name (S Attribute)* S? '>'
-    // The external scanner pushes the name on its tag stack.
+    // The external scanner pushes the name on its tag stack. The '<' and the
+    // name are one token, the name field, whose name the tree builder reads
+    // past the '<'. A tag without attributes or white space, '<' Name '>', is
+    // one token too, which _start_tag makes a start_tag without children:
+    // every token and every node cost the parser far more than their
+    // characters (packet perf-3).
     start_tag: ($) => seq(
-      '<',
-      field('name', alias($._start_tag_name, $.name)),
-      repeat(seq($._whitespace, $.attribute)),
+      field('name', alias($._start_tag_open, $.name)),
+      repeat(seq($._whitespace, $._attribute)),
       optional($._whitespace),
       '>',
     ),
 
+    _start_tag: ($) => choice(alias($._start_tag_whole, $.start_tag), $.start_tag),
+
     // [44] EmptyElemTag ::= '<' Name (S Attribute)* S? '/>'
-    // The external scanner pops the name again at '/>'.
+    // The external scanner pops the name again at '/>'; '<' Name '/>' is
+    // one token, an empty_element_tag without children, which leaves the
+    // tag stack as it was.
     empty_element_tag: ($) => seq(
-      '<',
-      field('name', alias($._start_tag_name, $.name)),
-      repeat(seq($._whitespace, $.attribute)),
+      field('name', alias($._start_tag_open, $.name)),
+      repeat(seq($._whitespace, $._attribute)),
       optional($._whitespace),
       alias($._empty_element_tag_close, '/>'),
     ),
 
-    // [42] ETag ::= '</' Name S? '>'
-    // WFC: Element Type Match (3): the external scanner accepts the name only
-    // if it equals the name of the innermost open start tag.
-    end_tag: ($) => seq(
-      '</',
-      field('name', alias($._end_tag_name, $.name)),
-      optional($._whitespace),
-      '>',
+    _empty_element_tag: ($) => choice(
+      alias($._empty_element_tag_whole, $.empty_element_tag),
+      $.empty_element_tag,
     ),
+
+    // [42] ETag ::= '</' Name S? '>'
+    // One token from the external scanner, an end_tag without children,
+    // which it accepts only if the name equals the name of the innermost
+    // open start tag (WFC: Element Type Match, 3).
+    _end_tag: ($) => alias($._end_tag_token, $.end_tag),
 
     // [41] Attribute ::= Name Eq AttValue
     attribute: ($) => seq(
@@ -722,6 +746,11 @@ module.exports = grammar({
       $._equals,
       field('value', $.attribute_value),
     ),
+
+    // An attribute whose value holds no reference is one token from the
+    // external scanner, an attribute without children, which the tree
+    // builder reads as Name Eq AttValue (packet perf-3).
+    _attribute: ($) => choice(alias($._attribute_whole, $.attribute), $.attribute),
 
     // [10] AttValue ::= '"' ([^<&"] | Reference)* '"' | "'" ([^<&'] | Reference)* "'"
     attribute_value: ($) => quoted((quote) => repeat(choice(

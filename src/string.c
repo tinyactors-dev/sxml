@@ -9,6 +9,7 @@
  */
 #include "sxml/string.h"
 
+#include <stdint.h>
 #include <string.h>
 
 /* ------------------------------------------------------------- Decoding */
@@ -156,6 +157,16 @@ sxml_status sxml_utf8_validate(sxml_byte_view utf8,
     bool is_ascii = true;
     sxml_status status = SXML_STATUS_OK;
     while (byte_offset < utf8.byte_count) {
+        uint64_t word = 0;
+        if (utf8.byte_count - byte_offset >= sizeof word) {
+            memcpy(&word, utf8.bytes + byte_offset, sizeof word);
+            if ((word & UINT64_C(0x8080808080808080)) == 0) {
+                /* Eight ASCII bytes, eight codepoints. */
+                byte_offset += sizeof word;
+                codepoint_count += sizeof word;
+                continue;
+            }
+        }
         size_t encoded_byte_count =
             sxml_utf8_measure_well_formed(utf8, byte_offset);
         if (encoded_byte_count == 0) {

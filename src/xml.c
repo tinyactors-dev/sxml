@@ -223,6 +223,10 @@ typedef struct sxml_xml_tee {
     sxml_tree_builder second;
 } sxml_xml_tee;
 
+/* More symbols than the XML grammar has (grammars/xml/src/parser.c,
+   SYMBOL_COUNT, with its aliases). */
+enum { SXML_XML_SYMBOL_LIMIT = 256 };
+
 /* The work of one parse. */
 typedef struct sxml_xml_document {
     sxml_xml_parser *parser;
@@ -272,6 +276,9 @@ typedef struct sxml_xml_document {
     /* Where the next content segment starts (D222): the end of the head or
        of the last segment parsed. */
     size_t segment_end_offset;
+    /* The node type of each grammar symbol (sxml_xml_node_type), filled
+       before the parse: a lookup by type name compares strings. */
+    uint8_t node_types[SXML_XML_SYMBOL_LIMIT];
 } sxml_xml_document;
 
 /* ------------------------------------------------------- Node types */
@@ -365,7 +372,9 @@ static const sxml_xml_node_type_entry sxml_xml_node_types[] = {
     {"unexpanded_declaration", SXML_XML_NODE_UNEXPANDED_DECLARATION},
 };
 
-static sxml_xml_node_type sxml_xml_type_of(TSNode node) {
+/* The node type of node, by its type name: for walks without the
+   document's table (sxml_xml_type_of). */
+static sxml_xml_node_type sxml_xml_type_by_name(TSNode node) {
     if (!ts_node_is_named(node)) {
         return SXML_XML_NODE_OTHER;
     }
@@ -386,6 +395,48 @@ static sxml_xml_node_type sxml_xml_type_of(TSNode node) {
         }
     }
     return SXML_XML_NODE_OTHER;
+}
+
+/* Fills the document's node type of each symbol of the language. */
+static bool sxml_xml_fill_node_types(sxml_xml_document *document,
+                                     const TSLanguage *language) {
+    const uint32_t symbol_count = ts_language_symbol_count(language);
+    if (symbol_count > SXML_XML_SYMBOL_LIMIT) {
+        return false;
+    }
+    for (uint32_t symbol = 0; symbol < SXML_XML_SYMBOL_LIMIT; symbol++) {
+        document->node_types[symbol] = (uint8_t)SXML_XML_NODE_OTHER;
+    }
+    for (uint32_t symbol = 0; symbol < symbol_count; symbol++) {
+        if (ts_language_symbol_type(language, (TSSymbol)symbol) !=
+            TSSymbolTypeRegular) {
+            continue;
+        }
+        const char *type_name = ts_language_symbol_name(language, (TSSymbol)symbol);
+        const size_t entry_count =
+            sizeof sxml_xml_node_types / sizeof sxml_xml_node_types[0];
+        for (size_t entry_index = 0; entry_index < entry_count; entry_index++) {
+            if (strcmp(type_name, sxml_xml_node_types[entry_index].type_name) == 0) {
+                document->node_types[symbol] =
+                    (uint8_t)sxml_xml_node_types[entry_index].node_type;
+                break;
+            }
+        }
+    }
+    return true;
+}
+
+/* The node type of node, from the document's table: what
+   sxml_xml_type_by_name gives. */
+static sxml_xml_node_type sxml_xml_type_of(const sxml_xml_document *document,
+                                           TSNode node) {
+    if (!ts_node_is_named(node)) {
+        return SXML_XML_NODE_OTHER;
+    }
+    const TSSymbol symbol = ts_node_symbol(node);
+    return symbol < SXML_XML_SYMBOL_LIMIT
+               ? (sxml_xml_node_type)document->node_types[symbol]
+               : SXML_XML_NODE_OTHER;
 }
 
 /* The field names of grammars/xml the walks read. */
@@ -422,10 +473,29 @@ static const char *const sxml_xml_field_texts[] = {
     "version",
 };
 
-/* The child of node in the field field_name. */
+/* tree-sitter numbers a grammar's fields from 1 in the order of their
+   names, the order of sxml_xml_field_texts: whether the language agrees,
+   checked before each parse. */
+static bool sxml_xml_fields_match(const TSLanguage *language) {
+    const size_t field_count =
+        sizeof sxml_xml_field_texts / sizeof sxml_xml_field_texts[0];
+    if (ts_language_field_count(language) != field_count) {
+        return false;
+    }
+    for (size_t field_index = 0; field_index < field_count; field_index++) {
+        const char *name =
+            ts_language_field_name_for_id(language, (TSFieldId)(field_index + 1));
+        if (name == NULL || strcmp(name, sxml_xml_field_texts[field_index]) != 0) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/* The child of node in the field field_name, by its number (a lookup by
+   name compares the names of the fields each time). */
 static TSNode sxml_xml_field(TSNode node, sxml_xml_field_name field_name) {
-    const char *text = sxml_xml_field_texts[field_name];
-    return ts_node_child_by_field_name(node, text, (uint32_t)strlen(text));
+    return ts_node_child_by_field_id(node, (TSFieldId)(field_name + 1));
 }
 
 /* --------------------------------------------------------- Lifecycle */
@@ -735,6 +805,34 @@ static sxml_byte_view sxml_xml_field_text(const sxml_xml_frame *frame,
         return (sxml_byte_view){.bytes = NULL, .byte_count = 0};
     }
     return sxml_xml_node_text(frame, child);
+}
+
+/*
+ * The element name of a start tag, an empty-element tag or an end tag. A
+ * tag without attributes is one token, a node without children; otherwise
+ * its name field is a token of the '<' and the name (grammars/xml,
+ * start_tag). The name is what lies between the '<' (or '</') and the
+ * first '>', '/' or [3] S, none of which [5] Name holds.
+ */
+static sxml_byte_view sxml_xml_tag_name_text(const sxml_xml_frame *frame,
+                                             TSNode tag_node) {
+    const sxml_byte_view token =
+        ts_node_child_count(tag_node) == 0
+            ? sxml_xml_node_text(frame, tag_node)
+            : sxml_xml_field_text(frame, tag_node, SXML_XML_FIELD_NAME);
+    size_t start = 0;
+    while (start < token.byte_count &&
+           (token.bytes[start] == '<' || token.bytes[start] == '/')) {
+        start++;
+    }
+    size_t end = start;
+    while (end < token.byte_count && token.bytes[end] != '>' &&
+           token.bytes[end] != '/' && token.bytes[end] != ' ' &&
+           token.bytes[end] != '\t' && token.bytes[end] != '\r' &&
+           token.bytes[end] != '\n') {
+        end++;
+    }
+    return sxml_xml_view_from_text(token, start, end - start);
 }
 
 static bool sxml_xml_view_contains_byte(sxml_byte_view view, uint8_t byte) {
@@ -1712,7 +1810,7 @@ static sxml_status sxml_xml_visit_cdata_section(sxml_xml_document *document,
          status == SXML_STATUS_OK && child_index < children.child_count;
          child_index++) {
         const TSNode child = sxml_xml_child_at(document, children, child_index);
-        if (sxml_xml_type_of(child) == SXML_XML_NODE_CDATA_TEXT) {
+        if (sxml_xml_type_of(document, child) == SXML_XML_NODE_CDATA_TEXT) {
             status = sxml_xml_send_character_data(document, frame, child);
         }
     }
@@ -2116,6 +2214,65 @@ sxml_xml_expand_in_value(sxml_xml_document *document,
 }
 
 /*
+ * The name and the value text of an attribute that is one token, without
+ * references (grammars/xml, attribute): [41] Attribute ::= Name Eq
+ * AttValue, [25] Eq ::= S? '=' S?. The name ends at the first S or '=',
+ * which [5] Name does not hold; the value text lies between the quotes,
+ * the token's first quote after the '=' and its last byte.
+ */
+typedef struct sxml_xml_attribute_parts {
+    sxml_byte_view name;
+    sxml_byte_view value_text;
+} sxml_xml_attribute_parts;
+
+static sxml_xml_attribute_parts
+sxml_xml_split_attribute(const sxml_xml_frame *frame, TSNode attribute_node) {
+    const sxml_byte_view token = sxml_xml_node_text(frame, attribute_node);
+    size_t name_end = 0;
+    while (name_end < token.byte_count && token.bytes[name_end] != '=' &&
+           !sxml_xml_byte_is_whitespace(token.bytes[name_end])) {
+        name_end++;
+    }
+    size_t value_start = name_end;
+    while (value_start < token.byte_count && token.bytes[value_start] != '"' &&
+           token.bytes[value_start] != '\'') {
+        value_start++;
+    }
+    value_start = value_start < token.byte_count ? value_start + 1 : value_start;
+    const size_t value_end =
+        token.byte_count > value_start ? token.byte_count - 1 : value_start;
+    return (sxml_xml_attribute_parts){
+        .name = sxml_xml_view_from_text(token, 0, name_end),
+        .value_text =
+            sxml_xml_view_from_text(token, value_start, value_end - value_start)};
+}
+
+/* Appends attribute value text with each white space character as a
+   space, a CR LF as one (3.3.3, 2.11). */
+static sxml_status sxml_xml_append_value_text(sxml_xml_buffer *values,
+                                              sxml_xml_text_append append) {
+    const sxml_byte_view text = append.text;
+    const sxml_status status = sxml_xml_buffer_reserve(values, text.byte_count);
+    for (size_t byte_index = 0;
+         status == SXML_STATUS_OK && byte_index < text.byte_count;
+         byte_index++) {
+        uint8_t byte = text.bytes[byte_index];
+        if (sxml_xml_byte_is_whitespace(byte)) {
+            /* CR LF is one line end, so one space (2.11). */
+            if (append.normalizes_line_ends && byte == '\r' &&
+                byte_index + 1 < text.byte_count &&
+                text.bytes[byte_index + 1] == '\n') {
+                byte_index += 1;
+            }
+            byte = ' ';
+        }
+        values->bytes[values->byte_count] = byte;
+        values->byte_count += 1;
+    }
+    return status;
+}
+
+/*
  * Appends the normalized value of an attribute_value node to the
  * attribute values (XML 1.0, section 3.3.3, before the extra processing
  * of non-CDATA types).
@@ -2135,27 +2292,13 @@ static sxml_status sxml_xml_normalize_value(sxml_xml_document *document,
     for (size_t child_index = 0; child_index < children.child_count;
          child_index++) {
         const TSNode child = sxml_xml_child_at(document, children, child_index);
-        const sxml_xml_node_type child_type = sxml_xml_type_of(child);
+        const sxml_xml_node_type child_type = sxml_xml_type_of(document, child);
         sxml_status status = SXML_STATUS_OK;
         if (child_type == SXML_XML_NODE_ATTRIBUTE_VALUE_TEXT) {
-            const sxml_byte_view text = sxml_xml_node_text(frame, child);
-            status = sxml_xml_buffer_reserve(values, text.byte_count);
-            for (size_t byte_index = 0;
-                 status == SXML_STATUS_OK && byte_index < text.byte_count;
-                 byte_index++) {
-                uint8_t byte = text.bytes[byte_index];
-                if (sxml_xml_byte_is_whitespace(byte)) {
-                    /* CR LF is one line end, so one space (2.11). */
-                    if (normalizes_line_ends && byte == '\r' &&
-                        byte_index + 1 < text.byte_count &&
-                        text.bytes[byte_index + 1] == '\n') {
-                        byte_index += 1;
-                    }
-                    byte = ' ';
-                }
-                values->bytes[values->byte_count] = byte;
-                values->byte_count += 1;
-            }
+            status = sxml_xml_append_value_text(
+                values, (sxml_xml_text_append){
+                            .text = sxml_xml_node_text(frame, child),
+                            .normalizes_line_ends = normalizes_line_ends});
         } else if (child_type == SXML_XML_NODE_CHARACTER_REFERENCE) {
             uint32_t codepoint = 0;
             if (!sxml_xml_decode_character_reference(document, sxml_xml_node_text(frame, child), &codepoint)) {
@@ -2544,7 +2687,7 @@ static sxml_status sxml_xml_build_replacement_text(sxml_xml_document *document,
     for (size_t child_index = 0; child_index < children.child_count;
          child_index++) {
         const TSNode child = sxml_xml_child_at(document, children, child_index);
-        const sxml_xml_node_type child_type = sxml_xml_type_of(child);
+        const sxml_xml_node_type child_type = sxml_xml_type_of(document, child);
         sxml_status status = SXML_STATUS_OK;
         if (child_type == SXML_XML_NODE_ENTITY_VALUE_TEXT) {
             status = sxml_xml_append_text(
@@ -2614,7 +2757,7 @@ static sxml_status sxml_xml_declare_entity(sxml_xml_document *document,
                                            const sxml_xml_frame *frame,
                                            TSNode node) {
     const bool is_parameter_entity =
-        sxml_xml_type_of(node) == SXML_XML_NODE_PARAMETER_ENTITY_DECLARATION;
+        sxml_xml_type_of(document, node) == SXML_XML_NODE_PARAMETER_ENTITY_DECLARATION;
     const TSNode name_node = sxml_xml_field(node, SXML_XML_FIELD_NAME);
     sxml_status status = sxml_xml_check_no_colon(document, frame, name_node);
     if (status != SXML_STATUS_OK) {
@@ -2702,7 +2845,7 @@ static sxml_status sxml_xml_declare_entity(sxml_xml_document *document,
 /* The declared type of an attribute_definition's type node. */
 static sxml_xml_attribute_type
 sxml_xml_attribute_type_of(const sxml_xml_frame *frame, TSNode type_node) {
-    const sxml_xml_node_type node_type = sxml_xml_type_of(type_node);
+    const sxml_xml_node_type node_type = sxml_xml_type_by_name(type_node);
     if (node_type == SXML_XML_NODE_STRING_TYPE) {
         return SXML_XML_ATTRIBUTE_TYPE_CDATA;
     }
@@ -2873,7 +3016,7 @@ static sxml_status sxml_xml_declare_attribute_list(sxml_xml_document *document,
          status == SXML_STATUS_OK && child_index < children.child_count;
          child_index++) {
         const TSNode child = sxml_xml_child_at(document, children, child_index);
-        if (sxml_xml_type_of(child) == SXML_XML_NODE_ATTRIBUTE_DEFINITION) {
+        if (sxml_xml_type_of(document, child) == SXML_XML_NODE_ATTRIBUTE_DEFINITION) {
             status = sxml_xml_declare_attribute(
                 document, frame,
                 &(sxml_xml_definition_node){
@@ -3129,7 +3272,7 @@ static sxml_status
 sxml_xml_visit_conditional_section(sxml_xml_document *document,
                                    const sxml_xml_frame *frame, TSNode node) {
     const TSNode keyword = sxml_xml_field(node, SXML_XML_FIELD_KEYWORD);
-    if (sxml_xml_type_of(keyword) != SXML_XML_NODE_PARAMETER_ENTITY_REFERENCE) {
+    if (sxml_xml_type_of(document, keyword) != SXML_XML_NODE_PARAMETER_ENTITY_REFERENCE) {
         return SXML_STATUS_OK;
     }
     const sxml_source_location location =
@@ -3313,7 +3456,7 @@ static sxml_status sxml_xml_add_content_model(sxml_xml_document *document,
     uint32_t depth = 0;
     while (status == SXML_STATUS_OK) {
         const TSNode current = ts_tree_cursor_current_node(&cursor);
-        const sxml_xml_node_type current_type = sxml_xml_type_of(current);
+        const sxml_xml_node_type current_type = sxml_xml_type_of(document, current);
         const bool is_group = current_type == SXML_XML_NODE_CHOICE_GROUP ||
                               current_type == SXML_XML_NODE_SEQUENCE_GROUP;
         if (is_entering) {
@@ -3412,7 +3555,7 @@ static sxml_status sxml_xml_declare_element(sxml_xml_document *document,
                                specification_text.bytes[0] == 'E'
                            ? SXML_XML_CONTENT_KIND_EMPTY
                            : SXML_XML_CONTENT_KIND_ANY;
-    } else if (sxml_xml_type_of(specification) == SXML_XML_NODE_MIXED_CONTENT) {
+    } else if (sxml_xml_type_of(document, specification) == SXML_XML_NODE_MIXED_CONTENT) {
         content_kind = SXML_XML_CONTENT_KIND_MIXED;
         sxml_xml_children children = {.first_index = 0, .child_count = 0};
         status = sxml_xml_fail_resource(
@@ -3524,7 +3667,7 @@ static sxml_status sxml_xml_visit_declaration(sxml_xml_document *document,
                                               const sxml_xml_frame *frame,
                                               sxml_xml_visit_result *result) {
     const TSNode node = ts_tree_cursor_current_node(&frame->cursor);
-    const sxml_xml_node_type node_type = sxml_xml_type_of(node);
+    const sxml_xml_node_type node_type = sxml_xml_type_of(document, node);
     if (node_type == SXML_XML_NODE_INCLUDE_SECTION) {
         /* [62] includeSect: its declarations are read in place (3.4). */
         result->descends = true;
@@ -3820,23 +3963,48 @@ static sxml_status sxml_xml_collect_attributes(sxml_xml_document *document,
     parser->attribute_values.byte_count = 0;
     const uint32_t first_definition =
         sxml_xml_dtd_first_definition(&parser->dtd, tag->element_name);
-    sxml_xml_children children = {.first_index = 0, .child_count = 0};
+    sxml_xml_children children = {
+        .first_index = parser->child_nodes.element_count, .child_count = 0};
+    /* A tag that is one token has no attributes (grammars/xml, start_tag):
+       no cursor over its children. */
     sxml_status list_status =
-        sxml_xml_list_children(document, tag->node, &children);
+        ts_node_child_count(tag->node) == 0
+            ? SXML_STATUS_OK
+            : sxml_xml_list_children(document, tag->node, &children);
     if (list_status != SXML_STATUS_OK) {
         return sxml_xml_fail_resource(document, list_status);
     }
     for (size_t child_index = 0; child_index < children.child_count;
          child_index++) {
         const TSNode child = sxml_xml_child_at(document, children, child_index);
-        if (sxml_xml_type_of(child) != SXML_XML_NODE_ATTRIBUTE) {
+        if (sxml_xml_type_of(document, child) != SXML_XML_NODE_ATTRIBUTE) {
             continue;
         }
-        const sxml_byte_view name =
-            sxml_xml_field_text(frame, child, SXML_XML_FIELD_NAME);
+        /* An attribute without references may be one token
+           (grammars/xml, attribute). */
+        const bool is_token = ts_node_child_count(child) == 0;
+        const sxml_xml_attribute_parts parts =
+            is_token ? sxml_xml_split_attribute(frame, child)
+                     : (sxml_xml_attribute_parts){
+                           .name = sxml_xml_field_text(frame, child,
+                                                       SXML_XML_FIELD_NAME),
+                           .value_text = {.bytes = NULL, .byte_count = 0}};
+        const sxml_byte_view name = parts.name;
         const size_t value_start = parser->attribute_values.byte_count;
-        sxml_status status = sxml_xml_normalize_value(
-            document, frame, sxml_xml_field(child, SXML_XML_FIELD_VALUE));
+        sxml_status status = SXML_STATUS_OK;
+        if (is_token) {
+            status = sxml_xml_fail_resource(
+                document,
+                sxml_xml_append_value_text(
+                    &parser->attribute_values,
+                    (sxml_xml_text_append){
+                        .text = parts.value_text,
+                        .normalizes_line_ends =
+                            frame->frame_kind == SXML_XML_FRAME_KIND_DOCUMENT}));
+        } else {
+            status = sxml_xml_normalize_value(
+                document, frame, sxml_xml_field(child, SXML_XML_FIELD_VALUE));
+        }
         if (status != SXML_STATUS_OK) {
             return status;
         }
@@ -4353,7 +4521,7 @@ static sxml_status sxml_xml_start_element(sxml_xml_document *document,
                 .location = sxml_xml_node_location(document, frame, tag_node)});
     }
     const sxml_byte_view element_name =
-        sxml_xml_field_text(frame, tag_node, SXML_XML_FIELD_NAME);
+        sxml_xml_tag_name_text(frame, tag_node);
     if (document->element_depth == 0 && document->has_doctype &&
         !sxml_byte_view_equals(element_name, document->doctype_name)) {
         const sxml_status status = sxml_xml_report_validity(
@@ -4659,7 +4827,7 @@ static sxml_status sxml_xml_check_content(sxml_xml_document *document,
     if (!open->is_declared) {
         return SXML_STATUS_OK;
     }
-    const sxml_xml_node_type node_type = sxml_xml_type_of(content->node);
+    const sxml_xml_node_type node_type = sxml_xml_type_of(document, content->node);
     sxml_byte_view description = {.bytes = NULL, .byte_count = 0};
     if (open->content_kind == SXML_XML_CONTENT_KIND_EMPTY &&
         (node_type == SXML_XML_NODE_CHARACTER_DATA ||
@@ -4713,7 +4881,7 @@ typedef enum sxml_xml_misc_kind {
 } sxml_xml_misc_kind;
 
 static sxml_xml_misc_kind sxml_xml_misc_kind_of(const sxml_xml_frame_node *item) {
-    const sxml_xml_node_type node_type = sxml_xml_type_of(item->node);
+    const sxml_xml_node_type node_type = sxml_xml_type_by_name(item->node);
     if (node_type == SXML_XML_NODE_COMMENT ||
         node_type == SXML_XML_NODE_PROCESSING_INSTRUCTION) {
         return SXML_XML_MISC_KIND_MARKUP;
@@ -4760,7 +4928,7 @@ static sxml_status sxml_xml_visit_content(sxml_xml_document *document,
     const bool is_wrapper_child =
         frame->cursor_depth == 1 &&
         frame->frame_kind == SXML_XML_FRAME_KIND_GENERAL_ENTITY;
-    const sxml_xml_node_type node_type = sxml_xml_type_of(node);
+    const sxml_xml_node_type node_type = sxml_xml_type_of(document, node);
     if (node_type == SXML_XML_NODE_ELEMENT) {
         result->descends = true;
         return SXML_STATUS_OK;
@@ -4813,7 +4981,7 @@ static bool sxml_xml_is_complete_construct(TSNode node) {
         ts_node_has_error(node)) {
         return false;
     }
-    const sxml_xml_node_type node_type = sxml_xml_type_of(node);
+    const sxml_xml_node_type node_type = sxml_xml_type_by_name(node);
     return node_type == SXML_XML_NODE_ELEMENT ||
            node_type == SXML_XML_NODE_START_TAG ||
            node_type == SXML_XML_NODE_END_TAG ||
@@ -5327,7 +5495,21 @@ static sxml_status sxml_xml_collect_prefix_bindings(sxml_xml_document *document,
          status == SXML_STATUS_OK && attribute_index < attributes.child_count;
          attribute_index++) {
         const TSNode attribute = sxml_xml_child_at(document, attributes, attribute_index);
-        if (sxml_xml_type_of(attribute) != SXML_XML_NODE_ATTRIBUTE) {
+        if (sxml_xml_type_of(document, attribute) != SXML_XML_NODE_ATTRIBUTE) {
+            continue;
+        }
+        if (ts_node_child_count(attribute) == 0) {
+            /* One token, without references (grammars/xml, attribute). */
+            const sxml_xml_attribute_parts parts =
+                sxml_xml_split_attribute(root.frame, attribute);
+            const sxml_xml_declared_prefix declared =
+                sxml_xml_declared_prefix_of(parts.name);
+            if (declared.is_declaration) {
+                status = sxml_xml_add_prefix_binding(
+                    document, &(sxml_dtd_prefix_binding){
+                                  .namespace_prefix = declared.namespace_prefix,
+                                  .namespace_uri = parts.value_text});
+            }
             continue;
         }
         const sxml_xml_declared_prefix declared = sxml_xml_declared_prefix_of(
@@ -5337,13 +5519,14 @@ static sxml_status sxml_xml_collect_prefix_bindings(sxml_xml_document *document,
             continue;
         }
         const TSNode text = ts_node_named_child(value, 0);
+        const sxml_byte_view namespace_uri =
+            ts_node_is_null(text) ? (sxml_byte_view){.bytes = NULL, .byte_count = 0}
+                                  : sxml_xml_node_text(root.frame, text);
         status = sxml_xml_add_prefix_binding(
             document,
             &(sxml_dtd_prefix_binding){
                 .namespace_prefix = declared.namespace_prefix,
-                .namespace_uri = ts_node_is_null(text)
-                                     ? (sxml_byte_view){.bytes = NULL, .byte_count = 0}
-                                     : sxml_xml_node_text(root.frame, text)});
+                .namespace_uri = namespace_uri});
     }
     sxml_xml_release_children(document, attributes);
     const sxml_xml_dtd *dtd = &document->parser->dtd;
@@ -5946,7 +6129,7 @@ static sxml_status sxml_xml_process_doctype(sxml_xml_document *document,
         TSTreeCursor cursor = ts_tree_cursor_new(subset);
         for (bool has_child = ts_tree_cursor_goto_first_child(&cursor);
              has_child; has_child = ts_tree_cursor_goto_next_sibling(&cursor)) {
-            if (sxml_xml_type_of(ts_tree_cursor_current_node(&cursor)) ==
+            if (sxml_xml_type_of(document, ts_tree_cursor_current_node(&cursor)) ==
                 SXML_XML_NODE_PARAMETER_ENTITY_REFERENCE) {
                 document->has_parameter_entity_references = true;
                 break;
@@ -6217,6 +6400,17 @@ static sxml_status sxml_xml_read_document(sxml_xml_document *document) {
     }
     if (status != SXML_STATUS_OK) {
         return status;
+    }
+    if (!sxml_xml_fields_match(tree_sitter_xml()) ||
+        !sxml_xml_fill_node_types(document, tree_sitter_xml())) {
+        return sxml_xml_fail(
+            document,
+            (sxml_xml_failure){
+                .status = SXML_STATUS_UNSUPPORTED_FEATURE,
+                .description = SXML_XML_TEXT(
+                    "the field names or the symbols of the XML grammar do not "
+                    "match the generated parser (grammars/xml)"),
+                .location = sxml_xml_location_at(document, 0)});
     }
     document->syntax_parser = ts_parser_new();
     if (document->syntax_parser == NULL ||

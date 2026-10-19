@@ -5,7 +5,7 @@
     "fields": {
       "name": {
         "multiple": false,
-        "required": true,
+        "required": false,
         "types": [
           {
             "type": "name",
@@ -15,7 +15,7 @@
       },
       "value": {
         "multiple": false,
-        "required": true,
+        "required": false,
         "types": [
           {
             "type": "attribute_value",
@@ -492,7 +492,7 @@
     "fields": {
       "name": {
         "multiple": false,
-        "required": true,
+        "required": false,
         "types": [
           {
             "type": "name",
@@ -510,22 +510,6 @@
           "named": true
         }
       ]
-    }
-  },
-  {
-    "type": "end_tag",
-    "named": true,
-    "fields": {
-      "name": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "name",
-            "named": true
-          }
-        ]
-      }
     }
   },
   {
@@ -1056,7 +1040,7 @@
     "fields": {
       "name": {
         "multiple": false,
-        "required": true,
+        "required": false,
         "types": [
           {
             "type": "name",
@@ -1219,10 +1203,6 @@
     "named": false
   },
   {
-    "type": "<",
-    "named": false
-  },
-  {
     "type": "<!--",
     "named": false
   },
@@ -1252,10 +1232,6 @@
   },
   {
     "type": "<![CDATA[",
-    "named": false
-  },
-  {
-    "type": "</",
     "named": false
   },
   {
@@ -1348,6 +1324,10 @@
   },
   {
     "type": "encoding_name",
+    "named": true
+  },
+  {
+    "type": "end_tag",
     "named": true
   },
   {

@@ -63,8 +63,9 @@ Node types (fields in parentheses):
 | `external_identifier` (`public_id`, `system_id`) | [75] | |
 | `system_literal`, `public_id_literal` | [11], [12] | One token **including the quotes**. |
 | `element` | [39] | `empty_element_tag`, or `start_tag`, content, `end_tag`. Content items are direct children. |
-| `start_tag`, `empty_element_tag` (`name`) | [40], [44] | Children `attribute` (`name`, `value`). |
-| `end_tag` (`name`) | [42] | |
+| `start_tag`, `empty_element_tag` (`name`) | [40], [44] | Children `attribute`. The `name` token holds the `<` before the name. A tag without attributes or white space (`<a>`, `<a/>`) is one token: a node without children, whose text is the tag (packet perf-3: every token and node costs the parser far more than its characters). |
+| `end_tag` | [42] | One token, the whole tag (`</a >`), without children. |
+| `attribute` (`name`, `value`) | [41] | An attribute whose value holds no reference is one token, `Name Eq AttValue`, without children; the builder reads the name up to the first S or `=` and the value between the quotes. |
 | `attribute_value` | [10] | Children `attribute_value_text`, `entity_reference`, `character_reference`; quotes are anonymous tokens. |
 | `character_data` | [14] | Raw text: line ends not yet normalized. |
 | `entity_reference` (`name`) | [68] | |

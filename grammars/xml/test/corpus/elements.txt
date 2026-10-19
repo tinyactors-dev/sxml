@@ -7,8 +7,7 @@ Empty element
 
 (document
   root: (element
-    (empty_element_tag
-      name: (name))))
+    (empty_element_tag)))
 
 ================================================================================
 Nested elements with character data
@@ -19,21 +18,16 @@ Nested elements with character data
 
 (document
   root: (element
-    (start_tag
-      name: (name))
+    (start_tag)
     (character_data)
     (element
-      (start_tag
-        name: (name))
+      (start_tag)
       (character_data)
-      (end_tag
-        name: (name)))
+      (end_tag))
     (element
-      (empty_element_tag
-        name: (name)))
+      (empty_element_tag))
     (character_data)
-    (end_tag
-      name: (name))))
+    (end_tag)))
 
 ================================================================================
 Attributes with both quote styles and references
@@ -59,9 +53,7 @@ Attributes with both quote styles and references
           (attribute_value_text)
           (character_reference)
           (attribute_value_text)))
-      (attribute
-        name: (name)
-        value: (attribute_value)))))
+      (attribute))))
 
 ================================================================================
 Whitespace before the end of tags
@@ -74,12 +66,8 @@ Whitespace before the end of tags
   root: (element
     (start_tag
       name: (name)
-      (attribute
-        name: (name)
-        value: (attribute_value
-          (attribute_value_text))))
-    (end_tag
-      name: (name))))
+      (attribute))
+    (end_tag)))
 
 ================================================================================
 Names outside ASCII and with namespace prefixes
@@ -92,17 +80,10 @@ Names outside ASCII and with namespace prefixes
   root: (element
     (start_tag
       name: (name)
-      (attribute
-        name: (name)
-        value: (attribute_value
-          (attribute_value_text)))
-      (attribute
-        name: (name)
-        value: (attribute_value
-          (attribute_value_text))))
+      (attribute)
+      (attribute))
     (character_data)
-    (end_tag
-      name: (name))))
+    (end_tag)))
 
 ================================================================================
 References, CDATA sections, comments and processing instructions in content
@@ -113,8 +94,7 @@ References, CDATA sections, comments and processing instructions in content
 
 (document
   root: (element
-    (start_tag
-      name: (name))
+    (start_tag)
     (entity_reference
       name: (name))
     (character_reference)
@@ -126,8 +106,7 @@ References, CDATA sections, comments and processing instructions in content
     (processing_instruction
       target: (name)
       content: (processing_instruction_content))
-    (end_tag
-      name: (name))))
+    (end_tag)))
 
 ================================================================================
 Empty CDATA section, comment and processing instruction
@@ -138,16 +117,14 @@ Empty CDATA section, comment and processing instruction
 
 (document
   root: (element
-    (start_tag
-      name: (name))
+    (start_tag)
     (cdata_section)
     (comment)
     (processing_instruction
       target: (name))
     (processing_instruction
       target: (name))
-    (end_tag
-      name: (name))))
+    (end_tag)))
 
 ================================================================================
 Brackets before the end of a CDATA section
@@ -158,16 +135,14 @@ Brackets before the end of a CDATA section
 
 (document
   root: (element
-    (start_tag
-      name: (name))
+    (start_tag)
     (cdata_section
       (cdata_text)
       (cdata_text)
       (cdata_text))
     (cdata_section
       (cdata_text))
-    (end_tag
-      name: (name))))
+    (end_tag)))
 
 ================================================================================
 Brackets and greater-than signs in character data
@@ -178,11 +153,9 @@ Brackets and greater-than signs in character data
 
 (document
   root: (element
-    (start_tag
-      name: (name))
+    (start_tag)
     (character_data)
-    (end_tag
-      name: (name))))
+    (end_tag)))
 
 ================================================================================
 Processing instruction targets that start with xml
@@ -196,10 +169,8 @@ Processing instruction targets that start with xml
     target: (name)
     content: (processing_instruction_content))
   root: (element
-    (start_tag
-      name: (name))
+    (start_tag)
     (processing_instruction
       target: (name)
       content: (processing_instruction_content))
-    (end_tag
-      name: (name))))
+    (end_tag)))

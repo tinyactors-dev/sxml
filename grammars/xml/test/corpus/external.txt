@@ -78,12 +78,10 @@ External parsed entity with a text declaration
       encoding: (encoding_name))
     (character_data)
     (element
-      (start_tag
-        name: (name))
+      (start_tag)
       (entity_reference
         name: (name))
-      (end_tag
-        name: (name)))
+      (end_tag))
     (character_data)))
 
 ================================================================================

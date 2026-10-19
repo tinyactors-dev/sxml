@@ -10,8 +10,13 @@
  * Edition), https://www.w3.org/TR/xml/.
  *
  * The scanner produces the tokens a regular expression cannot:
- * - element names, checked against a stack of open start tags so that a
- *   mismatched end tag is a parse error (WFC: Element Type Match, 3);
+ * - the start of a tag with its element name, checked against a stack of
+ *   open start tags so that a mismatched end tag is a parse error (WFC:
+ *   Element Type Match, 3); a tag without attributes is one token, and so
+ *   is a whole end tag, because every token costs the parser far more than
+ *   its characters (packet perf-3);
+ * - an attribute whose value holds no reference, Name Eq AttValue (perf-3
+ *   too);
  * - character data, CDATA text, comment text and processing-instruction
  *   content, which end at a delimiter and must not contain it, and whose
  *   characters must all match [2] Char;
@@ -43,9 +48,12 @@
 
 /* Must match the order of `externals` in grammar.js. */
 enum token_type {
-    START_TAG_NAME,
-    END_TAG_NAME,
+    START_TAG_OPEN,
+    START_TAG_WHOLE,
+    EMPTY_ELEMENT_TAG_WHOLE,
+    END_TAG,
     EMPTY_ELEMENT_TAG_CLOSE,
+    ATTRIBUTE_WHOLE,
     CHARACTER_DATA,
     CDATA_TEXT,
     COMMENT_TEXT,
@@ -117,12 +125,25 @@ static bool is_in_ranges(int32_t codepoint, const codepoint_range *ranges, size_
     return false;
 }
 
+/* ASCII first: nearly every name is ASCII. */
+static bool is_ascii_name_start_character(int32_t codepoint) {
+    return (codepoint >= 'a' && codepoint <= 'z') || (codepoint >= 'A' && codepoint <= 'Z') ||
+           codepoint == '_' || codepoint == ':';
+}
+
 static bool is_name_start_character(int32_t codepoint) {
+    if (codepoint < 0x80) {
+        return is_ascii_name_start_character(codepoint);
+    }
     return is_in_ranges(codepoint, name_start_ranges,
                         sizeof name_start_ranges / sizeof name_start_ranges[0]);
 }
 
 static bool is_name_character(int32_t codepoint) {
+    if (codepoint < 0x80) {
+        return is_ascii_name_start_character(codepoint) || codepoint == '-' ||
+               codepoint == '.' || (codepoint >= '0' && codepoint <= '9');
+    }
     return is_name_start_character(codepoint) ||
            is_in_ranges(codepoint, name_extra_ranges,
                         sizeof name_extra_ranges / sizeof name_extra_ranges[0]);
@@ -132,14 +153,24 @@ static bool is_name_character(int32_t codepoint) {
  * tree-sitter reports undecodable input as a negative lookahead, which this
  * rejects too. */
 static bool is_xml_character(int32_t codepoint) {
-    return codepoint == 0x9 || codepoint == 0xA || codepoint == 0xD ||
-           (codepoint >= 0x20 && codepoint <= 0xD7FF) ||
+    return (codepoint >= 0x20 && codepoint <= 0xD7FF) || codepoint == 0x9 || codepoint == 0xA || codepoint == 0xD ||
            (codepoint >= 0xE000 && codepoint <= 0xFFFD) ||
            (codepoint >= 0x10000 && codepoint <= 0x10FFFF);
 }
 
+/* [3] S */
+static bool is_space_character(int32_t codepoint) {
+    return codepoint == 0x20 || codepoint == 0x9 || codepoint == 0xD || codepoint == 0xA;
+}
+
 static void advance(TSLexer *lexer) {
     lexer->advance(lexer, false);
+}
+
+/* At the end of the input the lookahead is 0, which is no [2] Char: the
+ * eof callback is asked only then. */
+static bool is_at_end(TSLexer *lexer) {
+    return lexer->lookahead == 0 && lexer->eof(lexer);
 }
 
 /* --- Growable storage --------------------------------------------------- */
@@ -331,11 +362,16 @@ static bool append_to_scanned_name(scanner_state *state, int32_t codepoint) {
 /* [5] Name, read into state->scanned_name. */
 static bool scan_name(scanner_state *state, TSLexer *lexer) {
     state->scanned_name_byte_count = 0;
-    if (lexer->eof(lexer) || !is_name_start_character(lexer->lookahead)) {
+    if (is_at_end(lexer) || !is_name_start_character(lexer->lookahead)) {
         return false;
     }
-    while (!lexer->eof(lexer) && is_name_character(lexer->lookahead)) {
-        if (!append_to_scanned_name(state, lexer->lookahead)) {
+    while (!is_at_end(lexer) && is_name_character(lexer->lookahead)) {
+        if (lexer->lookahead < 0x80 &&
+            state->scanned_name_byte_count < state->scanned_name_capacity) {
+            /* ASCII with room left: no encoding, no growth. */
+            state->scanned_name[state->scanned_name_byte_count] = (uint8_t)lexer->lookahead;
+            state->scanned_name_byte_count += 1;
+        } else if (!append_to_scanned_name(state, lexer->lookahead)) {
             return false;
         }
         advance(lexer);
@@ -345,24 +381,55 @@ static bool scan_name(scanner_state *state, TSLexer *lexer) {
 
 /* --- Tokens -------------------------------------------------------------- */
 
-/* [40] STag, [44] EmptyElemTag: the element name, pushed on the stack. */
-static bool scan_start_tag_name(scanner_state *state, TSLexer *lexer) {
-    if (!scan_name(state, lexer) || !push_scanned_name(state)) {
+/* [40] STag, [44] EmptyElemTag, after the '<': the '<' and the element
+ * name (START_TAG_OPEN), pushed on the stack; '<' Name '>' (START_TAG_WHOLE),
+ * pushed too; or '<' Name '/>' (EMPTY_ELEMENT_TAG_WHOLE), which leaves the
+ * stack as it was. */
+static bool scan_start_tag(scanner_state *state, TSLexer *lexer, const bool *valid_symbols) {
+    if (!scan_name(state, lexer)) {
         return false;
     }
-    lexer->result_symbol = START_TAG_NAME;
-    return true;
+    lexer->mark_end(lexer);
+    if (lexer->lookahead == '>' && valid_symbols[START_TAG_WHOLE]) {
+        advance(lexer);
+        lexer->mark_end(lexer);
+        lexer->result_symbol = START_TAG_WHOLE;
+        return push_scanned_name(state);
+    }
+    if (lexer->lookahead == '/' && valid_symbols[EMPTY_ELEMENT_TAG_WHOLE]) {
+        advance(lexer);
+        if (lexer->lookahead == '>') {
+            advance(lexer);
+            lexer->mark_end(lexer);
+            lexer->result_symbol = EMPTY_ELEMENT_TAG_WHOLE;
+            return true;
+        }
+    }
+    /* The token ends after the name (the first mark_end). */
+    lexer->result_symbol = START_TAG_OPEN;
+    return push_scanned_name(state);
 }
 
-/* [42] ETag: the name must close the innermost open element
- * (WFC: Element Type Match). */
-static bool scan_end_tag_name(scanner_state *state, TSLexer *lexer) {
+/* [42] ETag ::= '</' Name S? '>', after the '<': the name must close the
+ * innermost open element (WFC: Element Type Match). */
+static bool scan_end_tag(scanner_state *state, TSLexer *lexer) {
+    if (lexer->lookahead != '/') {
+        return false;
+    }
+    advance(lexer);
     if (state->current_frame == EMPTY_STACK_FRAME || !scan_name(state, lexer) ||
         !frame_matches_scanned_name(state, state->current_frame)) {
         return false;
     }
+    while (is_space_character(lexer->lookahead)) {
+        advance(lexer);
+    }
+    if (lexer->lookahead != '>') {
+        return false;
+    }
+    advance(lexer);
     state->current_frame = state->frames[state->current_frame].parent_frame;
-    lexer->result_symbol = END_TAG_NAME;
+    lexer->result_symbol = END_TAG;
     return true;
 }
 
@@ -381,12 +448,50 @@ static bool scan_empty_element_tag_close(scanner_state *state, TSLexer *lexer) {
     return true;
 }
 
+/* [41] Attribute ::= Name Eq AttValue, [25] Eq ::= S? '=' S?, for a value
+ * without a Reference: [10] '"' [^<&"]* '"' | "'" [^<&']* "'". A value with
+ * a reference, a '<' or a character outside [2] Char is left to the
+ * grammar's own rule, which reads the references (and refuses the rest). */
+static bool scan_attribute_whole(scanner_state *state, TSLexer *lexer) {
+    if (!scan_name(state, lexer)) {
+        return false;
+    }
+    while (is_space_character(lexer->lookahead)) {
+        advance(lexer);
+    }
+    if (lexer->lookahead != '=') {
+        return false;
+    }
+    advance(lexer);
+    while (is_space_character(lexer->lookahead)) {
+        advance(lexer);
+    }
+    const int32_t quote = lexer->lookahead;
+    if (quote != '"' && quote != '\'') {
+        return false;
+    }
+    advance(lexer);
+    while (!is_at_end(lexer)) {
+        const int32_t character = lexer->lookahead;
+        if (character == quote) {
+            advance(lexer);
+            lexer->result_symbol = ATTRIBUTE_WHOLE;
+            return true;
+        }
+        if (character == '<' || character == '&' || !is_xml_character(character)) {
+            return false;
+        }
+        advance(lexer);
+    }
+    return false;
+}
+
 /* [14] CharData ::= [^<&]* - ([^<&]* ']]>' [^<&]*)
  * Rejects the whole run if it contains ']]>' or a character outside [2] Char. */
 static bool scan_character_data(TSLexer *lexer) {
     bool has_consumed = false;
     uint32_t bracket_run = 0;
-    while (!lexer->eof(lexer) && lexer->lookahead != '<' && lexer->lookahead != '&') {
+    while (!is_at_end(lexer) && lexer->lookahead != '<' && lexer->lookahead != '&') {
         int32_t character = lexer->lookahead;
         if (!is_xml_character(character) || (character == '>' && bracket_run >= 2)) {
             return false;
@@ -412,7 +517,7 @@ static bool scan_character_data(TSLexer *lexer) {
  * adjacent cdata_text nodes; the tree builder joins them. */
 static bool scan_cdata_text(TSLexer *lexer) {
     bool has_consumed = false;
-    while (!lexer->eof(lexer)) {
+    while (!is_at_end(lexer)) {
         int32_t character = lexer->lookahead;
         if (character == ']') {
             uint32_t bracket_run = 0;
@@ -449,7 +554,7 @@ static bool scan_cdata_text(TSLexer *lexer) {
 /* [15] Comment: the text between '<!--' and '-->', which contains no '--'. */
 static bool scan_comment_text(TSLexer *lexer) {
     bool has_consumed = false;
-    while (!lexer->eof(lexer)) {
+    while (!is_at_end(lexer)) {
         int32_t character = lexer->lookahead;
         if (character == '-') {
             lexer->mark_end(lexer);
@@ -494,7 +599,7 @@ static bool scan_processing_instruction_target(scanner_state *state, TSLexer *le
 /* [16] PI: the content after the target's whitespace, up to '?>'. */
 static bool scan_processing_instruction_content(TSLexer *lexer) {
     bool has_consumed = false;
-    while (!lexer->eof(lexer)) {
+    while (!is_at_end(lexer)) {
         int32_t character = lexer->lookahead;
         if (character == '?') {
             lexer->mark_end(lexer);
@@ -555,7 +660,7 @@ static bool scan_unexpanded_declaration(TSLexer *lexer) {
     }
     bool has_reference = false;
     int32_t quote = 0;
-    while (!lexer->eof(lexer)) {
+    while (!is_at_end(lexer)) {
         int32_t character = lexer->lookahead;
         if (!is_xml_character(character)) {
             return false;
@@ -586,7 +691,7 @@ static bool scan_unexpanded_declaration(TSLexer *lexer) {
         }
         advance(lexer);
         if (character == '%' && is_name_start_character(lexer->lookahead)) {
-            while (!lexer->eof(lexer) && is_name_character(lexer->lookahead)) {
+            while (!is_at_end(lexer) && is_name_character(lexer->lookahead)) {
                 advance(lexer);
             }
             if (lexer->lookahead == ';') {
@@ -611,7 +716,7 @@ static bool scan_unexpanded_declaration(TSLexer *lexer) {
  * because the token cannot end two characters before the position. */
 static bool scan_ignored_text(TSLexer *lexer) {
     bool has_consumed = false;
-    while (!lexer->eof(lexer)) {
+    while (!is_at_end(lexer)) {
         int32_t character = lexer->lookahead;
         if (character == '<') {
             lexer->mark_end(lexer);
@@ -737,14 +842,19 @@ bool tree_sitter_xml_external_scanner_scan(void *payload, TSLexer *lexer, const 
     if (valid_symbols[IGNORED_TEXT]) {
         return scan_ignored_text(lexer);
     }
-    if (valid_symbols[START_TAG_NAME]) {
-        return scan_start_tag_name(state, lexer);
-    }
-    if (valid_symbols[END_TAG_NAME]) {
-        return scan_end_tag_name(state, lexer);
+    if (lexer->lookahead == '<' && (valid_symbols[START_TAG_OPEN] || valid_symbols[END_TAG])) {
+        advance(lexer);
+        if (lexer->lookahead == '/') {
+            return valid_symbols[END_TAG] && scan_end_tag(state, lexer);
+        }
+        /* Not a tag ('<!', '<?'): the grammar's own tokens. */
+        return valid_symbols[START_TAG_OPEN] && scan_start_tag(state, lexer, valid_symbols);
     }
     if (valid_symbols[EMPTY_ELEMENT_TAG_CLOSE] && lexer->lookahead == '/') {
         return scan_empty_element_tag_close(state, lexer);
+    }
+    if (valid_symbols[ATTRIBUTE_WHOLE]) {
+        return scan_attribute_whole(state, lexer);
     }
     if (valid_symbols[CHARACTER_DATA]) {
         return scan_character_data(lexer);

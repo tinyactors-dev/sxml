@@ -7,22 +7,17 @@ Content segment after the start tags of the open elements
 --------------------------------------------------------------------------------
 
 (document
-  (start_tag
-    name: (name))
-  (start_tag
-    name: (name))
+  (start_tag)
+  (start_tag)
   (character_data)
   (entity_reference
     name: (name))
-  (empty_element_tag
-    name: (name))
-  (end_tag
-    name: (name))
+  (empty_element_tag)
+  (end_tag)
   (processing_instruction
     target: (name)
     content: (processing_instruction_content))
-  (end_tag
-    name: (name))
+  (end_tag)
   (character_data)
   (comment
     (comment_text))

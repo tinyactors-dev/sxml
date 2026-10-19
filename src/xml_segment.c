@@ -166,14 +166,18 @@ static size_t sxml_xml_skip_declaration(sxml_byte_view text,
 static size_t sxml_xml_skip_content_item(sxml_byte_view text,
                                          size_t byte_offset) {
     if (text.bytes[byte_offset] != '<') {
-        for (size_t byte_index = byte_offset + 1; byte_index < text.byte_count;
-             byte_index += 1) {
-            const uint8_t byte = text.bytes[byte_index];
-            if (byte == '<' || byte == '&') {
-                return byte_index;
-            }
-        }
-        return text.byte_count;
+        /* The first '<', then the first '&' before it (memchr is faster
+           than a loop over the bytes). */
+        const size_t start = byte_offset + 1;
+        const uint8_t *less_than =
+            start < text.byte_count
+                ? memchr(text.bytes + start, '<', text.byte_count - start)
+                : NULL;
+        const size_t end =
+            less_than == NULL ? text.byte_count : (size_t)(less_than - text.bytes);
+        const uint8_t *ampersand =
+            start < end ? memchr(text.bytes + start, '&', end - start) : NULL;
+        return ampersand == NULL ? end : (size_t)(ampersand - text.bytes);
     }
     if (sxml_xml_text_starts_with(text, byte_offset, sxml_xml_comment_start)) {
         return sxml_xml_skip_past(
