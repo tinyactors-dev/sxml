@@ -140,6 +140,10 @@ sxml_add_cli_test(xpath_binary EXIT_CODE 0 ARGUMENTS xpath "bin:hex('CAFE') => b
 # The timezone database over the host's /usr/share/zoneinfo (packet 7.16,
 # D209): a zone's offset, its abbreviation, a country's zone.
 sxml_add_cli_test(xpath_timezone EXIT_CODE 0 ARGUMENTS xpath "civil-timezone(xs:dateTime('2024-11-05T12:00:00Z'), 'Europe/Paris'), format-dateTime(xs:dateTime('2015-08-15T12:00:00Z'), '[H01]:[m01] [ZN]', (), (), 'America/New_York'), format-dateTime(xs:dateTime('2018-07-01T12:00:00-05:00'), '[ZN]', (), (), 'us')")
+# UCA collations over the DUCET the program embeds (packet 7.15a, D213):
+# numeric order, caseFirst, and fallback=no, which only the table serves
+# (";" is CMake's list separator, so the URIs build it).
+sxml_add_cli_test(xpath_uca_collation EXIT_CODE 0 ARGUMENTS xpath "let $uca := 'http://www.w3.org/2013/collation/UCA?fallback=no' || codepoints-to-string(59) return (compare('Chap2', 'Chap10', $uca || 'numeric=yes'), sort(('b', 'B', 'a', 'A'), $uca || 'caseFirst=upper'))")
 # fn:transform, one of the optional features the query commands name (D203).
 sxml_add_cli_test(xquery_transform EXIT_CODE 0 ARGUMENTS xquery "--expression=transform({'stylesheet-location': 'xslt/modes.xsl', 'source-node': doc('books.xml'), 'initial-mode': QName('', 'titles'), 'delivery-format': 'serialized'})?output")
 sxml_add_cli_test(xpath_file_access EXIT_CODE 0 ARGUMENTS xpath --allow-file-access "file:exists('books.xml'), file:is-dir('xslt'), file:is-file('xslt'), file:read-text-lines('books.xml')[1]")

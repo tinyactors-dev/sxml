@@ -31,7 +31,7 @@
  * its dependencies asks for a non-goal feature (schemaImport,
  * schemaValidation, typedData, staticTyping, fullText*,
  * xpath-1.0-compatibility, fn-invisible-xml,
- * remote_http, expath-file, advanced-uca-fallback,
+ * remote_http, expath-file,
  * schema-location-hint). Scope does not decide whether a test runs: a
  * non-goal test case that is applicable still runs, so that the pass
  * count of earlier runs stays comparable.

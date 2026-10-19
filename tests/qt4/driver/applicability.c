@@ -111,6 +111,15 @@ static const sxml_qt4_supported_dependency sxml_qt4_supported_dependencies[] = {
      SXML_BYTE_VIEW_INITIALIZER("fn-transform-XSLT30")},
     {SXML_BYTE_VIEW_INITIALIZER("feature"),
      SXML_BYTE_VIEW_INITIALIZER("expath-file")},
+    /* UCA collations over the DUCET, the optional feature
+       sxml_uca_collation_feature() with the vendored allkeys.txt that the
+       resource table serves (packet 7.15a, D213); the collations beyond
+       the codepoint one that F&O requires (HTML ASCII and Unicode
+       case-insensitive, UCA). */
+    {SXML_BYTE_VIEW_INITIALIZER("feature"),
+     SXML_BYTE_VIEW_INITIALIZER("advanced-uca-fallback")},
+    {SXML_BYTE_VIEW_INITIALIZER("feature"),
+     SXML_BYTE_VIEW_INITIALIZER("non_unicode_codepoint_collation")},
     /* DTD processing (packets 7.14a to 7.14c, D199, D210): the DTD's
        infoset (is-id, is-idrefs, unparsed entities) and fn:doc's and
        fn:parse-xml's dtd-validation option. */
@@ -188,7 +197,6 @@ static const sxml_byte_view sxml_qt4_non_goal_features[] = {
     SXML_BYTE_VIEW_INITIALIZER("xpath-1.0-compatibility"),
     SXML_BYTE_VIEW_INITIALIZER("fn-invisible-xml"),
     SXML_BYTE_VIEW_INITIALIZER("remote_http"),
-    SXML_BYTE_VIEW_INITIALIZER("advanced-uca-fallback"),
     SXML_BYTE_VIEW_INITIALIZER("schema-location-hint"),
 };
 
