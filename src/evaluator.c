@@ -4012,11 +4012,40 @@ enum {
  * item matches, the value is the input itself, so a FILTER over it keeps
  * one input for its filter index (D224).
  */
+/* True when two sequences are one value: the same item or the same cell
+   (a cell's items never change). */
+static bool sxml_sequence_is_identical(sxml_sequence first, sxml_sequence second) {
+    return first.content.representation == second.content.representation &&
+           first.content.flags == second.content.flags &&
+           first.content.namespace_number == second.content.namespace_number &&
+           first.content.type_or_node_index == second.content.type_or_node_index &&
+           first.content.payload.bits == second.content.payload.bits;
+}
+
 static sxml_status sxml_filter_by_type(sxml_dynamic_context *context,
+                                       const sxml_ir_filter *filter,
                                        sxml_sequence_type sequence_type) {
     sxml_loop_state *loop = &sxml_machine_top(context)->details.loop;
     uint64_t item_count = 0;
     sxml_status status = sxml_sequence_count(loop->input, context->error_record, &item_count);
+    /* The memo (D149) keeps the last input of 16 items or more whose every
+       item matched: the same input again (the same value: sequences do not
+       change) is the value without a scan, one step (D229). */
+    const sxml_evaluation_memo_key memo_key = {.computation = filter,
+                                               .computation_number = 1,
+                                               .subject = sxml_atomic_item_from_integer(0)};
+    const bool is_memoized = item_count >= SXML_FILTER_INDEX_MINIMUM_ITEM_COUNT;
+    sxml_sequence matched_input = sxml_sequence_empty();
+    if (status == SXML_STATUS_OK && is_memoized &&
+        sxml_dynamic_context_find_memo(context, &memo_key, &matched_input) &&
+        sxml_sequence_is_identical(matched_input, loop->input)) {
+        status = sxml_dynamic_context_charge_steps(context, 1);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        sxml_sequence_retain(loop->input);
+        return sxml_machine_finish(context, loop->input);
+    }
     if (status == SXML_STATUS_OK) {
         status = sxml_dynamic_context_charge_steps(context, item_count);
     }
@@ -4042,6 +4071,13 @@ static sxml_status sxml_filter_by_type(sxml_dynamic_context *context,
         return status;
     }
     if (is_every_item) {
+        if (is_memoized) {
+            status = sxml_dynamic_context_store_memo(
+                context, &(sxml_evaluation_memo_entry){.key = memo_key, .value = loop->input});
+            if (status != SXML_STATUS_OK) {
+                return status;
+            }
+        }
         sxml_sequence_retain(loop->input);
         return sxml_machine_finish(context, loop->input);
     }
@@ -4145,7 +4181,7 @@ static sxml_status sxml_machine_step_filter(sxml_dynamic_context *context,
             predicate->type_test.value.atom_kind == SXML_IR_ATOM_KIND_SLOT &&
             predicate->type_test.value.slot.value == filter->focus.context_value.value &&
             filter->focus.context_position.value == 0 && filter->focus.context_size.value == 0) {
-            return sxml_filter_by_type(context, predicate->type_test.sequence_type);
+            return sxml_filter_by_type(context, filter, predicate->type_test.sequence_type);
         }
         if (filter->index.key.value != 0) {
             uint64_t item_count = 0;

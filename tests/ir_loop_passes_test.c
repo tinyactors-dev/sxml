@@ -209,6 +209,18 @@ static const golden_case golden_cases[] = {
      "              (sequence))\n"
      "      (map $global:1 (focus $1 _ _)\n"
      "        (binary add $1 $2)))))\n"},
+    /* Hoisting from a quantified condition (D229): the variable is what
+       the loop binds. */
+    {"declare variable $c external; declare variable $v external; "
+     "some $x in $c satisfies $x = $v + 1",
+     "(function 1 main (parameters 0) (captures) (slots 4)\n"
+     "  (let $3 (quantified some $4 $global:1\n"
+     "            true())\n"
+     "    (let $2 (conditional $3\n"
+     "              (binary add $global:2 1)\n"
+     "              (sequence))\n"
+     "      (quantified some $1 $global:1\n"
+     "        (binary general-equal $1 $2)))))\n"},
     /* A where clause: the MAP runs over the FILTER of its input. */
     {"declare variable $c external; declare variable $v external; "
      "for $x in $c where $x/@k = $v return $x",
@@ -346,6 +358,29 @@ static const value_case value_cases[] = {
     {"let $s := (1 to 20) ! <e n='{.}.0'/> "
      "return for $i in 1 to 3 return count($s[@n = $i])",
      "1 1 1"},
+    /* Numeric keys and probes (D229): integers, decimals and doubles. */
+    {"let $s := (1 to 40) ! <e n='{. mod 7}'/> "
+     "return for $i in (0, 3, 3.0, 3e0, 9) return count($s[xs:integer(@n) = $i])",
+     "5 6 6 6 0"},
+    {"let $s := (1 to 30) ! xs:decimal(. div 4) "
+     "return for $p in (0.5, 1, 2.25e0, 0.3) return count($s[. eq $p])",
+     "1 1 1 0"},
+    /* Integers beyond 2^53 share doubles: the predicate decides. */
+    {"let $s := (1 to 20) ! (9007199254740992 + .) "
+     "return for $p in (9007199254740993, 9007199254740994, 1) return count($s[. = $p])",
+     "1 1 0"},
+    /* Floats compare with decimals by exact value: 0.1 is not
+       xs:float(0.1). NaN is not indexed: the same values without. */
+    {"let $s := ((1 to 20) ! xs:float(. div 8), xs:float(0.1)) "
+     "return for $p in (0.25, 0.1, xs:float(0.1), 7) return count($s[. = $p])",
+     "1 0 1 0"},
+    {"let $s := ((1 to 20), xs:double('NaN')) "
+     "return for $p in (xs:double('NaN'), 5, 5) return count($s[. = $p])",
+     "0 1 1"},
+    /* Numeric keys with a string probe are XPTY0004, as without. */
+    {"let $s := (1 to 20) ! <e n='{.}'/> "
+     "return for $i in (1, 'a') return count($s[xs:integer(@n) = $i])",
+     "error:XPTY0004"},
     /* A key of no value never compares. */
     {"let $s := (1 to 20) ! <e>{if (. mod 2 = 0) then attribute k {.} else ()}</e> "
      "return for $i in (2, 3, 4, 2) return count($s[@k eq string($i)])",
@@ -394,6 +429,13 @@ static const value_case value_cases[] = {
     {"let $s := (1 to 3) ! <e n='{.}'/> return "
      "for $p in $s let $l := for $q in $s/@n where $q > $p/@n return $q return count($l)",
      "2 1 0"},
+    /* Hoisting from quantified conditions: once, not for an empty input,
+       the first error as without. */
+    {"let $n := 3 return (some $x in (1 to 5) satisfies $x = $n * 2 - 1, "
+     "every $x in (1 to 5) satisfies $x < $n + 3, some $x in (1 to 5) satisfies $x > $n * 9)",
+     "true() true() false()"},
+    {"every $x in () satisfies (let $y := error() return $y)", "true()"},
+    {"some $x in (1, 2) satisfies (let $y := error() return $x = 1)", "error:FOER0000"},
     /* A where clause. */
     {"let $s := (1 to 40) ! <e k='{. mod 4}' n='{.}'/> "
      "return for $i in 0 to 2 return "

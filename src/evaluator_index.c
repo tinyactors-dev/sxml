@@ -24,12 +24,16 @@
  * derived from one), and so is every atomized probe value: two such
  * values are equal under the general and the value comparison exactly
  * when their codepoints are, with the codepoint collation (an
- * xs:untypedAtomic operand is cast to xs:string). For "eq" a key and the
- * probe have at most one value. For "is" a key and the probe are each
- * empty or one XNode or JNode, compared by identity. The index is the
- * pairs (key value, item position) ordered by key (codepoints; document
- * order for nodes), as two vectors in an array kept in the evaluation
- * memo under the FILTER with its input; a probe is a binary search.
+ * xs:untypedAtomic operand is cast to xs:string). Or every key and probe
+ * value is a number other than NaN (D229): numbers compare by exact
+ * value, so two that compare equal have the same nearest double, so the keys of the probe's double are the candidates
+ * (integers beyond 2^53 may share one; the predicate decides). For "eq" a
+ * key and the probe have at most one value. For "is" a key and the probe
+ * are each empty or one XNode or JNode, compared by identity. The index
+ * is the pairs (key value, item position) ordered by key (codepoints,
+ * doubles, document order for nodes), as two vectors in an array kept in
+ * the evaluation memo under the FILTER with its input; a probe is a
+ * binary search.
  *
  * Steps (D89): the keys are evaluated on the machine, a step each as
  * usual; building charges a step per key value, and a probe a step per
@@ -44,6 +48,7 @@
 #include "function_library_core_internal.h"
 #include "memory_internal.h"
 
+#include <math.h>
 #include <stdalign.h>
 #include <string.h>
 
@@ -81,6 +86,19 @@ typedef struct index_entry {
     uint64_t position;
 } index_entry;
 
+/* The kinds of values an index orders; one index holds one kind. */
+typedef enum key_class {
+    /* Not indexed: the FILTER tests every item. */
+    SXML_KEY_CLASS_NONE,
+    /* xs:string, xs:anyURI, xs:untypedAtomic: by codepoints. */
+    SXML_KEY_CLASS_STRING,
+    /* xs:decimal (with the integers), xs:float and xs:double, not NaN:
+       by the double nearest to each. */
+    SXML_KEY_CLASS_NUMBER,
+    /* XNodes and JNodes: by document order. */
+    SXML_KEY_CLASS_NODE,
+} key_class;
+
 typedef struct filter_index_state {
     const sxml_ir_filter *filter;
     /* Owned. */
@@ -93,6 +111,8 @@ typedef struct filter_index_state {
     size_t entry_capacity;
     /* False once a key cannot be indexed. */
     bool is_usable;
+    /* The class of the keys so far (NONE before the first). */
+    key_class key_class;
     /* The memo's array for the FILTER and this input, retained (a FILTER
        evaluated again inside its own key or probe may replace the memo's
        entry); a zero item until there is one. */
@@ -125,11 +145,44 @@ static filter_index_state *state_of(sxml_evaluator_task *task) {
 
 /* ------------------------------------------------------ Kinds of keys */
 
-/* True for a value "=" and "eq" compare as a string (4.11.1, 4.11.2). */
-static bool is_string_like(sxml_item item) {
+/* The double nearest to a number of the NUMBER class. */
+static double number_of(sxml_item item) {
+    const sxml_item_representation representation = sxml_item_get_representation(item);
+    if (representation == SXML_ITEM_REPRESENTATION_INTEGER) {
+        return (double)item.payload.integer;
+    }
+    if (representation == SXML_ITEM_REPRESENTATION_DOUBLE) {
+        return item.payload.double_number;
+    }
+    if (representation == SXML_ITEM_REPRESENTATION_FLOAT) {
+        return (double)item.payload.float_number;
+    }
+    const sxml_decimal *decimal = sxml_atomic_item_get_decimal(item);
+    return decimal != NULL ? sxml_decimal_to_double(decimal) : 0.0;
+}
+
+/*
+ * The class of an atomic value "=" and "eq" compare (4.11.1, 4.11.2):
+ * strings by codepoints; xs:decimal, the integers, xs:float and xs:double
+ * as numbers. Numbers of different types compare by their exact values
+ * (F&O 4.0, fn:compare; PR2218, D57; src/operator_compare.c), so two that
+ * are equal are one real number with one nearest double: a probe finds
+ * every key equal to it among the keys of its double, and the predicate
+ * decides among them (integers beyond 2^53 share doubles, and so do
+ * decimals close together). NaN equals nothing and is not indexed.
+ */
+static key_class atomic_class(sxml_item item) {
     const uint32_t primitive = sxml_atomic_item_get_primitive_type(item).index;
-    return primitive == SXML_TYPE_XS_STRING || primitive == SXML_TYPE_XS_ANY_URI ||
-           primitive == SXML_TYPE_XS_UNTYPED_ATOMIC;
+    if (primitive == SXML_TYPE_XS_STRING || primitive == SXML_TYPE_XS_ANY_URI ||
+        primitive == SXML_TYPE_XS_UNTYPED_ATOMIC) {
+        return SXML_KEY_CLASS_STRING;
+    }
+    if (primitive == SXML_TYPE_XS_DECIMAL ||
+        (primitive == SXML_TYPE_XS_DOUBLE && !isnan(item.payload.double_number)) ||
+        (primitive == SXML_TYPE_XS_FLOAT && !isnan(item.payload.float_number))) {
+        return SXML_KEY_CLASS_NUMBER;
+    }
+    return SXML_KEY_CLASS_NONE;
 }
 
 static sxml_byte_view string_bytes(sxml_item item) {
@@ -141,9 +194,18 @@ static sxml_byte_view string_bytes(sxml_item item) {
     return datum.datum_details.string.utf8;
 }
 
-/* The order of two keys: codepoints for strings (UTF-8 bytes order as
-   codepoints do), document order for nodes. */
+/* The order of two keys of one class: codepoints for strings (UTF-8
+   bytes order as codepoints do), nearest doubles for numbers, document
+   order for nodes. */
 static sxml_ordering compare_keys(sxml_item first, sxml_item second) {
+    if (sxml_item_is_atomic(first) && atomic_class(first) == SXML_KEY_CLASS_NUMBER) {
+        const double first_number = number_of(first);
+        const double second_number = number_of(second);
+        if (first_number < second_number) {
+            return SXML_ORDERING_LESS;
+        }
+        return first_number > second_number ? SXML_ORDERING_GREATER : SXML_ORDERING_EQUAL;
+    }
     if (sxml_item_is_generic_node(first)) {
         sxml_ordering ordering = SXML_ORDERING_EQUAL;
         if (sxml_generic_node_compare_document_order(
@@ -210,10 +272,12 @@ static sxml_status comparison_values(sxml_dynamic_context *dynamic_context,
                                   values);
 }
 
-/* True when an item may be a key or probe value of the operator. */
-static bool is_indexable_value(sxml_ir_binary_operator key_operator, sxml_item item) {
-    return key_operator == SXML_IR_BINARY_OPERATOR_IS ? sxml_item_is_generic_node(item)
-                                                      : is_string_like(item);
+/* The class of a key or probe value under the operator. */
+static key_class value_class(sxml_ir_binary_operator key_operator, sxml_item item) {
+    if (key_operator == SXML_IR_BINARY_OPERATOR_IS) {
+        return sxml_item_is_generic_node(item) ? SXML_KEY_CLASS_NODE : SXML_KEY_CLASS_NONE;
+    }
+    return sxml_item_is_atomic(item) ? atomic_class(item) : SXML_KEY_CLASS_NONE;
 }
 
 /* --------------------------------------------------------- The memo */
@@ -398,10 +462,16 @@ static sxml_status add_key_values(sxml_dynamic_context *dynamic_context,
         if (status != SXML_STATUS_OK || !step.has_item) {
             break;
         }
-        if (!is_indexable_value(key_operator, step.item)) {
+        const key_class found_class = value_class(key_operator, step.item);
+        if (found_class == SXML_KEY_CLASS_NONE ||
+            (state->key_class != SXML_KEY_CLASS_NONE && found_class != state->key_class)) {
+            /* One index holds one class: keys of two classes compare
+               otherwise (an xs:untypedAtomic with a number is cast) or
+               raise an error, which the predicate then does. */
             state->is_usable = false;
             break;
         }
+        state->key_class = found_class;
         sxml_item_retain(step.item);
         status = append_entry(dynamic_context, state,
                               (index_entry){.key = step.item, .position = state->position - 1});
@@ -583,6 +653,7 @@ static sxml_status start_building(sxml_dynamic_context *dynamic_context,
     state->iterator = sxml_sequence_iterator_start(state->input);
     state->position = 0;
     state->is_usable = true;
+    state->key_class = SXML_KEY_CLASS_NONE;
     return next_key(dynamic_context, task);
 }
 
@@ -760,6 +831,17 @@ static sxml_status make_candidates(sxml_dynamic_context *dynamic_context,
     return status;
 }
 
+/* The class of an index's keys: its first key's; NONE for no keys. */
+static key_class index_key_class(const filter_index_state *state) {
+    const sxml_sequence keys = index_member(state->index_array, SXML_FILTER_INDEX_MEMBER_KEYS);
+    sxml_item first_key = {.representation = 0};
+    if (sxml_sequence_get_item(keys, (sxml_item_request){.item_index = 0, .error_record = NULL},
+                               &first_key) != SXML_STATUS_OK) {
+        return SXML_KEY_CLASS_NONE;
+    }
+    return value_class(state->filter->index.key_operator, first_key);
+}
+
 /* Looks the probe's value (owned) up and ends the task with the
    candidates, or with the input when the index cannot answer. */
 static sxml_status answer_probe(sxml_dynamic_context *dynamic_context, filter_index_state *state,
@@ -781,6 +863,8 @@ static sxml_status answer_probe(sxml_dynamic_context *dynamic_context, filter_in
     if (status == SXML_STATUS_OK) {
         status = sxml_dynamic_context_charge_steps(dynamic_context, value_count);
     }
+    /* The index's class is its first key's: its keys are of one. */
+    const key_class index_class = index_key_class(state);
     candidate_positions candidates = {.positions = NULL, .position_count = 0, .position_capacity = 0};
     sxml_sequence_iterator iterator = sxml_sequence_iterator_start(values);
     while (status == SXML_STATUS_OK && is_answerable) {
@@ -789,7 +873,9 @@ static sxml_status answer_probe(sxml_dynamic_context *dynamic_context, filter_in
         if (status != SXML_STATUS_OK || !step.has_item) {
             break;
         }
-        if (!is_indexable_value(key_operator, step.item)) {
+        const key_class probe_class = value_class(key_operator, step.item);
+        if (probe_class == SXML_KEY_CLASS_NONE ||
+            (index_class != SXML_KEY_CLASS_NONE && probe_class != index_class)) {
             is_answerable = false;
             break;
         }
@@ -907,6 +993,7 @@ sxml_status sxml_evaluator_start_filter_index(sxml_dynamic_context *dynamic_cont
                                   .entry_count = 0,
                                   .entry_capacity = 0,
                                   .is_usable = true,
+                                  .key_class = SXML_KEY_CLASS_NONE,
                                   .index_array = {.representation = 0}};
     return sxml_evaluator_machine_push_part_task(
         dynamic_context, &(sxml_evaluator_part_task_state){.step = step_filter_index,

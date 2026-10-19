@@ -1178,12 +1178,16 @@ static const feature_case feature_cases[] = {
          "          $4)))))\n"},
     {.compile = {.expression_text = "every $a in (1, 2), $b in (3, 4) satisfies $a lt $b"},
      .expected_text =
-         "(function 1 main (parameters 0) (captures) (slots 4)\n"
+         "(function 1 main (parameters 0) (captures) (slots 6)\n"
          "  (let $1 (sequence 1 2)\n"
-         "    (quantified every $2 $1\n"
-         "      (let $3 (sequence 3 4)\n"
-         "        (quantified every $4 $3\n"
-         "          (binary value-less $2 $4))))))\n"},
+         "    (let $5 (quantified some $6 $1\n"
+         "              true())\n"
+         "      (let $3 (conditional $5\n"
+         "                (sequence 3 4)\n"
+         "                (sequence))\n"
+         "        (quantified every $2 $1\n"
+         "          (quantified every $4 $3\n"
+         "            (binary value-less $2 $4)))))))\n"},
     {.compile = {.expression_text = "() instance of function(xs:string, item()*) as map(xs:string, array(xs:integer+))"},
      .expected_text =
          "(function 1 main (parameters 0) (captures) (slots 1)\n"
@@ -1381,27 +1385,39 @@ static const feature_case feature_cases[] = {
      "          (sequence $3 $4))))))\n"},
     {.compile = {.expression_text = "child::{ 'a', 2 }"},
      .expected_text =
-     "(function 1 main (parameters 0) (captures) (slots 18) (focus $2 _ _)\n"
+     "(function 1 main (parameters 0) (captures) (slots 24) (focus $2 _ _)\n"
      "  (let $1 (sequence \"a\" 2)\n"
      "    (let $3 (step $2 child element())\n"
      "      (let $4 (coerce $1 xs:anyAtomicType* function-argument)\n"
-     "        (filter $3 (focus $5 _ _)\n"
-     "          (let $8 (instance-of $5 jnode())\n"
-     "            (let $15 (conditional $8\n"
-     "                       (let $9 (coerce $5 jnode()? function-argument)\n"
-     "                         (let $10 (static-call fn:jkey#1 $9)\n"
-     "                           $10))\n"
-     "                       (let $11 (coerce $5 node()? function-argument)\n"
-     "                         (let $12 (static-call fn:node-name#1 $11)\n"
-     "                           (let $13 (coerce $5 node()? function-argument)\n"
-     "                             (let $14 (static-call fn:local-name#1 $13)\n"
-     "                               (sequence $12 $14))))))\n"
-     "              (quantified some $6 $4\n"
-     "                (quantified some $7 $15\n"
-     "                  (let $16 (coerce $6 xs:anyAtomicType function-argument)\n"
-     "                    (let $17 (coerce $7 xs:anyAtomicType function-argument)\n"
-     "                      (let $18 (static-call fn:atomic-equal#2 $16 $17)\n"
-     "                        $18))))))))))))\n"},
+     "        (let $23 (quantified some $24 $3\n"
+     "                   true())\n"
+     "          (let $21 (conditional $23\n"
+     "                     (quantified some $22 $4\n"
+     "                       true())\n"
+     "                     (sequence))\n"
+     "            (filter $3 (focus $5 _ _)\n"
+     "              (let $8 (instance-of $5 jnode())\n"
+     "                (let $15 (conditional $8\n"
+     "                           (let $9 (coerce $5 jnode()? function-argument)\n"
+     "                             (let $10 (static-call fn:jkey#1 $9)\n"
+     "                               $10))\n"
+     "                           (let $11 (coerce $5 node()? function-argument)\n"
+     "                             (let $12 (static-call fn:node-name#1 $11)\n"
+     "                               (let $13 (coerce $5 node()? function-argument)\n"
+     "                                 (let $14 (static-call fn:local-name#1 $13)\n"
+     "                                   (sequence $12 $14))))))\n"
+     "                  (let $19 (conditional $21\n"
+     "                             (quantified some $20 $15\n"
+     "                               true())\n"
+     "                             (sequence))\n"
+     "                    (quantified some $6 $4\n"
+     "                      (let $16 (conditional $19\n"
+     "                                 (coerce $6 xs:anyAtomicType function-argument)\n"
+     "                                 (sequence))\n"
+     "                        (quantified some $7 $15\n"
+     "                          (let $17 (coerce $7 xs:anyAtomicType function-argument)\n"
+     "                            (let $18 (static-call fn:atomic-equal#2 $16 $17)\n"
+     "                              $18)))))))))))))))\n"},
     {.compile = {.expression_text = "item::*"},
      .expected_text =
      "(function 1 main (parameters 0) (captures) (slots 8) (focus $1 _ _)\n"

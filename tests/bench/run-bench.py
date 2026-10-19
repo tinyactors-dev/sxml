@@ -52,6 +52,7 @@ BENCHMARKS = [
     ("xmark-q9", xquery(os.path.join(BENCH, "xmark-q9.xq"))),
     ("xmark-q11", xquery(os.path.join(BENCH, "xmark-q11.xq"))),
     ("predicate-join", xquery(os.path.join(BENCH, "predicate-join.xq"))),
+    ("numeric-join", xquery(os.path.join(BENCH, "numeric-join.xq"))),
     ("paths", xquery(os.path.join(BENCH, "paths.xq"))),
     ("recursion", xquery(os.path.join(BENCH, "recursion.xq"))),
     ("flwor-group", xquery(os.path.join(BENCH, "flwor-group.xq"))),

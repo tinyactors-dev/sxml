@@ -1918,6 +1918,13 @@ sxml_status sxml_atomic_item_compare_in_heap(
     sxml_ordering *ordering) {
     sxml_item first = comparison->first;
     sxml_item second = comparison->second;
+    if (first.representation == SXML_ITEM_REPRESENTATION_INTEGER &&
+        second.representation == SXML_ITEM_REPRESENTATION_INTEGER) {
+        /* Two inline integers (xs:integer and the types derived from it):
+           their values, as the numeric family below orders them. */
+        *ordering = sxml_integers_compare(first.payload.integer, second.payload.integer);
+        return SXML_STATUS_OK;
+    }
     if (!sxml_item_is_atomic(first) || !sxml_item_is_atomic(second) ||
         sxml_atomic_item_family(first) != sxml_atomic_item_family(second)) {
         return sxml_error_record_report(comparison->error_record,

@@ -63,12 +63,11 @@ static sxml_status
 sxml_string_item_make(sxml_item_heap *item_heap,
                       const sxml_string_item_request *request,
                       sxml_item *item) {
-    sxml_string string;
-    sxml_status status = sxml_string_from_utf8(request->text, &string);
-    if (status != SXML_STATUS_OK) {
-        /* Trees hold well-formed UTF-8 (tree.h, get_node_content). */
-        return SXML_STATUS_INVALID_ARGUMENT;
-    }
+    /* Trees hold well-formed UTF-8 (tree.h, get_node_content); the
+       atomic item validates the text and counts its codepoints once, and
+       refuses ill-formed text with SXML_STATUS_INVALID_ARGUMENT. */
+    const sxml_string string = {
+        .utf8 = request->text, .codepoint_count = 0, .is_ascii = false};
     return sxml_atomic_item_make(
         item_heap,
         &(sxml_atomic_item_request){

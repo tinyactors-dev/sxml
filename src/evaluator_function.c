@@ -262,6 +262,26 @@ sxml_status sxml_evaluator_atomize(sxml_dynamic_context *dynamic_context,
         *result = request->value;
         return SXML_STATUS_OK;
     }
+    if (sxml_sequence_get_representation(request->value) ==
+            SXML_SEQUENCE_REPRESENTATION_SINGLE_ITEM &&
+        sxml_item_get_kind(request->value.content) == SXML_ITEM_KIND_NODE) {
+        /* One XNode, the most common case: its typed value is the
+           atomized value (XPath 4.0, section 2.5.3), without a builder. */
+        sxml_node_reference node;
+        status = sxml_item_get_node(request->value.content, &node);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        sxml_sequence typed_value = sxml_sequence_empty();
+        status = sxml_node_make_typed_value(
+            dynamic_context->item_heap,
+            &(sxml_node_value_request){.node = node, .error_record = request->error_record},
+            &typed_value);
+        if (status == SXML_STATUS_OK) {
+            *result = typed_value;
+        }
+        return status;
+    }
     sxml_sequence_builder *builder = NULL;
     status = sxml_sequence_builder_create(
         dynamic_context->allocator,
@@ -441,13 +461,20 @@ typedef struct sxml_type_match_frame {
     size_t part_count;
 } sxml_type_match_frame;
 
+/* Frames a matcher holds in itself before it takes allocator memory: an
+   item against one type needs two (the sequence and its item). */
+#define SXML_TYPE_MATCHER_INLINE_FRAME_COUNT 4U
+
 typedef struct sxml_type_matcher {
     sxml_dynamic_context *dynamic_context;
     const sxml_type_registry *registry;
     sxml_error_record *error_record;
+    /* inline_frames until more are needed, then allocator memory; the
+       matcher is not moved while it runs. */
     sxml_type_match_frame *frames;
     size_t frame_count;
     size_t frame_capacity;
+    sxml_type_match_frame inline_frames[SXML_TYPE_MATCHER_INLINE_FRAME_COUNT];
 } sxml_type_matcher;
 
 /* What advancing the top frame did. */
@@ -463,7 +490,9 @@ typedef enum sxml_type_match_outcome {
 static sxml_status sxml_type_matcher_push(sxml_type_matcher *matcher,
                                           sxml_type_match_frame frame) {
     if (matcher->frame_count == matcher->frame_capacity) {
-        void *elements = matcher->frames;
+        /* Leaving the inline frames: a new array, and they are copied in. */
+        const bool is_inline = matcher->frames == matcher->inline_frames;
+        void *elements = is_inline ? NULL : matcher->frames;
         sxml_status status = sxml_evaluator_grow(
             matcher->dynamic_context->allocator,
             &(sxml_evaluator_growth){
@@ -475,6 +504,10 @@ static sxml_status sxml_type_matcher_push(sxml_type_matcher *matcher,
                 .alignment = alignof(sxml_type_match_frame)});
         if (status != SXML_STATUS_OK) {
             return status;
+        }
+        if (is_inline) {
+            memcpy(elements, matcher->inline_frames,
+                   matcher->frame_count * sizeof(sxml_type_match_frame));
         }
         matcher->frames = elements;
     }
@@ -1230,6 +1263,18 @@ static sxml_status sxml_decide_range_match(const sxml_type_registry *registry,
 sxml_status sxml_evaluator_match_sequence_type(
     sxml_dynamic_context *dynamic_context, const sxml_type_match_request *request,
     sxml_type_match *match) {
+    if (sxml_sequence_get_representation(request->value) ==
+            SXML_SEQUENCE_REPRESENTATION_SINGLE_ITEM &&
+        sxml_item_is_atomic(request->value.content) &&
+        sxml_occurrence_allows(request->sequence_type.occurrence, 1) &&
+        sxml_type_identifier_equals(sxml_item_get_type_annotation(request->value.content),
+                                    request->sequence_type.item_type)) {
+        /* The most common case: one atomic item against its own type
+           annotation, which it is an instance of (XDM 4.0, section 3.2;
+           XPath 4.0, 3.2.1). */
+        match->is_match = true;
+        return SXML_STATUS_OK;
+    }
     sxml_range_decision decision;
     sxml_status range_status = sxml_decide_range_match(
         sxml_item_heap_get_type_registry(dynamic_context->item_heap), request, &decision);
@@ -1239,15 +1284,16 @@ sxml_status sxml_evaluator_match_sequence_type(
         }
         return range_status;
     }
-    /* The most common case needs no stack: one item against a type it
-       matches by annotation. */
+    /* The most common case needs no allocator memory: one item against a
+       type fits the inline frames. */
     sxml_type_matcher matcher = {
         .dynamic_context = dynamic_context,
         .registry = sxml_item_heap_get_type_registry(dynamic_context->item_heap),
         .error_record = request->error_record,
         .frames = NULL,
         .frame_count = 0,
-        .frame_capacity = 0};
+        .frame_capacity = SXML_TYPE_MATCHER_INLINE_FRAME_COUNT};
+    matcher.frames = matcher.inline_frames;
     sxml_status status = sxml_type_matcher_push(
         &matcher, sxml_sequence_match_frame(request->value, request->sequence_type));
     sxml_type_match outcome_match = {.is_match = true};
@@ -1264,7 +1310,7 @@ sxml_status sxml_evaluator_match_sequence_type(
             status = sxml_type_matcher_unwind(&matcher, &outcome_match);
         }
     }
-    if (matcher.frames != NULL) {
+    if (matcher.frames != matcher.inline_frames) {
         sxml_allocator_release(dynamic_context->allocator, matcher.frames);
     }
     if (status == SXML_STATUS_OK) {
@@ -1650,6 +1696,10 @@ typedef struct sxml_coercion_frame {
     sxml_status first_failure;
 } sxml_coercion_frame;
 
+/* Frames an engine holds in itself before it takes allocator memory: a
+   value against a sequence type of one item type needs two. */
+#define SXML_COERCION_INLINE_FRAME_COUNT 4U
+
 typedef struct sxml_coercion_engine {
     sxml_dynamic_context *dynamic_context;
     const sxml_type_registry *registry;
@@ -1658,9 +1708,12 @@ typedef struct sxml_coercion_engine {
     bool applies_cast_rules;
     sxml_namespace_binding_view namespace_bindings;
     sxml_error_record scratch_record;
+    /* inline_frames until more are needed, then allocator memory; the
+       engine is not moved while it runs. */
     sxml_coercion_frame *frames;
     size_t frame_count;
     size_t frame_capacity;
+    sxml_coercion_frame inline_frames[SXML_COERCION_INLINE_FRAME_COUNT];
     /* What the frame popped last handed down: a result (owned value unless
        is_unchanged) or, after an unwind to a CHOICE, a failure. */
     bool has_result;
@@ -1701,7 +1754,9 @@ static sxml_coercion_frame sxml_coercion_item_frame(sxml_item item, sxml_type_id
 
 static sxml_status sxml_coercion_push(sxml_coercion_engine *engine, sxml_coercion_frame frame) {
     if (engine->frame_count == engine->frame_capacity) {
-        void *elements = engine->frames;
+        /* Leaving the inline frames: a new array, and they are copied in. */
+        const bool is_inline = engine->frames == engine->inline_frames;
+        void *elements = is_inline ? NULL : engine->frames;
         sxml_status status = sxml_evaluator_grow(
             engine->dynamic_context->allocator,
             &(sxml_evaluator_growth){.elements = &elements,
@@ -1715,6 +1770,10 @@ static sxml_status sxml_coercion_push(sxml_coercion_engine *engine, sxml_coercio
                 sxml_sequence_release(frame.input);
             }
             return status;
+        }
+        if (is_inline) {
+            memcpy(elements, engine->inline_frames,
+                   engine->frame_count * sizeof(sxml_coercion_frame));
         }
         engine->frames = elements;
     }
@@ -2611,12 +2670,13 @@ static sxml_status sxml_run_coercion(sxml_dynamic_context *dynamic_context,
         .scratch_record = {.value = NULL},
         .frames = NULL,
         .frame_count = 0,
-        .frame_capacity = 0,
+        .frame_capacity = SXML_COERCION_INLINE_FRAME_COUNT,
         .has_result = false,
         .is_unchanged = false,
         .result = sxml_sequence_empty(),
         .has_failure = false,
         .failure_status = SXML_STATUS_OK};
+    engine.frames = engine.inline_frames;
     sxml_status status = sxml_coercion_push(
         &engine, sxml_coercion_sequence_frame(request->value, request->sequence_type,
                                               request->error_record));
@@ -2635,7 +2695,7 @@ static sxml_status sxml_run_coercion(sxml_dynamic_context *dynamic_context,
         sxml_coercion_release_frame(&engine, &engine.frames[engine.frame_count - 1]);
         engine.frame_count -= 1;
     }
-    if (engine.frames != NULL) {
+    if (engine.frames != engine.inline_frames) {
         sxml_allocator_release(dynamic_context->allocator, engine.frames);
     }
     if (status != SXML_STATUS_OK) {

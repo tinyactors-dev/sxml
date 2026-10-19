@@ -1489,6 +1489,8 @@ static sxml_status hoist_marked_lets(loop_pass *pass, const hoisted_loop *loop,
     sxml_ir_expression moved = expression_at(pass, loop->index);
     if (moved.expression_kind == SXML_IR_EXPRESSION_KIND_MAP) {
         moved.map.body = rest;
+    } else if (moved.expression_kind == SXML_IR_EXPRESSION_KIND_QUANTIFIED) {
+        moved.quantified.condition = rest;
     } else {
         moved.filter.predicate = rest;
     }
@@ -1592,6 +1594,14 @@ static sxml_status hoist_loop(loop_pass *pass, sxml_ir_expression_index index) {
         loop.input = expression.map.input;
         loop.focus = expression.map.focus;
         loop.body = expression.map.body;
+    } else if (expression.expression_kind == SXML_IR_EXPRESSION_KIND_QUANTIFIED) {
+        /* The condition runs once per item with the variable bound: the
+           variable is what the loop binds (D229). */
+        loop.input = expression.quantified.input;
+        loop.focus = (sxml_ir_focus){.context_value = expression.quantified.variable,
+                                     .context_position = {.value = 0},
+                                     .context_size = {.value = 0}};
+        loop.body = expression.quantified.condition;
     } else {
         loop.input = expression.filter.input;
         loop.focus = expression.filter.focus;
@@ -1684,7 +1694,8 @@ sxml_status sxml_ir_hoist_invariant_lets(const sxml_ir_pass_request *request) {
          expression_number += 1) {
         const sxml_ir_expression_index index = {.value = expression_number};
         const sxml_ir_expression_kind kind = expression_at(&pass, index).expression_kind;
-        if (kind != SXML_IR_EXPRESSION_KIND_FILTER && kind != SXML_IR_EXPRESSION_KIND_MAP) {
+        if (kind != SXML_IR_EXPRESSION_KIND_FILTER && kind != SXML_IR_EXPRESSION_KIND_MAP &&
+            kind != SXML_IR_EXPRESSION_KIND_QUANTIFIED) {
             continue;
         }
         if (pass.function_plainness == NULL) {

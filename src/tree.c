@@ -230,9 +230,10 @@ static sxml_status sxml_node_describe_stored(
     if (!sxml_node_index_is_in_tree(node)) {
         return SXML_STATUS_INDEX_OUT_OF_RANGE;
     }
-    /* Written in place: every step describes nodes, and the contract
+    /* Written in place, by the implementation alone: every step
+       describes nodes, every implementation writes the whole description
+       (the arena tree's is one compound literal), and the contract
        (tree.h) leaves *description unspecified on failure. */
-    *description = sxml_node_description_empty();
     return node.tree->operations->describe_node(node.tree->state, node.node_index,
                                                 description);
 }
