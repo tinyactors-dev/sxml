@@ -4,6 +4,16 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 7.6e in progress (D230): accumulators computed while streaming (each
+  event a STREAM takes calls the accumulator functions, full windows get
+  descend-K; fn:accumulator-before and -after read the values of streamed
+  nodes; rules' errors raised when a value is read; dependent rules wait
+  a round), and xsl:fork prongs streamed in passes of their own over the
+  document.  with an accumulator over 95.6 MB: more than
+  4.1 GB (stopped) to 135.4 MB resident. XT40 none lost. Next: the
+  principal result delivered as it is made, then incremental bytes from
+  the resolver.
+
 - perf-2 done (D229): the second round of evaluator performance,
   profile first (callgrind). Numbers to doubles by Clinger's fast path
   (strtod was 6 % of XMark-All); leaves computed at their push, charged
