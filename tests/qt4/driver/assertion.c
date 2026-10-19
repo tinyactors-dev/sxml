@@ -799,8 +799,16 @@ static sxml_status sxml_qt4_compare_xml(sxml_qt4_assertion_state *state,
     status = sxml_qt4_read_expected_xml(state, leaf, &expected_xml);
     if (status == SXML_STATUS_OK) {
         sxml_byte_view text = sxml_qt4_strip_declaration(expected_xml.text);
-        if (expected_xml.file_contents != NULL) {
-            text = sxml_qt4_trim_space(text);
+        /* Inline text that starts and ends with markup is a document's
+           worth of XML too (the catalog: "parsing and canonicalizing the
+           XML"): the whitespace around it, which the catalog writes
+           after a CDATA section's element, is not content (XML 1.0,
+           [1] Misc). */
+        const sxml_byte_view trimmed = sxml_qt4_trim_space(text);
+        if (expected_xml.file_contents != NULL ||
+            (trimmed.byte_count >= 2 && trimmed.bytes[0] == '<' &&
+             trimmed.bytes[trimmed.byte_count - 1] == '>')) {
+            text = trimmed;
         }
         status = sxml_qt4_make_string(state, text, &comparison->expected);
     }
