@@ -9,7 +9,7 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 - Phase 5 (XSD 1.1, schema awareness) closed by agent review (D182); four
   gate boxes wait for full runs and fuzzing on the owner's machine (D181).
   All public headers are stable.
-- Passes: XP40 31,098, XQ40 41,456, XT40 8,759, XSD in scope 41,483 of
+- Passes: XP40 31,098, XQ40 42,490, XT40 8,759, XSD in scope 41,483 of
   41,518. Zero error outcomes in every suite.
 - Optional features (D189): `sxml.wasm` (core) 2,004,485 of 2,100,000
   bytes, `sxml-full.wasm` 2,005,513 of 3,000,000. Gzipped budgets 735,000 /
@@ -20,9 +20,9 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 
 - 7.4 XSLT backwards compatibility and XPath 1.0 mode.
 - 7.3 xsl:evaluate and 7.5 disable-output-escaping.
-- 7.8 EXPath Binary and 7.9 EXPath File (one agent).
+- 7.9 EXPath File (7.8 Binary done, D198: bin-* 646 of 646).
 - 7.10a HTML5 tokenizer and tree builder.
-- 7.7a XQuery Update Facility 3.0.
+- 7.7b/7.7c XQuery Update 4.0 additions, fn:put, revalidation (after 7.7a, D187: upd-* 733 of 825).
 - 7.14 DTD processing (after 7.13, D195).
 
 ## Next
