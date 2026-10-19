@@ -97,6 +97,11 @@ typedef struct sxml_qt4_test_context {
        item's; released at the end. */
     sxml_sequence *owned_values;
     size_t owned_value_count;
+    /* The owned value of the first source bound to a role, from 1; 0 for
+       none. The queries after the first of an XQuery Update test case
+       read it as their context value when the environment has none
+       (D187). */
+    size_t first_source_number;
     /* What was being done when something failed, for the reason. */
     sxml_byte_view stage;
     sxml_byte_view stage_subject;
@@ -531,6 +536,10 @@ static sxml_status sxml_qt4_load_source(sxml_qt4_test_context *context,
         return status;
     }
     const sxml_sequence value = sxml_sequence_from_item(parsed.document_node);
+    if (context->first_source_number == 0 && source->role.byte_count != 0) {
+        /* sxml_qt4_parse_source owned it last. */
+        context->first_source_number = context->owned_value_count;
+    }
     if (sxml_byte_view_equals(source->role, SXML_TEXT("."))) {
         context->has_context_value = true;
         context->context_value = value;
@@ -1054,6 +1063,77 @@ typedef struct sxml_qt4_query_answer {
     sxml_xquery_query *query;
 } sxml_qt4_query_answer;
 
+/* ------------------------------------------------------------- Updates */
+
+/* Whether value is the one node item at the root of tree. */
+static bool sxml_qt4_is_root_of(sxml_sequence value, const sxml_tree *tree) {
+    sxml_item item;
+    memset(&item, 0, sizeof item);
+    sxml_node_reference node;
+    return sxml_sequence_get_item(value,
+                                  (sxml_item_request){.item_index = 0,
+                                                      .error_record = NULL},
+                                  &item) == SXML_STATUS_OK &&
+           sxml_item_get_node(item, &node) == SXML_STATUS_OK &&
+           node.tree == tree && node.node_index.index == 0 &&
+           node.namespace_number == 0;
+}
+
+/*
+ * The update sink of the test's queries (include/sxml/xquery.h, D187): a
+ * tree an updating query changed replaces the source it came from, in the
+ * owned values, the variables, the context value and the available
+ * documents, so the next query of the test case reads the new tree
+ * (catalog-schema.xsd, mutable sources). A tree the test did not bind
+ * (one the query built) is dropped.
+ */
+static sxml_status
+sxml_qt4_receive_updated_tree(void *state,
+                              const sxml_xquery_updated_tree *updated_tree) {
+    sxml_qt4_test_context *context = state;
+    sxml_node_reference original;
+    if (sxml_item_get_node(updated_tree->original_root, &original) !=
+        SXML_STATUS_OK) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    for (size_t value_index = 0; value_index < context->owned_value_count;
+         value_index += 1) {
+        sxml_sequence *owned = &context->owned_values[value_index];
+        if (!sxml_qt4_is_root_of(*owned, original.tree)) {
+            continue;
+        }
+        const sxml_sequence old_value = *owned;
+        sxml_item_retain(updated_tree->updated_root);
+        *owned = sxml_sequence_from_item(updated_tree->updated_root);
+        for (size_t variable_index = 0;
+             variable_index < context->variable_count; variable_index += 1) {
+            if (sxml_qt4_is_root_of(context->bindings[variable_index].value,
+                                    original.tree)) {
+                context->bindings[variable_index].value = *owned;
+            }
+        }
+        if (context->has_context_value &&
+            sxml_qt4_is_root_of(context->context_value, original.tree)) {
+            context->context_value = *owned;
+        }
+        for (size_t document_index = 0;
+             document_index < context->available_document_count;
+             document_index += 1) {
+            sxml_available_document *document =
+                &context->available_documents[document_index];
+            if (sxml_qt4_is_root_of(sxml_sequence_from_item(document->document_node),
+                                    original.tree)) {
+                document->document_node = updated_tree->updated_root;
+            }
+        }
+        sxml_sequence_release(old_value);
+    }
+    return SXML_STATUS_OK;
+}
+
+static const sxml_xquery_update_sink_operations sxml_qt4_update_sink_operations = {
+    .receive_updated_tree = sxml_qt4_receive_updated_tree};
+
 static sxml_status sxml_qt4_evaluate_main_query(sxml_qt4_test_context *context,
                                                 sxml_byte_view text,
                                                 sxml_qt4_query_answer *answer) {
@@ -1081,7 +1161,9 @@ static sxml_status sxml_qt4_evaluate_main_query(sxml_qt4_test_context *context,
             query,
             &(sxml_xquery_evaluation_request){
                 .dynamic_context = sxml_qt4_dynamic_context(context),
-                .error_record = &context->error_record},
+                .error_record = &context->error_record,
+                .update_sink = {.state = context,
+                                .operations = &sxml_qt4_update_sink_operations}},
             &answer->value);
     }
     answer->query = query;
@@ -1342,29 +1424,92 @@ static void sxml_qt4_judge(sxml_qt4_test_context *context,
     sxml_qt4_reason_append(&answer->reason, verdict.reason);
 }
 
+/* Reads one query of the test case into *query_text; *query_contents is
+   the memory to release (NULL for an inline query). */
+static sxml_status sxml_qt4_read_query_text(sxml_qt4_test_context *context,
+                                            const sxml_qt4_query *query,
+                                            sxml_byte_view *query_text) {
+    *query_text = query->query_text;
+    if (query->query_file_path.byte_count == 0) {
+        return SXML_STATUS_OK;
+    }
+    sxml_qt4_set_stage(context,
+                       (sxml_qt4_stage){.description = SXML_TEXT("query file"),
+                                        .subject = query->query_file_path});
+    return sxml_qt4_catalog_read_file(
+        context->request->catalog,
+        &(sxml_qt4_file_request){.suite_path = query->query_file_path,
+                                 .allocator = context->allocator},
+        query_text);
+}
+
+/* Runs the queries before the last of an XQuery Update test case, in
+   order: each updating one's changed trees replace their sources (D187).
+   Their values are dropped; the first failure is the test's outcome,
+   left in *query_answer. Afterwards the first source is the context value
+   when the environment gives none. */
+static sxml_status
+sxml_qt4_run_earlier_queries(sxml_qt4_test_context *context,
+                             sxml_qt4_query_answer *query_answer) {
+    const sxml_qt4_query_view queries =
+        context->request->test_case->earlier_queries;
+    sxml_status status = SXML_STATUS_OK;
+    for (size_t query_index = 0;
+         status == SXML_STATUS_OK && query_index < queries.query_count;
+         query_index += 1) {
+        sxml_byte_view query_text = sxml_qt4_empty_text;
+        status = sxml_qt4_read_query_text(context, &queries.queries[query_index],
+                                          &query_text);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        sxml_qt4_set_stage(context,
+                           (sxml_qt4_stage){.description = SXML_TEXT("update query"),
+                                            .subject = sxml_qt4_empty_text});
+        memset(&context->error_record, 0, sizeof context->error_record);
+        status = sxml_qt4_evaluate_main_query(context, query_text, query_answer);
+        if (queries.queries[query_index].query_file_path.byte_count != 0) {
+            sxml_allocator_release(context->allocator, (void *)query_text.bytes);
+        }
+        if (status == SXML_STATUS_OK) {
+            sxml_sequence_release(query_answer->value);
+            sxml_xquery_query_destroy(query_answer->query);
+            *query_answer = (sxml_qt4_query_answer){.value = sxml_sequence_empty(),
+                                                    .query = NULL};
+        }
+        if (status == SXML_STATUS_OK && !context->has_context_value &&
+            context->first_source_number != 0) {
+            context->has_context_value = true;
+            context->context_value =
+                context->owned_values[context->first_source_number - 1];
+        }
+    }
+    return status;
+}
+
 /* Reads the query, evaluates it and judges the outcome. */
 static void sxml_qt4_evaluate_query(sxml_qt4_test_context *context,
                                     sxml_qt4_test_answer *answer) {
     const sxml_qt4_test_case *test_case = context->request->test_case;
-    sxml_byte_view query_text = test_case->query_text;
-    void *query_contents = NULL;
-    sxml_status status = SXML_STATUS_OK;
-    if (test_case->query_file_path.byte_count != 0) {
-        sxml_qt4_set_stage(
-            context, (sxml_qt4_stage){.description = SXML_TEXT("query file"),
-                                      .subject = test_case->query_file_path});
-        status = sxml_qt4_catalog_read_file(
-            context->request->catalog,
-            &(sxml_qt4_file_request){.suite_path = test_case->query_file_path,
-                                     .allocator = context->allocator},
-            &query_text);
-        query_contents = (void *)query_text.bytes;
-    }
-    sxml_qt4_set_stage(context,
-                       (sxml_qt4_stage){.description = SXML_TEXT("query"),
-                                        .subject = sxml_qt4_empty_text});
     sxml_qt4_query_answer query_answer = {.value = sxml_sequence_empty(), .query = NULL};
+    sxml_status status = sxml_qt4_run_earlier_queries(context, &query_answer);
+    const bool earlier_query_failed = status != SXML_STATUS_OK;
+    sxml_byte_view query_text = sxml_qt4_empty_text;
     if (status == SXML_STATUS_OK) {
+        status = sxml_qt4_read_query_text(
+            context,
+            &(sxml_qt4_query){.query_text = test_case->query_text,
+                              .query_file_path = test_case->query_file_path},
+            &query_text);
+    }
+    void *query_contents =
+        test_case->query_file_path.byte_count != 0 && !earlier_query_failed
+            ? (void *)query_text.bytes
+            : NULL;
+    if (status == SXML_STATUS_OK) {
+        sxml_qt4_set_stage(context,
+                           (sxml_qt4_stage){.description = SXML_TEXT("query"),
+                                            .subject = sxml_qt4_empty_text});
         memset(&context->error_record, 0, sizeof context->error_record);
         status = sxml_qt4_evaluate_main_query(context, query_text, &query_answer);
     }

@@ -46,6 +46,9 @@ typedef struct sxml_qt4_supported_dependency {
  *   (packet 5.11, D174); they stay non-goals of the D95 denominators
  *   below, so the Phase 2 to 4 gate rates keep their meaning, and the
  *   report counts them as the area "schema-aware".
+ * - XQUpdate and revalidation skip (XQuery only): the XQuery Update
+ *   Facility 3.0 (packet 7.7a, D187); revalidation lax and strict are
+ *   not supported yet (XUST0026, 7.7c).
  * - binary: the EXPath Binary Module 4.0, the optional feature
  *   sxml_expath_binary_feature() that the driver's processor names
  *   (packet 7.8, D198).
@@ -110,6 +113,12 @@ static const sxml_byte_view sxml_qt4_schema_aware_features[] = {
 static const sxml_qt4_supported_dependency sxml_qt4_xquery_dependencies[] = {
     {SXML_BYTE_VIEW_INITIALIZER("feature"),
      SXML_BYTE_VIEW_INITIALIZER("fn-load-xquery-module")},
+    /* The XQuery Update Facility 3.0 (packet 7.7a, D187), with
+       revalidation skip; lax and strict raise XUST0026 until 7.7c. */
+    {SXML_BYTE_VIEW_INITIALIZER("feature"),
+     SXML_BYTE_VIEW_INITIALIZER("XQUpdate")},
+    {SXML_BYTE_VIEW_INITIALIZER("revalidation"),
+     SXML_BYTE_VIEW_INITIALIZER("skip")},
 };
 
 /* For XPath only: XPath 1.0 compatibility mode (packet 7.4,
@@ -147,7 +156,6 @@ static const sxml_byte_view sxml_qt4_non_goal_features[] = {
     SXML_BYTE_VIEW_INITIALIZER("schemaValidation"),
     SXML_BYTE_VIEW_INITIALIZER("typedData"),
     SXML_BYTE_VIEW_INITIALIZER("staticTyping"),
-    SXML_BYTE_VIEW_INITIALIZER("XQUpdate"),
     SXML_BYTE_VIEW_INITIALIZER("fullText*"),
     SXML_BYTE_VIEW_INITIALIZER("xpath-1.0-compatibility"),
     SXML_BYTE_VIEW_INITIALIZER("fn-transform-XSLT*"),
@@ -160,7 +168,6 @@ static const sxml_byte_view sxml_qt4_non_goal_features[] = {
 
 /* The non-goal test sets of D95, with "*" as above. */
 static const sxml_byte_view sxml_qt4_non_goal_test_sets[] = {
-    SXML_BYTE_VIEW_INITIALIZER("upd-*"),
     SXML_BYTE_VIEW_INITIALIZER("ft-*"),
     SXML_BYTE_VIEW_INITIALIZER("expath-*"),
     SXML_BYTE_VIEW_INITIALIZER("misc-HtmlTestSuite"),

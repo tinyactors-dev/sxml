@@ -27,12 +27,12 @@
  *
  * Separately, a test case is in scope when it counts in the denominator
  * of the pass-rate targets (D95): its spec matches the target, its test
- * set is not a non-goal (upd-*, ft-*, bin-*, expath-*, misc-HtmlTestSuite,
+ * set is not a non-goal (ft-*, expath-*, misc-HtmlTestSuite,
  * fn-parse-html, fn-html-doc, fn-invisible-xml, fn-transform) and none of
  * its dependencies asks for a non-goal feature (schemaImport,
- * schemaValidation, typedData, staticTyping, XQUpdate, fullText*,
+ * schemaValidation, typedData, staticTyping, fullText*,
  * xpath-1.0-compatibility, fn-transform-XSLT*, fn-invisible-xml,
- * remote_http, expath-file, binary, advanced-uca-fallback,
+ * remote_http, expath-file, advanced-uca-fallback,
  * schema-location-hint). Scope does not decide whether a test runs: a
  * non-goal test case that is applicable still runs, so that the pass
  * count of earlier runs stays comparable.
