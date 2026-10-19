@@ -19,6 +19,7 @@
 
 #include "evaluator_internal.h"
 #include "json_internal.h"
+#include "processor_internal.h"
 #include "sxml/name.h"
 #include "sxml/serialize.h"
 #include "sxml/string.h"
@@ -1413,6 +1414,13 @@ static sxml_status call_system_properties(const sxml_function_call *call,
                 break;
             }
             datum.datum_details.boolean = presence.is_known;
+        } else if (property->value_kind == SXML_SYSTEM_PROPERTY_VALUE_OPTIONAL_FEATURE) {
+            const sxml_evaluation_environment *environment =
+                sxml_processor_get_evaluation_environment(call->dynamic_context);
+            datum.datum_details.boolean =
+                environment != NULL &&
+                sxml_processor_find_optional_feature(environment->processor,
+                                                     property->optional_feature_kind) != NULL;
         } else if (property->value_kind == SXML_SYSTEM_PROPERTY_VALUE_PRODUCT_VERSION) {
             datum.datum_details.string.utf8 = sxml_byte_view_from_c_string(sxml_version_text());
             datum.datum_details.string.codepoint_count = datum.datum_details.string.utf8.byte_count;

@@ -8,6 +8,7 @@
  * string values) report, so the two never disagree (D163). Internal to
  * sxml; defined in src/system_property.c.
  */
+#include "optional_feature_internal.h"
 #include "sxml/name.h"
 #include "sxml/types.h"
 #include "sxml/xdm.h"
@@ -24,6 +25,11 @@ typedef enum sxml_system_property_value_kind {
        supports-dynamic-xquery, a function of an optional feature for
        supports-binary-library (F&O 4.0, 17.1.9; D198). */
     SXML_SYSTEM_PROPERTY_VALUE_KNOWN_FUNCTION,
+    /* Whether the processor where the property is asked names the optional
+       feature of kind optional_feature_kind, an xs:boolean:
+       supports-dtd-validation and supports-dtd-attribute-typing follow
+       sxml_dtd_validation_feature (F&O 4.0, 17.1.9; D211). */
+    SXML_SYSTEM_PROPERTY_VALUE_OPTIONAL_FEATURE,
 } sxml_system_property_value_kind;
 
 /* A function to look for, by name and arity. */
@@ -46,6 +52,8 @@ typedef struct sxml_system_property {
     sxml_builtin_type value_type;
     /* For KNOWN_FUNCTION. */
     sxml_system_property_function known_function;
+    /* For OPTIONAL_FEATURE. */
+    sxml_optional_feature_kind optional_feature_kind;
 } sxml_system_property;
 
 typedef struct sxml_system_property_view {

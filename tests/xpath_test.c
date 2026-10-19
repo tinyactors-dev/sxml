@@ -641,6 +641,11 @@ static void test_doc_is_stable_and_resolves_through_the_resolver(sxml_test_state
                                "{'dtd-validation': true()})");
     SXML_TEST_EXPECT(state, run_query(&test_fixture, &run) == SXML_STATUS_DYNAMIC_ERROR);
     SXML_TEST_EXPECT(state, error_code_is(&run, TEXT("FODC0013")));
+    /* F&O 4.0, 17.1.9: the properties follow the feature (D211). */
+    run.expression_text = TEXT("system-properties() ! (.(#supports-dtd-validation), "
+                               ".(#supports-dtd-attribute-typing))");
+    SXML_TEST_EXPECT(state, run_query(&test_fixture, &run) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, output_is(&test_fixture, TEXT("false() false()")));
     {
         const sxml_optional_feature dtd_validation = sxml_dtd_validation_feature();
         fixture validating_fixture;
@@ -654,6 +659,10 @@ static void test_doc_is_stable_and_resolves_through_the_resolver(sxml_test_state
                                    "{'dtd-validation': true()}) ! name(*)");
         SXML_TEST_EXPECT(state, run_query(&validating_fixture, &run) == SXML_STATUS_OK);
         SXML_TEST_EXPECT(state, output_is(&validating_fixture, TEXT("\"a\"")));
+        run.expression_text = TEXT("system-properties() ! (.(#supports-dtd-validation), "
+                                   ".(#supports-dtd-attribute-typing))");
+        SXML_TEST_EXPECT(state, run_query(&validating_fixture, &run) == SXML_STATUS_OK);
+        SXML_TEST_EXPECT(state, output_is(&validating_fixture, TEXT("true() true()")));
         run.expression_text = TEXT("parse-xml('<!DOCTYPE a [<!ELEMENT a EMPTY>]><a><b/></a>', "
                                    "{'dtd-validation': true()})");
         SXML_TEST_EXPECT(state,

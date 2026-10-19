@@ -2,8 +2,9 @@
  * The system properties (src/system_property_internal.h, D163): one table
  * for fn:system-properties (F&O 4.0, 17.1.9) and the XSLT fn:system-property
  * (XSLT 4.0, 24.2.1). sxml's XPath and XQuery are schema-aware and read
- * typed data (D174), XSLT not yet; sxml has neither XInclude, DTD validation, invisible XML, streaming, dynamic XSLT,
- * xsl:evaluate nor the EXPath modules (D97, delayed by D162). XSLT has
+ * typed data (D174), XSLT not yet; sxml has neither XInclude, invisible
+ * XML nor streaming (D97, delayed by D162). Dynamic XSLT, the EXPath
+ * modules and DTD validation are optional features (D189, D211). XSLT has
  * backwards-compatible behaviour (packet 7.4).
  *
  * Golden file: src/function_library_json.c (the table it held).
@@ -47,6 +48,16 @@
                         .local_name = SXML_BYTE_VIEW_INITIALIZER(local_text),             \
                         .arity = (arity_value)}}
 
+/* An F&O property that is true when the processor where it is asked names
+   an optional feature. */
+#define SXML_OPTIONAL_FEATURE_PROPERTY(function_text, feature_kind_value)                \
+    {.function_name = SXML_BYTE_VIEW_INITIALIZER(function_text),                          \
+     .xslt_name = SXML_BYTE_VIEW_INITIALIZER(""),                                         \
+     .value_kind = SXML_SYSTEM_PROPERTY_VALUE_OPTIONAL_FEATURE,                           \
+     .value = {.datum_kind = SXML_DATUM_KIND_BOOLEAN},                                    \
+     .value_type = SXML_TYPE_XS_BOOLEAN,                                                  \
+     .optional_feature_kind = (feature_kind_value)}
+
 static const sxml_system_property sxml_system_property_table[] = {
     SXML_DECIMAL_PROPERTY("xpath-version", "xpath-version", "4.0"),
     SXML_DECIMAL_PROPERTY("xsd-version", "xsd-version", "1.1"),
@@ -75,9 +86,12 @@ static const sxml_system_property sxml_system_property_table[] = {
     SXML_BOOLEAN_PROPERTY("supports-xinclude", "", false),
     /* fn:doc and fn:parse-xml validate with dtd-validation true, and the
        tree has is-id and is-idrefs from the DTD (packets 7.14b, 7.14c;
-       D199, D210). */
-    SXML_BOOLEAN_PROPERTY("supports-dtd-validation", "", true),
-    SXML_BOOLEAN_PROPERTY("supports-dtd-attribute-typing", "", true),
+       D199, D210), when the processor names the optional feature
+       sxml_dtd_validation_feature (D211). */
+    SXML_OPTIONAL_FEATURE_PROPERTY("supports-dtd-validation",
+                                   SXML_OPTIONAL_FEATURE_KIND_DTD_VALIDATION),
+    SXML_OPTIONAL_FEATURE_PROPERTY("supports-dtd-attribute-typing",
+                                   SXML_OPTIONAL_FEATURE_KIND_DTD_VALIDATION),
     SXML_BOOLEAN_PROPERTY("supports-invisible-xml", "", false),
     SXML_KNOWN_FUNCTION_PROPERTY("supports-dynamic-xquery", SXML_NAMESPACE_FUNCTIONS,
                                  "load-xquery-module", 1),
