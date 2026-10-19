@@ -7306,6 +7306,66 @@ Recorded 2026-10-19 on the owner's answers to D183's questions.
   sample of Unicode's CollationTest, and which languages, calendars and
   tailorings (7.17 proposes en, de, fr, it, es, nl; ISO, AD, BE, JE, OS, AH).
 
+### D185. XSLT conformance sweep after the Phase 4 gate (packet 4.19)
+Recorded 2026-10-19, after D29, D98, D152, D160, D169, D181. Verified as
+D181 asks: the debug preset, the unit and CLI tests touched, clang-tidy
+and the call-cycle check on the files changed, and the whole XT40 suite
+with the release driver after each change, compared case by case (it
+runs in about a minute here). **XT40 8,650 to 8,759 passed, 0 errors,
+no case lost.**
+- **Type patterns "~T" (priority, 34 failing): not implemented, by
+  D29.** The project's draft (13 October 2026) has no type patterns:
+  PR 2911 (14 September 2026) replaced them with atomic(), record(),
+  map and array patterns, which sxml has; "~T" survives only in a few
+  examples and in the typed attribute of xsl:mode. The suite's priority
+  cases are written against the older draft, and its other expectations
+  there (priority 1.0 for ".[p]", 0.25 for "{42}" and "array({'x'})")
+  contradict 6.4 of the project's draft too. Nothing in priority changes.
+- **Extension instructions call named templates** (10.1.3; call-template
+  -ext 7 to 32 of 32): an extension instruction named after a template
+  it binds to is xsl:call-template of it; each attribute is parsed while
+  lowering, as a kept AST (D152, `sxml_xslt_lowering_parse_attribute`),
+  as a value template for an xs:boolean or atomic parameter (boolean
+  words; xs:untypedAtomic) or as an expression otherwise.
+- **xsl:item-type and xsl:record-type** (5.4, D98; record 22 to 39,
+  type-alias 13 to 25): `src/xslt_named_type.c` does what XQuery's
+  declare type and declare record do: the static context's named item
+  types (resolved in rounds; XPST0051, XTSE4035, XTSE4030) and
+  nominative records in the type registry (XTSE4050). Both are
+  components of a new package component kind, item type, so packages
+  bind them by 3.4.5.5. xsl:field takes the draft's static and select.
+  Delayed (D162): the record constructor function (5.4.2.2).
+- **Available documents are source documents** (4.2.2; snapshot 16 to
+  34, and merge, document): a transformation strips each available
+  document once and hands the copies to fn:doc; a global context item
+  that is one becomes its copy. fn:snapshot of a namespace node.
+- **merge** (67 to 79; 29 more need streaming): the XSLT driver serves
+  collections (also collection 0 to 5); XTSE1060, XTSE1070, XTSE3470,
+  XTSE3500 for the current-group functions in patterns; XTDE2210 for
+  fixed merge-key attributes that differ (raised when evaluated);
+  XTTE2230 for incomparable merge keys. Left: XTDE3490 (map:get of an
+  unknown source name, in `src/xpath_lower.c`), XTDE2220, computed
+  XTDE2210, validation codes.
+- **Errors in included modules** (D169's accepted design, done): each
+  static context's IR module has its stylesheet module's URI as source
+  name, and templates, stylesheet functions, attribute sets and global
+  initializers take their element's IR module. Inline functions and
+  xsl:iterate bodies keep module 0.
+- **Duplicates** (D169's list): `sxml_allocator_allocate_array`
+  (`src/memory_internal.h`) is the one array allocation helper; the XSLT
+  copies use it, the others move when their files are next touched. The
+  key equality of group-adjacent and group-starting-with stays: the
+  FLWOR's keys_are_equal is in `src/xquery_flwor.c`, another packet's
+  file at the time.
+- **match="$var" membership: not done** (D169's accepted design stays
+  open). The parts exist: the evaluation memo (D149) that keeps key
+  indexes and cached calls, and a map from generate-id() to the node,
+  built once by the cached-call row for a pattern rooted at a global
+  variable, makes each test one lookup. The match expression is an XPath
+  AST, so it needs a private function name it can call, or the match
+  lowering must bind the index as a pattern variable; the rows live in
+  `src/function_library_xslt.c`, another packet's file at the time.
+
 ## Proposed
 
 - **Phase 7: four more features and the size of optional parts** (packet

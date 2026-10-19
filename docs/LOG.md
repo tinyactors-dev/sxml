@@ -4,6 +4,20 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 4.19 done (D185): XSLT sweep after the Phase 4 gate. XT40 8,650 to
+  8,759 passed (0 errors, nothing lost; whole suite, release, case by
+  case after each change). Extension instructions call named templates
+  (call-template-ext 7 to 32 of 32); xsl:item-type and xsl:record-type
+  (record 22 to 39, type-alias 13 to 25; the record constructor is
+  delayed); available documents are stripped source documents and
+  fn:snapshot copies namespace nodes (snapshot 16 to 34); the XSLT
+  driver serves collections (collection 0 to 5); merge 67 to 79 with
+  XTSE1060/1070/3470/3500 in patterns, XTDE2210 and XTTE2230; errors in
+  included modules name their module; one array allocation helper. Not
+  done: the "~T" patterns of priority (dropped by the project's draft,
+  D29: 34 cases stay failing), the match="$var" index (design in D185),
+  XTDE3490 and the group key equality (other packets' files).
+
 - CLI docs split (D181): the user reference of the sxml command moved to
   `apps/sxml/README.md`, every example re-run on a release build;
   `docs/CLI.md` keeps the design rules, planned commands and the

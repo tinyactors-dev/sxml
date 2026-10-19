@@ -383,7 +383,7 @@ Sweeps after the gate, over the XSLT leftovers of `docs/agents/QUEUE.md`
 (D181: debug preset, the unit tests touched, the affected XT40 sets with
 the release driver).
 
-- [ ] **4.19 XSLT conformance sweep** (implementation). Owns the XSLT
+- [x] **4.19 XSLT conformance sweep** (implementation). Owns the XSLT
   lowering and reader files it changes (`src/xslt_*`), their unit tests,
   and single insertions in the ledgers. In order of value: the "~T" type
   patterns of priority (only if the suite's draft is the project's, D29),
@@ -392,3 +392,10 @@ the release driver).
   membership, the module named by errors in included modules, the larger
   duplicates of D169. Done when each item is done or its cause is
   recorded, with before and after counts of the affected sets.
+  **Done** 2026-10-19 (D185): XT40 8,650 to 8,759 passed, 0 errors;
+  call-template-ext 32/32, record 39/47, type-alias 25/32, snapshot
+  34/35, merge 79/120 (29 streaming), collection 5/6; priority unchanged
+  (the "~T" patterns are not in the project's draft, D29). Errors in
+  included modules name their module; one array allocation helper.
+  Left: the match="$var" index (D185), the record constructor,
+  XTDE3490, the group key equality.
