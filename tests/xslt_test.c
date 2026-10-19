@@ -962,7 +962,8 @@ static sxml_status run_with_failure(sxml_test_state *state, uint64_t failing_num
     if (status == SXML_STATUS_OK) {
         transformation_run run = {
             .stylesheet_text = TEXT(STYLESHEET(
-                "<xsl:output method='text'/><xsl:include href='included.xsl'/><xsl:variable "
+                "<xsl:output method='text'/><xsl:strip-space elements='*'/>"
+                "<xsl:include href='included.xsl'/><xsl:variable "
                 "name='n' select='count(//b)'/><xsl:template match='/'><xsl:apply-templates "
                 "select='doc/*'/><xsl:value-of select='$n'/></xsl:template><xsl:template "
                 "match='b'>[<xsl:value-of select='.'/>]</xsl:template>")),
