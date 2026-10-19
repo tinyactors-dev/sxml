@@ -7968,6 +7968,14 @@ Standard of 16 October 2026, 13.2.
   name fail there); html-doc-010 and html-test-1281 stay failing unless
   the suite changes.
 
+### D202. The CLI's WebAssembly budget is 7,000,000 / 1,500,000 bytes (owner)
+Recorded 2026-10-19 on the owner's choice. The CLI module grew to 5,927,297
+bytes stripped and 1,267,818 gzipped (the XQuery Update grammar, D187, and
+the HTML parser, D201), over D176's 5,500,000 / 1,250,000. The CLI's
+WebAssembly build runs sxml in Node, where size matters less than for
+`sxml.wasm`, so its budget rises to 7,000,000 / 1,500,000 with room for the
+rest of Phase 7. The `sxml.wasm` budgets of D184 and D189 stay.
+
 ## Proposed
 
 - **The CLI's WebAssembly budget after the Phase 7 features** (packet

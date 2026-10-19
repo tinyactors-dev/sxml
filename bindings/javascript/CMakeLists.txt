@@ -67,7 +67,8 @@ if(SXML_BUILD_TESTS AND SXML_NODE_EXECUTABLE)
     # grammar (packet 3.12, D146), and with sxml transform, which links
     # XSLT and the pattern and value template grammars (packet 4.15, D157),
     # and with sxml validate, which links schema compilation and validation
-    # (packet 5.10, D176; the owner confirms all three under Proposed).
+    # (packet 5.10, D176; the CLI module's budget is 7,000,000 / 1,500,000
+    # since D202).
     # The owner's budgets for the JavaScript modules (D184): 2,100,000
     # bytes stripped for the core sxml.wasm and 3,000,000 for the full
     # module; the gzipped limits keep D138's ratio of 700,000 to 2,000,000
@@ -75,7 +76,7 @@ if(SXML_BUILD_TESTS AND SXML_NODE_EXECUTABLE)
     if(TARGET sxml_cli)
         add_test(NAME javascript/size_budget
             COMMAND "${SXML_NODE_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test/size-budget.mjs"
-                "$<TARGET_FILE:sxml_cli>" 5500000 1250000
+                "$<TARGET_FILE:sxml_cli>" 7000000 1500000
                 "$<TARGET_FILE:sxml_javascript_module>" 2100000 735000
                 "$<TARGET_FILE:sxml_javascript_full_module>" 3000000 1050000)
     endif()
