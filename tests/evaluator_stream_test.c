@@ -190,9 +190,12 @@ static bool fixture_destroy(fixture *test_fixture) {
 
 static sxml_name_identifier main_name(const fixture *test_fixture) {
     sxml_name_identifier name = {.index = 0};
-    (void)sxml_name_pool_intern_name(
-        sxml_processor_get_name_pool(test_fixture->processor),
-        &(sxml_name_request){.namespace_uri = {.index = 0}, .local_name = TEXT("main")}, &name);
+    if (sxml_name_pool_intern_name(
+            sxml_processor_get_name_pool(test_fixture->processor),
+            &(sxml_name_request){.namespace_uri = {.index = 0}, .local_name = TEXT("main")},
+            &name) != SXML_STATUS_OK) {
+        return (sxml_name_identifier){.index = 0};
+    }
     return name;
 }
 
