@@ -1356,7 +1356,10 @@ static void test_doc_and_qname(sxml_test_state *state) {
          "\"b\""},
         {"doc('a.xml', {'strip-space': 'all'})/a/b ! local-name()", "\"b\""},
         {"doc('a.xml', {'dtd-validation': true()})", "!FODC0013"},
-        {"doc('a.xml', {'xsd-validation': 'strict'})", "!FODC0009"},
+        /* Validated as fn:parse-xml validates: no schema declares a
+           (F&O 4.0, 17.2.1; packet 2.21). */
+        {"doc('a.xml', {'xsd-validation': 'strict'})", "!FODC0014"},
+        {"doc('a.xml', {'xsd-validation': 'skip'}) is doc('a.xml')", "true"},
         {"doc('a.xml', {'strip-space': 'some'})", "!XPTY0004"},
         {"QName('http://example.com/', 'p:local') eq QName('http://example.com/', 'local')",
          "true"},

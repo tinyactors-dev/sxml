@@ -178,6 +178,18 @@ typedef struct sxml_collated_key {
 SXML_NODISCARD sxml_status sxml_function_library_make_collated_key(
     sxml_item_heap *item_heap, sxml_collated_key_request request, sxml_collated_key *key);
 
+/*
+ * The item that contextual equality compares in place of item (F&O 4.0,
+ * fn:distinct-values and fn:deep-equal; XQuery 4.0, 4.13.8 group by): a
+ * date, time or Gregorian value without a timezone is compared as if it
+ * had the implicit timezone of call's dynamic context. Writes that item,
+ * owned, to *adjusted, or a zero item when item is compared as it is
+ * (another value, a timezone, or no dynamic context). Returns the heap's
+ * and the clock's failures.
+ */
+SXML_NODISCARD sxml_status sxml_function_library_adjust_to_implicit_timezone(
+    const sxml_function_call *call, sxml_item item, sxml_item *adjusted);
+
 /* The positions of fn:subsequence and fn:substring (F&O 4.0, sections
    14.1.14 and 5.4.3): p with round($start) <= p < round($start) +
    round($length), as indices from 0. */
@@ -406,14 +418,17 @@ sxml_string sxml_function_library_option_string(sxml_option_lookup lookup);
 typedef struct sxml_document_options {
     /* strip-space="all": whitespace-only text nodes are removed. */
     bool strips_space;
+    /* The xsd-validation option's xs:string item, owned (the caller
+       releases it); empty when absent or "skip". */
+    sxml_sequence xsd_validation;
 } sxml_document_options;
 
 /*
  * Reads fn:doc's options map from argument argument_index into *options,
  * defined in src/function_library_json.c: dtd-validation and xinclude true
- * are FODC0013, xsd-validation other than "skip" FODC0009, a strip-space
- * value outside the enumeration XPTY0004; stable, trust-external and
- * the location options are accepted.
+ * are FODC0013, a strip-space value outside the enumeration XPTY0004;
+ * xsd-validation is kept for sxml_schema_scope_validate_document; stable,
+ * trust-external and the location options are accepted.
  */
 SXML_NODISCARD sxml_status sxml_function_library_read_document_options(
     const sxml_function_call *call, size_t argument_index, sxml_document_options *options);

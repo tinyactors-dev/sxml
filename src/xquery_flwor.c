@@ -182,28 +182,10 @@ static bool keys_are_equal(const grouping_key *first, const grouping_key *second
    the implicit timezone (F&O 4.0, 2.2.4 and 9.4.1): the key compared is
    the item with that timezone. */
 static sxml_status adjust_to_implicit_timezone(const grouping *work, grouping_key *key) {
-    const sxml_function_call *call = work->call;
-    sxml_atomic_datum datum;
-    sxml_status status = sxml_atomic_item_get_datum(key->item, &datum);
-    if (status != SXML_STATUS_OK || call->dynamic_context == NULL ||
-        datum.datum_kind != SXML_DATUM_KIND_DATE_TIME ||
-        datum.datum_details.date_time.has_timezone) {
-        return status;
-    }
-    int16_t timezone = 0;
-    status = sxml_dynamic_context_read_implicit_timezone(call->dynamic_context, &timezone);
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    datum.datum_details.date_time.has_timezone = true;
-    datum.datum_details.date_time.timezone_offset_minutes = timezone;
     sxml_item adjusted = {.representation = 0};
-    status = sxml_atomic_item_make(
-        call->item_heap,
-        &(sxml_atomic_item_request){.type = sxml_item_get_type_annotation(key->item),
-                                    .datum = datum},
-        &adjusted);
-    if (status == SXML_STATUS_OK) {
+    const sxml_status status =
+        sxml_function_library_adjust_to_implicit_timezone(work->call, key->item, &adjusted);
+    if (status == SXML_STATUS_OK && adjusted.representation != 0) {
         key->item = adjusted;
         key->is_adjusted = true;
     }

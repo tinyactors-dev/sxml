@@ -14,6 +14,7 @@
  */
 #include "evaluator_internal.h"
 #include "function_library_core_internal.h"
+#include "schema_scope_internal.h"
 #include "tree_internal.h"
 #include "xml_internal.h"
 
@@ -242,8 +243,9 @@ static sxml_status call_distinct_ordered_nodes(const sxml_function_call *call,
    evaluation; a relative URI is resolved against the static base URI
    (D88). The options are fn:parse-xml's (sxml_function_library_read_
    document_options): strip-space="all" gives a stripped copy, a new tree
-   on every call; the rest the loader's one way of parsing honours or
-   rejects. */
+   on every call; xsd-validation other than "skip" the validated copy of
+   that (F&O 4.0, 17.1.1 and 17.2.1, as fn:parse-xml); the rest the
+   loader's one way of parsing honours or rejects. */
 static sxml_status call_doc(const sxml_function_call *call, sxml_sequence *result) {
     if (call->dynamic_context == NULL) {
         return sxml_function_library_report(call, &no_dynamic_context_error);
@@ -257,7 +259,8 @@ static sxml_status call_doc(const sxml_function_call *call, sxml_sequence *resul
         *result = sxml_sequence_empty();
         return SXML_STATUS_OK;
     }
-    sxml_document_options options = {.strips_space = false};
+    sxml_document_options options = {.strips_space = false,
+                                     .xsd_validation = sxml_sequence_empty()};
     status = sxml_function_library_read_document_options(call, 1, &options);
     sxml_string uri_reference;
     if (status == SXML_STATUS_OK) {
@@ -274,10 +277,24 @@ static sxml_status call_doc(const sxml_function_call *call, sxml_sequence *resul
             &document_node);
     }
     if (status == SXML_STATUS_OK && options.strips_space) {
-        status = sxml_function_library_strip_document(call, document_node, result);
+        sxml_sequence stripped = sxml_sequence_empty();
+        status = sxml_function_library_strip_document(call, document_node, &stripped);
         sxml_item_release(document_node);
-        return status;
+        document_node = status == SXML_STATUS_OK ? stripped.content : (sxml_item){.representation = 0};
     }
+    if (status == SXML_STATUS_OK &&
+        sxml_sequence_get_representation(options.xsd_validation) !=
+            SXML_SEQUENCE_REPRESENTATION_EMPTY) {
+        sxml_atomic_datum validation;
+        status = sxml_atomic_item_get_datum(options.xsd_validation.content, &validation);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_schema_scope_validate_document(
+                call, validation.datum_details.string.utf8, &document_node);
+        } else {
+            sxml_item_release(document_node);
+        }
+    }
+    sxml_sequence_release(options.xsd_validation);
     if (status == SXML_STATUS_OK) {
         *result = sxml_sequence_from_item(document_node);
     }

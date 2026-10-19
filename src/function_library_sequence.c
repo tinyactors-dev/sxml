@@ -563,10 +563,15 @@ static sxml_status call_remove(const sxml_function_call *call, sxml_sequence *re
    collation (F&O 4.0, fn:distinct-values: "equal ... using the
    collation"). */
 typedef struct distinct_set {
+    const sxml_function_call *call;
     sxml_item_heap *item_heap;
     const sxml_collation *collation;
     /* Kept items, borrowed from the input; slots hold position + 1. */
     sxml_item *items;
+    /* What each kept item is compared as when that differs: a date or
+       time without timezone given the implicit one (owned); a zero item
+       otherwise (sxml_function_library_adjust_to_implicit_timezone). */
+    sxml_item *compared;
     /* The collation key of each kept item; NULL under the codepoint
        collation. */
     sxml_collated_key *keys;
@@ -584,8 +589,17 @@ static void release_distinct_set(distinct_set *set) {
          item_index += 1) {
         sxml_collation_key_release(&set->keys[item_index].key);
     }
+    for (size_t item_index = 0; set->compared != NULL && item_index < set->item_count;
+         item_index += 1) {
+        if (set->compared[item_index].representation != 0) {
+            sxml_item_release(set->compared[item_index]);
+        }
+    }
     sxml_item_heap_release_bytes(
         set->item_heap, (sxml_heap_bytes){.memory = set->items,
+                                          .byte_count = set->slot_count * sizeof(sxml_item)});
+    sxml_item_heap_release_bytes(
+        set->item_heap, (sxml_heap_bytes){.memory = set->compared,
                                           .byte_count = set->slot_count * sizeof(sxml_item)});
     sxml_item_heap_release_bytes(
         set->item_heap,
@@ -597,6 +611,7 @@ static void release_distinct_set(distinct_set *set) {
         set->item_heap, (sxml_heap_bytes){.memory = set->slots,
                                           .byte_count = set->slot_count * sizeof(size_t)});
     set->items = NULL;
+    set->compared = NULL;
     set->keys = NULL;
     set->slots = NULL;
 }
@@ -635,8 +650,10 @@ static bool keyed_items_are_equal(keyed_item first, keyed_item second) {
 }
 
 static keyed_item kept_item(const distinct_set *set, size_t item_index) {
-    return (keyed_item){.item = set->items[item_index],
-                        .key = set->keys == NULL ? NULL : &set->keys[item_index]};
+    const sxml_item compared = set->compared[item_index];
+    return (keyed_item){
+        .item = compared.representation != 0 ? compared : set->items[item_index],
+        .key = set->keys == NULL ? NULL : &set->keys[item_index]};
 }
 
 /* Heap memory for byte_count bytes, or nothing for a count of zero. */
@@ -665,10 +682,14 @@ static sxml_status allocate_distinct_set(distinct_set *set, size_t slot_count) {
         status = sxml_size_multiply(slot_count, sizeof(size_t), &slot_bytes);
     }
     void *items = NULL;
+    void *compared = NULL;
     void *keys = NULL;
     void *slots = NULL;
     if (status == SXML_STATUS_OK) {
         status = allocate_set_array(set->item_heap, item_bytes, &items);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = allocate_set_array(set->item_heap, item_bytes, &compared);
     }
     if (status == SXML_STATUS_OK) {
         status = allocate_set_array(set->item_heap, key_bytes, &keys);
@@ -676,13 +697,15 @@ static sxml_status allocate_distinct_set(distinct_set *set, size_t slot_count) {
     if (status == SXML_STATUS_OK) {
         status = allocate_set_array(set->item_heap, slot_bytes, &slots);
     }
-    if (status == SXML_STATUS_OK && (items == NULL || slots == NULL)) {
+    if (status == SXML_STATUS_OK && (items == NULL || compared == NULL || slots == NULL)) {
         /* slot_count is never 0. */
         status = SXML_STATUS_INVALID_ARGUMENT;
     }
     if (status != SXML_STATUS_OK) {
         sxml_item_heap_release_bytes(set->item_heap,
                                      (sxml_heap_bytes){.memory = items, .byte_count = item_bytes});
+        sxml_item_heap_release_bytes(
+            set->item_heap, (sxml_heap_bytes){.memory = compared, .byte_count = item_bytes});
         sxml_item_heap_release_bytes(set->item_heap,
                                      (sxml_heap_bytes){.memory = keys, .byte_count = key_bytes});
         sxml_item_heap_release_bytes(set->item_heap,
@@ -693,6 +716,7 @@ static sxml_status allocate_distinct_set(distinct_set *set, size_t slot_count) {
     const size_t old_count = set->item_count;
     if (old_count > 0) {
         memcpy(items, set->items, old_count * sizeof(sxml_item));
+        memcpy(compared, set->compared, old_count * sizeof(sxml_item));
         if (keys != NULL) {
             memcpy(keys, set->keys, old_count * sizeof(sxml_collated_key));
         }
@@ -701,6 +725,7 @@ static sxml_status allocate_distinct_set(distinct_set *set, size_t slot_count) {
     set->item_count = 0;
     release_distinct_set(set);
     set->items = items;
+    set->compared = compared;
     set->keys = keys;
     set->slots = slots;
     set->slot_count = slot_count;
@@ -733,21 +758,31 @@ static sxml_status add_distinct(distinct_set *set, sxml_item item,
     if (set->items == NULL || set->slots == NULL) {
         return SXML_STATUS_INVALID_ARGUMENT;
     }
+    sxml_item compared = {.representation = 0};
+    sxml_status status =
+        sxml_function_library_adjust_to_implicit_timezone(set->call, item, &compared);
     sxml_collated_key key = {.is_keyed = false};
-    if (uses_keys(set)) {
-        sxml_status status = sxml_function_library_make_collated_key(
+    if (status == SXML_STATUS_OK && uses_keys(set)) {
+        status = sxml_function_library_make_collated_key(
             set->item_heap,
             (sxml_collated_key_request){.collation = set->collation, .item = item}, &key);
-        if (status != SXML_STATUS_OK) {
-            return status;
-        }
     }
-    const keyed_item probe = {.item = item, .key = uses_keys(set) ? &key : NULL};
+    if (status != SXML_STATUS_OK) {
+        if (compared.representation != 0) {
+            sxml_item_release(compared);
+        }
+        return status;
+    }
+    const keyed_item probe = {.item = compared.representation != 0 ? compared : item,
+                              .key = uses_keys(set) ? &key : NULL};
     size_t slot = (size_t)hash_keyed_item(probe) & (set->slot_count - 1);
     while (set->slots[slot] != 0) {
         if (keyed_items_are_equal(kept_item(set, set->slots[slot] - 1), probe)) {
             if (key.is_keyed) {
                 sxml_collation_key_release(&key.key);
+            }
+            if (compared.representation != 0) {
+                sxml_item_release(compared);
             }
             addition->is_new = false;
             return SXML_STATUS_OK;
@@ -755,6 +790,7 @@ static sxml_status add_distinct(distinct_set *set, sxml_item item,
         slot = (slot + 1) & (set->slot_count - 1);
     }
     set->items[set->item_count] = item;
+    set->compared[set->item_count] = compared;
     if (set->keys != NULL) {
         set->keys[set->item_count] = key;
     }
@@ -775,9 +811,11 @@ static sxml_status call_distinct_values(const sxml_function_call *call,
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    distinct_set set = {.item_heap = call->item_heap,
+    distinct_set set = {.call = call,
+                        .item_heap = call->item_heap,
                         .collation = &collation,
                         .items = NULL,
+                        .compared = NULL,
                         .keys = NULL,
                         .item_count = 0,
                         .slots = NULL,
@@ -1662,9 +1700,11 @@ static sxml_status call_duplicate_values(const sxml_function_call *call,
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    distinct_set seen = {.item_heap = call->item_heap,
+    distinct_set seen = {.call = call,
+                         .item_heap = call->item_heap,
                          .collation = &collation,
                          .items = NULL,
+                         .compared = NULL,
                          .keys = NULL,
                          .item_count = 0,
                          .slots = NULL,

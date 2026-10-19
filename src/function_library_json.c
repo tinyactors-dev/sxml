@@ -780,15 +780,11 @@ static const sxml_option_definition parse_xml_options[] = {
 #define SXML_PARSE_XML_OPTION_COUNT ((size_t)SXML_XML_OPTION_STABLE)
 
 /* Checks the parse-xml options sxml cannot honour: DTD validation and
-   XInclude (FODC0013), XSD validation (FODC0009). An unknown strip-space
-   value is XPTY0004, since the option's type is an enumeration. Writes
-   whether whitespace-only text nodes are stripped. */
+   XInclude (FODC0013); the callers validate (xsd-validation). An unknown
+   strip-space value is XPTY0004, since the option's type is an
+   enumeration. Writes whether whitespace-only text nodes are stripped. */
 typedef struct xml_space_handling {
     bool strips_space;
-    /* In: the caller validates (fn:parse-xml); fn:doc's loader keeps one
-       tree per URI, which sxml does not validate yet, so it keeps
-       FODC0009 (D162). */
-    bool can_validate;
 } xml_space_handling;
 
 static sxml_status xml_check_options(const sxml_function_call *call,
@@ -807,11 +803,6 @@ static sxml_status xml_check_options(const sxml_function_call *call,
             !json_text_is(strip_space, SXML_BYTE_VIEW_FROM_LITERAL("conditional"))) {
             return sxml_error_record_report(call->error_record, &json_unknown_option_error);
         }
-    }
-    if (!handling->can_validate && values->is_present[SXML_XML_OPTION_XSD_VALIDATION] &&
-        !json_text_is(json_option_text(values, SXML_XML_OPTION_XSD_VALIDATION),
-                      SXML_BYTE_VIEW_FROM_LITERAL("skip"))) {
-        return sxml_error_record_report(call->error_record, &xml_schema_validation_error);
     }
     return SXML_STATUS_OK;
 }
@@ -1057,12 +1048,19 @@ sxml_status sxml_function_library_read_document_options(const sxml_function_call
                                                sizeof(parse_xml_options) /
                                                    sizeof(parse_xml_options[0])}},
         &values);
-    xml_space_handling handling = {.strips_space = false, .can_validate = false};
+    xml_space_handling handling = {.strips_space = false};
     if (status == SXML_STATUS_OK) {
         status = xml_check_options(call, &values, &handling);
     }
-    sxml_function_library_release_options(&values);
     options->strips_space = handling.strips_space;
+    options->xsd_validation = sxml_sequence_empty();
+    if (status == SXML_STATUS_OK && values.is_present[SXML_XML_OPTION_XSD_VALIDATION] &&
+        !json_text_is(json_option_text(&values, SXML_XML_OPTION_XSD_VALIDATION),
+                      SXML_BYTE_VIEW_FROM_LITERAL("skip"))) {
+        options->xsd_validation = values.values[SXML_XML_OPTION_XSD_VALIDATION];
+        sxml_sequence_retain(options->xsd_validation);
+    }
+    sxml_function_library_release_options(&values);
     return status;
 }
 
@@ -1115,7 +1113,7 @@ static sxml_status xml_read_input(const sxml_function_call *call, sxml_option_va
         &(sxml_option_request){.argument_index = 1,
                                .definitions = {parse_xml_options, SXML_PARSE_XML_OPTION_COUNT}},
         values);
-    xml_space_handling handling = {.strips_space = false, .can_validate = true};
+    xml_space_handling handling = {.strips_space = false};
     if (status == SXML_STATUS_OK) {
         status = xml_check_options(call, values, &handling);
     }

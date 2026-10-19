@@ -868,6 +868,30 @@ sxml_status sxml_function_library_make_collated_key(sxml_item_heap *item_heap,
     return status;
 }
 
+sxml_status sxml_function_library_adjust_to_implicit_timezone(const sxml_function_call *call,
+                                                              sxml_item item,
+                                                              sxml_item *adjusted) {
+    adjusted->representation = 0;
+    sxml_atomic_datum datum;
+    sxml_status status = sxml_atomic_item_get_datum(item, &datum);
+    if (status != SXML_STATUS_OK || call->dynamic_context == NULL ||
+        datum.datum_kind != SXML_DATUM_KIND_DATE_TIME ||
+        datum.datum_details.date_time.has_timezone) {
+        return status;
+    }
+    int16_t timezone = 0;
+    status = sxml_dynamic_context_read_implicit_timezone(call->dynamic_context, &timezone);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    datum.datum_details.date_time.has_timezone = true;
+    datum.datum_details.date_time.timezone_offset_minutes = timezone;
+    return sxml_atomic_item_make(
+        call->item_heap,
+        &(sxml_atomic_item_request){.type = sxml_item_get_type_annotation(item), .datum = datum},
+        adjusted);
+}
+
 sxml_status sxml_function_library_make_string(sxml_item_heap *item_heap,
                                               sxml_byte_view utf8,
                                               sxml_sequence *result) {
