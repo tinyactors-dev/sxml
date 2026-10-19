@@ -333,6 +333,9 @@ part 1.2 KB of the core module.
   - supports-streaming stays false until 7.6b.
   - Owns: new `src/xslt_streamability.c` and
     `src/xslt_streamability_internal.h`.
+  - **Done** 2026-10-19 (D212): XT40 streaming cases 2,841 of 2,936
+    (strm 2,503 of 2,564), 154 of 156 XTSE3430 cases; no pass lost but
+    system-property-013, now not applicable.
 - **7.6b Streamed evaluation**:
   - the XML parser feeds builder events to a receiving task (D166) in
     place of an arena builder;

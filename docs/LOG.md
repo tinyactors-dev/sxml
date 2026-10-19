@@ -4,6 +4,18 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 7.6a done (D212): XSLT streamability analysis (XSLT 4.0, 19) in
+  `src/xslt_streamability.c`, a frame machine over the stylesheet AST
+  and its XPath ASTs, run by sxml_xslt_compile: postures, sweeps,
+  U-types, the verdicts of 6.6.4, 10.2.3, 15.4, 18.1, 18.2.9 and
+  19.8.5, XTSE3430 for a construct declared streamable that is not
+  guaranteed-streamable; uncertain verdicts are never errors.
+  Evaluation stays unstreamed; supports-streaming false. The XSLT
+  driver claims streaming (not streaming-fallback). XT40 passed 8,952
+  to 11,792: streaming cases 2,841 of 2,936, strm 2,503 of 2,564, 154
+  of 156 XTSE3430 cases. Proposed: a fallback option in `xslt.h` for
+  7.6b.
+
 - 7.2b done (D211): the core size audit. `sxml.wasm` was 2,294,051
   bytes stripped, over 2,200,000: fn:doc's dtd-validation (4869814) made
   the whole schema compiler reachable (+167 KB); XQuery Update +4.3 KB,
