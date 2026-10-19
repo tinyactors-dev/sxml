@@ -7599,6 +7599,28 @@ IR expression kind added.
   validation without any in-scope schema raises FODC0014
   (`src/function_library_schema.c`); use-xsi-schema-location.
 
+### D191. Optional features add library functions (packet 7.10a)
+Recorded 2026-10-19, after D45, D101, D162, D189. A feature whose D162
+place is "the functions are absent" (XPST0017: fn:parse-html and
+fn:html-doc, the EXPath Binary and File functions) must not link its
+rows into a program that does not name it, so its rows cannot be a
+library part of `src/function_library_*.c` (the registry links every
+part).
+- `sxml_optional_feature_definition` (src/optional_feature_internal.h)
+  gains `library_functions`: a `const sxml_native_function_view *` of
+  static const rows in the feature's own files, or NULL.
+- The processor's function library serves every registered XPath part,
+  then the `library_functions` of each configured feature in kind order
+  (`sxml_processor_make_library_part_list` in src/processor.c). The
+  list lives in allocator memory only while the library is initialized
+  (the library does not keep it). XQuery and XSLT chain their own tables
+  in front of the processor's, so they see the feature's functions too.
+- Without the feature the functions are absent, as before: XPST0017 at
+  compile time, false from fn:function-available, nothing from
+  fn:function-lookup. A feature's file that holds rows names its view
+  differently from `sxml_function_library_<part>`, so the CMake registry
+  (cmake/SxmlParts.cmake) does not take it as a part.
+
 ## Proposed
 
 - **Phase 7: four more features and the size of optional parts** (packet

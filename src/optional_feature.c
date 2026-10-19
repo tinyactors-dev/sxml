@@ -231,6 +231,7 @@ static const sxml_optional_feature_definition sxml_test_feature_definition = {
     .feature_name = SXML_BYTE_VIEW_INITIALIZER("test"),
     .operations = &sxml_test_feature_operations_table,
     .finalize_state = sxml_test_feature_finalize_state,
+    .library_functions = NULL,
 };
 
 sxml_optional_feature sxml_test_optional_feature(void) {

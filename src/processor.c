@@ -227,6 +227,71 @@ static sxml_native_function_view_list sxml_processor_library_parts(void) {
     return sxml_function_library_parts_for_language(SXML_LANGUAGE_XPATH);
 }
 
+/* The library functions of the processor: every registered XPath part,
+   then those of the optional features its configuration names, in kind
+   order (D191). The function library does not keep its parts list, so
+   the list lives in allocator memory only while the library is
+   initialized. */
+typedef struct sxml_processor_library_part_list {
+    sxml_native_function_view_list parts;
+    /* NULL when no feature adds functions: parts is then the static
+       registry's list. */
+    const sxml_native_function_view **allocated_views;
+} sxml_processor_library_part_list;
+
+static sxml_status sxml_processor_make_library_part_list(
+    const sxml_processor *processor, sxml_processor_library_part_list *list) {
+    const sxml_native_function_view_list registered = sxml_processor_library_parts();
+    *list = (sxml_processor_library_part_list){.parts = registered, .allocated_views = NULL};
+    size_t feature_part_count = 0;
+    for (size_t kind_index = 0; kind_index < (size_t)SXML_OPTIONAL_FEATURE_KIND_COUNT;
+         kind_index += 1) {
+        const sxml_optional_feature_definition *definition =
+            processor->optional_features.slots[kind_index].definition;
+        if (definition != NULL && definition->library_functions != NULL) {
+            feature_part_count += 1;
+        }
+    }
+    if (feature_part_count == 0) {
+        return SXML_STATUS_OK;
+    }
+    const size_t view_count = registered.native_function_view_count + feature_part_count;
+    size_t byte_count = 0;
+    sxml_status status =
+        sxml_size_multiply(view_count, sizeof(const sxml_native_function_view *), &byte_count);
+    void *memory = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_allocator_allocate(
+            processor->allocator,
+            (sxml_allocation_request){.byte_count = byte_count,
+                                      .alignment = alignof(const sxml_native_function_view *)},
+            &memory);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    const sxml_native_function_view **views = memory;
+    size_t filled = 0;
+    for (size_t part_index = 0; part_index < registered.native_function_view_count;
+         part_index += 1) {
+        views[filled] = registered.native_function_views[part_index];
+        filled += 1;
+    }
+    for (size_t kind_index = 0; kind_index < (size_t)SXML_OPTIONAL_FEATURE_KIND_COUNT;
+         kind_index += 1) {
+        const sxml_optional_feature_definition *definition =
+            processor->optional_features.slots[kind_index].definition;
+        if (definition != NULL && definition->library_functions != NULL) {
+            views[filled] = definition->library_functions;
+            filled += 1;
+        }
+    }
+    *list = (sxml_processor_library_part_list){
+        .parts = {.native_function_views = views, .native_function_view_count = filled},
+        .allocated_views = views};
+    return SXML_STATUS_OK;
+}
+
 static bool sxml_processor_configuration_is_valid(
     const sxml_processor_configuration *configuration) {
     return configuration != NULL && !sxml_allocator_is_null(configuration->allocator) &&
@@ -400,17 +465,27 @@ static sxml_status sxml_processor_place_members(sxml_processor *processor,
             sxml_type_registry_finalize(processor->type_registry);
         }
     }
+    sxml_processor_library_part_list part_list = {
+        .parts = {.native_function_views = NULL, .native_function_view_count = 0},
+        .allocated_views = NULL};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_processor_make_library_part_list(processor, &part_list);
+        if (status != SXML_STATUS_OK) {
+            sxml_item_heap_finalize(processor->item_heap);
+            sxml_type_registry_finalize(processor->type_registry);
+        }
+    }
     if (status == SXML_STATUS_OK) {
         status = sxml_function_library_initialize(
             sxml_processor_slice(&(sxml_processor_member_slice){
                 .memory = memory,
                 .offset = layout->function_library_offset,
                 .end_offset = layout->requirements.byte_count}),
-            &(sxml_function_library_configuration){
-                .allocator = processor->allocator,
-                .item_heap = processor->item_heap,
-                .parts = sxml_processor_library_parts()},
+            &(sxml_function_library_configuration){.allocator = processor->allocator,
+                                                   .item_heap = processor->item_heap,
+                                                   .parts = part_list.parts},
             &processor->function_library);
+        sxml_allocator_release(processor->allocator, (void *)part_list.allocated_views);
         if (status != SXML_STATUS_OK) {
             sxml_item_heap_finalize(processor->item_heap);
             sxml_type_registry_finalize(processor->type_registry);

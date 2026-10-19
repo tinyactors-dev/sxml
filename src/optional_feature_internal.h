@@ -8,6 +8,9 @@
 #include "sxml/status.h"
 #include "sxml/view.h"
 
+/* src/function_library_internal.h. */
+struct sxml_native_function_view;
+
 /*
  * Optional features inside sxml (include/sxml/processor.h, "Optional
  * features"; glossary `optional_feature`, `feature_data`; D183, D184,
@@ -37,7 +40,10 @@
  * Adding a feature (packets 7.8 and later): a kind below, before COUNT;
  * the definition, operations and exported function in the feature's files;
  * one entry in sxml_all_optional_features (src/optional_feature.c); the
- * D162 place asks for the kind.
+ * D162 place asks for the kind. A feature whose D162 place is "the
+ * functions are absent" (XPST0017) gives its rows as the definition's
+ * library_functions instead (D191): the processor's library serves them
+ * only when the configuration names the feature.
  *
  * Thread safety: the processor's thread (D35).
  */
@@ -61,6 +67,13 @@ struct sxml_optional_feature_definition {
        processor's allocator, when the processor is finalized. NULL when
        the feature keeps no state. It must not use the processor. */
     void (*finalize_state)(void *state, sxml_allocator allocator);
+    /* The library functions the feature adds (src/function_library_
+       internal.h), static const rows in the feature's own files, or NULL
+       for none. A processor that names the feature serves them after the
+       parts of src/function_library_*.c, so without the feature the
+       functions are absent (XPST0017, their D162 place) and their rows
+       are not linked (D191). */
+    const struct sxml_native_function_view *library_functions;
 };
 
 /* A processor's record of one kind (src/processor_internal.h). */
