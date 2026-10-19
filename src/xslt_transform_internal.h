@@ -71,6 +71,10 @@ SXML_NODISCARD sxml_status sxml_xslt_machine_transformation_deliver(
     sxml_xslt_machine_transformation *running, sxml_sequence raw_result,
     sxml_sequence *principal_result);
 
+/* True when a result document became the principal result (26.2.2). */
+bool sxml_xslt_machine_transformation_has_principal_document(
+    const sxml_xslt_machine_transformation *running);
+
 /* Releases what the transformation holds; accepts NULL. */
 void sxml_xslt_machine_transformation_destroy(sxml_xslt_machine_transformation *running);
 

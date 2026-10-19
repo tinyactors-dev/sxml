@@ -291,7 +291,31 @@ static const query_case query_cases[] = {
                 "<xsl:template name='xsl:initial-template'><s><xsl:value-of select='$s'/></s>"
                 "</xsl:template>" STYLESHEET_END "\", 'static-params': {QName('', 's'): 7}})?output",
                 "<s>7</s>"),
+    QUERY_VALUE("unnamed-mode",
+                "transform({'stylesheet-text': \"<xsl:stylesheet "
+                "xmlns:xsl='http://www.w3.org/1999/XSL/Transform' version='3.0' default-mode='m'>"
+                "<xsl:template match='/' mode='m'><m/></xsl:template>"
+                "<xsl:template match='/' mode='#unnamed'><unnamed/></xsl:template>" STYLESHEET_END
+                "\", 'source-node': parse-xml('<doc/>'), "
+                "'initial-mode': QName('http://www.w3.org/1999/XSL/Transform', 'unnamed')})?output",
+                "<unnamed/>"),
+    QUERY_VALUE("joined-cdata-section-elements",
+                "transform({'stylesheet-text': \"" STYLESHEET_START
+                "<xsl:output cdata-section-elements='a'/>"
+                "<xsl:template name='xsl:initial-template'><r><a>1</a><b>2</b></r>"
+                "</xsl:template>" STYLESHEET_END "\", 'delivery-format': 'serialized', "
+                "'serialization-params': {'cdata-section-elements': QName('', 'b'), "
+                "'omit-xml-declaration': true()}})?output",
+                "&lt;r&gt;&lt;a&gt;&lt;![CDATA[1]]&gt;&lt;/a&gt;&lt;b&gt;&lt;![CDATA[2]]&gt;&lt;/b&gt;"
+                "&lt;/r&gt;"),
     /* Result documents (26.2) and post-process. */
+    QUERY_VALUE("principal-result-document",
+                "transform({'stylesheet-text': \"" STYLESHEET_START
+                "<xsl:template name='xsl:initial-template'>"
+                "<xsl:result-document><p/></xsl:result-document>"
+                "<xsl:result-document href='s.xml'><s/></xsl:result-document>"
+                "</xsl:template>" STYLESHEET_END "\"})?output",
+                "<p/>"),
     QUERY_VALUE("result-documents",
                 "let $r := transform({'stylesheet-text': \"" STYLESHEET_START
                 "<xsl:template name='xsl:initial-template'>"

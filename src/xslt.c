@@ -1280,6 +1280,11 @@ sxml_status sxml_xslt_machine_transformation_deliver(sxml_xslt_machine_transform
     return sxml_transformation_deliver(&running->transformation, raw_result, principal_result);
 }
 
+bool sxml_xslt_machine_transformation_has_principal_document(
+    const sxml_xslt_machine_transformation *running) {
+    return sxml_xslt_result_writer_has_principal_document(running->transformation.writer);
+}
+
 void sxml_xslt_machine_transformation_destroy(sxml_xslt_machine_transformation *running) {
     if (running == NULL) {
         return;

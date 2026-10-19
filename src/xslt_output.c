@@ -2437,6 +2437,10 @@ const sxml_xslt_stylesheet_outputs *sxml_xslt_result_writer_get_outputs(
     return writer == NULL ? NULL : writer->outputs;
 }
 
+bool sxml_xslt_result_writer_has_principal_document(const sxml_xslt_result_writer *writer) {
+    return writer != NULL && writer->has_principal_document;
+}
+
 sxml_xslt_result_writer *sxml_xslt_result_writer_from_call(const sxml_function_call *call) {
     /* A transformation fn:transform runs on the machine has its writer in
        its unit evaluation's extension (packet 7.11). */

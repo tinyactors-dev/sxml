@@ -278,5 +278,9 @@ sxml_xslt_current_output_uri sxml_xslt_result_writer_get_current_output_uri(
 const sxml_xslt_stylesheet_outputs *sxml_xslt_result_writer_get_outputs(
     const sxml_xslt_result_writer *writer);
 
+/* True when a result document without href (or with the base output
+   URI) became the principal result (26.2.2). */
+bool sxml_xslt_result_writer_has_principal_document(const sxml_xslt_result_writer *writer);
+
 /* The writer of the transformation a call runs in: NULL outside one. */
 sxml_xslt_result_writer *sxml_xslt_result_writer_from_call(const sxml_function_call *call);

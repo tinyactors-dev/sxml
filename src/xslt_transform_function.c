@@ -235,6 +235,9 @@ typedef struct transform_state {
     sxml_output_buffer *principal_output;
     /* Keeps the texts of the merged serialization parameters. */
     sxml_serialization_parameter_reader *parameter_reader;
+    /* The lists joined over the output definition's (cdata-section-
+       elements, suppress-indentation, use-character-maps); owned. */
+    void *joined_lists[3];
     sxml_xslt_output_definition output_definition;
     sxml_xslt_result_delivery result_delivery;
     sxml_xslt_transformation_request request;
@@ -293,6 +296,9 @@ static void release_transform_state(void *opaque_state) {
     sxml_xslt_result_document_collector_destroy(state->collector);
     sxml_output_buffer_destroy(state->principal_output);
     sxml_serialization_parameter_reader_destroy(state->parameter_reader);
+    for (size_t list_index = 0; list_index < 3; list_index += 1) {
+        sxml_allocator_release(allocator, state->joined_lists[list_index]);
+    }
     sxml_xslt_stylesheet_destroy(state->stylesheet);
     sxml_output_buffer_destroy(state->stylesheet_text);
     sxml_sequence_release(state->global_context_item);
@@ -905,6 +911,119 @@ static const parameter_field parameter_fields[] = {
     SXML_PRESENT_PARAMETER_FIELD("version", version, has_version),
 };
 
+/* The element names of the definition, then those given (26.1.1: the
+   lists of xsl:output declarations are joined); the given empty list is
+   the default, empty. */
+typedef struct name_list_join {
+    sxml_element_name_view defined;
+    sxml_element_name_view given;
+    size_t list_index;
+} name_list_join;
+
+static sxml_status join_names(transform_state *state, const name_list_join *join,
+                              sxml_element_name_view *joined) {
+    if (join->given.element_name_count == 0 || join->defined.element_name_count == 0) {
+        *joined = join->given;
+        return SXML_STATUS_OK;
+    }
+    const size_t name_count = join->defined.element_name_count + join->given.element_name_count;
+    void *memory = NULL;
+    const sxml_status status = sxml_allocator_allocate_array(
+        state->processor->allocator,
+        (sxml_array_allocation_request){.element_count = name_count,
+                                        .element_size = sizeof(sxml_name_identifier),
+                                        .element_alignment = alignof(sxml_name_identifier)},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    state->joined_lists[join->list_index] = memory;
+    sxml_name_identifier *names = memory;
+    memcpy(names, join->defined.element_names,
+           join->defined.element_name_count * sizeof(sxml_name_identifier));
+    memcpy(names + join->defined.element_name_count, join->given.element_names,
+           join->given.element_name_count * sizeof(sxml_name_identifier));
+    *joined = (sxml_element_name_view){.element_names = names, .element_name_count = name_count};
+    return SXML_STATUS_OK;
+}
+
+/* The mappings of the definition's character maps whose characters the
+   given maps do not map, then the given ones (26.1.1, 26.4: the higher
+   precedence wins for a character). */
+typedef struct map_join {
+    sxml_character_map_view defined;
+    sxml_character_map_view given;
+} map_join;
+
+static sxml_status join_maps(transform_state *state, const map_join *join,
+                             sxml_character_map_view *joined) {
+    if (join->given.character_mapping_count == 0 || join->defined.character_mapping_count == 0) {
+        *joined = join->given;
+        return SXML_STATUS_OK;
+    }
+    void *memory = NULL;
+    const sxml_status status = sxml_allocator_allocate_array(
+        state->processor->allocator,
+        (sxml_array_allocation_request){
+            .element_count = join->defined.character_mapping_count +
+                             join->given.character_mapping_count,
+            .element_size = sizeof(sxml_character_mapping),
+            .element_alignment = alignof(sxml_character_mapping)},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    state->joined_lists[2] = memory;
+    sxml_character_mapping *mappings = memory;
+    size_t mapping_count = 0;
+    for (size_t defined_index = 0; defined_index < join->defined.character_mapping_count;
+         defined_index += 1) {
+        const sxml_character_mapping *defined = &join->defined.character_mappings[defined_index];
+        bool is_given = false;
+        for (size_t given_index = 0; given_index < join->given.character_mapping_count;
+             given_index += 1) {
+            is_given = is_given ||
+                       join->given.character_mappings[given_index].codepoint == defined->codepoint;
+        }
+        if (!is_given) {
+            mappings[mapping_count] = *defined;
+            mapping_count += 1;
+        }
+    }
+    memcpy(mappings + mapping_count, join->given.character_mappings,
+           join->given.character_mapping_count * sizeof(sxml_character_mapping));
+    mapping_count += join->given.character_mapping_count;
+    *joined = (sxml_character_map_view){.character_mappings = mappings,
+                                        .character_mapping_count = mapping_count};
+    return SXML_STATUS_OK;
+}
+
+/* Joins the list parameters given over the definition's into given. */
+static sxml_status join_lists(transform_state *state, sxml_serialization_parameters *given) {
+    const sxml_serialization_parameters *defined =
+        &state->output_definition.serialization_parameters;
+    sxml_status status =
+        join_names(state,
+                   &(name_list_join){.defined = defined->cdata_section_elements,
+                                     .given = given->cdata_section_elements,
+                                     .list_index = 0},
+                   &given->cdata_section_elements);
+    if (status == SXML_STATUS_OK) {
+        status = join_names(state,
+                            &(name_list_join){.defined = defined->suppress_indentation,
+                                              .given = given->suppress_indentation,
+                                              .list_index = 1},
+                            &given->suppress_indentation);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = join_maps(state,
+                           &(map_join){.defined = defined->use_character_maps,
+                                       .given = given->use_character_maps},
+                           &given->use_character_maps);
+    }
+    return status;
+}
+
 /* Copies the parameters serialization-params gives over the unnamed
    output definition (F&O 4.0, 18.3, serialization-params: as an
    xsl:output of higher import precedence). */
@@ -926,6 +1045,9 @@ static sxml_status merge_serialization_parameters(const sxml_function_call *call
             &(sxml_serialization_parameter_read_request){.options = options,
                                                          .error_record = call->error_record},
             &given);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = join_lists(state, &given);
     }
     const sxml_item map = option_item(state, SXML_TRANSFORM_OPTION_SERIALIZATION_PARAMS);
     size_t entry_count = 0;
@@ -1018,6 +1140,31 @@ static sxml_status load_source(const sxml_function_call *call, transform_state *
     return status;
 }
 
+/* The initial mode (2.4.3): xsl:unnamed selects the unnamed mode, and
+   xsl:default the stylesheet's default mode. */
+static sxml_status read_initial_mode(const sxml_function_call *call, transform_state *state) {
+    const sxml_name_identifier mode = option_name(state, SXML_TRANSFORM_OPTION_INITIAL_MODE);
+    if (mode.index == 0) {
+        return SXML_STATUS_OK;
+    }
+    sxml_name_parts parts = {.namespace_uri = {.index = 0},
+                             .local_name = {.bytes = NULL, .byte_count = 0}};
+    const sxml_status status = sxml_name_pool_get_name_parts(
+        sxml_item_heap_get_name_pool(call->item_heap), mode, &parts);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    const bool is_xslt = parts.namespace_uri.index ==
+                         sxml_well_known_namespace_identifier(SXML_NAMESPACE_XSLT).index;
+    if (is_xslt && sxml_byte_view_equals(parts.local_name, SXML_BYTE_VIEW_FROM_LITERAL("unnamed"))) {
+        state->request.selects_unnamed_mode = true;
+    } else if (!is_xslt ||
+               !sxml_byte_view_equals(parts.local_name, SXML_BYTE_VIEW_FROM_LITERAL("default"))) {
+        state->request.initial_mode_name = mode;
+    }
+    return SXML_STATUS_OK;
+}
+
 /* Fills state->request: the invocation the options choose (18.3: the
    first of initial-function, initial-template, a source, else
    xsl:initial-template), its values and the global context item. */
@@ -1072,7 +1219,7 @@ static sxml_status choose_invocation(const sxml_function_call *call, transform_s
     } else if (has_source_node || has_selection ||
                has_option(state, SXML_TRANSFORM_OPTION_SOURCE_LOCATION)) {
         request->invocation_kind = SXML_XSLT_INVOCATION_KIND_APPLY_TEMPLATES;
-        request->initial_mode_name = option_name(state, SXML_TRANSFORM_OPTION_INITIAL_MODE);
+        status = read_initial_mode(call, state);
         if (has_selection) {
             request->has_initial_match_selection = true;
             request->initial_match_selection =
@@ -1248,8 +1395,12 @@ static sxml_status collect_results(const sxml_native_step_request *step_request)
     const sxml_function_call *call = step_request->call;
     transform_state *state = step_request->state;
     sxml_sequence principal = sxml_sequence_empty();
-    sxml_status status = sxml_xslt_machine_transformation_deliver(
-        state->running, step_request->call_result, &principal);
+    uint64_t raw_count = 0;
+    sxml_status status = sxml_sequence_count(step_request->call_result, NULL, &raw_count);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xslt_machine_transformation_deliver(state->running,
+                                                          step_request->call_result, &principal);
+    }
     sxml_sequence_release(step_request->call_result);
     sxml_dynamic_context_drop_unit_extension(
         state->dynamic_context, sxml_xslt_machine_transformation_get_extension(state->running));
@@ -1276,7 +1427,12 @@ static sxml_status collect_results(const sxml_native_step_request *step_request)
         status = string_of_bytes(call, sxml_output_buffer_get_bytes(state->principal_output),
                                  &principal);
     }
-    if (status == SXML_STATUS_OK) {
+    /* An empty principal result beside result documents is no result
+       (2.4.6, 26.2.2: it is discarded). */
+    const bool has_principal =
+        raw_count > 0 || document_count == 0 ||
+        sxml_xslt_machine_transformation_has_principal_document(state->running);
+    if (status == SXML_STATUS_OK && has_principal) {
         status = add_entry(state,
                            &(entry_request){.call = call,
                                             .key = has_option(state,
@@ -1284,6 +1440,8 @@ static sxml_status collect_results(const sxml_native_step_request *step_request)
                                                        ? state->base_output_uri.uri
                                                        : SXML_BYTE_VIEW_FROM_LITERAL("output")},
                            principal);
+    } else {
+        sxml_sequence_release(principal);
     }
     for (size_t document_index = 0; status == SXML_STATUS_OK && document_index < document_count;
          document_index += 1) {
