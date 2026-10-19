@@ -216,11 +216,14 @@ adaptive output method writes the result, one item on each line.
   `/usr/share/zoneinfo`: an IANA zone name such as `Europe/Paris`, or a
   country code such as `us` for `[ZN]`. Without it, only `UTC` is known.
 - UCA collation URIs (`http://www.w3.org/2013/collation/UCA?...`) order
-  strings by the Unicode Collation Algorithm 16.0 with the DUCET, which
-  sxml carries inside, with the parameters `strength`, `alternate`,
-  `maxVariable`, `backwards`, `caseLevel`, `caseFirst`, `numeric` and
-  `fallback`; `lang` other than `en` and `reorder` are not supported yet
-  (with `fallback=no`, `err:FOCH0002`).
+  strings by the Unicode Collation Algorithm 16.0 with the CLDR root
+  collation, which sxml carries inside, with the parameters `strength`,
+  `alternate`, `maxVariable`, `backwards`, `caseLevel`, `caseFirst`,
+  `numeric`, `reorder` (`reorder=Grek,digit`) and `fallback`, and `lang`
+  with the CLDR collations sxml carries for en, de, fr, it, es and nl and
+  their regions (`lang=es`, `lang=de-u-co-phonebk`, `lang=fr-CA`,
+  `lang=en-US-POSIX`). Other languages are the root order (with
+  `fallback=no`, `err:FOCH0002`). `xsl:sort lang="es"` uses the same.
 - An EXPRESSION that starts with `-` must come after `--`.
 - An error is reported on standard error as
   `expression:LINE:COLUMN: err:CODE: description`.

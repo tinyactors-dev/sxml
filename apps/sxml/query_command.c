@@ -117,19 +117,34 @@ static sxml_byte_view sxml_query_zoneinfo_path(const sxml_resource_request *requ
     return (sxml_byte_view){.bytes = path, .byte_count = directory.byte_count + name.byte_count};
 }
 
-/* The UCA collation feature's DUCET (SXML_RESOURCE_KIND_COLLATION_DATA,
-   D213): the program's copy (collation_data.h), joined into allocator
-   memory that sxml_query_release_file gives back. */
+/* The UCA collation feature's data (SXML_RESOURCE_KIND_COLLATION_DATA,
+   D213, D220): "urn:sxml:collation-data:" and the path of one of the
+   program's CLDR files (collation_data.h), joined into allocator memory
+   that sxml_query_release_file gives back. */
 static sxml_status sxml_query_serve_collation_data(const sxml_query_file_resolver *resolver,
                                                    const sxml_resource_request *request,
                                                    sxml_resource *resource) {
-    if (!sxml_byte_view_equals(request->absolute_uri,
-                               SXML_TEXT("http://www.unicode.org/Public/UCA/16.0.0/allkeys.txt"))) {
+    const sxml_byte_view prefix = SXML_TEXT("urn:sxml:collation-data:");
+    const sxml_byte_view uri = request->absolute_uri;
+    const sxml_cli_collation_file_view files = sxml_cli_collation_data();
+    const sxml_cli_collation_file *found = NULL;
+    if (uri.byte_count > prefix.byte_count &&
+        memcmp(uri.bytes, prefix.bytes, prefix.byte_count) == 0) {
+        const sxml_byte_view path = {.bytes = uri.bytes + prefix.byte_count,
+                                     .byte_count = uri.byte_count - prefix.byte_count};
+        for (size_t file_index = 0; file_index < files.file_count; file_index += 1) {
+            if (sxml_byte_view_equals(path,
+                                      sxml_byte_view_from_c_string(files.files[file_index].path))) {
+                found = &files.files[file_index];
+            }
+        }
+    }
+    if (found == NULL) {
         resource->resource_form = SXML_RESOURCE_FORM_NONE;
         resource->description = SXML_TEXT("sxml has no such collation data");
         return SXML_STATUS_OK;
     }
-    const sxml_cli_text_chunks data = sxml_cli_collation_data();
+    const sxml_cli_text_chunks data = found->text;
     size_t byte_count = 0;
     for (size_t chunk_index = 0; chunk_index < data.chunk_count; chunk_index += 1) {
         byte_count += strlen(data.chunks[chunk_index]);

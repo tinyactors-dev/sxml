@@ -23,17 +23,34 @@ target_include_directories(sxml_cli_framework PUBLIC "${CMAKE_CURRENT_SOURCE_DIR
 target_link_libraries(sxml_cli_framework PUBLIC sxml)
 sxml_apply_project_flags(sxml_cli_framework)
 
-# The DUCET the sxml command serves to the UCA collation feature (D213),
-# generated from the vendored allkeys.txt into the build directory.
-set(SXML_COLLATION_DATA_INPUT "${PROJECT_SOURCE_DIR}/third_party/unicode-collation/allkeys.txt")
+# The collation data the sxml command serves to the UCA collation feature
+# (D213, D220): the CLDR root and the languages of D208 from the vendored
+# CLDR subset, generated into the build directory. root.xml is left out:
+# its own types (search, eor, emoji) use rules sxml does not support.
+set(SXML_COLLATION_DATA_DIRECTORY "${PROJECT_SOURCE_DIR}/third_party/cldr/common")
+set(SXML_COLLATION_DATA_PATHS
+    uca/allkeys_CLDR.txt
+    collation/de.xml collation/de_AT.xml collation/en.xml collation/en_US.xml
+    collation/en_US_POSIX.xml collation/es.xml collation/fr.xml collation/fr_CA.xml
+    collation/it.xml collation/nl.xml)
+set(SXML_COLLATION_DATA_INPUTS "")
+set(SXML_COLLATION_DATA_FILES "")
+foreach(collation_path IN LISTS SXML_COLLATION_DATA_PATHS)
+    if(NOT SXML_COLLATION_DATA_INPUTS STREQUAL "")
+        string(APPEND SXML_COLLATION_DATA_INPUTS "|")
+    endif()
+    string(APPEND SXML_COLLATION_DATA_INPUTS
+        "${collation_path}=${SXML_COLLATION_DATA_DIRECTORY}/${collation_path}")
+    list(APPEND SXML_COLLATION_DATA_FILES "${SXML_COLLATION_DATA_DIRECTORY}/${collation_path}")
+endforeach()
 set(SXML_COLLATION_DATA_SOURCE "${CMAKE_CURRENT_BINARY_DIR}/sxml_collation_data.c")
 add_custom_command(
     OUTPUT "${SXML_COLLATION_DATA_SOURCE}"
-    COMMAND "${CMAKE_COMMAND}" "-DINPUT=${SXML_COLLATION_DATA_INPUT}"
+    COMMAND "${CMAKE_COMMAND}" "-DINPUTS=${SXML_COLLATION_DATA_INPUTS}"
         "-DOUTPUT=${SXML_COLLATION_DATA_SOURCE}"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/sxml/embed-collation-data.cmake"
-    DEPENDS "${SXML_COLLATION_DATA_INPUT}" "${CMAKE_CURRENT_SOURCE_DIR}/sxml/embed-collation-data.cmake"
-    COMMENT "Embedding the DUCET for the sxml command"
+    DEPENDS ${SXML_COLLATION_DATA_FILES} "${CMAKE_CURRENT_SOURCE_DIR}/sxml/embed-collation-data.cmake"
+    COMMENT "Embedding the CLDR collation data for the sxml command"
     VERBATIM)
 
 add_library(sxml_program STATIC

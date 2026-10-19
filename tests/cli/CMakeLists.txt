@@ -174,6 +174,10 @@ sxml_add_cli_test(xpath_timezone EXIT_CODE 0 ARGUMENTS xpath "civil-timezone(xs:
 # numeric order, caseFirst, and fallback=no, which only the table serves
 # (";" is CMake's list separator, so the URIs build it).
 sxml_add_cli_test(xpath_uca_collation EXIT_CODE 0 ARGUMENTS xpath "let $uca := 'http://www.w3.org/2013/collation/UCA?fallback=no' || codepoints-to-string(59) return (compare('Chap2', 'Chap10', $uca || 'numeric=yes'), sort(('b', 'B', 'a', 'A'), $uca || 'caseFirst=upper'))")
+# Tailorings and reordering over the CLDR files the command embeds (D220):
+# Spanish n-tilde, German phonebook, Canadian French accents, Greek first.
+sxml_add_cli_test(xpath_uca_tailoring EXIT_CODE 0 ARGUMENTS xpath "let $uca := 'http://www.w3.org/2013/collation/UCA?fallback=no' || codepoints-to-string(59) return (compare(codepoints-to-string(241) || 'a', 'nz', $uca || 'lang=es'), compare(codepoints-to-string(241) || 'a', 'nz', $uca), compare(codepoints-to-string(228), 'ae', $uca || 'lang=de-u-co-phonebk' || codepoints-to-string(59) || 'strength=primary'), compare('p' || codepoints-to-string(234) || 'che', 'p' || codepoints-to-string(233) || 'ch' || codepoints-to-string(233), $uca || 'lang=fr-CA' || codepoints-to-string(59) || 'strength=secondary'), compare(codepoints-to-string(945), 'a', $uca || 'reorder=Grek'), collation-available($uca || 'lang=se'))")
+sxml_add_cli_test(transform_sort_lang EXIT_CODE 0 ARGUMENTS transform xslt/sort-lang.xsl books.xml)
 # fn:transform, one of the optional features the query commands name (D203).
 sxml_add_cli_test(xquery_transform EXIT_CODE 0 ARGUMENTS xquery "--expression=transform({'stylesheet-location': 'xslt/modes.xsl', 'source-node': doc('books.xml'), 'initial-mode': QName('', 'titles'), 'delivery-format': 'serialized'})?output")
 sxml_add_cli_test(xpath_file_access EXIT_CODE 0 ARGUMENTS xpath --allow-file-access "file:exists('books.xml'), file:is-dir('xslt'), file:is-file('xslt'), file:read-text-lines('books.xml')[1]")
