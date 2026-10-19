@@ -275,7 +275,7 @@ static sxml_status sxml_processor_make_library_part_list(
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    const sxml_native_function_view **views = memory;
+    const sxml_native_function_view **views = (const sxml_native_function_view **)memory;
     size_t filled = 0;
     for (size_t part_index = 0; part_index < registered.native_function_view_count;
          part_index += 1) {
