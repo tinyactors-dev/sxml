@@ -53,6 +53,7 @@
 #include "xpath_lower_internal.h"
 
 #include "decimal_internal.h"
+#include "evaluator_machine_internal.h"
 #include "operator_internal.h"
 #include "ir_pass_internal.h"
 #include "schema_scope_internal.h"
@@ -9159,7 +9160,8 @@ sxml_status sxml_xpath_lower(const sxml_xpath_lowering_request *request,
             .allocator = context->allocator,
             .item_heap = context->item_heap,
             .source_name = request->ast->source_name,
-            .maximum_expression_count = request->maximum_expression_count},
+            .maximum_expression_count = request->maximum_expression_count,
+            .evaluator_parts = sxml_evaluator_xpath_parts()},
         &new_unit);
     if (status != SXML_STATUS_OK) {
         return status;

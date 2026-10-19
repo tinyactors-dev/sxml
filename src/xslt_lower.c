@@ -13,6 +13,7 @@
 #include "xslt_lower_internal.h"
 #include "memory_internal.h"
 
+#include "evaluator_machine_internal.h"
 #include "function_library_core_internal.h"
 #include "ir_pass_internal.h"
 #include "xslt_accumulator_internal.h"
@@ -2675,7 +2676,8 @@ sxml_status sxml_xslt_lower_initial_template(const sxml_xslt_lowering_request *r
             .source_name =
                 sxml_xslt_ast_get_module(request->ast, (sxml_xslt_ast_module_index){.value = 1})
                     ->module_uri,
-            .maximum_expression_count = request->maximum_expression_count},
+            .maximum_expression_count = request->maximum_expression_count,
+            .evaluator_parts = sxml_evaluator_xslt_parts()},
         &new_unit);
     if (status != SXML_STATUS_OK) {
         return status;

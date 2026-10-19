@@ -59,6 +59,7 @@
  */
 #include "xquery_lower_internal.h"
 
+#include "evaluator_machine_internal.h"
 #include "full_text_internal.h"
 #include "ir_pass_internal.h"
 #include "sxml/memory.h"
@@ -1892,7 +1893,8 @@ sxml_status sxml_xquery_lower(const sxml_xquery_lowering_request *request, sxml_
                                       .item_heap = host->item_heap,
                                       .source_name = request->ast->source_name,
                                       .maximum_expression_count =
-                                          request->maximum_expression_count},
+                                          request->maximum_expression_count,
+                                      .evaluator_parts = sxml_evaluator_xquery_parts()},
         &new_unit);
     if (status != SXML_STATUS_OK) {
         sxml_xquery_release_modules(&set);

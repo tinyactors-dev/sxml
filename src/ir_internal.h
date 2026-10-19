@@ -1238,6 +1238,11 @@ typedef struct sxml_ir_unit_configuration {
     /* Most expressions the unit may hold, a bound for untrusted input; 0
        means no bound. Reaching it gives SXML_STATUS_LIMIT_EXCEEDED. */
     uint32_t maximum_expression_count;
+    /* The evaluator parts its code may need: the list of the language
+       lowering into it, sxml_evaluator_<language>_parts()
+       (src/evaluator_machine_internal.h, D227); NULL means XPath's. Static
+       data, kept by reference. */
+    const struct sxml_evaluator_registered_part_view *evaluator_parts;
 } sxml_ir_unit_configuration;
 
 /*
@@ -1309,6 +1314,8 @@ struct sxml_ir_unit {
     sxml_item_heap *item_heap;
     sxml_byte_view source_name;
     uint32_t maximum_expression_count;
+    /* As sxml_ir_unit_configuration.evaluator_parts. */
+    const struct sxml_evaluator_registered_part_view *evaluator_parts;
     /* The static base URI of the unit's static context (XPath 4.0,
        section 2.2.1), in allocator memory; empty when absent. Set by
        sxml_ir_unit_set_static_base_uri; has_static_base_uri tells a unit
