@@ -5,7 +5,9 @@
  * (content models, attributes, xsi:type, xsi:nil, value constraints,
  * wildcards, ID and IDREF, lax and strict modes), the annotated events it
  * passes on, and sxml_schema_validate_node with typed values derived
- * from the annotations (fn:data of a validated element).
+ * from the annotations (fn:data of a validated element); and an
+ * allocation-failure loop over compilation, validation while parsing and
+ * sxml_schema_validate_node (D23, the Phase 5 review).
  *
  * Golden file: tests/schema_test.c (a schema compiled from text through
  * the public API, the error record and the report sink).
@@ -610,12 +612,143 @@ static void test_validated_copy_has_defaults(sxml_test_state *state) {
     sxml_processor_destroy(processor);
 }
 
+/* A schema with an assertion, a key and a type alternative, compiled and
+   used twice (while parsing and by sxml_schema_validate_node) with
+   allocation failing_number failing: every step either succeeds or fails
+   with SXML_STATUS_OUT_OF_MEMORY, and nothing leaks (D23). */
+static const char failure_schema[] =
+    "<xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'>"
+    "<xs:element name='list'><xs:complexType><xs:sequence>"
+    "<xs:element name='item' maxOccurs='unbounded' type='Item'>"
+    "<xs:alternative test='@kind = \"big\"' type='BigItem'/></xs:element>"
+    "</xs:sequence><xs:assert test='count(item) le 3'/></xs:complexType>"
+    "<xs:key name='ids'><xs:selector xpath='item'/><xs:field xpath='@id'/></xs:key>"
+    "</xs:element>"
+    "<xs:complexType name='Item'><xs:simpleContent><xs:extension base='xs:decimal'>"
+    "<xs:attribute name='id' type='xs:ID' use='required'/>"
+    "<xs:attribute name='kind' type='xs:token'/></xs:extension></xs:simpleContent>"
+    "</xs:complexType>"
+    "<xs:complexType name='BigItem'><xs:simpleContent><xs:restriction base='Item'>"
+    "<xs:minInclusive value='100'/></xs:restriction></xs:simpleContent></xs:complexType>"
+    "</xs:schema>";
+
+static const char failure_document[] =
+    "<list><item id='a'>1.5</item><item id='b' kind='big'>200</item></list>";
+
+static sxml_status validate_with_failure(sxml_test_state *state, uint64_t failing_number) {
+    sxml_counting_allocator *counting_allocator = NULL;
+    sxml_status status = sxml_counting_allocator_create(
+        sxml_default_allocator(),
+        &(sxml_counting_allocator_configuration){.backing_allocator = sxml_default_allocator(),
+                                                 .failing_allocation_number = failing_number},
+        &counting_allocator);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    const sxml_allocator allocator = sxml_counting_allocator_as_allocator(counting_allocator);
+    sxml_processor *processor = NULL;
+    sxml_schema *schema = NULL;
+    sxml_schema_validator *validator = NULL;
+    sxml_xml_parser *parser = NULL;
+    sxml_item document = {.representation = 0};
+    sxml_item validated = {.representation = 0};
+    sxml_validation_outcome outcome = {.validity = SXML_VALIDITY_INVALID, .error_count = 0};
+    status = sxml_processor_create(allocator, &(sxml_processor_configuration){.allocator = allocator},
+                                   &processor);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_schema_create(
+            allocator,
+            &(sxml_schema_configuration){
+                .processor = processor,
+                .schema_documents = {.schema_documents =
+                                         &(sxml_schema_document){
+                                             .document_source = SXML_SCHEMA_DOCUMENT_SOURCE_TEXT,
+                                             .document_text = TEXT(failure_schema),
+                                             .document_uri = TEXT("file:///failure.xsd")},
+                                     .schema_document_count = 1}},
+            &schema);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_schema_validator_create(
+            allocator,
+            &(sxml_schema_validator_configuration){.schema = schema,
+                                                   .validation_mode = SXML_VALIDATION_MODE_STRICT,
+                                                   .governing_type = {.index = SXML_TYPE_NONE}},
+            &validator);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xml_parser_create(
+            allocator,
+            &(sxml_xml_parser_configuration){.allocator = allocator,
+                                             .name_pool = sxml_processor_get_name_pool(processor)},
+            &parser);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xml_parser_parse(
+            parser,
+            &(sxml_xml_parse_request){.input = TEXT(failure_document),
+                                      .source_name = TEXT("failure.xml")},
+            sxml_schema_validator_as_tree_builder(validator));
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_schema_validator_get_outcome(validator, &outcome);
+    }
+    if (status == SXML_STATUS_OK) {
+        SXML_TEST_EXPECT(state, outcome.validity == SXML_VALIDITY_VALID);
+        status = sxml_processor_parse_document(
+            processor,
+            &(sxml_xml_parse_request){.input = TEXT(failure_document),
+                                      .source_name = TEXT("failure.xml")},
+            &document);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_schema_validate_node(
+            schema,
+            &(sxml_schema_validation_request){.node = document,
+                                              .validation_mode = SXML_VALIDATION_MODE_STRICT,
+                                              .governing_type = {.index = SXML_TYPE_NONE}},
+            &validated);
+    }
+    sxml_item_release(validated);
+    sxml_item_release(document);
+    sxml_xml_parser_destroy(parser);
+    sxml_schema_validator_destroy(validator);
+    sxml_schema_destroy(schema);
+    if (processor != NULL) {
+        sxml_item_heap *item_heap = sxml_processor_get_item_heap(processor);
+        sxml_item_heap_clear_raised_error(item_heap);
+        SXML_TEST_EXPECT(state, sxml_item_heap_read_counts(item_heap).live_cell_count == 0);
+    }
+    sxml_processor_destroy(processor);
+    SXML_TEST_EXPECT(state,
+                     sxml_counting_allocator_read_counts(counting_allocator).live_allocation_count ==
+                         0);
+    sxml_counting_allocator_destroy(counting_allocator);
+    return status;
+}
+
+static void test_validation_survives_every_allocation_failure(sxml_test_state *state) {
+    sxml_status status = SXML_STATUS_OUT_OF_MEMORY;
+    uint64_t failing_number = 1;
+    for (; status != SXML_STATUS_OK && failing_number < 200000; failing_number += 1) {
+        status = validate_with_failure(state, failing_number);
+        SXML_TEST_EXPECT(state, status == SXML_STATUS_OK || status == SXML_STATUS_OUT_OF_MEMORY);
+        if (status != SXML_STATUS_OK && status != SXML_STATUS_OUT_OF_MEMORY) {
+            break;
+        }
+    }
+    SXML_TEST_EXPECT(state, status == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, failing_number > 10);
+}
+
 static const sxml_test_case schema_validate_test_cases[] = {
     {.name = "lifecycle_checks_its_arguments", .function = test_lifecycle_checks_its_arguments},
     {.name = "purchase_order", .function = test_purchase_order},
     {.name = "declarations_and_xsi", .function = test_declarations_and_xsi},
     {.name = "validated_node_has_typed_value", .function = test_validated_node_has_typed_value},
     {.name = "validated_copy_has_defaults", .function = test_validated_copy_has_defaults},
+    {.name = "validation_survives_every_allocation_failure",
+     .function = test_validation_survives_every_allocation_failure},
 };
 
 int main(int argument_count, char **arguments) {
