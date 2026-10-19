@@ -850,3 +850,24 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `effective_facets` | The facets of a simple type with those of its bases it does not overlay, and those built-in types have implicitly, one per kind; what a restriction's own facets are checked against (XSD 1.1 Part 1, 3.16.6.4; D171) |
 | `value_order` | XSD's order of two values of one primitive type: less, equal, greater or incomparable (partial for dates, times and durations, NaN incomparable; XSD 1.1 Part 2, 2.2.3) |
 | `special_type` | xs:anyType, xs:anySimpleType and xs:anyAtomicType: no list item type, union member or restriction base of a schema's simple type (XSD 1.1 Part 1, 3.16.6.2) |
+| `optional_feature` | A part of sxml that a host opts into by naming it in the processor configuration, so a program that never names it does not link it: large tables and front ends such as UCA, the timezone database, HTML parsing (`sxml_optional_feature`; D183, proposed for the owner) |
+| `dynamic_evaluation` | Compiling and evaluating an XPath expression whose text is computed at run time: xsl:evaluate (XSLT 4.0, 10.5), run as a unit evaluation |
+| `xpath_1_compatibility_mode` | The static context setting under which comparisons, arithmetic and function arguments follow XPath 1.0's conversions (XPath 4.0, section 2.2.1); XSLT sets it for elements whose effective version is below 2.0 |
+| `backwards_compatible_behaviour` | XSLT's processing of an element whose effective version is below 2.0 by the XSLT 1.0 rules (XSLT 4.0, 3.8) |
+| `output_escaping_marker` | The processing-instruction pair `javax.xml.transform.disable-output-escaping` / `enable-output-escaping` around result text whose escaping is disabled (XSLT 4.0, 26.2); read by the serializer, dropped otherwise |
+| `posture` | How a construct's value relates to a streamed input: grounded, climbing, striding, crawling or roaming (XSLT 4.0, 19.1) |
+| `sweep` | How much of a streamed input a construct reads: motionless, consuming or free-ranging (XSLT 4.0, 19.1) |
+| `streamability` | Whether a construct is guaranteed-streamable by the rules of XSLT 4.0, chapter 19, computed from postures and sweeps |
+| `pending_update_list` | The update primitives an updating expression returns, applied together at the end of a snapshot (XQuery Update Facility 3.0, "pending update list"); internal to the evaluator, not an XDM item |
+| `update_primitive` | One change of a pending update list: insert, delete, replace node, replace value, rename, put (XQuery Update Facility 3.0, "update primitives") |
+| `full_text_selection` | The compiled form of an FTSelection: words, connectives, positional filters and match options, run as a match program (XQuery and XPath Full Text 3.0) |
+| `all_matches` | The set of matches a full-text selection gives over the tokens of a node, with their positions (XQuery and XPath Full Text 3.0, "AllMatches") |
+| `html_working_tree` | The HTML parser's mutable node table during tree construction (adoption agency, foster parenting), sent to the tree builder once the document ends |
+| `insertion_mode` | The state of HTML tree construction that decides how a token is handled (HTML Living Standard, 13.2.4.1) |
+| `ixml_grammar` | An Invisible XML grammar compiled for the Earley parser: rules, alternatives, terminals and marks |
+| `parse_forest` | The Earley parser's shared record of every parse of an input under an ixml grammar; the first tree is serialized, and more than one marks the result ambiguous |
+| `collation_element_table` | The mapping of code points and contractions to collation elements, the DUCET or the CLDR root collation (UTS #10, section 3.6) |
+| `tailoring` | Changes to a collation element table for a language or a reordering, compiled from CLDR rules (UTS #35, Part 5) |
+| `timezone_database` | Zones of the IANA Time Zone Database: for a zone name and an instant, the offset and abbreviation in effect |
+| `zone_name` | An IANA timezone name such as `Europe/Berlin` (an "Olson name"), a place of fn:civil-timezone and the formatting functions |
+| `language_table` | The names and words of one language that the formatting functions use: months, days, eras, ordinal suffixes and spell-out rules |
