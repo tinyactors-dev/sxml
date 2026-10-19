@@ -21,6 +21,11 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 Windows file writer is untested; replaced files get default permissions;
 fn:put does not create directories; cli/xpath_timezone fails under WASI.
 
+iXML (7.18, D215): fn-invisible-xml 16/16; iXML suite 886 of 907 (711 of
+715 cases with a correct grammar); Earley parser with explicit stacks.
+Left: Leo items for right recursion (quadratic memory); 4 cases with C0
+controls cannot pass while the function takes an xs:string.
+
 JavaScript (js-1, D216): 7,000,000 / 2,450,000
   (6,570,723). XQuery lowering parts (about
   75 KB) stay in the core until the part registry is split by language.
@@ -32,7 +37,7 @@ JavaScript (js-1, D216): 7,000,000 / 2,450,000
 - 7.12a XQuery/XPath Full Text, part 1.
 - 7.6b XSLT streamed evaluation.
 - 7.17 calendars and languages.
-- 7.18 Invisible XML.
+- 2.22 XPath/XQuery leftovers sweep.
 
 ## Next
 

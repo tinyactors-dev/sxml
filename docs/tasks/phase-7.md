@@ -909,7 +909,15 @@ json-doc and unparsed-text-available (2 cases).
 **Done** 2026-10-19 (D188): disable-output-escaping 25 of 25 run pass
 (7 not run: 3 need streaming, 1 is XSLT 2.0 only, 3 need the feature
 absent), bug 4 more; XT40 8,759 to 8,784 passed, 0 errors, none lost
-(5 cases that need the feature absent are not run any more).
+(5 cases that need the feature absent are not run any more).**7.12a done** 2026-10-19 (D214): the grammar, AST, static rules,
+tokenizer, the match program over AllMatches rows with every
+connective, FTWords variant and positional filter, case, diacritics,
+wildcards and explicit stop words, score variables, as the optional
+feature full-text; QT4 ft-* 624 of 685 pass (91 %), gate met.
+`sxml.wasm` +2 KB, the CLI and `sxml-full.wasm` +540 KB (grammar
+500 KB). 7.12b/c: stemming, stop word lists and thesauri by URI
+(the two resource kinds; fullText-defaults), scores from the matches.
+
 
 ### 7.13 XML 1.1 input (implementation; proposed, D183)
 - **Specifications**: XML 1.1 (Second Edition), 2.2 (Char, RestrictedChar:

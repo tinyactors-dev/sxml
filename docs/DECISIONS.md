@@ -8728,6 +8728,90 @@ Amended as the packet goes on.
 - XPath's Full Text is not implemented: the QT4 cases are XQuery only,
   and the XPath grammar and `sxml.wasm` stay as they are.
 
+- **Amended at the end of 7.12a**: the packet did the task file's 7.12a
+  and most of 7.12b and 7.12c, in the orchestrator's order.
+- **The optional feature full-text** (D189): `sxml_full_text_feature()`,
+  declared in `include/sxml/xquery.h` (additive; Full Text is XQuery
+  only), kind SXML_OPTIONAL_FEATURE_KIND_FULL_TEXT, in
+  `sxml_all_optional_features()` and so in the CLI, the drivers and
+  `sxml-full.wasm`. The D162 place is `src/xquery_lower_full_text.c`,
+  which XQuery's lowering always links (2 KB in `sxml.wasm`): without
+  the feature the first Full Text construct of a module is XPST0003;
+  with it the feature's static rules run, and the lowering rule of
+  FT_CONTAINS_EXPRESSION is a procedure whose step is the feature's. The
+  rest (`src/full_text_lower.c`, `full_text.c`, `full_text_match.c`,
+  `full_text_tokenize.c`, about 36 KB of wasm) links only with the
+  feature.
+- **Static rules**: FTST0019 (one group twice in one FTMatchOptions),
+  FTST0009 for a language whose primary subtag is not en, de, fr, it, es
+  or nl (sxml does not segment Chinese, Japanese or Thai), FTST0006 for
+  stop word lists by URI and FTST0018 for thesauri by URI (until 7.12c),
+  XQST0079 for an extension selection without a selection (no pragma is
+  recognized), XQST0089 for a score variable named as its for or
+  positional variable, XPST0081 for undeclared prefixes of extension
+  option and pragma names.
+- **The match program**: "E contains text S" lowers to the internal row
+  contains(E, program, ignore). The program is an XDM array, member 1 a
+  postfix text (one instruction per selection node and filter, FTOrder
+  filters first, 3.5), the others the operands, coerced as 4.3 step 1
+  says (words xs:string*, ranges and windows xs:integer, weights
+  xs:double) and static stop word lists. The match options are static
+  and written into each words instruction (prolog ft-option declarations
+  in order, then the FTMatchOptions around the words, innermost first).
+  No IR kind and no evaluator state are added.
+- **AllMatches are internal rows**, not XDM values: StringMatches,
+  Matches and AllMatches as ranges of two arrays that grow during one
+  item's run, a stack of AllMatches, each fts: function of 4.2.6 as a
+  loop (D71). Past 2,000,000 rows a run is SXML_STATUS_LIMIT_EXCEEDED.
+  Simplified against the formal functions: FTTimes with an upper bound
+  gives each combination of occurrences in range with the others as
+  StringExcludes (the same results without later filters), "at least
+  N" without an upper bound the combinations of exactly N; FTWindow over
+  a match with StringExcludes gives one match per distinct set of
+  retained excludes.
+- **Tokens** (4.1, implementation-defined): maximal runs of L, M, N and
+  Pc characters, an apostrophe between letters and "." or "," between
+  digits included; a sentence ends after ".", "!" or "?"; a node's text
+  is its string value without the ignored subtrees (fts:reconstruct),
+  and a paragraph (and sentence, and token) ends between two text nodes,
+  not only whitespace, whose parents are not one inside the other: so
+  "<b>p</b>rototypes" is one word, and element boundaries are paragraph
+  boundaries (the QT4 dependency fullText-units).
+- **Match options**: case (full case mapping), diacritics (NFD without
+  Mn), wildcards (a state-set loop over ".", ".?", ".*", ".+",
+  ".{n,m}", "\"; an escaped punctuation character separates tokens),
+  explicit stop word lists with union and except (a stop word matches
+  any token). Stemming is accepted and does nothing yet; "thesaurus
+  default" is empty; "stop words default" is empty. Languages: no effect
+  on matching.
+- **Scores** (2.3, implementation-dependent within [0, 1]): a for
+  binding's score is 1 for every item; let score is 1 when the value is
+  a node, a true boolean, a non-empty string or a non-zero number, else
+  0. Weights are checked (FTDY0016) and do not change scores.
+- **QT4 driver**: fullText, fullText-ignore and fullText-units are
+  supported for XQuery (still non-goals of the D95 denominators);
+  fullText-defaults (XQFTTS's default stop word list and thesaurus) is
+  not.
+- **ft-* (XQ40)**: before 0 of 685 run; after (debug and release
+  driver) 624 passed (2 with another error code), 57 failed, 0 errors,
+  4 not run (91.1 %; the gate of 75 % is met). The 59 not passed or
+  passed with another code: 29 use a thesaurus or a stop word list by
+  URI, 21 use stemming, 6 are assert-xml differences of the ignore use
+  cases, 2 ask "window 1 paragraphs" of two adjacent paragraphs, which
+  contradicts fullText-units, 1 (composability q4) is not analyzed.
+- **Sizes** (stripped / gzipped, at 81728fb plus nothing): `sxml.wasm`
+  2,135,848 / 744,527 (about 2 KB of it Full Text), `sxml-full.wasm`
+  6,794,049 / 1,511,813, the CLI 8,041,314 / 1,756,778: within every
+  budget, none raised. The grammar costs the CLI and the full module
+  about 500 KB, the feature about 36 KB.
+- **Left for 7.12b/c**: stemming (Snowball English, then others), the
+  resource kinds FULL_TEXT_STOP_WORDS and FULL_TEXT_THESAURUS in
+  `processor.h` with the QT4 catalog's files served by the driver
+  (FTST0006 and FTST0018 then become lookups; fullText-defaults), a
+  thesaurus with relationships and levels, scores that depend on the
+  matches and weights, and UAX #29 word boundaries in full (CJK
+  segmentation would let zh in).
+
 ### D215. Invisible XML: fn:invisible-xml over an Earley parser (packet 7.18)
 Recorded 2026-10-19, after D12, D13, D53, D71, D162, D183, D189, D191,
 D208. Replaces D162's place for fn:invisible-xml (the function was
