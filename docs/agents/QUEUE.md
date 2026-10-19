@@ -11,37 +11,18 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
   All public headers are stable.
 - Passes: XP40 31,098, XQ40 42,490, XT40 8,931+, XSD in scope 41,483 of
   41,518. Zero error outcomes in every suite.
-- Optional features (D189). Budgets (D202, D207): core `sxml.wasm`
-  2,200,000 / 770,000 (2,131,859 after 7.2b moved DTD validation behind a
-  feature, D211), `sxml-full.wasm` 4,000,000 / 1,400,000 (3,577,133), CLI
-  module 9,000,000 / 2,000,000 (8,532,870 / 1,900,382 after 7.15b; near the gzipped limit). The full module carries
-  XQuery, XSLT and XSD for CLI (cli-2, D217): `--output`/`-o` with `--force` and atomic writes,
-`sxml transform --result-directory=DIR`, `sxml xquery --allow-put`,
-`--method=csv`, hints for misspelled and other commands' options. Left: the
-Windows file writer is untested; replaced files get default permissions;
-fn:put does not create directories; cli/xpath_timezone fails under WASI.
-
-Full Text (7.12a-c, D214): ft-* 672 of 685, optional feature full-text;
-Snowball 3.1.1 stemmers (en de fr it es nl) interpreted from vendored .sbl;
-stop words and thesauri served by the host; BM25-like scores. Left: 9 cases
-whose expected XML was re-indented (whitespace only), 2 stemmer-dependent,
-2 window-paragraph cases that contradict fullText-units.
-
-iXML (7.18, D215): fn-invisible-xml 16/16; iXML suite 886 of 907 (711 of
-715 cases with a correct grammar); Earley parser with explicit stacks.
-Left: Leo items for right recursion (quadratic memory); 4 cases with C0
-controls cannot pass while the function takes an xs:string.
-
-JavaScript (js-1, D216): 7,000,000 / 2,450,000
-  (6,570,723). XQuery lowering parts (about
-  75 KB) stay in the core until the part registry is split by language.
+- Optional features (D189). Budgets (D202, D207, D208): core `sxml.wasm`
+  2,200,000 / 770,000 (2,180,960 / 762,788 after health-3, D225, moved the
+  built-in schemas behind a feature), `sxml-full.wasm` 7,500,000 /
+  2,625,000, CLI 9,000,000 / 2,000,000. The size test compares the core's
+  linker map with a baseline and prints the top growths (D225).
 - EXPath Binary (D198) 646 of 646 and File (D200) 270 of 270 in XQ40; File
   needs `--allow-file-access` in the CLI and has no Windows implementation.
 
 ## Running
 
 - 7.6c more streamed shapes: apply-templates, accumulators, aggregates.
-- health-3: core sxml.wasm regrew to 2,347,868 (over 2,200,000); debug-gcc fails in function_library_binary.c.
+- size-2: part registries split by language (core has about 7 KB gzipped room).
 - 2.22 XPath/XQuery leftovers sweep.
 
 ## Next
