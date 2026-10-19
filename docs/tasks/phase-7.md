@@ -780,6 +780,16 @@ dynamic context.
 - **Size**: 5–15 KB plus 3–6 KB per language.
 - **Gate**: ≥ 75 % of the 38 named cases, and no format-date or
   format-integer case lost.
+**Done** 2026-10-19 (D221), gate met: the 38 named cases all run and
+pass (QT4 language de 16, it 2, fr 1, default-language fr-CA 1, of them
+fn-format-integer-CLDR 4; XT40 languages_for_numbering de 6, it 1, fr 1,
+ICU_spellout 3, ordinal_scheme_name 3); fn-format-date XQ40 137 of 138
+(not run 13 to 1), fn-format-integer 94 (not run 15 to 8: numbering
+sequences), none lost. CLDR files from the host (D220's way, no generated
+tables): the optional feature localization, `src/cldr.c` shared with the
+collation tailorings, `src/language_table.c`, `src/spell_out.c` (RBNF),
+`src/calendar.c` (BE, JE, OS, AH). `sxml.wasm` +4,920 bytes,
+`sxml-full.wasm` +32,103, the CLI +366,194 (embedded names).
 
 ### 7.18 Invisible XML (implementation)
 - **Specifications**: Invisible XML Specification 1.0 (invisiblexml.org,

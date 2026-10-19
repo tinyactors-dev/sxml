@@ -9276,6 +9276,121 @@ bodies: a path inside the select of an instruction of a streamed body
 streams in place (glossary `streamed_path`, `lowering_override`). (The
 details and the measurements follow with the implementation.)
 
+### D221. Calendars and languages in the formatting functions (packet 7.17)
+Recorded 2026-10-19, after D71, D97, D119, D162, D189, D208, D209, D220.
+Replaces D97's "calendars other than AD and ISO and languages other than
+English" and their D162 places: the fallback markers of
+`src/function_library_format_date.c` and the English-only words of
+`src/format.c`.
+- **One CLDR mechanism** (glossary `cldr_file`, `distinguished_path`,
+  `locale_chain`; `src/cldr.c`, `src/cldr_internal.h`): the language tag
+  reader, the locale truncation (de_AT, de, root), the `urn:sxml:` +
+  CLDR path URIs and the LDML tree builder moved out of
+  `src/collation_tailoring.c`, as D220 asked once a second user exists.
+  A file is read into a table of its leaf elements by distinguished path
+  (every attribute but draft and references, in document order; only the
+  paths below the caller's prefixes are kept) with its aliases; lookups
+  go along the locale chain, skip CLDR's inheritance marker "↑↑↑" and
+  follow aliases (UTS #35, Part 1, 4.1.3: the longest prefix with an
+  alias, relative "../" steps, at most 16). The collation tailorings
+  read `collations/defaultCollation` and `collations/collation[@type=T]
+  /cr` through it, with D220's behaviour unchanged.
+- **The feature** `sxml_localization_feature()` ("localization",
+  additive in `processor.h`, in `sxml_all_optional_features`), and the
+  additive resource kind `SXML_RESOURCE_KIND_LOCALE_DATA`:
+  `urn:sxml:locale-data:` + `main/<locale>.xml`, `rbnf/<locale>.xml`,
+  `supplemental/supplementalData.xml` or `supplemental/ordinals.xml`, the
+  CLDR files as CLDR publishes them (no generated tables: the task file's
+  `src/language_tables.c` and its generator gave way to D220's data from
+  the host). A language table (glossary `language_table`) is built at a
+  tag's first use and kept in the processor with negative answers, for up
+  to 64 tags (`src/language_table.c`).
+- **Names** (UTS #35, Part 4, section 2): the wide names of the format
+  context for months, days, eras (eraAbbr, as "AD") and day periods
+  (the abbreviated "AM"), with the abbreviated names of the format and
+  stand-alone contexts as abbreviations; a width modifier takes the
+  longest abbreviation that fits, else cuts the name, counting code
+  points. Upper and lower case use Unicode's full mappings ("MÄRZ",
+  "DREISSIG"); without a presentation modifier a CLDR name keeps its own
+  case ("n. Chr."), and title case keeps the case of letters after the
+  first. A language has names when a file of its chain other than root is
+  served; without them "[Language: en]" and English, as before.
+- **Calendars** (F&O 4.0, 9.9.4.8; `src/calendar.c`): BE (CLDR's
+  buddhist), JE (japanese: the eras of supplementalData's calendarData by
+  their Gregorian start dates, after the inherited Gregorian eras), OS
+  (the Julian calendar from the day number, E. G. Richards' algorithm)
+  and AH (the tabular islamic-civil calendar: 30-year cycle, leap years
+  2, 5, 7, 10, 13, 16, 18, 21, 24, 26, 29, epoch 16 July 622 Julian).
+  Day of year, week of year and week of month are those of the
+  calendar's own years and months, a week belonging to its Thursday.
+  The other designators, a calendar in a namespace, a calendar without
+  names (no feature, no data, BE and JE without supplementalData), and
+  years beyond ±10^12 in a converted calendar keep "[Calendar: AD]".
+  English with AD and ISO needs no data, as before.
+- **Words** (`src/spell_out.c`; glossary `spell_out_rule_set`,
+  `plural_rule`): CLDR's rule-based number formatting (UTS #35, Part 3,
+  section 6, with ICU's rule syntax): rule sets of the SpelloutRules and
+  OrdinalRules groupings of the most specific rbnf file of the chain other
+  than root; divisors by radix, bracketed text as two rules and ICU's
+  rollback, →→ ←← =…= with a rule set or a decimal pattern, and
+  `$(ordinal,…)$` by the ordinal plural rules of ordinals.xml (integer
+  operands; `$(cardinal,…)$` takes "other"). Run with an explicit stack
+  of 64 frames and 4,096 steps (D71); integers below 2^64, larger ones
+  in English. The text in parentheses of the format modifier (F&O 4.0,
+  4.8.1) or xsl:number's ordinal (XSLT 4.0, 12.4) chooses the rule set:
+  `%name` a public set (a missing one the language's default of the kind
+  its name says), `-ending` the first set of the family whose words end
+  so ("-er" gives German "zehnter", "-a" Italian "quinta"), else
+  spellout-ordinal (then -masculine) for ordinals and spellout-cardinal
+  (then spellout-numbering) for cardinals. Ordinals of digits take only
+  the suffix of digits-ordinal ("1er", "3.º"); German's rules have none,
+  so no suffix. W is upper case, Ww each word's first letter, w the rules'
+  own text. English keeps sxml's own words (D119) unless a rule set is
+  named (`%spellout-ordinal-verbose`). Through `sxml_number_words` in
+  `sxml_integer_formatting`, so format-integer, xsl:number and the date
+  pictures ([Dwo]) share it.
+- **Languages asked for**: $language of the date functions and of
+  fn:format-integer, xsl:number's lang; the empty sequence or "" is the
+  dynamic context's default language (`sxml_dynamic_context_
+  configuration.default_language`, "en" when empty).
+- **Vendored** (D13, D208): `third_party/cldr/common` gains main/ (root,
+  en, de, de_AT, es, fr, it, nl), rbnf/ (en, de, es, fr, it, nl) and
+  supplemental/supplementalData.xml and ordinals.xml, CLDR 47, hashes in
+  the README (4.1 MB). The QT4 driver serves them (and the XSLT driver
+  through it) and sets the default language a test asks for
+  (default-language fr-CA). The sxml command embeds them
+  (`apps/sxml/embed-cldr-data.cmake`, which replaces embed-collation-
+  data): main/ reduced to the months, days, dayPeriods and eras of the
+  gregorian, buddhist, japanese and islamic calendars, supplementalData
+  to calendarData, with CLDR's paths and values. JavaScript hosts answer
+  the kind 'locale-data'.
+- **Measured** (release drivers, against 4d78eba): QT4 fn-format-date
+  XQ40 125 to 137 of 138, XP40 124 to 136 (the 12 de cases);
+  fn-format-integer 87 to 94 (032, 032-fr, 032-it, 065, 066, 076, 077);
+  fn-default-language 5 to 6 (006, fr-CA); app-spec-examples XQ40 1,484
+  to 1,486, XP40 1,351 to 1,353; fn-format-dateTime, fn-format-time,
+  fn-format-number, misc-BuiltInKeywords, fn-function-lookup unchanged.
+  XT40 number 265 to 274 of 274 (languages_for_numbering de, it, fr,
+  ICU_spellout, ordinal_scheme_name); format-date, format-date-en,
+  format-number, avt, date, sort unchanged. The gate's 38 named cases:
+  QT4 20 of 20, XT40 9 of 9, every named case run passes; no
+  format-date or format-integer case lost. The 8 cases of fn-format-
+  integer still not run are numbering sequences (Arabic-Indic digits,
+  circled digits, Greek, CJK), not languages.
+- **Sizes** (wasm preset, stripped / gzip -9, before and after at
+  4d78eba): `sxml.wasm` 2,342,948 / 820,110 to 2,347,868 / 821,993
+  (+4,920: the calendar conversions, the number-words hook, Unicode case
+  in names; the core was over its 2,200,000 / 770,000 budget before this
+  packet); `sxml-full.wasm` 6,949,025 / 1,572,066 to 6,981,128 /
+  1,585,595 (+32,103); the CLI module 8,207,589 / 1,825,633 to
+  8,573,783 / 1,866,011 (+366,194, nearly all the embedded CLDR names).
+  Within D208's full and CLI budgets (7,000,000 / 2,450,000; 9,000,000
+  / 2,000,000); no budget raised.
+- **Left**: other calendars (the fallback F&O allows); CLDR's
+  parentLocales (es_419 and the like are found by truncation only); the
+  cardinal plural rules; date formats of CLDR (sxml formats pictures,
+  not patterns); a language's digits other than ASCII in names.
+
 ## Proposed
 
 - **The CLI's WebAssembly budget after the Phase 7 features** (packet

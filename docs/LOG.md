@@ -4,6 +4,24 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 7.17 done (D221): languages and calendars in the formatting
+  functions, as the optional feature `sxml_localization_feature()`
+  ("localization") over CLDR 47 files the host serves
+  (`urn:sxml:locale-data:` + main/, rbnf/, supplemental/). One CLDR
+  module (`src/cldr.c`) now serves the collation tailorings too: tags,
+  locale chains, LDML files as tables of distinguished paths, lookups
+  with inheritance and aliases. Month, day, era and am/pm names in en,
+  de, fr, it, es, nl and regions; the calendars BE, JE (eras by their
+  dates), OS (Julian) and AH (tabular Islamic); words and ordinals by
+  CLDR's spell-out rules (RBNF, explicit stack) for format-integer,
+  xsl:number and [Dwo], rule sets by name or by ending. QT4
+  fn-format-date 125 to 137, fn-format-integer 87 to 94,
+  fn-default-language 5 to 6; XT40 number 265 to 274 of 274; the 38
+  named cases all pass, none lost. Vendored main/, rbnf/ and
+  supplemental files (4.1 MB); the CLI embeds the names (+366 KB).
+  Open: `sxml.wasm` was over its budget before this packet (2,342,948
+  of 2,200,000; +4,920 here).
+
 - 7.6b done (D219): streamed evaluation of xsl:source-document
   streamable="yes" on the shared machine: an incremental parse of the
   XML parser feeds a stream builder (`src/evaluator_stream.c`) that keeps

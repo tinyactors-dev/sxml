@@ -229,6 +229,17 @@ adaptive output method writes the result, one item on each line.
   their regions (`lang=es`, `lang=de-u-co-phonebk`, `lang=fr-CA`,
   `lang=en-US-POSIX`). Other languages are the root order (with
   `fallback=no`, `err:FOCH0002`). `xsl:sort lang="es"` uses the same.
+- The `$language` of `fn:format-date`, `fn:format-time` and
+  `fn:format-dateTime` names months, days, eras and `am`/`pm` in en, de,
+  fr, it, es and nl and their regions (`de-AT` has "Jänner"), from the
+  CLDR data sxml carries inside, and `$calendar` may be `BE`, `JE`
+  (Japanese eras), `OS` (Julian) or `AH` (tabular Islamic) besides `AD`
+  and `ISO`. `fn:format-integer` with a `$language` and `xsl:number` with
+  `lang` write words and ordinals by CLDR's spell-out rules
+  (`format-integer(1, 'Ww;o(-er)', 'de')` is "Erster", and a rule set may
+  be named, as `'w;o(%spellout-ordinal-feminine)'`). Other languages are
+  English, dates after `[Language: en]`; other calendars are AD after
+  `[Calendar: AD]`.
 - An EXPRESSION that starts with `-` must come after `--`.
 - An error is reported on standard error as
   `expression:LINE:COLUMN: err:CODE: description`.
