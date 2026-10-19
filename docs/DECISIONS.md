@@ -8410,6 +8410,20 @@ fn:civil-timezone.
   an offset with seconds (local mean time) is no xs:dateTime timezone:
   the fallback format 01:01 is kept, as for an unknown place and no
   place (format-time-030).
+- **Numbers** (release drivers, against 97aedba): fn-civil-timezone 4 to
+  9 of 9 (XP40 and XQ40); with the dependency olson-timezone turned on,
+  fn-format-dateTime XQ40 83 to 93 of 94 run (not run 9 to 1), XP40 80 to
+  88 (not run 14 to 6): all 8 olson-timezone cases and 025c/025e;
+  fn-format-time XQ40 96 to 97 (025c); app-spec-examples XQ40 1,479 to
+  1,480 and XP40 1,346 to 1,347 (fo-test-fn-civil-timezone-003);
+  fn-format-date and misc-BuiltInKeywords unchanged; XT40 format-date and
+  format-date-en unchanged. The packet's gate (all 14 cases) is met.
+- **Size** (wasm preset): `sxml-full.wasm` 3,564,851 to 3,575,555 bytes
+  (+10,704; gzipped 1,085,933 to 1,090,270), within its 4,000,000 budget;
+  `sxml.wasm` 2,294,067 to 2,295,933 (+1,866: the two D162 places and the
+  value adjustment, which ask for the feature), already over its
+  2,200,000 budget before (D206); the CLI module 6,510,188 to 6,521,732.
+  No budget changes.
 - **Not done**: the dynamic context has no default place (a host setting
   would be an additive header change); without one, no place keeps the
   implicit timezone and [ZN] the fallback format.

@@ -14,6 +14,17 @@ One short entry per week, newest first: what passed, what's next, what is blocke
   fn-parse-xml, fn-doc-available, fn-system-properties and XT40
   document unchanged. The xs:numeric Proposed item is resolved by D208.
 
+- 7.16 done (D209): the timezone database, an optional feature over
+  TZif files the resolver serves (`SXML_RESOURCE_KIND_TIMEZONE_DATA`,
+  `urn:sxml:timezone-data:PATH`); tzdata 2026e vendored in
+  `third_party/tzdata` (`tools/update-tzdata.sh`), served by the QT4
+  driver; the sxml command reads `/usr/share/zoneinfo`.
+  fn:civil-timezone for zone names; $place adjusts to a zone and names
+  [ZN], a country code names [ZN]. fn-civil-timezone 4 to 9 of 9,
+  olson-timezone turned on: fn-format-dateTime XQ40 83 to 93, XP40 80 to
+  88; format-time and app-spec-examples +1 each; XT40 format-date
+  unchanged. Full module +10.7 KB, core +1.9 KB.
+
 - 7.14c done (D210): the DTD follow-ups. `tree.h` gains (additive,
   D99) unparsed entities listed by number and copied with a document
   node (xsl:copy, xsl:copy-of, fn:copy-of, fn:snapshot), and an entity

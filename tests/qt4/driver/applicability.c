@@ -118,6 +118,11 @@ static const sxml_qt4_supported_dependency sxml_qt4_supported_dependencies[] = {
      SXML_BYTE_VIEW_INITIALIZER("infoset-dtd")},
     {SXML_BYTE_VIEW_INITIALIZER("feature"),
      SXML_BYTE_VIEW_INITIALIZER("dtd-validation-option")},
+    /* Olson (IANA) timezone names in the formatting functions' $place:
+       the optional feature sxml_timezone_database_feature() over the
+       vendored tzdata (packet 7.16, D209). */
+    {SXML_BYTE_VIEW_INITIALIZER("feature"),
+     SXML_BYTE_VIEW_INITIALIZER("olson-timezone")},
 };
 
 /* The features of schema awareness (the area "schema-aware",

@@ -690,6 +690,12 @@ assertion the driver does not check (transform-009). The rest is D203's
   and `src/format_date.c`.
 - **Size**: 60–120 KB built in; about 5 KB with option 4.
 - **Gate**: all 14 cases.
+**Done** 2026-10-19 (D209), gate met: option 4 (TZif from the host;
+tzdata 2026e vendored in `third_party/tzdata` for the drivers and tests,
+no generated table). fn-civil-timezone 9 of 9, the 8 olson-timezone cases
+of fn-format-dateTime pass (XQ40 93 of 94 run). `sxml-full.wasm` +10.7 KB,
+`sxml.wasm` +1.9 KB (the D162 places). Not done: a default place in the
+dynamic context.
 
 ### 7.17 Calendars and languages in the formatting functions (implementation)
 - **Specifications**:

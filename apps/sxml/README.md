@@ -179,6 +179,10 @@ adaptive output method writes the result, one item on each line.
 - `fn:transform` runs an XSLT 4.0 stylesheet from the expression; its
   `stylesheet-location` and `source-location` are read as `fn:doc` reads
   files.
+- `fn:civil-timezone` and the `$place` argument of `fn:format-dateTime`,
+  `fn:format-date` and `fn:format-time` read the timezone database in
+  `/usr/share/zoneinfo`: an IANA zone name such as `Europe/Paris`, or a
+  country code such as `us` for `[ZN]`. Without it, only `UTC` is known.
 - An EXPRESSION that starts with `-` must come after `--`.
 - An error is reported on standard error as
   `expression:LINE:COLUMN: err:CODE: description`.
