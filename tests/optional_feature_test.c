@@ -151,7 +151,10 @@ static void test_configuration_rejects_malformed_views(sxml_test_state *state) {
 /* ---------------------------------------------------------- Feature data */
 
 static const sxml_resource_entry test_feature_data_entries[] = {
-    {.uri = TEXT("urn:sxml:test-feature-data"), .content = TEXT("twelve bytes")},
+    /* Initializers, not compound literals: a static initializer must be
+       constant (C17, 6.7.9; GCC's -Wpedantic). */
+    {.uri = SXML_BYTE_VIEW_INITIALIZER("urn:sxml:test-feature-data"),
+     .content = SXML_BYTE_VIEW_INITIALIZER("twelve bytes")},
 };
 
 static const sxml_resource_entry_view test_feature_data = {
