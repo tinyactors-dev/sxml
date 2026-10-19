@@ -14,6 +14,11 @@
 # Left out of xsdtests (packet 5.1, D165), because no test reads them: the
 # HTML, CSS and image files of the reports (nistMeta/*.html, about 25 MB, and
 # common/), and the CVS backup copies named .#FILE.REVISION.
+#
+# From the iXML community test suite (packet 7.18, D215), only tests/ is
+# vendored, as third_party/ixml-tests, with the repository's LICENSE;
+# tests/performance (78 MB of generated inputs, which no catalog of the
+# top-level test-catalog.xml names) is left out.
 
 set -eu
 
@@ -23,6 +28,8 @@ XSLT40_TEST_URL="https://github.com/qt4cg/xslt40-test"
 XSLT40_TEST_COMMIT="91328fbf0fed4a5d2813eb3661808ee53cb961ba"
 XSDTESTS_URL="https://github.com/w3c/xsdtests"
 XSDTESTS_COMMIT="7bc3365c652a322f3d762021b3879eb92dae7e30"
+IXML_TESTS_URL="https://codeberg.org/InvisibleXML/ixml"
+IXML_TESTS_COMMIT="d1f37f6bb1f86a1d370a2ada326d9430922e9967"
 XMLCONF_VERSION="xmlts20130923"
 XMLCONF_URL="https://www.w3.org/XML/Test/$XMLCONF_VERSION.tar.gz"
 
@@ -60,6 +67,13 @@ rm -f "$destination/xslt40-test/admin/unicode.xml" \
 find "$destination/xslt40-test/tests/misc/docbook" -name '*.jar' -delete
 find "$destination/xsdtests" -type f \( -name '*.html' -o -name '*.css' \
     -o -name '*.gif' -o -name '*.img' -o -name '.#*' \) -delete
+
+update_suite "$IXML_TESTS_URL" "$IXML_TESTS_COMMIT" ixml
+rm -rf "$destination/ixml-tests"
+mv "$destination/ixml/tests" "$destination/ixml-tests"
+mv "$destination/ixml/LICENSE" "$destination/ixml-tests/LICENSE"
+rm -rf "$destination/ixml-tests/performance" "$destination/ixml"
+mv "$destination/ixml.commit" "$destination/ixml-tests.commit"
 
 # The W3C XML conformance suite is published as a dated tarball, not in git.
 echo "xmlconf: fetching $XMLCONF_VERSION"
