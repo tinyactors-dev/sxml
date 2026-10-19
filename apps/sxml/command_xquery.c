@@ -16,6 +16,9 @@
  * - The result is serialized with the parameters the query's output
  *   declarations give (5.22; method xml by default); --method=M replaces
  *   the method.
+ * - An updating query (XQuery Update Facility 3.0, D187) writes the
+ *   context item's document as its updates left it, in place of its
+ *   value, which is empty; the file itself is not changed.
  *
  * Errors as for sxml xpath, with the query file's name (or "expression")
  * in place of "expression": "QUERY-FILE:LINE:COLUMN: err:CODE:
@@ -146,6 +149,45 @@ static sxml_cli_exit_code sxml_xquery_read_text(const sxml_query_run *run,
     return SXML_CLI_EXIT_SUCCESS;
 }
 
+/* The update sink of an updating query: keeps the new tree of the
+   context item's document (include/sxml/xquery.h, D187). */
+typedef struct sxml_xquery_updated_context {
+    sxml_node_reference context_node;
+    bool has_update;
+    sxml_item updated_root;
+} sxml_xquery_updated_context;
+
+static sxml_status sxml_xquery_receive_tree(void *state,
+                                            const sxml_xquery_updated_tree *updated_tree) {
+    sxml_xquery_updated_context *context = state;
+    sxml_node_reference original;
+    if (sxml_item_get_node(updated_tree->original_root, &original) == SXML_STATUS_OK &&
+        context->context_node.tree != NULL && original.tree == context->context_node.tree) {
+        sxml_item_retain(updated_tree->updated_root);
+        context->updated_root = updated_tree->updated_root;
+        context->has_update = true;
+    }
+    return SXML_STATUS_OK;
+}
+
+static const sxml_xquery_update_sink_operations sxml_xquery_sink_operations = {
+    .receive_updated_tree = sxml_xquery_receive_tree};
+
+/* What an updating query writes: the context item's document as updated,
+   or as it was; nothing without one. */
+static sxml_sequence sxml_xquery_updated_output(const sxml_query_run *run,
+                                                const sxml_xquery_updated_context *updated) {
+    if (updated->has_update) {
+        return sxml_sequence_from_item(updated->updated_root);
+    }
+    const sxml_dynamic_context_configuration dynamic_context = sxml_query_run_dynamic_context(run);
+    if (!dynamic_context.has_context_value) {
+        return sxml_sequence_empty();
+    }
+    sxml_sequence_retain(dynamic_context.context_value);
+    return dynamic_context.context_value;
+}
+
 /* Compiles, evaluates and writes the query. */
 static sxml_cli_exit_code sxml_xquery_evaluate(const sxml_query_run *run,
                                                const sxml_xquery_text *query_text) {
@@ -162,13 +204,34 @@ static sxml_cli_exit_code sxml_xquery_evaluate(const sxml_query_run *run,
                                            .error_record = &error_record},
         &query);
     sxml_sequence result = sxml_sequence_empty();
+    const sxml_dynamic_context_configuration dynamic_context = sxml_query_run_dynamic_context(run);
+    sxml_xquery_updated_context updated = {.context_node = {.tree = NULL},
+                                           .has_update = false,
+                                           .updated_root = {.representation = 0}};
+    sxml_item context_item = {.representation = 0};
+    if (dynamic_context.has_context_value &&
+        sxml_sequence_get_item(dynamic_context.context_value,
+                               (sxml_item_request){.item_index = 0, .error_record = NULL},
+                               &context_item) == SXML_STATUS_OK &&
+        sxml_item_get_node(context_item, &updated.context_node) != SXML_STATUS_OK) {
+        updated.context_node.tree = NULL;
+    }
     if (status == SXML_STATUS_OK) {
         status = sxml_xquery_query_evaluate(
             query,
-            &(sxml_xquery_evaluation_request){.dynamic_context =
-                                                  sxml_query_run_dynamic_context(run),
-                                              .error_record = &error_record},
+            &(sxml_xquery_evaluation_request){
+                .dynamic_context = dynamic_context,
+                .error_record = &error_record,
+                .update_sink = {.state = &updated, .operations = &sxml_xquery_sink_operations}},
             &result);
+    }
+    if (status == SXML_STATUS_OK && sxml_xquery_query_is_updating(query)) {
+        sxml_sequence_release(result);
+        result = sxml_xquery_updated_output(run, &updated);
+        updated.has_update = false;
+    }
+    if (updated.has_update) {
+        sxml_item_release(updated.updated_root);
     }
     if (status == SXML_STATUS_OK) {
         /* The query's output declarations (XQuery 4.0, 5.22); --method
@@ -228,6 +291,10 @@ const sxml_cli_command sxml_xquery_command = {
         "declares it, to xs:untypedAtomic(VALUE). Library modules (import\n"
         "module ... at) are read from local files relative to the working\n"
         "directory; fn:doc reads local files.\n"
+        "\n"
+        "An updating query (the XQuery Update Facility 3.0) writes the\n"
+        "context item's document as its updates left it; FILE itself is\n"
+        "not changed.\n"
         "\n"
         "An error is reported on standard error as\n"
         "  QUERY-FILE:LINE:COLUMN: err:CODE: description\n"

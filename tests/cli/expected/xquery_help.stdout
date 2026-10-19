@@ -13,6 +13,10 @@ declares it, to xs:untypedAtomic(VALUE). Library modules (import
 module ... at) are read from local files relative to the working
 directory; fn:doc reads local files.
 
+An updating query (the XQuery Update Facility 3.0) writes the
+context item's document as its updates left it; FILE itself is
+not changed.
+
 An error is reported on standard error as
   QUERY-FILE:LINE:COLUMN: err:CODE: description
 

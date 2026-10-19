@@ -224,6 +224,10 @@ serialization. The default method is xml.
   in the same way, so `validate` expressions and schema types are
   available.
 - `fn:doc` reads local files.
+- An updating query (the XQuery Update Facility 3.0: insert, delete,
+  replace, rename, updating functions) writes the context item's document
+  as its updates left it, in place of its value, which is empty. The file
+  itself is not changed; copy-modify and transform-with work in any query.
 - An error is reported on standard error as
   `QUERY-FILE:LINE:COLUMN: err:CODE: description`, or with `expression`
   in place of QUERY-FILE for `--expression`. A static error in a library
@@ -240,6 +244,8 @@ $ sxml xquery --context-item=books.xml --method=text --expression='string-join(/
 Godel, Escher, Bach; The Art of Computer Programming; Structure and Interpretation of Computer Programs
 $ sxml xquery --param=n=5 --expression='declare variable $n external; $n * 2'
 10
+$ sxml xquery --context-item=books.xml --method=text --expression='copy $b := //book[1] modify replace value of node $b/title with "TAOCP" return string($b/title)'
+TAOCP
 $ sxml xquery --context-item=books.xml --expression='import schema default element namespace "" at "books.xsd"; (validate { /books })//book[1]/@year instance of attribute(*, xs:gYear)'
 true
 ```

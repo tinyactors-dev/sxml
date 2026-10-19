@@ -146,6 +146,9 @@ sxml_add_cli_test(xquery_module_missing EXIT_CODE 1 ARGUMENTS xquery import-miss
 sxml_add_cli_test(xquery_both_texts EXIT_CODE 2 ARGUMENTS xquery --expression=1 titles.xq)
 sxml_add_cli_test(xquery_no_text EXIT_CODE 2 ARGUMENTS xquery)
 sxml_add_cli_test(xquery_help EXIT_CODE 0 ARGUMENTS xquery --help)
+# An updating query writes the context document as it changed (D187).
+sxml_add_cli_test(xquery_update EXIT_CODE 0 ARGUMENTS xquery --context-item=books.xml "--expression=delete node //book[2], insert node <book id='b3'/> into /catalog, rename node /catalog as 'books'")
+sxml_add_cli_test(xquery_update_error EXIT_CODE 1 ARGUMENTS xquery --context-item=books.xml "--expression=rename node /catalog as 'a', rename node /catalog as 'b'")
 
 # sxml transform (apps/sxml/README.md): stylesheets in tests/cli/input/xslt/.
 sxml_add_cli_test(transform_apply_templates EXIT_CODE 0 ARGUMENTS transform xslt/books.xsl books.xml)
