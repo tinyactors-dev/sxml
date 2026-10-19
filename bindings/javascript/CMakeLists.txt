@@ -110,10 +110,12 @@ if(SXML_BUILD_TESTS AND SXML_NODE_EXECUTABLE)
     # module's XQuery, XSLT and XSD entry points (packet js-1, D216) link
     # the XQuery compiler and its grammar: 7,000,000 / 2,450,000 (D208,
     # keeping D207's ratio of 0.35).
+    # The CLI module embeds the DUCET (D213) and links every language and
+    # feature: 9,000,000 / 2,000,000 (D208).
     if(TARGET sxml_cli)
         add_test(NAME javascript/size_budget
             COMMAND "${SXML_NODE_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test/size-budget.mjs"
-                "$<TARGET_FILE:sxml_cli>" 7500000 1650000
+                "$<TARGET_FILE:sxml_cli>" 9000000 2000000
                 "$<TARGET_FILE:sxml_javascript_module>" 2200000 770000
                 "$<TARGET_FILE:sxml_javascript_full_module>" 7000000 2450000)
     endif()
