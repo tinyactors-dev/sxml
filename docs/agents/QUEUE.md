@@ -16,14 +16,19 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 
 ## Running
 
-- CLI docs split: the user reference moves to `apps/sxml/README.md`.
 - XPath/XQuery conformance sweep (2.21).
 - XSLT conformance sweep (4.19).
-- Phase 7 plan (7.1).
+- 7.2 optional features and size budgets (D184).
+- 7.7a XQuery Update Facility 3.0.
+- 7.13 XML 1.1 input.
 
 ## Next
 
-- Phase 7 packets once 7.1 has written `docs/tasks/phase-7.md`.
+- Phase 7 (`docs/tasks/phase-7.md`, D183, D184): after 4.19, the XSLT
+  packets 7.3 xsl:evaluate, 7.4 backwards compatibility, 7.5
+  disable-output-escaping and 7.6a streaming analysis; after 7.13, 7.14
+  DTD; after 7.2, 7.8 Binary, 7.9 File, 7.10 HTML5, 7.11 fn:transform;
+  then Full Text, UCA, timezones, calendars and languages, iXML.
 - JavaScript bindings for XQuery, XSLT and validation (they cover XPath only).
 - `sxml` CLI gaps: `--output`, writing result documents, `--method=csv`,
   "did you mean" for options of a command.
@@ -75,8 +80,10 @@ Platform and tooling:
 
 ## Owner decisions open
 
-Listed at the end of `docs/LOG.md`: the 0.2.0 tag, the wasm budgets (or
-optional features), XQuery's omit-xml-declaration default, the license
-(no LICENSE file; the JavaScript package says MIT), CI, and whether
-`xsl:evaluate`, DTD processing, XML 1.1 and disable-output-escaping join
-Phase 7 (7.1 proposes it).
+Listed at the end of `docs/LOG.md`: the 0.2.0 tag, XQuery's
+omit-xml-declaration default, the license (no LICENSE file; the JavaScript
+package says MIT), CI, and from D183 the Phase 7 gate numbers, the iXML and
+CollationTest test data, and the languages, calendars and tailorings.
+Decided in D184: the four extra features join Phase 7, link-time optional
+features with host-supplied data (2.1 MB core, 3.0 MB full), Update 3.0
+then 4.0, EXPath File behind `--allow-file-access`.

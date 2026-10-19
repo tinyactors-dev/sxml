@@ -7290,6 +7290,22 @@ Plans Phase 7 (D162) in `docs/tasks/phase-7.md`, as D165 planned Phase 5.
 - **PLAN.md**: the Phase 7 row names the optional features and the four
   proposed additions.
 
+### D184. Phase 7 scope, size and access choices (owner)
+Recorded 2026-10-19 on the owner's answers to D183's questions.
+- **Scope:** xsl:evaluate (7.3), disable-output-escaping (7.5), XML 1.1
+  input (7.13) and DTD processing (7.14) join Phase 7.
+- **Size:** link-time optional features through one additive
+  `processor.h` view (one build, no `#if`), with large data (DUCET, CLDR
+  rules, TZif files) supplied by the host through the resolver. Budgets:
+  2,100,000 bytes for the core `sxml.wasm`, 3,000,000 for the full module.
+  Packet 7.2 builds the mechanism and sets the budgets.
+- **XQuery Update:** 3.0 first, then the 4.0 draft additions (7.7).
+- **EXPath File in the CLI:** off unless `--allow-file-access` is given
+  (D44); the library leaves file access to the host's resolver.
+- Still open from D183: the gate numbers, adding the iXML tests and a
+  sample of Unicode's CollationTest, and which languages, calendars and
+  tailorings (7.17 proposes en, de, fr, it, es, nl; ISO, AD, BE, JE, OS, AH).
+
 ## Proposed
 
 - **Phase 7: four more features and the size of optional parts** (packet
