@@ -9265,6 +9265,12 @@ progress; completed when the packet ends.
   iterator; the step tests the description it has and makes an item
   only for a node that matches. Two XNodes of one tree are ordered and
   compared from their items. Steps are unchanged.
+### D222. Bounded memory for XML parsing: document segments (packet xml-mem)
+Recorded 2026-10-19, after D12, D45, D71, D195, D199, D219. Amends D12's
+"the concrete syntax tree is freed before the parse function returns":
+the parser holds the tree of one document segment at a time. (The
+details and the measurements follow with the implementation.)
+
 ## Proposed
 
 - **The CLI's WebAssembly budget after the Phase 7 features** (packet
