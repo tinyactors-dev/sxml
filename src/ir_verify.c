@@ -657,8 +657,8 @@ static sxml_status visit_expression(verifier *checker,
         return status;
     case SXML_IR_EXPRESSION_KIND_MAP:
         if ((expression->map.flags &
-             ~((uint32_t)SXML_IR_MAP_ALLOWING_EMPTY |
-               (uint32_t)SXML_IR_MAP_REQUIRES_NODES)) != 0) {
+             ~((uint32_t)SXML_IR_MAP_ALLOWING_EMPTY | (uint32_t)SXML_IR_MAP_REQUIRES_NODES |
+               (uint32_t)SXML_IR_MAP_IS_AXIS_STEP)) != 0) {
             return report(checker, "a map has unknown flags");
         }
         status = check_required_atom(checker, expression->map.input);

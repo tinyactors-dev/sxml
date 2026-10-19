@@ -4774,7 +4774,7 @@ static sxml_status add_item_axis_step(sxml_xpath_lowerer *state, step_request re
                            .map = {.input = request.origin,
                                    .focus = {.context_value = origin},
                                    .body = body,
-                                   .flags = 0}}},
+                                   .flags = SXML_IR_MAP_IS_AXIS_STEP}}},
         expression);
 }
 
@@ -5235,6 +5235,21 @@ static sxml_status begin_absolute_path(sxml_xpath_lowering_machine *machine,
                                                       .expression = root},
             &root_atom);
     }
+    /* XPath 4.0, section 4.7.1.1: "fn:root(.) treat as (document-node() |
+       jnode())", so the root of a JTree passes too. */
+    const sxml_type_identifier root_types[2] = {
+        sxml_builtin_type_identifier(SXML_TYPE_DOCUMENT_NODE),
+        sxml_builtin_type_identifier(SXML_TYPE_JSON_NODE)};
+    sxml_type_identifier root_type = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_type_registry_register_item_type(
+            state->type_registry,
+            &(sxml_type_description){
+                .variety = SXML_TYPE_VARIETY_CHOICE,
+                .variety_details = {.member_types = {.type_identifiers = root_types,
+                                                     .type_identifier_count = 2}}},
+            &root_type);
+    }
     sxml_ir_expression_index document = {0};
     if (status == SXML_STATUS_OK) {
         status = sxml_xpath_lowerer_add_expression(
@@ -5245,10 +5260,8 @@ static sxml_status begin_absolute_path(sxml_xpath_lowering_machine *machine,
                     .expression_kind = SXML_IR_EXPRESSION_KIND_TREAT,
                     .type_test = {
                         .value = root_atom,
-                        .sequence_type = {
-                            .item_type = sxml_builtin_type_identifier(
-                                SXML_TYPE_DOCUMENT_NODE),
-                            .occurrence = SXML_OCCURRENCE_EXACTLY_ONE}}}},
+                        .sequence_type = {.item_type = root_type,
+                                          .occurrence = SXML_OCCURRENCE_EXACTLY_ONE}}}},
             &document);
     }
     if (status != SXML_STATUS_OK) {

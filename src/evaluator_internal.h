@@ -693,7 +693,7 @@ SXML_NODISCARD sxml_status sxml_evaluator_sort_indices(
 
 /* One axis step (src/evaluator_path.c). */
 typedef struct sxml_step_request {
-    /* The origin: generic nodes (XPTY0020 for anything else). */
+    /* The origin: generic nodes (XPTY0004 for anything else). */
     sxml_sequence origin;
     sxml_axis axis;
     /* A registered item type (sxml_ir_step). */
@@ -708,7 +708,7 @@ typedef struct sxml_step_request {
  * *result. From a JNode the axes run over the JTree, a name test N selects
  * the JNodes with key "N" (section 4.6.5) and jnode() tests are matched
  * with sxml_evaluator_match_sequence_type. Returns SXML_STATUS_TYPE_ERROR
- * (XPTY0020), and the tree's, heap's and allocator's failures.
+ * (XPTY0004), and the tree's, heap's and allocator's failures.
  */
 SXML_NODISCARD sxml_status sxml_evaluator_make_step_value(
     sxml_dynamic_context *dynamic_context, const sxml_step_request *request,

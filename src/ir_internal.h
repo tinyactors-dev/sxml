@@ -153,7 +153,7 @@
  *                   (document-order $10))))))))
  *
  * Reading $1 raises XPDY0002 when the evaluation has no context value; the
- * step on it raises XPTY0020 when it is not a node; TREAT raises XPDY0050.
+ * step on it raises XPTY0004 when it is not a node; TREAT raises XPDY0050.
  * The predicate [2] is the constant 2: FILTER keeps the item whose
  * position equals a numeric predicate value (section 4.4.1), so position
  * slot $14 is bound and $13 is unused by the predicate but bound by the
@@ -467,7 +467,7 @@ typedef enum sxml_ir_expression_kind {
        (XQuery order by over tuple arrays, xsl:sort, fn:sort with keys). */
     SXML_IR_EXPRESSION_KIND_SORT,
     /* One axis step from one generic node, in axis order (4.6.4);
-       XPTY0020 when the origin is not a node. */
+       XPTY0004 when the origin is not a node. */
     SXML_IR_EXPRESSION_KIND_STEP,
     /* Nodes sorted into document order without duplicates; non-nodes
        left as they are; XPTY0018 for a mix (4.6.3). */
@@ -614,9 +614,14 @@ typedef enum sxml_ir_map_flag {
        the empty sequence as the focus value and position 0. */
     SXML_IR_MAP_ALLOWING_EMPTY = 1U << 0U,
     /* The MAP of a path "E1/E2" (and of "//"): an item of the input that
-       is not a node raises XPTY0019 (XPath 4.0, section 4.6.3; D76). Not
+       is not a node raises XPTY0004 (XPath 4.0, section 4.7.3; D76). Not
        shown in the text form. */
     SXML_IR_MAP_REQUIRES_NODES = 1U << 1U,
+    /* An axis step made of other expressions ("item::T", whose JNodes no
+       STEP selects): navigational, as a STEP is, for the selector
+       interpretation of a path over JNodes (XPath 4.0, section 4.7.3).
+       Not shown in the text form. */
+    SXML_IR_MAP_IS_AXIS_STEP = 1U << 2U,
 } sxml_ir_map_flag;
 
 /* MAP. */

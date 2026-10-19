@@ -26,10 +26,10 @@
 
 static const sxml_static_error sxml_step_origin_error = {
     .error_status = SXML_STATUS_TYPE_ERROR,
-    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XPTY0020"),
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XPTY0004"),
     .description = SXML_BYTE_VIEW_INITIALIZER(
         "The context item of an axis step is not a node (XPath 4.0, section "
-        "4.6.4)"),
+        "4.7.4: XPTY0004, formerly XPTY0020)"),
 };
 
 static const sxml_static_error sxml_json_attribute_axis_error = {
@@ -702,6 +702,12 @@ static sxml_status sxml_step_json_preceding(const sxml_step_output *output,
             break;
         }
         root = description.parent;
+    }
+    /* The walk yields the root's descendants: nothing precedes the root,
+       which must not see them all. */
+    if (status != SXML_STATUS_OK ||
+        sxml_generic_node_is_same_node((sxml_item_pair){.first = root, .second = origin})) {
+        return status;
     }
     sxml_json_walk walk = {.allocator = output->dynamic_context->allocator,
                            .item_heap = output->dynamic_context->item_heap,

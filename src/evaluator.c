@@ -43,10 +43,10 @@ static const sxml_static_error sxml_circular_variable_error = {
 
 static const sxml_static_error sxml_path_operand_error = {
     .error_status = SXML_STATUS_TYPE_ERROR,
-    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XPTY0019"),
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XPTY0004"),
     .description = SXML_BYTE_VIEW_INITIALIZER(
         "An operand on the left of \"/\" is not a node (XPath 4.0, section "
-        "4.6.3)"),
+        "4.7.3: XPTY0004, formerly XPTY0019)"),
 };
 
 static const sxml_static_error sxml_treat_error = {
@@ -3082,7 +3082,8 @@ static void sxml_navigation_step(sxml_navigation_analysis *analysis,
         return;
     }
     if (kind == SXML_IR_EXPRESSION_KIND_MAP) {
-        if ((expression->map.flags & SXML_IR_MAP_REQUIRES_NODES) == 0) {
+        if ((expression->map.flags &
+             (SXML_IR_MAP_REQUIRES_NODES | SXML_IR_MAP_IS_AXIS_STEP)) == 0) {
             analysis->is_navigational = false;
         }
         return;
@@ -3253,7 +3254,7 @@ typedef struct sxml_loop_progress {
 typedef struct sxml_loop_advance {
     sxml_ir_focus focus;
     sxml_ir_expression_index body;
-    /* A path's MAP: every item must be a node (XPTY0019), and a JNode
+    /* A path's MAP: every item must be a node (XPTY0004), and a JNode
        may select by the value of body (see "Selectors over JNodes");
        NULL for other loops. */
     const sxml_ir_map *path_map;

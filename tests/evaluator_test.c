@@ -1647,10 +1647,10 @@ static void test_paths_in_document_order(sxml_test_state *state) {
 }
 
 static void test_path_errors(sxml_test_state *state) {
-    SXML_TEST_EXPECT(state, fails_with("(1, 2)/a", "XPTY0019"));  /* P5, D76 */
-    SXML_TEST_EXPECT(state, fails_with("(1, 2)/(. + 1)", "XPTY0019"));
-    SXML_TEST_EXPECT(state, fails_with("(1, 2)//a", "XPTY0019"));
-    SXML_TEST_EXPECT(state, fails_with("(1, 2) ! child::a", "XPTY0020"));
+    SXML_TEST_EXPECT(state, fails_with("(1, 2)/a", "XPTY0004"));  /* P5, D76 */
+    SXML_TEST_EXPECT(state, fails_with("(1, 2)/(. + 1)", "XPTY0004"));
+    SXML_TEST_EXPECT(state, fails_with("(1, 2)//a", "XPTY0004"));
+    SXML_TEST_EXPECT(state, fails_with("(1, 2) ! child::a", "XPTY0004"));
     SXML_TEST_EXPECT(state, fails_with("child::a", "XPDY0002"));
     SXML_TEST_EXPECT(state, fails_with("(1, 2) union (1, 2)", "XPTY0004"));  /* K2-SeqUnion-5 */
     SXML_TEST_EXPECT(state, fails_with("/works", "XPDY0002"));
@@ -1701,7 +1701,7 @@ static void test_json_nodes(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, evaluates_to("(['a', 'b'], ['c', 'd'])[*[1] eq 'c'] ! ?*",
                                          "c d"));  /* PathExpr-J-001 */
     SXML_TEST_EXPECT(state, evaluates_to("{'a': 5} ! (child::a + 1)", "6"));
-    SXML_TEST_EXPECT(state, fails_with("(1, {'a': 1})/a", "XPTY0019"));
+    SXML_TEST_EXPECT(state, fails_with("(1, {'a': 1})/a", "XPTY0004"));
 }
 
 /* ----------------------------------------------------------- Errors */
