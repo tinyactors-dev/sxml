@@ -19,7 +19,7 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 
 ## Running
 
-- 7.4b XSLT 1.0 follow-ups: exsl:node-set, docbook-002, TVTs in 1.0 elements, result-document xhtml.
+- 7.2b core size audit: sxml.wasm is 2,294,051 at HEAD, over 2,200,000.
 - 7.6a XSLT streamability analysis.
 - 7.11 fn:transform (after 7.3).
 - 7.15a UCA collations.
@@ -70,7 +70,9 @@ XSLT (after 4.19, D185; XT40 8,931+):
 XSLT backwards compatibility (7.4, D197): backwards_compatibility 111 of
 124; QT4 xpath-1.0-compatibility 1 of 5. 14 cases expect fn:number-style
 conversion for xs:numeric parameters, which XPath 4.0 §3.4.1 restricts to
-xs:double (owner to confirm).
+xs:double (D208: follow the spec). 7.4b (D206): exsl:node-set,
+exsl:object-type, exsl:document; docbook-001/002 pass; docbook-004 fails
+with FODC0002 in xsl:source-document.
 
 xsl:evaluate (7.3, D196: 73 of 83, gate 90 %): 3 need parse-html (7.10),
 2 need json-doc/unparsed-text-available trust checks, 1 a UCA strength
