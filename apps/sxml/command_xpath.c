@@ -1,7 +1,7 @@
 /*
  * sxml xpath [--context-item=FILE] [--param=NAME=VALUE]... [--method=M]
  * EXPRESSION: evaluates an XPath 4.0 expression and writes its result to
- * standard output (docs/CLI.md, "Commands today"; include/sxml/xpath.h).
+ * standard output (apps/sxml/README.md, "sxml xpath"; include/sxml/xpath.h).
  *
  * Imitates command_check.c. The processor, the files fn:doc reads, the
  * options --param and --context-item, error reports and writing the

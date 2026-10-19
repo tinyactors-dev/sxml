@@ -8,7 +8,7 @@
 /*
  * Running a program: parse the command line against the program's table,
  * show help or a usage error, or run the command, and map the outcome to an
- * exit code (docs/CLI.md, "Exit codes").
+ * exit code (apps/sxml/README.md, "Exit codes").
  *
  *     sxml [-h | --help]          the program's help, exit 0
  *     sxml --version              "sxml 0.2.0", exit 0

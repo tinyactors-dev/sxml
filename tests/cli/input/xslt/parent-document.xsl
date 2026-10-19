@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <!-- Reads a document above its own directory: relative references resolve
-     against the stylesheet's path (docs/CLI.md, sxml transform). -->
+     against the stylesheet's path (apps/sxml/README.md, sxml transform). -->
 <xsl:stylesheet version="4.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
   <xsl:output method="text"/>
   <xsl:template name="xsl:initial-template">

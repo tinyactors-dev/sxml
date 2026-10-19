@@ -9,8 +9,8 @@
 #include "sxml/xpath.h"
 
 /*
- * What the query commands, sxml xpath and sxml xquery, share (docs/CLI.md,
- * "Commands today"): a processor whose resource resolver reads local
+ * What the query commands, sxml xpath and sxml xquery, share
+ * (apps/sxml/README.md): a processor whose resource resolver reads local
  * files only, the --param and --context-item options, the --method
  * choices, the report of a query error and its exit code, and writing a
  * result to standard output. Public API only.

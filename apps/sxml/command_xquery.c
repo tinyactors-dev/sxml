@@ -1,8 +1,8 @@
 /*
  * sxml xquery [--context-item=FILE] [--param=NAME=VALUE]... [--method=M]
  * (QUERY-FILE | --expression=TEXT): evaluates an XQuery 4.0 main module
- * and writes its result to standard output (docs/CLI.md, "Commands
- * today"; include/sxml/xquery.h, D146).
+ * and writes its result to standard output (apps/sxml/README.md,
+ * "sxml xquery"; include/sxml/xquery.h, D146).
  *
  * Golden file: command_xpath.c, with which it shares the processor, the
  * files fn:doc reads, --param and --context-item, error reports and

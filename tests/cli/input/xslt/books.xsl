@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <!-- sxml transform: template rules, a stylesheet parameter, sorting, a
-     key, xsl:number, and an included module (docs/CLI.md). -->
+     key, xsl:number, and an included module (apps/sxml/README.md). -->
 <xsl:stylesheet version="3.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
                 xmlns:x="urn:x" exclude-result-prefixes="x">
   <xsl:include href="common.xsl"/>

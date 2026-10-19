@@ -1,7 +1,7 @@
 /*
  * sxml serialize [--method=M] [--indent] FILE: parses FILE and writes the
- * document to standard output by a Serialization 4.0 method (docs/CLI.md,
- * "Commands today"; include/sxml/serialize.h).
+ * document to standard output by a Serialization 4.0 method
+ * (apps/sxml/README.md, "sxml serialize"; include/sxml/serialize.h).
  *
  * Golden file: command_xpath.c (the processor and the parse of FILE come
  * from query_command.h).

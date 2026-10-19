@@ -1,6 +1,6 @@
 /*
  * sxml check [--format=text|json] FILE...: checks that every FILE is
- * namespace-well-formed XML 1.0 (docs/CLI.md, "Planned commands";
+ * namespace-well-formed XML 1.0 (apps/sxml/README.md, "sxml check";
  * include/sxml/xml.h, sxml_xml_parser_check).
  *
  * Imitates command_version.c. Every FILE is checked, in order, even after a

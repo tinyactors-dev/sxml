@@ -89,7 +89,7 @@ sxml_add_cli_test(standard_input_is_an_argument EXIT_CODE 2 ARGUMENTS version -)
 sxml_add_cli_test(help_unknown_command EXIT_CODE 2 ARGUMENTS help verison)
 sxml_add_cli_test(help_extra_argument EXIT_CODE 2 ARGUMENTS help version extra)
 
-# sxml check (docs/CLI.md): files in tests/cli/input/.
+# sxml check (apps/sxml/README.md): files in tests/cli/input/.
 sxml_add_cli_test(check_well_formed EXIT_CODE 0 ARGUMENTS check well-formed.xml)
 sxml_add_cli_test(check_encodings EXIT_CODE 0 ARGUMENTS check utf-16.xml latin-1.xml)
 sxml_add_cli_test(check_not_well_formed EXIT_CODE 1 ARGUMENTS check well-formed.xml mismatched-tag.xml unbound-prefix.xml)
@@ -100,7 +100,7 @@ sxml_add_cli_test(check_entity_limit EXIT_CODE 4 ARGUMENTS check billion-laughs.
 sxml_add_cli_test(check_no_file EXIT_CODE 2 ARGUMENTS check)
 sxml_add_cli_test(check_help EXIT_CODE 0 ARGUMENTS check --help)
 
-# sxml xpath (docs/CLI.md): files in tests/cli/input/.
+# sxml xpath (apps/sxml/README.md): files in tests/cli/input/.
 sxml_add_cli_test(xpath_sequence EXIT_CODE 0 ARGUMENTS xpath "1 to 3, 'four', 5.0, 6e0, [7], {'k': 8}")
 sxml_add_cli_test(xpath_empty EXIT_CODE 0 ARGUMENTS xpath "()")
 sxml_add_cli_test(xpath_context_item EXIT_CODE 0 ARGUMENTS xpath --context-item=books.xml "//title/string(), count(//book)")
@@ -126,7 +126,7 @@ sxml_add_cli_test(xpath_no_expression EXIT_CODE 2 ARGUMENTS xpath)
 sxml_add_cli_test(xpath_negative_after_double_dash EXIT_CODE 0 ARGUMENTS xpath -- "-1 - 1")
 sxml_add_cli_test(xpath_help EXIT_CODE 0 ARGUMENTS xpath --help)
 
-# sxml xquery (docs/CLI.md): query files in tests/cli/input/.
+# sxml xquery (apps/sxml/README.md): query files in tests/cli/input/.
 sxml_add_cli_test(xquery_file_html EXIT_CODE 0 ARGUMENTS xquery --context-item=books.xml titles.xq)
 sxml_add_cli_test(xquery_param EXIT_CODE 0 ARGUMENTS xquery --context-item=books.xml --param=heading=Catalog titles.xq)
 sxml_add_cli_test(xquery_method_overrides EXIT_CODE 0 ARGUMENTS xquery --context-item=books.xml --method=xml titles.xq)
@@ -147,7 +147,7 @@ sxml_add_cli_test(xquery_both_texts EXIT_CODE 2 ARGUMENTS xquery --expression=1 
 sxml_add_cli_test(xquery_no_text EXIT_CODE 2 ARGUMENTS xquery)
 sxml_add_cli_test(xquery_help EXIT_CODE 0 ARGUMENTS xquery --help)
 
-# sxml transform (docs/CLI.md): stylesheets in tests/cli/input/xslt/.
+# sxml transform (apps/sxml/README.md): stylesheets in tests/cli/input/xslt/.
 sxml_add_cli_test(transform_apply_templates EXIT_CODE 0 ARGUMENTS transform xslt/books.xsl books.xml)
 sxml_add_cli_test(transform_param EXIT_CODE 0 ARGUMENTS transform --param=heading=Catalog xslt/books.xsl books.xml)
 sxml_add_cli_test(transform_method EXIT_CODE 0 ARGUMENTS transform --method=text xslt/books.xsl books.xml)
@@ -172,7 +172,7 @@ sxml_add_cli_test(transform_bad_name EXIT_CODE 2 ARGUMENTS transform --initial-t
 sxml_add_cli_test(transform_no_stylesheet EXIT_CODE 2 ARGUMENTS transform)
 sxml_add_cli_test(transform_help EXIT_CODE 0 ARGUMENTS transform --help)
 
-# sxml validate (docs/CLI.md): schemas and documents in tests/cli/input/xsd/.
+# sxml validate (apps/sxml/README.md): schemas and documents in tests/cli/input/xsd/.
 sxml_add_cli_test(validate_valid EXIT_CODE 0 ARGUMENTS validate --schema=xsd/books.xsd xsd/books.xml)
 sxml_add_cli_test(validate_invalid EXIT_CODE 1 ARGUMENTS validate --schema=xsd/books.xsd xsd/books.xml xsd/bad-books.xml)
 sxml_add_cli_test(validate_json EXIT_CODE 1 ARGUMENTS validate --format=json --schema=xsd/books.xsd xsd/books.xml xsd/bad-books.xml)
@@ -200,7 +200,7 @@ sxml_add_cli_test(validate_standard_input_twice EXIT_CODE 2 ARGUMENTS validate -
 sxml_add_cli_test(validate_bad_mode EXIT_CODE 2 ARGUMENTS validate --mode=loose --schema=xsd/books.xsd xsd/books.xml)
 sxml_add_cli_test(validate_help EXIT_CODE 0 ARGUMENTS validate --help)
 
-# sxml serialize (docs/CLI.md).
+# sxml serialize (apps/sxml/README.md).
 sxml_add_cli_test(serialize_xml EXIT_CODE 0 ARGUMENTS serialize books.xml)
 sxml_add_cli_test(serialize_indent EXIT_CODE 0 ARGUMENTS serialize --indent books.xml)
 sxml_add_cli_test(serialize_text EXIT_CODE 0 ARGUMENTS serialize --method=text books.xml)

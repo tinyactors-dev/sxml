@@ -1,7 +1,7 @@
 /*
  * sxml validate --schema=SCHEMA [--schema=SCHEMA]... [--mode=MODE]
  * [--format=FORMAT] FILE...: validates every FILE against the XSD 1.1
- * schema the SCHEMA documents form (docs/CLI.md; docs/tasks/phase-5.md,
+ * schema the SCHEMA documents form (apps/sxml/README.md; docs/tasks/phase-5.md,
  * "sxml validate"; include/sxml/schema.h, D165, D173).
  *
  * Golden file: command_check.c, whose report shapes, statuses and exit

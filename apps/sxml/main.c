@@ -1,8 +1,8 @@
 /*
  * The entry point of the sxml program: turns argv into byte views, runs the
  * program table through the CLI framework and returns its exit code
- * (docs/CLI.md, "Exit codes"). Standard streams are reached only through the
- * platform layer (platform.h).
+ * (apps/sxml/README.md, "Exit codes"). Standard streams are reached only
+ * through the platform layer (platform.h).
  */
 #include <stdalign.h>
 #include <stdint.h>

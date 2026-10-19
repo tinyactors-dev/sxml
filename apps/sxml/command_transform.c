@@ -2,7 +2,7 @@
  * sxml transform [--param=NAME=VALUE]... [--initial-template=NAME]
  * [--initial-mode=NAME] [--method=M] STYLESHEET [INPUT]: runs an XSLT 4.0
  * transformation and writes its principal result to standard output
- * (docs/CLI.md, "Commands today"; include/sxml/xslt.h, D112, D157).
+ * (apps/sxml/README.md, "sxml transform"; include/sxml/xslt.h, D112, D157).
  *
  * Golden file: command_xquery.c, with which it shares the processor and
  * its local-file resolver, --param, --method, error reports and exit

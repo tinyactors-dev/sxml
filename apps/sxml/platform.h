@@ -45,8 +45,8 @@ sxml_cli_file_reader sxml_platform_file_reader(void);
 /*
  * Writes the working directory into memory and a view of it to *path: an
  * absolute path with '/' between its parts (backslashes of Windows become
- * '/'), for the file names sxml transform turns into URIs (docs/CLI.md).
- * *path is empty when the platform cannot tell or the path does not fit
- * in memory; that is not a failure.
+ * '/'), for the file names sxml transform turns into URIs
+ * (apps/sxml/README.md). *path is empty when the platform cannot tell or
+ * the path does not fit in memory; that is not a failure.
  */
 void sxml_platform_read_working_directory(sxml_memory_view memory, sxml_byte_view *path);
