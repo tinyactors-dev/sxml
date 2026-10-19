@@ -21,7 +21,6 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 
 - 7.2b core size audit: sxml.wasm is 2,294,051 at HEAD, over 2,200,000.
 - 7.6a XSLT streamability analysis.
-- 7.11 fn:transform (after 7.3).
 - 7.15a UCA collations.
 - 7.16 timezone database.
 - 7.14c DTD follow-ups: QT4 driver features, `sxml check` flags, XT40 dtd failures.
@@ -30,7 +29,8 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 
 - Phase 7 (`docs/tasks/phase-7.md`, D183, D184): 7.6b streamed
   evaluation after 7.6a; 7.10b HTML follow-ups; Full Text, UCA, timezones, calendars and languages, iXML.
-- JavaScript bindings for XQuery, XSLT and validation (they cover XPath only).
+- Next to start when load allows: 7.12a Full Text, then JavaScript bindings
+  for XQuery, XSLT and validation (they cover XPath only).
 - `sxml` CLI gaps: `--output`, writing result documents, `--method=csv`,
   "did you mean" for options of a command.
 
@@ -96,6 +96,13 @@ whitespace error; two cases assume no cvc-id.1 IDREF check on parentless
 elements (schema owner); XQuery constructors under construction strip
 still keep is-id (evaluator_construct.c cannot tell XQuery from XSLT);
 fn:put in `sxml xquery` under `--allow-file-access`.
+
+fn:transform (7.11, D203): QT4 fn-transform XQ40 129 of 133 run, XP40 126
+of 130; XT40 transform 9 of 12. Left: fn:transform in static expressions
+(FOXT0004), enable-assertions false, the inner run shares the caller's
+scope/loader/available documents/trace sink, XSLT 2.0 behaviour for
+xslt-version 2.0, the QT4 driver's base URI for query files, `~record`
+patterns.
 
 XML 1.1 (after 7.13, D195):
 - XT40 xml-version-007/-016 and namespace-2606/-6202 fail in `src/xslt*`.
