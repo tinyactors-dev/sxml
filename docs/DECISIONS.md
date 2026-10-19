@@ -7366,6 +7366,61 @@ no case lost.**
   lowering must bind the index as a pattern variable; the rows live in
   `src/function_library_xslt.c`, another packet's file at the time.
 
+### D187. The XQuery Update Facility 3.0 (packet 7.7a)
+Recorded 2026-10-19, after D99, D137, D162, D183, D184. The owner chose
+XQUF 3.0 first (D184): packet 7.7a designs it and does the 3.0
+expressions and their application (the task file's 7.7a and 7.7b);
+7.7b is now the 4.0 draft's additions and 7.7c fn:put and revalidation.
+- **Grammar** (`grammars/xquery`, D12): XQUF 3.0, Appendix A: the
+  revalidation declaration, "declare updating" (the compatibility
+  annotation, accepted before the other annotations), insert, delete,
+  replace (value of), rename, copy-modify, transform-with (at the arrow
+  level, under XQuery 4.0's pipeline) and "invoke updating". The 17 new
+  keywords stay names. Every query and module of the upd-* sets parses;
+  the rest of XQ40 parses as before.
+- **AST**: ten kinds, the fields modify and source, the keywords FIRST,
+  LAST, INTO, AFTER, BEFORE, SKIP, the flag VALUE_OF.
+- **Static rules** (XQUF 3.0, 2.2, 5.1 to 5.4) in `src/xquery_update.c`:
+  one post-order walk over a module's AST by its links (no stack, D71)
+  gives each expression a category, simple, updating or vacuous, and
+  checks XUST0001, XUST0002 and XUST0028. %updating and %simple are
+  accepted on functions and function items, XUST0032 on variables and
+  XUST0033 twice: this replaces D162's place, the XQST0045 of
+  `check_annotations` in `src/xquery_static.c`.
+- **A pending update list is a sequence.** Each update primitive is a
+  function item named upd:insertInto ... upd:rename whose body raises
+  XUDY0038 when called; its captured values are the target, the
+  parameter and the kind. So no item kind is added (xdm.h is frozen,
+  D99), the evaluator keeps no update state, and merging the lists of
+  the comma, FLWOR, conditional and function call expressions is
+  concatenation (upd:mergeUpdates is a union); a try clause that fails
+  loses its updates with its value. The static rules keep primitives
+  where no XDM value is read.
+- **Lowering** (the part `update`, `src/xquery_lower_update.c`): every
+  update expression is a STATIC_CALL of an internal native row in no
+  function table, as group by is (D137), which checks the operands
+  (XUTY0004 to XUTY0013, XUDY0009, XUDY0023, XUDY0027, XUDY0029,
+  XUDY0030, XUTY0022) and returns the primitives. replace value of takes
+  its value through a TEXT_CONSTRUCTOR (5.4.3.2: "as in a text node
+  constructor"). copy-modify is copy(E) per variable, the modify clause,
+  then modify-copies, which applies the clause's list to the copies
+  (XUDY0014) and rebinds the variables for the return clause.
+- **Application** (`src/xquery_update_apply.c`, upd:applyUpdates): the
+  compatibility checks (XUDY0015, XUDY0016, XUDY0017, XUDY0024), then
+  each target tree is rebuilt through the tree builder in one pass over
+  the old tree with every primitive of a node applied in the order of
+  3.2.2; tree.h does not change (D183). Changed elements and their
+  ancestors become untyped; a duplicate attribute is XUDY0021.
+- **The host** (`include/sxml/xquery.h`, additive): an updating query is
+  a unit whose main function carries %updating;
+  sxml_xquery_query_is_updating says so, and the evaluation request's
+  update sink receives each changed tree (its old and new roots) after
+  the snapshot. How a change is made persistent is the host's
+  (upd:applyUpdates: implementation-defined).
+- **QT4 driver**: XQUpdate is supported; the tests of a test case run in
+  order, each updating one's changed trees replace the sources they
+  came from, and the last test's result is checked.
+
 ## Proposed
 
 - **Phase 7: four more features and the size of optional parts** (packet
