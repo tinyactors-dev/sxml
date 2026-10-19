@@ -9916,6 +9916,44 @@ offer.
   language (the table still links every part); CMake options per module
   (two builds, D189).
 
+### D229. Evaluator performance, second round (packet perf-2)
+Recorded 2026-10-19, after D46, D71, D89, D149, D223, D224. In progress;
+completed when the packet ends. The benchmarks of D224
+(`tests/bench/run-bench.py`); processor seconds, release, fastest of
+three, on a machine other builds share; and instructions of xmark-all
+under callgrind (one run, exact), the measure each change is judged by.
+- **Profile** (callgrind, xmark-all, 12.29 x 10^9 instructions at
+  9a93061): parsing the document 20 %; casting xs:untypedAtomic to
+  xs:double 14 % (strtod alone 6 %, 830,000 casts); the axis walks'
+  node descriptions 7 %; malloc and free 8 %; the machine loop's own
+  code 8 %; atomization 17 % (inclusive, most of it the casts and the
+  string values).
+- **Numbers to doubles** (glossary `scaled_integer`; Clinger, PLDI
+  1990): a decimal or xs:double lexical form whose digits make a mantissa
+  below 10^15 and whose power of ten is within +-22 is converted with one
+  IEEE 754 multiplication or division, correctly rounded as strtod is;
+  others go through strtod as before (`sxml_scaled_integer_to_double` in
+  `src/decimal.c`, used by `src/cast_lexical.c` and
+  `sxml_decimal_to_double`). Only where FLT_EVAL_METHOD is 0. 20 million
+  random cases agree with strtod bit for bit.
+- **Leaves in place** (glossary `leaf_in_place`, `src/evaluator.c`): an
+  operand task whose expression is a leaf (no nested evaluation) in the
+  pushing task's own frame, delivering nothing, is computed at the push
+  and its value left as the task value; it is charged the one step its
+  task's turn would have been, so step counts are unchanged (D89). A
+  failing leaf is pushed after all and its failure returned, so the loop
+  locates and catches the error at its task as before; a step that cannot
+  be charged leaves the task to the loop, whose charge fails the same way.
+- **Small sequences**: the item lists of steps and document order hold 8
+  items in themselves before taking allocator memory, and hand their
+  references to the sequence they make (`sxml_sequence_make_vector_taking`,
+  internal, `src/xdm_internal.h`) instead of retaining and releasing each.
+- **Measured** (xmark-all instructions; seconds before and after): numbers
+  12.29 to 11.55 x 10^9; leaves in place to 11.47; small sequences to
+  11.09 (xmark-all 1.55 to 1.41 s, Q11 0.75 to 0.65, predicate-join 0.33
+  to 0.31; the rest within the machine's noise). QT4 XQ40 and XT40 whole,
+  release, case by case: 0 outcomes differ (45,913 and 11,826 passed).
+
 ## Proposed
 
 - **The CLI's WebAssembly budget after the Phase 7 features** (packet
