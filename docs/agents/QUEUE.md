@@ -83,56 +83,11 @@ xsl:evaluate (7.3, D196: 73 of 83, gate 90 %): 3 need parse-html (7.10),
 (7.15); keyword arguments to stylesheet functions from the target
 expression. disable-output-escaping (7.5, D188): 25 of 25 run.
 
-HTML (7.10a done, D201: misc-HtmlTestSuite 1,378 of 1,379, fn-parse-html
-22/22, fn-html-doc 9/10). 7.10b: the `<meta>` encoding prescan and
-mid-parse encoding change, vendored html5lib tests as a unit test,
-multi-byte decoders (or FODC0011), source locations, XHTML input, and the
-CLI's missing static base URI (relative `html-doc`/`unparsed-text` in
-`sxml xpath`/`xquery`).
-
-DTD (7.14a/b done, D199): xmlconf external-entity cases all pass, XML 1.1
-not-wf 169 of 169; XT40 dtd 76 of 79 after 7.14c (D210); `sxml check
---external-entities` and `--validate-dtd`. Left: supports-dtd-validation
-should follow D211's dtd-validation feature (needs the processor's feature
-set in fn:system-properties); error-1370a/1380a expect XSLT 2.0 codes.
-
-XQuery Update (7.7a-c done, D187, D205): upd-* 787 of 825 (98.6 % of 798
-in scope). Left: XUDY0038 for dynamic calls of updating function items (the
-evaluator's dynamic call); six propagateNamespace cases are a test-suite
-whitespace error; two cases assume no cvc-id.1 IDREF check on parentless
-elements (schema owner); XQuery constructors under construction strip
-still keep is-id (evaluator_construct.c cannot tell XQuery from XSLT);
-fn:put in `sxml xquery` under `--allow-file-access`.
-
-fn:transform (7.11, D203): QT4 fn-transform XQ40 129 of 133 run, XP40 126
-of 130; XT40 transform 9 of 12. Left: fn:transform in static expressions
-(FOXT0004), enable-assertions false, the inner run shares the caller's
-scope/loader/available documents/trace sink, XSLT 2.0 behaviour for
-xslt-version 2.0, the QT4 driver's base URI for query files, `~record`
-patterns.
-
-Streaming analysis (7.6a, D212): strm/ 2,503 of 2,564 (evaluation still
-unstreamed); XTSE3430 154 of 156. XT40 8,952 -> 11,792 with the streaming
-feature claimed.
-
-CLI (cli-2, D217): `--output`/`-o` with `--force` and atomic writes,
-`sxml transform --result-directory=DIR`, `sxml xquery --allow-put`,
-`--method=csv`, hints for misspelled and other commands' options. Left: the
-Windows file writer is untested; replaced files get default permissions;
-fn:put does not create directories; cli/xpath_timezone fails under WASI.
-
-JavaScript (js-1, D216): compileQuery, compileStylesheet and compileSchema
-in sxml-full.wasm; the core module refuses them with a clear message.
-
-UCA (7.15a, D213): advanced-uca-fallback 49 of 49 (XQ40 and XP40),
-non_unicode_codepoint_collation 13 of 13; DUCET 16.0.0 vendored, served by
-the host; the default collation now applies to comparisons and order by.
-CLI budget 7,500,000 / 1,650,000 (D208).
-
-Timezones (7.16, D209): fn-civil-timezone 9 of 9, the 8 olson-timezone
-cases pass; tzdata 2026e vendored, served by the host as TZif. Left: a
-default place in the dynamic context (additive header change); the CLI
-reads `/usr/share/zoneinfo`.
+HTML (7.10a/b done, D201, D218): misc-HtmlTestSuite 1,378 of 1,379,
+fn-parse-html 22/22, fn-html-doc 9/10; html5lib tree construction 1,749 of
+1,753, tokenizer 7,045 of 7,045, encoding 82 of 82; all WHATWG multi-byte
+decoders; XHTML input. Left: source locations (the processor builds every
+tree without them), a prefixed XHTML root, XHTML that needs an external DTD.
 
 XML 1.1 (after 7.13, D195):
 - XT40 xml-version-007/-016 and namespace-2606/-6202 fail in `src/xslt*`.
