@@ -12,6 +12,7 @@
 #include "sxml/memory.h"
 #include "sxml/name.h"
 #include "sxml/processor.h"
+#include "sxml/schema.h"
 #include "sxml/serialize.h"
 #include "sxml/types.h"
 #include "sxml/xdm.h"
@@ -85,6 +86,7 @@ typedef struct fixture {
 typedef struct fixture_options {
     uint64_t failing_allocation_number;
     sxml_processor_limits limits;
+    sxml_optional_feature_view optional_features;
 } fixture_options;
 
 static sxml_allocator fixture_allocator(const fixture *test_fixture) {
@@ -109,7 +111,8 @@ static sxml_status fixture_create(const fixture_options *options, fixture *test_
             .allocator = allocator,
             .limits = options->limits,
             .resource_resolver = sxml_table_resource_resolver(&fixture_resource_view),
-            .clock = sxml_fixed_clock(&fixture_clock_reading)},
+            .clock = sxml_fixed_clock(&fixture_clock_reading),
+            .optional_features = options->optional_features},
         &test_fixture->processor);
     if (status == SXML_STATUS_OK) {
         status = sxml_output_buffer_create(
@@ -631,20 +634,39 @@ static void test_doc_is_stable_and_resolves_through_the_resolver(sxml_test_state
     run.expression_text = TEXT("parse-xml('<a>')");
     SXML_TEST_EXPECT(state, run_query(&test_fixture, &run) == SXML_STATUS_DYNAMIC_ERROR);
     SXML_TEST_EXPECT(state, error_code_is(&run, TEXT("FODC0006")));
-    /* F&O 4.0, fn:parse-xml: dtd-validation (FODC0007 for an invalid
-       document, one without a DTD too) and trust-external (FODC0016 when
-       an external resource is needed; default false). D199. */
+    /* F&O 4.0, fn:parse-xml: dtd-validation needs the dtd-validation
+       feature (FODC0013 without it, D211); with it, FODC0007 for an
+       invalid document, one without a DTD too (D199). */
     run.expression_text = TEXT("parse-xml('<!DOCTYPE a [<!ELEMENT a EMPTY>]><a/>', "
-                               "{'dtd-validation': true()}) ! name(*)");
-    SXML_TEST_EXPECT(state, run_query(&test_fixture, &run) == SXML_STATUS_OK);
-    SXML_TEST_EXPECT(state, output_is(&test_fixture, TEXT("\"a\"")));
-    run.expression_text = TEXT("parse-xml('<!DOCTYPE a [<!ELEMENT a EMPTY>]><a><b/></a>', "
                                "{'dtd-validation': true()})");
     SXML_TEST_EXPECT(state, run_query(&test_fixture, &run) == SXML_STATUS_DYNAMIC_ERROR);
-    SXML_TEST_EXPECT(state, error_code_is(&run, TEXT("FODC0007")));
-    run.expression_text = TEXT("parse-xml('<a/>', {'dtd-validation': true()})");
-    SXML_TEST_EXPECT(state, run_query(&test_fixture, &run) == SXML_STATUS_DYNAMIC_ERROR);
-    SXML_TEST_EXPECT(state, error_code_is(&run, TEXT("FODC0007")));
+    SXML_TEST_EXPECT(state, error_code_is(&run, TEXT("FODC0013")));
+    {
+        const sxml_optional_feature dtd_validation = sxml_dtd_validation_feature();
+        fixture validating_fixture;
+        SXML_TEST_REQUIRE(
+            state, fixture_create(&(fixture_options){.failing_allocation_number = 0,
+                                                     .optional_features =
+                                                         {.optional_features = &dtd_validation,
+                                                          .optional_feature_count = 1}},
+                                  &validating_fixture) == SXML_STATUS_OK);
+        run.expression_text = TEXT("parse-xml('<!DOCTYPE a [<!ELEMENT a EMPTY>]><a/>', "
+                                   "{'dtd-validation': true()}) ! name(*)");
+        SXML_TEST_EXPECT(state, run_query(&validating_fixture, &run) == SXML_STATUS_OK);
+        SXML_TEST_EXPECT(state, output_is(&validating_fixture, TEXT("\"a\"")));
+        run.expression_text = TEXT("parse-xml('<!DOCTYPE a [<!ELEMENT a EMPTY>]><a><b/></a>', "
+                                   "{'dtd-validation': true()})");
+        SXML_TEST_EXPECT(state,
+                         run_query(&validating_fixture, &run) == SXML_STATUS_DYNAMIC_ERROR);
+        SXML_TEST_EXPECT(state, error_code_is(&run, TEXT("FODC0007")));
+        run.expression_text = TEXT("parse-xml('<a/>', {'dtd-validation': true()})");
+        SXML_TEST_EXPECT(state,
+                         run_query(&validating_fixture, &run) == SXML_STATUS_DYNAMIC_ERROR);
+        SXML_TEST_EXPECT(state, error_code_is(&run, TEXT("FODC0007")));
+        SXML_TEST_EXPECT(state, fixture_destroy(&validating_fixture));
+    }
+    /* trust-external: FODC0016 when an external resource is needed;
+       default false (D199). */
     run.expression_text = TEXT("parse-xml('<!DOCTYPE a SYSTEM \"a.dtd\"><a/>')");
     SXML_TEST_EXPECT(state, run_query(&test_fixture, &run) == SXML_STATUS_DYNAMIC_ERROR);
     SXML_TEST_EXPECT(state, error_code_is(&run, TEXT("FODC0016")));

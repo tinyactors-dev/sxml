@@ -7,6 +7,7 @@
  * DTD validation is schema validation against components built from the
  * DTD, with no second content-model engine (D183).
  */
+#include "sxml/schema.h"
 #include "sxml/status.h"
 #include "sxml/view.h"
 #include "xml_internal.h"
@@ -47,3 +48,25 @@ typedef struct sxml_dtd_schema_request {
  * allocator's failures and SXML_STATUS_ARITHMETIC_OVERFLOW.
  */
 SXML_NODISCARD sxml_status sxml_dtd_write_schemas(const sxml_dtd_schema_request *request);
+
+/*
+ * The operations of sxml_dtd_validation_feature (include/sxml/schema.h;
+ * src/optional_feature_internal.h, SXML_OPTIONAL_FEATURE_KIND_DTD_
+ * VALIDATION; D211): the DTD validator of include/sxml/schema.h, which the
+ * processor's document loader reaches only through this table, so the
+ * schema compiler it needs is linked only into a program that names the
+ * feature. Defined in src/schema_from_dtd.c.
+ */
+typedef struct sxml_dtd_validation_feature_operations {
+    /* sxml_dtd_validator_create. */
+    sxml_status (*create_validator)(sxml_allocator allocator,
+                                    const sxml_dtd_validator_configuration *configuration,
+                                    sxml_dtd_validator **validator);
+    /* sxml_dtd_validator_destroy. */
+    void (*destroy_validator)(sxml_dtd_validator *validator);
+    /* sxml_dtd_validator_as_xml_validator. */
+    sxml_xml_validator (*as_xml_validator)(sxml_dtd_validator *validator);
+    /* sxml_dtd_validator_get_outcome. */
+    sxml_status (*get_outcome)(const sxml_dtd_validator *validator,
+                               sxml_validation_outcome *outcome);
+} sxml_dtd_validation_feature_operations;

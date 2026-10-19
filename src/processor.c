@@ -12,6 +12,7 @@
  */
 #include "processor_internal.h"
 
+#include "dtd_internal.h"
 #include "function_library_parts_internal.h"
 #include "sxml/tree.h"
 #include "sxml/xml.h"
@@ -1092,6 +1093,18 @@ typedef struct sxml_resolution_exchange {
     const sxml_resource *resource;
 } sxml_resolution_exchange;
 
+/* F&O 4.0, fn:doc and fn:parse-xml (17.1.1, 17.2.1): FODC0013 when the
+   processor has no parser for the requested options; here the
+   dtd-validation option of a processor whose configuration does not name
+   sxml_dtd_validation_feature (D162's place, D211). */
+static const sxml_static_error sxml_document_dtd_validation_unavailable_error = {
+    .error_status = SXML_STATUS_DYNAMIC_ERROR,
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("FODC0013"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(
+        "DTD validation is not available: the processor's configuration does not name "
+        "the dtd-validation feature (F&O 4.0, fn:doc, fn:parse-xml: dtd-validation)"),
+};
+
 static const sxml_static_error sxml_document_untrusted_error = {
     .error_status = SXML_STATUS_DYNAMIC_ERROR,
     .code_local_name = SXML_BYTE_VIEW_INITIALIZER("FODC0016"),
@@ -1152,8 +1165,17 @@ static sxml_status sxml_loader_parse_with_dtd(const sxml_loader_parse *parse,
     memset(&validation_error, 0, sizeof(validation_error));
     sxml_dtd_validator *validator = NULL;
     sxml_status status = SXML_STATUS_OK;
+    /* The DTD validator is an optional feature (D211), so a program that
+       does not name it links no schema compiler. */
+    const sxml_dtd_validation_feature_operations *validation = NULL;
     if (parse->validates_dtd) {
-        status = sxml_dtd_validator_create(
+        validation = sxml_processor_find_optional_feature(
+            processor, SXML_OPTIONAL_FEATURE_KIND_DTD_VALIDATION);
+        if (validation == NULL) {
+            return sxml_error_record_report(parse->error_record,
+                                            &sxml_document_dtd_validation_unavailable_error);
+        }
+        status = validation->create_validator(
             processor->allocator,
             &(sxml_dtd_validator_configuration){
                 .processor = processor,
@@ -1168,13 +1190,13 @@ static sxml_status sxml_loader_parse_with_dtd(const sxml_loader_parse *parse,
     request.entity_resolver = sxml_entity_resolution_as_resolver(&resolution);
     request.validator = validator == NULL
                             ? (sxml_xml_validator){.state = NULL, .operations = NULL}
-                            : sxml_dtd_validator_as_xml_validator(validator);
+                            : validation->as_xml_validator(validator);
     status = sxml_processor_parse_document(processor, &request, document_node);
     bool is_invalid = status == SXML_STATUS_DYNAMIC_ERROR && validator != NULL &&
                       validation_error.code.local_name.byte_count != 0;
     if (status == SXML_STATUS_OK && validator != NULL) {
         sxml_validation_outcome outcome = {.validity = SXML_VALIDITY_INVALID, .error_count = 0};
-        is_invalid = sxml_dtd_validator_get_outcome(validator, &outcome) != SXML_STATUS_OK ||
+        is_invalid = validation->get_outcome(validator, &outcome) != SXML_STATUS_OK ||
                      outcome.validity != SXML_VALIDITY_VALID;
     }
     if (status == SXML_STATUS_OK && (resolution.was_refused || is_invalid)) {
@@ -1189,7 +1211,9 @@ static sxml_status sxml_loader_parse_with_dtd(const sxml_loader_parse *parse,
     } else if (is_invalid) {
         status = sxml_loader_report_invalid(parse, &validation_error);
     }
-    sxml_dtd_validator_destroy(validator);
+    if (validation != NULL) {
+        validation->destroy_validator(validator);
+    }
     return status;
 }
 

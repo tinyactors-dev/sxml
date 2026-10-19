@@ -633,3 +633,16 @@ sxml_dtd_validator_as_xml_validator(sxml_dtd_validator *validator);
  */
 SXML_NODISCARD SXML_EXPORT sxml_status sxml_dtd_validator_get_outcome(
     const sxml_dtd_validator *validator, sxml_validation_outcome *outcome);
+
+/*
+ * The optional feature (include/sxml/processor.h, "Optional features")
+ * that gives fn:doc and fn:parse-xml their dtd-validation option (F&O
+ * 4.0, 17.1.1 and 17.2.1): the document is validated against its DTD by
+ * the DTD validator above, an invalid one raising FODC0007. Without it the
+ * option raises FODC0013 (no parser with the requested options), and a
+ * program that names neither it nor the DTD validator links no schema
+ * compiler for it; reading the DTD, its entities and attribute defaults
+ * does not need the feature. sxml_all_optional_features() includes it.
+ * Its name is "dtd-validation" (packet 7.2b, D211).
+ */
+SXML_EXPORT sxml_optional_feature sxml_dtd_validation_feature(void);

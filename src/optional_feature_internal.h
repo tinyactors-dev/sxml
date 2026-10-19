@@ -75,6 +75,11 @@ typedef enum sxml_optional_feature_kind {
        through the resolver (src/timezone.c, packet 7.16, D209); operations
        sxml_timezone_feature_operations (src/timezone_internal.h). */
     SXML_OPTIONAL_FEATURE_KIND_TIMEZONE_DATABASE,
+    /* sxml_dtd_validation_feature: the DTD validator for the
+       dtd-validation option of fn:doc and fn:parse-xml (src/schema_from_
+       dtd.c, packet 7.2b, D211); operations sxml_dtd_validation_feature_
+       operations (src/dtd_internal.h). */
+    SXML_OPTIONAL_FEATURE_KIND_DTD_VALIDATION,
     SXML_OPTIONAL_FEATURE_KIND_COUNT,
 } sxml_optional_feature_kind;
 
@@ -222,3 +227,5 @@ extern const sxml_optional_feature_definition sxml_html_feature_definition;
 extern const sxml_optional_feature_definition sxml_xslt_transform_feature_definition;
 /* The timezone database (src/timezone.c). */
 extern const sxml_optional_feature_definition sxml_timezone_database_feature_definition;
+/* The DTD validation feature (src/schema_from_dtd.c). */
+extern const sxml_optional_feature_definition sxml_dtd_validation_feature_definition;

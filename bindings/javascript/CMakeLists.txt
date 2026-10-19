@@ -55,7 +55,7 @@ if(SXML_BUILD_TESTS AND SXML_NODE_EXECUTABLE)
             "${CMAKE_CURRENT_SOURCE_DIR}/test/package.test.ts"
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
     set_tests_properties(javascript/package_full PROPERTIES
-        ENVIRONMENT "SXML_WASM_PATH=$<TARGET_FILE:sxml_javascript_full_module>;SXML_WASM_FEATURES=test,expath-binary,html,xslt-transform")
+        ENVIRONMENT "SXML_WASM_PATH=$<TARGET_FILE:sxml_javascript_full_module>;SXML_WASM_FEATURES=test,expath-binary,html,xslt-transform,timezone-database,dtd-validation")
     # The TypeScript compiler's checks, when `npm ci` has installed it here.
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/node_modules/typescript/bin/tsc")
         add_test(NAME javascript/typecheck
@@ -73,7 +73,9 @@ if(SXML_BUILD_TESTS AND SXML_NODE_EXECUTABLE)
     # bytes stripped for the core sxml.wasm and 3,000,000 for the full
     # module; the gzipped limits keep D138's ratio of 700,000 to 2,000,000
     # (D189); raised to 2,200,000 / 770,000 and 4,000,000 / 1,400,000
-    # in D207.
+    # in D207. The core stays under its budget by keeping large parts
+    # behind optional features (D208): DTD validation and the schema
+    # compiler it needs are in the full module only (D211).
     if(TARGET sxml_cli)
         add_test(NAME javascript/size_budget
             COMMAND "${SXML_NODE_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test/size-budget.mjs"

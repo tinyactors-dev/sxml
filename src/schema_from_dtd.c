@@ -4,11 +4,14 @@
  * a schema compiled from the schema documents the parser writes from the
  * DTD (src/dtd.c) and a schema validator that only checks.
  *
+ * Its optional feature (D211) imitates src/xslt_transform_function.c.
+ *
  * Golden file: src/schema_validate.c (lifecycle, reports through a sink
  * and the error record).
  */
 #include "sxml/schema.h"
 
+#include "dtd_internal.h"
 #include "processor_internal.h"
 
 #include <stdalign.h>
@@ -281,4 +284,25 @@ sxml_status sxml_dtd_validator_get_outcome(const sxml_dtd_validator *validator,
                            ? validator->error_count
                            : schema_outcome.error_count};
     return SXML_STATUS_OK;
+}
+
+/* --------------------------------------------------------------- Feature */
+
+static const sxml_dtd_validation_feature_operations sxml_dtd_validation_operations = {
+    .create_validator = sxml_dtd_validator_create,
+    .destroy_validator = sxml_dtd_validator_destroy,
+    .as_xml_validator = sxml_dtd_validator_as_xml_validator,
+    .get_outcome = sxml_dtd_validator_get_outcome,
+};
+
+const sxml_optional_feature_definition sxml_dtd_validation_feature_definition = {
+    .feature_kind = SXML_OPTIONAL_FEATURE_KIND_DTD_VALIDATION,
+    .feature_name = SXML_BYTE_VIEW_INITIALIZER("dtd-validation"),
+    .operations = &sxml_dtd_validation_operations,
+    .finalize_state = NULL,
+    .library_functions = NULL,
+};
+
+sxml_optional_feature sxml_dtd_validation_feature(void) {
+    return (sxml_optional_feature){.definition = &sxml_dtd_validation_feature_definition};
 }
