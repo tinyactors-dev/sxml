@@ -1210,7 +1210,8 @@ static sxml_copy_request copy_request_of(sxml_node_reference node) {
     return (sxml_copy_request){.node = node,
                                .preserves_namespaces = true,
                                .inherits_namespaces = true,
-                               .preserves_type_annotations = true};
+                               .preserves_type_annotations = true,
+                               .strips_identity = false};
 }
 
 static void test_copy_node_rebuilds_subtrees(sxml_test_state *state) {
@@ -1379,6 +1380,138 @@ static void test_copy_node_honours_no_inherit(sxml_test_state *state) {
 }
 
 /* Nested 10^5 deep: copying and walking use constant C stack. */
+/* Marks of the identity test: element e, then attributes key, refs and
+   xml:id, each event given is_id or is_idrefs as a validation would. */
+static sxml_status build_identity_element(const tree_fixture *fixture,
+                                          built_tree *built) {
+    *built = (built_tree){.arena_tree = NULL, .tree = NULL};
+    sxml_arena_tree_configuration configuration = arena_configuration(fixture);
+    sxml_status status = sxml_arena_tree_create(
+        sxml_default_allocator(), &configuration, &built->arena_tree);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    event_writer writer = {
+        .fixture = fixture,
+        .builder = sxml_arena_tree_as_tree_builder(built->arena_tree),
+        .status = SXML_STATUS_OK};
+    const sxml_name_identifier element_name = intern_name(
+        &writer,
+        (test_name){.namespace_uri = "", .prefix = "", .local_name = "e"});
+    if (writer.status == SXML_STATUS_OK) {
+        writer.status = writer.builder.operations->start_element(
+            writer.builder.state,
+            &(sxml_element_start_event){
+                .element_name = element_name,
+                .namespace_prefix = {.index = 0},
+                .type_annotation = {.index = SXML_TYPE_NONE},
+                .is_id = true,
+                .is_idrefs = true,
+                .is_nilled = false,
+                .location = no_location});
+    }
+    const test_name attribute_names[] = {
+        {.namespace_uri = "", .prefix = "", .local_name = "key"},
+        {.namespace_uri = "", .prefix = "", .local_name = "refs"},
+        {.namespace_uri = "http://www.w3.org/XML/1998/namespace",
+         .prefix = "xml",
+         .local_name = "id"},
+    };
+    for (size_t attribute_index = 0; attribute_index < 3;
+         attribute_index++) {
+        const sxml_name_identifier name =
+            intern_name(&writer, attribute_names[attribute_index]);
+        const sxml_namespace_prefix_identifier prefix =
+            intern_prefix(&writer, attribute_names[attribute_index].prefix);
+        if (writer.status == SXML_STATUS_OK) {
+            writer.status = writer.builder.operations->add_attribute(
+                writer.builder.state,
+                &(sxml_attribute_event){
+                    .attribute_name = name,
+                    .namespace_prefix = prefix,
+                    .attribute_value = text_view("v"),
+                    .type_annotation = {.index = SXML_TYPE_NONE},
+                    .is_id = attribute_index != 1,
+                    .is_idrefs = attribute_index == 1,
+                    .location = no_location});
+        }
+    }
+    write_end_element(&writer);
+    if (writer.status != SXML_STATUS_OK) {
+        return writer.status;
+    }
+    return sxml_arena_tree_finish(built->arena_tree, &built->tree);
+}
+
+/* The is-id and is-idrefs marks of nodes 0 to 3 as "II" pairs, 1 or 0. */
+static void identity_marks(const built_tree *built, char *marks) {
+    for (uint32_t node_number = 0; node_number < 4; node_number++) {
+        sxml_node_description description;
+        const bool is_described =
+            sxml_node_describe(fixed_node(built, node_number), &description) ==
+            SXML_STATUS_OK;
+        const size_t mark_offset = (size_t)node_number * 2U;
+        marks[mark_offset] = is_described && description.is_id ? '1' : '0';
+        marks[mark_offset + 1U] =
+            is_described && description.is_idrefs ? '1' : '0';
+    }
+    marks[8] = '\0';
+}
+
+/* Copies built's element with or without its annotations and writes the
+   copy's identity marks. */
+static sxml_status copy_identity_marks(const tree_fixture *fixture,
+                                       const sxml_copy_request *request,
+                                       char *marks) {
+    sxml_arena_tree_configuration configuration = arena_configuration(fixture);
+    built_tree copy = {.arena_tree = NULL, .tree = NULL};
+    sxml_status status = sxml_arena_tree_create(
+        sxml_default_allocator(), &configuration, &copy.arena_tree);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_tree_builder_copy_node(
+            sxml_arena_tree_as_tree_builder(copy.arena_tree), request);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_arena_tree_finish(copy.arena_tree, &copy.tree);
+    }
+    if (status == SXML_STATUS_OK) {
+        identity_marks(&copy, marks);
+    }
+    built_tree_destroy(&copy);
+    return status;
+}
+
+/* A copy keeps is-id and is-idrefs, with or without annotations; one
+   that strips identity drops them, but xml:id stays an ID (XQuery 3.1,
+   3.9.1.3: construction mode strip). */
+static void test_copy_node_drops_identity_without_types(
+    sxml_test_state *state) {
+    tree_fixture fixture;
+    SXML_TEST_REQUIRE(state, tree_fixture_create(&fixture) == SXML_STATUS_OK);
+    built_tree built;
+    SXML_TEST_REQUIRE(state, build_identity_element(&fixture, &built) ==
+                                 SXML_STATUS_OK);
+    char marks[9];
+    identity_marks(&built, marks);
+    SXML_TEST_EXPECT(state, strcmp(marks, "11100110") == 0);
+    sxml_copy_request request = copy_request_of(fixed_node(&built, 0));
+    SXML_TEST_REQUIRE(state, copy_identity_marks(&fixture, &request, marks) ==
+                                 SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, strcmp(marks, "11100110") == 0);
+    /* XSLT's strip keeps them (XSLT 4.0, 4.3)... */
+    request.preserves_type_annotations = false;
+    SXML_TEST_REQUIRE(state, copy_identity_marks(&fixture, &request, marks) ==
+                                 SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, strcmp(marks, "11100110") == 0);
+    /* ...XQuery's construction strip does not. */
+    request.strips_identity = true;
+    SXML_TEST_REQUIRE(state, copy_identity_marks(&fixture, &request, marks) ==
+                                 SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, strcmp(marks, "00000010") == 0);
+    built_tree_destroy(&built);
+    tree_fixture_destroy(&fixture);
+}
+
 static void test_deep_trees_copy_and_walk_iteratively(sxml_test_state *state) {
     tree_fixture fixture;
     SXML_TEST_REQUIRE(state, tree_fixture_create(&fixture) == SXML_STATUS_OK);
@@ -1470,6 +1603,8 @@ static const sxml_test_case tree_test_cases[] = {
      .function = test_copy_node_copies_namespace_nodes},
     {.name = "copy_node_honours_no_inherit",
      .function = test_copy_node_honours_no_inherit},
+    {.name = "copy_node_drops_identity_without_types",
+     .function = test_copy_node_drops_identity_without_types},
     {.name = "deep_trees_copy_and_walk_iteratively",
      .function = test_deep_trees_copy_and_walk_iteratively},
 };

@@ -119,11 +119,15 @@ static const sxml_qt4_supported_dependency sxml_qt4_xquery_dependencies[] = {
     {SXML_BYTE_VIEW_INITIALIZER("feature"),
      SXML_BYTE_VIEW_INITIALIZER("fn-load-xquery-module")},
     /* The XQuery Update Facility 3.0 (packet 7.7a, D187), with
-       revalidation skip; lax and strict raise XUST0026 until 7.7c. */
+       every revalidation mode (packet 7.7c, D205). */
     {SXML_BYTE_VIEW_INITIALIZER("feature"),
      SXML_BYTE_VIEW_INITIALIZER("XQUpdate")},
     {SXML_BYTE_VIEW_INITIALIZER("revalidation"),
      SXML_BYTE_VIEW_INITIALIZER("skip")},
+    {SXML_BYTE_VIEW_INITIALIZER("revalidation"),
+     SXML_BYTE_VIEW_INITIALIZER("lax")},
+    {SXML_BYTE_VIEW_INITIALIZER("revalidation"),
+     SXML_BYTE_VIEW_INITIALIZER("strict")},
 };
 
 /* For XPath only: XPath 1.0 compatibility mode (packet 7.4,

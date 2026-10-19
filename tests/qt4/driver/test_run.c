@@ -14,6 +14,7 @@
 #include "sxml/name.h"
 #include "sxml/processor.h"
 #include "sxml/schema.h"
+#include "sxml/serialize.h"
 #include "sxml/string.h"
 #include "sxml/types.h"
 #include "sxml/xdm.h"
@@ -107,6 +108,8 @@ typedef struct sxml_qt4_test_context {
        read it as their context value when the environment has none
        (D187). */
     size_t first_source_number;
+    /* The available documents fn:put stored so far (D205). */
+    size_t put_document_count;
     /* What was being done when something failed, for the reason. */
     sxml_byte_view stage;
     sxml_byte_view stage_subject;
@@ -1136,8 +1139,92 @@ sxml_qt4_receive_updated_tree(void *state,
     return SXML_STATUS_OK;
 }
 
+/* The most documents one test case may store with fn:put. */
+#define SXML_QT4_PUT_DOCUMENT_CAPACITY ((size_t)8)
+
+/* The document a put stores, as a file would hold it: node serialized
+   (an element as a document's one child) and parsed again, with uri as
+   its document URI. */
+static sxml_status sxml_qt4_store_put_document(sxml_qt4_test_context *context,
+                                               const sxml_xquery_put_document *put_document,
+                                               sxml_item *document_node) {
+    sxml_output_buffer *output_buffer = NULL;
+    sxml_status status = sxml_output_buffer_create(
+        context->allocator,
+        &(sxml_output_buffer_configuration){.allocator = context->allocator,
+                                            .maximum_byte_count = 0},
+        &output_buffer);
+    sxml_serialization_parameters parameters;
+    memset(&parameters, 0, sizeof parameters);
+    parameters.serialization_method = SXML_SERIALIZATION_METHOD_XML;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_serialize_sequence(
+            sxml_processor_get_item_heap(context->processor),
+            &(sxml_serialization_request){.value = sxml_sequence_from_item(put_document->node),
+                                          .serialization_parameters = parameters,
+                                          .error_record = &context->error_record},
+            sxml_output_buffer_as_output_stream(output_buffer));
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_processor_parse_document(
+            context->processor,
+            &(sxml_xml_parse_request){.input = sxml_output_buffer_get_bytes(output_buffer),
+                                      .source_name = put_document->uri,
+                                      .document_uri = put_document->uri,
+                                      .base_uri = put_document->uri,
+                                      .encoding_name = sxml_qt4_empty_text,
+                                      .diagnostic = NULL},
+            document_node);
+    }
+    sxml_output_buffer_destroy(output_buffer);
+    return status;
+}
+
+/*
+ * The put half of the update sink (include/sxml/xquery.h, D205): what
+ * fn:put stores becomes an available document at its URI for the rest of
+ * the test case, so that a later fn:doc, in a query or an assertion,
+ * reads it back (the catalog's fn:put tests). Nothing is written to a
+ * file.
+ */
+static sxml_status
+sxml_qt4_receive_put_document(void *state, const sxml_xquery_put_document *put_document) {
+    sxml_qt4_test_context *context = state;
+    if (context->put_document_count == SXML_QT4_PUT_DOCUMENT_CAPACITY) {
+        return SXML_STATUS_LIMIT_EXCEEDED;
+    }
+    /* An absolute URI is never empty (include/sxml/xquery.h). */
+    if (put_document->uri.byte_count == 0) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    void *memory = NULL;
+    sxml_status status = sxml_qt4_allocate_array(
+        context,
+        (sxml_qt4_array_request){.element_count = put_document->uri.byte_count,
+                                 .element_byte_count = 1,
+                                 .alignment = 1},
+        &memory);
+    sxml_item document_node;
+    memset(&document_node, 0, sizeof document_node);
+    if (status == SXML_STATUS_OK && memory != NULL) {
+        memcpy(memory, put_document->uri.bytes, put_document->uri.byte_count);
+        status = sxml_qt4_store_put_document(context, put_document, &document_node);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_qt4_own_value(context, sxml_sequence_from_item(document_node));
+    context->available_documents[context->available_document_count] = (sxml_available_document){
+        .document_uri = {.bytes = memory, .byte_count = put_document->uri.byte_count},
+        .document_node = document_node};
+    context->available_document_count += 1;
+    context->put_document_count += 1;
+    return SXML_STATUS_OK;
+}
+
 static const sxml_xquery_update_sink_operations sxml_qt4_update_sink_operations = {
-    .receive_updated_tree = sxml_qt4_receive_updated_tree};
+    .receive_updated_tree = sxml_qt4_receive_updated_tree,
+    .receive_put_document = sxml_qt4_receive_put_document};
 
 static sxml_status sxml_qt4_evaluate_main_query(sxml_qt4_test_context *context,
                                                 sxml_byte_view text,
@@ -1255,9 +1342,10 @@ static sxml_status sxml_qt4_apply_environment(sxml_qt4_test_context *context) {
             collection_query_value_count += collection->queries.text_count + 1;
         }
     }
-    const size_t document_capacity = source_count + collection_source_count;
+    const size_t document_capacity =
+        source_count + collection_source_count + SXML_QT4_PUT_DOCUMENT_CAPACITY;
     const size_t owned_capacity =
-        variable_capacity + 1 + collection_source_count +
+        variable_capacity + 1 + collection_source_count + SXML_QT4_PUT_DOCUMENT_CAPACITY +
         2 * environment->collections.collection_count +
         collection_query_value_count;
     sxml_qt4_set_stage(context,
@@ -1406,7 +1494,10 @@ static void sxml_qt4_judge(sxml_qt4_test_context *context,
             .catalog = request->catalog,
             .test_set_file_path = request->test_case->test_set_file_path,
             .allocator = context->allocator,
-            .arena = request->arena},
+            .arena = request->arena,
+            .available_documents = {.available_documents = context->available_documents,
+                                    .available_document_count =
+                                        context->available_document_count}},
         &verdict);
     if (status != SXML_STATUS_OK) {
         sxml_qt4_describe_failure(context, status, answer);

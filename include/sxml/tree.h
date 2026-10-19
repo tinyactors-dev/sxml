@@ -618,8 +618,15 @@ typedef struct sxml_copy_request {
        parent that the copy does not have are undeclared (no-inherit). */
     bool inherits_namespaces;
     /* Keep type annotations; when false, elements become xs:untyped and
-       attributes xs:untypedAtomic. */
+       attributes xs:untypedAtomic, nilled is false, and is-id and
+       is-idrefs stay as they are (XSLT 4.0, 4.3 and validation="strip"). */
     bool preserves_type_annotations;
+    /* With preserves_type_annotations false: is-id and is-idrefs become
+       false too, except that an xml:id attribute stays an ID (XQuery 3.1,
+       3.9.1.3, construction mode strip; XQuery Update Facility 3.0, 5.4.5;
+       D205). Ignored when types are kept. Added after the freeze (D99):
+       false, the zero value, is the behaviour before it. */
+    bool strips_identity;
 } sxml_copy_request;
 
 /*

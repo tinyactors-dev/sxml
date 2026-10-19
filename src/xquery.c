@@ -58,6 +58,9 @@ struct sxml_xquery_query {
        D161). */
     sxml_xquery_function_table functions;
     sxml_function_table function_table;
+    /* The main module's revalidation mode, for applying an updating
+       query's updates (XQUF 3.0, 3.1; skip without a declaration). */
+    sxml_xquery_revalidation_mode revalidation_mode;
 };
 
 /* ----------------------------------------------------------- AST access */
@@ -356,6 +359,7 @@ typedef struct sxml_compiled_query {
     sxml_ir_unit *unit;
     sxml_serialization_parameter_reader *parameter_reader;
     sxml_serialization_parameters parameters;
+    sxml_xquery_revalidation_mode revalidation_mode;
 } sxml_compiled_query;
 
 /* Parses, checks the module is a main module (a library module is
@@ -415,6 +419,9 @@ static sxml_status sxml_xquery_compile_query(
             compiled->unit = NULL;
         }
     }
+    if (status == SXML_STATUS_OK) {
+        compiled->revalidation_mode = sxml_xquery_declared_revalidation(ast);
+    }
     sxml_ast_destroy(ast);
     return status;
 }
@@ -448,7 +455,9 @@ sxml_status sxml_xquery_query_initialize(sxml_memory_view memory,
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    sxml_compiled_query compiled = {.unit = NULL, .parameter_reader = NULL};
+    sxml_compiled_query compiled = {.unit = NULL,
+                                    .parameter_reader = NULL,
+                                    .revalidation_mode = SXML_XQUERY_REVALIDATION_SKIP};
     memset(&compiled.parameters, 0, sizeof(compiled.parameters));
     /* 5.22.1: the default output method of XQuery is xml. */
     compiled.parameters.serialization_method = SXML_SERIALIZATION_METHOD_XML;
@@ -477,7 +486,8 @@ sxml_status sxml_xquery_query_initialize(sxml_memory_view memory,
                                      .parameter_reader = compiled.parameter_reader,
                                      .serialization_parameters = compiled.parameters,
                                      .functions = functions,
-                                     .function_table = {.state = NULL, .operations = NULL}};
+                                     .function_table = {.state = NULL, .operations = NULL},
+                                     .revalidation_mode = compiled.revalidation_mode};
     new_query->function_table = sxml_xquery_function_table_as_table(&new_query->functions);
     *query = new_query;
     return SXML_STATUS_OK;
@@ -534,21 +544,91 @@ void sxml_xquery_query_destroy(sxml_xquery_query *query) {
 
 /* ------------------------------------------------------------ Evaluation */
 
+static const sxml_static_error no_put_sink_error = {
+    .error_status = SXML_STATUS_DYNAMIC_ERROR,
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("FOUP0002"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(
+        "fn:put has no location to store at: the host's update sink takes no documents "
+        "(XQuery Update Facility 3.0, 6.1)")};
+
+/* Hands each put of updated_trees to the sink (XQUF 3.0, 3.2.2: upd:put
+   is applied last; D205). */
+static sxml_status hand_over_puts(const sxml_xquery_update_sink *sink,
+                                  const sxml_xquery_updated_trees *updated_trees) {
+    /* The caller raised FOUP0002 for a sink without the operation. */
+    if (sink->operations == NULL || sink->operations->receive_put_document == NULL) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    sxml_status status = SXML_STATUS_OK;
+    for (uint64_t put_index = 0; status == SXML_STATUS_OK; put_index += 1) {
+        const sxml_item_request item_request = {.item_index = put_index, .error_record = NULL};
+        sxml_item put = {.representation = 0};
+        if (sxml_sequence_get_item(updated_trees->puts, item_request, &put) != SXML_STATUS_OK) {
+            break;
+        }
+        sxml_xquery_update_primitive primitive;
+        sxml_xquery_put_document put_document = {.uri = {.bytes = NULL, .byte_count = 0},
+                                                 .node = {.representation = 0},
+                                                 .serialization_parameters =
+                                                     sxml_sequence_empty()};
+        sxml_item uri = {.representation = 0};
+        sxml_atomic_datum datum;
+        status = sxml_xquery_read_update_primitive(put, &primitive);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_sequence_get_item(
+                primitive.parameter, (sxml_item_request){.item_index = 0, .error_record = NULL},
+                &uri);
+        }
+        if (status == SXML_STATUS_OK) {
+            status = sxml_atomic_item_get_datum(uri, &datum);
+        }
+        if (status == SXML_STATUS_OK) {
+            status = sxml_sequence_get_item(updated_trees->put_nodes, item_request,
+                                            &put_document.node);
+        }
+        sxml_item parameters = {.representation = 0};
+        if (status == SXML_STATUS_OK &&
+            sxml_sequence_get_item(primitive.parameter,
+                                   (sxml_item_request){.item_index = 1, .error_record = NULL},
+                                   &parameters) == SXML_STATUS_OK) {
+            put_document.serialization_parameters = sxml_sequence_from_item(parameters);
+        }
+        if (status == SXML_STATUS_OK) {
+            put_document.uri = datum.datum_details.string.utf8;
+            status = sink->operations->receive_put_document(sink->state, &put_document);
+        }
+    }
+    return status;
+}
+
 /* Applies an updating query's pending update list (XQuery Update Facility
-   3.0, 3.2.2; D187) and hands every changed tree to the update sink. */
+   3.0, 3.2.2; D187) and hands every changed tree, then every put, to the
+   update sink. */
 static sxml_status apply_pending_updates(const sxml_xquery_query *query,
                                          const sxml_xquery_evaluation_request *request,
                                          sxml_sequence pending_updates) {
     sxml_xquery_updated_trees updated_trees = {.original_roots = sxml_sequence_empty(),
-                                               .updated_roots = sxml_sequence_empty()};
+                                               .updated_roots = sxml_sequence_empty(),
+                                               .puts = sxml_sequence_empty(),
+                                               .put_nodes = sxml_sequence_empty()};
     sxml_status status = sxml_xquery_apply_updates(
         &(sxml_xquery_update_application){
             .item_heap = sxml_processor_get_item_heap(query->processor),
             .pending_updates = pending_updates,
             .allowed_roots = sxml_sequence_empty(),
-            .error_record = request->error_record},
+            .error_record = request->error_record,
+            .revalidation_mode = query->revalidation_mode,
+            .schemas = query->unit->static_context.in_scope_schemas},
         &updated_trees);
     const sxml_xquery_update_sink sink = request->update_sink;
+    sxml_emptiness no_puts = {.is_empty = true};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_sequence_test_emptiness(updated_trees.puts, NULL, &no_puts);
+    }
+    if (status == SXML_STATUS_OK && !no_puts.is_empty &&
+        (sink.operations == NULL || sink.operations->receive_put_document == NULL)) {
+        status = sxml_error_record_report(request->error_record, &no_put_sink_error);
+    }
     for (uint64_t tree_index = 0;
          status == SXML_STATUS_OK && sink.operations != NULL &&
          sink.operations->receive_updated_tree != NULL;
@@ -564,6 +644,9 @@ static sxml_status apply_pending_updates(const sxml_xquery_query *query,
         if (status == SXML_STATUS_OK) {
             status = sink.operations->receive_updated_tree(sink.state, &updated_tree);
         }
+    }
+    if (status == SXML_STATUS_OK && !no_puts.is_empty) {
+        status = hand_over_puts(&sink, &updated_trees);
     }
     sxml_xquery_release_updated_trees(&updated_trees);
     return status;

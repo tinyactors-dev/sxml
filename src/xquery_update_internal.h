@@ -141,6 +141,8 @@ typedef enum sxml_xquery_update_primitive_kind {
     SXML_XQUERY_UPDATE_PRIMITIVE_REPLACE_VALUE,
     SXML_XQUERY_UPDATE_PRIMITIVE_REPLACE_ELEMENT_CONTENT,
     SXML_XQUERY_UPDATE_PRIMITIVE_RENAME,
+    /* upd:put (3.1.x, fn:put 6.1): target the node to store. */
+    SXML_XQUERY_UPDATE_PRIMITIVE_PUT,
 } sxml_xquery_update_primitive_kind;
 
 /* What one update primitive says. Views are borrowed from its item. */
@@ -152,7 +154,8 @@ typedef struct sxml_xquery_update_primitive {
      * xs:string items for the text that atomic items of the source made
      * (3.1.1: the content of an element constructor, 5.4.1 step 1);
      * REPLACE_VALUE and REPLACE_ELEMENT_CONTENT: one xs:string (empty for
-     * no text node); RENAME: one xs:QName; DELETE: empty.
+     * no text node); RENAME: one xs:QName; DELETE: empty; PUT: the
+     * absolute xs:anyURI, then fn:put's $params when given.
      */
     sxml_sequence parameter;
     /* How its nodes are copied in: the prolog's copy-namespaces modes
@@ -201,22 +204,53 @@ extern const sxml_native_function sxml_xquery_rename_function;
 /*
  * The copy-modify expression (XQUF 3.0, 5.4.5) lowers to
  *
- *     let $c := copy(E) ... let $r := modify-copies(($c, ...), M)
+ *     let $c := copy(E) ... let $r := modify-copies(($c, ...), M, V)
  *     ... return R with $c bound to $r(1), ...
  *
  * - copy($node, $modes): a copy of one node (XUTY0013 otherwise), the
- *   root of a new tree, made as the prolog says for copies (XQuery 4.0,
- *   5.6 and 5.9): $modes adds SXML_XQUERY_UPDATE_NO_PRESERVE_NAMESPACES,
- *   SXML_XQUERY_UPDATE_NO_INHERIT_NAMESPACES and
- *   SXML_XQUERY_UPDATE_PRESERVES_TYPES (construction preserve);
- * - modify-copies($copies, $updates): applies the pending update list
- *   $updates, whose targets must be in the trees of $copies (XUDY0014),
+ *   root of a new tree, untyped with only xml:id attributes as IDs
+ *   whatever the construction mode (XQUF 3.0, 5.6 step 1.2), its
+ *   namespaces as the prolog's copy-namespaces modes say (XQuery 4.0,
+ *   5.9): $modes adds SXML_XQUERY_UPDATE_NO_PRESERVE_NAMESPACES and
+ *   SXML_XQUERY_UPDATE_NO_INHERIT_NAMESPACES (the lowering never adds
+ *   SXML_XQUERY_UPDATE_PRESERVES_TYPES here);
+ * - modify-copies($copies, $updates, $revalidation): applies the pending
+ *   update list $updates, whose targets must be in the trees of $copies
+ *   (XUDY0014), with the prolog's revalidation mode (an
+ *   sxml_xquery_revalidation_mode),
  *   and returns one array of the roots of the trees after it, in the
  *   order of $copies, whose members the return clause binds the copy
  *   variables to.
  */
 extern const sxml_native_function sxml_xquery_copy_function;
 extern const sxml_native_function sxml_xquery_modify_copies_function;
+
+/*
+ * fn:put($node as node(), $uri as xs:string?, $params as item()? := ())
+ * (XQUF 3.0, 6.1), the updating function of XQuery's function table
+ * (src/xquery_load_module.c): FOUP0001 for a node that is not a document
+ * or element, FOUP0002 for a $uri that is not a URI reference or does not
+ * resolve against the static base URI to an absolute URI; otherwise one
+ * upd:put primitive. The static rules treat a call of it as updating.
+ */
+extern const sxml_native_function_view sxml_xquery_put_functions;
+
+/* Whether native_function is fn:put (a call of it is updating, 2.2.2). */
+bool sxml_xquery_is_put_function(const sxml_native_function *native_function);
+
+/* The revalidation mode (3.1 Revalidation Declaration; the third
+   argument of modify-copies, an xs:integer). sxml's initial value is
+   skip, which XQUF 3.0's static context table lets an implementation
+   overwrite (D205). */
+typedef enum sxml_xquery_revalidation_mode {
+    SXML_XQUERY_REVALIDATION_SKIP = 0,
+    SXML_XQUERY_REVALIDATION_LAX = 1,
+    SXML_XQUERY_REVALIDATION_STRICT = 2,
+} sxml_xquery_revalidation_mode;
+
+/* The revalidation mode a module's prolog declares: the mode of its
+   revalidation declaration, skip without one. */
+sxml_xquery_revalidation_mode sxml_xquery_declared_revalidation(const sxml_ast *ast);
 
 /* --------------------------------------------------------- Application */
 
@@ -232,20 +266,33 @@ typedef struct sxml_xquery_update_application {
     sxml_sequence allowed_roots;
     /* Receives the dynamic errors of merging and applying. */
     sxml_error_record *error_record;
+    /* upd:revalidate (3.2.4) of every rebuilt tree that a type-changing
+       primitive marked, against schemas, unless skip. */
+    sxml_xquery_revalidation_mode revalidation_mode;
+    /* The in-scope schemas; borrowed. */
+    sxml_schema_view schemas;
 } sxml_xquery_update_application;
 
 /* The trees an application changed, in the order of their first
-   primitive: original_roots[n] became updated_roots[n] (both owned). */
+   primitive: original_roots[n] became updated_roots[n] (both owned); and
+   its upd:put primitives (3.2.2: applied last, by the host) with the node
+   each stores, put_nodes[n] for puts[n]: the root of the rebuilt tree for
+   the root of a changed tree, the node itself otherwise. */
 typedef struct sxml_xquery_updated_trees {
     sxml_sequence original_roots;
     sxml_sequence updated_roots;
+    sxml_sequence puts;
+    sxml_sequence put_nodes;
 } sxml_xquery_updated_trees;
 
 /*
  * Applies application->pending_updates (XQUF 3.0, 3.2.2
  * upd:applyUpdates): checks compatibility (upd:mergeUpdates: XUDY0015,
- * XUDY0016, XUDY0017, XUDY0024), then rebuilds every tree a primitive
- * targets with every change made, and writes the old and new roots to
+ * XUDY0016, XUDY0017, XUDY0024, XUDY0031; XUDY0037 for a put among a
+ * copy-modify's updates), then rebuilds every tree a primitive targets
+ * with every change made, revalidates those the revalidation mode asks for
+ * (3.2.4 upd:revalidate: XQDY0027 when invalid, XQDY0061 and XQDY0084 as
+ * for validate), and writes the old and new roots and the puts to
  * *updated_trees. Rebuilt elements and their ancestors become xs:untyped
  * (upd:setToUntyped); other nodes keep their annotations. XUDY0021 when a
  * rebuilt element would have two attributes of one name or conflicting

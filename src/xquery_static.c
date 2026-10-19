@@ -444,14 +444,9 @@ static sxml_status survey_declaration(const static_reader *reader,
         survey->item_type_declaration_count += 1;
         return SXML_STATUS_OK;
     case SXML_AST_KIND_REVALIDATION_DECLARATION:
-        /* XQuery Update Facility 3.0, 5.2: revalidation lax and strict
-           need revalidation after updates, which is packet 7.7c's (D162,
-           D187); skip, the default without a schema, is supported. */
-        if (node->detail.keyword != SXML_AST_KEYWORD_SKIP) {
-            return report(reader, declaration,
-                          SXML_BYTE_VIEW_FROM_LITERAL(
-                              "XUST0026 the revalidation mode is not supported"));
-        }
+        /* XQuery Update Facility 3.0, 3.1: every mode is supported
+           (XUST0026 never), revalidation by upd:revalidate after the
+           updates (src/xquery_update_apply.c, D205). */
         return SXML_STATUS_OK;
     case SXML_AST_KIND_DECIMAL_FORMAT_DECLARATION:
         survey->decimal_format_declaration_count += 1;

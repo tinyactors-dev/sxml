@@ -225,6 +225,25 @@ typedef struct sxml_xquery_updated_tree {
     sxml_item updated_root;
 } sxml_xquery_updated_tree;
 
+/*
+ * One document fn:put stores (XQUF 3.0, 6.1 fn:put and 3.2.2 upd:put;
+ * D205). The library never writes it anywhere: storing it at uri, by
+ * serializing it with the parameters or by keeping it for a later fn:doc,
+ * is the host's (upd:put: the external effects are implementation-defined).
+ */
+typedef struct sxml_xquery_put_document {
+    /* fn:put's $uri resolved against the static base URI: an absolute
+       URI. Borrowed for the call. */
+    sxml_byte_view uri;
+    /* The document or element node fn:put was given, as the other updates
+       of the query left it. Borrowed for the call: retain it
+       (sxml_item_retain) to keep it. */
+    sxml_item node;
+    /* fn:put's $params (an output:serialization-parameters element or a
+       map), or the empty sequence. Borrowed for the call. */
+    sxml_sequence serialization_parameters;
+} sxml_xquery_put_document;
+
 /* Receives the trees an updating query changed. Tables are static
    const. */
 typedef struct sxml_xquery_update_sink_operations {
@@ -233,6 +252,14 @@ typedef struct sxml_xquery_update_sink_operations {
        not yet received are dropped). */
     sxml_status (*receive_updated_tree)(void *state,
                                         const sxml_xquery_updated_tree *updated_tree);
+    /* Called once per fn:put of the query, after every changed tree
+       (upd:applyUpdates applies upd:put last), with distinct URIs
+       (XUDY0031 otherwise). A failure ends the evaluation with that
+       status. NULL, or a sink without operations, makes a query that
+       calls fn:put fail with FOUP0002 before any tree is received: no
+       location can be written. */
+    sxml_status (*receive_put_document)(void *state,
+                                        const sxml_xquery_put_document *put_document);
 } sxml_xquery_update_sink_operations;
 
 /* An update sink, passed by value. Operations NULL drops every changed

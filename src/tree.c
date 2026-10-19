@@ -14,6 +14,7 @@
 #include "sxml/xdm.h"
 
 #include <stdalign.h>
+#include <string.h>
 
 /* ------------------------------------------------------------ Lifecycle */
 
@@ -558,6 +559,23 @@ static sxml_status sxml_node_copy_send_bindings(
     return SXML_STATUS_OK;
 }
 
+/* Whether the copy drops is-id and is-idrefs (sxml_copy_request). */
+static bool sxml_node_copy_strips_identity(const sxml_node_copy *copy) {
+    return !copy->request->preserves_type_annotations && copy->request->strips_identity;
+}
+
+/* Whether name is xml:id (xml:id 1.0, section 4). */
+static bool sxml_node_copy_is_xml_id(const sxml_node_copy *copy,
+                                     sxml_name_identifier name) {
+    sxml_name_parts parts;
+    memset(&parts, 0, sizeof parts);
+    return sxml_name_pool_get_name_parts(copy->tree->name_pool, name, &parts) ==
+               SXML_STATUS_OK &&
+           parts.namespace_uri.index == SXML_NAMESPACE_XML &&
+           parts.local_name.byte_count == 2 &&
+           memcmp(parts.local_name.bytes, "id", 2) == 0;
+}
+
 /* Sends one stored attribute node as an attribute event. */
 static sxml_status sxml_node_copy_send_attribute(const sxml_node_copy *copy,
                                                  uint32_t node_number) {
@@ -579,8 +597,13 @@ static sxml_status sxml_node_copy_send_attribute(const sxml_node_copy *copy,
         .type_annotation =
             sxml_node_copy_type(copy, description.type_annotation,
                                 SXML_TYPE_XS_UNTYPED_ATOMIC),
-        .is_id = description.is_id,
-        .is_idrefs = description.is_idrefs,
+        /* Stripping identity, only xml:id stays an ID (XQuery 3.1,
+           3.9.1.3, 1.e.iv: construction mode strip). */
+        .is_id = sxml_node_copy_strips_identity(copy)
+                     ? description.is_id &&
+                           sxml_node_copy_is_xml_id(copy, description.node_name)
+                     : description.is_id,
+        .is_idrefs = !sxml_node_copy_strips_identity(copy) && description.is_idrefs,
         .location = {.source_name = {.bytes = NULL, .byte_count = 0},
                      .line_number = 0,
                      .column_number = 0,
@@ -594,17 +617,19 @@ static sxml_status sxml_node_copy_send_attribute(const sxml_node_copy *copy,
 static sxml_status sxml_node_copy_start_element(
     const sxml_node_copy *copy, const sxml_element_copy *element) {
     const sxml_node_description *description = element->description;
-    /* Without type preservation nilled is false too: it is defined only
-       for validated elements (XDM 4.0, section 7.6.10). The ID properties
-       stay, since xml:id makes an ID without validation. */
+    /* Without type preservation nilled is false: it is defined only for
+       validated elements (XDM 4.0, section 7.6.10). is-id and is-idrefs
+       stay, as XSLT keeps them, unless the request strips identity
+       (XQuery 3.1, 3.9.1.3, 1.e.iv). */
     const bool preserves_types = copy->request->preserves_type_annotations;
+    const bool strips_identity = sxml_node_copy_strips_identity(copy);
     const sxml_element_start_event event = {
         .element_name = description->node_name,
         .namespace_prefix = description->namespace_prefix,
         .type_annotation = sxml_node_copy_type(
             copy, description->type_annotation, SXML_TYPE_XS_UNTYPED),
-        .is_id = description->is_id,
-        .is_idrefs = description->is_idrefs,
+        .is_id = !strips_identity && description->is_id,
+        .is_idrefs = !strips_identity && description->is_idrefs,
         .is_nilled = preserves_types && description->is_nilled,
         /* Only the top element of a copy can be cut off from its new
            parent's bindings; its descendants inherit from it. */

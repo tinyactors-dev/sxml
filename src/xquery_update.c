@@ -333,6 +333,11 @@ static sxml_status classify_function_call(const rules_walk *walk, sxml_ast_node_
         walk->categories[call.value] = SXML_UPDATE_CATEGORY_VACUOUS;
         return SXML_STATUS_OK;
     }
+    if (entry.entry_kind == SXML_FUNCTION_ENTRY_KIND_NATIVE &&
+        sxml_xquery_is_put_function(entry.native_function)) {
+        walk->categories[call.value] = SXML_UPDATE_CATEGORY_UPDATING;
+        return SXML_STATUS_OK;
+    }
     if (entry.entry_kind != SXML_FUNCTION_ENTRY_KIND_IR_FUNCTION) {
         return SXML_STATUS_OK;
     }
@@ -479,10 +484,12 @@ static sxml_status classify_node(const rules_walk *walk, sxml_ast_node_index nod
         status = require_simple_children(walk, node);
         return status == SXML_STATUS_OK ? classify_function_call(walk, node) : status;
     case SXML_AST_KIND_COPY_MODIFY_EXPRESSION:
+        /* The return clause may be updating, and the expression is then
+           updating too, its pending update list the return clause's
+           (XQuery Update Facility 4.0 draft, "Copy Modify"; 3.0 had
+           XUST0001 there). */
         status = require_simple_field(walk, node, SXML_AST_FIELD_BINDING);
-        if (status == SXML_STATUS_OK) {
-            status = require_simple_field(walk, node, SXML_AST_FIELD_RETURN);
-        }
+        inherit_field(walk, node, SXML_AST_FIELD_RETURN);
         return status == SXML_STATUS_OK ? require_updating_field(walk, node, SXML_AST_FIELD_MODIFY)
                                         : status;
     case SXML_AST_KIND_TRANSFORM_WITH_EXPRESSION:
@@ -626,6 +633,7 @@ static const sxml_byte_view primitive_local_names[] = {
     [SXML_XQUERY_UPDATE_PRIMITIVE_REPLACE_ELEMENT_CONTENT] =
         SXML_BYTE_VIEW_INITIALIZER("replaceElementContent"),
     [SXML_XQUERY_UPDATE_PRIMITIVE_RENAME] = SXML_BYTE_VIEW_INITIALIZER("rename"),
+    [SXML_XQUERY_UPDATE_PRIMITIVE_PUT] = SXML_BYTE_VIEW_INITIALIZER("put"),
 };
 
 /* The captured values of a primitive: its target, its parameter, its
@@ -1755,6 +1763,203 @@ static sxml_status make_rename(const primitive_output *output) {
 
 static sxml_status call_rename(const sxml_function_call *call, sxml_sequence *result) {
     return collect_primitives(call, make_rename, result);
+}
+
+/* ------------------------------------------------------------- fn:put */
+
+UPDATE_ERROR(put_node_error, SXML_STATUS_DYNAMIC_ERROR, "FOUP0001",
+             "fn:put stores only a document or element node (6.1)");
+UPDATE_ERROR(put_uri_error, SXML_STATUS_DYNAMIC_ERROR, "FOUP0002",
+             "the $uri of fn:put is not a URI that names a location to store the node at "
+             "(6.1)");
+
+static bool is_hex_digit(uint8_t byte) {
+    return (byte >= '0' && byte <= '9') || (byte >= 'A' && byte <= 'F') ||
+           (byte >= 'a' && byte <= 'f');
+}
+
+/* Whether text is a URI reference: none of the characters that RFC 3986
+   (2, Appendix A) and RFC 3987 (2.2) leave out of every URI and IRI
+   reference (controls, space, " < > \ ^ ` { | }), and % only before two
+   hexadecimal digits. Other non-ASCII characters are an IRI's. */
+static bool is_uri_reference(sxml_byte_view text) {
+    for (size_t byte_index = 0; byte_index < text.byte_count; byte_index += 1) {
+        const uint8_t byte = text.bytes[byte_index];
+        if (byte <= 0x20 || byte == 0x7F || byte == '"' || byte == '<' || byte == '>' ||
+            byte == '\\' || byte == '^' || byte == '`' || byte == '{' || byte == '|' ||
+            byte == '}') {
+            return false;
+        }
+        if (byte == '%' && (byte_index + 2 >= text.byte_count ||
+                            !is_hex_digit(text.bytes[byte_index + 1]) ||
+                            !is_hex_digit(text.bytes[byte_index + 2]))) {
+            return false;
+        }
+    }
+    return text.byte_count > 0;
+}
+
+/* The absolute URI fn:put stores at, as an xs:anyURI item, owned: $uri
+   resolved against the static base URI (6.1; 3.1.x upd:put: an absolute
+   URI). */
+static sxml_status read_put_uri(const sxml_function_call *call, sxml_item *uri_item) {
+    sxml_optional_item argument = {.has_item = false};
+    sxml_status status = sxml_function_library_read_optional_item(call, 1, &argument);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (!argument.has_item) {
+        return sxml_function_library_report(call, &put_uri_error);
+    }
+    sxml_string reference;
+    status = sxml_function_library_read_string_argument(call, 1, &reference);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (!is_uri_reference(reference.utf8)) {
+        return sxml_function_library_report(call, &put_uri_error);
+    }
+    const sxml_byte_view base_uri = call->dynamic_context == NULL
+                                        ? (sxml_byte_view){.bytes = NULL, .byte_count = 0}
+                                        : sxml_dynamic_context_get_static_base_uri(
+                                              call->dynamic_context);
+    const sxml_allocator allocator = sxml_item_heap_as_allocator(call->item_heap);
+    sxml_uri_resolution resolution = {.uri = {.bytes = NULL, .byte_count = 0}, .memory = NULL};
+    status = sxml_uri_resolve(&(sxml_uri_resolution_request){.base_uri = base_uri,
+                                                             .reference = reference.utf8,
+                                                             .allocator = allocator},
+                              &resolution);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (!sxml_uri_has_scheme(resolution.uri)) {
+        status = sxml_function_library_report(call, &put_uri_error);
+    } else {
+        status = sxml_atomic_item_make(
+            call->item_heap,
+            &(sxml_atomic_item_request){
+                .type = sxml_builtin_type_identifier(SXML_TYPE_XS_ANY_URI),
+                .datum = {.datum_kind = SXML_DATUM_KIND_STRING,
+                          .datum_details = {.string = {.utf8 = resolution.uri,
+                                                       .codepoint_count = 0,
+                                                       .is_ascii = false}}}},
+            uri_item);
+    }
+    sxml_allocator_release(allocator, resolution.memory);
+    return status;
+}
+
+/* fn:put (6.1): one upd:put primitive whose parameter is the URI and,
+   when given, $params. */
+static sxml_status make_put(const primitive_output *output) {
+    const sxml_function_call *call = output->call;
+    sxml_optional_item node_item = {.has_item = false};
+    sxml_status status = sxml_function_library_read_optional_item(call, 0, &node_item);
+    sxml_node_reference node;
+    sxml_node_description description;
+    if (status == SXML_STATUS_OK &&
+        (!node_item.has_item || sxml_item_get_node(node_item.item, &node) != SXML_STATUS_OK)) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_node_describe(node, &description);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    /* 6.1: other kinds of node are implementation-defined; sxml stores
+       only what a document can be made of. */
+    if (description.node_kind != SXML_NODE_KIND_DOCUMENT &&
+        description.node_kind != SXML_NODE_KIND_ELEMENT) {
+        return sxml_function_library_report(call, &put_node_error);
+    }
+    sxml_item uri_item = {.representation = 0};
+    status = read_put_uri(call, &uri_item);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_item parameter_items[2] = {uri_item, {.representation = 0}};
+    size_t parameter_count = 1;
+    if (call->arguments.sequence_count > 2) {
+        sxml_optional_item parameters = {.has_item = false};
+        status = sxml_function_library_read_optional_item(call, 2, &parameters);
+        if (status == SXML_STATUS_OK && parameters.has_item) {
+            parameter_items[1] = parameters.item;
+            parameter_count = 2;
+        }
+    }
+    sxml_sequence parameter = sxml_sequence_empty();
+    if (status == SXML_STATUS_OK) {
+        status = sxml_sequence_make_vector(
+            call->item_heap,
+            (sxml_item_view){.items = parameter_items, .item_count = parameter_count},
+            &parameter);
+    }
+    sxml_item_release(uri_item);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_item_retain(node_item.item);
+    status = append_primitive(output,
+                              &(primitive_request){.primitive_kind = SXML_XQUERY_UPDATE_PRIMITIVE_PUT,
+                                                   .target = node_item.item,
+                                                   .parameter = parameter,
+                                                   .copy_flags = 0});
+    sxml_sequence_release(parameter);
+    return status;
+}
+
+static sxml_status call_put(const sxml_function_call *call, sxml_sequence *result) {
+    return collect_primitives(call, make_put, result);
+}
+
+static const sxml_function_parameter put_parameters[] = {
+    SXML_REQUIRED_PARAMETER("node", "node()"),
+    SXML_REQUIRED_PARAMETER("uri", "xs:string?"),
+    SXML_OPTIONAL_PARAMETER("params", "item()?"),
+};
+
+static const sxml_native_function put_rows[] = {
+    {.function_namespace = SXML_NAMESPACE_FUNCTIONS,
+     /* The static base URI resolves $uri. */
+     .properties = SXML_NATIVE_FUNCTION_USES_DYNAMIC_CONTEXT,
+     .local_name = SXML_BYTE_VIEW_INITIALIZER("put"),
+     .parameters = {put_parameters, 3},
+     .result_type = SXML_BYTE_VIEW_INITIALIZER("empty-sequence()"),
+     .call = call_put,
+     .resumable_body = NULL},
+};
+
+const sxml_native_function_view sxml_xquery_put_functions = {
+    .native_functions = put_rows, .native_function_count = sizeof put_rows / sizeof put_rows[0]};
+
+bool sxml_xquery_is_put_function(const sxml_native_function *native_function) {
+    return native_function == &put_rows[0];
+}
+
+/* ------------------------------------------------ Revalidation mode */
+
+sxml_xquery_revalidation_mode sxml_xquery_declared_revalidation(const sxml_ast *ast) {
+    if (node_of(ast, ast->root)->kind != SXML_AST_KIND_MODULE) {
+        return SXML_XQUERY_REVALIDATION_SKIP;
+    }
+    const sxml_ast_node_index prolog =
+        child_of(ast, child_of(ast, ast->root, SXML_AST_FIELD_MODULE), SXML_AST_FIELD_PROLOG);
+    for (sxml_ast_node_index declaration = child_of(ast, prolog, SXML_AST_FIELD_DECLARATION);
+         prolog.value != 0 && declaration.value != 0; declaration = next_of(ast, declaration)) {
+        const sxml_ast_node *node = node_of(ast, declaration);
+        if (node->kind != SXML_AST_KIND_REVALIDATION_DECLARATION) {
+            continue;
+        }
+        /* 3.1: at most one (XUST0003, src/xquery_static.c). */
+        if (node->detail.keyword == SXML_AST_KEYWORD_LAX) {
+            return SXML_XQUERY_REVALIDATION_LAX;
+        }
+        if (node->detail.keyword == SXML_AST_KEYWORD_STRICT) {
+            return SXML_XQUERY_REVALIDATION_STRICT;
+        }
+    }
+    return SXML_XQUERY_REVALIDATION_SKIP;
 }
 
 /* --------------------------------------------------------------- Rows */

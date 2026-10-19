@@ -113,6 +113,9 @@ typedef struct sxml_qt4_assertion_request {
     /* assert-string-value without normalize-space normalizes: the XSLT 4.0
        catalog's default (catalog-schema.xsd), false for QT4's. */
     bool normalizes_string_values_by_default;
+    /* The documents fn:doc finds in an assertion: the test's, with those
+       its queries stored by fn:put (D205); may be empty. Borrowed. */
+    sxml_available_document_view available_documents;
 } sxml_qt4_assertion_request;
 
 /*

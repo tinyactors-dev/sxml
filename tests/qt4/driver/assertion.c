@@ -96,6 +96,7 @@ sxml_qt4_assertion_evaluate(sxml_qt4_assertion_state *state,
        drivers bind it (`?get(1, 1) = "one"`; D141, D143). */
     dynamic_context.has_context_value = true;
     dynamic_context.context_value = bound->result;
+    dynamic_context.available_documents = request->available_documents;
     status = sxml_xpath_expression_evaluate(
         expression,
         &(sxml_xpath_evaluation_request){.dynamic_context = dynamic_context,

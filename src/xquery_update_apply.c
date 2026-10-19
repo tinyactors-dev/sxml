@@ -33,19 +33,26 @@
  *
  * Copied content is copied as the content of an element constructor
  * (copy-namespaces preserve, inherit; construction strip): new nodes,
- * untyped. Rebuilt nodes that a primitive targets, and their ancestors,
- * become untyped (3.2.2: upd:removeType, without revalidation); the rest
- * keep their annotations.
+ * untyped, of which only xml:id attributes stay IDs. Rebuilt nodes that a
+ * primitive targets, and their ancestors, become untyped (3.2.2:
+ * upd:removeType); the rest keep their annotations. With revalidation lax
+ * or strict, a tree so marked is then validated again (3.2.4
+ * upd:revalidate) and its copy with the validation's types replaces it.
+ * fn:put's primitives change no tree: they are checked (XUDY0031) and
+ * passed on, the host applying them last (D205).
  *
  * Section numbers are of the XQuery Update Facility 3.0 (W3C
  * Recommendation, 24 January 2017).
  */
 #include "xquery_update_internal.h"
 
+#include "evaluator_internal.h"
 #include "function_library_core_internal.h"
 #include "memory_internal.h"
+#include "schema_scope_internal.h"
 #include "sxml/memory.h"
 #include "sxml/name.h"
+#include "sxml/schema.h"
 #include "sxml/tree.h"
 #include "sxml/types.h"
 #include "xdm_internal.h"
@@ -71,6 +78,14 @@ APPLY_ERROR(instance_error, "XUDY0021",
             "name, or conflicting namespace bindings (3.2.2)");
 APPLY_ERROR(namespace_conflict_error, "XUDY0024",
             "two updates of one element give conflicting namespace bindings (3.2.2)");
+APPLY_ERROR(put_twice_error, "XUDY0031", "fn:put stores at one URI twice (3.2.2)");
+APPLY_ERROR(copy_put_error, "XUDY0037", "the modify clause of a copy-modify calls fn:put (5.4.5)");
+APPLY_ERROR(revalidate_document_error, "XQDY0061",
+            "a document to revalidate must have exactly one element child and no text "
+            "children (3.2.4; XQuery 4.0, 4.25)");
+APPLY_ERROR(revalidate_declaration_error, "XQDY0084",
+            "strict revalidation of an element whose name has no global element declaration "
+            "among the in-scope schema definitions (3.2.4; XQuery 4.0, 4.25)");
 
 static const sxml_static_error copy_source_error = {
     .error_status = SXML_STATUS_TYPE_ERROR,
@@ -262,6 +277,10 @@ static sxml_status remove_types(const tree_edit *edit,
     case SXML_XQUERY_UPDATE_PRIMITIVE_RENAME:
         removes = !is_leaf;
         break;
+    case SXML_XQUERY_UPDATE_PRIMITIVE_PUT:
+        /* Not in a tree edit (read_primitives); changes no type. */
+        removes = false;
+        break;
     }
     if (!removes) {
         return SXML_STATUS_OK;
@@ -289,6 +308,34 @@ static bool is_allowed_tree(const application *work, const sxml_tree *tree) {
             return true;
         }
     }
+}
+
+/* The URI of a put primitive (its parameter's first item). */
+static sxml_byte_view put_uri_of(const sxml_xquery_update_primitive *primitive) {
+    sxml_item uri = {.representation = 0};
+    sxml_atomic_datum datum;
+    if (sxml_sequence_get_item(primitive->parameter,
+                               (sxml_item_request){.item_index = 0, .error_record = NULL},
+                               &uri) != SXML_STATUS_OK ||
+        sxml_atomic_item_get_datum(uri, &datum) != SXML_STATUS_OK ||
+        datum.datum_kind != SXML_DATUM_KIND_STRING) {
+        return (sxml_byte_view){.bytes = NULL, .byte_count = 0};
+    }
+    return datum.datum_details.string.utf8;
+}
+
+/* upd:mergeUpdates' check of a put against the earlier ones (3.2.2:
+   XUDY0031 for two of one URI). */
+static sxml_status check_put(const application *work, const primitive_entry *entry) {
+    const sxml_byte_view uri = put_uri_of(&entry->primitive);
+    for (size_t entry_index = 0; entry_index < work->entry_count; entry_index += 1) {
+        const sxml_xquery_update_primitive *earlier = &work->entries[entry_index].primitive;
+        if (earlier->primitive_kind == SXML_XQUERY_UPDATE_PRIMITIVE_PUT &&
+            sxml_byte_view_equals(put_uri_of(earlier), uri)) {
+            return report(work, &put_twice_error);
+        }
+    }
+    return SXML_STATUS_OK;
 }
 
 /* Reads the list into entries and links every entry to its node. */
@@ -334,6 +381,11 @@ static sxml_status read_primitives(application *work) {
         }
         if (status != SXML_STATUS_OK) {
             break;
+        }
+        if (entry->primitive.primitive_kind == SXML_XQUERY_UPDATE_PRIMITIVE_PUT) {
+            status = has_allowed_roots ? report(work, &copy_put_error) : check_put(work, entry);
+            work->entry_count += 1;
+            continue;
         }
         if (has_allowed_roots && !is_allowed_tree(work, entry->primitive.target.tree)) {
             status = report(work, &copy_target_error);
@@ -586,12 +638,37 @@ static const sxml_source_location no_location = {
     .source_name = {.bytes = NULL, .byte_count = 0}, .line_number = 0, .column_number = 0,
     .byte_offset = 0};
 
+/* Whether the node a primitive's content goes into is xs:untyped: then
+   upd:setToUntyped makes the content untyped whatever the construction
+   mode (3.1.1 upd:insertBefore, 3.1.6 upd:insertAttributes, 3.1.8
+   upd:replaceNode). */
+static bool goes_into_untyped(const sxml_xquery_update_primitive *primitive) {
+    sxml_node_description description;
+    if (sxml_node_describe(primitive->target, &description) != SXML_STATUS_OK) {
+        return false;
+    }
+    const sxml_xquery_update_primitive_kind kind = primitive->primitive_kind;
+    if ((kind == SXML_XQUERY_UPDATE_PRIMITIVE_INSERT_BEFORE ||
+         kind == SXML_XQUERY_UPDATE_PRIMITIVE_INSERT_AFTER ||
+         kind == SXML_XQUERY_UPDATE_PRIMITIVE_REPLACE_NODE) &&
+        (!description.has_parent ||
+         sxml_node_describe((sxml_node_reference){.tree = primitive->target.tree,
+                                                  .node_index = description.parent,
+                                                  .namespace_number = 0},
+                            &description) != SXML_STATUS_OK)) {
+        return false;
+    }
+    return sxml_type_identifier_equals(description.type_annotation,
+                                       sxml_builtin_type_identifier(SXML_TYPE_XS_UNTYPED));
+}
+
 /* Sends a primitive's content (nodes copied with its copy-namespaces
    modes, xs:string items as text) to the builder. */
 static sxml_status send_content(const rebuild *state,
                                 const sxml_xquery_update_primitive *primitive) {
     sxml_sequence_iterator iterator = sxml_sequence_iterator_start(primitive->parameter);
     sxml_status status = SXML_STATUS_OK;
+    const bool preserves_types = primitive->preserves_types && !goes_into_untyped(primitive);
     while (status == SXML_STATUS_OK) {
         sxml_iteration_step step = {.has_item = false};
         status = sxml_sequence_iterator_next(&iterator, NULL, &step);
@@ -605,7 +682,9 @@ static sxml_status send_content(const rebuild *state,
                 &(sxml_copy_request){.node = node,
                                      .preserves_namespaces = primitive->preserves_namespaces,
                                      .inherits_namespaces = primitive->inherits_namespaces,
-                                     .preserves_type_annotations = primitive->preserves_types});
+                                     .preserves_type_annotations = preserves_types,
+                                     /* XQuery 3.1, 3.9.1.3: strip. */
+                                     .strips_identity = true});
             continue;
         }
         sxml_atomic_datum datum;
@@ -1323,8 +1402,6 @@ static sxml_status rebuild_tree(const application *work, const tree_edit *edit, 
     return SXML_STATUS_OK;
 }
 
-/* ---------------------------------------------------------- The entry */
-
 static void release_application(application *work) {
     for (size_t tree_index = 0; tree_index < work->tree_count; tree_index += 1) {
         sxml_allocator_release(work->allocator, work->trees[tree_index].nodes);
@@ -1336,9 +1413,129 @@ static void release_application(application *work) {
 void sxml_xquery_release_updated_trees(sxml_xquery_updated_trees *updated_trees) {
     sxml_sequence_release(updated_trees->original_roots);
     sxml_sequence_release(updated_trees->updated_roots);
-    updated_trees->original_roots = sxml_sequence_empty();
-    updated_trees->updated_roots = sxml_sequence_empty();
+    sxml_sequence_release(updated_trees->puts);
+    sxml_sequence_release(updated_trees->put_nodes);
+    *updated_trees = (sxml_xquery_updated_trees){.original_roots = sxml_sequence_empty(),
+                                                 .updated_roots = sxml_sequence_empty(),
+                                                 .puts = sxml_sequence_empty(),
+                                                 .put_nodes = sxml_sequence_empty()};
 }
+
+/* ------------------------------------------------------- Revalidation */
+
+/* The name of the element a revalidation validates: top's own, or the
+   one element child of a document (XQDY0061 otherwise). has_name is false
+   for a tree whose root is neither (3.2.3: only document and element
+   nodes are marked). */
+typedef struct revalidation_root {
+    bool has_name;
+    sxml_name_identifier element_name;
+} revalidation_root;
+
+static sxml_status find_revalidation_root(const application *work, sxml_node_reference top,
+                                          revalidation_root *root) {
+    *root = (revalidation_root){.has_name = false, .element_name = {.index = 0}};
+    sxml_node_description description;
+    sxml_status status = sxml_node_describe(top, &description);
+    if (status != SXML_STATUS_OK || description.node_kind == SXML_NODE_KIND_ELEMENT) {
+        root->has_name = status == SXML_STATUS_OK;
+        root->element_name = description.node_name;
+        return status;
+    }
+    if (description.node_kind != SXML_NODE_KIND_DOCUMENT) {
+        return SXML_STATUS_OK;
+    }
+    size_t element_count = 0;
+    bool has_text = false;
+    bool has_child = description.has_children;
+    sxml_node_reference child = {.tree = top.tree, .node_index = description.first_child,
+                                 .namespace_number = 0};
+    while (status == SXML_STATUS_OK && has_child) {
+        sxml_node_description child_description;
+        status = sxml_node_describe(child, &child_description);
+        if (status != SXML_STATUS_OK) {
+            break;
+        }
+        if (child_description.node_kind == SXML_NODE_KIND_ELEMENT) {
+            element_count += 1;
+            root->element_name = child_description.node_name;
+        }
+        has_text = has_text || child_description.node_kind == SXML_NODE_KIND_TEXT;
+        has_child = child_description.has_next_sibling;
+        child.node_index = child_description.next_sibling;
+    }
+    if (status == SXML_STATUS_OK && (element_count != 1 || has_text)) {
+        return report(work, &revalidate_document_error);
+    }
+    root->has_name = status == SXML_STATUS_OK;
+    return status;
+}
+
+/*
+ * upd:revalidate (3.2.4): *root, the root of a rebuilt tree, becomes the
+ * root of its copy as "validate lax { $top }" or "validate strict { $top
+ * }" gives it (XQuery 4.0, 4.25, with the in-scope schemas: the schema
+ * that declares the element, for lax the first one without), whose types,
+ * typed values, is-id and is-idrefs are the validation's. XQDY0027 when
+ * it is not valid. Lax revalidation without any schema leaves the tree.
+ */
+static sxml_status revalidate_tree(const application *work, sxml_item *root) {
+    const sxml_xquery_update_application *request = work->request;
+    sxml_node_reference top;
+    sxml_status status = sxml_item_get_node(*root, &top);
+    revalidation_root found_root = {.has_name = false, .element_name = {.index = 0}};
+    if (status == SXML_STATUS_OK) {
+        status = find_revalidation_root(work, top, &found_root);
+    }
+    if (status != SXML_STATUS_OK || !found_root.has_name) {
+        return status;
+    }
+    const bool is_strict = request->revalidation_mode == SXML_XQUERY_REVALIDATION_STRICT;
+    sxml_schema_scope_element declaration;
+    const sxml_schema *schema = NULL;
+    if (sxml_schema_scope_find_element(request->schemas, found_root.element_name, &declaration)) {
+        schema = declaration.schema;
+    } else if (is_strict) {
+        return report(work, &revalidate_declaration_error);
+    } else if (request->schemas.schema_count > 0) {
+        schema = request->schemas.schemas[0];
+    } else {
+        return SXML_STATUS_OK;
+    }
+    sxml_error_record schema_error;
+    memset(&schema_error, 0, sizeof schema_error);
+    sxml_item validated = {.representation = 0};
+    status = sxml_schema_validate_node(
+        schema,
+        &(sxml_schema_validation_request){
+            .node = *root,
+            .validation_mode = is_strict ? SXML_VALIDATION_MODE_STRICT : SXML_VALIDATION_MODE_LAX,
+            .governing_type = {.index = SXML_TYPE_NONE},
+            .report_sink = {.state = NULL, .operations = NULL},
+            .error_record = &schema_error},
+        &validated);
+    if (status == SXML_STATUS_DYNAMIC_ERROR) {
+        /* 3.2.4: "validate" raises XQDY0027 for an invalid $top. */
+        return sxml_schema_scope_raise(&(sxml_schema_scope_error){
+            .item_heap = request->item_heap,
+            .allocator = work->allocator,
+            .error_status = SXML_STATUS_DYNAMIC_ERROR,
+            .error_code = SXML_BYTE_VIEW_FROM_LITERAL("XQDY0027"),
+            .schema_error = &schema_error,
+            .error_record = request->error_record,
+            .location = {.source_name = {.bytes = NULL, .byte_count = 0},
+                         .line_number = 0,
+                         .column_number = 0,
+                         .byte_offset = 0}});
+    }
+    if (status == SXML_STATUS_OK) {
+        sxml_item_release(*root);
+        *root = validated;
+    }
+    return status;
+}
+
+/* ---------------------------------------------------------- The entry */
 
 /* Rebuilds every tree of work into the two builders. */
 typedef struct root_builders {
@@ -1353,6 +1550,16 @@ static sxml_status rebuild_trees(const application *work, const root_builders *b
         const tree_edit *edit = &work->trees[tree_index];
         sxml_item updated = {.representation = 0};
         status = rebuild_tree(work, edit, &updated);
+        /* 3.2.2 step 7: a type-changing primitive marked the topmost
+           ancestor (upd:removeType), which mark_touched reaches. */
+        if (status == SXML_STATUS_OK &&
+            work->request->revalidation_mode != SXML_XQUERY_REVALIDATION_SKIP &&
+            edit->nodes[0].is_touched) {
+            status = revalidate_tree(work, &updated);
+            if (status != SXML_STATUS_OK) {
+                sxml_item_release(updated);
+            }
+        }
         if (status == SXML_STATUS_OK) {
             status = sxml_sequence_builder_append_item(builders->updated_roots, updated);
             sxml_item_release(updated);
@@ -1364,6 +1571,78 @@ static sxml_status rebuild_trees(const application *work, const root_builders *b
             sxml_item_release(original);
         }
     }
+    return status;
+}
+
+/* The node a put stores (3.2.2: upd:put is applied after the other
+   primitives): the root of the rebuilt tree for the root of a changed
+   tree, the node itself otherwise. */
+static sxml_status find_put_node(const sxml_xquery_updated_trees *trees,
+                                 sxml_node_reference node, sxml_item *put_node) {
+    for (uint64_t root_index = 0; node.node_index.index == 0; root_index += 1) {
+        const sxml_item_request item_request = {.item_index = root_index, .error_record = NULL};
+        sxml_item original = {.representation = 0};
+        sxml_node_reference original_node;
+        if (sxml_sequence_get_item(trees->original_roots, item_request, &original) !=
+            SXML_STATUS_OK) {
+            break;
+        }
+        if (sxml_item_get_node(original, &original_node) == SXML_STATUS_OK &&
+            original_node.tree == node.tree) {
+            const sxml_status status =
+                sxml_sequence_get_item(trees->updated_roots, item_request, put_node);
+            if (status == SXML_STATUS_OK) {
+                sxml_item_retain(*put_node);
+            }
+            return status;
+        }
+    }
+    *put_node = sxml_node_item_make(node);
+    return SXML_STATUS_OK;
+}
+
+/* The puts of work, in order, and their nodes, into trees. */
+static sxml_status collect_puts(const application *work, sxml_xquery_updated_trees *trees) {
+    sxml_item_heap *item_heap = work->request->item_heap;
+    const sxml_sequence_builder_configuration configuration = {.item_heap = item_heap};
+    sxml_sequence_builder *puts = NULL;
+    sxml_sequence_builder *put_nodes = NULL;
+    sxml_status status = sxml_sequence_builder_create(work->allocator, &configuration, &puts);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_sequence_builder_create(work->allocator, &configuration, &put_nodes);
+    }
+    for (uint64_t item_index = 0; status == SXML_STATUS_OK; item_index += 1) {
+        sxml_item item = {.representation = 0};
+        if (sxml_sequence_get_item(work->request->pending_updates,
+                                   (sxml_item_request){.item_index = item_index,
+                                                       .error_record = NULL},
+                                   &item) != SXML_STATUS_OK) {
+            break;
+        }
+        sxml_xquery_update_primitive primitive;
+        status = sxml_xquery_read_update_primitive(item, &primitive);
+        if (status != SXML_STATUS_OK ||
+            primitive.primitive_kind != SXML_XQUERY_UPDATE_PRIMITIVE_PUT) {
+            continue;
+        }
+        sxml_item put_node = {.representation = 0};
+        status = find_put_node(trees, primitive.target, &put_node);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_sequence_builder_append_item(put_nodes, put_node);
+            sxml_item_release(put_node);
+        }
+        if (status == SXML_STATUS_OK) {
+            status = sxml_sequence_builder_append_item(puts, item);
+        }
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_sequence_builder_finish(puts, &trees->puts);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_sequence_builder_finish(put_nodes, &trees->put_nodes);
+    }
+    sxml_sequence_builder_destroy(puts);
+    sxml_sequence_builder_destroy(put_nodes);
     return status;
 }
 
@@ -1393,12 +1672,17 @@ sxml_status sxml_xquery_apply_updates(const sxml_xquery_update_application *requ
         status = rebuild_trees(&work, &builders);
     }
     sxml_xquery_updated_trees result = {.original_roots = sxml_sequence_empty(),
-                                        .updated_roots = sxml_sequence_empty()};
+                                        .updated_roots = sxml_sequence_empty(),
+                                        .puts = sxml_sequence_empty(),
+                                        .put_nodes = sxml_sequence_empty()};
     if (status == SXML_STATUS_OK) {
         status = sxml_sequence_builder_finish(builders.original_roots, &result.original_roots);
     }
     if (status == SXML_STATUS_OK) {
         status = sxml_sequence_builder_finish(builders.updated_roots, &result.updated_roots);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = collect_puts(&work, &result);
     }
     sxml_sequence_builder_destroy(builders.original_roots);
     sxml_sequence_builder_destroy(builders.updated_roots);
@@ -1477,7 +1761,10 @@ static sxml_status call_copy(const sxml_function_call *call, sxml_sequence *resu
                 .inherits_namespaces =
                     (modes.datum_details.integer & SXML_XQUERY_UPDATE_NO_INHERIT_NAMESPACES) == 0,
                 .preserves_type_annotations =
-                    (modes.datum_details.integer & SXML_XQUERY_UPDATE_PRESERVES_TYPES) != 0});
+                    (modes.datum_details.integer & SXML_XQUERY_UPDATE_PRESERVES_TYPES) != 0,
+                /* 5.4.5 step 1, construction strip: only xml:id stays an
+                   ID. */
+                .strips_identity = true});
     }
     sxml_tree *tree = NULL;
     if (status == SXML_STATUS_OK) {
@@ -1522,17 +1809,44 @@ static sxml_status find_updated_copy(const sxml_xquery_updated_trees *updated_tr
     return status;
 }
 
-/* modify-copies($copies, $updates) (5.4.5): one array whose members are
-   the copies' roots after the update, in order. */
+/* The in-scope schemas the call's code was compiled with. */
+static sxml_schema_view in_scope_schemas(const sxml_function_call *call) {
+    const sxml_ir_static_context *context =
+        call->dynamic_context == NULL
+            ? NULL
+            : sxml_dynamic_context_get_static_context(call->dynamic_context);
+    return context == NULL ? (sxml_schema_view){.schemas = NULL, .schema_count = 0}
+                           : context->in_scope_schemas;
+}
+
+/* modify-copies($copies, $updates, $revalidation) (5.4.5): one array
+   whose members are the copies' roots after the update (step 3, with the
+   revalidation mode of the static context), in order. */
 static sxml_status call_modify_copies(const sxml_function_call *call, sxml_sequence *result) {
     const sxml_sequence copies = call->arguments.sequences[0];
+    sxml_item mode_item = {.representation = 0};
+    sxml_atomic_datum mode = {.datum_kind = SXML_DATUM_KIND_INTEGER, .datum_details = {.integer = 0}};
+    sxml_status status = sxml_sequence_get_item(
+        call->arguments.sequences[2], (sxml_item_request){.item_index = 0, .error_record = NULL},
+        &mode_item);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_atomic_item_get_datum(mode_item, &mode);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
     sxml_xquery_updated_trees updated_trees = {.original_roots = sxml_sequence_empty(),
-                                               .updated_roots = sxml_sequence_empty()};
-    sxml_status status = sxml_xquery_apply_updates(
-        &(sxml_xquery_update_application){.item_heap = call->item_heap,
-                                          .pending_updates = call->arguments.sequences[1],
-                                          .allowed_roots = copies,
-                                          .error_record = call->error_record},
+                                               .updated_roots = sxml_sequence_empty(),
+                                               .puts = sxml_sequence_empty(),
+                                               .put_nodes = sxml_sequence_empty()};
+    status = sxml_xquery_apply_updates(
+        &(sxml_xquery_update_application){
+            .item_heap = call->item_heap,
+            .pending_updates = call->arguments.sequences[1],
+            .allowed_roots = copies,
+            .error_record = call->error_record,
+            .revalidation_mode = (sxml_xquery_revalidation_mode)mode.datum_details.integer,
+            .schemas = in_scope_schemas(call)},
         &updated_trees);
     uint64_t copy_count = 0;
     if (status == SXML_STATUS_OK) {
@@ -1588,6 +1902,7 @@ static const sxml_function_parameter copy_parameters[] = {
 static const sxml_function_parameter modify_parameters[] = {
     SXML_REQUIRED_PARAMETER("copies", "node()*"),
     SXML_REQUIRED_PARAMETER("updates", "item()*"),
+    SXML_REQUIRED_PARAMETER("revalidation", "xs:integer"),
 };
 
 const sxml_native_function sxml_xquery_copy_function = {
@@ -1602,9 +1917,10 @@ const sxml_native_function sxml_xquery_copy_function = {
 
 const sxml_native_function sxml_xquery_modify_copies_function = {
     .function_namespace = SXML_NAMESPACE_NONE,
-    .properties = SXML_NATIVE_FUNCTION_IS_NONDETERMINISTIC,
+    /* The in-scope schemas revalidate (3.2.4). */
+    .properties = SXML_NATIVE_FUNCTION_IS_NONDETERMINISTIC | SXML_NATIVE_FUNCTION_USES_DYNAMIC_CONTEXT,
     .local_name = SXML_BYTE_VIEW_INITIALIZER("modify-copies"),
-    .parameters = {modify_parameters, 2},
+    .parameters = {modify_parameters, 3},
     .result_type = SXML_BYTE_VIEW_INITIALIZER("array(node())"),
     .call = call_modify_copies,
     .resumable_body = NULL};

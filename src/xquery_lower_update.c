@@ -226,12 +226,23 @@ static int64_t copy_flags_of(const sxml_xpath_lowerer *state, copy_flag_request 
     return flags;
 }
 
-/* The $modes constant of copy (src/xquery_update_internal.h). */
+/* The $modes constant of copy (src/xquery_update_internal.h): the
+   copy-namespaces modes alone, since a copy is untyped whatever the
+   construction mode (XQUF 3.0, 5.6 step 1.2: elements xs:untyped,
+   attributes xs:untypedAtomic). */
 static sxml_status add_copy_modes(sxml_xpath_lowerer *state, sxml_ir_atom *atom) {
     return sxml_xpath_lowerer_add_item_constant(
         state,
         sxml_atomic_item_from_integer(
-            copy_flags_of(state, (copy_flag_request){.with_construction = true})),
+            copy_flags_of(state, (copy_flag_request){.with_construction = false})),
+        atom);
+}
+
+/* The $revalidation constant of modify-copies: the prolog's revalidation
+   mode (XQUF 3.0, 5.4.5 step 3). */
+static sxml_status add_revalidation_mode(sxml_xpath_lowerer *state, sxml_ir_atom *atom) {
+    return sxml_xpath_lowerer_add_item_constant(
+        state, sxml_atomic_item_from_integer((int64_t)sxml_xquery_declared_revalidation(state->ast)),
         atom);
 }
 
@@ -396,15 +407,19 @@ static sxml_status lower_return_clause(sxml_xpath_lowering_machine *machine,
             &copies);
     }
     sxml_ir_atom modified = {0};
+    sxml_ir_atom revalidation = {0};
     if (status == SXML_STATUS_OK) {
-        const sxml_ir_atom arguments[2] = {copies, locals->modify};
+        status = add_revalidation_mode(state, &revalidation);
+    }
+    if (status == SXML_STATUS_OK) {
+        const sxml_ir_atom arguments[3] = {copies, locals->modify, revalidation};
         status = bind_native_call(
             state,
             (native_call_in_block){
                 .block = frame->block,
                 .call = {.node = frame->node,
                          .native_function = &sxml_xquery_modify_copies_function,
-                         .arguments = {.atoms = arguments, .atom_count = 2}}},
+                         .arguments = {.atoms = arguments, .atom_count = 3}}},
             &modified);
     }
     sxml_ast_node_index binding = child_of(state, frame->node, SXML_AST_FIELD_BINDING);
@@ -670,15 +685,18 @@ static sxml_status finish_transform(sxml_xpath_lowering_machine *machine,
     if (locals->outer_focus != NULL) {
         state->function->focus = locals->outer_focus;
     }
-    const sxml_ir_atom arguments[2] = {locals->copy, locals->modify};
+    sxml_ir_atom arguments[3] = {locals->copy, locals->modify, {0}};
     sxml_ir_atom modified = {0};
-    sxml_status status = bind_native_call(
-        state,
-        (native_call_in_block){.block = &locals->body_block,
-                               .call = {.node = frame->node,
-                                        .native_function = &sxml_xquery_modify_copies_function,
-                                        .arguments = {.atoms = arguments, .atom_count = 2}}},
-        &modified);
+    sxml_status status = add_revalidation_mode(state, &arguments[2]);
+    if (status == SXML_STATUS_OK) {
+        status = bind_native_call(
+            state,
+            (native_call_in_block){.block = &locals->body_block,
+                                   .call = {.node = frame->node,
+                                            .native_function = &sxml_xquery_modify_copies_function,
+                                            .arguments = {.atoms = arguments, .atom_count = 3}}},
+            &modified);
+    }
     sxml_ir_atom key = {0};
     if (status == SXML_STATUS_OK) {
         status = sxml_xpath_lowerer_add_item_constant(state, sxml_atomic_item_from_integer(1),

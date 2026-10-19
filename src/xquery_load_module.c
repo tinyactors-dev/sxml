@@ -51,6 +51,7 @@
 #include "xpath_api_internal.h"
 #include "xquery_lower_internal.h"
 #include "xquery_module_internal.h"
+#include "xquery_update_internal.h"
 
 #include <stdalign.h>
 #include <string.h>
@@ -1019,14 +1020,17 @@ static const sxml_function_table_operations xquery_function_table_operations = {
 
 sxml_status sxml_xquery_function_table_initialize(sxml_xquery_function_table *table,
                                                   const sxml_xpath_static_context *host) {
-    static const sxml_native_function_view *const parts[] = {&load_functions};
+    /* fn:put is XQuery's, of the Update Facility (XQUF 3.0, 6.1). */
+    static const sxml_native_function_view *const parts[] = {&load_functions,
+                                                              &sxml_xquery_put_functions};
     *table = (sxml_xquery_function_table){.host_table = host->function_table, .library = NULL};
     return sxml_function_library_create(
         host->allocator,
         &(sxml_function_library_configuration){
             .allocator = host->allocator,
             .item_heap = host->item_heap,
-            .parts = {.native_function_views = parts, .native_function_view_count = 1}},
+            .parts = {.native_function_views = parts,
+                      .native_function_view_count = sizeof parts / sizeof parts[0]}},
         &table->library);
 }
 

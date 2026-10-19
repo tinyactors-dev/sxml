@@ -100,13 +100,45 @@ static sxml_status collect_tree(void *state, const sxml_xquery_updated_tree *upd
         sxml_output_buffer_as_output_stream(collector->test_fixture->output_buffer));
 }
 
+/* A document fn:put stores, written as "[URI]" and the node. */
+static sxml_status collect_put(void *state, const sxml_xquery_put_document *put_document) {
+    tree_collector *collector = state;
+    const sxml_output_stream stream =
+        sxml_output_buffer_as_output_stream(collector->test_fixture->output_buffer);
+    sxml_status status = stream.operations->write(stream.state, TEXT("["));
+    if (status == SXML_STATUS_OK) {
+        status = stream.operations->write(stream.state, put_document->uri);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = stream.operations->write(stream.state, TEXT("]"));
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_serialization_parameters parameters;
+    memset(&parameters, 0, sizeof parameters);
+    parameters.serialization_method = SXML_SERIALIZATION_METHOD_XML;
+    return sxml_serialize_sequence(
+        sxml_processor_get_item_heap(collector->test_fixture->processor),
+        &(sxml_serialization_request){.value = sxml_sequence_from_item(put_document->node),
+                                      .serialization_parameters = parameters,
+                                      .error_record = NULL},
+        stream);
+}
+
 static const sxml_xquery_update_sink_operations collector_operations = {
-    .receive_updated_tree = collect_tree};
+    .receive_updated_tree = collect_tree, .receive_put_document = collect_put};
+
+/* A sink that takes trees and no documents of fn:put. */
+static const sxml_xquery_update_sink_operations tree_only_operations = {
+    .receive_updated_tree = collect_tree, .receive_put_document = NULL};
 
 /* One query to run: its text; out the error record, whether it is
    updating and how many trees it changed. */
 typedef struct query_run {
     sxml_byte_view expression_text;
+    /* The sink takes no documents of fn:put. */
+    bool refuses_puts;
     sxml_error_record error_record;
     bool is_updating;
     size_t updated_tree_count;
@@ -136,7 +168,9 @@ static sxml_status run_query(const fixture *test_fixture, query_run *run) {
         query,
         &(sxml_xquery_evaluation_request){
             .error_record = &run->error_record,
-            .update_sink = {.state = &collector, .operations = &collector_operations}},
+            .update_sink = {.state = &collector,
+                            .operations = run->refuses_puts ? &tree_only_operations
+                                                            : &collector_operations}},
         &result);
     if (status == SXML_STATUS_OK) {
         status = sxml_serialize_sequence(
@@ -261,7 +295,21 @@ static const query_case query_cases[] = {
                 "declare %updating %simple function local:f() { () }; 1", "XUST0033"),
     QUERY_ERROR("revalidation-twice",
                 "declare revalidation skip; declare revalidation skip; 1", "XUST0003"),
-    QUERY_ERROR("revalidation-strict", "declare revalidation strict; 1", "XUST0026"),
+    /* Every revalidation mode is supported (3.1); strict revalidation of
+       a changed copy needs a declaration (3.2.4, XQDY0084), lax does not;
+       a copy is untyped whatever the construction mode (5.6). */
+    QUERY_ERROR("revalidation-strict",
+                "declare revalidation strict; copy $c := <a/> modify insert node <b/> into $c "
+                "return $c",
+                "XQDY0084"),
+    QUERY_VALUE("revalidation-lax",
+                "declare revalidation lax; copy $c := <a/> modify insert node <b/> into $c "
+                "return $c",
+                "<a><b/></a>"),
+    QUERY_VALUE("copy-untyped",
+                "declare construction preserve; copy $c := <a/> modify () return $c instance of "
+                "element(*, xs:untyped)",
+                "true"),
     /* The dynamic errors of the expressions (5.4) and of applying (3.2.2). */
     QUERY_ERROR("empty-target", "copy $c := <a/> modify insert node <b/> into $c/x return $c",
                 "XUDY0027"),
@@ -350,10 +398,61 @@ static void test_updating_query_hands_trees_to_the_sink(sxml_test_state *state) 
     SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
 }
 
+/* Whether run failed with the error code. */
+static bool failed_with(const query_run *run, sxml_byte_view code) {
+    return sxml_byte_view_equals(run->error_record.code.local_name, code);
+}
+
+static void test_put_hands_documents_to_the_sink(sxml_test_state *state) {
+    fixture test_fixture;
+    SXML_TEST_EXPECT(state, fixture_create(0, &test_fixture) == SXML_STATUS_OK);
+    /* XQUF 3.0, 6.1 and 3.2.2: the put of a changed tree's root stores it
+       as the other updates left it, after every changed tree. */
+    query_run run = {.expression_text =
+                         TEXT("let $d := document { <a/> } return (fn:put($d, "
+                              "'http://example.com/d.xml'), insert node <b/> into $d/a, "
+                              "fn:put(<c/>, 'http://example.com/c.xml'))")};
+    SXML_TEST_EXPECT(state, run_query(&test_fixture, &run) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, run.is_updating);
+    SXML_TEST_EXPECT(state, run.updated_tree_count == 1);
+    SXML_TEST_EXPECT(state,
+                     output_is(&test_fixture, TEXT("<a><b/></a>[http://example.com/d.xml]<a><b/>"
+                                                   "</a>[http://example.com/c.xml]<c/>")));
+    /* Two puts at one URI (XUDY0031), a comment (FOUP0001), a URI that is
+       not one (FOUP0002), a put in a copy-modify (XUDY0037). */
+    const struct {
+        sxml_byte_view expression_text;
+        sxml_byte_view code;
+    } errors[] = {
+        {TEXT("fn:put(<a/>, 'http://e/x'), fn:put(<b/>, 'http://e/x')"), TEXT("XUDY0031")},
+        {TEXT("fn:put(comment { 'c' }, 'http://e/x')"), TEXT("FOUP0001")},
+        {TEXT("fn:put(<a/>, 'http:\\\\bad>uri')"), TEXT("FOUP0002")},
+        {TEXT("copy $c := <a/> modify fn:put($c, 'http://e/x') return $c"), TEXT("XUDY0037")},
+        {TEXT("12, fn:put(<a/>, 'http://e/x')"), TEXT("XUST0001")},
+    };
+    for (size_t error_index = 0; error_index < sizeof errors / sizeof errors[0];
+         error_index += 1) {
+        run = (query_run){.expression_text = errors[error_index].expression_text};
+        SXML_TEST_EXPECT(state, run_query(&test_fixture, &run) != SXML_STATUS_OK);
+        SXML_TEST_EXPECT(state, failed_with(&run, errors[error_index].code));
+        SXML_TEST_EXPECT(state, run.updated_tree_count == 0);
+    }
+    /* A sink that takes no documents: FOUP0002 before any tree. */
+    run = (query_run){.expression_text = TEXT("let $e := <e/> return (rename node $e as 'f', "
+                                              "fn:put(<a/>, 'http://e/x'))"),
+                      .refuses_puts = true};
+    SXML_TEST_EXPECT(state, run_query(&test_fixture, &run) == SXML_STATUS_DYNAMIC_ERROR);
+    SXML_TEST_EXPECT(state, failed_with(&run, TEXT("FOUP0002")));
+    SXML_TEST_EXPECT(state, run.updated_tree_count == 0);
+    SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
+}
+
 static const sxml_test_case xquery_update_test_cases[] = {
     {.name = "queries_give_values_and_errors", .function = test_queries_give_values_and_errors},
     {.name = "updating_query_hands_trees_to_the_sink",
      .function = test_updating_query_hands_trees_to_the_sink},
+    {.name = "put_hands_documents_to_the_sink",
+     .function = test_put_hands_documents_to_the_sink},
 };
 
 int main(int argument_count, char **arguments) {
