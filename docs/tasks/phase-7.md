@@ -352,6 +352,15 @@ part 1.2 KB of the core module.
     `src/xslt_lower_stream.c`, the receiving side in
     `src/evaluator_construct.c` (single hunks agreed with the evaluator's
     owners), and a memory test of a 1 GB generated document.
+  - **Done** 2026-10-19 (D219): xsl:source-document bodies of
+    motionless instructions and one xsl:for-each over a downward path
+    stream (STREAM, `src/evaluator_stream.c`, an incremental parse);
+    allocator peak 232 KB at 2.4 MB to 106 MB, but tree-sitter's syntax
+    tree of the whole input remains (3.98 GB at 106 MB, so no 1 GB test);
+    the fallback option in `xslt.h`; supports-streaming true. XT40 11,797
+    to 11,804, none lost. Left: accumulators, streamable modes and
+    apply-templates, iterate, fork, merge, aggregates, the principal
+    source, incremental tokenizing of content.
 - **Header**: possibly `xslt.h`, additive: a streamed principal source
   given as bytes or a parser, with a record. The resolver's BYTES form
   already serves xsl:source-document.

@@ -4,6 +4,21 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 7.6b done (D219): streamed evaluation of xsl:source-document
+  streamable="yes" on the shared machine: an incremental parse of the
+  XML parser feeds a stream builder (`src/evaluator_stream.c`) that keeps
+  the open elements and their attributes; the new IR kind STREAM selects
+  one step's nodes as their events pass, into shallow or full stream
+  windows; `src/xslt_lower_stream.c` plans bodies of motionless
+  instructions and one xsl:for-each over a downward path (7.6a's sweeps).
+  Allocator peak 232 KB for 2.4 MB, 8.3 MB and 106 MB documents (the
+  unit test streams 2.4 MB under a 1 MB limit; unstreamed fails); the
+  process still holds tree-sitter's syntax tree of the whole input
+  (3.98 GB RSS at 106 MB). `xslt.h`: falls_back_to_unstreamed (19.10);
+  supports-streaming true. XT40 11,797 to 11,804, none lost; 164
+  xsl:source-document executions stream. Not streamed yet: accumulators,
+  apply-templates and streamable modes, iterate, fork, merge, aggregates.
+
 - 7.18 done (D215): Invisible XML. fn:invisible-xml as the optional
   feature `sxml_invisible_xml_feature()` ("invisible-xml"): one grammar
   compiler over the XML form (tree builder events, or the constant table

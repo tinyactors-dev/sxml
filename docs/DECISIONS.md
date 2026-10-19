@@ -9186,17 +9186,68 @@ honoured" and its root order.
   reading of `src/collation_tailoring.c` are the patterns to reuse
   (lifting them into a shared module when a second user exists).
 
-## Proposed
+### D219. Streamed evaluation in XSLT (packet 7.6b)
+Recorded 2026-10-19, after D71, D99, D166, D208, D212. Replaces the rest
+of D97's "streamable="yes" runs unstreamed": xsl:source-document streams
+the bodies it can, and the stylesheet option of 19.10 is in `xslt.h`.
+Accepts 7.6a's Proposed item (the option), not its streamed principal
+source (below).
+- **The parser** (`src/xml.c`, `xml_internal.h`): an incremental parse
+  (glossary `incremental_parse`) is the same parse whose content walk
+  stops after a visit whose events asked to pause and goes on when
+  resumed; validation is refused. The concrete syntax tree is still made
+  for the whole document first (D12).
+- **The evaluator** (`src/evaluator_stream.c`, part "stream"): a new IR
+  kind STREAM, one step (child or descendant, node test, at most one
+  predicate, numeric or boolean as in 4.4.1) from a node, its body in the
+  selected node's focus, a counter slot for the position in a whole path,
+  OPENS_DOCUMENT for the document of xsl:source-document. A stream builder
+  keeps the open elements with their namespaces and attributes and queues
+  the events; content nobody reads is skipped, a body that consumes its
+  node gets a full stream window (its subtree, captured as the events
+  pass), a body that reads its node only through stream points of its own
+  gets a shallow window and the node becomes the open node (glossary
+  `stream_window`, `open_node`). Windows go through fn:doc's document
+  preparation (whitespace stripping). A STREAM whose origin is not an open
+  node walks the tree, so a document the resolver gives as a node, a node
+  of a full window and an unstreamed node take the same IR. The parser
+  never calls the evaluator: STREAM tasks resume it (D71). The loader
+  opens a streamed document as fn:doc resolves it
+  (`sxml_processor_document_loader_open_streamed`) and does not keep it.
+- **Lowering** (`src/xslt_lower_stream.c`): a body is streamed when its
+  instructions (through literal result elements whose attributes are
+  motionless) are motionless and grounded by 7.6a's analysis (new
+  `sxml_xslt_assess_sweep`) except at most one stream point (glossary
+  `stream_point`): an xsl:for-each without xsl:sort or separator whose
+  select is a downward path of child steps, "//" or descendant:: as the
+  last step, each with at most one motionless predicate, and whose body is
+  at most consuming. Bodies reading fn:has-children, fn:path, fn:last,
+  fn:function-lookup, xsl:call-template or attribute sets are not shallow
+  (a window lacks siblings; a streamed selection has no size).
+- **Not streamed yet** (lowered unstreamed as before, same results by
+  19.10): accumulators (any declared), validation and type on
+  xsl:source-document, xsl:apply-templates and streamable modes,
+  xsl:iterate, xsl:fork, xsl:merge, aggregates over a streamed path
+  (count(//x)), attribute steps at the end of a path, the principal
+  source (a host gives it as a tree; a streamed principal source would
+  be an additive `xslt.h` field). In XT40, 164 executions of
+  xsl:source-document stream.
+- **Option** (`xslt.h`, additive last field, D99's rule for stable
+  headers): `falls_back_to_unstreamed`; the XSLT driver claims the
+  feature streaming-fallback and sets it for the cases that depend on it.
+  supports-streaming is true.
+- **Measured**: the allocator peak of streaming a generated document with
+  a for-each over its records is 232 KB at 2.4 MB, 8.3 MB and 106 MB
+  (`tests/evaluator_stream_test.c` runs 2.4 MB under a 1 MB limit, which
+  the unstreamed run exceeds). The process's resident memory for 106 MB
+  was 3.98 GB, almost all tree-sitter's syntax tree of the whole input
+  (D12): a 1 GB document is out of reach until content is tokenized
+  incrementally (the gate's "1 GB under 64 MB" holds for the allocator,
+  not the process). XT40 (release, whole suite) 11,797 to 11,804 passed,
+  none lost: streaming-fallback-001 to -006, system-property-012;
+  merge-097sf is now run and fails on uri-collection with ?select=.
 
-- **A streamability option and a streamed source in `xslt.h`** (packet
-  7.6a, D212; for 7.6b and the owner of `xslt.h`): XSLT 4.0, 19.10 asks
-  a streaming processor to offer, at user option, XTSE3430 or processing
-  without streaming for a construct declared streamable that is not
-  guaranteed-streamable. sxml always raises XTSE3430, so the XT40
-  streaming-fallback cases (7 with merge-097sf) are not run. Proposed:
-  an additive last field of `sxml_xslt_stylesheet_configuration`, for
-  example `bool falls_back_to_unstreamed`, read by
-  sxml_xslt_check_streamability, with 7.6b's streamed principal source.
+## Proposed
 
 - **The CLI's WebAssembly budget after the Phase 7 features** (packet
   7.10a, D201; for the owner): the `sxml` CLI module names every optional
