@@ -66,7 +66,14 @@ export type ResourceKind =
   /** The DUCET for the full module's uca-collation feature: absoluteUri
    *  is 'http://www.unicode.org/Public/UCA/16.0.0/allkeys.txt'. Answer
    *  with the file's text, or leave it to LoadOptions.collationData. */
-  | 'collation-data';
+  | 'collation-data'
+  /** A CLDR file for the full module's localization feature: absoluteUri
+   *  is 'urn:sxml:locale-data:' and a path below CLDR's common/
+   *  directory ('main/de.xml', 'rbnf/de.xml',
+   *  'supplemental/supplementalData.xml', 'supplemental/ordinals.xml').
+   *  Answer with the file's bytes; without them dates are English with
+   *  '[Language: en]'. */
+  | 'locale-data';
 
 export interface ResourceRequest {
   kind: ResourceKind;
@@ -439,6 +446,7 @@ const resource_kinds: ResourceKind[] = [
   'external-entity',
   'timezone-data',
   'collation-data',
+  'locale-data',
 ];
 
 /** The URI the uca-collation feature asks for its DUCET by. */
