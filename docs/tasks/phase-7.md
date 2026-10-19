@@ -963,6 +963,17 @@ feature full-text; QT4 ft-* 624 of 685 pass (91 %), gate met.
 `sxml.wasm` +2 KB, the CLI and `sxml-full.wasm` +540 KB (grammar
 500 KB). 7.12b/c: stemming, stop word lists and thesauri by URI
 (the two resource kinds; fullText-defaults), scores from the matches.
+**7.12b and 7.12c done** 2026-10-19 (D214, amended): Snowball stemmers
+for en, de, fr, it, es and nl, interpreted from the vendored .sbl files
+(all 210,829 snowball-data words stem as Snowball 3.1.1 does); stop
+word lists and thesauri by URI through the resolver (the two resource
+kinds of `processor.h`, FTST0008 and FTST0018, relationships and
+levels, the defaults; fullText-defaults); scores from the matches and
+their weights (let score and for score); zh and ja by UAX #29's
+one-character words. QT4 ft-* 624 to 672 of 685 (98.1 %), XQ40 45,839
+to 45,868; the 13 left are expected-result whitespace (9),
+stemmer-dependent (2) and fullText-units (2). `sxml.wasm` +2 KB (it was
+over its budget before), `sxml-full.wasm` and the CLI +19 KB.
 
 
 ### 7.13 XML 1.1 input (implementation; proposed, D183)
