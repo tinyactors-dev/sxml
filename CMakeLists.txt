@@ -148,4 +148,11 @@ if(SXML_BUILD_TESTS AND SXML_BUILD_APPS
     add_subdirectory(tests/xsd/driver)
 endif()
 
+# The iXML community test suite (packet 7.18, D215): run with the sxml
+# command, so it comes after apps/.
+if(SXML_BUILD_TESTS AND SXML_BUILD_APPS
+   AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/ixml/CMakeLists.txt")
+    add_subdirectory(tests/ixml)
+endif()
+
 include(SxmlLint)

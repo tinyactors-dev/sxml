@@ -2,9 +2,9 @@
  * The system properties (src/system_property_internal.h, D163): one table
  * for fn:system-properties (F&O 4.0, 17.1.9) and the XSLT fn:system-property
  * (XSLT 4.0, 24.2.1). sxml's XPath and XQuery are schema-aware and read
- * typed data (D174), XSLT not yet; sxml has neither XInclude, invisible
- * XML nor streaming (D97, delayed by D162). Dynamic XSLT, the EXPath
- * modules and DTD validation are optional features (D189, D211). XSLT has
+ * typed data (D174), XSLT not yet; sxml has neither XInclude nor
+ * streaming (D97, delayed by D162). Dynamic XSLT, the EXPath modules, DTD
+ * validation and invisible XML are optional features (D189, D211, D215). XSLT has
  * backwards-compatible behaviour (packet 7.4).
  *
  * Golden file: src/function_library_json.c (the table it held).
@@ -92,7 +92,10 @@ static const sxml_system_property sxml_system_property_table[] = {
                                    SXML_OPTIONAL_FEATURE_KIND_DTD_VALIDATION),
     SXML_OPTIONAL_FEATURE_PROPERTY("supports-dtd-attribute-typing",
                                    SXML_OPTIONAL_FEATURE_KIND_DTD_VALIDATION),
-    SXML_BOOLEAN_PROPERTY("supports-invisible-xml", "", false),
+    /* fn:invisible-xml, when the processor names the optional feature
+       sxml_invisible_xml_feature (packet 7.18, D215). */
+    SXML_OPTIONAL_FEATURE_PROPERTY("supports-invisible-xml",
+                                   SXML_OPTIONAL_FEATURE_KIND_INVISIBLE_XML),
     SXML_KNOWN_FUNCTION_PROPERTY("supports-dynamic-xquery", SXML_NAMESPACE_FUNCTIONS,
                                  "load-xquery-module", 1),
     /* The optional feature sxml_xslt_transform_feature (D203). */

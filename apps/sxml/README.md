@@ -208,6 +208,11 @@ adaptive output method writes the result, one item on each line.
   File 4.0 functions are available with the prefix `file`
   (`http://expath.org/ns/file`). Relative paths are resolved against the
   working directory.
+- `fn:invisible-xml` compiles an Invisible XML grammar (ixml notation,
+  or its XML form as an `ixml` element) and returns a function that
+  parses strings with it into documents; a string the grammar does not
+  describe gives a document with `ixml:state="failed"`, or
+  `err:FOIX0002` with the option `fail-on-error`.
 - `fn:transform` runs an XSLT 4.0 stylesheet from the expression; its
   `stylesheet-location` and `source-location` are read as `fn:doc` reads
   files.

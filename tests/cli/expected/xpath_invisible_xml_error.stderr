@@ -1,0 +1,1 @@
+expression:1:1: err:FOIX0002: The input does not match the grammar, and fail-on-error is true (F&O 4.0, fn:invisible-xml)

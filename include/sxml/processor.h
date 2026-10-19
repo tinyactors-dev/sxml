@@ -654,6 +654,16 @@ SXML_EXPORT sxml_optional_feature sxml_timezone_database_feature(void);
 SXML_EXPORT sxml_optional_feature sxml_uca_collation_feature(void);
 
 /*
+ * Invisible XML (Invisible XML Specification 1.0): fn:invisible-xml
+ * (F&O 4.0, 17.4), which compiles an iXML grammar and returns a function
+ * that parses strings with it into documents, and
+ * fn:system-properties()?supports-invisible-xml true. Without it the
+ * function is absent (XPST0017). Its name is "invisible-xml" (packet
+ * 7.18, D215).
+ */
+SXML_EXPORT sxml_optional_feature sxml_invisible_xml_feature(void);
+
+/*
  * Every optional feature sxml has, as static data, for hosts that want
  * them all: the sxml command, the test drivers and the JavaScript
  * package's full module. A program that calls this links every feature.

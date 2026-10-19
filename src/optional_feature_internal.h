@@ -90,6 +90,10 @@ typedef enum sxml_optional_feature_kind {
        (src/full_text.c, packet 7.12a, D214); operations
        sxml_full_text_operations (src/full_text_internal.h). */
     SXML_OPTIONAL_FEATURE_KIND_FULL_TEXT,
+    /* sxml_invisible_xml_feature: fn:invisible-xml as library_functions
+       (src/ixml.c, src/function_library_ixml.c, packet 7.18, D215);
+       operations is that view. */
+    SXML_OPTIONAL_FEATURE_KIND_INVISIBLE_XML,
     SXML_OPTIONAL_FEATURE_KIND_COUNT,
 } sxml_optional_feature_kind;
 
@@ -244,3 +248,5 @@ extern const sxml_optional_feature_definition sxml_timezone_database_feature_def
 extern const sxml_optional_feature_definition sxml_dtd_validation_feature_definition;
 /* The Full Text feature (src/full_text.c). */
 extern const sxml_optional_feature_definition sxml_full_text_feature_definition;
+/* The Invisible XML feature (src/ixml.c). */
+extern const sxml_optional_feature_definition sxml_invisible_xml_feature_definition;

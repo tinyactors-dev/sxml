@@ -251,6 +251,7 @@ static const sxml_optional_feature sxml_every_optional_feature[] = {
     {.definition = &sxml_dtd_validation_feature_definition},
     {.definition = &sxml_uca_collation_feature_definition},
     {.definition = &sxml_full_text_feature_definition},
+    {.definition = &sxml_invisible_xml_feature_definition},
 };
 
 sxml_optional_feature_view sxml_all_optional_features(void) {

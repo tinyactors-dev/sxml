@@ -58,6 +58,8 @@ typedef struct sxml_qt4_supported_dependency {
  * - expath-file: the EXPath File Module 4.0, sxml_expath_file_feature()
  *   over the platform's files; a sandpit is copied for each test case
  *   (sandpit.h, packet 7.9, D200).
+ * - fn-invisible-xml: Invisible XML, sxml_invisible_xml_feature() (packet
+ *   7.18, D215), in scope of the D95 denominators.
  */
 static const sxml_qt4_supported_dependency sxml_qt4_supported_dependencies[] = {
     {SXML_BYTE_VIEW_INITIALIZER("feature"),
@@ -135,6 +137,10 @@ static const sxml_qt4_supported_dependency sxml_qt4_supported_dependencies[] = {
        vendored tzdata (packet 7.16, D209). */
     {SXML_BYTE_VIEW_INITIALIZER("feature"),
      SXML_BYTE_VIEW_INITIALIZER("olson-timezone")},
+    /* fn:invisible-xml, the optional feature sxml_invisible_xml_feature()
+       (packet 7.18, D215). */
+    {SXML_BYTE_VIEW_INITIALIZER("feature"),
+     SXML_BYTE_VIEW_INITIALIZER("fn-invisible-xml")},
 };
 
 /* The features of schema awareness (the area "schema-aware",
@@ -209,7 +215,6 @@ static const sxml_byte_view sxml_qt4_non_goal_features[] = {
     SXML_BYTE_VIEW_INITIALIZER("staticTyping"),
     SXML_BYTE_VIEW_INITIALIZER("fullText*"),
     SXML_BYTE_VIEW_INITIALIZER("xpath-1.0-compatibility"),
-    SXML_BYTE_VIEW_INITIALIZER("fn-invisible-xml"),
     SXML_BYTE_VIEW_INITIALIZER("remote_http"),
     SXML_BYTE_VIEW_INITIALIZER("schema-location-hint"),
 };
@@ -217,7 +222,6 @@ static const sxml_byte_view sxml_qt4_non_goal_features[] = {
 /* The non-goal test sets of D95, with "*" as above. */
 static const sxml_byte_view sxml_qt4_non_goal_test_sets[] = {
     SXML_BYTE_VIEW_INITIALIZER("ft-*"),
-    SXML_BYTE_VIEW_INITIALIZER("fn-invisible-xml"),
 };
 
 /* A table of names, some ending in "*". */

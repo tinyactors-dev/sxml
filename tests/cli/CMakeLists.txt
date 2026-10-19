@@ -145,6 +145,10 @@ sxml_add_cli_test(xpath_syntax_error EXIT_CODE 1 ARGUMENTS xpath "1 +")
 # fn:parse-html: the HTML parser feature the sxml command names (packet 7.10a).
 sxml_add_cli_test(xpath_parse_html EXIT_CODE 0 ARGUMENTS xpath "parse-html('<title>T</title><ul><li>one<li>two</ul><svg viewbox=\"0 0 1 1\"/>')")
 sxml_add_cli_test(xpath_parse_html_error EXIT_CODE 1 ARGUMENTS xpath "parse-html('<p>x</q>', {'fail-on-error': true()})")
+# fn:invisible-xml: the Invisible XML feature the sxml command names (packet 7.18, D215).
+sxml_add_cli_test(xpath_invisible_xml EXIT_CODE 0 ARGUMENTS xpath "invisible-xml(\"date: year, -'-', month. year: ['0'-'9']+. @month: ['0'-'9']+.\")('2026-10')")
+sxml_add_cli_test(xquery_invisible_xml_failed EXIT_CODE 0 ARGUMENTS xquery "--expression=invisible-xml(\"s: 'a', 'b'.\")('ac')")
+sxml_add_cli_test(xpath_invisible_xml_error EXIT_CODE 1 ARGUMENTS xpath "invisible-xml(\"s: 'a'.\", {'fail-on-error': true()})('b')")
 # Relative names resolve against the working directory, the static base URI
 # of the query commands (packet 7.10b): fn:html-doc and fn:unparsed-text.
 sxml_add_cli_test(xpath_relative_html_doc EXIT_CODE 0 ARGUMENTS xpath "string-join((html-doc('page.html')//*:p ! normalize-space(), unparsed-text('note.txt') => normalize-space()), ' ')")
