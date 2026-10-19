@@ -399,8 +399,9 @@ static void test_scope_follows_the_non_goals_of_d95(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, sxml_qt4_feature_is_non_goal(TEXT("schemaImport")));
     SXML_TEST_EXPECT(state,
                      sxml_qt4_feature_is_non_goal(TEXT("fullText-ignore")));
+    /* fn:transform is an optional feature the driver names (D203). */
     SXML_TEST_EXPECT(state,
-                     sxml_qt4_feature_is_non_goal(TEXT("fn-transform-XSLT30")));
+                     !sxml_qt4_feature_is_non_goal(TEXT("fn-transform-XSLT30")));
     SXML_TEST_EXPECT(
         state, sxml_qt4_feature_is_non_goal(TEXT(" remote_http fullText-ignore ")));
     /* EXPath Binary and File are optional features the driver names
@@ -418,7 +419,7 @@ static void test_scope_follows_the_non_goals_of_d95(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, !sxml_qt4_test_set_is_non_goal(TEXT("upd-delete")));
     SXML_TEST_EXPECT(state, !sxml_qt4_feature_is_non_goal(TEXT("XQUpdate")));
     SXML_TEST_EXPECT(state, sxml_qt4_test_set_is_non_goal(TEXT("ft-x")));
-    SXML_TEST_EXPECT(state, sxml_qt4_test_set_is_non_goal(TEXT("fn-transform")));
+    SXML_TEST_EXPECT(state, !sxml_qt4_test_set_is_non_goal(TEXT("fn-transform")));
     SXML_TEST_EXPECT(state,
                      !sxml_qt4_test_set_is_non_goal(TEXT("fn-transform-x")));
     SXML_TEST_EXPECT(state, !sxml_qt4_test_set_is_non_goal(TEXT("ft")));

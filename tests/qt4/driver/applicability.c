@@ -102,6 +102,13 @@ static const sxml_qt4_supported_dependency sxml_qt4_supported_dependencies[] = {
      SXML_BYTE_VIEW_INITIALIZER("typedData")},
     {SXML_BYTE_VIEW_INITIALIZER("feature"),
      SXML_BYTE_VIEW_INITIALIZER("binary")},
+    /* fn:transform, the optional feature sxml_xslt_transform_feature()
+       (packet 7.11, D203): an XSLT 4.0 processor serves the requests for
+       XSLT 3.0. */
+    {SXML_BYTE_VIEW_INITIALIZER("feature"),
+     SXML_BYTE_VIEW_INITIALIZER("fn-transform-XSLT")},
+    {SXML_BYTE_VIEW_INITIALIZER("feature"),
+     SXML_BYTE_VIEW_INITIALIZER("fn-transform-XSLT30")},
     {SXML_BYTE_VIEW_INITIALIZER("feature"),
      SXML_BYTE_VIEW_INITIALIZER("expath-file")},
 };
@@ -167,7 +174,6 @@ static const sxml_byte_view sxml_qt4_non_goal_features[] = {
     SXML_BYTE_VIEW_INITIALIZER("staticTyping"),
     SXML_BYTE_VIEW_INITIALIZER("fullText*"),
     SXML_BYTE_VIEW_INITIALIZER("xpath-1.0-compatibility"),
-    SXML_BYTE_VIEW_INITIALIZER("fn-transform-XSLT*"),
     SXML_BYTE_VIEW_INITIALIZER("fn-invisible-xml"),
     SXML_BYTE_VIEW_INITIALIZER("remote_http"),
     SXML_BYTE_VIEW_INITIALIZER("advanced-uca-fallback"),
@@ -178,7 +184,6 @@ static const sxml_byte_view sxml_qt4_non_goal_features[] = {
 static const sxml_byte_view sxml_qt4_non_goal_test_sets[] = {
     SXML_BYTE_VIEW_INITIALIZER("ft-*"),
     SXML_BYTE_VIEW_INITIALIZER("fn-invisible-xml"),
-    SXML_BYTE_VIEW_INITIALIZER("fn-transform"),
 };
 
 /* A table of names, some ending in "*". */
