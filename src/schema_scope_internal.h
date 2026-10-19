@@ -264,8 +264,9 @@ SXML_NODISCARD sxml_status sxml_schema_scope_validate_document(const sxml_functi
  * of the namespace is tried first, so that its declarations match. An
  * invalid node is error_code with the constraint name in the
  * description; on failure *node is released. Without an evaluation
- * environment (no processor) *node stays as it is, or, is_required,
- * error_code is raised.
+ * environment (no processor), or without an in-scope schema of the
+ * namespace when the processor does not name sxml_builtin_schemas_feature
+ * (D225), *node stays as it is, or, is_required, error_code is raised.
  */
 typedef struct sxml_function_namespace_validation {
     sxml_byte_view error_code;

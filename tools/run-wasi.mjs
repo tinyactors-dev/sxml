@@ -8,7 +8,10 @@
 // (tests/xml_conformance_test.c: <root>/tests/../third_party/xmlconf) open
 // them as they do natively. The whole tree is preopened, not only
 // third_party/, because wasi-libc matches preopens by path prefix and does
-// not resolve the ".." first.
+// not resolve the ".." first. The host's timezone database,
+// /usr/share/zoneinfo, is preopened too when it exists, as the sxml command
+// reads its zones there (D209).
+import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { argv, cwd, env, exit } from 'node:process';
@@ -27,11 +30,16 @@ setFlagsFromString('--no-turbo-fast-api-calls');
 
 const modulePath = argv[2];
 const sourceRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const zoneinfo = '/usr/share/zoneinfo';
+const preopens = { '.': cwd(), [sourceRoot]: sourceRoot };
+if (existsSync(zoneinfo)) {
+  preopens[zoneinfo] = zoneinfo;
+}
 const wasi = new WASI({
   version: 'preview1',
   args: argv.slice(2),
   env,
-  preopens: { '.': cwd(), [sourceRoot]: sourceRoot },
+  preopens,
   returnOnExit: true,
 });
 const module = await WebAssembly.compile(await readFile(modulePath));

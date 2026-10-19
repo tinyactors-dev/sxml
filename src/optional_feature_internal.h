@@ -100,6 +100,11 @@ typedef enum sxml_optional_feature_kind {
        operations sxml_localization_operations
        (src/language_table_internal.h). */
     SXML_OPTIONAL_FEATURE_KIND_LOCALIZATION,
+    /* sxml_builtin_schemas_feature: the processor's built-in schemas for
+       XPath's functions (src/processor_builtin_schemas.c, packet
+       health-3, D225); operations sxml_builtin_schemas_feature_operations
+       (src/processor_internal.h). */
+    SXML_OPTIONAL_FEATURE_KIND_BUILTIN_SCHEMAS,
     SXML_OPTIONAL_FEATURE_KIND_COUNT,
 } sxml_optional_feature_kind;
 
@@ -258,3 +263,5 @@ extern const sxml_optional_feature_definition sxml_full_text_feature_definition;
 extern const sxml_optional_feature_definition sxml_invisible_xml_feature_definition;
 /* The localization feature (src/language_table.c). */
 extern const sxml_optional_feature_definition sxml_localization_feature_definition;
+/* The built-in schemas (src/processor_builtin_schemas.c). */
+extern const sxml_optional_feature_definition sxml_builtin_schemas_feature_definition;

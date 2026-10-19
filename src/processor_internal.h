@@ -134,6 +134,23 @@ SXML_NODISCARD sxml_status sxml_processor_get_builtin_schema(sxml_processor *pro
 SXML_NODISCARD sxml_status sxml_processor_get_function_namespace_schema(
     sxml_processor *processor, const sxml_schema **schema);
 
+/*
+ * The operations of sxml_builtin_schemas_feature (include/sxml/schema.h;
+ * src/optional_feature_internal.h, SXML_OPTIONAL_FEATURE_KIND_BUILTIN_
+ * SCHEMAS; D225): the two functions above, which XPath's function library
+ * (src/function_library_schema.c) reaches only through this table, so the
+ * schema compiler they need is linked only into a program that names the
+ * feature or links XQuery, XSLT or the schema API. Defined in
+ * src/processor_builtin_schemas.c.
+ */
+typedef struct sxml_builtin_schemas_feature_operations {
+    /* sxml_processor_get_builtin_schema. */
+    sxml_status (*get_builtin_schema)(sxml_processor *processor, const sxml_schema **schema);
+    /* sxml_processor_get_function_namespace_schema. */
+    sxml_status (*get_function_namespace_schema)(sxml_processor *processor,
+                                                 const sxml_schema **schema);
+} sxml_builtin_schemas_feature_operations;
+
 /* An instant as seconds and nanoseconds since 1970-01-01T00:00:00Z. */
 typedef struct sxml_unix_time {
     int64_t seconds;

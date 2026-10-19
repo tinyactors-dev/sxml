@@ -99,7 +99,8 @@ static sxml_status validation_root_name(sxml_node_reference node, sxml_name_iden
 /* The schema that defines the type (by type), or declares the root's
    name; for lax validation without one, the first schema (every schema
    has the built-in components, XSD 1.1 Part 1, 3.4.7), or the built-in
-   schema when no schema is in scope. */
+   schema when no schema is in scope and the processor names
+   sxml_builtin_schemas_feature (D225). */
 static sxml_status plan_validation(const sxml_function_call *call,
                                    const scope_validation *validation, scope_plan *plan) {
     const sxml_schema_view schemas = in_scope_schemas(call);
@@ -149,11 +150,17 @@ static sxml_status plan_validation(const sxml_function_call *call,
         call->dynamic_context == NULL
             ? NULL
             : sxml_processor_get_evaluation_environment(call->dynamic_context);
-    if (validation->mode == SXML_SCHEMA_VALIDATE_MODE_LAX && environment != NULL) {
+    const sxml_builtin_schemas_feature_operations *builtin_schemas =
+        environment == NULL ? NULL
+                            : sxml_processor_find_optional_feature(
+                                  environment->processor, SXML_OPTIONAL_FEATURE_KIND_BUILTIN_SCHEMAS);
+    if (validation->mode == SXML_SCHEMA_VALIDATE_MODE_LAX && builtin_schemas != NULL) {
         /* No in-scope schema: lax assessment of an undeclared root finds
            nothing to check (XSD 1.1 Part 1, 3.3.4.6 and 5.2), so the
-           built-in components alone validate it (F&O 4.0, 17.2.1). */
-        return sxml_processor_get_builtin_schema(environment->processor, &plan->schema);
+           built-in components alone validate it (F&O 4.0, 17.2.1). The
+           schema compiler makes them, so this needs the optional feature
+           (D225); without it, lax is refused as strict is, below. */
+        return builtin_schemas->get_builtin_schema(environment->processor, &plan->schema);
     }
     plan->plan_kind = SXML_SCOPE_PLAN_NO_DECLARATION;
     return SXML_STATUS_OK;
@@ -834,6 +841,10 @@ sxml_status sxml_schema_scope_validate_by_function_namespace(
         call->dynamic_context == NULL
             ? NULL
             : sxml_processor_get_evaluation_environment(call->dynamic_context);
+    const sxml_builtin_schemas_feature_operations *builtin_schemas =
+        environment == NULL ? NULL
+                            : sxml_processor_find_optional_feature(
+                                  environment->processor, SXML_OPTIONAL_FEATURE_KIND_BUILTIN_SCHEMAS);
     if (environment == NULL && validation->is_required) {
         /* No processor, no schema to validate with. */
         sxml_item_release(*validation->node);
@@ -868,8 +879,27 @@ sxml_status sxml_schema_scope_validate_by_function_namespace(
             break;
         }
     }
+    if (status == SXML_STATUS_DYNAMIC_ERROR && builtin_schemas == NULL) {
+        /* The processor's schema of the namespace needs the optional
+           feature (D225, D162's place): without it the node stays untyped,
+           or, when validation is required, the caller's error says why. */
+        if (!validation->is_required) {
+            return SXML_STATUS_OK;
+        }
+        sxml_item_release(*validation->node);
+        *validation->node = (sxml_item){.representation = SXML_ITEM_REPRESENTATION_NONE};
+        return sxml_error_record_report(
+            call->error_record,
+            &(sxml_static_error){
+                .error_status = SXML_STATUS_DYNAMIC_ERROR,
+                .code_local_name = validation->error_code,
+                .description = SXML_BYTE_VIEW_FROM_LITERAL(
+                    "Validation against the schema of the fn: namespace needs the optional "
+                    "feature builtin-schemas, which the processor does not name")});
+    }
     if (status == SXML_STATUS_DYNAMIC_ERROR) {
-        status = sxml_processor_get_function_namespace_schema(environment->processor, &run.schema);
+        status = builtin_schemas->get_function_namespace_schema(environment->processor,
+                                                                &run.schema);
         if (status == SXML_STATUS_OK) {
             status = validate_strictly(*validation->node, &run);
         }

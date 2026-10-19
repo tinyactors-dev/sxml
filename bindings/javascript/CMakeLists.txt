@@ -54,7 +54,10 @@ foreach(variant IN ITEMS core full)
         ${module_sources})
     target_link_libraries(${module_target} PRIVATE sxml)
     set_target_properties(${module_target} PROPERTIES OUTPUT_NAME ${module_name} SUFFIX ".wasm")
-    target_link_options(${module_target} PRIVATE -mexec-model=reactor -Wl,--strip-all)
+    # The linker map beside the module names what each object adds, for
+    # javascript/size_budget's growth guard (D225).
+    target_link_options(${module_target} PRIVATE -mexec-model=reactor -Wl,--strip-all
+        "-Wl,-Map=${CMAKE_CURRENT_BINARY_DIR}/${module_name}.map")
     sxml_apply_project_flags(${module_target})
 endforeach()
 
@@ -71,7 +74,7 @@ if(SXML_BUILD_TESTS AND SXML_NODE_EXECUTABLE)
             "${CMAKE_CURRENT_SOURCE_DIR}/test/package.test.ts"
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
     set_tests_properties(javascript/package_full PROPERTIES
-        ENVIRONMENT "SXML_WASM_PATH=$<TARGET_FILE:sxml_javascript_full_module>;SXML_WASM_FEATURES=test,expath-binary,html,xslt-transform,timezone-database,dtd-validation,uca-collation,full-text")
+        ENVIRONMENT "SXML_WASM_PATH=$<TARGET_FILE:sxml_javascript_full_module>;SXML_WASM_FEATURES=test,expath-binary,html,xslt-transform,timezone-database,dtd-validation,uca-collation,full-text,invisible-xml,localization,builtin-schemas")
     # XQuery, XSLT and XSD (test/full.test.ts): on the full module, which
     # links them; on the core module, that they are refused (D189).
     add_test(NAME javascript/languages
@@ -109,14 +112,23 @@ if(SXML_BUILD_TESTS AND SXML_NODE_EXECUTABLE)
     # compiler it needs are in the full module only (D211). The full
     # module's XQuery, XSLT and XSD entry points (packet js-1, D216) link
     # the XQuery compiler and its grammar: 7,000,000 / 2,450,000 (D208,
-    # keeping D207's ratio of 0.35).
+    # keeping D207's ratio of 0.35); 7,500,000 / 2,625,000 since D225, the
+    # module having passed 7,000,000 with Full Text's stemmers, stop words
+    # and thesauri (7.12b/c) and 2.22's schema functions.
     # The CLI module embeds the DUCET (D213) and links every language and
     # feature: 9,000,000 / 2,000,000 (D208).
+    # The schema compiler went back into the core with the processor's
+    # built-in schemas (2.22); it is behind the optional feature
+    # builtin-schemas since D225. test/size-baseline/sxml.txt is the core's
+    # code and data per object at that audit: the test prints the largest
+    # growths since then, and names twenty when the core is over budget.
+    # Refresh it with the budget, after an audit (size-budget.mjs
+    # --write-baseline).
     if(TARGET sxml_cli)
         add_test(NAME javascript/size_budget
             COMMAND "${SXML_NODE_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test/size-budget.mjs"
                 "$<TARGET_FILE:sxml_cli>" 9000000 2000000
                 "$<TARGET_FILE:sxml_javascript_module>" 2200000 770000
-                "$<TARGET_FILE:sxml_javascript_full_module>" 7000000 2450000)
+                "$<TARGET_FILE:sxml_javascript_full_module>" 7500000 2625000)
     endif()
 endif()

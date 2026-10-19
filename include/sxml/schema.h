@@ -646,3 +646,22 @@ SXML_NODISCARD SXML_EXPORT sxml_status sxml_dtd_validator_get_outcome(
  * Its name is "dtd-validation" (packet 7.2b, D211).
  */
 SXML_EXPORT sxml_optional_feature sxml_dtd_validation_feature(void);
+
+/*
+ * The optional feature (include/sxml/processor.h, "Optional features")
+ * that gives XPath's functions the processor's built-in schemas, which
+ * the schema compiler makes once per processor: the schema of the fn:
+ * namespace (F&O 4.0, appendix D), which fn:json-to-xml with validate
+ * true and the typed results of fn:analyze-string are validated against,
+ * and the schema of the built-in components alone (XSD 1.1 Part 1,
+ * 3.4.7), which lax validation by fn:doc and fn:parse-xml uses when no
+ * schema is in scope. Without it, and without an in-scope schema of the
+ * fn: namespace, validate true raises FOJS0004, fn:analyze-string returns
+ * an untyped element, and lax validation without an in-scope schema
+ * raises FODC0014 as strict validation does; a program that names neither
+ * it nor XQuery, XSLT or the schema API links no schema compiler for
+ * XPath. XQuery's and XSLT's in-scope schemas do not need it.
+ * sxml_all_optional_features() includes it. Its name is "builtin-schemas"
+ * (packet health-3, D225).
+ */
+SXML_EXPORT sxml_optional_feature sxml_builtin_schemas_feature(void);
