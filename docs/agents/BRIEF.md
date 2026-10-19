@@ -35,6 +35,11 @@ you implement or use.
 - **Honest outcomes**: a test that crashes, leaks or hits a limit is an
   error. Never reclassify outcomes to meet a gate (D178); fix the cause or
   report it.
+- **Size** (D208): the full and CLI WebAssembly budgets rise as features
+  land; raise them in the same change and say so. Keep the core
+  `sxml.wasm` lean: large features go behind optional features (D189).
+- **Do not wait on the owner** (D208): take the proposed default for an
+  open question that is not irreversible, record it, and go on.
 - **The CLI** (`apps/`, rules in `docs/CLI.md`) uses only the public API.
   When your work makes a capability real, extend the matching command with
   end-to-end tests. Never add a command or flag for something that does not
