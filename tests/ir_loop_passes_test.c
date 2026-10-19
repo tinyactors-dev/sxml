@@ -429,6 +429,13 @@ static const value_case value_cases[] = {
     {"let $s := (1 to 3) ! <e n='{.}'/> return "
      "for $p in $s let $l := for $q in $s/@n where $q > $p/@n return $q return count($l)",
      "2 1 0"},
+    /* An indexed FILTER tests its predicate on the candidates only: none
+       here once the index is used (the third input), so the error of the
+       invariant LET, which the predicate never runs then, is not raised
+       (nothing is hoisted from an indexed FILTER). */
+    {"let $s := (1 to 20) ! <e k='{.}'/> return for $i in 1 to 4 return "
+     "count($s[let $y := (if ($i = 3) then error() else true()) return @k = 'none' and $y])",
+     "0 0 0 0"},
     /* Hoisting from quantified conditions: once, not for an empty input,
        the first error as without. */
     {"let $n := 3 return (some $x in (1 to 5) satisfies $x = $n * 2 - 1, "

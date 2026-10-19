@@ -1749,10 +1749,20 @@ static const char merge_order_text[] =
     "'The input of a merge source is not in merge-key order (XSLT 4.0, 15.4)') "
     "else Q{http://www.w3.org/2005/xpath-functions/map}put($seen, $k, $p) })) ge 0) "
     "then " GROUP_VARIABLE "tuples else ()";
+/* 15.5.1: fn:current-merge-group($source) calls this function item
+   (src/xpath_lower.c): the items of the source named $source, XTDE3490
+   for a name no xsl:merge-source has (an unnamed source's "#unnamed" is
+   not an NCName, so it never matches), and the whole group for (). */
 static const char merge_sources_text[] =
-    "Q{http://www.w3.org/2005/xpath-functions/map}merge(for $i in 1 to count(" GROUP_VARIABLE
-    "names) return Q{http://www.w3.org/2005/xpath-functions/map}entry("
-    GROUP_VARIABLE "names[$i], " GROUP_VARIABLE "tuples[?1 eq $i] ! ?2))";
+    "let $m := Q{http://www.w3.org/2005/xpath-functions/map}merge(for $i in 1 to count("
+    GROUP_VARIABLE "names) return Q{http://www.w3.org/2005/xpath-functions/map}entry("
+    GROUP_VARIABLE "names[$i], " GROUP_VARIABLE "tuples[?1 eq $i] ! ?2)), "
+    "$g := " GROUP_VARIABLE "items return function($s as xs:string?) as item()* { "
+    "if (empty($s)) then $g "
+    "else if (Q{http://www.w3.org/2005/xpath-functions/map}contains($m, $s) and "
+    "not(starts-with($s, '#'))) then $m($s) "
+    "else error(QName('http://www.w3.org/2005/xqt-errors', 'XTDE3490'), "
+    "'No xsl:merge-source of the merge has this name (XSLT 4.0, 15.5.1)') }";
 /* 15.3: the documents for-each-source names, relative to the base URI. */
 static const char merge_documents_text[] =
     GROUP_VARIABLE "uris ! doc(resolve-uri(., " GROUP_VARIABLE "base))";
@@ -2742,14 +2752,15 @@ static sxml_status step_merge(sxml_xpath_lowering_machine *machine,
                                                    .sequence = list}},
                           &names);
         }
-        const text_variable variables[2] = {{.local_name = "tuples", .atom = locals->tuples},
-                                            {.local_name = "names", .atom = names}};
+        const text_variable variables[3] = {{.local_name = "tuples", .atom = locals->tuples},
+                                            {.local_name = "names", .atom = names},
+                                            {.local_name = "items", .atom = locals->items}};
         if (status == SXML_STATUS_OK) {
             outcome->is_pushed = true;
             status = call_text(machine, &(text_call){.lowering = lowering,
                                                      .text = merge_sources_text,
                                                      .variables = variables,
-                                                     .variable_count = 2,
+                                                     .variable_count = 3,
                                                      .block = &locals->body_block,
                                                      .atom = &locals->sources});
         }

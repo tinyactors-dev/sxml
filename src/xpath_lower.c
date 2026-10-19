@@ -6625,6 +6625,9 @@ typedef struct function_call_locals {
     /* arity of each (owned memory 0 and 1). */
     call_argument *arguments;
     bool *is_supplied;
+    /* fn:current-merge-group($source): a dynamic call of the merge's
+       function item (the first argument) with $source (below). */
+    bool calls_merge_sources;
 } function_call_locals;
 
 static sxml_status push_function_call(sxml_xpath_lowering_machine *machine,
@@ -6711,7 +6714,9 @@ static sxml_status begin_function_call(sxml_xpath_lowering_machine *machine,
     sxml_ir_atom merge_sources = {0};
     if (context != NULL && keyword_count == 0 && !locals->request.has_leading_argument &&
         strcmp(context->local_name, "current-merge-group") == 0) {
-        /* current-merge-group($source): map:get(sources, $source). */
+        /* current-merge-group($source): the function item of the merge
+           called with $source (src/xslt_lower_group.c, 15.5.1); the
+           arguments are lowered as map:get's. */
         if (!find_context_value(state, &merge_sources_function, &merge_sources)) {
             sxml_ir_expression_index value = {0};
             status = sxml_xpath_lowerer_add_expression(
@@ -6726,6 +6731,7 @@ static sxml_status begin_function_call(sxml_xpath_lowering_machine *machine,
         }
         locals->request.has_leading_argument = true;
         locals->request.leading_argument = merge_sources;
+        locals->calls_merge_sources = true;
         positional_count += 1;
         arity = 2;
         status = find_builtin_function(
@@ -7012,7 +7018,23 @@ static sxml_status finish_function_call(sxml_xpath_lowering_machine *machine,
     sxml_xpath_lowering_block *block = locals->request.emission_block;
     sxml_ir_expression_index result = {0};
     const uint32_t properties = native_properties(&call.entry);
-    if ((properties & (SXML_NATIVE_FUNCTION_READS_CONTEXT_POSITION |
+    if (locals->calls_merge_sources && call.argument_count == 2 &&
+        call.placeholder_count == 0) {
+        sxml_ir_atom_list source = {0};
+        status = sxml_ir_unit_add_atoms(
+            state->unit,
+            (sxml_ir_atom_view){.atoms = &call.arguments[1].atom, .atom_count = 1}, &source);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xpath_lowerer_add_expression(
+                state,
+                (sxml_xpath_lowering_expression_to_add){
+                    .node = call.node,
+                    .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_DYNAMIC_CALL,
+                                   .dynamic_call = {.function_item = call.arguments[0].atom,
+                                                    .arguments = source}}},
+                &result);
+        }
+    } else if ((properties & (SXML_NATIVE_FUNCTION_READS_CONTEXT_POSITION |
                        SXML_NATIVE_FUNCTION_READS_CONTEXT_SIZE)) != 0 &&
         call.argument_count == 0) {
         /* fn:position() and fn:last() read the focus (XPath 4.0, section

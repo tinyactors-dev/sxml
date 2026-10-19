@@ -1603,6 +1603,15 @@ static sxml_status hoist_loop(loop_pass *pass, sxml_ir_expression_index index) {
                                      .context_size = {.value = 0}};
         loop.body = expression.quantified.condition;
     } else {
+        /* A FILTER with a filter index tests its predicate on the index's
+           candidates only (D224), which may be none of a non-empty input:
+           the guard (the input is not empty) would then run a hoisted
+           LET the predicate never ran, and raise its error. The guard
+           rule holds only for loops that run their body for the first
+           item of every non-empty input (packet 4.21). */
+        if (expression.filter.index.key.value != 0) {
+            return SXML_STATUS_OK;
+        }
         loop.input = expression.filter.input;
         loop.focus = expression.filter.focus;
         loop.body = expression.filter.predicate;
