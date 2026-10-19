@@ -126,6 +126,10 @@ typedef struct sxml_stream_event {
     sxml_byte_range data;
     bool is_cdata_section;
     sxml_source_location location;
+    /* The element count when it was queued: a text, comment or processing
+       instruction is a child of the element at that depth even when the
+       start of a following element was queued after it. */
+    size_t depth;
 } sxml_stream_event;
 
 /* What the builder does with the events of the parse. */
@@ -394,6 +398,7 @@ static sxml_status sxml_stream_queue(sxml_stream_document *document, sxml_stream
     }
     const size_t slot = (document->queue_start + document->queue_count) % STREAM_QUEUE_CAPACITY;
     document->queue[slot] = event;
+    document->queue[slot].depth = sxml_stream_depth(document);
     document->queue_count += 1;
     sxml_xml_incremental_parse_pause(document->parse);
     return SXML_STATUS_OK;
@@ -776,7 +781,7 @@ static sxml_status sxml_stream_element_window(sxml_dynamic_context *dynamic_cont
 /* The window of a text, comment or processing instruction just taken. */
 static sxml_status sxml_stream_leaf_window(sxml_stream_document *document,
                                            const sxml_stream_event *event, sxml_item *node) {
-    const size_t depth = sxml_stream_depth(document);
+    const size_t depth = event->depth;
     sxml_stream_window_build build;
     sxml_status status = sxml_stream_begin_window(document, depth, &build);
     if (status != SXML_STATUS_OK) {
@@ -1399,7 +1404,7 @@ static sxml_status sxml_stream_next_event_candidate(sxml_dynamic_context *dynami
         case SXML_STREAM_EVENT_TEXT:
         case SXML_STREAM_EVENT_COMMENT:
         case SXML_STREAM_EVENT_PROCESSING_INSTRUCTION: {
-            if (state->stream->axis == SXML_AXIS_CHILD && depth != state->base_depth) {
+            if (state->stream->axis == SXML_AXIS_CHILD && event.depth != state->base_depth) {
                 continue;
             }
             sxml_node_kind kind = SXML_NODE_KIND_TEXT;

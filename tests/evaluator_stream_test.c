@@ -318,8 +318,54 @@ static const stream_case stream_cases[] = {
                 DECLARATION "<out>[1][][\n  text\n]</out>"),
     STREAM_CASE("motionless-document-body", "", "<d><xsl:value-of select='document-uri(.)'/></d>",
                 books, DECLARATION "<out><d>http://example.com/x/in.xml</d></out>"),
-    STREAM_CASE("unstreamed-shape", "", "<xsl:value-of select='count(//book)'/>", books,
+    STREAM_CASE("counted-descendants", "", "<xsl:value-of select='count(//book)'/>", books,
                 DECLARATION "<out>4</out>"),
+    STREAM_CASE("atomized-sum", "", "<xsl:value-of select='sum(shop/book/p) * 2'/>", books,
+                DECLARATION "<out>30</out>"),
+    STREAM_CASE("atomized-attributes", "",
+                "<xsl:value-of select='string-join(/shop/book/@id, \"-\")'/>", books,
+                DECLARATION "<out>1-2-3</out>"),
+    STREAM_CASE("atomized-descendant-attributes", "",
+                "<xsl:value-of select='max(//book/@id)'/>", books, DECLARATION "<out>4</out>"),
+    STREAM_CASE("copied-nodes", "", "<xsl:copy-of select='shop/book[2]'/>", books,
+                DECLARATION "<out><book id=\"2\"><t>B</t><p>5</p></book></out>"),
+    STREAM_CASE("grounded-nodes-in-expression", "",
+                "<xsl:value-of select='(shop/book/t)[2] || \"/\" || name(.)'/>", books,
+                DECLARATION "<out>B/</out>"),
+    STREAM_CASE("simple-map-on-nodes", "",
+                "<xsl:value-of select='shop/book ! string(t)' separator=','/>", books,
+                DECLARATION "<out>A,B,C</out>"),
+    STREAM_CASE("attribute-values-of-a-predicate", "",
+                "<xsl:sequence select='count(shop/book[@kind = \"x\"]/@id)'/>", books,
+                DECLARATION "<out>2</out>"),
+    STREAM_CASE("for-each-with-separator", "",
+                "<xsl:for-each select='shop/book' separator=';'>"
+                "<xsl:value-of select='t, position()'/></xsl:for-each>",
+                books, DECLARATION "<out>A 1;B 2;C 3</out>"),
+    STREAM_CASE("streamable-mode-templates",
+                "<xsl:mode name='s' streamable='yes' on-no-match='shallow-skip'/>"
+                "<xsl:template match='book' mode='s'><b n='{position()}'>"
+                "<xsl:apply-templates mode='s'/></b></xsl:template>"
+                "<xsl:template match='t' mode='s'><xsl:value-of select='.'/></xsl:template>",
+                "<xsl:apply-templates select='shop/book' mode='s'/>", books,
+                DECLARATION "<out><b n=\"1\">A</b><b n=\"2\">B</b>"
+                            "<b n=\"3\">C<b n=\"3\">D</b></b></out>"),
+    STREAM_CASE("iterated-nodes", "",
+                "<xsl:iterate select='shop/book'><xsl:param name='n' select='0'/>"
+                "<xsl:on-completion><xsl:value-of select='$n'/></xsl:on-completion>"
+                "<xsl:next-iteration><xsl:with-param name='n' select='$n + p'/>"
+                "</xsl:next-iteration></xsl:iterate>",
+                books, DECLARATION "<out>15</out>"),
+    STREAM_CASE("text-after-child-elements", "",
+                "<xsl:for-each select='r/text()'>[<xsl:value-of select='.'/>]</xsl:for-each>",
+                "<r>a<e/>b<e></e>c<e>d</e></r>", DECLARATION "<out>[a][b][c]</out>"),
+    STREAM_CASE("counted-text-after-child-elements", "",
+                "<xsl:value-of select='count(r/text())'/>", "<r>a<e/>b<e></e>c<e>d</e></r>",
+                DECLARATION "<out>3</out>"),
+    STREAM_CASE("unused-accumulator",
+                "<xsl:accumulator name='a' initial-value='0'>"
+                "<xsl:accumulator-rule match='book' select='$value + 1'/></xsl:accumulator>",
+                "<xsl:value-of select='count(shop/book)'/>", books, DECLARATION "<out>3</out>"),
 };
 
 static void test_streamed_results_are_unstreamed_results(sxml_test_state *state) {
@@ -342,9 +388,14 @@ static void test_streamed_results_are_unstreamed_results(sxml_test_state *state)
                                       expected);
             if (!matches) {
                 const sxml_byte_view got = sxml_output_buffer_get_bytes(test_fixture.output_buffer);
-                printf("  %s (%s): status %d, got %.*s\n", test_case->case_name,
+                const sxml_error_record *error = &test_fixture.error_record;
+                printf("  %s (%s): status %d %.*s %.*s, got %.*s\n", test_case->case_name,
                        text_index == 0 ? "streamed" : "unstreamed", (int)status,
-                       (int)got.byte_count, (const char *)got.bytes);
+                       (int)error->code.local_name.byte_count,
+                       (const char *)error->code.local_name.bytes,
+                       (int)error->diagnostic.description.byte_count,
+                       (const char *)error->diagnostic.description.bytes, (int)got.byte_count,
+                       (const char *)got.bytes);
             }
             SXML_TEST_EXPECT(state, matches);
         }
@@ -508,6 +559,66 @@ static void test_large_document_streams_in_bounded_memory(sxml_test_state *state
     sxml_allocator_release(sxml_default_allocator(), memory);
 }
 
+/* Streamed paths over the large document: counted, atomized and
+   attribute values stream under the limit (D222), which the same
+   expressions unstreamed exceed. */
+typedef struct large_path_case {
+    const char *streamed_text;
+    const char *unstreamed_text;
+    const char *expected_output;
+} large_path_case;
+
+#define LARGE_PATH_CASE(body, expected)                                                            \
+    {                                                                                              \
+        .streamed_text = STREAMED("", "yes", body), .unstreamed_text = STREAMED("", "no", body),   \
+        .expected_output = DECLARATION "<out>" expected "</out>"                                    \
+    }
+
+static const large_path_case large_path_cases[] = {
+    LARGE_PATH_CASE("<xsl:value-of select='count(records/record)'/>", "30000"),
+    LARGE_PATH_CASE("<c><xsl:copy-of select='records/record[@hot = \"yes\"]/name'/></c>",
+                    "<c><name>item 10000</name><name>item 20000</name><name>item 30000</name></c>"),
+};
+
+static void test_large_document_paths_stream_in_bounded_memory(sxml_test_state *state) {
+    sxml_byte_view document = {.bytes = NULL, .byte_count = 0};
+    void *memory = NULL;
+    sxml_status status = make_large_document(&document, &memory);
+    SXML_TEST_EXPECT(state, status == SXML_STATUS_OK);
+    if (status != SXML_STATUS_OK) {
+        return;
+    }
+    for (size_t case_index = 0; case_index < SXML_TEST_COUNT(large_path_cases); case_index += 1) {
+        const large_path_case *test_case = &large_path_cases[case_index];
+        fixture test_fixture;
+        status = fixture_create(&test_fixture, document);
+        test_fixture.memory.limit_byte_count = STREAM_LIMIT_BYTE_COUNT;
+        if (status == SXML_STATUS_OK) {
+            status = run_main(&test_fixture,
+                              (sxml_byte_view){.bytes = (const uint8_t *)test_case->streamed_text,
+                                               .byte_count = strlen(test_case->streamed_text)});
+        }
+        const sxml_byte_view got = sxml_output_buffer_get_bytes(test_fixture.output_buffer);
+        printf("  %s: status %d, peak %zu bytes, %.*s\n", test_case->streamed_text, (int)status,
+               test_fixture.memory.peak_byte_count, (int)got.byte_count, (const char *)got.bytes);
+        SXML_TEST_EXPECT(state, status == SXML_STATUS_OK);
+        SXML_TEST_EXPECT(
+            state, sxml_byte_view_equals(
+                       got, (sxml_byte_view){.bytes = (const uint8_t *)test_case->expected_output,
+                                             .byte_count = strlen(test_case->expected_output)}));
+        sxml_status unstreamed = SXML_STATUS_OK;
+        if (status == SXML_STATUS_OK) {
+            unstreamed =
+                run_main(&test_fixture,
+                         (sxml_byte_view){.bytes = (const uint8_t *)test_case->unstreamed_text,
+                                          .byte_count = strlen(test_case->unstreamed_text)});
+        }
+        SXML_TEST_EXPECT(state, unstreamed != SXML_STATUS_OK);
+        SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
+    }
+    sxml_allocator_release(sxml_default_allocator(), memory);
+}
+
 static const sxml_test_case evaluator_stream_test_cases[] = {
     {.name = "streamed_results_are_unstreamed_results",
      .function = test_streamed_results_are_unstreamed_results},
@@ -517,6 +628,8 @@ static const sxml_test_case evaluator_stream_test_cases[] = {
      .function = test_fallback_option_processes_unstreamed},
     {.name = "large_document_streams_in_bounded_memory",
      .function = test_large_document_streams_in_bounded_memory},
+    {.name = "large_document_paths_stream_in_bounded_memory",
+     .function = test_large_document_paths_stream_in_bounded_memory},
 };
 
 int main(int argument_count, char **arguments) {

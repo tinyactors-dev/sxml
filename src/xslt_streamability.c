@@ -5982,3 +5982,116 @@ sxml_status sxml_xslt_assess_sweep(const sxml_xslt_sweep_query *query,
     }
     return SXML_STATUS_OK;
 }
+
+/* ------------------------------------------------- Modes for lowering */
+
+/* The mode an xsl:apply-templates uses (its mode attribute, #default
+   resolved); false for #current, #all or a list, which name no one mode
+   before it runs. */
+static bool instruction_mode(const sxml_xslt_ast *ast, sxml_xslt_ast_node_index node,
+                             mode_reference *mode) {
+    sxml_xslt_ast_name_token token = {.kind = SXML_XSLT_AST_NAME_TOKEN_KIND_DEFAULT,
+                                      .name = {.index = 0},
+                                      .namespace_uri = {.index = 0},
+                                      .has_arity = false,
+                                      .arity = 0};
+    const sxml_xslt_ast_attribute *attribute =
+        find_xslt_attribute(ast, node, SXML_XSLT_AST_ATTRIBUTE_MODE);
+    if (attribute != NULL && attribute->value.kind == SXML_XSLT_AST_VALUE_KIND_NAME_LIST) {
+        const sxml_xslt_ast_name_token_view tokens =
+            sxml_xslt_ast_get_name_tokens(ast, attribute->value.payload.name_tokens);
+        if (tokens.name_token_count != 1) {
+            return false;
+        }
+        token = tokens.name_tokens[0];
+    }
+    *mode = resolve_mode(ast, node, token);
+    return mode->kind == SXML_XSLT_AST_NAME_TOKEN_KIND_NAME ||
+           mode->kind == SXML_XSLT_AST_NAME_TOKEN_KIND_UNNAMED;
+}
+
+/* True when a template rule is applicable to mode (6.6.4, 6.9.6): its
+   mode list names it or is #all, or it is inside that xsl:mode. */
+static bool is_applicable_to_mode(const sxml_xslt_ast *ast, sxml_xslt_ast_node_index node,
+                                  mode_reference mode) {
+    const sxml_xslt_ast_node_index parent = sxml_xslt_ast_get_node(ast, node)->parent;
+    if (is_kind(ast, parent, SXML_XSLT_AST_KIND_MODE)) {
+        const sxml_name_identifier name = name_attribute(ast, parent);
+        return mode.kind == SXML_XSLT_AST_NAME_TOKEN_KIND_NAME ? name.index == mode.name.index
+                                                               : name.index == 0;
+    }
+    const sxml_xslt_ast_attribute *attribute =
+        find_xslt_attribute(ast, node, SXML_XSLT_AST_ATTRIBUTE_MODE);
+    sxml_xslt_ast_name_token default_token = {.kind = SXML_XSLT_AST_NAME_TOKEN_KIND_DEFAULT,
+                                              .name = {.index = 0},
+                                              .namespace_uri = {.index = 0},
+                                              .has_arity = false,
+                                              .arity = 0};
+    sxml_xslt_ast_name_token_view tokens = {.name_tokens = &default_token, .name_token_count = 1};
+    if (attribute != NULL && attribute->value.kind == SXML_XSLT_AST_VALUE_KIND_NAME_LIST) {
+        tokens = sxml_xslt_ast_get_name_tokens(ast, attribute->value.payload.name_tokens);
+    }
+    for (size_t token_index = 0; token_index < tokens.name_token_count; token_index += 1) {
+        const sxml_xslt_ast_name_token token = tokens.name_tokens[token_index];
+        if (token.kind == SXML_XSLT_AST_NAME_TOKEN_KIND_ALL) {
+            return true;
+        }
+        const mode_reference named = resolve_mode(ast, node, token);
+        if (named.kind == mode.kind &&
+            (named.kind != SXML_XSLT_AST_NAME_TOKEN_KIND_NAME ||
+             named.name.index == mode.name.index)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool sxml_xslt_applies_in_mode(const sxml_xslt_ast *ast, sxml_xslt_mode_pair pair) {
+    mode_reference mode = {.kind = SXML_XSLT_AST_NAME_TOKEN_KIND_UNNAMED, .name = {.index = 0}};
+    return ast != NULL && is_kind(ast, pair.template_rule, SXML_XSLT_AST_KIND_TEMPLATE) &&
+           find_xslt_attribute(ast, pair.template_rule, SXML_XSLT_AST_ATTRIBUTE_MATCH) != NULL &&
+           instruction_mode(ast, pair.instruction, &mode) &&
+           is_applicable_to_mode(ast, pair.template_rule, mode);
+}
+
+sxml_status sxml_xslt_assess_mode(const sxml_xslt_mode_query *query, bool *is_guaranteed) {
+    *is_guaranteed = false;
+    if (query == NULL || query->ast == NULL || !query->ast->is_sealed ||
+        query->name_pool == NULL || sxml_allocator_is_null(query->allocator)) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    const sxml_xslt_ast *ast = query->ast;
+    mode_reference mode = {.kind = SXML_XSLT_AST_NAME_TOKEN_KIND_UNNAMED, .name = {.index = 0}};
+    if (!instruction_mode(ast, query->instruction, &mode) || !is_streamable_mode(ast, mode)) {
+        return SXML_STATUS_OK;
+    }
+    machine state = {.ast = ast,
+                     .lookup = {.ast = ast, .name_pool = query->name_pool},
+                     .allocator = query->allocator,
+                     .frames = NULL,
+                     .frame_count = 0,
+                     .frame_capacity = 0,
+                     .maximum_frame_count = 100000U,
+                     .operands = NULL,
+                     .operand_count = 0,
+                     .operand_capacity = 0,
+                     .is_limit_reached = false};
+    /* Every template rule of the mode is guaranteed-streamable (6.6.4),
+       none uncertain. */
+    verdict outcome = guaranteed();
+    sxml_status status = SXML_STATUS_OK;
+    for (uint32_t index = 1; status == SXML_STATUS_OK && outcome.is_guaranteed &&
+                             !outcome.is_uncertain && index < ast->node_count;
+         index += 1U) {
+        const sxml_xslt_ast_node_index template_rule = node_at(index);
+        if (is_kind(ast, template_rule, SXML_XSLT_AST_KIND_TEMPLATE) &&
+            find_xslt_attribute(ast, template_rule, SXML_XSLT_AST_ATTRIBUTE_MATCH) != NULL &&
+            is_applicable_to_mode(ast, template_rule, mode)) {
+            status = check_template_rule(&state, template_rule, &outcome);
+        }
+    }
+    sxml_allocator_release(query->allocator, state.frames);
+    sxml_allocator_release(query->allocator, state.operands);
+    *is_guaranteed = status == SXML_STATUS_OK && outcome.is_guaranteed && !outcome.is_uncertain;
+    return status;
+}

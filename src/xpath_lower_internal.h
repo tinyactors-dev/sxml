@@ -130,6 +130,39 @@ typedef struct sxml_xpath_lowering_function {
 } sxml_xpath_lowering_function;
 
 /*
+ * A lowering override (glossary `lowering_override`, D222): one node of
+ * one AST that a procedure of the caller lowers instead of the rule of the
+ * node's kind, wherever the node is lowered. The procedure's frame is
+ * pushed as the kind's frame would be (the node, block, body and
+ * destination of the call), its locals starting with
+ * sxml_xpath_lowering_override_locals. XSLT's streamed paths use it
+ * (src/xslt_lower_stream.c): a path inside an instruction's expression
+ * lowers to the STREAM chain that selects its nodes as their events pass.
+ */
+typedef struct sxml_xpath_lowering_procedure sxml_xpath_lowering_procedure;
+
+typedef struct sxml_xpath_lowering_override {
+    /* Borrowed; compared by address. */
+    const sxml_ast *ast;
+    sxml_ast_node_index node;
+    const sxml_xpath_lowering_procedure *procedure;
+    /* Copied into the locals: the caller's state and a number of its own. */
+    const void *state;
+    size_t number;
+} sxml_xpath_lowering_override;
+
+/* What the locals of an override's procedure start with. */
+typedef struct sxml_xpath_lowering_override_locals {
+    const void *state;
+    size_t number;
+} sxml_xpath_lowering_override_locals;
+
+typedef struct sxml_xpath_lowering_override_view {
+    const sxml_xpath_lowering_override *overrides;
+    size_t override_count;
+} sxml_xpath_lowering_override_view;
+
+/*
  * The state of one lowering into one unit. Parts read its fields; they
  * change them only through the functions below. Every pointer is
  * borrowed: the static context, unit and error record outlive the
@@ -172,6 +205,9 @@ typedef struct sxml_xpath_lowerer {
     /* Levels of maximum_expression_depth in use. */
     uint32_t depth;
     uint32_t maximum_depth;
+    /* The lowering overrides in effect (see above); borrowed, set and
+       kept up to date by the caller that owns them; empty for none. */
+    sxml_xpath_lowering_override_view overrides;
     /* Constants made once per unit; index 0 until first needed. */
     sxml_ir_constant_index true_constant;
     sxml_ir_constant_index false_constant;
@@ -538,7 +574,6 @@ typedef struct sxml_xpath_lowering_destination {
 } sxml_xpath_lowering_destination;
 
 typedef struct sxml_xpath_lowering_frame sxml_xpath_lowering_frame;
-typedef struct sxml_xpath_lowering_procedure sxml_xpath_lowering_procedure;
 
 /*
  * One running procedure. Frames are allocated one by one and never move,

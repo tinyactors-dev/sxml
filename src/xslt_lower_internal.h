@@ -535,7 +535,9 @@ SXML_NODISCARD sxml_status sxml_xslt_lowering_make_guarded_match(sxml_xpath_lowe
  * xsl:source-document with streamable="yes" and its stream points
  * (glossary `stream_point`), lowered to STREAM (src/xslt_lower_stream.c;
  * XSLT 4.0, 18.1 and 19; D219). The plan of a lowering records the stream
- * points of the bodies it streams.
+ * points of the bodies it streams; for each streamed path (glossary
+ * `streamed_path`, D223) it keeps a lowering override in the lowerer's
+ * view (src/xpath_lower_internal.h) while the plan lives.
  */
 typedef struct sxml_xslt_stream_plan sxml_xslt_stream_plan;
 

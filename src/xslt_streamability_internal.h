@@ -32,9 +32,10 @@
  * the stylesheet's configuration asks to process it without streaming
  * instead (the user option of 19.10, falls_back_to_unstreamed, D219).
  *
- * Streamed evaluation (packet 7.6b, D219) reads the sweeps of single
- * constructs (sxml_xslt_assess_sweep below) to decide what it streams;
- * the verdicts here only raise XTSE3430.
+ * Streamed evaluation (packets 7.6b and 7.6c, D219, D223) reads the
+ * sweeps of single constructs (sxml_xslt_assess_sweep below) and the
+ * verdicts of modes (sxml_xslt_assess_mode) to decide what it streams;
+ * sxml_xslt_check_streamability only raises XTSE3430.
  *
  * How it walks (no C recursion, D71): a machine with an explicit stack of
  * frames in allocator memory, one frame per construct being assessed, in
@@ -117,3 +118,36 @@ typedef struct sxml_xslt_sweep_query {
    unsealed AST and the allocator's failures. */
 SXML_NODISCARD sxml_status sxml_xslt_assess_sweep(const sxml_xslt_sweep_query *query,
                                                  sxml_xslt_stream_sweep *found);
+
+/*
+ * The mode of an xsl:apply-templates, for streamed paths
+ * (src/xslt_lower_stream.c, D222): whether every template rule applicable
+ * to it is guaranteed-streamable, none uncertain (6.6.4), so a selected
+ * node's subtree is all the rules read of it.
+ */
+typedef struct sxml_xslt_mode_query {
+    /* A sealed AST, borrowed for the call. */
+    const sxml_xslt_ast *ast;
+    sxml_allocator allocator;
+    const sxml_name_pool *name_pool;
+    /* An xsl:apply-templates of ast. */
+    sxml_xslt_ast_node_index instruction;
+} sxml_xslt_mode_query;
+
+/* Writes true to *is_guaranteed when query's instruction names one mode
+   (not #current or #all) that is declared streamable="yes" (6.9.1) and
+   every template rule applicable to it is guaranteed-streamable. Returns
+   SXML_STATUS_INVALID_ARGUMENT for a missing or unsealed AST and the
+   allocator's failures. */
+SXML_NODISCARD sxml_status sxml_xslt_assess_mode(const sxml_xslt_mode_query *query,
+                                                bool *is_guaranteed);
+
+/* A template rule and an xsl:apply-templates of one AST. */
+typedef struct sxml_xslt_mode_pair {
+    sxml_xslt_ast_node_index instruction;
+    sxml_xslt_ast_node_index template_rule;
+} sxml_xslt_mode_pair;
+
+/* True when pair's template rule is applicable to the one mode pair's
+   instruction names (6.6.4, 6.9.6). */
+bool sxml_xslt_applies_in_mode(const sxml_xslt_ast *ast, sxml_xslt_mode_pair pair);

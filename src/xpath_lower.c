@@ -4250,6 +4250,20 @@ static const sxml_xpath_lowering_rule *find_part_rule(
     return NULL;
 }
 
+/* The lowering override of node of the lowerer's AST; NULL for none. */
+static const sxml_xpath_lowering_override *find_override(const sxml_xpath_lowerer *state,
+                                                         sxml_ast_node_index node) {
+    const sxml_xpath_lowering_override_view view = state->overrides;
+    for (size_t override_index = 0; override_index < view.override_count;
+         override_index += 1) {
+        const sxml_xpath_lowering_override *override = &view.overrides[override_index];
+        if (override->ast == state->ast && override->node.value == node.value) {
+            return override;
+        }
+    }
+    return NULL;
+}
+
 /* Lowers call.node for call.destination: at once when it needs no frame,
    else by pushing its frame. Parentheses and the XPATH root hold their
    inner expression's levels of maximum_expression_depth but no frame of
@@ -4283,6 +4297,30 @@ sxml_status sxml_xpath_lowering_call_expression(
             break;
         }
         node = inner;
+    }
+    const sxml_xpath_lowering_override *override = find_override(state, node);
+    if (override != NULL) {
+        if (override->procedure == NULL || override->procedure->step == NULL ||
+            override->procedure->locals_size <
+                sizeof(sxml_xpath_lowering_override_locals)) {
+            return SXML_STATUS_INVALID_ARGUMENT;
+        }
+        sxml_xpath_lowering_frame *frame = NULL;
+        const sxml_status status =
+            push_frame(machine,
+                       &(frame_request){.procedure = override->procedure,
+                                        .node = node,
+                                        .block = call.block,
+                                        .is_body = call.is_body,
+                                        .destination = call.destination,
+                                        .depth_units = depth_units},
+                       &frame);
+        if (status == SXML_STATUS_OK) {
+            const sxml_xpath_lowering_override_locals initial = {
+                .state = override->state, .number = override->number};
+            memcpy(frame->locals, &initial, sizeof(initial));
+        }
+        return status;
     }
     const sxml_ast_kind kind = node_of(state, node)->kind;
     const sxml_xpath_lowering_rule *rule = find_part_rule(state, kind);
@@ -6480,7 +6518,10 @@ static sxml_status continue_chain(sxml_xpath_lowering_machine *machine,
         sxml_ast_field field = chain_field(node_of(state, bottom)->kind);
         while (field != SXML_AST_FIELD_NONE) {
             bottom = child_of(state, bottom, field);
-            field = chain_field(node_of(state, bottom)->kind);
+            /* An overridden operand is lowered as one (its override). */
+            field = find_override(state, bottom) != NULL
+                        ? SXML_AST_FIELD_NONE
+                        : chain_field(node_of(state, bottom)->kind);
         }
         frame->step = 1;
         locals->link = node_of(state, bottom)->parent;
@@ -9083,6 +9124,7 @@ sxml_status sxml_xpath_lowerer_initialize(
                      : configuration->parts,
         .function = NULL,
         .is_running = false,
+        .overrides = {.overrides = NULL, .override_count = 0},
         .depth = 0,
         .maximum_depth = configuration->maximum_expression_depth == 0
                              ? SXML_XPATH_DEFAULT_MAXIMUM_EXPRESSION_DEPTH
