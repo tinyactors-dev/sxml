@@ -4,6 +4,23 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 7.10a done (D201, D191): HTML5 parsing, fn:parse-html and fn:html-doc,
+  as the optional feature `sxml_html_parser_feature()` ("html"). A
+  hand-written tokenizer (the 84 states of the current Living Standard,
+  processing instructions included) and tree construction on a working
+  tree (21 insertion modes, adoption agency, foster parenting, foreign
+  content), sent to an arena tree with the XDM mapping of F&O 4.0,
+  17.3.1; WHATWG decoders for octets (28 single-byte encodings, UTF-8,
+  UTF-16). misc-HtmlTestSuite 0 to 1,378 of 1,379, fn-parse-html 0 to
+  22 of 22, fn-html-doc 0 to 9 of 10 (XQ40; XP40 31 of 32), and
+  misc-BuiltInKeywords +2; the sets are no driver non-goals any more.
+  html5lib tree tests 1,747 of 1,753 in a scratch harness. `sxml.wasm`
+  unchanged (2,078,210), `sxml-full.wasm` +79,107 bytes (2,182,635).
+  The CLI module was over its 5,500,000-byte budget before (5,848,173)
+  and is now also over its gzipped one (1,267,818 of 1,250,000): for the
+  owner (D201 Proposed). Next: 7.10b (meta prescan, the html5lib tests
+  as a unit test, the rest of D201's list).
+
 - 7.3 done (D196): xsl:evaluate. The instruction calls a row whose
   resumable body compiles the target with the XPath compiler and runs it
   as a unit evaluation (D154), nested without C recursion; static

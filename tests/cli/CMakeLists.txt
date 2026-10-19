@@ -110,6 +110,9 @@ sxml_add_cli_test(xpath_doc EXIT_CODE 0 ARGUMENTS xpath "doc('books.xml')//book[
 sxml_add_cli_test(xpath_doc_missing EXIT_CODE 1 ARGUMENTS xpath "doc('missing.xml')")
 sxml_add_cli_test(xpath_static_error EXIT_CODE 1 ARGUMENTS xpath "1 + $undeclared")
 sxml_add_cli_test(xpath_syntax_error EXIT_CODE 1 ARGUMENTS xpath "1 +")
+# fn:parse-html: the HTML parser feature the sxml command names (packet 7.10a).
+sxml_add_cli_test(xpath_parse_html EXIT_CODE 0 ARGUMENTS xpath "parse-html('<title>T</title><ul><li>one<li>two</ul><svg viewbox=\"0 0 1 1\"/>')")
+sxml_add_cli_test(xpath_parse_html_error EXIT_CODE 1 ARGUMENTS xpath "parse-html('<p>x</q>', {'fail-on-error': true()})")
 sxml_add_cli_test(xpath_dynamic_error EXIT_CODE 1 ARGUMENTS xpath "error(QName('http://www.w3.org/2005/xqt-errors', 'err:FOER0000'), 'stop here')")
 sxml_add_cli_test(xpath_type_error EXIT_CODE 1 ARGUMENTS xpath "(1, 2) eq 1")
 sxml_add_cli_test(xpath_no_focus EXIT_CODE 1 ARGUMENTS xpath "count(//x)")

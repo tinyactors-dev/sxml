@@ -7872,7 +7872,113 @@ never raised and the xsl:fallback children are not evaluated.
   `src/function_library_resource.c` was another packet's file); html-doc
   and parse-html wait for 7.10.
 
+### D201. HTML5 parsing: a hand-written tokenizer, tree construction on a working tree (packet 7.10a)
+Recorded 2026-10-19, after D12, D53, D71, D162, D183, D184, D189, D191.
+fn:parse-html and fn:html-doc (F&O 4.0, 17.3) as the optional feature
+`sxml_html_parser_feature()` (name "html"), after the HTML Living
+Standard of 16 October 2026, 13.2.
+- **Not tree-sitter** (an exception to D12, for the reasons of D53):
+  (1) the tokenizer is a state machine that tree construction switches
+  (RCDATA, RAWTEXT, script data and PLAINTEXT after a start tag, CDATA
+  sections only when the adjusted current node is foreign), so lexing
+  depends on parse state a context-free grammar does not see; (2) HTML
+  has no syntax errors: every input parses, by error recovery the
+  standard defines exactly, whereas D12 makes any `ERROR` node a static
+  error and tree-sitter's own recovery is not the standard's; (3) tree
+  construction moves nodes already built (adoption agency, foster
+  parenting), so a walk over a concrete syntax tree would be a second
+  tree builder, not a replacement for one; (4) the input is run-time
+  data (`parse-html($computed)`), and tree-sitter allocates with `malloc`
+  outside every allocator and limit, which D12 accepts only for source
+  text.
+- **Files**: `src/html_tokenizer.c` (the 84 states of 13.2.5 as one loop
+  over a state variable; tree construction pulls tokens, characters come
+  in runs); `src/html_tree_construction.c` (the 21 insertion modes and
+  the rules for foreign content as a dispatch loop of steps, so "process
+  the token using the rules for" is no call cycle, D71); `src/html.c`
+  (the walk that sends the working tree to an arena tree, the XDM
+  mapping, the feature); `src/html_encoding.c` and the generated
+  `src/html_encoding_tables.c` (`tools/generate-html-encodings.py`);
+  `src/function_library_html.c` (the two rows, D191's library functions,
+  not a registered part); `src/html_internal.h`.
+- **Working tree** (glossary `html_working_tree`): node, attribute and
+  text-segment tables in allocator memory; a text node is a chain of
+  segments so that later characters join it; the walk to the tree
+  builder follows parent links (no stack needed). The named character
+  references are fn:char's table (`src/unicode_tables.c`) plus the 106
+  names that also match without ";": no second entity table.
+- **The standard as of now**: processing instructions (13.2.5.72 to .76:
+  `<?target data?>` is a PI, `<?xml ...?>` a comment), no "in select"
+  insertion modes, `search` special, `select` a scope boundary. F&O 4.0's
+  note that the HTML parser makes no PIs predates that change.
+- **Not done, by the standard's own switches**: scripting is Disabled
+  (`noscript` content is parsed; 13.2.4.5), no fragment case, no
+  declarative shadow roots, no sanitizer, no content patching (template
+  `for`); `selectedcontent` is filled by DOM steps of the select
+  element, not by the parser, so it stays empty.
+- **XDM mapping** (F&O 4.0, 17.3.1; HTML, 13.2.9): XHTML, SVG and
+  MathML namespaces; SVG and MathML names in their case; xlink: and xml:
+  attributes in their namespaces; xmlns attributes dropped; names XML
+  does not allow escaped as "U" and six hex digits; comments get a space
+  inside "--" and after a final "-"; U+000C becomes a space and other
+  characters XML does not allow U+FFFD; an `id` that is an NCName is an
+  ID; a template's contents are its children. Base URI: the static base
+  URI (fn:parse-html), the resource's URI (fn:html-doc, also its
+  document URI).
+- **Input** (13.2.3): a string is UTF-8 with a known encoding, a leading
+  U+FEFF stripped (F&O 4.0); octets: byte order mark, then the encoding
+  option (every label of the Encoding Standard; its 28 single-byte
+  encodings, UTF-8, UTF-16 and x-user-defined decode, a multi-byte or
+  unknown label is FODC0011), then step 9's autodetection: well-formed
+  UTF-8, else windows-1252 (step 10). No `<meta>` prescan yet (7.10b).
+- **fail-on-error**: parsing stops at the first parse error (13.2.2
+  allows it), a decoding error included: FODC0011. Unknown options and
+  html-version, method or include-template-content are XPTY0004.
+- **Counts** (release driver): fn-parse-html 0 to 22 of 22 (XQ40 and
+  XP40), fn-html-doc 0 to 9 of 10 (html-doc-010 expects FODC0011 for
+  `<a:tag>`, which no rule of 13.2 makes a parse error),
+  misc-HtmlTestSuite 0 to 1,378 of 1,379 (XQ40; html-test-1281 expects
+  jsoup's comment for `<?processing data?>`), misc-BuiltInKeywords +2
+  (the result type `document-node(*:html)?`). The sets are no non-goals
+  of the QT4 driver any more. Outside the suite, the html5lib tests of
+  web-platform-tests run in a scratch harness: tree construction 1,747
+  of 1,753 (`#script-on` and fragment cases left out; the others are
+  `selectedcontent` and harness limits), tokenizer 7,022 of 7,049 (the
+  rest harness limits and F&O's U+FEFF rule).
+- **Sizes** (stripped / gzipped): `sxml.wasm` 2,078,210 / 722,803 before
+  and after (no HTML code links into the core); `sxml-full.wasm`
+  2,103,528 / 733,247 to 2,182,635 / 762,413 (+79,107; budget
+  3,000,000); the `sxml` CLI module 5,848,173 / 1,239,159 to
+  5,927,297 / 1,267,818. The CLI module was over its 5,500,000-byte
+  budget already (Proposed below).
+- **Tested**: `tests/html_test.c` (tokens, trees, the input stream, both
+  functions with and without the feature, allocation-failure loops),
+  `tests/fuzz/html_parse_fuzz.c` (11,000 runs seeded from the suite,
+  no finding), two `sxml xpath` end-to-end tests.
+- **Left for 7.10b**: the `<meta>` prescan of 13.2.3.2 (step 5) and
+  13.2.3.4 (changing the encoding while parsing) for octets; vendoring the
+  html5lib .dat and tokenizer tests (web-platform-tests
+  `html/syntax/parsing/resources`, html5lib-tests `tokenizer`) as a unit
+  test with the scratch harness's format; the multi-byte decoders
+  (Shift_JIS, EUC-JP, ISO-2022-JP, GBK, gb18030, Big5, EUC-KR) or a
+  decision that they stay FODC0011; source locations for dm:location;
+  XHTML (the XML syntax) recognition, which F&O 4.0 asks for with
+  "should"; the CLI's relative URIs in `sxml xpath` and `sxml xquery`
+  (no static base URI, so fn:html-doc and fn:unparsed-text of a relative
+  name fail there); html-doc-010 and html-test-1281 stay failing unless
+  the suite changes.
+
 ## Proposed
+
+- **The CLI's WebAssembly budget after the Phase 7 features** (packet
+  7.10a, D201; for the owner): the `sxml` CLI module names every optional
+  feature, so each feature grows it. Before 7.10a it was 5,848,173
+  bytes stripped, already over the 5,500,000 budget (1,239,159 gzipped
+  of 1,250,000); HTML parsing makes it 5,927,297 / 1,267,818, now also
+  over the gzipped budget, so `javascript/size_budget` fails. Choose:
+  raise the CLI budget (for example to 6,500,000 / 1,400,000, leaving
+  room for 7.11 to 7.18), or link fewer features into the CLI's
+  WebAssembly build.
 
 - **XQuery's XML version** (packet 7.13, D195; for the owner of
   `xquery.h` and `processor.h`): query texts follow XML 1.0 (line ends,

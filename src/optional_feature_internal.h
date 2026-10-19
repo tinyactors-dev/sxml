@@ -57,6 +57,11 @@ typedef enum sxml_optional_feature_kind {
        (src/function_library_binary.c, packet 7.8, D198); operations is
        that view. */
     SXML_OPTIONAL_FEATURE_KIND_EXPATH_BINARY,
+    /* sxml_html_parser_feature: fn:parse-html and fn:html-doc as
+       library_functions (src/html.c, src/function_library_html.c, packet
+       7.10a, D201); operations sxml_html_feature_operations
+       (src/html_internal.h). */
+    SXML_OPTIONAL_FEATURE_KIND_HTML,
     SXML_OPTIONAL_FEATURE_KIND_COUNT,
 } sxml_optional_feature_kind;
 
@@ -197,3 +202,6 @@ typedef struct sxml_test_feature_operations {
 /* The EXPath Binary feature (src/function_library_binary.c), for
    sxml_all_optional_features. */
 extern const sxml_optional_feature_definition sxml_expath_binary_feature_definition;
+
+/* The HTML parser feature (src/html.c), for sxml_all_optional_features. */
+extern const sxml_optional_feature_definition sxml_html_feature_definition;

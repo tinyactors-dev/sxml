@@ -170,9 +170,6 @@ static const sxml_byte_view sxml_qt4_non_goal_features[] = {
 static const sxml_byte_view sxml_qt4_non_goal_test_sets[] = {
     SXML_BYTE_VIEW_INITIALIZER("ft-*"),
     SXML_BYTE_VIEW_INITIALIZER("expath-*"),
-    SXML_BYTE_VIEW_INITIALIZER("misc-HtmlTestSuite"),
-    SXML_BYTE_VIEW_INITIALIZER("fn-parse-html"),
-    SXML_BYTE_VIEW_INITIALIZER("fn-html-doc"),
     SXML_BYTE_VIEW_INITIALIZER("fn-invisible-xml"),
     SXML_BYTE_VIEW_INITIALIZER("fn-transform"),
 };

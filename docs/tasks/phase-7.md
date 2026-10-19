@@ -480,6 +480,9 @@ error codes, XPTY0004 by the 4.0 types); fn-serialize +24 in each; the
 - **Size**: 100–180 KB.
 - **Gate**: ≥ 95 % of misc-HtmlTestSuite and ≥ 90 % of fn-parse-html and
   fn-html-doc.
+**7.10a done** 2026-10-19 (D201): the tokenizer and tree construction both,
+so the gate is met: misc-HtmlTestSuite 1,378 of 1,379, fn-parse-html 22 of
+22, fn-html-doc 9 of 10 (XQ40). 7.10b: the list at the end of D201.
 
 ### 7.11 fn:transform (implementation)
 - **Specifications**: F&O 4.0, fn:transform (the options map:

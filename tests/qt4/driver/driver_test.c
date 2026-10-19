@@ -456,7 +456,7 @@ static void test_scope_follows_the_non_goals_of_d95(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, applicability.is_in_scope);
 
     /* A non-goal test set still runs, out of scope. */
-    request.test_set_name = TEXT("fn-parse-html");
+    request.test_set_name = TEXT("fn-invisible-xml");
     sxml_qt4_decide_applicability(&request, &applicability);
     SXML_TEST_EXPECT(state, applicability.is_applicable);
     SXML_TEST_EXPECT(state, !applicability.is_in_scope);

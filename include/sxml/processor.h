@@ -411,6 +411,14 @@ SXML_EXPORT sxml_optional_feature sxml_test_optional_feature(void);
 SXML_EXPORT sxml_optional_feature sxml_expath_binary_feature(void);
 
 /*
+ * The HTML parser (HTML Living Standard, 13.2): fn:parse-html and
+ * fn:html-doc (F&O 4.0, 17.3), which build trees in the XHTML, SVG and
+ * MathML namespaces. Without it both functions are absent (XPST0017).
+ * Its name is "html" (packet 7.10a, D201).
+ */
+SXML_EXPORT sxml_optional_feature sxml_html_parser_feature(void);
+
+/*
  * Every optional feature sxml has, as static data, for hosts that want
  * them all: the sxml command, the test drivers and the JavaScript
  * package's full module. A program that calls this links every feature.

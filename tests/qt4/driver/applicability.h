@@ -27,8 +27,8 @@
  *
  * Separately, a test case is in scope when it counts in the denominator
  * of the pass-rate targets (D95): its spec matches the target, its test
- * set is not a non-goal (ft-*, expath-*, misc-HtmlTestSuite,
- * fn-parse-html, fn-html-doc, fn-invisible-xml, fn-transform) and none of
+ * set is not a non-goal (ft-*, expath-*, fn-invisible-xml,
+ * fn-transform) and none of
  * its dependencies asks for a non-goal feature (schemaImport,
  * schemaValidation, typedData, staticTyping, fullText*,
  * xpath-1.0-compatibility, fn-transform-XSLT*, fn-invisible-xml,

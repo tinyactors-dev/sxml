@@ -892,6 +892,14 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `all_matches` | The set of matches a full-text selection gives over the tokens of a node, with their positions (XQuery and XPath Full Text 3.0, "AllMatches") |
 | `html_working_tree` | The HTML parser's mutable node table during tree construction (adoption agency, foster parenting), sent to the tree builder once the document ends |
 | `insertion_mode` | The state of HTML tree construction that decides how a token is handled (HTML Living Standard, 13.2.4.1) |
+| `open_elements` | The HTML parser's stack of open elements, the current node last (HTML Living Standard, 13.2.4.2) |
+| `formatting_elements` | The HTML parser's list of active formatting elements and markers, which reconstruction reopens (13.2.4.3) |
+| `adoption_agency` | The algorithm that closes misnested formatting elements by moving nodes already built (13.2.6.4.7, "the adoption agency algorithm") |
+| `foster_parenting` | Inserting content that is misnested in a table before the table instead (13.2.6.1) |
+| `integration_point` | A MathML or SVG element whose content is parsed as HTML (an HTML integration point) or whose text is (a MathML text integration point; 13.2.6) |
+| `quirks_mode` | The document mode the DOCTYPE sets: no-quirks, limited-quirks or quirks (13.2.6.4.1); in the parser it only decides whether a table closes an open p |
+| `input_stream` | The decoded characters the HTML tokenizer reads, newlines normalized (13.2.3.5); UTF-8 in sxml |
+| `encoding_label` | A name the Encoding Standard gives an encoding (`latin1`, `windows-1251`), matched without case and surrounding whitespace |
 | `ixml_grammar` | An Invisible XML grammar compiled for the Earley parser: rules, alternatives, terminals and marks |
 | `parse_forest` | The Earley parser's shared record of every parse of an input under an ixml grammar; the first tree is serialized, and more than one marks the result ambiguous |
 | `collation_element_table` | The mapping of code points and contractions to collation elements, the DUCET or the CLDR root collation (UTS #10, section 3.6) |
