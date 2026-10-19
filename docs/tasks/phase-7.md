@@ -899,6 +899,27 @@ text, 72 s) and D185 (`match="$var"` membership is a linear scan).
 - **Done when**: the baseline and the numbers after each change in a
   D-record and the commit messages; no QT4 XQ40 or XT40 outcome
   changes; D71, the memory limits and honest step counts kept.
+
+### xml-mem Bounded memory for XML parsing (design and implementation)
+After D12 (tree-sitter parses XML, the owner's choice), D199 (DTD and
+entities) and D219 (parsing 106 MB took 3.98 GB resident, nearly all
+tree-sitter's syntax tree of the whole input).
+- **Specifications**: XML 1.0 (Fifth Edition) [1], [14], [22], [27],
+  [39] to [44], 2.11, 4.3.3; 3 WFC: Element Type Match.
+- **Mechanism**: keep tree-sitter and its grammar; parse a document in
+  bounded segments cut at markup boundaries, walk each segment's tree
+  and free it before the next. No header changes.
+- **Owns**: `src/xml.c`, `src/xml_segment.c`, `src/xml_internal.h`,
+  `grammars/xml/`, `tests/xml_test.c`.
+- **Done when**: memory proportional to the depth and the largest item,
+  not the input; error positions, DTD and entities as D199; the
+  incremental parse of D219 pauses and resumes; a unit test parses a
+  large generated document under a small allocator limit; resident
+  memory and speed before and after at 10 MB and 100 MB.
+**Done** 2026-10-19 (D222): the head and content segments of 16 KB;
+100 MB parses in 98 MB resident (3,789 MB before; the input is 97 MB),
+CPU 25.0 s to 19.7 s; xmlconf, QT4 and XT40 unchanged case by case.
+
 ## Proposed for the owner
 
 No phase covers these four features yet (D183 Proposed). The owner has

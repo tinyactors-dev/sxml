@@ -9360,9 +9360,109 @@ progress; completed when the packet ends.
   compared from their items. Steps are unchanged.
 ### D222. Bounded memory for XML parsing: document segments (packet xml-mem)
 Recorded 2026-10-19, after D12, D45, D71, D195, D199, D219. Amends D12's
-"the concrete syntax tree is freed before the parse function returns":
-the parser holds the tree of one document segment at a time. (The
-details and the measurements follow with the implementation.)
+"the concrete syntax tree is freed before the parse function returns"
+and D219's "the concrete syntax tree is still made for the whole
+document first": the parser holds the tree of one document segment at a
+time (glossary `document_segment`). tree-sitter stays the parser (D12,
+the owner's choice) and the grammar stays the one source of the lexical
+rules.
+- **The choice**: the first of the packet's three designs, segments
+  parsed with the same grammar. Rejected: tree-sitter's included ranges
+  and incremental edits (a parse with included ranges still builds one
+  tree over all of them, and an edit keeps the old tree: neither frees
+  what was walked), and a hand-written driver over tree-sitter's lexer
+  (the lex function and the external scanner are generated per parse
+  state, so a driver would have to restate the grammar's states).
+- **Grammar** (`grammars/xml`): two more alternatives of the start rule,
+  each after a marker only the builder writes (U+0001 and a letter, as
+  D199's): the head (U+0001 `D`: the prolog and the start tag of the
+  document element, field `root`, an `element` holding only that tag)
+  and a content segment (U+0001 `C`: a flat run of content items whose
+  tags need not pair up). The whole-document alternative stays: the
+  replacement text of an internal entity is parsed as one, wrapped in an
+  element; external parsed entities keep D199's alternative.
+- **Cuts** (`src/xml_segment.c`): a byte scan finds the end of the head
+  (BOM, XML declaration, comments, PIs, the document type declaration
+  with quotes, comments, PIs and brackets of its internal subset, then
+  the first start tag) and the end of a content segment of about 16 KB:
+  between two content items, before a '<' or an '&' or after the
+  delimiter that ends markup ("-->", "]]>", "?>", a tag's '>' outside
+  quotes; a '<' ends a tag scan, since no tag holds one). No token
+  reaches across such a cut (no "]]>" in character data, no CR LF cut
+  apart), so for well-formed text the segments' tokens are the whole
+  text's. For text that is not well-formed a cut may fall inside a
+  construct; the segment then ends in an unfinished construct, which the
+  grammar refuses: a segmented parse accepts what a whole parse accepts.
+- **Walk** (`src/xml.c`): the head is parsed and walked as the document
+  was (declaration, DTD, validation start, the start tag); its tree goes
+  with its frame. The content walk parses the next segment when the
+  frames of the last one have ended, and frees each tree as its frame
+  ends. Before a segment the builder writes the start tags of the open
+  elements (`<name>` for each, names kept per open element), so the
+  external scanner checks every end tag against its start (WFC: Element
+  Type Match, as before); the walk skips that prefix. A segment is at
+  least twice as long as its prefix, so deep documents cost at most
+  twice the parse. The builder checks what the segment grammar leaves
+  out: the elements end before the text does ([1], [39]; the
+  diagnostic of a MISSING node, at the end), and after the document
+  element only comments, PIs and white space follow ([27] Misc; the
+  white space makes no text node, as before). Locations map from a
+  segment's tree to the document (`document_offset` of a frame). The
+  incremental parse (D219) is unchanged: its creation parses the head,
+  and a resume may parse the next segment.
+- **Not bounded yet**: the decoded text (the input itself for UTF-8 and
+  US-ASCII; a UTF-8 copy for UTF-16 and ISO-8859-1, and for XML 1.1 with
+  NEL line ends, D195), a large prolog or internal subset (the head),
+  an external parsed entity (parsed whole, D199), a start tag with very
+  many attributes or a long run of references and character data
+  (one content item each: memory proportional to the largest item).
+  Documents stay below 4 GB (the decoding's check for tree-sitter's
+  32-bit offsets is kept).
+- **Behaviour changes, all for text that is not well-formed**: a syntax
+  error is found when its segment is parsed, so the events of the
+  content before it, and a WFC error or a validator's error there, come
+  first (before, the whole tree was checked for syntax first; the CLI's
+  validate goldens show it, updated by health-3); a syntax error's position
+  is found in its segment's tree, so it may differ by a few bytes, both
+  ways; a document starting with two byte order marks is refused (before,
+  tree-sitter's lexer skipped the first at offset 0 and the grammar took
+  the second for a BOM; XML 1.0 4.3.3 and the xmlconf errata-4e entities:
+  the second is a character). Over the 6,652 documents of xmlconf, QT4
+  and XT40 (1,164 refused): 3 verdicts change (eduni/errata-4e
+  `8bombom.xml`, `bombom_be.xml`, `bombom_le.xml`, external entities, no
+  document test) and 74 diagnostics; xmlconf's own verdicts are
+  unchanged. Fuzzing (`xml_parse_fuzz` seeds and 5 minutes, and 4 more
+  minutes with one item per segment) is clean.
+- **Measured** (release, 4 cores shared with other runs; "check" is
+  `sxml_xml_parser_check`, which reads as an incremental or streamed
+  parse does; "tree" builds the arena tree; CPU time):
+
+  | Input | Mode | Resident before | after | CPU before | after |
+  | --- | --- | ---: | ---: | ---: | ---: |
+  | 10 MB | check | 386.9 MB | 12.8 MB | 2.44 s | 2.14 s |
+  | 100 MB | check | 3,788.7 MB | 98.4 MB | 24.99 s | 19.65 s |
+  | 10 MB | tree | 447.2 MB | 72.6 MB | 2.57 s | 2.23 s |
+  | 100 MB | tree | 4,380.7 MB | 690.4 MB | 24.71 s | 20.75 s |
+
+  The input itself is 11.4 MB and 97.3 MB of the resident memory; the
+  rest of "tree" is the arena tree. Segments of 4 KB and 16 KB parse
+  equally fast; 64 KB, 256 KB and 1 MB are 10 % to 60 % slower and hold
+  more. `sxml transform` on a streamable xsl:source-document still holds
+  the tree (942.7 MB at 100 MB, 4,633.4 MB before): the command has no
+  resource resolver, so the loader builds the document (D219's streamed
+  path needs a resolver that delivers bytes).
+- **Tests**: `xml_test` large_documents_parse_in_bounded_memory parses a
+  4 MB document incrementally, pausing after every element, with the
+  parser's memory under a 256 KB allocator limit and tree-sitter's
+  (counted through its allocator hooks, which only the test sets) under
+  2 MB; a truncated copy fails at its end. The grammar corpus has
+  `segments.txt`. xmlconf unchanged: 601/175/948, external 127/54/66,
+  XML 1.1 84/13/169, DTD validation 594/173 and 127/54, also with one
+  item per segment. QT4 and XT40 (release, whole suites, case by case;
+  the sets that differed from the older baseline rerun without this
+  change on the same commit): no outcome changes; XP40 32,594 passed,
+  XQ40 45,813, XT40 11,818.
+
 ### D223. More streamed shapes: streamed paths and aggregates (packet 7.6c)
 Recorded 2026-10-19, after D71, D212, D219, D222. Extends D219's streamed
 bodies: a path inside the select of an instruction of a streamed body

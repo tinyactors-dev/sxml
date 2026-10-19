@@ -4,6 +4,22 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- xml-mem done (D222): the XML parser reads a document in document
+  segments and holds one segment's tree-sitter tree at a time: the head
+  (prolog and the document element's start tag), then content segments
+  of about 16 KB cut by a byte scan between content items
+  (`src/xml_segment.c`), parsed by two new start alternatives of
+  `grammars/xml` after builder markers; the open elements' start tags
+  are written before each segment so the scanner still checks end tags.
+  Parsing 100 MB: 3,789 MB to 98 MB resident (the input is 97 MB), CPU
+  25.0 s to 19.7 s; 10 MB: 387 MB to 13 MB. The incremental parse
+  resumes across segments; the unit test parses 4 MB under a 256 KB
+  allocator limit with tree-sitter under 2 MB. xmlconf, QT4 and XT40
+  unchanged case by case. A document with two byte order marks is now
+  refused (correctly). Open: `sxml transform` does not stream (no
+  resolver delivering bytes); large prologs and external entities are
+  parsed whole.
+
 - 7.12b and 7.12c done (D214 amended): Full Text's match options and
   scores. Stemming: the Snowball algorithms of the D208 languages,
   compiled by `tools/generate-snowball-stemmers.py` from the vendored
