@@ -23,6 +23,10 @@ seed, named by the SHA-1 of its content (the libFuzzer convention):
   cast_fuzz            the argument of xs:TYPE("...") constructor calls,
                        in the layout of tests/fuzz/cast_fuzz.c (target
                        byte, text); the targets are read from that file
+  dtd_fuzz             every XML document of third_party/xmlconf that
+                       names an external entity (SYSTEM "..."), in the
+                       layout of tests/fuzz/dtd_fuzz.c (document, zero
+                       byte, the first file it names)
   schema_fuzz          the first schema document of every test group of
                        the XSD suite (third_party/xsdtests/suite.xml),
                        alone and, in the layout of tests/fuzz/schema_fuzz.c
@@ -191,6 +195,7 @@ def main():
     regex_corpus = corpus("regex_fuzz")
     cast_corpus = corpus("cast_fuzz")
     schema_corpus = corpus("schema_fuzz")
+    dtd_corpus = corpus("dtd_fuzz")
     target_numbers = {name: number for number, name in enumerate(cast_target_names())}
     if not target_numbers:
         sys.exit("no cast targets found in tests/fuzz/cast_fuzz.c")
@@ -198,7 +203,14 @@ def main():
     third_party = os.path.join(REPOSITORY_ROOT, "third_party")
     for path in walk_files(os.path.join(third_party, "xmlconf"), (".xml",)):
         with open(path, "rb") as document:
-            xml_corpus.add(document.read())
+            content = document.read()
+        xml_corpus.add(content)
+        named = re.search(rb'SYSTEM\s*["\']([^"\']+)["\']', content)
+        if named is not None and b"\0" not in content:
+            entity = read_bytes(os.path.join(os.path.dirname(path),
+                                             named.group(1).decode("latin-1")))
+            if entity is not None:
+                dtd_corpus.add(content + b"\0" + entity)
     qt4_directory = os.path.join(third_party, "qt4tests")
     for path in walk_files(os.path.join(qt4_directory, "docs"), (".xml",)):
         with open(path, "rb") as document:
@@ -230,7 +242,7 @@ def main():
                 schema_corpus.add(schema + b"\0" + instance)
 
     for seeds in (xml_corpus, compile_corpus, evaluate_corpus, xquery_corpus, xslt_corpus,
-                  regex_corpus, cast_corpus, schema_corpus):
+                  regex_corpus, cast_corpus, schema_corpus, dtd_corpus):
         written_count, found_count = seeds.write()
         print(f"{seeds.directory}: {written_count} of {found_count} seeds")
 

@@ -257,6 +257,8 @@ sxml_qt4_resolve_from_table(void *state, const sxml_resource_request *request,
         .table = table, .request = request, .uri = uri};
     switch (request->resource_kind) {
     case SXML_RESOURCE_KIND_XML_DOCUMENT:
+    case SXML_RESOURCE_KIND_EXTERNAL_ENTITY:
+        /* External DTDs and entities are suite files too (D199). */
         return sxml_qt4_serve_suite_file(table, uri, resource);
     case SXML_RESOURCE_KIND_TEXT:
     case SXML_RESOURCE_KIND_BINARY:

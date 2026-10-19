@@ -2463,7 +2463,11 @@ static sxml_status parse_module(stylesheet_reader *reader, module_text text, sxm
                                       .document_uri = text.module_uri,
                                       .base_uri = text.module_uri,
                                       .encoding_name = text.encoding_name,
-                                      .diagnostic = &diagnostic},
+                                      .diagnostic = &diagnostic,
+                                      /* A module's external DTD and entities
+                                         come through the resolver (D199). */
+                                      .entity_resolver =
+                                          sxml_processor_entity_resolver(processor)},
             sxml_arena_tree_as_tree_builder(arena_tree));
     }
     sxml_tree *tree = NULL;

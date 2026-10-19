@@ -25,6 +25,7 @@
  * reading their arguments through function_library_core_internal.h);
  * src/function_library_higher_order.c for the resumable body.
  */
+#include "tree_internal.h"
 #include "xslt_key_internal.h"
 
 #include "cast_internal.h"
@@ -761,23 +762,68 @@ static sxml_status check_unparsed_entity_document(const sxml_function_call *call
     return SXML_STATUS_OK;
 }
 
-/* fn:unparsed-entity-uri($entity-name, $doc := .) (XSLT 4.0, 20.2.3):
-   sxml's trees keep no unparsed entities of the DTD, so every name gives
-   the zero-length URI, as for an entity the DTD does not declare. */
+/* The unparsed entity of argument 0's name in the document of argument
+   1's node, after XTDE1370; found is false when the DTD declares none
+   (XDM 4.0, 6.1.3, dm:unparsed-entity-system-id). */
+typedef struct unparsed_entity_lookup {
+    bool is_found;
+    sxml_unparsed_entity entity;
+} unparsed_entity_lookup;
+
+static sxml_status find_unparsed_entity(const sxml_function_call *call,
+                                        unparsed_entity_lookup *lookup) {
+    lookup->is_found = false;
+    sxml_status status = check_unparsed_entity_document(call);
+    sxml_string name = {.utf8 = {.bytes = NULL, .byte_count = 0},
+                        .codepoint_count = 0,
+                        .is_ascii = true};
+    sxml_optional_item node_item = {.has_item = false};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_function_library_read_string_argument(call, 0, &name);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_function_library_read_optional_item(call, 1, &node_item);
+    }
+    sxml_node_reference node;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_item_get_node(node_item.item, &node);
+    }
+    if (status != SXML_STATUS_OK || node.tree->operations->find_unparsed_entity == NULL) {
+        return status;
+    }
+    lookup->entity = (sxml_unparsed_entity){
+        .entity_name = name.utf8,
+        .system_identifier = {.bytes = NULL, .byte_count = 0},
+        .public_identifier = {.bytes = NULL, .byte_count = 0}};
+    status = node.tree->operations->find_unparsed_entity(node.tree->state, &lookup->entity);
+    if (status == SXML_STATUS_INDEX_OUT_OF_RANGE) {
+        return SXML_STATUS_OK;
+    }
+    lookup->is_found = status == SXML_STATUS_OK;
+    return status;
+}
+
+/* fn:unparsed-entity-uri($entity-name, $doc := .) (XSLT 4.0, 20.2.3): the
+   absolute system identifier of the unparsed entity, the zero-length URI
+   when there is none. */
 static sxml_status call_unparsed_entity_uri(const sxml_function_call *call, sxml_sequence *result) {
-    const sxml_status status = check_unparsed_entity_document(call);
+    unparsed_entity_lookup lookup = {.is_found = false};
+    const sxml_status status = find_unparsed_entity(call, &lookup);
     if (status != SXML_STATUS_OK) {
         return status;
     }
+    const sxml_byte_view uri = lookup.is_found
+                                   ? lookup.entity.system_identifier
+                                   : (sxml_byte_view){.bytes = NULL, .byte_count = 0};
     sxml_item item = {.representation = 0};
     const sxml_status make_status = sxml_atomic_item_make(
         call->item_heap,
         &(sxml_atomic_item_request){
             .type = sxml_builtin_type_identifier(SXML_TYPE_XS_ANY_URI),
             .datum = {.datum_kind = SXML_DATUM_KIND_STRING,
-                      .datum_details = {.string = {.utf8 = {.bytes = NULL, .byte_count = 0},
+                      .datum_details = {.string = {.utf8 = uri,
                                                    .codepoint_count = 0,
-                                                   .is_ascii = true}}}},
+                                                   .is_ascii = false}}}},
         &item);
     if (make_status == SXML_STATUS_OK) {
         *result = sxml_sequence_from_item(item);
@@ -786,15 +832,20 @@ static sxml_status call_unparsed_entity_uri(const sxml_function_call *call, sxml
 }
 
 /* fn:unparsed-entity-public-id($entity-name, $doc := .) (XSLT 4.0,
-   20.2.4): the zero-length string, as above. */
+   20.2.4): the public identifier, the zero-length string when there is
+   none. */
 static sxml_status call_unparsed_entity_public_id(const sxml_function_call *call,
                                                   sxml_sequence *result) {
-    const sxml_status status = check_unparsed_entity_document(call);
+    unparsed_entity_lookup lookup = {.is_found = false};
+    const sxml_status status = find_unparsed_entity(call, &lookup);
     if (status != SXML_STATUS_OK) {
         return status;
     }
     return sxml_function_library_make_string(
-        call->item_heap, (sxml_byte_view){.bytes = NULL, .byte_count = 0}, result);
+        call->item_heap,
+        lookup.is_found ? lookup.entity.public_identifier
+                        : (sxml_byte_view){.bytes = NULL, .byte_count = 0},
+        result);
 }
 
 /* ------------------------------------------------------ Captured groups */

@@ -766,7 +766,11 @@ static sxml_status sxml_xslt_test_parse_source(sxml_xslt_test_context *context,
                                       .document_uri = document_uri,
                                       .base_uri = document_uri,
                                       .encoding_name = sxml_xslt_test_empty_text,
-                                      .diagnostic = &context->error_record.diagnostic},
+                                      .diagnostic = &context->error_record.diagnostic,
+                                      /* External DTDs and entities are suite
+                                         files (D199). */
+                                      .entity_resolver = sxml_processor_entity_resolver(
+                                          context->processor)},
             &document_node);
         if (!has_content) {
             sxml_allocator_release(context->allocator, (void *)contents.bytes);
@@ -950,7 +954,9 @@ static sxml_status sxml_xslt_test_serve_collection(sxml_xslt_test_context *conte
                                           .document_uri = document_uri,
                                           .base_uri = document_uri,
                                           .encoding_name = sxml_xslt_test_empty_text,
-                                          .diagnostic = &context->error_record.diagnostic},
+                                          .diagnostic = &context->error_record.diagnostic,
+                                          .entity_resolver = sxml_processor_entity_resolver(
+                                              context->processor)},
                 &documents[source_index]);
             sxml_allocator_release(context->allocator, (void *)contents.bytes);
         }

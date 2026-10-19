@@ -160,6 +160,14 @@ typedef enum sxml_resource_kind {
        target_namespace_uri the namespace (D165). Forms: BYTES,
        DOCUMENT_NODE (a document the host has parsed). */
     SXML_RESOURCE_KIND_SCHEMA_DOCUMENT,
+    /* An external entity of an XML document sxml parses through
+       sxml_processor_entity_resolver: its external DTD subset, an external
+       parameter entity or an external parsed general entity (XML 1.0,
+       4.2.2; D199). uri_reference is the system identifier as written,
+       absolute_uri it resolved against the base URI of the entity holding
+       the declaration (empty when that has none). Form: BYTES, whose
+       resource_uri is the base URI of the declarations inside. */
+    SXML_RESOURCE_KIND_EXTERNAL_ENTITY,
 } sxml_resource_kind;
 
 /* What sxml asks a resolver for. Views are borrowed for the call. */
@@ -754,3 +762,15 @@ SXML_EXPORT bool sxml_processor_has_optional_feature(const sxml_processor *proce
 SXML_NODISCARD SXML_EXPORT sxml_status sxml_processor_parse_document(
     sxml_processor *processor, const sxml_xml_parse_request *request,
     sxml_item *document_node);
+
+/*
+ * An entity resolver (include/sxml/xml.h) that asks processor's resource
+ * resolver for every external entity, with SXML_RESOURCE_KIND_EXTERNAL_ENTITY
+ * (D199): a host that names it in sxml_xml_parse_request.entity_resolver
+ * lets its resolver decide which external DTDs and entities a document
+ * reads. A resource that is not BYTES is not available. The processor
+ * keeps the resource being read until the parser releases it, so the
+ * resolver serves one parse at a time; it is valid while processor is.
+ */
+SXML_EXPORT sxml_xml_entity_resolver sxml_processor_entity_resolver(
+    sxml_processor *processor);

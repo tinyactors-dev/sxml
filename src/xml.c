@@ -234,6 +234,10 @@ typedef struct sxml_xml_document {
     bool reads_external_entities;
     /* request->validator is not the null validator. */
     bool validates;
+    /* The DTD declares element types: the declarations of the open
+       elements are kept (open_contents), for element content white space
+       and validity. */
+    bool tracks_contents;
     /* The name the document type declaration gives, for VC: Root Element
        Type (2.8). */
     sxml_byte_view doctype_name;
@@ -1456,7 +1460,16 @@ sxml_xml_load_external_entity(sxml_xml_document *document,
             : absolute_uri.byte_count != 0       ? absolute_uri
                                                  : system_identifier;
         sxml_byte_range entity_uri_range = {.byte_offset = 0, .byte_count = 0};
-        if (status == SXML_STATUS_OK) {
+        const uint8_t *dtd_start = dtd->text.bytes;
+        if (status == SXML_STATUS_OK && entity_uri.byte_count != 0 &&
+            dtd_start != NULL && entity_uri.bytes >= dtd_start &&
+            entity_uri.bytes < dtd_start + dtd->text.byte_count) {
+            /* The system identifier itself, already in the DTD text: storing
+               it again would read from the buffer while it grows. */
+            entity_uri_range = (sxml_byte_range){
+                .byte_offset = (size_t)(entity_uri.bytes - dtd_start),
+                .byte_count = entity_uri.byte_count};
+        } else if (status == SXML_STATUS_OK) {
             status = sxml_xml_fail_resource(
                 document,
                 sxml_xml_dtd_store_text(dtd, entity_uri, &entity_uri_range));
@@ -1549,6 +1562,18 @@ static sxml_status sxml_xml_send_text(sxml_xml_document *document,
                                       const sxml_text_event *event) {
     if (!sxml_xml_has_builder(document) || event->text.byte_count == 0) {
         return SXML_STATUS_OK;
+    }
+    const sxml_xml_array *open_contents = &document->parser->open_contents;
+    if (open_contents->element_count != 0) {
+        const sxml_xml_open_content *open =
+            sxml_xml_array_at(open_contents, open_contents->element_count - 1);
+        if (open->is_declared &&
+            open->content_kind == SXML_XML_CONTENT_KIND_CHILDREN &&
+            sxml_xml_text_is_whitespace(event->text)) {
+            /* White space in element content, [element content
+               whitespace]: no text node (XDM 4.0, 7.5.7.3). */
+            return SXML_STATUS_OK;
+        }
     }
     return document->builder.operations->add_text(document->builder.state,
                                                   event);
@@ -4240,7 +4265,7 @@ static sxml_status sxml_xml_end_element(sxml_xml_document *document) {
     parser->namespace_bindings.element_count = *scope_start;
     scopes->element_count -= 1;
     document->element_depth -= 1;
-    if (document->validates && parser->open_contents.element_count != 0) {
+    if (document->tracks_contents && parser->open_contents.element_count != 0) {
         parser->open_contents.element_count -= 1;
     }
     if (!sxml_xml_has_builder(document)) {
@@ -4294,7 +4319,7 @@ static sxml_status sxml_xml_start_element(sxml_xml_document *document,
     }
     *(size_t *)element = scope_start;
     document->element_depth += 1;
-    if (document->validates) {
+    if (document->tracks_contents) {
         const sxml_xml_dtd *dtd = &parser->dtd;
         const sxml_xml_lookup declaration =
             sxml_xml_dtd_find_element(dtd, element_name);
@@ -5164,6 +5189,14 @@ static sxml_status sxml_xml_check_declarations(sxml_xml_document *document) {
  */
 static sxml_status sxml_xml_prepare_validation(sxml_xml_document *document,
                                                sxml_xml_frame_node root) {
+    const sxml_xml_dtd *dtd = &document->parser->dtd;
+    for (size_t element_index = 0;
+         !document->tracks_contents && element_index < dtd->elements.element_count;
+         element_index++) {
+        document->tracks_contents =
+            sxml_xml_dtd_element_at(dtd, (uint32_t)element_index)->is_declared;
+    }
+    document->tracks_contents = document->tracks_contents || document->validates;
     if (!document->validates) {
         return SXML_STATUS_OK;
     }
@@ -5669,14 +5702,29 @@ static sxml_status sxml_xml_send_document(sxml_xml_document *document,
                 entity->is_parameter_entity) {
                 continue;
             }
+            /* dm:unparsed-entity-system-id is the system identifier made
+               absolute against the base URI of its declaration (XDM 4.0,
+               6.1.3; XML 1.0, 4.2.2). */
+            sxml_uri_resolution resolution = {.uri = {.bytes = NULL, .byte_count = 0},
+                                              .memory = NULL};
+            status = sxml_uri_resolve(
+                &(sxml_uri_resolution_request){
+                    .base_uri = sxml_xml_dtd_text(dtd, entity->base_uri),
+                    .reference = sxml_xml_dtd_text(dtd, entity->system_identifier),
+                    .allocator = document->parser->configuration.allocator},
+                &resolution);
+            if (status != SXML_STATUS_OK) {
+                return sxml_xml_fail_resource(document, status);
+            }
             status = document->builder.operations->add_unparsed_entity(
                 document->builder.state,
                 &(sxml_unparsed_entity){
                     .entity_name = sxml_xml_dtd_text(dtd, entity->entity_name),
-                    .system_identifier =
-                        sxml_xml_dtd_text(dtd, entity->system_identifier),
+                    .system_identifier = resolution.uri,
                     .public_identifier =
                         sxml_xml_dtd_text(dtd, entity->public_identifier)});
+            sxml_allocator_release(document->parser->configuration.allocator,
+                                   resolution.memory);
         }
         if (status != SXML_STATUS_OK) {
             return status;
@@ -5810,6 +5858,7 @@ sxml_xml_parse_document(sxml_xml_parser *parser,
         .reads_external_entities = request->entity_resolver.operations != NULL &&
                                    request->entity_resolver.operations->resolve != NULL,
         .validates = request->validator.operations != NULL,
+        .tracks_contents = false,
         .doctype_name = {.bytes = NULL, .byte_count = 0},
         .tee = {.first = {.state = NULL, .operations = NULL},
                 .second = {.state = NULL, .operations = NULL}},

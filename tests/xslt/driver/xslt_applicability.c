@@ -75,6 +75,9 @@ static const sxml_xslt_test_supported_dependency
         /* XML 1.1 documents (D195): sources, stylesheets and assert-xml
            with xml-version="1.1" are read by XML 1.1. */
         SXML_XSLT_TEST_SUPPORTED("feature", "XML_1.1"),
+        /* DTD processing: the internal and external subsets, external
+           entities read as suite files (D199). */
+        SXML_XSLT_TEST_SUPPORTED("feature", "dtd"),
         /* xsl:evaluate (XSLT 4.0, 10.5; D196). */
         SXML_XSLT_TEST_SUPPORTED("feature", "dynamic_evaluation"),
         /* XSLT 4.0, 26.1.8, with the XML, XHTML and HTML methods (D188). */
@@ -209,6 +212,8 @@ bool sxml_xslt_test_dependency_is_supported(
 static const sxml_byte_view sxml_xslt_test_non_goal_features[] = {
     SXML_BYTE_VIEW_INITIALIZER("schema_aware"),
     SXML_BYTE_VIEW_INITIALIZER("streaming"),
+    /* Supported since packet 7.14 (D199), but kept out of the D95
+       denominator, as XML_1.1 is. */
     SXML_BYTE_VIEW_INITIALIZER("dtd"),
     /* Supported since packet 7.13 (D195), but kept out of the D95
        denominator so that the gate rates keep their meaning. */

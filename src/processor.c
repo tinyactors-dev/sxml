@@ -743,6 +743,70 @@ sxml_status sxml_processor_parse_document(sxml_processor *processor,
     return SXML_STATUS_OK;
 }
 
+/* -------------------------------------------------- External entities */
+
+/* Asks the processor's resource resolver for an external entity (D199). */
+static sxml_status sxml_processor_resolve_entity(void *state,
+                                                 const sxml_xml_external_entity_request *request,
+                                                 sxml_xml_external_entity *entity) {
+    sxml_processor *processor = state;
+    const sxml_resource_resolver resolver = processor->resource_resolver;
+    if (resolver.operations == NULL || resolver.operations->resolve == NULL) {
+        return SXML_STATUS_OK;
+    }
+    sxml_resource resource;
+    memset(&resource, 0, sizeof(resource));
+    sxml_status status = resolver.operations->resolve(
+        resolver.state,
+        &(sxml_resource_request){.resource_kind = SXML_RESOURCE_KIND_EXTERNAL_ENTITY,
+                                 .uri_reference = request->system_identifier,
+                                 .absolute_uri = request->absolute_uri,
+                                 .processor = processor},
+        &resource);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (resource.resource_form == SXML_RESOURCE_FORM_DOCUMENT_NODE) {
+        sxml_item_release(resource.document_node);
+    } else if (resource.resource_form == SXML_RESOURCE_FORM_SEQUENCE) {
+        sxml_sequence_release(resource.items);
+    }
+    if (resource.resource_form != SXML_RESOURCE_FORM_BYTES) {
+        /* Not available in a form an entity has (include/sxml/processor.h). */
+        if (resolver.operations->release != NULL) {
+            resolver.operations->release(resolver.state, &resource);
+        }
+        return SXML_STATUS_OK;
+    }
+    processor->entity_resource = resource;
+    processor->holds_entity_resource = true;
+    *entity = (sxml_xml_external_entity){.is_available = true,
+                                         .content = resource.content,
+                                         .encoding_name = resource.encoding_name,
+                                         .entity_uri = resource.resource_uri};
+    return SXML_STATUS_OK;
+}
+
+static void sxml_processor_release_entity(void *state, const sxml_xml_external_entity *entity) {
+    (void)entity;
+    sxml_processor *processor = state;
+    const sxml_resource_resolver resolver = processor->resource_resolver;
+    if (processor->holds_entity_resource && resolver.operations->release != NULL) {
+        resolver.operations->release(resolver.state, &processor->entity_resource);
+    }
+    processor->holds_entity_resource = false;
+}
+
+static const sxml_xml_entity_resolver_operations sxml_processor_entity_resolver_operations = {
+    .resolve = sxml_processor_resolve_entity,
+    .release = sxml_processor_release_entity,
+};
+
+sxml_xml_entity_resolver sxml_processor_entity_resolver(sxml_processor *processor) {
+    return (sxml_xml_entity_resolver){.state = processor,
+                                      .operations = &sxml_processor_entity_resolver_operations};
+}
+
 /* ------------------------------------------------------- Document loader */
 
 static const sxml_static_error sxml_document_not_available_error = {

@@ -53,6 +53,10 @@ struct sxml_processor {
     sxml_clock clock;
     /* May be the null sink, which discards. */
     sxml_trace_sink trace_sink;
+    /* The external entity sxml_processor_entity_resolver is reading, until
+       the XML parser releases it (D199). */
+    sxml_resource entity_resource;
+    bool holds_entity_resource;
     /* In the processor's memory. */
     sxml_name_pool *name_pool;
     sxml_type_registry *type_registry;
