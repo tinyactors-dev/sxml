@@ -21,7 +21,6 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 
 ## Running
 
-- perf-3: XML parsing speed.
 - 4.21: hoist-pass bug (merge-001a/016), globals on first read (XTDE3052), typed modes.
 - 7.6e streaming: accumulators, fork/merge, streamed result delivery, incremental resolver.
 
@@ -88,8 +87,9 @@ Performance (perf-1, D224): benchmark set in tests/bench; itunes 80.6 s ->
 match="$var"); one-pass axis walks; loop-invariant hoisting. perf-2 (D229):
 XMark-All 1.55 -> 1.20 s, match="$var" 1.02 -> 0.45 s, numeric joins 2x;
 fast number casts, leaves computed in place, inline small lists, numeric
-index keys, quantifier hoisting. Left: XML parsing is a quarter of
-XMark-All (perf-3); casts cost about 1,100 instructions; hoisting of path
+index keys, quantifier hoisting. perf-3 (D232): XML parsing 15 -> 25 MB/s
+(tree 13 -> 21 MB/s), XMark-All -10 %; tags and plain attributes are
+single tokens. Left: casts cost about 1,100 instructions; hoisting of path
 MAPs and sort keys; the task struct copied on each push.
 
 Platform and tooling:
