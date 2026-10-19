@@ -12,8 +12,9 @@
  * Stability: from release 0.2.0 on, the public headers (include/sxml/) are
  * stable (D47, D138): a release adds declarations, and changes or removes
  * one only with a decision record and a new major version (before 1.0.0,
- * minor version). xquery.h and xslt.h were provisional until the Phase 3
- * and Phase 4 gates (D151) and are stable since (D161, D169).
+ * minor version). xquery.h, xslt.h and schema.h were provisional until
+ * the Phase 3, 4 and 5 gates (D151, D165) and are stable since (D161,
+ * D169, D181).
  * docs/RELEASE.md describes a release.
  */
 

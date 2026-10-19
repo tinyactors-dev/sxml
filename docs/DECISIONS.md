@@ -7065,6 +7065,152 @@ that. Amends the done-when of the packet procedure (D123's local checks).
 - The user-facing CLI reference is `apps/sxml/README.md`; `docs/CLI.md`
   keeps the design rules (D44).
 
+### D181. Phase 5 gate review (packet 5.14)
+Recorded 2026-10-19 by the review agent (D11), after D151, D161, D169.
+**The owner moved the confirming runs to a machine of their own**: the
+gate boxes that need full suite runs or fuzzing stay open, marked
+"deferred to the owner's machine (D181)"; the review's own runs below
+met every number. Checked locally (D123): `tools/check-main.sh` on clean
+HEAD 3b0812a (the review's code changes) builds `release`, `debug`
+(ASan, UBSan), `debug-gcc` and `wasm`, and every test passes; its full
+lint was stopped by the owner's change, but `tools/private-build.sh
+--lint` over the same files was clean (clang-tidy, ast-grep, no call
+cycle in 176 files). The dashboard is regenerated at 3b0812a.
+- **Numbers** (release; run-qt4.sh XP40 and XQ40, run-xslt.sh,
+  run-xsd.sh; every test set finished, 0 crashes, no leak reported by the
+  drivers' budgets, 0 "error" outcomes in all four suites), at 02303a7
+  and unchanged at 3b0812a, all 150,228 outcomes case by case: XSD in scope 41,483 of
+  41,518, **99.9 %** (gate 90 %; the 41,538 of D165 became 41,518 with
+  D168's per-element scope); datatypes 30,598 of 30,598, **100 %** (gate
+  95 %), structures 8,600 of 8,626, **99.7 %** (gate 80 %), XSD 1.1
+  2,285 of 2,294, **99.6 %** (gate 70 %). Schema-aware XQ40 1,236 of
+  1,516, **81.5 %** (gate 70 %; XP40's 279 of 315, 88.6 %); schema-aware
+  XT40 627 of 971, **64.6 %** (gate 60 %). XP40 in scope 30,783 of
+  31,543, **97.6 %** (gate 90 %), XQ40 40,315 of 41,174, **97.9 %**
+  (85 %), XT40 8,029 of 8,728, **92.0 %** (70 %), passed counts 30,931,
+  41,273 and 8,650, none lower than at the Phase 4 gate (30,647, 40,034,
+  7,990); the 12 core sets 88.5 % (mode) to 100 %. Slices: qt4/slice
+  198, qt4/xquery-slice 186, xslt/slice 147, xsd slice 147 (ctest, every
+  preset).
+- **Fuzzing**, 300 s per target, eight at once on four cores (fork mode
+  for the evaluating targets): cast_fuzz 1,790,230 runs, regex_fuzz
+  656,221, xml_parse_fuzz 79,380, xpath_compile_fuzz 10,229,
+  xpath_evaluate_fuzz about 8,300, xquery_fuzz about 9,300, xslt_fuzz
+  about 10,500, schema_fuzz about 11,700; no crash, leak or sanitizer
+  report. Timeouts for triage only (P9): one xquery_fuzz and three
+  xslt_fuzz inputs, all suite texts slow by nature under ASan (a FLWOR
+  over 200,001 maps, nested counts to 1,000, match="$nodeset" over
+  1,000 nodes), 8 to 12 s alone. **schema_fuzz**
+  (`tests/fuzz/schema_fuzz.c`, new): the input is a schema document, a
+  zero byte and an instance; the schema is compiled from text with a
+  resolver that serves nothing, and the instance validated strictly while
+  parsed and laxly by `sxml_schema_validate_node`; seeds are the first
+  schema document of each test group of the XSD suite, alone and with
+  each instance of the group (`tools/fuzz-seeds.py`).
+- **The step budgets are fair test limits, not masks.** QT4's 4 x 10^8
+  per evaluation (D178) and XSLT's (D166, judged by D169) apply to the
+  test drivers only, below the library's default of 10^9 (D89).
+  app-Demos itunes is
+  quadratic by its own text: `local:tracks-by-artist` filters all 6,597
+  tracks once per artist, three times per artist (one-hit-wonder,
+  years-by-artist, the title), and each find-key-string scans a track's
+  keys; 287 million steps by D89's accounting, 72 s (release, this
+  machine). Sampled stacks are flat (filters, atomization, general
+  comparisons, the axis iterator), with no schema code among them: the
+  schema-element() tests resolve statically to element tests (D174), so
+  validation costs nothing per step. What it shows is a general
+  evaluator item, a join that a processor with an index on
+  `$seq[f(.) = $key]` would do in linear time, and about 4 million steps
+  a second; listed, not a Phase 5 defect.
+- **No driver reclassifies outcomes**: the QT4 driver's only rule left
+  is D95's, for test cases outside scope that stop at a missing non-goal
+  (never for schema-aware ones, D178); the XSLT driver counts
+  SXML_STATUS_UNSUPPORTED_FEATURE as "fail" and judges an invalid source
+  by the assertions (D180). The XSD driver still made a validation that
+  meets SXML_STATUS_UNSUPPORTED_FEATURE "not run" (D168's rule from
+  before 5.8 and 5.9): now "fail", reason "instance: unsupported
+  feature", as the XSLT driver does. No test reached it (no schema code
+  returns the status), so no number moves.
+- **D71**: no call cycle (tools/check-call-cycles.py). Component graphs
+  (type derivation chains, group and attribute group references,
+  substitution groups, union members, redefine and override chains),
+  content models (the particle tree, nested all groups, the
+  restriction walk) and identity constraint tables are explicit work
+  lists or stacks with a mark per component; schema finalization
+  releases arenas and the compiled XPath units without calling back
+  into the schema, since the processor keeps schemas that queries and
+  stylesheets import (D174's avoided cycle). Through function pointers:
+  the validator and the assertion copy are tree builder filters that
+  pass events on and never call their source; an assertion, type
+  alternative or identity constraint runs the evaluator on a dynamic
+  context of its own, nested once at most, because their static contexts
+  have no in-scope schemas (no `validate`, fn:xsd-validator refuses
+  schemas beyond the in-scope ones) and their resolver serves nothing.
+- **Fixed and merged** (conceptual smallness):
+  - `sxml_xml_text_is_ncname`, `sxml_xml_text_is_whitespace` and
+    `sxml_xml_text_next_token` (`src/xml_internal.h`) replace private
+    copies: NCName checks in seven files (schema reader, cast's QName
+    lexical form with its own copy of the name character table,
+    xslt_read's ASCII approximation, which let any non-ASCII byte
+    through, the XSLT lowering, fn:element-to-map, fn:id and
+    fn:path, format-date's calendars), whitespace-only text in seven
+    (schema reader and validator, deep-equal, serialization, XQuery's
+    boundary whitespace, XSLT output and reading), token splitting in
+    two; schema's `views_equal` (two), `sxml_trim` and `sxml_text_is`
+    are `sxml_byte_view_equals` and `sxml_xml_text_trim_whitespace`; the
+    content model's heapsort of keys is `sxml_sort_in_place`. sxml.wasm
+    1,997,773 bytes (was 1,998,723).
+  - `tests/schema_validate_test.c` has an allocation-failure loop over
+    compilation (with an assertion, a key and a type alternative),
+    validation while parsing and `sxml_schema_validate_node`, with leak
+    checks: the last part of D161's rule schema.h lacked.
+- **Larger duplicates, listed** (one shared mechanism each, later):
+  the reader's own lexical parsers for xs:boolean and
+  xs:nonNegativeInteger next to the cast engine's (and XSLT's yes/no
+  reader); Gregorian day arithmetic in four places (cast_facet.c's
+  reference dateTimes for duration order, format_date.c, processor.c's
+  clock, operator_temporal.c's cycle days, which is XSD Part 2,
+  appendix E too); compile reports that append a subject to their
+  description built in three ways (reader and resolver through
+  xml_buffer, the content model through report_text); bounded text
+  writers for the text forms in four files (ir.c, xslt_ast.c,
+  schema_text.c, schema_content_model.c); three private heapsorts in
+  serialization (serialize.c, serialize_json.c, serialize_xml.c). D169's
+  list stands (typed array allocation, group-adjacent keys, run
+  detectors).
+- **Delayed features (D162)**, one place each: XSLT's schema roles and
+  typed="~ItemType" read nowhere (one unnamed role); is-id of union and
+  list elements (D180); fn:xsd-validator's schema options refused in
+  `call_xsd_validator` with its error. No D162 rejection of Phase 5's
+  features is left in the language layers.
+- **`sxml validate` matches docs/CLI.md**: every example of the page
+  gives its output and exit code; the usage errors (no `--schema`, no
+  FILE, a bad `--mode`, `-` twice) exit 2, a missing SCHEMA or FILE 3, a
+  schema error and a FILE that is not well-formed 1. README is being
+  reorganized and was left alone; its "still provisional" for schema.h
+  is out of date after this record.
+- **schema.h is stable** (D161's rule): consistent with `xpath.h`,
+  `xquery.h` and `xslt.h` (quintets, configuration structs, error
+  records, report sinks), every declaration documented, every function
+  tested through the public API, now with an allocation-failure loop,
+  and `sxml validate` on it alone. From now on it changes as every public
+  header does (D47).
+- **Proposed, resolved here**: the five items whose design was accepted
+  or that need no owner (match="$var" membership, dynamic errors in
+  included modules, package versions for host resolvers, the XSLT
+  functions at run time, globals computed on first read) are accepted
+  as designs for a later sweep and leave Proposed; they are listed in
+  the LOG. Left for the owner: the WebAssembly budgets (four items;
+  `sxml.wasm` is 1,997,773 of 2,000,000 bytes stripped and 695,343 of
+  700,000 gzipped, the CLI 4,950,289 of 5,500,000 and 1,154,545 of
+  1,250,000) and XQuery's omit-xml-declaration default.
+- **Not done** (listed in the LOG): is-id of union and list elements;
+  XSLT's ID/IDREF checks for elements as well as documents, schema roles,
+  xs:untypedAtomic as a type, xml:lang declarations (D179); the XSD
+  failures D178 lists (XSD 1.0 rules XSD 1.1 changed, NOTATION union
+  members, XML 1.1 instances, Element Declarations Consistent with
+  wildcards).
+
 ## Proposed
 
 - **The CLI's WebAssembly budget after sxml validate** (packet 5.10,
@@ -7072,31 +7218,10 @@ that. Amends the done-when of the packet procedure (D123's local checks).
   compilation and validation makes the stripped `sxml` CLI module
   4,877,565 bytes (1,126,567 gzipped), over 4.15's 1,100,000 gzipped;
   5.10 set the ctest budget to 5,500,000 / 1,250,000, leaving room for
-  5.8 and 5.9. `sxml.wasm` is unchanged (1,916,341 / 663,954). Choose:
+  5.8 and 5.9. `sxml.wasm` was unchanged then (1,916,341 / 663,954). At
+  the Phase 5 review (D181) the CLI is 4,950,289 / 1,154,545 and
+  `sxml.wasm` 1,997,773 / 695,343 of 2,000,000 / 700,000. Choose:
   confirm, or split the optional front ends into modules.
-
-- **Membership of a pattern rooted at a variable** (packet 4.18, D169;
-  for a later sweep): match="$nodes" (XSLT 4.0, 6.3.1) scans the
-  variable's value for each node tested, so N nodes tested against M is
-  N x M (1,000 against 2,000: 0.6 s, 4,000: 9.4 s, release). Proposed: a
-  global value used this way keeps an index of its nodes by document
-  order (tree, then position), built once per transformation, and the
-  membership task searches it.
-
-- **Dynamic errors in included modules** (packet 4.18, D169): the
-  location names the principal module with the included module's line,
-  as XSLT templates and functions carry no IR module number and the
-  static contexts' IR modules have no source name. Proposed: each IR
-  module of a static context takes its stylesheet module's URI, and the
-  evaluator locates an error by the module of the expression's static
-  context.
-
-- **Matching package versions for host resolvers** (packet 4.16, D160;
-  accepted by D169 as an addition to the now stable xslt.h, not done yet): a resolver that serves
-  XSLT_PACKAGE must pick a version the range matches (XSLT 4.0, 3.4.1);
-  sxml has the function internally (`sxml_xslt_package_version_matches`)
-  and the test driver keeps a copy. Proposed: export it from xslt.h, with
-  the order of two versions, so hosts and the driver share one.
 
 - **The CLI's WebAssembly budget after sxml transform** (packet 4.15,
   D157; for the owner, with the budget items below): linking XSLT (its
@@ -7105,20 +7230,6 @@ that. Amends the done-when of the packet procedure (D123's local checks).
   its ctest budget to 5,000,000 / 1,100,000. `sxml.wasm` is unchanged
   (no XSLT in the JavaScript package yet). Choose: confirm, or split the
   XSLT front ends into an optional module.
-
-- **The XSLT functions at run time** (packet 4.10, D149; EQNames given
-  as strings done by D163; design accepted by D169, for a later sweep):
-  still open, the unit's stylesheet functions,
-  fn:key and the accumulator functions in the run-time function table
-  (fn:function-lookup of an xsl:function, of fn:key#2).
-
-- **Globals computed on first read** (packet 4.17, D166; design accepted
-  by D169, for a later sweep): XSLT 4.0, 3.4.5.2 raises XTDE3052 only when an
-  invocation of an abstract variable is evaluated, but every global is
-  computed before the evaluation, so a global that reads one raises too
-  (accept-042, -043a). Proposed: a global read while ABSENT is computed
-  then; it needs the machine to finish such reads before a step reads its
-  atoms (D71: no nested run).
 
 - **XQuery's default for omit-xml-declaration** (packet 3.12, D146; for
   the owner of `include/sxml/xquery.h`): the header gives every

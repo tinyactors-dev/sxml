@@ -4,6 +4,25 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 5.14 done (D181): the Phase 5 review. The gate boxes that need full
+  runs or fuzzing are deferred to the owner's machine (owner's change);
+  the review's own runs, at 02303a7 and again at 3b0812a: XSD in scope 41,483 of 41,518
+  (99.9 %; datatypes 100 %, structures 99.7 %, XSD 1.1 99.6 %),
+  schema-aware XQ40 1,236 of 1,516 (81.5 %), schema-aware XT40 627 of
+  971 (64.6 %), XP40 97.6 %, XQ40 97.9 %, XT40 92.0 % (core sets 88.5 %
+  or more); 0 errors and 0 crashes in all four suites; slices 198, 186,
+  147, 147. Eight fuzz targets 300 s each, with the new schema_fuzz
+  (schema and instance, seeded from the XSD suite): no crash or leak;
+  four timeouts, all suite inputs slow by nature under ASan. The step
+  budgets are fair (itunes is quadratic by its text, no schema hot spot).
+  Fixed: the XSD driver counted an unsupported feature as "not run".
+  Merged: one NCName check, one whitespace-only test, one token splitter
+  (fifteen files), the schema code's copies of view equality, trimming
+  and heapsort. schema.h has an allocation-failure loop and is stable.
+  Five accepted Proposed designs moved to the open questions below.
+  README was left alone (being reorganized): its "schema.h, still
+  provisional" line is out of date.
+
 - 5.13 sweep 2 done (D180): XT40 has 0 errors (was 6). The schema for
   schema documents compiles beside the built-in types (a restated
   built-in type is the built-in component), and the stand-in xml.xsd is
@@ -1779,3 +1798,45 @@ For the owner. Every gate box is ticked (D169).
 5. **CI** (D123): still local only; macOS, Windows and MSVC have not been
    built since the Phase 0 gate (the CLI's new working-directory read is
    `_getcwd` there, untested).
+
+## Open questions at the Phase 5 gate (packet 5.14)
+
+For the owner. Four gate boxes wait for the full runs and fuzzing on the
+owner's machine (D181); the review's runs met every number, and schema
+validation works.
+
+0. **Confirming runs** (D181): on the owner's machine, `tools/check-main.sh`
+   (with the full lint, cut off here), the four suites (`tools/run-qt4.sh`
+   XP40 and XQ40, `run-xslt.sh`, `run-xsd.sh`, then
+   `tools/conformance-report.py`) and `tools/fuzz.sh --seconds 300`,
+   which now includes schema_fuzz; then tick the four boxes.
+
+1. **0.2.0 and Phases 3 to 5.** 0.2.0 is still untagged; `CHANGELOG.md`
+   lists XQuery, XSLT and XSD under "Unreleased". Tag 0.2.0 at the
+   Phase 2 commit, or fold them into one release.
+2. **WebAssembly budgets** (Proposed, four items): `sxml.wasm` is
+   1,997,773 bytes stripped and 695,343 gzipped against 2,000,000 /
+   700,000 (0.1 % and 0.7 % left: the next feature in the JavaScript
+   package breaks it); the CLI with XSD is 4,950,289 / 1,154,545 against
+   D176's 5,500,000 / 1,250,000. `compileQuery()`, XSLT and schemas are
+   still not in the JavaScript package. Confirm the budgets, or ask for
+   optional modules.
+3. **XQuery's omit-xml-declaration default** (Proposed, D146): no (write
+   the declaration, as QT4 expects) or keep yes.
+4. **Accepted designs for later sweeps** (D169, D181; out of Proposed):
+   match="$var" membership by a node index; IR modules that carry their
+   stylesheet module's URI, for errors in included modules; exporting
+   the package-version match from xslt.h; the XSLT functions in the
+   run-time function table; globals computed on first read (XTDE3052).
+5. **Not done in Phase 5** (D178 to D181): is-id of union and list
+   elements; XSLT's ID/IDREF for elements, schema roles, typed modes'
+   schema-element() names, xs:untypedAtomic as a type, xml:lang
+   declarations; the remaining XSD failures (XSD 1.0 rules 1.1 changed,
+   NOTATION union members, XML 1.1 instances, EDC with wildcards).
+6. **Performance** (D181): about 4 million evaluation steps a second
+   (release) and no index for `$seq[f(.) = $key]`; QT4's itunes takes
+   72 s. A general evaluator item, not a schema one.
+7. **Phase 6 and 7 plans** (D162): no `docs/tasks/phase-6.md` or
+   `phase-7.md` yet; the next phase is the owner's choice.
+8. **CI** (D123): still local only; macOS, Windows and MSVC unbuilt.
+

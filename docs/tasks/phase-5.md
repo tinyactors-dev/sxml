@@ -443,6 +443,14 @@ accepted. XT40 8,650 (0 errors), XP40 30,931, XQ40 41,273, XSD 41,483.
 ### 5.14 Phase 5 review (review)
 After everything. Owns the gate boxes. A separate agent (D11) runs the
 rubric and re-checks each "done when"; open items go under "Proposed".
+**Done** 2026-10-19 (D181), except the confirming full runs and
+fuzzing, deferred to the owner's machine: numbers at 02303a7 and
+3b0812a, a new schema fuzz target, both step budgets judged fair, no
+driver reclassifies (the XSD driver's "not run" for an unsupported
+feature fixed), D71 through component graphs and function pointers,
+NCName, whitespace and token helpers merged (fifteen files), an
+allocation-failure loop for schema.h, `schema.h` stable, five accepted
+designs out of Proposed.
 
 ## `sxml validate` (design for 5.10; docs/CLI.md gets it when it works)
 
@@ -501,12 +509,23 @@ $ sxml validate --schema=po.xsd --format=json po.xml
   datatype groups (NIST, MS-DataTypes, MS-Regex: about 30,600) ≥ 95%; the
   structure groups (the other MS, Sun, Boeing, WG and Oracle sets: about
   8,600) ≥ 80%; the XSD 1.1 groups (Saxonica, IBM: 2,295) ≥ 70%.
+  (deferred to the owner's machine (D181); measured by the review at
+  02303a7 and 3b0812a: 41,483 of 41,518 in scope, 99.9 %; datatypes
+  100 %, structures 99.7 %, XSD 1.1 99.6 %)
 - [ ] Schema-aware QT4 cases (features schemaImport, schemaValidation,
   typedData: about 1,100 XQ40) ≥ 70%; schema-aware XSLT 4.0 cases (about
-  690) ≥ 60%.
+  690) ≥ 60%. (deferred to the owner's machine (D181); measured: XQ40
+  1,236 of 1,516, 81.5 %; XT40 627 of 971, 64.6 %)
 - [ ] XP40 ≥ 90%, XQ40 ≥ 85%, XT40 ≥ 70% still, none of their counts
-  dropped; all ctest slices at their baselines.
+  dropped; all ctest slices at their baselines. (deferred to the owner's
+  machine (D181); measured: 97.6 %, 97.9 %, 92.0 %, core sets 88.5 % or
+  more, passed 30,931, 41,273, 8,650; slices 198, 186, 147, 147 under
+  every preset at 3b0812a)
 - [ ] No in-scope test crashes, leaks or ends in an "error" outcome.
-- [ ] `sxml validate` matches docs/CLI.md.
-- [ ] Review agent pass (D11), findings fixed; the owner is told schema
-  validation works (D11 goal).
+  (deferred to the owner's machine (D181), with the fuzzing; measured:
+  every test set of the four suites finished, 0 errors)
+- [x] `sxml validate` matches docs/CLI.md. (agent review, D181)
+- [x] Review agent pass (D11), findings fixed; the owner is told schema
+  validation works (D11 goal). (agent review, D181; the confirming full
+  runs and fuzzing are the owner's, the larger follow-ups are listed in
+  D181 and the LOG)

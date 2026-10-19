@@ -9,11 +9,34 @@ release are in `docs/RELEASE.md`.
 
 ## [Unreleased]
 
-XQuery 4.0 (Phase 3, D161) and XSLT 4.0 (Phase 4, D169). The owner
-decides whether this goes into 0.2.0, which is not tagged yet, or into
-the next minor release.
+XQuery 4.0 (Phase 3, D161), XSLT 4.0 (Phase 4, D169) and XSD 1.1 with
+schema awareness (Phase 5, D181). The owner decides whether this goes
+into 0.2.0, which is not tagged yet, or into the next minor release.
 
 ### Added
+
+- **XSD 1.1 validation** (`schema.h`, D165): schemas compiled once from
+  schema documents given as text, as parsed nodes or through the
+  resolver, with every document they include, import, redefine or
+  override; every XSD 1.0 structure and the XSD 1.1 additions (open
+  content, conditional inclusion, assertions, type alternatives,
+  override, inheritable attributes), identity constraints, all built-in
+  datatypes and facets. The validator is a tree builder filter: the
+  parser feeds it while parsing, or `sxml_schema_validate_node`
+  validates an existing node into a typed copy. Errors carry the XSD
+  constraint name and a description of what failed; a report sink gets
+  all of them (D170 to D178).
+- **Schema awareness** (D174, D179): in-scope schemas for XPath through
+  the static context; XQuery's `import schema` and `validate`; XSLT's
+  `xsl:import-schema`, validation and type attributes,
+  default-validation, input-type-annotations and typed modes;
+  schema-element() and schema-attribute() tests, casts and constructor
+  functions for schema types, fn:xsd-validator, and the xsd-validation
+  option of fn:parse-xml and fn:document.
+- **`sxml validate`** checks documents against a schema, with
+  `--mode=lax` and `--format=json` (`docs/CLI.md`, D176).
+- XSD conformance (`docs/CONFORMANCE.md`): the W3C XSD test suite in
+  scope 99.9 %; schema-aware XQ40 81.5 %, schema-aware XT40 64.6 %.
 
 - **XSLT 4.0** (`xslt.h`): stylesheets compiled once from text or
   through the resolver, with their included and imported modules, used
@@ -62,6 +85,11 @@ the next minor release.
   still the owner's choice (D146) and may change with a record.
 - `xslt.h` is no longer provisional (D169): it changes only as the other
   public headers do.
+- `schema.h` is no longer provisional (D181): it changes only as the
+  other public headers do.
+- XSLT's xsl:import-schema and validation attributes are supported now
+  (they raised XTSE1650 and XTSE1660, D162), and fn:system-properties
+  says schema-aware.
 
 ## [0.2.0] - unreleased
 
