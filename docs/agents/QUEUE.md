@@ -21,6 +21,7 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 
 ## Running
 
+- perf-3: XML parsing speed.
 - 7.6e streaming: accumulators, fork/merge, streamed result delivery, incremental resolver.
 - size-2: part registries split by language (core has about 7 KB gzipped room).
 
@@ -93,10 +94,12 @@ serialization.
 
 Performance (perf-1, D224): benchmark set in tests/bench; itunes 80.6 s ->
 3.4 s, XMark-All 6.73 -> 1.52 s; filter indexes for =/eq/is joins (also
-match="$var"); one-pass axis walks; loop-invariant hoisting. Left
-(perf-2): numeric index keys, hoisting of path MAPs/quantifiers/sorts,
-reference-count churn and small-sequence allocation; XMark's profile is
-led by describe_node (15 %), the machine loop (12 %) and atomization.
+match="$var"); one-pass axis walks; loop-invariant hoisting. perf-2 (D229):
+XMark-All 1.55 -> 1.20 s, match="$var" 1.02 -> 0.45 s, numeric joins 2x;
+fast number casts, leaves computed in place, inline small lists, numeric
+index keys, quantifier hoisting. Left: XML parsing is a quarter of
+XMark-All (perf-3); casts cost about 1,100 instructions; hoisting of path
+MAPs and sort keys; the task struct copied on each push.
 
 Platform and tooling:
 - macOS, Windows and MSVC have never been built; `_getcwd` is untested.
