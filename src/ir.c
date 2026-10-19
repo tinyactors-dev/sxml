@@ -2724,6 +2724,19 @@ static sxml_status print_expression(text_writer *writer, print_stack *stack,
         if ((stream->flags & (uint32_t)SXML_IR_STREAM_SHALLOW_WINDOWS) != 0) {
             write_text(writer, " shallow");
         }
+        if (stream->accumulators.initial.value != 0) {
+            /* " accumulators function:I function:S function:E function:D"
+               (D230). */
+            const sxml_ir_function_index functions[] = {
+                stream->accumulators.initial, stream->accumulators.start,
+                stream->accumulators.end, stream->accumulators.descend};
+            write_text(writer, " accumulators");
+            for (size_t function_index = 0;
+                 function_index < sizeof(functions) / sizeof(functions[0]); function_index += 1) {
+                write_text(writer, " function:");
+                write_unsigned(writer, functions[function_index].value);
+            }
+        }
         status = push_nested_operand(
             stack, (nested_operand){.expression = stream->body, .indent = indent});
         if (status == SXML_STATUS_OK && stream->predicate.value != 0) {

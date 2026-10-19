@@ -627,8 +627,9 @@ typedef struct sxml_xslt_transformation_request {
        one (kind SXML_RESOURCE_KIND_XML_DOCUMENT; its BYTES form is what
        can be streamed), stripped as every source document is (4.2.2).
        When the initial mode is streamable and every template rule of it
-       is guaranteed-streamable, and no expression reads an accumulator
-       (sxml_xslt_stylesheet_streams_source), its nodes are read as the
+       is guaranteed-streamable, and the accumulators expressions read can
+       be computed as the document streams (D230;
+       sxml_xslt_stylesheet_streams_source), its nodes are read as the
        parser delivers them, without building the document (XSLT 4.0,
        2.4.3 and 18; the streaming specification); otherwise the whole
        document is built first, with the same results. The global context
@@ -714,7 +715,9 @@ SXML_NODISCARD SXML_EXPORT sxml_status sxml_xslt_stylesheet_transform(
  * (initial_mode_name, selects_unnamed_mode, else the default mode) is
  * declared streamable="yes" with every template rule guaranteed-
  * streamable (XSLT 4.0, 19.10), in a stylesheet whose expressions read no
- * accumulator. Only the invocation fields of request are read; false for
+ * accumulator that streaming cannot compute (an end rule with
+ * capture="yes" of one declared streamable, D230). Only the invocation
+ * fields of request are read; false for
  * the other invocation kinds. A host can so pass a large source as a URI
  * when it streams and as a tree, also the global context item, when it
  * does not. Returns SXML_STATUS_INVALID_ARGUMENT for a NULL argument and

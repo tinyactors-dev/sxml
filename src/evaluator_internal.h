@@ -476,6 +476,44 @@ bool sxml_dynamic_context_find_memo(const sxml_dynamic_context *dynamic_context,
 SXML_NODISCARD sxml_status sxml_dynamic_context_store_memo(
     sxml_dynamic_context *dynamic_context, const sxml_evaluation_memo_entry *entry);
 
+/*
+ * The accumulator values of a node of a streamed document (XSLT 4.0,
+ * 18.2.9; D230), for the row accumulator-streamed: the streamed documents
+ * of the running STREAM tasks whose accumulators are computed as their
+ * events pass hold the values of the nodes their windows hold now. Values
+ * are maps from accumulator numbers (from 1) to values, borrowed until
+ * the task stack changes.
+ */
+typedef struct sxml_streamed_accumulator_values {
+    /* False for a node no such document holds; the rest is then unset. */
+    bool is_streamed;
+    /* The values after the node's start event and after its end event;
+       no item while that event has not been read, or for descended. */
+    sxml_item before;
+    sxml_item after;
+    /* For a node of a window that holds a subtree: the map from numbers to
+       {"b": map, "a": map} of the values before and after its nodes, by
+       fn:generate-id (src/xslt_accumulator.c, descend-K); else no item. */
+    sxml_item descended;
+    /* The error of the accumulator rule that failed in the document, which
+       a value it left out raises when read (XSLT 4.0, 19.5); NULL when
+       none failed. */
+    const sxml_error_raise_request *failure;
+    /* The document's values now: a map whose keys are the numbers of the
+       accumulators applicable to it (19.2). */
+    sxml_item applicable;
+    /* While the document computes the node's values, accumulator by
+       accumulator: set to true to have the one computing wait until the
+       others are done, when its rule reads a value not computed yet; NULL
+       otherwise. */
+    bool *waiting;
+} sxml_streamed_accumulator_values;
+
+/* Writes the values of node to *values. Defined in
+   src/evaluator_stream.c; never fails but on an invalid argument. */
+SXML_NODISCARD sxml_status sxml_evaluator_stream_find_accumulator_values(
+    sxml_dynamic_context *dynamic_context, sxml_item node, sxml_streamed_accumulator_values *values);
+
 /* SXML_STATUS_OK when the running unit may access external resources;
    else FODC0016 in error_record (F&O 4.0, 18.2: the functions of a module
    fn:load-xquery-module loaded without trust are untrusted). */

@@ -18,8 +18,9 @@
  * (key values as map keys). src/xslt_key.c lowers fn:key from XPath texts
  * that call them. The rows behind the accumulator functions
  * (sxml_xslt_accumulator_functions, packet 4.14, D155): accumulator-name,
- * accumulator-scope, accumulator-values, accumulator-link and
- * accumulator-original, for src/xslt_accumulator.c.
+ * accumulator-scope, accumulator-values, accumulator-link,
+ * accumulator-original and accumulator-streamed (D230), for
+ * src/xslt_accumulator.c.
  *
  * Golden file: src/function_library_format.c (rows of one part, bodies
  * reading their arguments through function_library_core_internal.h);
@@ -1905,6 +1906,211 @@ static sxml_status call_accumulator_original(const sxml_function_call *call,
     return SXML_STATUS_OK;
 }
 
+/* --------------------------------------- Accumulators of streamed nodes */
+
+static const sxml_static_error accumulator_end_unread_error = {
+    .error_status = SXML_STATUS_DYNAMIC_ERROR,
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XTSE3430"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(
+        "fn:accumulator-after is evaluated for a streamed node whose end has not been read: "
+        "the construct is not guaranteed-streamable (XSLT 4.0, 19.8.9.1)"),
+};
+
+/* The entry of map under key (borrowed); found false when there is none or
+   map is no map. */
+typedef struct entry_lookup {
+    sxml_item map;
+    sxml_item key;
+} entry_lookup;
+
+static sxml_status find_entry(entry_lookup lookup, sxml_map_lookup *found) {
+    found->is_found = false;
+    if (lookup.map.representation == 0 || sxml_item_get_kind(lookup.map) != SXML_ITEM_KIND_MAP) {
+        return SXML_STATUS_OK;
+    }
+    return sxml_map_find(lookup.map, lookup.key, found);
+}
+
+/* The map that is the single item of value, or no item. */
+static sxml_item single_map(sxml_sequence value) {
+    sxml_item item = {.representation = 0};
+    if (sxml_sequence_get_representation(value) == SXML_SEQUENCE_REPRESENTATION_SINGLE_ITEM &&
+        sxml_item_get_kind(value.content) == SXML_ITEM_KIND_MAP) {
+        item = value.content;
+    }
+    return item;
+}
+
+/* Raises what a value of number the node's maps leave out raises: XTDE3362
+   when the accumulator is not applicable to the streamed document (19.2);
+   the error of the rule that failed to compute it (19.5); else, while the
+   document computes the node's values, XTDE3400 after asking for the
+   accumulator to be computed after the others (it then runs again), and
+   XTDE3400 when it is computed last and still reads itself (19.6). */
+typedef struct missing_value {
+    const sxml_function_call *call;
+    const sxml_streamed_accumulator_values *values;
+    sxml_item number;
+} missing_value;
+
+static sxml_status raise_missing_value(missing_value missing) {
+    const sxml_function_call *call = missing.call;
+    sxml_map_lookup applicable = {.is_found = false};
+    sxml_status status = find_entry(
+        (entry_lookup){.map = missing.values->applicable, .key = missing.number}, &applicable);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (!applicable.is_found && missing.values->applicable.representation != 0) {
+        return sxml_function_library_report(call, &accumulator_applicability_error);
+    }
+    if (missing.values->waiting != NULL) {
+        *missing.values->waiting = true;
+        return sxml_function_library_report(call, &accumulator_cycle_error);
+    }
+    if (missing.values->failure != NULL) {
+        return sxml_item_heap_raise_error(call->item_heap, missing.values->failure,
+                                          call->error_record);
+    }
+    return sxml_function_library_report(call, &accumulator_cycle_error);
+}
+
+/* The value of accumulator number for a node of a full stream window: in
+   descended, the map from numbers to {"b": map, "a": map} by
+   fn:generate-id (src/xslt_accumulator.c, descend-K). */
+typedef struct descended_query {
+    const sxml_function_call *call;
+    const sxml_streamed_accumulator_values *values;
+    sxml_item number;
+    bool is_after;
+} descended_query;
+
+static sxml_status find_descended_value(descended_query query, sxml_sequence *value) {
+    *value = sxml_sequence_empty();
+    sxml_map_lookup found = {.is_found = false};
+    sxml_status status = find_entry(
+        (entry_lookup){.map = query.values->descended, .key = query.number}, &found);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (!found.is_found) {
+        return raise_missing_value(
+            (missing_value){.call = query.call, .values = query.values, .number = query.number});
+    }
+    sxml_sequence phase_key = sxml_sequence_empty();
+    status = sxml_function_library_make_string(query.call->item_heap,
+                                               query.is_after ? SXML_BYTE_VIEW_FROM_LITERAL("a")
+                                                              : SXML_BYTE_VIEW_FROM_LITERAL("b"),
+                                               &phase_key);
+    sxml_map_lookup phase = {.is_found = false};
+    if (status == SXML_STATUS_OK) {
+        status = find_entry(
+            (entry_lookup){.map = single_map(found.entry.value), .key = phase_key.content},
+            &phase);
+    }
+    sxml_sequence_release(phase_key);
+    sxml_map_lookup node = {.is_found = false};
+    if (status == SXML_STATUS_OK && phase.is_found) {
+        status = find_entry(
+            (entry_lookup){.map = single_map(phase.entry.value),
+                           .key = sxml_function_library_get_argument(query.call, 2).content},
+            &node);
+    }
+    if (status == SXML_STATUS_OK && node.is_found) {
+        *value = node.entry.value;
+    }
+    return status;
+}
+
+/* Whether the call of accumulator-streamed asks for the value after the
+   node ($after). */
+static bool is_after_requested(const sxml_function_call *call) {
+    sxml_atomic_datum datum;
+    memset(&datum, 0, sizeof(datum));
+    return sxml_atomic_item_get_datum(sxml_function_library_get_argument(call, 3).content,
+                                      &datum) == SXML_STATUS_OK &&
+           datum.datum_kind == SXML_DATUM_KIND_BOOLEAN && datum.datum_details.boolean;
+}
+
+/* accumulator-streamed($number, $node, $id, $after): for a node of a
+   streamed document whose accumulators are computed as its events pass
+   (D230), {"v": the value of accumulator $number before or after the node},
+   $id being the node's fn:generate-id; the empty sequence for any other
+   node, whose values accumulator-values builds. */
+static sxml_status call_accumulator_streamed(const sxml_function_call *call,
+                                             sxml_sequence *result) {
+    if (call->dynamic_context == NULL) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    sxml_streamed_accumulator_values values;
+    sxml_status status = sxml_evaluator_stream_find_accumulator_values(
+        call->dynamic_context, sxml_function_library_get_argument(call, 1).content, &values);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (!values.is_streamed) {
+        *result = sxml_sequence_empty();
+        return SXML_STATUS_OK;
+    }
+    const bool is_after = is_after_requested(call);
+    const sxml_item number = sxml_function_library_get_argument(call, 0).content;
+    sxml_sequence value = sxml_sequence_empty();
+    if (values.descended.representation != 0) {
+        status = find_descended_value(
+            (descended_query){
+                .call = call, .values = &values, .number = number, .is_after = is_after},
+            &value);
+    } else {
+        const sxml_item phase_values = is_after ? values.after : values.before;
+        if (phase_values.representation == 0 && is_after && values.waiting == NULL &&
+            values.failure == NULL) {
+            return sxml_function_library_report(call, &accumulator_end_unread_error);
+        }
+        sxml_map_lookup found = {.is_found = false};
+        status = find_entry((entry_lookup){.map = phase_values, .key = number}, &found);
+        if (status == SXML_STATUS_OK && !found.is_found) {
+            return raise_missing_value(
+                (missing_value){.call = call, .values = &values, .number = number});
+        }
+        value = found.entry.value;
+    }
+    sxml_sequence value_key = sxml_sequence_empty();
+    if (status == SXML_STATUS_OK) {
+        status = sxml_function_library_make_string(call->item_heap, SXML_BYTE_VIEW_FROM_LITERAL("v"),
+                                                   &value_key);
+    }
+    sxml_item map = {.representation = 0};
+    if (status == SXML_STATUS_OK) {
+        const sxml_map_entry entry = {.key = value_key.content, .value = value};
+        status = sxml_map_make(
+            call->item_heap,
+            &(sxml_map_request){.map_entries = {.map_entries = &entry, .map_entry_count = 1},
+                                .duplicate_key_policy = SXML_DUPLICATE_KEY_POLICY_REJECT,
+                                .error_record = NULL},
+            &map);
+    }
+    sxml_sequence_release(value_key);
+    if (status == SXML_STATUS_OK) {
+        *result = sxml_sequence_from_item(map);
+    }
+    return status;
+}
+
+static const sxml_function_parameter accumulator_streamed_parameters[] = {
+    {.parameter_name = SXML_BYTE_VIEW_INITIALIZER("number"),
+     .parameter_type = SXML_BYTE_VIEW_INITIALIZER("xs:integer"),
+     .parameter_default = SXML_PARAMETER_DEFAULT_REQUIRED},
+    {.parameter_name = SXML_BYTE_VIEW_INITIALIZER("node"),
+     .parameter_type = SXML_BYTE_VIEW_INITIALIZER("node()"),
+     .parameter_default = SXML_PARAMETER_DEFAULT_REQUIRED},
+    {.parameter_name = SXML_BYTE_VIEW_INITIALIZER("id"),
+     .parameter_type = SXML_BYTE_VIEW_INITIALIZER("xs:string"),
+     .parameter_default = SXML_PARAMETER_DEFAULT_REQUIRED},
+    {.parameter_name = SXML_BYTE_VIEW_INITIALIZER("after"),
+     .parameter_type = SXML_BYTE_VIEW_INITIALIZER("xs:boolean"),
+     .parameter_default = SXML_PARAMETER_DEFAULT_REQUIRED},
+};
+
 static const sxml_function_parameter accumulator_link_parameters[] = {
     {.parameter_name = SXML_BYTE_VIEW_INITIALIZER("copies"),
      .parameter_type = SXML_BYTE_VIEW_INITIALIZER("item()*"),
@@ -1985,6 +2191,13 @@ static const sxml_native_function accumulator_functions[] = {
      .parameters = {accumulator_original_parameters, 1},
      .result_type = SXML_BYTE_VIEW_INITIALIZER("node()?"),
      .call = call_accumulator_original,
+     .resumable_body = NULL},
+    {.function_namespace = SXML_NAMESPACE_NONE,
+     .properties = SXML_NATIVE_FUNCTION_USES_DYNAMIC_CONTEXT,
+     .local_name = SXML_BYTE_VIEW_INITIALIZER("accumulator-streamed"),
+     .parameters = {accumulator_streamed_parameters, 4},
+     .result_type = SXML_BYTE_VIEW_INITIALIZER("map(*)?"),
+     .call = call_accumulator_streamed,
      .resumable_body = NULL},
 };
 

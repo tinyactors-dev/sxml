@@ -1248,12 +1248,21 @@ sxml_status sxml_xslt_stylesheet_streams_source(const sxml_xslt_stylesheet *styl
         return SXML_STATUS_INVALID_ARGUMENT;
     }
     *streams = false;
-    if (request->invocation_kind != SXML_XSLT_INVOCATION_KIND_APPLY_TEMPLATES ||
-        sxml_xslt_reads_accumulators(stylesheet->ast)) {
+    if (request->invocation_kind != SXML_XSLT_INVOCATION_KIND_APPLY_TEMPLATES) {
         return SXML_STATUS_OK;
     }
     /* The initial mode as the lowering picks it (2.4.3), by name. */
     sxml_processor *processor = stylesheet->processor;
+    bool reads_accumulators = false;
+    const sxml_status status = sxml_xslt_reads_accumulators(
+        &(sxml_xslt_accumulator_reading){
+            .ast = stylesheet->ast,
+            .allocator = processor->allocator,
+            .name_pool = sxml_item_heap_get_name_pool(processor->item_heap)},
+        &reads_accumulators);
+    if (status != SXML_STATUS_OK || reads_accumulators) {
+        return status;
+    }
     return sxml_xslt_assess_mode(
         &(sxml_xslt_mode_query){
             .ast = stylesheet->ast,

@@ -111,6 +111,10 @@ typedef struct sxml_xslt_sweep_query {
        19.4) is reported as consuming: what consumes its value reads them
        (the content of a literal result element absorbs them). */
     bool requires_grounded;
+    /* The construct is an instruction of a sequence constructor after a
+       consuming one (19.8.9.1 rule 8: fn:accumulator-after of the context
+       item is then motionless; D230). */
+    bool follows_consuming;
 } sxml_xslt_sweep_query;
 
 /* Writes the sweep of query's construct, with the context item striding,
@@ -148,6 +152,23 @@ typedef struct sxml_xslt_mode_query {
    allocator's failures. */
 SXML_NODISCARD sxml_status sxml_xslt_assess_mode(const sxml_xslt_mode_query *query,
                                                 bool *is_guaranteed);
+
+/* The xsl:accumulator declarations of an AST declared streamable, for
+   streamed evaluation (D230): their rules run in shallow stream windows,
+   so each must be guaranteed-streamable (18.2.9), none uncertain. */
+typedef struct sxml_xslt_accumulator_query {
+    /* A sealed AST, borrowed for the call. */
+    const sxml_xslt_ast *ast;
+    sxml_allocator allocator;
+    const sxml_name_pool *name_pool;
+} sxml_xslt_accumulator_query;
+
+/* Writes true to *is_guaranteed when every xsl:accumulator of query's AST
+   declared streamable="yes" is guaranteed-streamable. Returns
+   SXML_STATUS_INVALID_ARGUMENT for a missing or unsealed AST and the
+   allocator's failures. */
+SXML_NODISCARD sxml_status sxml_xslt_assess_accumulators(const sxml_xslt_accumulator_query *query,
+                                                        bool *is_guaranteed);
 
 /* A template rule and an xsl:apply-templates of one AST. */
 typedef struct sxml_xslt_mode_pair {

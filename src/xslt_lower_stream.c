@@ -53,9 +53,9 @@
  * xsl:source-document becomes STREAM with OPENS_DOCUMENT over its href.
  * Everything else is lowered as before, unstreamed: an xsl:source-document
  * whose body has another shape reads the whole document (fn:doc), which
- * gives the same results (19.10). Not streamed yet: accumulators that
- * apply to the document or are read anywhere (one declared and unused is
- * no obstacle), validation and type on xsl:source-document, xsl:fork,
+ * gives the same results (19.10). Not streamed yet: accumulators whose
+ * end rules capture (19.9) when any is read (other accumulators are
+ * computed as the document's events pass, D230), validation and type on xsl:source-document, xsl:fork,
  * xsl:merge, a streamed principal source, and bodies that
  * read fn:has-children, fn:path or fn:last (motionless by 19.8.9, but
  * they need what a window lacks).
@@ -81,6 +81,9 @@
 /* The most steps of a streamed path. */
 #define STREAM_MAXIMUM_STEP_COUNT 16U
 
+/* The most prongs of a streamed xsl:fork (D230). */
+#define STREAM_MAXIMUM_PRONG_COUNT 32U
+
 static const sxml_ast_node_index no_ast_node = {.value = 0};
 
 /* -------------------------------------------------------------- Plans */
@@ -96,6 +99,10 @@ typedef enum stream_point_kind {
        expression of an instruction, lowered in place through a lowering
        override (src/xpath_lower_internal.h). */
     SXML_STREAM_POINT_PATH,
+    /* A prong of an xsl:fork whose focus is the document node of a
+       streamed xsl:source-document (glossary `streamed_prong`, D230): an
+       xsl:sequence streamed in a pass of its own over the document. */
+    SXML_STREAM_POINT_PRONG,
 } stream_point_kind;
 
 /* What a streamed path gives for each node it selects (its grounding,
@@ -148,6 +155,11 @@ typedef struct stream_body {
     /* Its focus is a document node (the document of xsl:source-document,
        a template rule matching "/"); an element otherwise. */
     bool is_document_focus;
+    /* The body is node itself, not its sequence constructor (a prong). */
+    bool is_instruction;
+    /* The document can be read again for an xsl:fork's prongs: the
+       document of xsl:source-document, whose href the lowering has. */
+    bool allows_passes;
 } stream_body;
 
 struct sxml_xslt_stream_plan {
@@ -159,6 +171,9 @@ struct sxml_xslt_stream_plan {
     sxml_xpath_lowering_override *overrides;
     size_t override_count;
     size_t override_capacity;
+    /* The href of the streamed xsl:source-document being lowered, for the
+       passes of its prongs (D230). */
+    sxml_ir_atom document_href;
 };
 
 sxml_status sxml_xslt_create_stream_plan(sxml_allocator allocator, sxml_xslt_stream_plan **plan) {
@@ -178,7 +193,8 @@ sxml_status sxml_xslt_create_stream_plan(sxml_allocator allocator, sxml_xslt_str
                                         .point_capacity = 0,
                                         .overrides = NULL,
                                         .override_count = 0,
-                                        .override_capacity = 0};
+                                        .override_capacity = 0,
+                                        .document_href = {.atom_kind = SXML_IR_ATOM_KIND_NONE}};
     *plan = new_plan;
     return SXML_STATUS_OK;
 }
@@ -500,6 +516,10 @@ typedef struct sweep_question {
     bool is_document_focus;
     /* False for a predicate, whose streamed nodes are only tested. */
     bool requires_grounded;
+    /* The instruction comes after the stream point of its body, which
+       has read the node's content (19.8.9.1: fn:accumulator-after is then
+       motionless, D230). */
+    bool follows_consuming;
 } sweep_question;
 
 static sxml_status sweep_of(const sxml_xslt_lowering *lowering, sweep_question question,
@@ -518,7 +538,8 @@ static sxml_status sweep_of(const sxml_xslt_lowering *lowering, sweep_question q
                                   ? question.expression->static_context
                                   : (sxml_xslt_ast_static_context_index){.value = 0},
             .is_document_focus = question.is_document_focus,
-            .requires_grounded = question.requires_grounded},
+            .requires_grounded = question.requires_grounded,
+            .follows_consuming = question.follows_consuming},
         sweep);
 }
 
@@ -748,6 +769,8 @@ static const sxml_xslt_ast_expression *select_of(const sxml_xslt_lowering *lower
 typedef struct point_question {
     sxml_xslt_ast_node_index node;
     bool is_document_focus;
+    /* After the body's stream point (D230). */
+    bool follows_point;
 } point_question;
 
 static sxml_status is_eligible_point(const sxml_xslt_lowering *lowering, point_question question,
@@ -831,7 +854,8 @@ static sxml_status is_motionless_instruction(const sxml_xslt_lowering *lowering,
                                               .expression = text,
                                               .expression_node = text->ast->root,
                                               .is_document_focus = question.is_document_focus,
-                                              .requires_grounded = true},
+                                              .requires_grounded = true,
+                                              .follows_consuming = question.follows_point},
                              motionless);
     }
     sxml_status status =
@@ -841,7 +865,8 @@ static sxml_status is_motionless_instruction(const sxml_xslt_lowering *lowering,
                                        .expression = NULL,
                                        .expression_node = no_ast_node,
                                        .is_document_focus = question.is_document_focus,
-                                       .requires_grounded = true},
+                                       .requires_grounded = true,
+                                       .follows_consuming = question.follows_point},
                       motionless);
     if (status != SXML_STATUS_OK || !*motionless) {
         return status;
@@ -1183,8 +1208,8 @@ static sxml_status find_streamed_path(const sxml_xslt_lowering *lowering, path_f
     return status;
 }
 
-/* The accumulator functions (19.2), which a streamed document's windows
-   do not answer yet. */
+/* The accumulator functions (19.6, 19.7), which a streamed document
+   answers for its windows when it computes its accumulators (D230). */
 static const char *const accumulator_function_names[] = {"accumulator-before",
                                                          "accumulator-after"};
 
@@ -1492,6 +1517,51 @@ typedef struct body_planning {
     size_t body_index;
 } body_planning;
 
+/* The prongs of an xsl:fork in a body whose document can be read again
+   (D230; XSLT 4.0, 16.1 and 18.3): when every child is an xsl:sequence,
+   each becomes a PRONG point and a body of its own, a pass over the
+   document; *has_prongs is false otherwise. */
+static sxml_status add_prongs(const body_planning *planning, sxml_xslt_ast_node_index fork,
+                              bool *has_prongs) {
+    const sxml_xslt_lowering *lowering = planning->lowering;
+    *has_prongs = node_of(lowering, fork)->first_child.value != 0;
+    size_t prong_count = 0;
+    for (sxml_xslt_ast_node_index child = node_of(lowering, fork)->first_child;
+         *has_prongs && child.value != 0; child = node_of(lowering, child)->next_sibling) {
+        const sxml_xslt_ast_kind kind = node_of(lowering, child)->kind;
+        prong_count += kind == SXML_XSLT_AST_KIND_SEQUENCE ? 1U : 0U;
+        *has_prongs = (kind == SXML_XSLT_AST_KIND_SEQUENCE || kind == SXML_XSLT_AST_KIND_FALLBACK) &&
+                      prong_count <= STREAM_MAXIMUM_PRONG_COUNT;
+    }
+    sxml_status status = SXML_STATUS_OK;
+    for (sxml_xslt_ast_node_index child = node_of(lowering, fork)->first_child;
+         *has_prongs && status == SXML_STATUS_OK && child.value != 0;
+         child = node_of(lowering, child)->next_sibling) {
+        if (node_of(lowering, child)->kind != SXML_XSLT_AST_KIND_SEQUENCE) {
+            continue;
+        }
+        status = add_point(lowering->stream_plan,
+                           (stream_point){.kind = SXML_STREAM_POINT_PRONG,
+                                          .node = child,
+                                          .is_shallow = false,
+                                          .ast = NULL,
+                                          .path = no_ast_node,
+                                          .grounding = SXML_STREAM_GROUNDING_NODES,
+                                          .lowered = no_ast_node,
+                                          .document = {0},
+                                          .has_lowered = false});
+        if (status == SXML_STATUS_OK) {
+            status = push_body(lowering, planning->list,
+                               (stream_body){.node = child,
+                                             .point_number = lowering->stream_plan->point_count,
+                                             .is_document_focus = true,
+                                             .is_instruction = true,
+                                             .allows_passes = true});
+        }
+    }
+    return status;
+}
+
 static sxml_status plan_one_body(const body_planning *planning, bool *is_streamed) {
     const sxml_xslt_lowering *lowering = planning->lowering;
     const stream_body body = planning->list->bodies[planning->body_index];
@@ -1501,7 +1571,9 @@ static sxml_status plan_one_body(const body_planning *planning, bool *is_streame
     /* The siblings still to visit, one chain per open wrapping element. */
     sxml_xslt_ast_node_index pending[64];
     size_t pending_count = 0;
-    pending[pending_count] = sxml_xslt_lowering_first_constructor_child(lowering->ast, body.node);
+    pending[pending_count] =
+        body.is_instruction ? body.node
+                            : sxml_xslt_lowering_first_constructor_child(lowering->ast, body.node);
     pending_count += 1;
     sxml_status status = SXML_STATUS_OK;
     while (status == SXML_STATUS_OK && *is_streamed && pending_count > 0) {
@@ -1510,8 +1582,41 @@ static sxml_status plan_one_body(const body_planning *planning, bool *is_streame
             pending_count -= 1;
             continue;
         }
-        pending[pending_count - 1U] = node_of(lowering, node)->next_sibling;
-        const point_question question = {.node = node, .is_document_focus = is_document_focus};
+        /* A body that is one instruction has no siblings. */
+        pending[pending_count - 1U] = body.is_instruction && pending_count == 1U
+                                          ? (sxml_xslt_ast_node_index){.value = 0}
+                                          : node_of(lowering, node)->next_sibling;
+        if (body.allows_passes && is_document_focus &&
+            node_of(lowering, node)->kind == SXML_XSLT_AST_KIND_FORK) {
+            /* D230: each prong in a pass of its own, unless none reads
+               the document's content. */
+            bool motionless = false;
+            status = is_motionless_instruction(
+                lowering,
+                (point_question){.node = node,
+                                 .is_document_focus = true,
+                                 .follows_point = point_count > 0},
+                &motionless);
+            if (status == SXML_STATUS_OK && !motionless) {
+                bool has_prongs = false;
+                status = add_prongs(planning, node, &has_prongs);
+                *is_streamed = has_prongs;
+            }
+            continue;
+        }
+        if (node_of(lowering, node)->kind == SXML_XSLT_AST_KIND_SEQUENCE &&
+            !has_attribute(lowering, node, SXML_XSLT_AST_ATTRIBUTE_SELECT)) {
+            /* Its content is the body's (10.4.1). */
+            if (pending_count == sizeof(pending) / sizeof(pending[0])) {
+                *is_streamed = false;
+                break;
+            }
+            pending[pending_count] = node_of(lowering, node)->first_child;
+            pending_count += 1;
+            continue;
+        }
+        const point_question question = {
+            .node = node, .is_document_focus = is_document_focus, .follows_point = point_count > 0};
         bool is_point = false;
         status = is_eligible_point(lowering, question, &is_point);
         if (status != SXML_STATUS_OK) {
@@ -1588,36 +1693,31 @@ static sxml_status plan_one_body(const body_planning *planning, bool *is_streame
     return status;
 }
 
-/* Whether no accumulator applies to the document of xsl:source-document
-   node and none is read: its use-accumulators names none (19.2: none
-   when absent), or the stylesheet declares none, and no expression of
-   the stylesheet calls fn:accumulator-before or fn:accumulator-after
-   (whose answers for its nodes are its errors, XTDE3362, given
-   unstreamed). Streamed accumulators are not done yet. */
-static bool applies_no_accumulators(const sxml_xslt_lowering *lowering,
-                                    sxml_xslt_ast_node_index node) {
-    if (!sxml_xslt_has_accumulators(lowering)) {
-        return true;
+/* Whether the stylesheet declares accumulators and an expression calls
+   fn:accumulator-before or fn:accumulator-after: only then are the values
+   of a streamed document's nodes read, and computed (D230). */
+static bool calls_accumulator_functions(const sxml_xslt_ast *ast) {
+    bool has_accumulators = false;
+    for (uint32_t order = 1; !has_accumulators && sxml_xslt_ast_get_declaration(ast, order).value != 0;
+         order += 1U) {
+        has_accumulators =
+            sxml_xslt_ast_get_node(ast, sxml_xslt_ast_get_declaration(ast, order))->kind ==
+            SXML_XSLT_AST_KIND_ACCUMULATOR;
     }
-    const sxml_xslt_ast_attribute *used =
-        attribute_of(lowering, node, SXML_XSLT_AST_ATTRIBUTE_USE_ACCUMULATORS);
-    if (used->kind != SXML_XSLT_AST_ATTRIBUTE_NONE &&
-        (used->value.kind != SXML_XSLT_AST_VALUE_KIND_NAME_LIST ||
-         sxml_xslt_ast_get_name_tokens(lowering->ast, used->value.payload.name_tokens)
-                 .name_token_count != 0)) {
+    if (!has_accumulators) {
         return false;
     }
     const function_names names = {.names = accumulator_function_names,
                                   .name_count = sizeof(accumulator_function_names) /
                                                 sizeof(accumulator_function_names[0])};
-    for (uint32_t index = 1; index < lowering->ast->expression_count; index += 1U) {
+    for (uint32_t index = 1; index < ast->expression_count; index += 1U) {
         const sxml_xslt_ast_expression *expression = sxml_xslt_ast_get_expression(
-            lowering->ast, (sxml_xslt_ast_expression_index){.value = index});
+            ast, (sxml_xslt_ast_expression_index){.value = index});
         if (expression->ast != NULL && calls_named_function(expression->ast, names)) {
-            return false;
+            return true;
         }
     }
-    return true;
+    return false;
 }
 
 /* Plans the streamed body of node (an xsl:source-document or a template
@@ -1637,7 +1737,11 @@ static sxml_status plan_streamed_body(const sxml_xslt_lowering *lowering, stream
             &(body_planning){.lowering = lowering, .list = &list, .body_index = body_index},
             &is_body_streamed);
         const size_t point_number = list.bodies[body_index].point_number;
-        if (point_number == 0) {
+        if (point_number == 0 ||
+            (!is_body_streamed &&
+             plan->points[point_number - 1U].kind == SXML_STREAM_POINT_PRONG)) {
+            /* A prong that does not stream leaves the fork to the whole
+               document (D230). */
             *is_streamed = is_body_streamed;
             if (!is_body_streamed) {
                 break;
@@ -1671,36 +1775,53 @@ sxml_status sxml_xslt_plan_source_document(const sxml_xslt_lowering *lowering,
         sxml_xslt_lowering_has_xslt_1_behaviour(lowering, node)) {
         return SXML_STATUS_OK;
     }
-    if (!applies_no_accumulators(lowering, node)) {
-        return SXML_STATUS_OK;
+    bool reads_accumulators = false;
+    const sxml_status status = sxml_xslt_reads_accumulators(
+        &(sxml_xslt_accumulator_reading){.ast = lowering->ast,
+                                         .allocator = lowering->lowerer->allocator,
+                                         .name_pool = lowering->lowerer->name_pool},
+        &reads_accumulators);
+    if (status != SXML_STATUS_OK || reads_accumulators) {
+        return status;
     }
     return plan_streamed_body(
-        lowering, (stream_body){.node = node, .point_number = 0, .is_document_focus = true},
+        lowering, (stream_body){.node = node,
+                                .point_number = 0,
+                                .is_document_focus = true,
+                                .is_instruction = false,
+                                .allows_passes = true},
         is_streamed);
 }
 
-bool sxml_xslt_reads_accumulators(const sxml_xslt_ast *ast) {
-    bool has_accumulators = false;
-    for (uint32_t order = 1; !has_accumulators && sxml_xslt_ast_get_declaration(ast, order).value != 0;
-         order += 1U) {
-        has_accumulators =
-            sxml_xslt_ast_get_node(ast, sxml_xslt_ast_get_declaration(ast, order))->kind ==
-            SXML_XSLT_AST_KIND_ACCUMULATOR;
+sxml_status sxml_xslt_reads_accumulators(const sxml_xslt_accumulator_reading *reading,
+                                         bool *reads) {
+    *reads = false;
+    if (!calls_accumulator_functions(reading->ast)) {
+        return SXML_STATUS_OK;
     }
-    if (!has_accumulators) {
-        return false;
+    *reads = true;
+    if (!sxml_xslt_accumulators_stream(reading->ast)) {
+        return SXML_STATUS_OK;
     }
-    const function_names names = {.names = accumulator_function_names,
-                                  .name_count = sizeof(accumulator_function_names) /
-                                                sizeof(accumulator_function_names[0])};
-    for (uint32_t index = 1; index < ast->expression_count; index += 1U) {
-        const sxml_xslt_ast_expression *expression = sxml_xslt_ast_get_expression(
-            ast, (sxml_xslt_ast_expression_index){.value = index});
-        if (expression->ast != NULL && calls_named_function(expression->ast, names)) {
-            return true;
-        }
+    bool is_guaranteed = false;
+    const sxml_status status = sxml_xslt_assess_accumulators(
+        &(sxml_xslt_accumulator_query){.ast = reading->ast,
+                                       .allocator = reading->allocator,
+                                       .name_pool = reading->name_pool},
+        &is_guaranteed);
+    *reads = !is_guaranteed;
+    return status;
+}
+
+sxml_status sxml_xslt_stream_accumulators(const sxml_xslt_streamed_accumulator_request *request,
+                                          sxml_ir_stream_accumulators *functions) {
+    *functions = (sxml_ir_stream_accumulators){
+        .initial = {0}, .start = {0}, .end = {0}, .descend = {0}};
+    if (!calls_accumulator_functions(request->lowering->ast)) {
+        /* Nothing reads the values: they need not be computed. */
+        return SXML_STATUS_OK;
     }
-    return false;
+    return sxml_xslt_prepare_streamed_accumulators(request, functions);
 }
 
 /* Whether the parameters of a template rule read nothing of its node's
@@ -2350,6 +2471,12 @@ typedef struct streamed_document_locals {
     sxml_xpath_lowering_focus document_focus;
     sxml_xpath_lowering_block body_block;
     sxml_ir_atom body;
+    /* A prong of an xsl:fork (head.node its xsl:sequence, D230), a pass
+       of its own over the document of scope, the xsl:source-document. */
+    bool is_prong;
+    sxml_xslt_ast_node_index scope;
+    /* The plan's document_href before this document's. */
+    sxml_ir_atom saved_href;
 } streamed_document_locals;
 
 static sxml_status continue_streamed_document(sxml_xpath_lowering_machine *machine,
@@ -2372,6 +2499,23 @@ static sxml_status continue_streamed_document(sxml_xpath_lowering_machine *machi
             .kind = SXML_XPATH_LOWERING_FOCUS_KIND_SLOTS,
             .slots = {.context_value = value, .context_position = position, .context_size = {0}}};
         locals->body_block = (sxml_xpath_lowering_block){.first = {0}, .open_let = {0}};
+        sxml_xslt_stream_plan *plan = lowering->stream_plan;
+        locals->saved_href = plan->document_href;
+        if (!locals->is_prong) {
+            locals->scope = locals->head.node;
+            plan->document_href = locals->href;
+        }
+        const sxml_xslt_ast_attribute *select =
+            attribute_of(lowering, locals->head.node, SXML_XSLT_AST_ATTRIBUTE_SELECT);
+        if (locals->is_prong && select->value.kind == SXML_XSLT_AST_VALUE_KIND_EXPRESSION) {
+            /* xsl:sequence select (10.4.1). */
+            return sxml_xslt_lowering_call_expression(
+                machine, &(sxml_xslt_expression_call){.lowering = lowering,
+                                                      .expression = select->value.payload.expression,
+                                                      .block = &locals->body_block,
+                                                      .atom = &locals->body,
+                                                      .focus = &locals->document_focus});
+        }
         return sxml_xslt_lowering_call_sequence_constructor(
             machine, &(sxml_xslt_sequence_constructor_call){
                          .lowering = lowering,
@@ -2385,6 +2529,7 @@ static sxml_status continue_streamed_document(sxml_xpath_lowering_machine *machi
                                          .focused = NULL},
                          .focus = &locals->document_focus});
     }
+    lowering->stream_plan->document_href = locals->saved_href;
     if (locals->document_focus.parts_read.context_size.value != 0) {
         return SXML_STATUS_INVALID_ARGUMENT;
     }
@@ -2404,6 +2549,16 @@ static sxml_status continue_streamed_document(sxml_xpath_lowering_machine *machi
             (sxml_xpath_lowering_block_result){.block = locals->body_block, .result = result},
             &body);
     }
+    /* 19.2: the accumulators use-accumulators names, computed as the
+       document's events pass (D230). */
+    sxml_ir_stream_accumulators accumulators = {
+        .initial = {0}, .start = {0}, .end = {0}, .descend = {0}};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xslt_stream_accumulators(
+            &(sxml_xslt_streamed_accumulator_request){
+                .lowering = lowering, .scope = locals->scope, .invocation = NULL},
+            &accumulators);
+    }
     sxml_ir_expression_index stream = {0};
     if (status == SXML_STATUS_OK) {
         status = sxml_xslt_lowering_add_expression(
@@ -2416,7 +2571,9 @@ static sxml_status continue_streamed_document(sxml_xpath_lowering_machine *machi
                                             .focus = locals->document_focus.slots,
                                             .position_counter = {0},
                                             .body = body,
-                                            .flags = (uint32_t)SXML_IR_STREAM_OPENS_DOCUMENT}},
+                                            .flags = (uint32_t)SXML_IR_STREAM_OPENS_DOCUMENT,
+                                            .fold = {0},
+                                            .accumulators = accumulators}},
             &stream);
     }
     if (status != SXML_STATUS_OK) {
@@ -2439,6 +2596,128 @@ sxml_status sxml_xslt_lowering_call_streamed_document(sxml_xpath_lowering_machin
         machine,
         &(sxml_xpath_lowering_procedure_call){
             .procedure = &streamed_document_procedure,
+            .node = no_ast_node,
+            .block = call->block,
+            .is_body = false,
+            .destination = {.expression = NULL,
+                            .atom = call->atom,
+                            .atom_block = call->block,
+                            .focused = NULL},
+            .initial_locals = {.bytes = (const uint8_t *)&initial, .byte_count = sizeof(initial)}},
+        &frame);
+}
+
+/* ---------------------------------------------------------- xsl:fork */
+
+bool sxml_xslt_is_streamed_fork(const sxml_xslt_lowering *lowering,
+                                sxml_xslt_ast_node_index node) {
+    for (sxml_xslt_ast_node_index child = node_of(lowering, node)->first_child; child.value != 0;
+         child = node_of(lowering, child)->next_sibling) {
+        if (node_of(lowering, child)->kind == SXML_XSLT_AST_KIND_SEQUENCE) {
+            const stream_point *point = find_point(lowering, child);
+            return point != NULL && point->kind == SXML_STREAM_POINT_PRONG;
+        }
+    }
+    return false;
+}
+
+/* A streamed xsl:fork (D230; XSLT 4.0, 16.1 and 18.3): each prong a
+   STREAM with OPENS_DOCUMENT over the href of the document again, in a
+   pass of its own, the values concatenated in the order of the prongs. */
+typedef struct streamed_fork_locals {
+    sxml_xslt_instruction_locals head;
+    sxml_ir_atom href;
+    /* The prong lowered last, and the values. */
+    sxml_xslt_ast_node_index prong;
+    sxml_ir_atom values[STREAM_MAXIMUM_PRONG_COUNT];
+    size_t value_count;
+} streamed_fork_locals;
+
+/* The xsl:sequence child after prong (the first for 0), or 0. */
+static sxml_xslt_ast_node_index next_prong(const sxml_xslt_lowering *lowering,
+                                           streamed_fork_locals *locals) {
+    sxml_xslt_ast_node_index child = locals->prong.value == 0
+                                         ? node_of(lowering, locals->head.node)->first_child
+                                         : node_of(lowering, locals->prong)->next_sibling;
+    while (child.value != 0 && node_of(lowering, child)->kind != SXML_XSLT_AST_KIND_SEQUENCE) {
+        child = node_of(lowering, child)->next_sibling;
+    }
+    return child;
+}
+
+static sxml_status continue_streamed_fork(sxml_xpath_lowering_machine *machine,
+                                          sxml_xpath_lowering_frame *frame) {
+    streamed_fork_locals *locals = frame->locals;
+    const sxml_xslt_lowering *lowering = locals->head.lowering;
+    const sxml_xslt_ast_node_index prong = next_prong(lowering, locals);
+    if (prong.value != 0) {
+        const stream_point *point = find_point(lowering, prong);
+        if (point == NULL || locals->value_count == STREAM_MAXIMUM_PRONG_COUNT) {
+            return SXML_STATUS_INVALID_ARGUMENT;
+        }
+        locals->prong = prong;
+        const streamed_document_locals initial = {.head = {.lowering = lowering, .node = prong},
+                                                  .href = locals->href,
+                                                  .is_prong = true,
+                                                  .scope = point->document};
+        sxml_ir_atom *value = &locals->values[locals->value_count];
+        locals->value_count += 1;
+        sxml_xpath_lowering_frame *prong_frame = NULL;
+        return sxml_xpath_lowering_push_procedure(
+            machine,
+            &(sxml_xpath_lowering_procedure_call){
+                .procedure = &streamed_document_procedure,
+                .node = no_ast_node,
+                .block = frame->block,
+                .is_body = false,
+                .destination = {.expression = NULL,
+                                .atom = value,
+                                .atom_block = frame->block,
+                                .focused = NULL},
+                .initial_locals = {.bytes = (const uint8_t *)&initial,
+                                   .byte_count = sizeof(initial)}},
+            &prong_frame);
+    }
+    sxml_xpath_lowerer *lowerer = machine->state;
+    sxml_ir_atom_list list = {0};
+    sxml_status status = sxml_ir_unit_add_atoms(
+        lowerer->unit,
+        (sxml_ir_atom_view){.atoms = locals->values, .atom_count = locals->value_count}, &list);
+    sxml_ir_expression_index result = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xslt_lowering_add_expression(
+            lowerer,
+            (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_SEQUENCE,
+                                 .sequence = list},
+            &result);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_xpath_lowering_finish_frame(machine, frame, result);
+}
+
+static const sxml_xpath_lowering_procedure streamed_fork_procedure = {
+    .procedure_name = SXML_BYTE_VIEW_INITIALIZER("streamed xsl:fork"),
+    .step = continue_streamed_fork,
+    .locals_size = sizeof(streamed_fork_locals)};
+
+sxml_status sxml_xslt_lowering_call_streamed_fork(sxml_xpath_lowering_machine *machine,
+                                                  const sxml_xslt_stream_call *call) {
+    const sxml_xslt_lowering *lowering = call->lowering;
+    if (lowering->stream_plan == NULL ||
+        lowering->stream_plan->document_href.atom_kind == SXML_IR_ATOM_KIND_NONE) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    const streamed_fork_locals initial = {.head = {.lowering = lowering, .node = call->node},
+                                          .href = lowering->stream_plan->document_href,
+                                          .prong = {0},
+                                          .value_count = 0};
+    sxml_xpath_lowering_frame *frame = NULL;
+    return sxml_xpath_lowering_push_procedure(
+        machine,
+        &(sxml_xpath_lowering_procedure_call){
+            .procedure = &streamed_fork_procedure,
             .node = no_ast_node,
             .block = call->block,
             .is_body = false,

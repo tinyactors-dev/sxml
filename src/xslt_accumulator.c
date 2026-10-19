@@ -95,7 +95,7 @@ static const sxml_ast_node_index no_ast_node = {.value = 0};
 /* ------------------------------------------------------- Table functions */
 
 /* The most parameters of a function made here. */
-#define FUNCTION_MAXIMUM_PARAMETER_COUNT 2U
+#define FUNCTION_MAXIMUM_PARAMETER_COUNT 3U
 
 /* One function of the unit the table answers: its types and, once
    declared, its IR function. */
@@ -141,6 +141,12 @@ static const sxml_function_parameter node_value_parameters[] = {
     SXML_FUNCTION_PARAMETER("value", "item()*", SXML_PARAMETER_DEFAULT_REQUIRED),
 };
 
+static const sxml_function_parameter node_value_number_parameters[] = {
+    SXML_FUNCTION_PARAMETER("node", "node()", SXML_PARAMETER_DEFAULT_REQUIRED),
+    SXML_FUNCTION_PARAMETER("value", "item()*", SXML_PARAMETER_DEFAULT_REQUIRED),
+    SXML_FUNCTION_PARAMETER("number", "xs:integer", SXML_PARAMETER_DEFAULT_REQUIRED),
+};
+
 static const sxml_function_parameter state_nodes_parameters[] = {
     SXML_FUNCTION_PARAMETER("state", "map(*)", SXML_PARAMETER_DEFAULT_REQUIRED),
     SXML_FUNCTION_PARAMETER("nodes", "node()*", SXML_PARAMETER_DEFAULT_REQUIRED),
@@ -170,7 +176,18 @@ typedef struct accumulator_definition {
     table_function end;
     table_function close;
     table_function build;
+    /* descend-K($node, $value): build-K's traversal of $node's subtree,
+       for a streamed document's window (D230). */
+    table_function descend;
 } accumulator_definition;
+
+/* The initial function of one streamed document (D230): the initial
+   values of the accumulators applicable to it. */
+typedef struct stream_initial {
+    table_function function;
+    /* The element whose use-accumulators names them (19.2); 0 for none. */
+    sxml_xslt_ast_node_index scope;
+} stream_initial;
 
 /* The variables of the texts, in table->variable_names. */
 typedef enum snippet_variable {
@@ -181,11 +198,12 @@ typedef enum snippet_variable {
     SXML_SNIPPET_VARIABLE_VALUE,
     SXML_SNIPPET_VARIABLE_STATE,
     SXML_SNIPPET_VARIABLE_NODES,
+    SXML_SNIPPET_VARIABLE_NUMBER,
     SXML_SNIPPET_VARIABLE_COUNT,
 } snippet_variable;
 
 static const char *const snippet_variable_names[SXML_SNIPPET_VARIABLE_COUNT] = {
-    "name", "context", "root", "node", "value", "state", "nodes"};
+    "name", "context", "root", "node", "value", "state", "nodes", "number"};
 
 /* The accumulator table in front of one static context, and the table
    that context had (the XSLT function table of its package, D163). */
@@ -217,6 +235,19 @@ struct sxml_xslt_accumulator_table {
     size_t snippet_capacity;
     sxml_name_identifier variable_names[SXML_SNIPPET_VARIABLE_COUNT];
     sxml_namespace_uri_identifier private_namespace;
+    /* Some accumulator is declared streamable="yes": the accumulator
+       functions then ask a streamed document first (D230). */
+    bool has_streamable;
+    /* The functions a streamed document calls (D230), declared when one
+       asks for them (streams), and one initial function per streamed
+       document. */
+    bool streams;
+    table_function stream_start;
+    table_function stream_end;
+    table_function stream_descend;
+    stream_initial *stream_initials;
+    size_t stream_initial_count;
+    size_t stream_initial_capacity;
 };
 
 /* --------------------------------------------------------------- Helpers */
@@ -455,9 +486,10 @@ static const table_function *find_private(const sxml_xslt_accumulator_table *tab
          accumulator_index += 1) {
         const accumulator_definition *accumulator = &table->accumulators[accumulator_index];
         const table_function *candidates[] = {&accumulator->initial, &accumulator->start,
-                                              &accumulator->end, &accumulator->close,
-                                              &accumulator->build};
-        for (size_t candidate_index = 0; candidate_index < 5; candidate_index += 1) {
+                                              &accumulator->end,     &accumulator->close,
+                                              &accumulator->build,   &accumulator->descend};
+        for (size_t candidate_index = 0;
+             candidate_index < sizeof(candidates) / sizeof(candidates[0]); candidate_index += 1) {
             if (candidates[candidate_index]->function_name.index == query->function_name.index) {
                 return candidates[candidate_index];
             }
@@ -637,6 +669,10 @@ static sxml_status prepare_accumulator(sxml_xslt_accumulator_table *table,
          .parameters = {root_parameters, 1},
          .result_type = SXML_BYTE_VIEW_INITIALIZER("map(*)"),
          .function = &accumulator->build},
+        {.prefix = "descend-",
+         .parameters = {node_value_parameters, 2},
+         .result_type = SXML_BYTE_VIEW_INITIALIZER("map(*)"),
+         .function = &accumulator->descend},
     };
     sxml_status status = SXML_STATUS_OK;
     for (size_t shape_index = 0;
@@ -652,6 +688,9 @@ static sxml_status prepare_accumulator(sxml_xslt_accumulator_table *table,
     }
     if (status == SXML_STATUS_OK) {
         status = add_rules(table, accumulator_index);
+    }
+    if (is_true_attribute(table->lowering, accumulator->node, SXML_XSLT_AST_ATTRIBUTE_STREAMABLE)) {
+        table->has_streamable = true;
     }
     return status;
 }
@@ -800,6 +839,39 @@ static sxml_status check_modes(const sxml_xslt_accumulator_table *table) {
     return status;
 }
 
+/* The functions a streamed document calls (D230): stream-start-0,
+   stream-end-0 and stream-descend-0 over the values of every accumulator
+   (maps from their numbers). */
+static sxml_status prepare_stream_functions(sxml_xslt_accumulator_table *table) {
+    const private_shape shapes[] = {
+        {.prefix = "stream-start-",
+         .parameters = {node_value_number_parameters, 3},
+         .result_type = SXML_BYTE_VIEW_INITIALIZER("item()*"),
+         .function = &table->stream_start},
+        {.prefix = "stream-end-",
+         .parameters = {node_value_number_parameters, 3},
+         .result_type = SXML_BYTE_VIEW_INITIALIZER("item()*"),
+         .function = &table->stream_end},
+        {.prefix = "stream-descend-",
+         .parameters = {node_value_number_parameters, 3},
+         .result_type = SXML_BYTE_VIEW_INITIALIZER("item()*"),
+         .function = &table->stream_descend},
+    };
+    sxml_status status = SXML_STATUS_OK;
+    for (size_t shape_index = 0;
+         status == SXML_STATUS_OK && shape_index < sizeof(shapes) / sizeof(shapes[0]);
+         shape_index += 1) {
+        status = prepare_private(
+            table,
+            (private_function_request){.prefix = shapes[shape_index].prefix,
+                                       .number = 0,
+                                       .parameters = shapes[shape_index].parameters,
+                                       .result_type = shapes[shape_index].result_type},
+            shapes[shape_index].function);
+    }
+    return status;
+}
+
 static sxml_status prepare_table(sxml_xslt_accumulator_table *table) {
     static const sxml_native_function_view *const parts[] = {&sxml_xslt_accumulator_functions};
     sxml_xpath_lowerer *lowerer = table->lowering->lowerer;
@@ -834,6 +906,9 @@ static sxml_status prepare_table(sxml_xslt_accumulator_table *table) {
                                        .has_short_signature = true},
                 &table->functions[kind_number]);
         }
+    }
+    if (status == SXML_STATUS_OK) {
+        status = prepare_stream_functions(table);
     }
     for (size_t name_index = 0;
          status == SXML_STATUS_OK && name_index < (size_t)SXML_SNIPPET_VARIABLE_COUNT;
@@ -927,6 +1002,7 @@ void sxml_xslt_release_accumulators(sxml_xslt_accumulator_table *table) {
     sxml_allocator_release(table->allocator, table->accumulators);
     sxml_allocator_release(table->allocator, table->rules);
     sxml_allocator_release(table->allocator, table->layers);
+    sxml_allocator_release(table->allocator, table->stream_initials);
     sxml_allocator_release(table->allocator, table);
 }
 
@@ -1371,6 +1447,58 @@ static void write_build_text(size_t number, sxml_xslt_snippet_text *text) {
     SXML_XSLT_SNIPPET_APPEND(text, "$final, reverse($final?s))");
 }
 
+/* The text of descend-K($node, $value) (D230): build-K's traversal of
+   the subtree of $node, whose start event gave $value, closed by its end
+   event; $base makes the depths relative to $node. */
+static void write_descend_text(size_t number, sxml_xslt_snippet_text *text) {
+    SXML_XSLT_SNIPPET_APPEND(text,
+                             "let $base := count($node/ancestor::node()), "
+                             "$final := fold-left($node/descendant::node(), "
+                             "map { \"v\": $value, \"s\": $node, "
+                             "\"b\": map { generate-id($node): $value }, \"a\": map { } }, "
+                             "fn($state, $item) { let $stack := $state?s, $count := count($stack), "
+                             "$parent := $item/.., "
+                             "$depth := if ($stack[$count] is $parent) then $count "
+                             "else if ($stack[$count - 1] is $parent) then $count - 1 "
+                             "else count($item/ancestor::node()) - $base, "
+                             "$closed := ");
+    append_private_call(text, (private_call){.prefix = "close-", .number = number});
+    SXML_XSLT_SNIPPET_APPEND(text, "$state, reverse(subsequence($stack, $depth + 1))), $next := ");
+    append_private_call(text, (private_call){.prefix = "start-", .number = number});
+    SXML_XSLT_SNIPPET_APPEND(text,
+                             "$item, $closed?v) return map { \"v\": $next, "
+                             "\"s\": (subsequence($closed?s, 1, $depth), $item), "
+                             "\"b\": Q{http://www.w3.org/2005/xpath-functions/map}put($closed?b, "
+                             "generate-id($item), $next), \"a\": $closed?a } }) return ");
+    append_private_call(text, (private_call){.prefix = "close-", .number = number});
+    SXML_XSLT_SNIPPET_APPEND(text, "$final, reverse($final?s))");
+}
+
+/* The text of stream-start-0, stream-end-0 or stream-descend-0 (D230):
+   prefix-K($node, $value) for the accumulator numbered $number. */
+typedef struct stream_text_request {
+    const char *prefix;
+    bool is_descend;
+} stream_text_request;
+
+static void write_stream_text(const sxml_xslt_accumulator_table *table,
+                              stream_text_request request, sxml_xslt_snippet_text *text) {
+    for (size_t accumulator_index = 0; accumulator_index < table->accumulator_count;
+         accumulator_index += 1) {
+        SXML_XSLT_SNIPPET_APPEND(text, "if ($number eq ");
+        sxml_xslt_snippet_text_append_number(text, accumulator_index + 1);
+        SXML_XSLT_SNIPPET_APPEND(text, ") then ");
+        append_private_call(text,
+                            (private_call){.prefix = request.prefix, .number = accumulator_index + 1});
+        SXML_XSLT_SNIPPET_APPEND(text, "$node, $value) else ");
+    }
+    if (request.is_descend) {
+        SXML_XSLT_SNIPPET_APPEND(text, "map { \"v\": $value }");
+    } else {
+        SXML_XSLT_SNIPPET_APPEND(text, "$value");
+    }
+}
+
 /* A text function of one accumulator. */
 typedef struct accumulator_text {
     const table_function *function;
@@ -1430,6 +1558,13 @@ static sxml_status lower_accumulator(sxml_xslt_accumulator_table *table,
                                                       .text = &text,
                                                       .parameters = {root, 1}});
     }
+    if (status == SXML_STATUS_OK) {
+        sxml_xslt_snippet_text text = {.allocator = table->allocator, .status = SXML_STATUS_OK};
+        write_descend_text(number, &text);
+        status = lower_text(table, (accumulator_text){.function = &accumulator->descend,
+                                                      .text = &text,
+                                                      .parameters = {node_value, 2}});
+    }
     return status;
 }
 
@@ -1453,8 +1588,10 @@ static sxml_status lower_all_accumulators(sxml_xslt_accumulator_table *table) {
          accumulator_index += 1) {
         accumulator_definition *accumulator = &table->accumulators[accumulator_index];
         table_function *functions[] = {&accumulator->initial, &accumulator->start,
-                                       &accumulator->end, &accumulator->close, &accumulator->build};
-        for (size_t function_index = 0; status == SXML_STATUS_OK && function_index < 5;
+                                       &accumulator->end,     &accumulator->close,
+                                       &accumulator->build,   &accumulator->descend};
+        for (size_t function_index = 0; status == SXML_STATUS_OK &&
+                                        function_index < sizeof(functions) / sizeof(functions[0]);
              function_index += 1) {
             status = declare_function(table, functions[function_index]);
         }
@@ -1505,13 +1642,28 @@ static void write_function_text(const sxml_xslt_accumulator_table *table,
         sxml_xslt_snippet_text_append_qname(
             text, table->lowering->lowerer->name_pool,
             table->accumulators[accumulator_index].accumulator_name);
-        SXML_XSLT_SNIPPET_APPEND(text, ") then Q{}accumulator-values(");
+        SXML_XSLT_SNIPPET_APPEND(text, ") then ");
+        if (table->has_streamable) {
+            /* D230: a node of a streamed document has the values its
+               events gave. */
+            SXML_XSLT_SNIPPET_APPEND(text, "(let $streamed := Q{}accumulator-streamed(");
+            sxml_xslt_snippet_text_append_number(text, accumulator_index + 1);
+            sxml_xslt_snippet_text_append(text, kind == SXML_ACCUMULATOR_FUNCTION_AFTER
+                                                    ? SXML_BYTE_VIEW_FROM_LITERAL(", $node, $id, true())")
+                                                    : SXML_BYTE_VIEW_FROM_LITERAL(", $node, $id, false())"));
+            SXML_XSLT_SNIPPET_APPEND(text, " return if (exists($streamed)) then $streamed?v else ");
+        }
+        SXML_XSLT_SNIPPET_APPEND(text, "Q{}accumulator-values(");
         sxml_xslt_snippet_text_append_number(text, accumulator_index + 1);
         SXML_XSLT_SNIPPET_APPEND(text, ", $root, " PRIVATE_PREFIX "build-");
         sxml_xslt_snippet_text_append_number(text, accumulator_index + 1);
         sxml_xslt_snippet_text_append(text, kind == SXML_ACCUMULATOR_FUNCTION_AFTER
-                                                ? SXML_BYTE_VIEW_FROM_LITERAL("#1)?a?($id) else ")
-                                                : SXML_BYTE_VIEW_FROM_LITERAL("#1)?b?($id) else "));
+                                                ? SXML_BYTE_VIEW_FROM_LITERAL("#1)?a?($id)")
+                                                : SXML_BYTE_VIEW_FROM_LITERAL("#1)?b?($id)"));
+        if (table->has_streamable) {
+            SXML_XSLT_SNIPPET_APPEND(text, ")");
+        }
+        SXML_XSLT_SNIPPET_APPEND(text, " else ");
     }
     SXML_XSLT_SNIPPET_APPEND(
         text, "error(QName(\"http://www.w3.org/2005/xqt-errors\", \"XTDE3340\"), "
@@ -1534,11 +1686,130 @@ static sxml_status lower_accumulator_function(sxml_xslt_accumulator_table *table
                                                 .parameters = {name_context, 2}});
 }
 
+/* Whether the accumulator at accumulator_index is in the tokens of a
+   use-accumulators attribute (19.2): named, or #all; with streamed, only
+   one declared streamable="yes". */
+typedef struct scope_test {
+    sxml_xslt_ast_name_token_view tokens;
+    size_t accumulator_index;
+    bool is_streamed;
+} scope_test;
+
+static bool is_in_scope(const sxml_xslt_accumulator_table *table, scope_test test) {
+    const accumulator_definition *accumulator = &table->accumulators[test.accumulator_index];
+    if (test.is_streamed &&
+        !is_true_attribute(table->lowering, accumulator->node, SXML_XSLT_AST_ATTRIBUTE_STREAMABLE)) {
+        return false;
+    }
+    for (size_t token_index = 0; token_index < test.tokens.name_token_count; token_index += 1) {
+        const sxml_xslt_ast_name_token *token = &test.tokens.name_tokens[token_index];
+        if (token->kind == SXML_XSLT_AST_NAME_TOKEN_KIND_ALL ||
+            (token->kind == SXML_XSLT_AST_NAME_TOKEN_KIND_NAME &&
+             token->name.index == accumulator->accumulator_name.index)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/* Whether function has a body already. */
+static bool has_body(const sxml_xslt_accumulator_table *table, const table_function *function) {
+    return sxml_ir_unit_get_function(table->lowering->lowerer->unit, function->function)
+               ->body.value != 0;
+}
+
+/* The text of stream-initial-N($root) (D230): a map from the number of
+   each accumulator applicable to the document to initial-K($root). */
+static void write_stream_initial_text(const sxml_xslt_accumulator_table *table,
+                                      const stream_initial *initial,
+                                      sxml_xslt_snippet_text *text) {
+    sxml_xslt_ast_name_token_view tokens = {.name_tokens = NULL, .name_token_count = 0};
+    if (initial->scope.value != 0) {
+        const sxml_xslt_ast_attribute *attribute = find_attribute(
+            table->lowering, initial->scope, SXML_XSLT_AST_ATTRIBUTE_USE_ACCUMULATORS);
+        if (attribute->value.kind == SXML_XSLT_AST_VALUE_KIND_NAME_LIST) {
+            tokens = sxml_xslt_ast_get_name_tokens(table->lowering->ast,
+                                                  attribute->value.payload.name_tokens);
+        }
+    }
+    SXML_XSLT_SNIPPET_APPEND(text, "map { ");
+    bool is_first = true;
+    for (size_t accumulator_index = 0; accumulator_index < table->accumulator_count;
+         accumulator_index += 1) {
+        if (!is_in_scope(table, (scope_test){.tokens = tokens,
+                                             .accumulator_index = accumulator_index,
+                                             .is_streamed = true})) {
+            continue;
+        }
+        if (!is_first) {
+            SXML_XSLT_SNIPPET_APPEND(text, ", ");
+        }
+        is_first = false;
+        sxml_xslt_snippet_text_append_number(text, accumulator_index + 1);
+        SXML_XSLT_SNIPPET_APPEND(text, ": ");
+        append_private_call(text,
+                            (private_call){.prefix = "initial-", .number = accumulator_index + 1});
+        SXML_XSLT_SNIPPET_APPEND(text, "$root)");
+    }
+    SXML_XSLT_SNIPPET_APPEND(text, " }");
+}
+
+/* One of the functions a streamed document calls and its text. */
+typedef struct stream_phase {
+    table_function *function;
+    stream_text_request request;
+} stream_phase;
+
+/* The functions streamed documents asked for (D230), after every
+   accumulator's. */
+static sxml_status lower_stream_functions(sxml_xslt_accumulator_table *table) {
+    static const snippet_variable node_value_number[] = {
+        SXML_SNIPPET_VARIABLE_NODE, SXML_SNIPPET_VARIABLE_VALUE, SXML_SNIPPET_VARIABLE_NUMBER};
+    static const snippet_variable root[] = {SXML_SNIPPET_VARIABLE_ROOT};
+    sxml_status status = lower_all_accumulators(table);
+    const stream_phase phases[] = {
+        {.function = &table->stream_start, .request = {.prefix = "start-", .is_descend = false}},
+        {.function = &table->stream_end, .request = {.prefix = "end-", .is_descend = false}},
+        {.function = &table->stream_descend,
+         .request = {.prefix = "descend-", .is_descend = true}},
+    };
+    for (size_t phase_index = 0;
+         status == SXML_STATUS_OK && phase_index < sizeof(phases) / sizeof(phases[0]);
+         phase_index += 1) {
+        if (has_body(table, phases[phase_index].function)) {
+            continue;
+        }
+        sxml_xslt_snippet_text text = {.allocator = table->allocator, .status = SXML_STATUS_OK};
+        write_stream_text(table, phases[phase_index].request, &text);
+        status = lower_text(table, (accumulator_text){.function = phases[phase_index].function,
+                                                      .text = &text,
+                                                      .parameters = {node_value_number, 3}});
+    }
+    for (size_t initial_index = 0;
+         status == SXML_STATUS_OK && initial_index < table->stream_initial_count;
+         initial_index += 1) {
+        const stream_initial *initial = &table->stream_initials[initial_index];
+        if (has_body(table, &initial->function)) {
+            continue;
+        }
+        sxml_xslt_snippet_text text = {.allocator = table->allocator, .status = SXML_STATUS_OK};
+        write_stream_initial_text(table, initial, &text);
+        status = lower_text(table, (accumulator_text){.function = &initial->function,
+                                                      .text = &text,
+                                                      .parameters = {root, 1}});
+    }
+    return status;
+}
+
 sxml_status sxml_xslt_lower_accumulators(sxml_xslt_accumulator_table *table) {
     if (table == NULL) {
         return SXML_STATUS_OK;
     }
     sxml_status status = SXML_STATUS_OK;
+    if (table->streams) {
+        /* Before the accumulator functions: a rule may name them. */
+        status = lower_stream_functions(table);
+    }
     bool is_lowered[SXML_ACCUMULATOR_FUNCTION_COUNT] = {false, false};
     /* A rule may name the other function: until none is left unlowered. */
     bool has_lowered = true;
@@ -1661,32 +1932,6 @@ static sxml_xslt_ast_node_index find_mode_declaration(const sxml_xslt_lowering *
         }
     }
     return found;
-}
-
-/* Whether the accumulator at accumulator_index is in the tokens of a
-   use-accumulators attribute (19.2): named, or #all; with streamed, only
-   one declared streamable="yes". */
-typedef struct scope_test {
-    sxml_xslt_ast_name_token_view tokens;
-    size_t accumulator_index;
-    bool is_streamed;
-} scope_test;
-
-static bool is_in_scope(const sxml_xslt_accumulator_table *table, scope_test test) {
-    const accumulator_definition *accumulator = &table->accumulators[test.accumulator_index];
-    if (test.is_streamed &&
-        !is_true_attribute(table->lowering, accumulator->node, SXML_XSLT_AST_ATTRIBUTE_STREAMABLE)) {
-        return false;
-    }
-    for (size_t token_index = 0; token_index < test.tokens.name_token_count; token_index += 1) {
-        const sxml_xslt_ast_name_token *token = &test.tokens.name_tokens[token_index];
-        if (token->kind == SXML_XSLT_AST_NAME_TOKEN_KIND_ALL ||
-            (token->kind == SXML_XSLT_AST_NAME_TOKEN_KIND_NAME &&
-             token->name.index == accumulator->accumulator_name.index)) {
-            return true;
-        }
-    }
-    return false;
 }
 
 /* Where the accumulator scope of a tree comes from. */
@@ -1877,6 +2122,137 @@ sxml_status sxml_xslt_bind_accumulator_scope(sxml_xpath_lowerer *lowerer,
             &bound);
     }
     return status;
+}
+
+/* ---------------------------------------------- Streamed accumulators */
+
+/* The tokens of the use-accumulators attribute of scope (19.2); none for
+   0 or no attribute. */
+static sxml_xslt_ast_name_token_view scope_tokens(const sxml_xslt_accumulator_table *table,
+                                                  sxml_xslt_ast_node_index scope) {
+    sxml_xslt_ast_name_token_view tokens = {.name_tokens = NULL, .name_token_count = 0};
+    if (scope.value != 0) {
+        const sxml_xslt_ast_attribute *attribute =
+            find_attribute(table->lowering, scope, SXML_XSLT_AST_ATTRIBUTE_USE_ACCUMULATORS);
+        if (attribute->value.kind == SXML_XSLT_AST_VALUE_KIND_NAME_LIST) {
+            tokens = sxml_xslt_ast_get_name_tokens(table->lowering->ast,
+                                                  attribute->value.payload.name_tokens);
+        }
+    }
+    return tokens;
+}
+
+sxml_status sxml_xslt_prepare_streamed_accumulators(
+    const sxml_xslt_streamed_accumulator_request *request, sxml_ir_stream_accumulators *functions) {
+    *functions = (sxml_ir_stream_accumulators){
+        .initial = {0}, .start = {0}, .end = {0}, .descend = {0}};
+    const sxml_xslt_lowering *lowering = request->lowering;
+    sxml_xslt_accumulator_table *table = lowering->accumulators;
+    if (table == NULL || table->accumulator_count == 0) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_xslt_ast_node_index scope =
+        request->invocation != NULL
+            ? find_mode_declaration(lowering, initial_mode_name(lowering, request->invocation))
+            : request->scope;
+    const sxml_xslt_ast_name_token_view tokens = scope_tokens(table, scope);
+    bool is_any_applicable = false;
+    for (size_t accumulator_index = 0;
+         !is_any_applicable && accumulator_index < table->accumulator_count;
+         accumulator_index += 1) {
+        is_any_applicable = is_in_scope(table, (scope_test){.tokens = tokens,
+                                                            .accumulator_index = accumulator_index,
+                                                            .is_streamed = true});
+    }
+    if (!is_any_applicable) {
+        return SXML_STATUS_OK;
+    }
+    sxml_status status = SXML_STATUS_OK;
+    if (table->stream_initial_count == table->stream_initial_capacity) {
+        const size_t capacity =
+            table->stream_initial_capacity == 0 ? 4 : table->stream_initial_capacity * 2;
+        void *memory = NULL;
+        status = allocate_zeroed(table->allocator,
+                                 (zeroed_request){.element_count = capacity,
+                                                  .element = {.byte_count = sizeof(stream_initial),
+                                                              .alignment = alignof(stream_initial)}},
+                                 &memory);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        if (table->stream_initial_count > 0) {
+            memcpy(memory, table->stream_initials,
+                   table->stream_initial_count * sizeof(stream_initial));
+        }
+        sxml_allocator_release(table->allocator, table->stream_initials);
+        table->stream_initials = memory;
+        table->stream_initial_capacity = capacity;
+    }
+    stream_initial *initial = &table->stream_initials[table->stream_initial_count];
+    *initial = (stream_initial){.scope = scope};
+    status = prepare_private(
+        table,
+        (private_function_request){.prefix = "stream-initial-",
+                                   .number = table->stream_initial_count + 1,
+                                   .parameters = {root_parameters, 1},
+                                   .result_type = SXML_BYTE_VIEW_INITIALIZER("map(*)")},
+        &initial->function);
+    if (status == SXML_STATUS_OK) {
+        table->stream_initial_count += 1;
+        status = declare_function(table, &initial->function);
+    }
+    table_function *called[] = {&table->stream_start, &table->stream_end, &table->stream_descend};
+    for (size_t function_index = 0;
+         status == SXML_STATUS_OK && function_index < sizeof(called) / sizeof(called[0]);
+         function_index += 1) {
+        status = declare_function(table, called[function_index]);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    table->streams = true;
+    *functions = (sxml_ir_stream_accumulators){.initial = initial->function.function,
+                                               .start = table->stream_start.function,
+                                               .end = table->stream_end.function,
+                                               .descend = table->stream_descend.function};
+    return SXML_STATUS_OK;
+}
+
+/* Whether node's attribute of kind is the boolean true. */
+typedef struct ast_attribute_query {
+    sxml_xslt_ast_node_index node;
+    sxml_xslt_ast_attribute_kind kind;
+} ast_attribute_query;
+
+static bool ast_attribute_is_true(const sxml_xslt_ast *ast, ast_attribute_query query) {
+    const sxml_xslt_ast_attribute *attribute = sxml_xslt_ast_get_attribute(
+        ast, sxml_xslt_ast_find_attribute(
+                 ast, (sxml_xslt_ast_attribute_query){.node = query.node, .kind = query.kind}));
+    return attribute->value.kind == SXML_XSLT_AST_VALUE_KIND_BOOLEAN &&
+           attribute->value.payload.is_true;
+}
+
+bool sxml_xslt_accumulators_stream(const sxml_xslt_ast *ast) {
+    for (uint32_t order = 1; sxml_xslt_ast_get_declaration(ast, order).value != 0; order += 1U) {
+        const sxml_xslt_ast_node_index node = sxml_xslt_ast_get_declaration(ast, order);
+        if (sxml_xslt_ast_get_node(ast, node)->kind != SXML_XSLT_AST_KIND_ACCUMULATOR ||
+            !ast_attribute_is_true(
+                ast, (ast_attribute_query){.node = node, .kind = SXML_XSLT_AST_ATTRIBUTE_STREAMABLE})) {
+            continue;
+        }
+        for (sxml_xslt_ast_node_index child = sxml_xslt_ast_get_node(ast, node)->first_child;
+             child.value != 0; child = sxml_xslt_ast_get_node(ast, child)->next_sibling) {
+            /* 19.9: an end rule with capture="yes" reads the node's
+               subtree, which a streamed node's end event does not hold. */
+            if (sxml_xslt_ast_get_node(ast, child)->kind == SXML_XSLT_AST_KIND_ACCUMULATOR_RULE &&
+                ast_attribute_is_true(ast, (ast_attribute_query){
+                                               .node = child,
+                                               .kind = SXML_XSLT_AST_ATTRIBUTE_CAPTURE})) {
+                return false;
+            }
+        }
+    }
+    return true;
 }
 
 /* ------------------------------------------------- xsl:source-document */

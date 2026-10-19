@@ -45,6 +45,7 @@
  */
 #include "xslt_lower_internal.h"
 
+#include "xslt_accumulator_internal.h"
 #include "xslt_evaluate_internal.h"
 
 #include "sxml/name.h"
@@ -3506,7 +3507,7 @@ static void find_applicable_modes(const sxml_xslt_lowering *lowering, const temp
 /* Whether the mode at mode_index (of templates->modes) is streamed
    (D228): declared streamable with every template rule
    guaranteed-streamable (6.6.4, 7.6a's analysis), and no accumulator
-   value read anywhere. Its template rules and built-in template are then
+   read that a streamed document cannot compute (D230). Its template rules and built-in template are then
    prepared for open nodes: a streamed body, or the grounding of the
    node's full window. Asked once per mode. */
 static sxml_status mode_is_streamed(const sxml_xslt_lowering *lowering, size_t mode_index,
@@ -3515,8 +3516,16 @@ static sxml_status mode_is_streamed(const sxml_xslt_lowering *lowering, size_t m
     sxml_status status = SXML_STATUS_OK;
     if (mode->stream_verdict == 0) {
         bool is_guaranteed = false;
-        if (lowering->stream_plan != NULL && !sxml_xslt_reads_accumulators(lowering->ast)) {
-            const sxml_xpath_lowerer *lowerer = lowering->lowerer;
+        const sxml_xpath_lowerer *lowerer = lowering->lowerer;
+        bool reads_accumulators = true;
+        if (lowering->stream_plan != NULL) {
+            status = sxml_xslt_reads_accumulators(
+                &(sxml_xslt_accumulator_reading){.ast = lowering->ast,
+                                                 .allocator = lowerer->allocator,
+                                                 .name_pool = lowerer->name_pool},
+                &reads_accumulators);
+        }
+        if (status == SXML_STATUS_OK && !reads_accumulators) {
             status = sxml_xslt_assess_mode(&(sxml_xslt_mode_query){.ast = lowering->ast,
                                                                    .allocator = lowerer->allocator,
                                                                    .name_pool = lowerer->name_pool,
@@ -4309,6 +4318,17 @@ static sxml_status bind_streamed_source(sxml_xpath_lowerer *lowerer, const focus
                                                             .body = &body,
                                                             .origin = sxml_ir_slot_atom(value)});
     }
+    /* 19.2: the accumulators use-accumulators of the initial mode names,
+       computed as the document's events pass (D230). */
+    sxml_ir_stream_accumulators accumulators = {
+        .initial = {0}, .start = {0}, .end = {0}, .descend = {0}};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xslt_stream_accumulators(
+            &(sxml_xslt_streamed_accumulator_request){.lowering = lowering,
+                                                      .scope = {.value = 0},
+                                                      .invocation = &focused->request->invocation},
+            &accumulators);
+    }
     if (status != SXML_STATUS_OK) {
         return status;
     }
@@ -4325,7 +4345,8 @@ static sxml_status bind_streamed_source(sxml_xpath_lowerer *lowerer, const focus
                                       .position_counter = {0},
                                       .body = body,
                                       .flags = (uint32_t)SXML_IR_STREAM_OPENS_DOCUMENT,
-                                      .fold = {0}}}},
+                                      .fold = {0},
+                                      .accumulators = accumulators}}},
         atom);
 }
 

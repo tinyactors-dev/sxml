@@ -5960,13 +5960,17 @@ sxml_status sxml_xslt_assess_sweep(const sxml_xslt_sweep_query *query,
                                    query->static_context);
     }
     const u_type context_type = query->is_document_focus ? SXML_U_DOCUMENT : SXML_U_ELEMENT;
+    scope start_scope = empty_scope();
+    if (query->follows_consuming) {
+        start_scope.is_in_sequence_constructor = true;
+        start_scope.follows_consuming = true;
+    }
     assessment result;
-    status =
-        assess(&state,
-               &(frame_request){.construct = assessed,
-                                .focus = striding_focus(context_type),
-                                .scope = empty_scope()},
-               &result);
+    status = assess(&state,
+                    &(frame_request){.construct = assessed,
+                                     .focus = striding_focus(context_type),
+                                     .scope = start_scope},
+                    &result);
     sxml_allocator_release(query->allocator, state.frames);
     sxml_allocator_release(query->allocator, state.operands);
     if (status != SXML_STATUS_OK || result.is_uncertain) {
@@ -5981,6 +5985,44 @@ sxml_status sxml_xslt_assess_sweep(const sxml_xslt_sweep_query *query,
         *found = SXML_XSLT_STREAM_SWEEP_MOTIONLESS;
     }
     return SXML_STATUS_OK;
+}
+
+/* ------------------------------------------ Accumulators for lowering */
+
+sxml_status sxml_xslt_assess_accumulators(const sxml_xslt_accumulator_query *query,
+                                          bool *is_guaranteed) {
+    *is_guaranteed = false;
+    if (query == NULL || query->ast == NULL || !query->ast->is_sealed ||
+        query->name_pool == NULL || sxml_allocator_is_null(query->allocator)) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    const sxml_xslt_ast *ast = query->ast;
+    machine state = {.ast = ast,
+                     .lookup = {.ast = ast, .name_pool = query->name_pool},
+                     .allocator = query->allocator,
+                     .frames = NULL,
+                     .frame_count = 0,
+                     .frame_capacity = 0,
+                     .maximum_frame_count = 100000U,
+                     .operands = NULL,
+                     .operand_count = 0,
+                     .operand_capacity = 0,
+                     .is_limit_reached = false};
+    verdict outcome = guaranteed();
+    sxml_status status = SXML_STATUS_OK;
+    for (uint32_t index = 1; status == SXML_STATUS_OK && outcome.is_guaranteed &&
+                             !outcome.is_uncertain && index < ast->node_count;
+         index += 1U) {
+        const sxml_xslt_ast_node_index node = node_at(index);
+        if (is_kind(ast, node, SXML_XSLT_AST_KIND_ACCUMULATOR) &&
+            is_true_attribute(ast, node, SXML_XSLT_AST_ATTRIBUTE_STREAMABLE)) {
+            status = check_accumulator(&state, node, &outcome);
+        }
+    }
+    sxml_allocator_release(query->allocator, state.frames);
+    sxml_allocator_release(query->allocator, state.operands);
+    *is_guaranteed = status == SXML_STATUS_OK && outcome.is_guaranteed && !outcome.is_uncertain;
+    return status;
 }
 
 /* ------------------------------------------------- Modes for lowering */

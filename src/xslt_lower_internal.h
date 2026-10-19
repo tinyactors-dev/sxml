@@ -576,11 +576,22 @@ SXML_NODISCARD sxml_status sxml_xslt_plan_template_rule(const sxml_xslt_lowering
 SXML_NODISCARD sxml_status sxml_xslt_check_streamed_body(const sxml_xslt_lowering *lowering,
                                                         sxml_xslt_ast_node_index node);
 
-/* True when the stylesheet (a sealed AST) declares accumulators and an
-   expression calls fn:accumulator-before or fn:accumulator-after: their
-   values for the nodes of stream windows are not computed yet, so
-   nothing is streamed that they could read (D223, D228). */
-bool sxml_xslt_reads_accumulators(const sxml_xslt_ast *ast);
+/* The accumulators of a stylesheet (a sealed AST), and the allocator and
+   name pool their assessment uses. */
+typedef struct sxml_xslt_accumulator_reading {
+    const sxml_xslt_ast *ast;
+    sxml_allocator allocator;
+    const sxml_name_pool *name_pool;
+} sxml_xslt_accumulator_reading;
+
+/* Writes true to *reads when the stylesheet declares accumulators, an
+   expression calls fn:accumulator-before or fn:accumulator-after, and a
+   streamed document could not compute them as its events pass (an end
+   rule that captures, or one declared streamable that is not
+   guaranteed-streamable, D230): then nothing is streamed that they could
+   read (D223, D228). Returns the allocator's failures. */
+SXML_NODISCARD sxml_status sxml_xslt_reads_accumulators(
+    const sxml_xslt_accumulator_reading *reading, bool *reads);
 
 /* True when node (an xsl:for-each or xsl:apply-templates) is a stream
    point of a streamed body. */
@@ -596,6 +607,18 @@ typedef struct sxml_xslt_stream_call {
     sxml_ir_atom href;
     sxml_ir_atom *atom;
 } sxml_xslt_stream_call;
+
+/* True when node is an xsl:fork whose prongs are streamed each in a pass
+   of its own over the document of its streamed xsl:source-document
+   (glossary `streamed_prong`, D230). */
+bool sxml_xslt_is_streamed_fork(const sxml_xslt_lowering *lowering,
+                                sxml_xslt_ast_node_index node);
+
+/* From a step: pushes the frame lowering such an xsl:fork (call->node) to
+   one STREAM with OPENS_DOCUMENT per prong, the values concatenated;
+   call->href is not read (the document's is used). */
+SXML_NODISCARD sxml_status sxml_xslt_lowering_call_streamed_fork(
+    sxml_xpath_lowering_machine *machine, const sxml_xslt_stream_call *call);
 
 /* From a step: pushes the frame lowering a stream point (xsl:for-each or
    xsl:apply-templates) to its chain of STREAMs, in the current focus. */

@@ -1045,6 +1045,29 @@ typedef enum sxml_ir_stream_flag {
  * stream points of its own (XSLT 4.0, 19.8.4.5: the node is then
  * grounded first).
  */
+/*
+ * The accumulators a streamed document computes as its events pass (XSLT
+ * 4.0, 18.2.9 and 19.3; D230), for STREAM with OPENS_DOCUMENT: functions
+ * of the unit, all 0 for none. The values of the accumulators applicable
+ * to the document are a map from their numbers (from 1).
+ */
+typedef struct sxml_ir_stream_accumulators {
+    /* ($root as node()) as map(*): the initial values (19.1), in the
+       order the accumulators are computed in. */
+    sxml_ir_function_index initial;
+    /* ($node as node(), $value as item()*, $number as xs:integer) as
+       item()*: the value of accumulator $number after the start event or
+       the end event of $node, from $value (19.4). */
+    sxml_ir_function_index start;
+    sxml_ir_function_index end;
+    /* ($node, $value, $number) as map(*): for a node whose start event
+       gave $value and whose subtree is in a stream window, the map of
+       descend-K (src/xslt_accumulator.c): "v" the value after its end
+       event, "b" and "a" maps of the values before and after each node of
+       the subtree by fn:generate-id. */
+    sxml_ir_function_index descend;
+} sxml_ir_stream_accumulators;
+
 typedef struct sxml_ir_stream {
     sxml_ir_atom origin;
     sxml_axis axis;
@@ -1060,6 +1083,8 @@ typedef struct sxml_ir_stream {
        own value is then empty): an aggregate folded as the nodes pass
        (fn:sum over a streamed path, D223). */
     sxml_ir_slot fold;
+    /* OPENS_DOCUMENT: the accumulators the document computes (D230). */
+    sxml_ir_stream_accumulators accumulators;
 } sxml_ir_stream;
 
 /* One expression: its kind, where it comes from, and the payload its kind

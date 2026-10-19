@@ -48,7 +48,8 @@
 
 /* The internal rows (src/function_library_xslt.c): accumulator-name,
    accumulator-scope, accumulator-values, accumulator-link,
-   accumulator-original; in no namespace, in no part. */
+   accumulator-original, accumulator-streamed; in no namespace, in no
+   part. */
 extern const sxml_native_function_view sxml_xslt_accumulator_functions;
 
 /* The accumulators of one stylesheet lowering (sxml_xslt_lowering's
@@ -116,6 +117,51 @@ typedef struct sxml_xslt_accumulator_link_request {
    copies: fn:copy-of, xsl:copy-of with copy-accumulators="yes". */
 SXML_NODISCARD sxml_status sxml_xslt_bind_accumulator_link(
     sxml_xpath_lowerer *lowerer, sxml_xslt_accumulator_link_request request, sxml_ir_atom *atom);
+
+/*
+ * Accumulators computed while a document streams (XSLT 4.0, 18.2.9 and
+ * 19.3; D230). The functions STREAM with OPENS_DOCUMENT calls as the
+ * document's events pass (src/ir_internal.h, sxml_ir_stream_accumulators):
+ * stream-initial-N($root) for the accumulators applicable to the document
+ * (19.2: use-accumulators of xsl:source-document, or of the initial mode
+ * for a streamed principal source; only those declared streamable="yes"),
+ * and stream-start-0, stream-end-0 and stream-descend-0, which apply
+ * start-K, end-K or descend-K (build-K's traversal of one subtree, whose
+ * window holds it) of the accumulator numbered $number to its value. The
+ * document calls them accumulator by accumulator, so a rule may read the
+ * value another computed for the same node (an accumulator whose rule
+ * reads one not computed yet is computed after the others). The values
+ * of a streamed node are read through the row accumulator-streamed, which
+ * asks the streamed document (src/evaluator_stream.c); fn:accumulator-
+ * before and -after try it first when an accumulator is streamable.
+ */
+typedef struct sxml_xslt_streamed_accumulator_request {
+    const sxml_xslt_lowering *lowering;
+    /* The xsl:source-document whose use-accumulators names them; read
+       when invocation is NULL. */
+    sxml_xslt_ast_node_index scope;
+    /* For a streamed principal source: the invocation, whose initial
+       mode's xsl:mode names them; NULL otherwise. */
+    const sxml_xslt_invocation *invocation;
+} sxml_xslt_streamed_accumulator_request;
+
+/* Declares the functions of request's streamed document and writes them
+   to *functions; all 0 when no accumulator is applicable to it. Their
+   bodies are lowered by sxml_xslt_lower_accumulators. Returns the
+   allocator's and the lowerer's failures. */
+SXML_NODISCARD sxml_status sxml_xslt_prepare_streamed_accumulators(
+    const sxml_xslt_streamed_accumulator_request *request, sxml_ir_stream_accumulators *functions);
+
+/* As sxml_xslt_prepare_streamed_accumulators, but all 0 when no
+   expression calls fn:accumulator-before or -after: nothing would read
+   the values. Defined in src/xslt_lower_stream.c. */
+SXML_NODISCARD sxml_status sxml_xslt_stream_accumulators(
+    const sxml_xslt_streamed_accumulator_request *request, sxml_ir_stream_accumulators *functions);
+
+/* Whether a streamed document can compute the accumulators of ast that may
+   apply to it: no xsl:accumulator-rule of one declared streamable has
+   capture="yes" (19.9: its end event would read the node's subtree). */
+bool sxml_xslt_accumulators_stream(const sxml_xslt_ast *ast);
 
 /* Releases the table; NULL is allowed. The static contexts must not be
    used for lowering afterwards. */

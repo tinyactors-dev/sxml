@@ -32,6 +32,22 @@
  * axis of origin's tree instead: the same IR serves streamed and
  * unstreamed nodes, and the results are those of unstreamed evaluation.
  *
+ * Accumulators (D230; XSLT 4.0, 18.2.9 and 19.3): the STREAM that opens a
+ * document whose accumulators are read (sxml_ir_stream_accumulators)
+ * computes their values as the events pass. Each event a STREAM task
+ * takes calls the accumulator functions before the task goes on: an
+ * element's start in a shallow window of its own (the window the body
+ * then sees, so its values are found by the node), its end, a text,
+ * comment or processing instruction's start and end, the document's end;
+ * content skipped is taken event by event for them. A full window (a
+ * selected subtree, a grounding stream) gets its descendants' values at
+ * once from descend-K, a traversal of the window. The values of the nodes
+ * the windows hold now are kept by depth, and the row
+ * accumulator-streamed reads them (sxml_evaluator_stream_find_accumulator_
+ * values). A rule's error is kept and raised by the reads of the values it
+ * left out (19.5); a rule that reads another accumulator's value of the
+ * same node waits until that one is computed.
+ *
  * The parser never calls the evaluator: a STREAM task resumes the parse,
  * which returns after a few events, and pushes the predicate and body
  * tasks itself, so nested STREAMs (a path step by step, xsl:for-each
@@ -160,6 +176,22 @@ typedef struct sxml_stream_window_build {
     uint32_t last_element_index;
 } sxml_stream_window_build;
 
+/* The accumulator values of one node of a streamed document whose
+   accumulators are computed as its events pass (D230): the node in the
+   window its events were read in, and the values maps (from accumulator
+   numbers) after its start and after its end; for an element whose
+   subtree went into a full window, that window and the "nodes" map its
+   descend call gave. Every item is owned, or no item. */
+typedef struct sxml_stream_accumulated {
+    sxml_item window;
+    sxml_item before;
+    sxml_item after;
+    sxml_item full_window;
+    sxml_item descended;
+    /* The serial number of the event that started the node. */
+    uint64_t serial;
+} sxml_stream_accumulated;
+
 /* A streamed document (glossary `streamed_document`). */
 typedef struct sxml_stream_document {
     sxml_allocator allocator;
@@ -199,6 +231,47 @@ typedef struct sxml_stream_document {
     sxml_item open_node;
     size_t open_depth;
     bool is_open_node_consumed;
+    /* The document computes accumulators (D230); its end was accumulated;
+       the rounds of the call running, and whether one runs; set by
+       accumulator-streamed when a rule reads a value of the node the call
+       has not computed yet (that accumulator waits a round); a call
+       failed, so no more are made. */
+    bool accumulates;
+    bool is_end_accumulated;
+    bool has_round_progressed;
+    bool is_final_round;
+    bool is_computing;
+    bool is_waiting;
+    bool has_accumulation_failed;
+    /* Events taken from the queue, counted (the serial of the last). */
+    uint64_t event_serial;
+    /* Accumulators computed as the events pass, when accumulates:
+       the functions of the OPENS_DOCUMENT STREAM's accumulators, the
+       values after the last event taken (owned), the nodes by depth
+       (entry 0 the document node, entry d the element open at depth d or
+       the last that was) and the last text, comment or processing
+       instruction. */
+    const sxml_ir_function *accumulator_initial;
+    const sxml_ir_function *accumulator_start;
+    const sxml_ir_function *accumulator_end;
+    const sxml_ir_function *accumulator_descend;
+    sxml_item accumulator_values;
+    sxml_xml_array accumulated;
+    sxml_stream_accumulated accumulated_leaf;
+    /* The accumulators' numbers (owned xs:integer items) in the order of
+       the initial values; for the call running, the ones it has computed
+       and the one it computes (sxml_stream_next_number). */
+    sxml_item *accumulator_numbers;
+    bool *is_number_done;
+    size_t number_count;
+    size_t number_cursor;
+    /* The key "v" of descend-K's map (owned). */
+    sxml_item value_key;
+    /* The error of a call that failed (has_accumulation_failed), a copy
+       in failure_text: the values not computed raise it when read
+       (19.5). */
+    sxml_error_raise_request failure;
+    sxml_xml_buffer failure_text;
 } sxml_stream_document;
 
 /* Unparsed entities of the document node, kept for every window. */
@@ -226,6 +299,48 @@ static sxml_status sxml_stream_keep(sxml_xml_buffer *buffer, sxml_byte_view byte
         return SXML_STATUS_OK;
     }
     return sxml_xml_buffer_append(buffer, bytes);
+}
+
+/* Replaces what slot holds by item (retained). */
+static void sxml_stream_keep_item(sxml_item *slot, sxml_item item) {
+    sxml_item_retain(item);
+    sxml_item_release(*slot);
+    *slot = item;
+}
+
+/* Releases what entry holds and empties it. */
+static void sxml_stream_clear_accumulated(sxml_stream_accumulated *entry) {
+    sxml_item_release(entry->window);
+    sxml_item_release(entry->before);
+    sxml_item_release(entry->after);
+    sxml_item_release(entry->full_window);
+    sxml_item_release(entry->descended);
+    *entry = (sxml_stream_accumulated){.window = {.representation = 0},
+                                       .before = {.representation = 0},
+                                       .after = {.representation = 0},
+                                       .full_window = {.representation = 0},
+                                       .descended = {.representation = 0},
+                                       .serial = 0};
+}
+
+/* The entry of the node at depth (0: the document node), made empty when
+   the document has none yet; NULL when no memory is left for it. */
+static sxml_stream_accumulated *sxml_stream_accumulated_at(sxml_stream_document *document,
+                                                           size_t depth) {
+    while (document->accumulated.element_count <= depth) {
+        void *memory = NULL;
+        if (sxml_xml_array_push(&document->accumulated, &memory) != SXML_STATUS_OK) {
+            return NULL;
+        }
+        sxml_stream_accumulated *entry = memory;
+        entry->window = (sxml_item){.representation = 0};
+        entry->before = (sxml_item){.representation = 0};
+        entry->after = (sxml_item){.representation = 0};
+        entry->full_window = (sxml_item){.representation = 0};
+        entry->descended = (sxml_item){.representation = 0};
+        entry->serial = 0;
+    }
+    return sxml_xml_array_at(&document->accumulated, depth);
 }
 
 /* ------------------------------------------------------ Window building */
@@ -698,6 +813,7 @@ static sxml_status sxml_stream_next_event(sxml_dynamic_context *dynamic_context,
     *event = document->queue[document->queue_start];
     document->queue_start = (document->queue_start + 1U) % STREAM_QUEUE_CAPACITY;
     document->queue_count -= 1;
+    document->event_serial += 1;
     if (event->event_kind == SXML_STREAM_EVENT_END_ELEMENT) {
         sxml_stream_pop_element(document);
     }
@@ -707,8 +823,8 @@ static sxml_status sxml_stream_next_event(sxml_dynamic_context *dynamic_context,
 /* Reads on until the element count is below depth: the rest of an
    element's content nobody reads (XSLT 4.0, 19: what a body did not
    consume). */
-static sxml_status sxml_stream_skip_to(sxml_dynamic_context *dynamic_context,
-                                       sxml_stream_document *document, size_t depth) {
+static sxml_status sxml_stream_skip_events(sxml_dynamic_context *dynamic_context,
+                                           sxml_stream_document *document, size_t depth) {
     while (document->queue_count > 0 && sxml_stream_depth(document) >= depth) {
         sxml_stream_event event;
         const sxml_status status = sxml_stream_next_event(dynamic_context, document, &event);
@@ -744,6 +860,16 @@ static sxml_status sxml_stream_element_window(sxml_dynamic_context *dynamic_cont
     sxml_stream_document *document = request.document;
     const bool is_full = request.is_full;
     const size_t depth = sxml_stream_depth(document);
+    if (!is_full && document->accumulates && depth < document->accumulated.element_count) {
+        /* The window the element's accumulators were computed in, so the
+           node's values are found (D230). */
+        const sxml_stream_accumulated *entry = sxml_xml_array_at(&document->accumulated, depth);
+        if (entry->serial == document->event_serial && entry->window.representation != 0) {
+            sxml_item_retain(entry->window);
+            *node = entry->window;
+            return SXML_STATUS_OK;
+        }
+    }
     sxml_stream_window_build build;
     sxml_status status = sxml_stream_begin_window(document, depth, &build);
     if (status != SXML_STATUS_OK) {
@@ -810,6 +936,13 @@ static sxml_status sxml_stream_add_leaf(const sxml_stream_document *document,
 /* The window of a text, comment or processing instruction just taken. */
 static sxml_status sxml_stream_leaf_window(sxml_stream_document *document,
                                            const sxml_stream_event *event, sxml_item *node) {
+    if (document->accumulates && document->accumulated_leaf.serial == document->event_serial &&
+        document->accumulated_leaf.window.representation != 0) {
+        /* As for an element (D230). */
+        sxml_item_retain(document->accumulated_leaf.window);
+        *node = document->accumulated_leaf.window;
+        return SXML_STATUS_OK;
+    }
     const size_t depth = event->depth;
     sxml_stream_window_build build;
     sxml_status status = sxml_stream_begin_window(document, depth, &build);
@@ -893,6 +1026,20 @@ static void sxml_stream_document_destroy(sxml_stream_document *document) {
         sxml_processor_document_loader_close_streamed(document->loader, &document->source);
     }
     sxml_item_release(document->open_node);
+    for (size_t entry_index = 0; entry_index < document->accumulated.element_count;
+         entry_index += 1) {
+        sxml_stream_clear_accumulated(sxml_xml_array_at(&document->accumulated, entry_index));
+    }
+    sxml_xml_array_release(&document->accumulated);
+    sxml_stream_clear_accumulated(&document->accumulated_leaf);
+    sxml_item_release(document->accumulator_values);
+    for (size_t number_index = 0; number_index < document->number_count; number_index += 1) {
+        sxml_item_release(document->accumulator_numbers[number_index]);
+    }
+    sxml_allocator_release(document->allocator, document->accumulator_numbers);
+    sxml_allocator_release(document->allocator, document->is_number_done);
+    sxml_item_release(document->value_key);
+    sxml_xml_buffer_release(&document->failure_text);
     sxml_xml_buffer_release(&document->document_text);
     sxml_xml_array_release(&document->unparsed_entities);
     sxml_xml_array_release(&document->elements);
@@ -945,6 +1092,11 @@ static sxml_status sxml_stream_document_open(sxml_dynamic_context *dynamic_conte
     new_document->elements = sxml_stream_array(allocator, sizeof(sxml_stream_element));
     new_document->bindings = sxml_stream_array(allocator, sizeof(sxml_namespace_binding));
     new_document->attributes = sxml_stream_array(allocator, sizeof(sxml_stream_attribute));
+    new_document->accumulated = sxml_stream_array(allocator, sizeof(sxml_stream_accumulated));
+    new_document->accumulator_values = (sxml_item){.representation = 0};
+    new_document->value_key = (sxml_item){.representation = 0};
+    new_document->failure_text = sxml_xml_buffer_empty(allocator);
+    sxml_stream_clear_accumulated(&new_document->accumulated_leaf);
     new_document->mode = SXML_STREAM_MODE_NOTIFY;
     status = sxml_processor_document_loader_open_streamed(
         loader,
@@ -1122,7 +1274,48 @@ typedef enum sxml_stream_phase {
     SXML_STREAM_PHASE_PREDICATE,
     /* The body of the selected node ended. */
     SXML_STREAM_PHASE_BODY,
+    /* A call of an accumulator function ended (D230). */
+    SXML_STREAM_PHASE_ACCUMULATED,
 } sxml_stream_phase;
+
+/* What the task does once the accumulator calls of an event or a window
+   have ended (D230). */
+typedef enum sxml_stream_continuation {
+    /* sxml_stream_next, the stashed event first. */
+    SXML_STREAM_CONTINUE_NEXT,
+    /* Skips to continuation_depth, then sxml_stream_next. */
+    SXML_STREAM_CONTINUE_SKIP,
+    /* The selected node's body. */
+    SXML_STREAM_CONTINUE_SELECT,
+    /* The body of the document (OPENS_DOCUMENT). */
+    SXML_STREAM_CONTINUE_DOCUMENT_BODY,
+    /* The body of a grounding stream. */
+    SXML_STREAM_CONTINUE_GROUNDING_BODY,
+} sxml_stream_continuation;
+
+/* What one call of an accumulator function computes (D230). */
+typedef enum sxml_stream_accumulation_kind {
+    /* The initial values for the document node. */
+    SXML_STREAM_ACCUMULATION_INITIAL,
+    /* The values after a node's start event: its before. */
+    SXML_STREAM_ACCUMULATION_START,
+    /* The values after a node's end event: its after. */
+    SXML_STREAM_ACCUMULATION_END,
+    /* The values of a subtree in a full window, and after its end. */
+    SXML_STREAM_ACCUMULATION_DESCEND,
+} sxml_stream_accumulation_kind;
+
+/* One call of an accumulator function: its node (owned) and whose values
+   it gives: the entry at depth, or the last leaf. */
+typedef struct sxml_stream_accumulation {
+    sxml_stream_accumulation_kind accumulation_kind;
+    sxml_item node;
+    size_t depth;
+    bool is_leaf;
+} sxml_stream_accumulation;
+
+/* The most calls one event needs: a leaf's start and end. */
+#define STREAM_MAXIMUM_ACCUMULATION_COUNT 2U
 
 /* Where the candidate comes from. */
 typedef enum sxml_stream_candidate_source {
@@ -1161,6 +1354,18 @@ typedef struct sxml_stream_state {
     uint64_t selected_count;
     /* Owned; made on the first value. */
     sxml_sequence_builder *builder;
+    /* Accumulator calls waiting (D230): call_next of call_count, then the
+       task resumes as resume says; an event taken before them is stashed
+       for sxml_stream_next. is_suspended is set while they run, so the
+       functions that took the event return at once. */
+    sxml_stream_accumulation calls[STREAM_MAXIMUM_ACCUMULATION_COUNT];
+    size_t call_count;
+    size_t call_next;
+    sxml_stream_continuation continuation;
+    size_t continuation_depth;
+    bool is_suspended;
+    bool has_stashed_event;
+    sxml_stream_event stashed_event;
 } sxml_stream_state;
 
 static void sxml_stream_release_state(sxml_dynamic_context *dynamic_context, void *state) {
@@ -1168,6 +1373,10 @@ static void sxml_stream_release_state(sxml_dynamic_context *dynamic_context, voi
     sxml_item_release(stream_state->origin);
     sxml_item_release(stream_state->tree_window);
     sxml_item_release(stream_state->candidate);
+    for (size_t call_index = stream_state->call_next; call_index < stream_state->call_count;
+         call_index += 1) {
+        sxml_item_release(stream_state->calls[call_index].node);
+    }
     sxml_sequence_builder_destroy(stream_state->builder);
     if (stream_state->owns_document) {
         sxml_stream_document_destroy(stream_state->document);
@@ -1207,6 +1416,500 @@ static sxml_stream_document *sxml_stream_find_document(const sxml_dynamic_contex
 
 static const sxml_ir_stream *sxml_stream_get_expression(const sxml_evaluator_task *task) {
     return &sxml_ir_unit_get_expression(task->function->unit, task->expression)->stream;
+}
+
+/* ------------------------------------------------------ Accumulators */
+
+/* The function a call of kind calls (src/ir_internal.h,
+   sxml_ir_stream_accumulators). */
+static const sxml_ir_function *sxml_stream_accumulation_function(
+    const sxml_stream_document *document, sxml_stream_accumulation_kind kind) {
+    switch (kind) {
+    case SXML_STREAM_ACCUMULATION_INITIAL:
+        return document->accumulator_initial;
+    case SXML_STREAM_ACCUMULATION_START:
+        return document->accumulator_start;
+    case SXML_STREAM_ACCUMULATION_END:
+        return document->accumulator_end;
+    case SXML_STREAM_ACCUMULATION_DESCEND:
+        return document->accumulator_descend;
+    }
+    return NULL;
+}
+
+/* The value of the accumulator at number_index in the document's values,
+   borrowed; the empty sequence when there is none. */
+static sxml_sequence sxml_stream_number_value(const sxml_stream_document *document,
+                                              size_t number_index) {
+    sxml_map_lookup found = {.is_found = false};
+    if (document->accumulator_values.representation != 0 &&
+        sxml_map_find(document->accumulator_values, document->accumulator_numbers[number_index],
+                      &found) == SXML_STATUS_OK &&
+        found.is_found) {
+        return found.entry.value;
+    }
+    return sxml_sequence_empty();
+}
+
+/* Pushes a CALL of the call at state->call_next above the task, as
+   src/evaluator_template.c pushes a template's: INITIAL of its node; the
+   others of its node, the value of the accumulator at number_cursor and
+   its number. The task resumes in phase ACCUMULATED. */
+static sxml_status sxml_stream_push_accumulation(sxml_dynamic_context *dynamic_context,
+                                                 sxml_stream_state *state) {
+    const sxml_stream_accumulation *call = &state->calls[state->call_next];
+    sxml_stream_document *document = state->document;
+    const sxml_ir_function *function =
+        sxml_stream_accumulation_function(document, call->accumulation_kind);
+    const bool is_initial = call->accumulation_kind == SXML_STREAM_ACCUMULATION_INITIAL;
+    if (function == NULL || function->parameter_count != (is_initial ? 1U : 3U) ||
+        (!is_initial && document->number_cursor >= document->number_count)) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    const size_t argument_count = function->parameter_count;
+    void *memory = NULL;
+    sxml_status status = sxml_allocator_allocate(
+        dynamic_context->allocator,
+        (sxml_allocation_request){.byte_count = argument_count * sizeof(sxml_sequence),
+                                  .alignment = alignof(sxml_sequence)},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_sequence *arguments = memory;
+    sxml_item_retain(call->node);
+    arguments[0] = sxml_sequence_from_item(call->node);
+    if (!is_initial) {
+        arguments[1] = sxml_stream_number_value(document, document->number_cursor);
+        sxml_sequence_retain(arguments[1]);
+        const sxml_item number = document->accumulator_numbers[document->number_cursor];
+        sxml_item_retain(number);
+        arguments[2] = sxml_sequence_from_item(number);
+    }
+    sxml_evaluator_task *task = sxml_evaluator_machine_top(dynamic_context);
+    task->phase = (uint32_t)SXML_STREAM_PHASE_ACCUMULATED;
+    /* 19.5: an error is raised when a value it leaves out is read. */
+    task->catches_errors = true;
+    /* The task pointer is invalid after the push. */
+    status = sxml_evaluator_machine_push_expression(dynamic_context, task->expression);
+    if (status != SXML_STATUS_OK) {
+        sxml_evaluator_machine_top(dynamic_context)->catches_errors = false;
+        for (size_t argument_index = 0; argument_index < argument_count; argument_index += 1) {
+            sxml_sequence_release(arguments[argument_index]);
+        }
+        sxml_allocator_release(dynamic_context->allocator, arguments);
+        return status;
+    }
+    sxml_evaluator_task *call_task = sxml_evaluator_machine_top(dynamic_context);
+    call_task->task_kind = SXML_EVALUATOR_TASK_KIND_CALL;
+    call_task->phase = 0;
+    call_task->delivers_content = false;
+    call_task->details.call = (sxml_call_state){.function_item = {.representation = 0},
+                                                .callee = function,
+                                                .native_function = NULL,
+                                                .arguments = arguments,
+                                                .argument_count = argument_count,
+                                                .native_call = NULL};
+    state->is_suspended = true;
+    return SXML_STATUS_OK;
+}
+
+/* Starts the call at state->call_next: for each accumulator in turn, but
+   for INITIAL, which gives all of them. */
+static sxml_status sxml_stream_begin_call(sxml_dynamic_context *dynamic_context,
+                                          sxml_stream_state *state) {
+    sxml_stream_document *document = state->document;
+    if (document == NULL) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    const sxml_stream_accumulation *call = &state->calls[state->call_next];
+    if (call->accumulation_kind == SXML_STREAM_ACCUMULATION_DESCEND) {
+        /* Its nodes are the window's from now on: a rule that reads a
+           value not computed yet waits. */
+        sxml_stream_accumulated *entry = sxml_stream_accumulated_at(document, call->depth);
+        if (entry == NULL) {
+            return SXML_STATUS_OUT_OF_MEMORY;
+        }
+        sxml_stream_keep_item(&entry->full_window, call->node);
+        sxml_item_release(entry->descended);
+        entry->descended = (sxml_item){.representation = 0};
+    }
+    if (call->accumulation_kind != SXML_STREAM_ACCUMULATION_INITIAL) {
+        for (size_t number_index = 0; number_index < document->number_count; number_index += 1) {
+            document->is_number_done[number_index] = false;
+        }
+        document->number_cursor = 0;
+        document->has_round_progressed = false;
+        document->is_final_round = false;
+    }
+    document->is_computing = true;
+    return sxml_stream_push_accumulation(dynamic_context, state);
+}
+
+/* Moves number_cursor to the next accumulator whose value the call has not
+   computed; false when it has them all. An accumulator a rule of another
+   needed first is computed in a later round (D230: the values of one node
+   depend on each other, 19.4); a round without progress is the last, in
+   which the rule's error is raised (XTDE3400). */
+static bool sxml_stream_next_number(sxml_stream_document *document) {
+    for (size_t number_index = document->number_cursor + 1U;
+         number_index < document->number_count; number_index += 1) {
+        if (!document->is_number_done[number_index]) {
+            document->number_cursor = number_index;
+            return true;
+        }
+    }
+    for (size_t number_index = 0; number_index < document->number_count; number_index += 1) {
+        if (!document->is_number_done[number_index]) {
+            if (document->has_round_progressed) {
+                document->has_round_progressed = false;
+            } else {
+                document->is_final_round = true;
+            }
+            document->number_cursor = number_index;
+            return true;
+        }
+    }
+    return false;
+}
+
+/* Adds a call of kind for node (owned) to state's calls. */
+typedef struct sxml_stream_call_request {
+    sxml_stream_accumulation_kind accumulation_kind;
+    sxml_item node;
+    size_t depth;
+    bool is_leaf;
+} sxml_stream_call_request;
+
+static void sxml_stream_add_call(sxml_stream_state *state, sxml_stream_call_request request) {
+    state->calls[state->call_count] =
+        (sxml_stream_accumulation){.accumulation_kind = request.accumulation_kind,
+                                   .node = request.node,
+                                   .depth = request.depth,
+                                   .is_leaf = request.is_leaf};
+    state->call_count += 1;
+}
+
+/* Starts the calls added, the task going on as continuation says after
+   them; nothing when none was added. */
+static sxml_status sxml_stream_start_calls(sxml_dynamic_context *dynamic_context,
+                                           sxml_stream_state *state,
+                                           sxml_stream_continuation continuation) {
+    if (state->call_count == 0) {
+        return SXML_STATUS_OK;
+    }
+    state->call_next = 0;
+    state->continuation = continuation;
+    return sxml_stream_begin_call(dynamic_context, state);
+}
+
+/* The calls event needs, just taken by the task (D230): an element's start
+   in a shallow window of its own, its end, a leaf's start and end, the
+   document's end; then the event is stashed for sxml_stream_next. */
+static sxml_status sxml_stream_plan_event(sxml_dynamic_context *dynamic_context,
+                                          sxml_stream_state *state,
+                                          const sxml_stream_event *event) {
+    sxml_stream_document *document = state->document;
+    const size_t depth = sxml_stream_depth(document);
+    sxml_status status = SXML_STATUS_OK;
+    switch (event->event_kind) {
+    case SXML_STREAM_EVENT_START_ELEMENT: {
+        sxml_item window = {.representation = 0};
+        status = sxml_stream_element_window(
+            dynamic_context,
+            (sxml_stream_element_request){.document = document, .is_full = false}, &window);
+        sxml_stream_accumulated *entry =
+            status == SXML_STATUS_OK ? sxml_stream_accumulated_at(document, depth) : NULL;
+        if (entry == NULL) {
+            sxml_item_release(window);
+            return status == SXML_STATUS_OK ? SXML_STATUS_OUT_OF_MEMORY : status;
+        }
+        sxml_stream_clear_accumulated(entry);
+        entry->window = window;
+        entry->serial = document->event_serial;
+        sxml_item_retain(window);
+        sxml_stream_add_call(state, (sxml_stream_call_request){
+                                        .accumulation_kind = SXML_STREAM_ACCUMULATION_START,
+                                        .node = window,
+                                        .depth = depth,
+                                        .is_leaf = false});
+        break;
+    }
+    case SXML_STREAM_EVENT_END_ELEMENT: {
+        /* The element ended was at depth + 1 (taken, it is removed). */
+        if (depth + 1U < document->accumulated.element_count) {
+            const sxml_stream_accumulated *entry =
+                sxml_xml_array_at(&document->accumulated, depth + 1U);
+            if (entry->window.representation != 0) {
+                sxml_item_retain(entry->window);
+                sxml_stream_add_call(state, (sxml_stream_call_request){
+                                                .accumulation_kind = SXML_STREAM_ACCUMULATION_END,
+                                                .node = entry->window,
+                                                .depth = depth + 1U,
+                                                .is_leaf = false});
+            }
+        }
+        break;
+    }
+    case SXML_STREAM_EVENT_TEXT:
+    case SXML_STREAM_EVENT_COMMENT:
+    case SXML_STREAM_EVENT_PROCESSING_INSTRUCTION: {
+        sxml_item window = {.representation = 0};
+        status = sxml_stream_leaf_window(document, event, &window);
+        if (status != SXML_STATUS_OK || window.representation == 0) {
+            /* A whitespace text node the document's preparation removes is
+               no node (4.2.2): it has no events. */
+            return status;
+        }
+        sxml_stream_clear_accumulated(&document->accumulated_leaf);
+        document->accumulated_leaf.window = window;
+        document->accumulated_leaf.serial = document->event_serial;
+        const sxml_stream_accumulation_kind kinds[] = {SXML_STREAM_ACCUMULATION_START,
+                                                       SXML_STREAM_ACCUMULATION_END};
+        for (size_t kind_index = 0; kind_index < 2; kind_index += 1) {
+            sxml_item_retain(window);
+            sxml_stream_add_call(state, (sxml_stream_call_request){
+                                            .accumulation_kind = kinds[kind_index],
+                                            .node = window,
+                                            .depth = 0,
+                                            .is_leaf = true});
+        }
+        break;
+    }
+    case SXML_STREAM_EVENT_END_DOCUMENT:
+        if (!document->is_end_accumulated && document->accumulated.element_count > 0) {
+            document->is_end_accumulated = true;
+            const sxml_stream_accumulated *entry = sxml_xml_array_at(&document->accumulated, 0);
+            if (entry->window.representation != 0) {
+                sxml_item_retain(entry->window);
+                sxml_stream_add_call(state, (sxml_stream_call_request){
+                                                .accumulation_kind = SXML_STREAM_ACCUMULATION_END,
+                                                .node = entry->window,
+                                                .depth = 0,
+                                                .is_leaf = false});
+            }
+        }
+        break;
+    case SXML_STREAM_EVENT_NONE:
+        break;
+    }
+    if (document->has_accumulation_failed) {
+        /* The nodes are known, their values not (D230). */
+        for (size_t call_index = 0; call_index < state->call_count; call_index += 1) {
+            sxml_item_release(state->calls[call_index].node);
+        }
+        state->call_count = 0;
+    }
+    if (state->call_count == 0) {
+        return SXML_STATUS_OK;
+    }
+    state->has_stashed_event = true;
+    state->stashed_event = *event;
+    return sxml_stream_start_calls(dynamic_context, state, SXML_STREAM_CONTINUE_NEXT);
+}
+
+/* Takes the next event; in a document whose accumulators are computed,
+   starts the calls it needs (state->is_suspended is then set: the caller
+   returns, and the task goes on as state->continuation says). */
+static sxml_status sxml_stream_take_event(sxml_dynamic_context *dynamic_context,
+                                          sxml_stream_state *state, sxml_stream_event *event) {
+    const sxml_status status = sxml_stream_next_event(dynamic_context, state->document, event);
+    if (status != SXML_STATUS_OK || !state->document->accumulates) {
+        return status;
+    }
+    return sxml_stream_plan_event(dynamic_context, state, event);
+}
+
+/* Skips the rest of the element at depth. With accumulators computed
+   (D230) every event is taken for its calls: the task may suspend, and
+   resumes the skip after them. */
+static sxml_status sxml_stream_skip_to(sxml_dynamic_context *dynamic_context,
+                                       sxml_stream_state *state, size_t depth) {
+    sxml_stream_document *document = state->document;
+    if (!document->accumulates) {
+        return sxml_stream_skip_events(dynamic_context, document, depth);
+    }
+    while (sxml_stream_depth(document) >= depth) {
+        sxml_stream_event event;
+        const sxml_status status = sxml_stream_take_event(dynamic_context, state, &event);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        if (state->is_suspended) {
+            /* Nothing of the event is read: the skip goes on after it. */
+            state->has_stashed_event = false;
+            state->continuation = SXML_STREAM_CONTINUE_SKIP;
+            state->continuation_depth = depth;
+            return SXML_STATUS_OK;
+        }
+        if (event.event_kind == SXML_STREAM_EVENT_END_DOCUMENT) {
+            return SXML_STATUS_OK;
+        }
+    }
+    return SXML_STATUS_OK;
+}
+
+/* Starts the descend call of a full window of the element at depth (0:
+   the document node) whose start was accumulated, going on as
+   continuation says after it; nothing when the document computes no
+   accumulators. */
+typedef struct sxml_stream_descent {
+    sxml_item window;
+    size_t depth;
+    sxml_stream_continuation continuation;
+} sxml_stream_descent;
+
+static sxml_status sxml_stream_descend(sxml_dynamic_context *dynamic_context,
+                                       sxml_stream_state *state, sxml_stream_descent descent) {
+    if (state->document == NULL || !state->document->accumulates ||
+        state->document->has_accumulation_failed || descent.window.representation == 0) {
+        return SXML_STATUS_OK;
+    }
+    sxml_item_retain(descent.window);
+    sxml_stream_add_call(state, (sxml_stream_call_request){
+                                    .accumulation_kind = SXML_STREAM_ACCUMULATION_DESCEND,
+                                    .node = descent.window,
+                                    .depth = descent.depth,
+                                    .is_leaf = false});
+    return sxml_stream_start_calls(dynamic_context, state, descent.continuation);
+}
+
+/* Sets key to value (borrowed) in the map *slot holds, an empty map when
+   it holds none. */
+typedef struct sxml_stream_map_put {
+    sxml_item_heap *item_heap;
+    sxml_item key;
+    sxml_sequence value;
+} sxml_stream_map_put;
+
+static sxml_status sxml_stream_put(sxml_item *slot, sxml_stream_map_put put) {
+    sxml_status status = SXML_STATUS_OK;
+    if (slot->representation == 0) {
+        status = sxml_map_make(
+            put.item_heap,
+            &(sxml_map_request){.map_entries = {.map_entries = NULL, .map_entry_count = 0},
+                                .duplicate_key_policy = SXML_DUPLICATE_KEY_POLICY_REJECT,
+                                .error_record = NULL},
+            slot);
+    }
+    sxml_item updated = {.representation = 0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_map_put(
+            put.item_heap,
+            &(sxml_map_update){.map = *slot, .key = put.key, .value = put.value}, &updated);
+    }
+    if (status == SXML_STATUS_OK) {
+        sxml_item_release(*slot);
+        *slot = updated;
+    }
+    return status;
+}
+
+/* INITIAL ended with the values (owned): the document's values, and the
+   accumulators' numbers in their order. */
+static sxml_status sxml_stream_apply_initial(sxml_stream_document *document,
+                                             sxml_sequence value) {
+    sxml_item map = {.representation = 0};
+    if (sxml_sequence_get_representation(value) == SXML_SEQUENCE_REPRESENTATION_SINGLE_ITEM) {
+        map = value.content;
+    }
+    size_t count = 0;
+    sxml_status status = map.representation == 0 ? SXML_STATUS_INVALID_ARGUMENT
+                                                 : sxml_map_get_size(map, &count);
+    void *numbers = NULL;
+    void *done = NULL;
+    if (status == SXML_STATUS_OK && count > 0) {
+        status = sxml_allocator_allocate(
+            document->allocator,
+            (sxml_allocation_request){.byte_count = count * sizeof(sxml_item),
+                                      .alignment = alignof(sxml_item)},
+            &numbers);
+    }
+    if (status == SXML_STATUS_OK && count > 0) {
+        status = sxml_allocator_allocate(
+            document->allocator,
+            (sxml_allocation_request){.byte_count = count * sizeof(bool),
+                                      .alignment = alignof(bool)},
+            &done);
+    }
+    if (status != SXML_STATUS_OK) {
+        sxml_allocator_release(document->allocator, numbers);
+        sxml_sequence_release(value);
+        return status;
+    }
+    document->accumulator_numbers = numbers;
+    document->is_number_done = done;
+    for (size_t entry_index = 0; status == SXML_STATUS_OK && entry_index < count;
+         entry_index += 1) {
+        sxml_map_entry entry;
+        status = sxml_map_get_entry(map, entry_index, &entry);
+        if (status == SXML_STATUS_OK) {
+            sxml_item_retain(entry.key);
+            document->accumulator_numbers[entry_index] = entry.key;
+            document->number_count = entry_index + 1U;
+        }
+    }
+    if (status == SXML_STATUS_OK) {
+        sxml_stream_keep_item(&document->accumulator_values, map);
+    }
+    sxml_sequence_release(value);
+    return status;
+}
+
+/* The value (owned) one accumulator's call ended with: the document's
+   values, and those of the call's node. */
+static sxml_status sxml_stream_apply_number(sxml_stream_state *state, sxml_sequence value) {
+    sxml_stream_document *document = state->document;
+    const sxml_stream_accumulation *call = &state->calls[state->call_next];
+    sxml_stream_accumulated *entry = call->is_leaf
+                                         ? &document->accumulated_leaf
+                                         : sxml_stream_accumulated_at(document, call->depth);
+    if (entry == NULL) {
+        sxml_sequence_release(value);
+        return SXML_STATUS_OUT_OF_MEMORY;
+    }
+    sxml_item_heap *item_heap = document->processor->item_heap;
+    const sxml_item number = document->accumulator_numbers[document->number_cursor];
+    sxml_sequence new_value = value;
+    sxml_status status = SXML_STATUS_OK;
+    if (call->accumulation_kind == SXML_STREAM_ACCUMULATION_DESCEND) {
+        /* descend-K's map: "v" the value after the subtree. */
+        sxml_map_lookup found = {.is_found = false};
+        new_value = sxml_sequence_empty();
+        if (sxml_sequence_get_representation(value) == SXML_SEQUENCE_REPRESENTATION_SINGLE_ITEM &&
+            sxml_item_get_kind(value.content) == SXML_ITEM_KIND_MAP) {
+            status = sxml_map_find(value.content, document->value_key, &found);
+        }
+        if (status == SXML_STATUS_OK && found.is_found) {
+            new_value = found.entry.value;
+        }
+        if (status == SXML_STATUS_OK) {
+            sxml_stream_keep_item(&entry->full_window, call->node);
+            status = sxml_stream_put(&entry->descended, (sxml_stream_map_put){
+                                                             .item_heap = item_heap,
+                                                             .key = number,
+                                                             .value = value});
+        }
+    } else if (call->accumulation_kind == SXML_STREAM_ACCUMULATION_START) {
+        status = sxml_stream_put(&entry->before, (sxml_stream_map_put){
+                                                     .item_heap = item_heap,
+                                                     .key = number,
+                                                     .value = value});
+    } else {
+        status = sxml_stream_put(&entry->after, (sxml_stream_map_put){
+                                                    .item_heap = item_heap,
+                                                    .key = number,
+                                                    .value = value});
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_stream_put(
+            &document->accumulator_values,
+            (sxml_stream_map_put){.item_heap = item_heap, .key = number, .value = new_value});
+    }
+    document->is_number_done[document->number_cursor] = true;
+    document->has_round_progressed = true;
+    sxml_sequence_release(value);
+    return status;
 }
 
 /* Appends value (owned) to the result, or delivers it (D166). */
@@ -1303,6 +2006,20 @@ static sxml_status sxml_stream_next_position(sxml_dynamic_context *dynamic_conte
     return SXML_STATUS_OK;
 }
 
+/* The selected candidate's body, at its position. */
+static sxml_status sxml_stream_select_body(sxml_dynamic_context *dynamic_context,
+                                           sxml_stream_state *state) {
+    uint64_t position = 0;
+    const sxml_status status = sxml_stream_next_position(dynamic_context, state, &position);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_stream_push_focused(dynamic_context, state,
+                                    (sxml_stream_push){.expression = state->stream->body,
+                                                       .position = position,
+                                                       .phase = SXML_STREAM_PHASE_BODY});
+}
+
 /* The candidate is selected: its window as the body needs it, then the
    body. */
 static sxml_status sxml_stream_select(sxml_dynamic_context *dynamic_context,
@@ -1323,17 +2040,18 @@ static sxml_status sxml_stream_select(sxml_dynamic_context *dynamic_context,
                 return status;
             }
             state->candidate_source = SXML_STREAM_CANDIDATE_CAPTURED_ELEMENT;
+            /* D230: the values of its subtree, before the body reads them. */
+            const sxml_status descended = sxml_stream_descend(
+                dynamic_context, state,
+                (sxml_stream_descent){.window = state->candidate,
+                                      .depth = state->candidate_depth,
+                                      .continuation = SXML_STREAM_CONTINUE_SELECT});
+            if (descended != SXML_STATUS_OK || state->is_suspended) {
+                return descended;
+            }
         }
     }
-    uint64_t position = 0;
-    const sxml_status status = sxml_stream_next_position(dynamic_context, state, &position);
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    return sxml_stream_push_focused(dynamic_context, state,
-                                    (sxml_stream_push){.expression = state->stream->body,
-                                                       .position = position,
-                                                       .phase = SXML_STREAM_PHASE_BODY});
+    return sxml_stream_select_body(dynamic_context, state);
 }
 
 /* A candidate was found: its predicate, or it is selected. */
@@ -1357,7 +2075,7 @@ static sxml_status sxml_stream_pass_element(sxml_dynamic_context *dynamic_contex
     if (state->stream->axis == SXML_AXIS_DESCENDANT) {
         return SXML_STATUS_OK;
     }
-    return sxml_stream_skip_to(dynamic_context, state->document, state->candidate_depth);
+    return sxml_stream_skip_to(dynamic_context, state, state->candidate_depth);
 }
 
 /* The next node of the tree walk that matches the test; false at its end. */
@@ -1397,9 +2115,16 @@ static sxml_status sxml_stream_next_event_candidate(sxml_dynamic_context *dynami
     sxml_stream_document *document = state->document;
     for (;;) {
         sxml_stream_event event;
-        sxml_status status = sxml_stream_next_event(dynamic_context, document, &event);
-        if (status != SXML_STATUS_OK) {
-            return status;
+        sxml_status status = SXML_STATUS_OK;
+        if (state->has_stashed_event) {
+            /* Taken before its accumulator calls (D230). */
+            event = state->stashed_event;
+            state->has_stashed_event = false;
+        } else {
+            status = sxml_stream_take_event(dynamic_context, state, &event);
+            if (status != SXML_STATUS_OK || state->is_suspended) {
+                return status;
+            }
         }
         const size_t depth = sxml_stream_depth(document);
         switch (event.event_kind) {
@@ -1415,8 +2140,8 @@ static sxml_status sxml_stream_next_event_candidate(sxml_dynamic_context *dynami
             continue;
         case SXML_STREAM_EVENT_START_ELEMENT: {
             if (state->stream->axis == SXML_AXIS_CHILD && depth != state->base_depth + 1U) {
-                status = sxml_stream_skip_to(dynamic_context, document, depth);
-                if (status != SXML_STATUS_OK) {
+                status = sxml_stream_skip_to(dynamic_context, state, depth);
+                if (status != SXML_STATUS_OK || state->is_suspended) {
                     return status;
                 }
                 continue;
@@ -1454,7 +2179,7 @@ static sxml_status sxml_stream_next_event_candidate(sxml_dynamic_context *dynami
                 sxml_item_release(state->candidate);
                 state->candidate = (sxml_item){.representation = 0};
                 status = sxml_stream_pass_element(dynamic_context, state);
-                if (status != SXML_STATUS_OK) {
+                if (status != SXML_STATUS_OK || state->is_suspended) {
                     return status;
                 }
                 continue;
@@ -1529,7 +2254,7 @@ static sxml_status sxml_stream_next(sxml_dynamic_context *dynamic_context,
     }
     if (!has_candidate && !state->walks_tree && state->document != NULL) {
         status = sxml_stream_next_event_candidate(dynamic_context, state, &has_candidate);
-        if (status != SXML_STATUS_OK) {
+        if (status != SXML_STATUS_OK || state->is_suspended) {
             return status;
         }
     }
@@ -1559,7 +2284,7 @@ static sxml_status sxml_stream_take_predicate(sxml_dynamic_context *dynamic_cont
     state->candidate = (sxml_item){.representation = 0};
     if (source == SXML_STREAM_CANDIDATE_OPEN_ELEMENT) {
         status = sxml_stream_pass_element(dynamic_context, state);
-        if (status != SXML_STATUS_OK) {
+        if (status != SXML_STATUS_OK || state->is_suspended) {
             return status;
         }
     }
@@ -1589,7 +2314,13 @@ static sxml_status sxml_stream_take_body(sxml_dynamic_context *dynamic_context,
         sxml_stream_set_open_node(document, state->origin, state->base_depth);
         document->is_open_node_consumed = true;
         if (state->stream->axis != SXML_AXIS_DESCENDANT || was_consumed) {
-            status = sxml_stream_skip_to(dynamic_context, document, state->candidate_depth);
+            /* The candidate goes first: the skip may suspend (D230). */
+            sxml_item_release(state->candidate);
+            state->candidate = (sxml_item){.representation = 0};
+            status = sxml_stream_skip_to(dynamic_context, state, state->candidate_depth);
+            if (status != SXML_STATUS_OK || state->is_suspended) {
+                return status;
+            }
         }
     } else if (state->candidate_source == SXML_STREAM_CANDIDATE_CAPTURED_ELEMENT &&
                state->stream->axis == SXML_AXIS_DESCENDANT) {
@@ -1661,6 +2392,58 @@ static sxml_status sxml_stream_read_origin(sxml_dynamic_context *dynamic_context
     return SXML_STATUS_OK;
 }
 
+/* OPENS_DOCUMENT: the body, once, with the document node as its focus. */
+static sxml_status sxml_stream_push_document_body(sxml_dynamic_context *dynamic_context,
+                                                  sxml_stream_state *state) {
+    return sxml_stream_push_focused(dynamic_context, state,
+                                    (sxml_stream_push){.expression = state->stream->body,
+                                                       .position = 1,
+                                                       .phase = SXML_STREAM_PHASE_BODY});
+}
+
+/* OPENS_DOCUMENT with accumulators (D230): the document computes them as
+   its events pass, from the initial values and the document node's start,
+   whose calls are added. */
+static sxml_status sxml_stream_start_accumulators(sxml_dynamic_context *dynamic_context,
+                                                  sxml_stream_state *state) {
+    sxml_stream_document *document = state->document;
+    const sxml_ir_unit *unit = sxml_evaluator_machine_top(dynamic_context)->function->unit;
+    const sxml_ir_stream_accumulators *functions = &state->stream->accumulators;
+    document->accumulates = true;
+    document->accumulator_initial = sxml_ir_unit_get_function(unit, functions->initial);
+    document->accumulator_start = sxml_ir_unit_get_function(unit, functions->start);
+    document->accumulator_end = sxml_ir_unit_get_function(unit, functions->end);
+    document->accumulator_descend = sxml_ir_unit_get_function(unit, functions->descend);
+    sxml_status status = sxml_atomic_item_make(
+        document->processor->item_heap,
+        &(sxml_atomic_item_request){
+            .type = sxml_builtin_type_identifier(SXML_TYPE_XS_STRING),
+            .datum = {.datum_kind = SXML_DATUM_KIND_STRING,
+                      .datum_details = {.string = {.utf8 = SXML_BYTE_VIEW_FROM_LITERAL("v"),
+                                                   .codepoint_count = 1,
+                                                   .is_ascii = true}}}},
+        &document->value_key);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_stream_accumulated *entry = sxml_stream_accumulated_at(document, 0);
+    if (entry == NULL) {
+        return SXML_STATUS_OUT_OF_MEMORY;
+    }
+    sxml_stream_keep_item(&entry->window, state->candidate);
+    entry->serial = document->event_serial;
+    const sxml_stream_accumulation_kind kinds[] = {SXML_STREAM_ACCUMULATION_INITIAL,
+                                                   SXML_STREAM_ACCUMULATION_START};
+    for (size_t kind_index = 0; kind_index < 2; kind_index += 1) {
+        sxml_item_retain(state->candidate);
+        sxml_stream_add_call(state, (sxml_stream_call_request){.accumulation_kind = kinds[kind_index],
+                                                               .node = state->candidate,
+                                                               .depth = 0,
+                                                               .is_leaf = false});
+    }
+    return SXML_STATUS_OK;
+}
+
 /* OPENS_DOCUMENT: the document, streamed or as fn:doc gives it, as the
    body's focus. */
 static sxml_status sxml_stream_start_document(sxml_dynamic_context *dynamic_context,
@@ -1720,16 +2503,20 @@ static sxml_status sxml_stream_start_document(sxml_dynamic_context *dynamic_cont
             sxml_item_retain(state->candidate);
             sxml_stream_set_open_node(state->document, state->candidate, 0);
         }
+        if (status == SXML_STATUS_OK && state->stream->accumulators.initial.value != 0) {
+            status = sxml_stream_start_accumulators(dynamic_context, state);
+        }
     }
     if (status != SXML_STATUS_OK) {
         return status;
     }
     state->candidate_source = SXML_STREAM_CANDIDATE_LEAF;
     state->selected_count = 1;
-    return sxml_stream_push_focused(dynamic_context, state,
-                                    (sxml_stream_push){.expression = state->stream->body,
-                                                       .position = 1,
-                                                       .phase = SXML_STREAM_PHASE_BODY});
+    status = sxml_stream_start_calls(dynamic_context, state, SXML_STREAM_CONTINUE_DOCUMENT_BODY);
+    if (status != SXML_STATUS_OK || state->is_suspended) {
+        return status;
+    }
+    return sxml_stream_push_document_body(dynamic_context, state);
 }
 
 /* OPENS_DOCUMENT: the body ended; the rest of the document is read (it
@@ -1752,6 +2539,17 @@ static sxml_status sxml_stream_finish_document(sxml_dynamic_context *dynamic_con
     return sxml_stream_finish(dynamic_context, state);
 }
 
+/* A grounding stream's body, in the focus bound. */
+static sxml_status sxml_stream_push_grounding_body(sxml_dynamic_context *dynamic_context,
+                                                   const sxml_stream_state *state) {
+    sxml_evaluator_task *task = sxml_evaluator_machine_top(dynamic_context);
+    task->phase = (uint32_t)SXML_STREAM_PHASE_BODY;
+    if (task->delivers_content) {
+        return sxml_evaluator_machine_push_content(dynamic_context, state->stream->body);
+    }
+    return sxml_evaluator_machine_push_expression(dynamic_context, state->stream->body);
+}
+
 /* A grounding stream (axis SELF, D228): the body once, in the focus of
    origin's full window when origin is the open node (its content read
    now, so whoever opened it skips nothing), else of origin. */
@@ -1770,8 +2568,6 @@ static sxml_status sxml_stream_start_grounding(sxml_dynamic_context *dynamic_con
     state->candidate_source = SXML_STREAM_CANDIDATE_LEAF;
     state->selected_count = 1;
     const sxml_ir_focus focus = state->stream->focus;
-    sxml_evaluator_task *task = sxml_evaluator_machine_top(dynamic_context);
-    task->phase = (uint32_t)SXML_STREAM_PHASE_BODY;
     if (document == NULL) {
         if (focus.context_value.value != 0) {
             sxml_sequence_retain(value);
@@ -1799,11 +2595,19 @@ static sxml_status sxml_stream_start_grounding(sxml_dynamic_context *dynamic_con
             sxml_evaluator_machine_bind_slot(dynamic_context, focus.context_value,
                                              sxml_sequence_from_item(state->candidate));
         }
+        /* D230: the values of the window's nodes, before the body reads
+           them (the document is not this task's). */
+        state->document = document;
+        status = sxml_stream_descend(
+            dynamic_context, state,
+            (sxml_stream_descent){.window = state->candidate,
+                                  .depth = document->open_depth,
+                                  .continuation = SXML_STREAM_CONTINUE_GROUNDING_BODY});
+        if (status != SXML_STATUS_OK || state->is_suspended) {
+            return status;
+        }
     }
-    if (task->delivers_content) {
-        return sxml_evaluator_machine_push_content(dynamic_context, state->stream->body);
-    }
-    return sxml_evaluator_machine_push_expression(dynamic_context, state->stream->body);
+    return sxml_stream_push_grounding_body(dynamic_context, state);
 }
 
 static sxml_status sxml_stream_start(sxml_dynamic_context *dynamic_context,
@@ -1847,6 +2651,125 @@ static sxml_status sxml_stream_start(sxml_dynamic_context *dynamic_context,
     return sxml_stream_next(dynamic_context, state);
 }
 
+/* Keeps a copy of the error a call failed with (the error record's,
+   status caught) for the reads of the values it leaves out (D230). */
+static sxml_status sxml_stream_keep_failure(const sxml_dynamic_context *dynamic_context,
+                                            sxml_stream_state *state, sxml_status caught) {
+    sxml_stream_document *document = state->document;
+    document->has_accumulation_failed = true;
+    const sxml_stream_accumulation *call = &state->calls[state->call_next];
+    if (call->accumulation_kind == SXML_STREAM_ACCUMULATION_DESCEND && !call->is_leaf) {
+        /* Its nodes are known, their values not. */
+        sxml_stream_accumulated *entry = sxml_stream_accumulated_at(document, call->depth);
+        if (entry != NULL) {
+            sxml_stream_keep_item(&entry->full_window, call->node);
+        }
+    }
+    sxml_error_code code = {.namespace_uri = SXML_BYTE_VIEW_FROM_LITERAL(SXML_ERROR_NAMESPACE_URI),
+                            .local_name = SXML_BYTE_VIEW_FROM_LITERAL("FOER0000"),
+                            .namespace_prefix = SXML_BYTE_VIEW_FROM_LITERAL("err")};
+    sxml_byte_view description = SXML_BYTE_VIEW_FROM_LITERAL("An accumulator rule failed");
+    const sxml_error_record *record = dynamic_context->error_record;
+    if (record != NULL && record->code.local_name.byte_count > 0) {
+        code = record->code;
+        description = record->diagnostic.description;
+    }
+    const sxml_byte_view parts[] = {code.namespace_uri, code.local_name, code.namespace_prefix,
+                                    description};
+    sxml_byte_range ranges[sizeof(parts) / sizeof(parts[0])];
+    sxml_status status = SXML_STATUS_OK;
+    for (size_t part_index = 0;
+         status == SXML_STATUS_OK && part_index < sizeof(parts) / sizeof(parts[0]);
+         part_index += 1) {
+        status = sxml_stream_keep(&document->failure_text, parts[part_index], &ranges[part_index]);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    document->failure = (sxml_error_raise_request){
+        .error_status = caught,
+        .code = {.namespace_uri = sxml_xml_buffer_view(&document->failure_text, ranges[0]),
+                 .local_name = sxml_xml_buffer_view(&document->failure_text, ranges[1]),
+                 .namespace_prefix = sxml_xml_buffer_view(&document->failure_text, ranges[2])},
+        .description = sxml_xml_buffer_view(&document->failure_text, ranges[3]),
+        .has_value = false,
+        .value = sxml_sequence_empty(),
+        .location = {.source_name = {.bytes = NULL, .byte_count = 0},
+                     .line_number = 0,
+                     .column_number = 0,
+                     .byte_offset = 0}};
+    return SXML_STATUS_OK;
+}
+
+/* An accumulator call ended (D230): its value kept, the next accumulator
+   or call, or what the task was doing before them. A rule that read a
+   value not computed yet makes its accumulator wait a round; any other
+   error is kept for the reads (19.5) and ends the calls. */
+static sxml_status sxml_stream_take_accumulation(sxml_dynamic_context *dynamic_context,
+                                                 sxml_stream_state *state) {
+    sxml_evaluator_machine_top(dynamic_context)->catches_errors = false;
+    sxml_stream_document *document = state->document;
+    const sxml_status caught = sxml_evaluator_machine_take_caught_status(dynamic_context);
+    const bool is_initial =
+        state->calls[state->call_next].accumulation_kind == SXML_STREAM_ACCUMULATION_INITIAL;
+    const bool was_waiting = document->is_waiting;
+    document->is_waiting = false;
+    sxml_status status = SXML_STATUS_OK;
+    if (caught != SXML_STATUS_OK && was_waiting && !is_initial && !document->is_final_round) {
+        /* Computed again after the others. */
+        if (sxml_stream_next_number(document)) {
+            return sxml_stream_push_accumulation(dynamic_context, state);
+        }
+    } else if (caught != SXML_STATUS_OK) {
+        status = sxml_stream_keep_failure(dynamic_context, state, caught);
+        for (size_t call_index = state->call_next + 1U; call_index < state->call_count;
+             call_index += 1) {
+            sxml_item_release(state->calls[call_index].node);
+            state->calls[call_index].node = (sxml_item){.representation = 0};
+        }
+        state->call_count = state->call_next + 1U;
+    } else if (is_initial) {
+        status = sxml_stream_apply_initial(document, sxml_evaluator_machine_take_value(dynamic_context));
+    } else {
+        status = sxml_stream_apply_number(state, sxml_evaluator_machine_take_value(dynamic_context));
+        if (status == SXML_STATUS_OK && sxml_stream_next_number(document)) {
+            return sxml_stream_push_accumulation(dynamic_context, state);
+        }
+    }
+    document->is_computing = false;
+    sxml_item_release(state->calls[state->call_next].node);
+    state->calls[state->call_next].node = (sxml_item){.representation = 0};
+    state->call_next += 1;
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (state->call_next < state->call_count) {
+        return sxml_stream_begin_call(dynamic_context, state);
+    }
+    state->call_count = 0;
+    state->call_next = 0;
+    state->is_suspended = false;
+    switch (state->continuation) {
+    case SXML_STREAM_CONTINUE_NEXT:
+        sxml_evaluator_machine_top(dynamic_context)->phase = (uint32_t)SXML_STREAM_PHASE_NEXT;
+        return sxml_stream_next(dynamic_context, state);
+    case SXML_STREAM_CONTINUE_SKIP:
+        sxml_evaluator_machine_top(dynamic_context)->phase = (uint32_t)SXML_STREAM_PHASE_NEXT;
+        status = sxml_stream_skip_to(dynamic_context, state, state->continuation_depth);
+        if (status != SXML_STATUS_OK || state->is_suspended) {
+            return status;
+        }
+        return sxml_stream_next(dynamic_context, state);
+    case SXML_STREAM_CONTINUE_SELECT:
+        return sxml_stream_select_body(dynamic_context, state);
+    case SXML_STREAM_CONTINUE_DOCUMENT_BODY:
+        return sxml_stream_push_document_body(dynamic_context, state);
+    case SXML_STREAM_CONTINUE_GROUNDING_BODY:
+        return sxml_stream_push_grounding_body(dynamic_context, state);
+    }
+    return SXML_STATUS_INVALID_ARGUMENT;
+}
+
 /* The step function of STREAM. */
 static sxml_status sxml_stream_step(sxml_dynamic_context *dynamic_context,
                                     sxml_evaluator_task *task) {
@@ -1870,6 +2793,8 @@ static sxml_status sxml_stream_step(sxml_dynamic_context *dynamic_context,
             return status == SXML_STATUS_OK ? sxml_stream_finish(dynamic_context, state) : status;
         }
         return sxml_stream_take_body(dynamic_context, state);
+    case SXML_STREAM_PHASE_ACCUMULATED:
+        return sxml_stream_take_accumulation(dynamic_context, state);
     }
     return SXML_STATUS_INVALID_ARGUMENT;
 }
@@ -1887,3 +2812,104 @@ const sxml_evaluator_part sxml_evaluator_part_stream = {
    only XSLT's units name this part, and a module without XSLT does not
    link it (D227). */
 const sxml_language_set sxml_evaluator_part_stream_languages = SXML_LANGUAGE_XSLT;
+
+/* ------------------------------------------- Values of streamed nodes */
+
+/* Whether node is item, or (with is_tree) a node of item's tree. */
+typedef struct sxml_stream_node_match {
+    sxml_node_reference node;
+    sxml_item item;
+    bool is_tree;
+} sxml_stream_node_match;
+
+static bool sxml_stream_holds(sxml_stream_node_match match) {
+    sxml_node_reference held;
+    if (match.item.representation == 0 || sxml_item_get_node(match.item, &held) != SXML_STATUS_OK) {
+        return false;
+    }
+    return match.is_tree ? held.tree == match.node.tree : sxml_node_is_same_node(held, match.node);
+}
+
+/* The values entry gives for node, written to *values when it holds it. */
+typedef struct sxml_stream_entry_question {
+    const sxml_stream_accumulated *entry;
+    sxml_node_reference node;
+} sxml_stream_entry_question;
+
+static bool sxml_stream_entry_answers(sxml_stream_entry_question question,
+                                      sxml_streamed_accumulator_values *values) {
+    const sxml_stream_accumulated *entry = question.entry;
+    if (sxml_stream_holds(
+            (sxml_stream_node_match){.node = question.node, .item = entry->window, .is_tree = false})) {
+        values->is_streamed = true;
+        values->before = entry->before;
+        values->after = entry->after;
+        values->descended = (sxml_item){.representation = 0};
+        return true;
+    }
+    if (sxml_stream_holds((sxml_stream_node_match){
+            .node = question.node, .item = entry->full_window, .is_tree = true})) {
+        values->is_streamed = true;
+        values->before = (sxml_item){.representation = 0};
+        values->after = (sxml_item){.representation = 0};
+        values->descended = entry->descended;
+        return true;
+    }
+    return false;
+}
+
+sxml_status sxml_evaluator_stream_find_accumulator_values(sxml_dynamic_context *dynamic_context,
+                                                          sxml_item node,
+                                                          sxml_streamed_accumulator_values *values) {
+    if (dynamic_context == NULL || values == NULL) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    *values = (sxml_streamed_accumulator_values){.is_streamed = false,
+                                                 .before = {.representation = 0},
+                                                 .after = {.representation = 0},
+                                                 .descended = {.representation = 0},
+                                                 .failure = NULL,
+                                                 .applicable = {.representation = 0},
+                                                 .waiting = NULL};
+    sxml_node_reference node_reference;
+    if (sxml_item_get_node(node, &node_reference) != SXML_STATUS_OK) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_evaluator_task_stack *tasks = &dynamic_context->task_stack;
+    for (size_t task_index = tasks->task_count; task_index > 0; task_index -= 1) {
+        const sxml_evaluator_task *below = &tasks->tasks[task_index - 1U];
+        if (below->task_kind != SXML_EVALUATOR_TASK_KIND_PART ||
+            below->details.part.step != sxml_stream_step || below->details.part.state == NULL) {
+            continue;
+        }
+        const sxml_stream_state *state = below->details.part.state;
+        sxml_stream_document *document = state->document;
+        if (!state->owns_document || document == NULL || !document->accumulates) {
+            continue;
+        }
+        values->failure = document->has_accumulation_failed ? &document->failure : NULL;
+        values->applicable = document->accumulator_values;
+        values->waiting = document->is_computing && !document->is_final_round
+                              ? &document->is_waiting
+                              : NULL;
+        if (sxml_stream_entry_answers((sxml_stream_entry_question){
+                                          .entry = &document->accumulated_leaf,
+                                          .node = node_reference},
+                                      values)) {
+            return SXML_STATUS_OK;
+        }
+        for (size_t depth = 0; depth < document->accumulated.element_count; depth += 1) {
+            if (sxml_stream_entry_answers(
+                    (sxml_stream_entry_question){
+                        .entry = sxml_xml_array_at(&document->accumulated, depth),
+                        .node = node_reference},
+                    values)) {
+                return SXML_STATUS_OK;
+            }
+        }
+        values->failure = NULL;
+        values->applicable = (sxml_item){.representation = 0};
+        values->waiting = NULL;
+    }
+    return SXML_STATUS_OK;
+}

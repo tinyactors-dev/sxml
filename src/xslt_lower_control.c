@@ -3378,6 +3378,16 @@ typedef struct content_locals {
 static sxml_status continue_fork(sxml_xpath_lowering_machine *machine,
                                  sxml_xpath_lowering_frame *frame) {
     content_locals *locals = frame->locals;
+    if (frame->step == 0 && sxml_xslt_is_streamed_fork(locals->head.lowering, locals->head.node)) {
+        /* Each prong in a pass of its own over a streamed document (D230). */
+        frame->step = 1;
+        return sxml_xslt_lowering_call_streamed_fork(
+            machine, &(sxml_xslt_stream_call){.lowering = locals->head.lowering,
+                                              .node = locals->head.node,
+                                              .block = frame->block,
+                                              .href = {0},
+                                              .atom = &locals->value});
+    }
     if (frame->step == 0) {
         frame->step = 1;
         return start_content(machine, (value_request){.lowering = locals->head.lowering,

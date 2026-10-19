@@ -583,6 +583,20 @@ static sxml_status check_stream(verifier *checker, const sxml_ir_stream *stream)
         stream->fold.value > current_function(checker)->slot_count) {
         return report(checker, "a stream counter or fold is beyond the function's slots");
     }
+    /* D230: the accumulator functions of a streamed document, all or none. */
+    const sxml_ir_stream_accumulators *accumulators = &stream->accumulators;
+    const sxml_ir_function_index functions[] = {accumulators->initial, accumulators->start,
+                                                accumulators->end, accumulators->descend};
+    const bool has_accumulators = functions[0].value != 0;
+    for (size_t function_index = 0; function_index < sizeof(functions) / sizeof(functions[0]);
+         function_index += 1) {
+        const uint32_t number = functions[function_index].value;
+        if ((number != 0) != has_accumulators || number >= checker->unit->function_count ||
+            (number != 0 && !opens_document)) {
+            return report(checker, "a stream has accumulator functions that are not all there, "
+                                   "out of range, or not of a document");
+        }
+    }
     sxml_status status = check_required_atom(checker, stream->origin);
     if (status == SXML_STATUS_OK) {
         status = check_focus_slots(checker, stream->focus);

@@ -37,6 +37,15 @@
     "<xsl:template name='main'><out><xsl:source-document streamable='" streamable                  \
     "' href='in.xml'>" body "</xsl:source-document></out></xsl:template></xsl:stylesheet>"
 
+/* As STREAMED, the document's accumulators those use-accumulators names
+   (19.2), declared streamable or not. */
+#define ACCUMULATED(declarations, streamable, used, body)                                          \
+    "<xsl:stylesheet version='3.0' " XSL_NAMESPACE                                                 \
+    " xmlns:p='urn:p' exclude-result-prefixes='#all'>" declarations                                \
+    "<xsl:template name='main'><out><xsl:source-document streamable='" streamable                  \
+    "' use-accumulators='" used "' href='in.xml'>" body                                             \
+    "</xsl:source-document></out></xsl:template></xsl:stylesheet>"
+
 /* --------------------------------------------------------- Limited memory */
 
 /* An allocator that counts the bytes it holds and fails beyond a limit:
@@ -250,6 +259,22 @@ typedef struct stream_case {
     const char *expected_output;
 } stream_case;
 
+/* Accumulators computed as the document streams (D230), with the same
+   values unstreamed. */
+#define ACCUMULATOR_CASE(name, declarations, used, body, document, expected)                       \
+    {                                                                                              \
+        .case_name = (name), .streamed_text = ACCUMULATED(declarations, "yes", used, body),        \
+        .unstreamed_text = ACCUMULATED(declarations, "no", used, body),                            \
+        .document_text = (document), .expected_output = (expected)                                 \
+    }
+
+/* Counts the books before and after each node; sums the prices. */
+#define BOOK_ACCUMULATORS                                                                          \
+    "<xsl:accumulator name='n' initial-value='0' streamable='yes'>"                                \
+    "<xsl:accumulator-rule match='book' select='$value + 1'/></xsl:accumulator>"                   \
+    "<xsl:accumulator name='total' initial-value='0' streamable='yes'>"                            \
+    "<xsl:accumulator-rule match='p/text()' select='$value + number(.)'/></xsl:accumulator>"
+
 #define STREAM_CASE(name, declarations, body, document, expected)                                  \
     {                                                                                              \
         .case_name = (name), .streamed_text = STREAMED(declarations, "yes", body),                 \
@@ -374,6 +399,61 @@ static const stream_case stream_cases[] = {
     STREAM_CASE("counted-text-after-child-elements", "",
                 "<xsl:value-of select='count(r/text())'/>", "<r>a<e/>b<e></e>c<e>d</e></r>",
                 DECLARATION "<out>3</out>"),
+    /* D230: values of shallow windows (before), of full windows' nodes
+       (the t of a copied book), after a node's end, and of the document
+       node after its end. */
+    ACCUMULATOR_CASE("accumulators-of-open-nodes", BOOK_ACCUMULATORS, "#all",
+                     "<xsl:for-each select='shop/book'>"
+                     "<b n='{accumulator-before(\"n\")}' total='{accumulator-before(\"total\")}'/>"
+                     "</xsl:for-each>",
+                     books,
+                     DECLARATION "<out><b n=\"1\" total=\"0\"/><b n=\"2\" total=\"3\"/>"
+                                 "<b n=\"3\" total=\"8\"/></out>"),
+    ACCUMULATOR_CASE("accumulators-of-full-windows", BOOK_ACCUMULATORS, "#all",
+                     "<xsl:for-each select='shop/book'><xsl:value-of "
+                     "select='copy-of(.)!(accumulator-after(\"n\"), accumulator-after(\"total\"), "
+                     "(.//t)!accumulator-before(\"n\"))'/>;</xsl:for-each>",
+                     books, DECLARATION "<out>1 3 1;2 8 2;4 15 3 4;</out>"),
+    ACCUMULATOR_CASE("accumulators-of-skipped-content", BOOK_ACCUMULATORS, "#all",
+                     "<xsl:for-each select='shop/empty'><e n='{accumulator-before(\"n\")}' "
+                     "t='{accumulator-before(\"total\")}'/></xsl:for-each>",
+                     books, DECLARATION "<out><e n=\"4\" t=\"15\"/></out>"),
+    ACCUMULATOR_CASE("accumulators-not-applicable", BOOK_ACCUMULATORS, "n",
+                     "<xsl:for-each select='shop/book[1]'><xsl:try><xsl:value-of "
+                     "select='accumulator-before(\"total\")'/><xsl:catch "
+                     "select='local-name-from-QName($err:code)' "
+                     "xmlns:err='http://www.w3.org/2005/xqt-errors'/></xsl:try></xsl:for-each>",
+                     books, DECLARATION "<out>XTDE3362</out>"),
+    /* 19.5: a rule's error is raised when a value it left out is read. */
+    ACCUMULATOR_CASE("accumulator-errors-when-read",
+                     "<xsl:accumulator name='e' initial-value='1' streamable='yes'>"
+                     "<xsl:accumulator-rule match='book[@id = \"1\"]' select='$value div 0'/>"
+                     "</xsl:accumulator>",
+                     "#all",
+                     "<xsl:for-each select='shop/book'><xsl:try><xsl:value-of "
+                     "select='accumulator-before(\"e\")'/><xsl:catch>!</xsl:catch></xsl:try>"
+                     "</xsl:for-each>",
+                     books, DECLARATION "<out>!!!</out>"),
+    /* The values of one node depend on each other, whatever the order of
+       the declarations (19.4). */
+    ACCUMULATOR_CASE("dependent-accumulators",
+                     "<xsl:accumulator name='a' initial-value='0' streamable='yes'>"
+                     "<xsl:accumulator-rule match='book' select='accumulator-before(\"b\") * 10'/>"
+                     "</xsl:accumulator>"
+                     "<xsl:accumulator name='b' initial-value='0' streamable='yes'>"
+                     "<xsl:accumulator-rule match='book' select='$value + 1'/></xsl:accumulator>",
+                     "#all",
+                     "<xsl:for-each select='shop/book'>"
+                     "<xsl:value-of select='accumulator-before(\"a\")'/>;</xsl:for-each>",
+                     books, DECLARATION "<out>10;20;30;</out>"),
+    /* xsl:fork: each prong a pass of its own over the document (D230). */
+    STREAM_CASE("fork-prongs-in-passes", "",
+                "<xsl:fork><xsl:sequence><a><xsl:value-of select='count(shop/book)'/></a>"
+                "</xsl:sequence><xsl:sequence select='sum(shop/book/p)'/>"
+                "<xsl:sequence><xsl:for-each select='shop/book'><b id='{@id}'/></xsl:for-each>"
+                "</xsl:sequence></xsl:fork>",
+                books,
+                DECLARATION "<out><a>3</a>15<b id=\"1\"/><b id=\"2\"/><b id=\"3\"/></out>"),
     STREAM_CASE("unused-accumulator",
                 "<xsl:accumulator name='a' initial-value='0'>"
                 "<xsl:accumulator-rule match='book' select='$value + 1'/></xsl:accumulator>",
@@ -592,6 +672,11 @@ static const large_path_case large_path_cases[] = {
     LARGE_PATH_CASE("", "<xsl:value-of select='sum(records/record/price)'/>", "1.4925E6"),
     LARGE_PATH_CASE("", "<xsl:value-of select='sum(//record/@id) div 1000'/>", "450015"),
     LARGE_PATH_CASE("", "<xsl:value-of select='max(records/record/@id)'/>", "30000"),
+    /* Two consuming prongs of an xsl:fork, a pass each (D230). */
+    LARGE_PATH_CASE("",
+                    "<xsl:fork><xsl:sequence select='count(records/record)'/>"
+                    "<xsl:sequence select='sum(records/record/price)'/></xsl:fork>",
+                    "30000 1.4925E6"),
     /* avg folded as sum and count (D228). */
     LARGE_PATH_CASE("", "<xsl:value-of select='avg(records/record/price)'/>", "49.75"),
     LARGE_PATH_CASE("", "<c><xsl:copy-of select='records/record[@hot = \"yes\"]/name'/></c>",
@@ -650,6 +735,17 @@ static void test_large_document_paths_stream_in_bounded_memory(sxml_test_state *
     "<xsl:stylesheet version='3.0' " XSL_NAMESPACE " exclude-result-prefixes='#all'>"              \
     "<xsl:mode streamable='" streamable "' on-no-match='" on_no_match "'/>" templates              \
     "</xsl:stylesheet>"
+
+/* As PRINCIPAL, with every accumulator applicable (19.2). */
+#define PRINCIPAL_ACCUMULATED(streamable, on_no_match, templates)                                  \
+    "<xsl:stylesheet version='3.0' " XSL_NAMESPACE " exclude-result-prefixes='#all'>"              \
+    "<xsl:mode streamable='" streamable "' on-no-match='" on_no_match                              \
+    "' use-accumulators='#all'/>" templates "</xsl:stylesheet>"
+
+/* Counts the records (D230). */
+#define RECORD_COUNTER                                                                             \
+    "<xsl:accumulator name='n' initial-value='0' streamable='yes'>"                                \
+    "<xsl:accumulator-rule match='record' select='$value + 1'/></xsl:accumulator>"
 
 /* Applies the templates of stylesheet_text's default mode to the streamed
    principal source in.xml (D228), serialized into the output buffer. */
@@ -729,6 +825,22 @@ static const principal_case principal_cases[] = {
                    "<xsl:template match='price'><p><xsl:value-of select='. * 2'/></p>"
                    "</xsl:template>",
                    NULL),
+    /* Accumulators computed as the document streams (D230): before each
+       hot record, after the document node. */
+    {.streamed_text = PRINCIPAL_ACCUMULATED(
+         "yes", "shallow-skip",
+         RECORD_COUNTER "<xsl:template match='/'><out><xsl:apply-templates/><total "
+                        "n='{accumulator-after(\"n\")}'/></out></xsl:template>"
+                        "<xsl:template match='record[@hot = \"yes\"]'><r "
+                        "n='{accumulator-before(\"n\")}'/></xsl:template>"),
+     .unstreamed_text = PRINCIPAL_ACCUMULATED(
+         "no", "shallow-skip",
+         RECORD_COUNTER "<xsl:template match='/'><out><xsl:apply-templates/><total "
+                        "n='{accumulator-after(\"n\")}'/></out></xsl:template>"
+                        "<xsl:template match='record[@hot = \"yes\"]'><r "
+                        "n='{accumulator-before(\"n\")}'/></xsl:template>"),
+     .expected_output = DECLARATION "<out><r n=\"10000\"/><r n=\"20000\"/><r n=\"30000\"/>"
+                                    "<total n=\"30000\"/></out>"},
     /* An aggregate over the document from the rule for "/". */
     PRINCIPAL_CASE("shallow-skip",
                    "<xsl:template match='/'><n><xsl:value-of "
