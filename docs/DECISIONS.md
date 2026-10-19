@@ -8190,6 +8190,27 @@ Recorded 2026-10-19 on the owner's choices. Amends D184 and D189.
   raise the full budget to 4,000,000 stripped, 1,400,000 gzipped.
 - The gzipped limits keep D138's ratio of 0.35.
 
+### D208. Budgets follow features; do not block on the owner (owner)
+Recorded 2026-10-19 on the owner's word: "don't block on me, you can keep
+raising the budget -- this is for people who want a full blown sxml
+processor but not hundreds of megabytes to get java".
+- The size budgets of the full module and the CLI module rise as features
+  land; a packet that goes over raises the budget in the same change, says
+  so in its commit message and its D-record, and measures the cost. The
+  core `sxml.wasm` should stay lean: large features go behind D189's
+  optional features, and the core budget rises only for small, general
+  additions.
+- Open questions that are not irreversible take the proposed default and
+  are recorded, so work never waits: D183's Phase 7 gate numbers; adding
+  the iXML tests and a sample of Unicode's CollationTest as vendored test
+  data (D13); the languages en, de, fr, it, es, nl, the calendars ISO, AD,
+  BE, JE, OS, AH and CLDR's standard tailorings for those languages; the
+  XPath 4.0 §3.4.1 reading of number conversion in compatibility mode
+  (D197); a processor option for the XML version of query text (D195),
+  defaulting to 1.0.
+- Still left to the owner, because they are outward-facing or legal: the
+  license, tagging and publishing releases, and the npm package name.
+
 ## Proposed
 
 - **xs:numeric parameters in XPath 1.0 compatibility mode** (packet 7.4b,

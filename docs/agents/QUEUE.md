@@ -111,10 +111,10 @@ Platform and tooling:
 
 ## Owner decisions open
 
-Listed at the end of `docs/LOG.md`: the 0.2.0 tag, XQuery's
-omit-xml-declaration default, the license (no LICENSE file; the JavaScript
-package says MIT), CI, and from D183 the Phase 7 gate numbers, the iXML and
-CollationTest test data, and the languages, calendars and tailorings.
-Decided in D184: the four extra features join Phase 7, link-time optional
-features with host-supplied data (2.1 MB core, 3.0 MB full), Update 3.0
-then 4.0, EXPath File behind `--allow-file-access`.
+Only the outward-facing ones (D208): the license (no LICENSE file; the
+JavaScript package says MIT), tagging and publishing releases, the npm
+name. Everything else takes the proposed default and is recorded (D208):
+budgets rise with features (keep the core lean), Phase 7 gates as in D183,
+vendored iXML and CollationTest data, the listed languages and calendars,
+XPath 4.0's number conversion in compatibility mode, an XML-version option
+for query text defaulting to 1.0. CI stays off until the owner's machine.
