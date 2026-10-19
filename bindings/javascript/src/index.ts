@@ -45,7 +45,8 @@ export type ResourceKind =
   | 'xquery-module'
   | 'xslt-module'
   | 'xslt-package'
-  | 'schema-document';
+  | 'schema-document'
+  | 'external-entity';
 
 export interface ResourceRequest {
   kind: ResourceKind;
@@ -199,6 +200,7 @@ const resource_kinds: ResourceKind[] = [
   'xslt-module',
   'xslt-package',
   'schema-document',
+  'external-entity',
 ];
 
 const encoder = new TextEncoder();
