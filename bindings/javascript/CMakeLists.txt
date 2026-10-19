@@ -119,9 +119,11 @@ if(SXML_BUILD_TESTS AND SXML_NODE_EXECUTABLE)
     # feature: 9,000,000 / 2,000,000 (D208).
     # The schema compiler went back into the core with the processor's
     # built-in schemas (2.22); it is behind the optional feature
-    # builtin-schemas since D225. test/size-baseline/sxml.txt is the core's
-    # code and data per object at that audit: the test prints the largest
-    # growths since then, and names twenty when the core is over budget.
+    # builtin-schemas since D225. XQuery's lowering parts and XSLT's
+    # library parts left the core with the per-language part lists (D227).
+    # test/size-baseline/sxml.txt is the core's code and data per object at
+    # the last audit (D227): the test prints the largest growths since
+    # then, and names twenty when the core is over budget.
     # Refresh it with the budget, after an audit (size-budget.mjs
     # --write-baseline).
     if(TARGET sxml_cli)

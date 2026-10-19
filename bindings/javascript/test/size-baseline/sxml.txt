@@ -1,5 +1,5 @@
 3 <internal>
-79668 <internal> [data]
+73974 <internal> [data]
 50 crt1-reactor.o
 4 crt1-reactor.o [data]
 4 libc.a(CLOCK_REALTIME) [data]
@@ -113,23 +113,24 @@
 160 libsxml.a(decimal) [data]
 9486 libsxml.a(dtd)
 40 libsxml.a(dtd) [data]
-49961 libsxml.a(evaluator)
-467 libsxml.a(evaluator) [data]
-16868 libsxml.a(evaluator_construct)
+55489 libsxml.a(evaluator)
+487 libsxml.a(evaluator) [data]
+16881 libsxml.a(evaluator_construct)
 412 libsxml.a(evaluator_construct) [data]
-30143 libsxml.a(evaluator_function)
+30329 libsxml.a(evaluator_function)
 228 libsxml.a(evaluator_function) [data]
 1861 libsxml.a(evaluator_global)
 8 libsxml.a(evaluator_global) [data]
+9547 libsxml.a(evaluator_index)
 28 libsxml.a(evaluator_parts)
-72 libsxml.a(evaluator_parts) [data]
+96 libsxml.a(evaluator_parts) [data]
 13376 libsxml.a(evaluator_path)
 80 libsxml.a(evaluator_path) [data]
-14565 libsxml.a(evaluator_stream)
+14734 libsxml.a(evaluator_stream)
 116 libsxml.a(evaluator_stream) [data]
-4828 libsxml.a(evaluator_template)
+4879 libsxml.a(evaluator_template)
 56 libsxml.a(evaluator_template) [data]
-5297 libsxml.a(evaluator_try)
+5298 libsxml.a(evaluator_try)
 36 libsxml.a(evaluator_try) [data]
 15374 libsxml.a(format)
 1514 libsxml.a(format) [data]
@@ -143,7 +144,7 @@
 8220 libsxml.a(function_library_case) [data]
 4506 libsxml.a(function_library_context)
 1312 libsxml.a(function_library_context) [data]
-12005 libsxml.a(function_library_csv)
+11991 libsxml.a(function_library_csv)
 532 libsxml.a(function_library_csv) [data]
 21437 libsxml.a(function_library_deep_equal)
 380 libsxml.a(function_library_deep_equal) [data]
@@ -151,8 +152,6 @@
 711 libsxml.a(function_library_element_map) [data]
 896 libsxml.a(function_library_error)
 272 libsxml.a(function_library_error) [data]
-960 libsxml.a(function_library_exslt)
-120 libsxml.a(function_library_exslt) [data]
 5909 libsxml.a(function_library_format)
 484 libsxml.a(function_library_format) [data]
 2237 libsxml.a(function_library_format_date)
@@ -165,8 +164,8 @@
 112 libsxml.a(function_library_jnode) [data]
 13255 libsxml.a(function_library_json)
 1172 libsxml.a(function_library_json) [data]
-11703 libsxml.a(function_library_map)
-1340 libsxml.a(function_library_map) [data]
+12616 libsxml.a(function_library_map)
+1428 libsxml.a(function_library_map) [data]
 2206 libsxml.a(function_library_math)
 872 libsxml.a(function_library_math) [data]
 22048 libsxml.a(function_library_node)
@@ -175,10 +174,8 @@
 1368 libsxml.a(function_library_numeric) [data]
 1494 libsxml.a(function_library_options)
 20 libsxml.a(function_library_options) [data]
-1586 libsxml.a(function_library_output)
-112 libsxml.a(function_library_output) [data]
-85 libsxml.a(function_library_parts)
-356 libsxml.a(function_library_parts) [data]
+16 libsxml.a(function_library_parts_xpath)
+116 libsxml.a(function_library_parts_xpath) [data]
 5555 libsxml.a(function_library_qname)
 576 libsxml.a(function_library_qname) [data]
 852 libsxml.a(function_library_records)
@@ -187,8 +184,8 @@
 860 libsxml.a(function_library_regex) [data]
 4892 libsxml.a(function_library_resource)
 616 libsxml.a(function_library_resource) [data]
-9876 libsxml.a(function_library_schema)
-632 libsxml.a(function_library_schema) [data]
+8726 libsxml.a(function_library_schema)
+440 libsxml.a(function_library_schema) [data]
 18988 libsxml.a(function_library_sequence)
 2720 libsxml.a(function_library_sequence) [data]
 1279 libsxml.a(function_library_serialize)
@@ -203,17 +200,16 @@
 374 libsxml.a(function_library_unicode) [data]
 17614 libsxml.a(function_library_uri)
 841 libsxml.a(function_library_uri) [data]
-9963 libsxml.a(function_library_xslt)
-1120 libsxml.a(function_library_xslt) [data]
 4696 libsxml.a(hash)
 792 libsxml.a(hash) [data]
-26704 libsxml.a(ir)
-576 libsxml.a(ir) [data]
-11812 libsxml.a(ir_verify)
+26103 libsxml.a(ir)
+600 libsxml.a(ir) [data]
+15375 libsxml.a(ir_loop_passes)
+12252 libsxml.a(ir_verify)
 21866 libsxml.a(json)
 297 libsxml.a(json) [data]
-28 libsxml.a(lowering_parts)
-60 libsxml.a(lowering_parts) [data]
+16 libsxml.a(lowering_parts_xpath)
+40 libsxml.a(lowering_parts_xpath) [data]
 2302 libsxml.a(memory)
 4795 libsxml.a(name)
 148 libsxml.a(name) [data]
@@ -224,7 +220,7 @@
 8091 libsxml.a(operator_temporal)
 144 libsxml.a(operator_temporal) [data]
 375 libsxml.a(optional_feature)
-12288 libsxml.a(processor)
+12248 libsxml.a(processor)
 176 libsxml.a(processor) [data]
 27450 libsxml.a(regex)
 564 libsxml.a(regex) [data]
@@ -270,8 +266,8 @@
 1238 libsxml.a(text_decoding)
 16 libsxml.a(text_decoding) [data]
 252 libsxml.a(timezone)
-5480 libsxml.a(tree)
-5349 libsxml.a(tree_axis)
+5404 libsxml.a(tree)
+5338 libsxml.a(tree_axis)
 17858 libsxml.a(types)
 140 libsxml.a(types) [data]
 86 libsxml.a(types_builtin)
@@ -286,8 +282,8 @@
 16 libsxml.a(xdm_array) [data]
 14087 libsxml.a(xdm_atomic)
 56 libsxml.a(xdm_atomic) [data]
-2150 libsxml.a(xdm_function)
-120 libsxml.a(xdm_function) [data]
+2236 libsxml.a(xdm_function)
+140 libsxml.a(xdm_function) [data]
 3189 libsxml.a(xdm_json_node)
 16 libsxml.a(xdm_json_node) [data]
 13793 libsxml.a(xdm_map)
@@ -296,7 +292,7 @@
 28 libsxml.a(xdm_node) [data]
 3140 libsxml.a(xdm_sequence)
 116 libsxml.a(xdm_sequence) [data]
-71881 libsxml.a(xml)
+71941 libsxml.a(xml)
 597 libsxml.a(xml) [data]
 6126 libsxml.a(xml_encoding)
 400 libsxml.a(xml_encoding) [data]
@@ -308,31 +304,14 @@
 16 libsxml.a(xpath_ast) [data]
 6035 libsxml.a(xpath_compatibility)
 468 libsxml.a(xpath_compatibility) [data]
-89182 libsxml.a(xpath_lower)
-583 libsxml.a(xpath_lower) [data]
+89143 libsxml.a(xpath_lower)
+599 libsxml.a(xpath_lower) [data]
 12091 libsxml.a(xpath_parse)
 2148 libsxml.a(xpath_parse) [data]
 16968 libsxml.a(xpath_static)
 568 libsxml.a(xpath_static) [data]
-8436 libsxml.a(xquery_flwor)
-264 libsxml.a(xquery_flwor) [data]
-30787 libsxml.a(xquery_lower)
-352 libsxml.a(xquery_lower) [data]
-10476 libsxml.a(xquery_lower_construct)
+10465 libsxml.a(xquery_lower_construct)
 192 libsxml.a(xquery_lower_construct) [data]
-2546 libsxml.a(xquery_lower_full_text)
-120 libsxml.a(xquery_lower_full_text) [data]
-7840 libsxml.a(xquery_lower_update)
-165 libsxml.a(xquery_lower_update) [data]
-10790 libsxml.a(xquery_lower_window)
-44 libsxml.a(xquery_lower_window) [data]
-10630 libsxml.a(xquery_update)
-844 libsxml.a(xquery_update) [data]
-16939 libsxml.a(xquery_update_apply)
-452 libsxml.a(xquery_update_apply) [data]
-358 libsxml.a(xslt_output)
-412 libsxml.a(xslt_read)
-5916 libsxml.a(xslt_read) [data]
 2043 libsxml_grammar_json.a(parser)
 2291 libsxml_grammar_json.a(parser) [data]
 48344 libsxml_grammar_xml.a(parser)

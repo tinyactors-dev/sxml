@@ -625,3 +625,7 @@ const sxml_evaluator_part sxml_evaluator_part_template = {
     .kind_handler_count =
         sizeof(sxml_template_kind_handlers) / sizeof(sxml_template_kind_handlers[0]),
 };
+
+/* Only XSLT lowers to APPLY_TEMPLATES, so only XSLT's units name this
+   part, and a module without XSLT does not link it (D227). */
+const sxml_language_set sxml_evaluator_part_template_languages = SXML_LANGUAGE_XSLT;
