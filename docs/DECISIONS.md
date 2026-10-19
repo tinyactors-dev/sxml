@@ -8102,6 +8102,60 @@ identity.
   their queries make under boundary-space preserve (the suite's error:
   assert-xml compares canonical forms, kept strict); 27 staticTyping.
 
+### D200. EXPath File (packet 7.9)
+Recorded 2026-10-19, after D71, D99, D162, D184, D189, D191, D198. The
+EXPath File Module 4.0 is the optional feature `sxml_expath_file_feature()`
+("expath-file") over a host interface, the file system.
+- **Public, additive**: `include/sxml/processor.h` gains the file system
+  (`sxml_file_system`: an operations table with the directory, path and
+  line separators and ten operations, describe, read, write, list,
+  create_directory, remove, move, create_temporary, get_directory and
+  canonicalize, each over request structs) and the configuration field
+  `file_system`, next to the resolver and the clock. `name.h` (frozen by
+  D99) gains `SXML_NAMESPACE_EXPATH_FILE` = 14
+  (http://expath.org/ns/file); `SXML_NAMESPACE_WELL_KNOWN_COUNT` is 15.
+- **Opt-in twice** (D184): the host names the feature and gives a file
+  system. `sxml_all_optional_features()` leaves the feature out, so
+  naming every feature never grants file access. Without the feature the
+  functions are absent (XPST0017); with it and the null file system,
+  every function that needs files raises file:io-error.
+- **Rows**: 37 functions in `src/function_library_file.c`, the
+  definition's `library_functions` (D191). Paths are made absolute against
+  CURRENT and normalized lexically in the library, so the host sees only
+  absolute paths; directory paths end with the separator. Text goes
+  through `src/text_decoding.c` (decoding moved there by D198; the encoder
+  of bin:encode-string moves there too). Errors are in the file
+  namespace, filled into the error record (static text). file:move onto an
+  existing directory moves into it, overwriting a file of the same name,
+  as file:copy does.
+- **No recursion** (D71): copy, delete, size and list of a directory walk
+  it with a work list; file:descendants is a resumable body that asks the
+  evaluator to call its filter and recurse predicates.
+- **System property**: supports-file-library is a KNOWN_FUNCTION row
+  (D198) for file:exists#1.
+- **CLI**: `apps/sxml/platform_file_system.c` implements the interface
+  over POSIX (realpath is a copy under WASI). `sxml xpath` and
+  `sxml xquery` name the feature and pass the file system only with
+  `--allow-file-access`; they bind the prefixes bin and file always.
+  Windows is not implemented: initialization reports
+  SXML_STATUS_UNSUPPORTED_FEATURE, and the CLI runs without files.
+- **QT4 driver**: names the feature for a test case with a sandpit or the
+  dependency feature expath-file. A sandpit is copied through the host
+  file system to a fresh temporary root (root/sandpit is CURRENT,
+  root/temp is TEMPORARY), served by a wrapping file system, and deleted
+  after the case. expath-file is no longer a non-goal feature, nor
+  expath-* a non-goal set, and sandpits are no longer unsupported.
+- **Counts** (release driver): expath-file not run to 270 of 270 (XQ40)
+  and 267 of 267 (XP40, 3 not run, XQuery-only); fn-system-properties 23
+  to 23 (supports-file-library passes; the -false case is not run).
+- **Size**: about 66 KB of native code (x86-64, release), above the
+  20–30 KB estimate, none of it in `sxml.wasm` or `sxml-full.wasm`, which
+  do not name the feature. The interface and the encoder move cost the
+  modules +164 bytes (`sxml.wasm` 2,109,988 to 2,110,152 stripped at
+  531c5b6 and 10ca66e; `sxml-full.wasm` 2,214,413 to 2,214,593). The core
+  was over its 2,100,000 bytes before this packet; the full module's
+  3,553,063 at 1e91f97 is fn:transform's (D203).
+
 ## Proposed
 
 - **The CLI's WebAssembly budget after the Phase 7 features** (packet

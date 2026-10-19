@@ -4,6 +4,17 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 7.9 done (D200): EXPath File 4.0 as the optional feature
+  `sxml_expath_file_feature()` (37 file: functions) over a new host
+  interface, `sxml_file_system` in the processor configuration; library
+  code never touches files. Not in `sxml_all_optional_features()` nor in
+  either JavaScript module (+164 bytes for the interface). The sxml
+  command implements it over POSIX (`apps/sxml/platform_file_system.c`;
+  Windows not yet) and grants it only with `--allow-file-access`; the QT4
+  driver copies each sandpit to a temporary directory. expath-file not
+  run to 270 of 270 (XQ40) and 267 of 267 (XP40, 3 XQuery-only);
+  supports-file-library follows the configuration.
+
 - 7.4 done (D197): XSLT backwards compatible behaviour and XPath 1.0
   compatibility mode. The XTDE0160 place is gone; elements whose
   effective version is below 2.0 compile with the mode, a flag of the

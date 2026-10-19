@@ -445,6 +445,10 @@ error codes, XPTY0004 by the 4.0 types); fn-serialize +24 in each; the
   file (single hunks).
 - **Size**: 20–30 KB, none in the JavaScript package.
 - **Gate**: ≥ 90 % of the 271.
+**Done** 2026-10-19 (D200): expath-file 270 of 270 (XQ40) and 267 of
+267 (XP40; 3 cases are XQuery-only); fn-system-properties' file case
+passes. About 66 KB native, none in the JavaScript modules. The CLI's
+Windows file system is not written yet.
 
 ### 7.10 HTML5 parsing: fn:parse-html and fn:html-doc (implementation, two packets)
 - **Specifications**:
