@@ -259,11 +259,13 @@ const sxml_evaluator_registered_part_view *sxml_evaluator_xquery_parts(void);
 const sxml_evaluator_registered_part_view *sxml_evaluator_xslt_parts(void);
 
 /*
- * The step function of the one registered part that claims kind; NULL when
- * no part or more than one claims it. Defined in src/evaluator.c.
+ * The step function of the one part of parts that claims kind; NULL when
+ * no part or more than one claims it. The machine looks among the parts of
+ * the unit whose code it runs (sxml_ir_unit_configuration.evaluator_parts,
+ * XPath's when NULL; D227). Defined in src/evaluator.c.
  */
 sxml_evaluator_part_step_function sxml_evaluator_find_kind_handler(
-    sxml_ir_expression_kind kind);
+    const sxml_evaluator_registered_part_view *parts, sxml_ir_expression_kind kind);
 
 /* ------------------------------------------------------- Machine API */
 

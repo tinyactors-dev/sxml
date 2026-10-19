@@ -105,12 +105,23 @@ static void test_registry_lists_the_parts(sxml_test_state *state) {
     }
 }
 
+/* XSLT's list has a part for every reserved kind; XPath's and XQuery's
+   lack the kinds only XSLT lowers to (D227). */
 static void test_each_reserved_kind_has_one_part(sxml_test_state *state) {
     for (uint32_t kind_value = 0; kind_value < (uint32_t)SXML_IR_EXPRESSION_KIND_COUNT;
          kind_value += 1) {
         const sxml_ir_expression_kind kind = (sxml_ir_expression_kind)kind_value;
-        const bool has_handler = sxml_evaluator_find_kind_handler(kind) != NULL;
-        SXML_TEST_EXPECT(state, has_handler == is_reserved_kind(kind));
+        const bool is_xslt_only = kind == SXML_IR_EXPRESSION_KIND_APPLY_TEMPLATES ||
+                                  kind == SXML_IR_EXPRESSION_KIND_STREAM;
+        SXML_TEST_EXPECT(state, (sxml_evaluator_find_kind_handler(sxml_evaluator_xslt_parts(),
+                                                                  kind) != NULL) ==
+                                    is_reserved_kind(kind));
+        SXML_TEST_EXPECT(state, (sxml_evaluator_find_kind_handler(sxml_evaluator_xpath_parts(),
+                                                                  kind) != NULL) ==
+                                    (is_reserved_kind(kind) && !is_xslt_only));
+        SXML_TEST_EXPECT(state, (sxml_evaluator_find_kind_handler(sxml_evaluator_xquery_parts(),
+                                                                  kind) != NULL) ==
+                                    (is_reserved_kind(kind) && !is_xslt_only));
     }
 }
 
@@ -215,7 +226,9 @@ static sxml_status build_unit(const fixture *test_fixture, const unit_request *r
         &(sxml_ir_unit_configuration){.allocator = fixture_allocator(test_fixture),
                                       .item_heap = test_fixture->item_heap,
                                       .source_name = text_view("machine"),
-                                      .maximum_expression_count = 0},
+                                      .maximum_expression_count = 0,
+                                      /* Every part: XSLT's list (D227). */
+                                      .evaluator_parts = sxml_evaluator_xslt_parts()},
         unit);
     if (status != SXML_STATUS_OK) {
         return status;

@@ -1,5 +1,5 @@
 3 <internal>
-73974 <internal> [data]
+73548 <internal> [data]
 50 crt1-reactor.o
 4 crt1-reactor.o [data]
 4 libc.a(CLOCK_REALTIME) [data]
@@ -104,32 +104,28 @@
 100 libsxml.a(cast) [data]
 5483 libsxml.a(cast_facet)
 324 libsxml.a(cast_facet) [data]
-15499 libsxml.a(cast_lexical)
+15842 libsxml.a(cast_lexical)
 308 libsxml.a(cast_lexical) [data]
 9035 libsxml.a(collation)
 304 libsxml.a(collation) [data]
 2385 libsxml.a(csv)
-9609 libsxml.a(decimal)
-160 libsxml.a(decimal) [data]
+10009 libsxml.a(decimal)
+344 libsxml.a(decimal) [data]
 9486 libsxml.a(dtd)
 40 libsxml.a(dtd) [data]
-55489 libsxml.a(evaluator)
+56088 libsxml.a(evaluator)
 487 libsxml.a(evaluator) [data]
 16881 libsxml.a(evaluator_construct)
 412 libsxml.a(evaluator_construct) [data]
-30329 libsxml.a(evaluator_function)
+31101 libsxml.a(evaluator_function)
 228 libsxml.a(evaluator_function) [data]
 1861 libsxml.a(evaluator_global)
 8 libsxml.a(evaluator_global) [data]
-9547 libsxml.a(evaluator_index)
-28 libsxml.a(evaluator_parts)
-96 libsxml.a(evaluator_parts) [data]
-13376 libsxml.a(evaluator_path)
+10359 libsxml.a(evaluator_index)
+16 libsxml.a(evaluator_parts_xpath)
+72 libsxml.a(evaluator_parts_xpath) [data]
+13494 libsxml.a(evaluator_path)
 80 libsxml.a(evaluator_path) [data]
-14734 libsxml.a(evaluator_stream)
-116 libsxml.a(evaluator_stream) [data]
-4879 libsxml.a(evaluator_template)
-56 libsxml.a(evaluator_template) [data]
 5298 libsxml.a(evaluator_try)
 36 libsxml.a(evaluator_try) [data]
 15374 libsxml.a(format)
@@ -184,7 +180,7 @@
 860 libsxml.a(function_library_regex) [data]
 4892 libsxml.a(function_library_resource)
 616 libsxml.a(function_library_resource) [data]
-8726 libsxml.a(function_library_schema)
+8816 libsxml.a(function_library_schema)
 440 libsxml.a(function_library_schema) [data]
 18988 libsxml.a(function_library_sequence)
 2720 libsxml.a(function_library_sequence) [data]
@@ -202,10 +198,10 @@
 841 libsxml.a(function_library_uri) [data]
 4696 libsxml.a(hash)
 792 libsxml.a(hash) [data]
-26103 libsxml.a(ir)
+26238 libsxml.a(ir)
 600 libsxml.a(ir) [data]
-15375 libsxml.a(ir_loop_passes)
-12252 libsxml.a(ir_verify)
+15471 libsxml.a(ir_loop_passes)
+12322 libsxml.a(ir_verify)
 21866 libsxml.a(json)
 297 libsxml.a(json) [data]
 16 libsxml.a(lowering_parts_xpath)
@@ -220,7 +216,7 @@
 8091 libsxml.a(operator_temporal)
 144 libsxml.a(operator_temporal) [data]
 375 libsxml.a(optional_feature)
-12248 libsxml.a(processor)
+11174 libsxml.a(processor)
 176 libsxml.a(processor) [data]
 27450 libsxml.a(regex)
 564 libsxml.a(regex) [data]
@@ -239,11 +235,11 @@
 232 libsxml.a(schema_identity) [data]
 3281 libsxml.a(schema_scope)
 432 libsxml.a(schema_scope) [data]
-24075 libsxml.a(schema_validate)
+24173 libsxml.a(schema_validate)
 620 libsxml.a(schema_validate) [data]
 3210 libsxml.a(schema_validate_record)
 152 libsxml.a(schema_validate_record) [data]
-10869 libsxml.a(schema_validate_value)
+10893 libsxml.a(schema_validate_value)
 536 libsxml.a(schema_validate_value) [data]
 21574 libsxml.a(serialize)
 254 libsxml.a(serialize) [data]
@@ -266,7 +262,7 @@
 1238 libsxml.a(text_decoding)
 16 libsxml.a(text_decoding) [data]
 252 libsxml.a(timezone)
-5404 libsxml.a(tree)
+5372 libsxml.a(tree)
 5338 libsxml.a(tree_axis)
 17858 libsxml.a(types)
 140 libsxml.a(types) [data]
@@ -276,11 +272,11 @@
 4 libsxml.a(unicode) [data]
 127244 libsxml.a(unicode_tables) [data]
 16 libsxml.a(version)
-5875 libsxml.a(xdm)
+5948 libsxml.a(xdm)
 40 libsxml.a(xdm) [data]
 4979 libsxml.a(xdm_array)
 16 libsxml.a(xdm_array) [data]
-14087 libsxml.a(xdm_atomic)
+14147 libsxml.a(xdm_atomic)
 56 libsxml.a(xdm_atomic) [data]
 2236 libsxml.a(xdm_function)
 140 libsxml.a(xdm_function) [data]
@@ -288,11 +284,11 @@
 16 libsxml.a(xdm_json_node) [data]
 13793 libsxml.a(xdm_map)
 84 libsxml.a(xdm_map) [data]
-8278 libsxml.a(xdm_node)
+8438 libsxml.a(xdm_node)
 28 libsxml.a(xdm_node) [data]
 3140 libsxml.a(xdm_sequence)
 116 libsxml.a(xdm_sequence) [data]
-71941 libsxml.a(xml)
+71304 libsxml.a(xml)
 597 libsxml.a(xml) [data]
 6126 libsxml.a(xml_encoding)
 400 libsxml.a(xml_encoding) [data]
@@ -304,7 +300,7 @@
 16 libsxml.a(xpath_ast) [data]
 6035 libsxml.a(xpath_compatibility)
 468 libsxml.a(xpath_compatibility) [data]
-89143 libsxml.a(xpath_lower)
+90373 libsxml.a(xpath_lower)
 599 libsxml.a(xpath_lower) [data]
 12091 libsxml.a(xpath_parse)
 2148 libsxml.a(xpath_parse) [data]
@@ -333,7 +329,7 @@
 1564 libsxml_mpdecimal.a(io)
 1528 libsxml_mpdecimal.a(mpalloc)
 8 libsxml_mpdecimal.a(mpalloc) [data]
-36975 libsxml_mpdecimal.a(mpdecimal)
+36986 libsxml_mpdecimal.a(mpdecimal)
 2160 libsxml_mpdecimal.a(mpdecimal) [data]
 416 libsxml_mpdecimal.a(numbertheory)
 1201 libsxml_mpdecimal.a(sixstep)

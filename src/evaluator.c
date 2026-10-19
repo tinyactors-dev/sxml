@@ -5328,7 +5328,12 @@ static sxml_status sxml_make_leaf_value(sxml_dynamic_context *context,
    claims it. */
 static sxml_status sxml_machine_start_part_kind(sxml_dynamic_context *context,
                                                 sxml_ir_expression_kind kind) {
-    const sxml_evaluator_part_step_function step = sxml_evaluator_find_kind_handler(kind);
+    /* The parts of the unit's language (D227): a module that links no
+       XSLT links no part only XSLT lowers to. */
+    const sxml_ir_unit *unit = sxml_machine_top(context)->function->unit;
+    const sxml_evaluator_part_step_function step = sxml_evaluator_find_kind_handler(
+        unit->evaluator_parts != NULL ? unit->evaluator_parts : sxml_evaluator_xpath_parts(),
+        kind);
     if (step == NULL) {
         return SXML_STATUS_UNSUPPORTED_FEATURE;
     }
@@ -5555,11 +5560,10 @@ static sxml_status sxml_machine_run(sxml_dynamic_context *context, size_t base_c
 /* ---------------------------------------------------------- Machine API */
 
 sxml_evaluator_part_step_function sxml_evaluator_find_kind_handler(
-    sxml_ir_expression_kind kind) {
-    const sxml_evaluator_registered_part_view registered = sxml_evaluator_registered_parts();
+    const sxml_evaluator_registered_part_view *parts, sxml_ir_expression_kind kind) {
     sxml_evaluator_part_step_function found = NULL;
-    for (size_t part_index = 0; part_index < registered.part_count; part_index += 1) {
-        const sxml_evaluator_part *part = registered.parts[part_index].part;
+    for (size_t part_index = 0; part_index < parts->part_count; part_index += 1) {
+        const sxml_evaluator_part *part = parts->parts[part_index].part;
         for (size_t handler_index = 0; handler_index < part->kind_handler_count;
              handler_index += 1) {
             const sxml_evaluator_kind_handler *handler = &part->kind_handlers[handler_index];
