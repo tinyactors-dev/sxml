@@ -188,6 +188,14 @@ sxml_function_call_find_single_argument(const sxml_function_call *call,
     return true;
 }
 
+static const sxml_static_error sxml_record_key_error = {
+    .error_status = SXML_STATUS_TYPE_ERROR,
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XPTY0004"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(
+        "A record is called with a key that names no field of its record type (XDM 4.0, "
+        "section 8.3.2)"),
+};
+
 /* map:get($map, $key) with the called map (F&O 4.0, map:get). */
 static sxml_status sxml_map_body_call(void *state,
                                       const sxml_function_call *call,
@@ -203,6 +211,13 @@ static sxml_status sxml_map_body_call(void *state,
     sxml_status status = sxml_map_find(call->function_item, key, &lookup);
     if (status != SXML_STATUS_OK) {
         return status;
+    }
+    if (!lookup.is_found &&
+        sxml_item_get_type_annotation(call->function_item).index != SXML_TYPE_MAP) {
+        /* A record has an entry for every field: a key that names none is
+           a type error (XDM 4.0, 8.3.2, dm:record-get-value; XPath 4.0,
+           3.2.10.1). */
+        return sxml_error_record_report(call->error_record, &sxml_record_key_error);
     }
     /* An absent key gives the empty sequence. */
     sxml_sequence value = sxml_sequence_empty();
