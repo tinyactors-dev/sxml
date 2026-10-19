@@ -2141,6 +2141,45 @@ typedef struct sxml_range_comparison {
     bool is_true;
 } sxml_range_comparison;
 
+
+/* Whether binary_operator is a value or general comparison. */
+static bool sxml_binary_operator_compares(sxml_ir_binary_operator binary_operator) {
+    switch (binary_operator) {
+    case SXML_IR_BINARY_OPERATOR_VALUE_EQUAL:
+    case SXML_IR_BINARY_OPERATOR_VALUE_NOT_EQUAL:
+    case SXML_IR_BINARY_OPERATOR_VALUE_LESS:
+    case SXML_IR_BINARY_OPERATOR_VALUE_LESS_OR_EQUAL:
+    case SXML_IR_BINARY_OPERATOR_VALUE_GREATER:
+    case SXML_IR_BINARY_OPERATOR_VALUE_GREATER_OR_EQUAL:
+    case SXML_IR_BINARY_OPERATOR_GENERAL_EQUAL:
+    case SXML_IR_BINARY_OPERATOR_GENERAL_NOT_EQUAL:
+    case SXML_IR_BINARY_OPERATOR_GENERAL_LESS:
+    case SXML_IR_BINARY_OPERATOR_GENERAL_LESS_OR_EQUAL:
+    case SXML_IR_BINARY_OPERATOR_GENERAL_GREATER:
+    case SXML_IR_BINARY_OPERATOR_GENERAL_GREATER_OR_EQUAL:
+        return true;
+    case SXML_IR_BINARY_OPERATOR_ADD:
+    case SXML_IR_BINARY_OPERATOR_SUBTRACT:
+    case SXML_IR_BINARY_OPERATOR_MULTIPLY:
+    case SXML_IR_BINARY_OPERATOR_DIVIDE:
+    case SXML_IR_BINARY_OPERATOR_INTEGER_DIVIDE:
+    case SXML_IR_BINARY_OPERATOR_MODULO:
+    case SXML_IR_BINARY_OPERATOR_IS:
+    case SXML_IR_BINARY_OPERATOR_IS_NOT:
+    case SXML_IR_BINARY_OPERATOR_PRECEDES:
+    case SXML_IR_BINARY_OPERATOR_FOLLOWS:
+    case SXML_IR_BINARY_OPERATOR_PRECEDES_OR_IS:
+    case SXML_IR_BINARY_OPERATOR_FOLLOWS_OR_IS:
+    case SXML_IR_BINARY_OPERATOR_RANGE:
+    case SXML_IR_BINARY_OPERATOR_UNION:
+    case SXML_IR_BINARY_OPERATOR_INTERSECT:
+    case SXML_IR_BINARY_OPERATOR_EXCEPT:
+    case SXML_IR_BINARY_OPERATOR_CONCATENATE:
+        break;
+    }
+    return false;
+}
+
 /*
  * XPath 4.0, section 4.11.2: a general comparison is true when some pair
  * of items compares true. For the items first to last of a range R (in
@@ -2284,6 +2323,20 @@ static sxml_status sxml_make_binary_value(sxml_dynamic_context *context,
         binary_operator != SXML_IR_BINARY_OPERATOR_CONCATENATE) {
         status = sxml_machine_operand_timezone(context, operands, &timezone);
     }
+    /* Strings compare under the default collation (XPath 4.0, sections
+       4.11.1 and 4.11.2; F&O 4.0, 5.2.7; D213). */
+    sxml_collation collation = sxml_collation_codepoint();
+    const sxml_collation *default_collation = NULL;
+    if (status == SXML_STATUS_OK && sxml_binary_operator_compares(binary_operator)) {
+        const sxml_function_call call = {.dynamic_context = context,
+                                         .item_heap = context->item_heap,
+                                         .error_record = context->error_record};
+        status = sxml_function_library_find_collation(
+            &call, (sxml_byte_view){.bytes = NULL, .byte_count = 0}, &collation);
+        if (status == SXML_STATUS_OK && !sxml_collation_is_codepoint_order(&collation)) {
+            default_collation = &collation;
+        }
+    }
     if (status == SXML_STATUS_OK) {
         switch (binary_operator) {
         case SXML_IR_BINARY_OPERATOR_ADD:
@@ -2317,7 +2370,8 @@ static sxml_status sxml_make_binary_value(sxml_dynamic_context *context,
                     .implicit_timezone_offset_minutes = timezone,
                     .namespace_bindings = {.namespace_bindings = NULL,
                                            .namespace_binding_count = 0},
-                    .error_record = context->error_record},
+                    .error_record = context->error_record,
+                    .collation = default_collation},
                 result);
             break;
         case SXML_IR_BINARY_OPERATOR_GENERAL_EQUAL:
@@ -2359,7 +2413,8 @@ static sxml_status sxml_make_binary_value(sxml_dynamic_context *context,
                     .implicit_timezone_offset_minutes = timezone,
                     .namespace_bindings = {.namespace_bindings = NULL,
                                            .namespace_binding_count = 0},
-                    .error_record = context->error_record},
+                    .error_record = context->error_record,
+                    .collation = default_collation},
                 &item);
             if (status == SXML_STATUS_OK) {
                 *result = sxml_sequence_from_item(item);
@@ -4063,8 +4118,13 @@ static sxml_status sxml_resolve_sort_key_rules(sxml_dynamic_context *context,
             .empty_is_least = sort_key->empty_order == SXML_IR_EMPTY_ORDER_LEAST};
         sxml_sort_key_text text;
         status = sxml_read_sort_key_text(context, sort_key->collation, &text);
-        if (status == SXML_STATUS_OK && text.is_present) {
-            status = sxml_function_library_find_collation(&call, text.utf8, &rule->collation);
+        if (status == SXML_STATUS_OK) {
+            /* Without a collation, the default collation (XQuery 4.0,
+               "Order By Clause"; XSLT 4.0, "The Default Collation"). */
+            status = sxml_function_library_find_collation(
+                &call,
+                text.is_present ? text.utf8 : (sxml_byte_view){.bytes = NULL, .byte_count = 0},
+                &rule->collation);
         }
         if (status == SXML_STATUS_OK) {
             status = sxml_read_sort_key_text(context, sort_key->order, &text);

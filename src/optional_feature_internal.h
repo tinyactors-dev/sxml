@@ -80,6 +80,11 @@ typedef enum sxml_optional_feature_kind {
        dtd.c, packet 7.2b, D211); operations sxml_dtd_validation_feature_
        operations (src/dtd_internal.h). */
     SXML_OPTIONAL_FEATURE_KIND_DTD_VALIDATION,
+    /* sxml_uca_collation_feature: UCA collations over the DUCET the
+       resolver serves (src/collation_uca.c, packet 7.15a, D213);
+       operations sxml_uca_collation_operations
+       (src/collation_internal.h). */
+    SXML_OPTIONAL_FEATURE_KIND_UCA_COLLATION,
     SXML_OPTIONAL_FEATURE_KIND_COUNT,
 } sxml_optional_feature_kind;
 
@@ -220,6 +225,9 @@ typedef struct sxml_test_feature_operations {
 /* The EXPath Binary feature (src/function_library_binary.c), for
    sxml_all_optional_features. */
 extern const sxml_optional_feature_definition sxml_expath_binary_feature_definition;
+
+/* The UCA collation feature (src/collation_uca.c). */
+extern const sxml_optional_feature_definition sxml_uca_collation_feature_definition;
 
 /* The HTML parser feature (src/html.c), for sxml_all_optional_features. */
 extern const sxml_optional_feature_definition sxml_html_feature_definition;

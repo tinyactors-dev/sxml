@@ -137,15 +137,25 @@ static void test_collation_uris(sxml_test_state *state) {
                          collation.strength == SXML_COLLATION_STRENGTH_PRIMARY &&
                          collation.alternate == SXML_COLLATION_ALTERNATE_SHIFTED &&
                          collation.maximum_variable == SXML_COLLATION_VARIABLE_GROUP_SYMBOL &&
-                         collation.is_upper_first && collation.has_case_level &&
+                         collation.case_first == SXML_COLLATION_CASE_FIRST_UPPER &&
+                         collation.has_case_level && collation.has_unsupported_parameter &&
                          collation.is_backwards);
     /* The last value of a keyword wins; unknown values are ignored. */
     SXML_TEST_EXPECT(state, sxml_collation_find(TEXT(UCA_URI "?strength=primary;strength=bogus;"
                                                              "strength=identical"),
                                                 &collation) &&
                                 collation.strength == SXML_COLLATION_STRENGTH_IDENTICAL);
-    /* fallback=no and bad fallback values are not supported (D97). */
-    SXML_TEST_EXPECT(state, !sxml_collation_find(TEXT(UCA_URI "?fallback=no"), &collation));
+    /* fallback=no is read, and served only by sxml_collation_resolve with
+       the UCA collation feature (D213); bad fallback values are not
+       supported (D97). */
+    SXML_TEST_EXPECT(state, sxml_collation_find(TEXT(UCA_URI "?fallback=no"), &collation) &&
+                                !collation.is_fallback_allowed);
+    sxml_collation_resolution resolution;
+    SXML_TEST_EXPECT(state, sxml_collation_resolve(
+                                &(sxml_collation_resolution_request){
+                                    .processor = NULL, .collation_uri = TEXT(UCA_URI "?fallback=no")},
+                                &resolution) == SXML_STATUS_OK &&
+                                !resolution.is_supported);
     SXML_TEST_EXPECT(state, !sxml_collation_find(TEXT(UCA_URI "?fallback=maybe"), &collation));
     SXML_TEST_EXPECT(state, sxml_collation_find(TEXT(UCA_URI "?fallback=no;fallback=yes"),
                                                 &collation));

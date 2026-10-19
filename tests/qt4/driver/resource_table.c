@@ -314,6 +314,21 @@ sxml_qt4_resolve_from_table(void *state, const sxml_resource_request *request,
         return sxml_qt4_serve_suite_file(table, uri, resource);
     case SXML_RESOURCE_KIND_TIMEZONE_DATA:
         return sxml_qt4_serve_timezone_data(table, uri, resource);
+    case SXML_RESOURCE_KIND_COLLATION_DATA:
+        /* The DUCET of the UCA collation feature: the vendored copy beside
+           the suite (third_party/unicode-collation, D213). */
+        if (sxml_byte_view_equals(
+                uri, SXML_TEXT("http://www.unicode.org/Public/UCA/16.0.0/"
+                               "allkeys.txt"))) {
+            return sxml_qt4_serve_file(
+                table,
+                (sxml_qt4_served_file){
+                    .file_path = SXML_TEXT("../unicode-collation/allkeys.txt"),
+                    .encoding = sxml_qt4_empty_text},
+                resource);
+        }
+        resource->description = SXML_TEXT("The driver has no such collation data");
+        return SXML_STATUS_OK;
     case SXML_RESOURCE_KIND_XSLT_PACKAGE:
         break;
     }

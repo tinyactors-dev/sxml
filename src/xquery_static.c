@@ -13,6 +13,7 @@
  */
 #include "xquery_static_internal.h"
 
+#include "collation_internal.h"
 #include "processor_internal.h"
 #include "schema_scope_internal.h"
 
@@ -783,19 +784,28 @@ static sxml_status normalize_uri_text(const static_reader *reader, sxml_byte_vie
     return status;
 }
 
-/* True when collation_uri is one sxml supports or the host binds. */
-static bool is_known_collation(const sxml_xquery_static_context *context,
-                               sxml_byte_view collation_uri) {
+/* Writes to *is_known whether collation_uri is one the host binds or the
+   processor supports (its UCA collation feature serves UCA URIs, D213).
+   Fails as sxml_collation_resolve. */
+static sxml_status find_known_collation(const sxml_xquery_static_context *context,
+                                        sxml_byte_view collation_uri, bool *is_known) {
     const sxml_collation_binding_view bindings =
         context->xpath.unit_static_context.collation_bindings;
     for (size_t binding_index = 0; binding_index < bindings.collation_binding_count;
          binding_index += 1) {
         if (sxml_byte_view_equals(bindings.collation_bindings[binding_index].collation_uri,
                                   collation_uri)) {
-            return true;
+            *is_known = true;
+            return SXML_STATUS_OK;
         }
     }
-    return sxml_collation_is_supported(collation_uri);
+    sxml_collation_resolution resolution;
+    const sxml_status status = sxml_collation_resolve(
+        &(sxml_collation_resolution_request){.processor = context->xpath.processor,
+                                             .collation_uri = collation_uri},
+        &resolution);
+    *is_known = status == SXML_STATUS_OK && resolution.is_supported;
+    return status;
 }
 
 static sxml_status read_base_uri_and_collation(const static_reader *reader,
@@ -841,7 +851,12 @@ static sxml_status read_base_uri_and_collation(const static_reader *reader,
             return status;
         }
         context->default_collation_memory = resolution.memory;
-        if (!is_known_collation(context, resolution.uri)) {
+        bool is_known = false;
+        status = find_known_collation(context, resolution.uri, &is_known);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        if (!is_known) {
             return report(reader, survey->default_collation_declaration,
                           SXML_BYTE_VIEW_FROM_LITERAL(
                               "XQST0038 the default collation is not supported"));

@@ -22,7 +22,21 @@ target_include_directories(sxml_cli_framework PUBLIC "${CMAKE_CURRENT_SOURCE_DIR
 target_link_libraries(sxml_cli_framework PUBLIC sxml)
 sxml_apply_project_flags(sxml_cli_framework)
 
+# The DUCET the sxml command serves to the UCA collation feature (D213),
+# generated from the vendored allkeys.txt into the build directory.
+set(SXML_COLLATION_DATA_INPUT "${PROJECT_SOURCE_DIR}/third_party/unicode-collation/allkeys.txt")
+set(SXML_COLLATION_DATA_SOURCE "${CMAKE_CURRENT_BINARY_DIR}/sxml_collation_data.c")
+add_custom_command(
+    OUTPUT "${SXML_COLLATION_DATA_SOURCE}"
+    COMMAND "${CMAKE_COMMAND}" "-DINPUT=${SXML_COLLATION_DATA_INPUT}"
+        "-DOUTPUT=${SXML_COLLATION_DATA_SOURCE}"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/sxml/embed-collation-data.cmake"
+    DEPENDS "${SXML_COLLATION_DATA_INPUT}" "${CMAKE_CURRENT_SOURCE_DIR}/sxml/embed-collation-data.cmake"
+    COMMENT "Embedding the DUCET for the sxml command"
+    VERBATIM)
+
 add_library(sxml_program STATIC
+    "${SXML_COLLATION_DATA_SOURCE}"
     sxml/command_check.c
     sxml/command_serialize.c
     sxml/command_transform.c

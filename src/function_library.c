@@ -15,6 +15,7 @@
 #include "evaluator_internal.h"
 #include "function_library_core_internal.h"
 #include "function_library_internal.h"
+#include "processor_internal.h"
 #include "sxml/memory.h"
 #include "sxml/name.h"
 #include "sxml/types.h"
@@ -743,20 +744,44 @@ static const sxml_static_error unresolved_collation_error = {
 
 /* The collation an absolute URI names: a collation binding of the
    running unit's static context first (XPath 4.0, section 2.2.1, the
-   mapping from URI to collation), then the collations sxml knows. */
-static bool find_known_collation(const sxml_ir_static_context *context,
-                                 sxml_byte_view collation_uri, sxml_collation *collation) {
-    if (context != NULL) {
-        const sxml_collation_binding_view bindings = context->collation_bindings;
+   mapping from URI to collation), then the collations sxml knows, as the
+   evaluation's processor serves them (a UCA URI through its UCA collation
+   feature, D213). *is_found is false for a URI sxml does not support. */
+typedef struct known_collation_request {
+    const sxml_function_call *call;
+    const sxml_ir_static_context *context;
+    sxml_byte_view collation_uri;
+} known_collation_request;
+
+static sxml_status find_known_collation(known_collation_request request, bool *is_found,
+                                        sxml_collation *collation) {
+    sxml_byte_view collation_uri = request.collation_uri;
+    if (request.context != NULL) {
+        const sxml_collation_binding_view bindings = request.context->collation_bindings;
         for (size_t binding_index = 0; binding_index < bindings.collation_binding_count;
              binding_index += 1) {
             const sxml_collation_binding *binding = &bindings.collation_bindings[binding_index];
             if (sxml_byte_view_equals(binding->collation_uri, collation_uri)) {
-                return sxml_collation_find(binding->target_collation_uri, collation);
+                collation_uri = binding->target_collation_uri;
+                break;
             }
         }
     }
-    return sxml_collation_find(collation_uri, collation);
+    const sxml_evaluation_environment *environment =
+        request.call->dynamic_context == NULL
+            ? NULL
+            : sxml_processor_get_evaluation_environment(request.call->dynamic_context);
+    sxml_collation_resolution resolution;
+    const sxml_status status = sxml_collation_resolve(
+        &(sxml_collation_resolution_request){
+            .processor = environment == NULL ? NULL : environment->processor,
+            .collation_uri = collation_uri},
+        &resolution);
+    *is_found = status == SXML_STATUS_OK && resolution.is_supported;
+    if (*is_found) {
+        *collation = resolution.collation;
+    }
+    return status;
 }
 
 sxml_status sxml_function_library_find_collation(const sxml_function_call *call,
@@ -780,9 +805,16 @@ sxml_status sxml_function_library_find_collation(const sxml_function_call *call,
         collation_uri = default_uri;
     }
     if (sxml_uri_has_scheme(collation_uri)) {
-        return find_known_collation(context, collation_uri, collation)
-                   ? SXML_STATUS_OK
-                   : sxml_function_library_report(call, &unsupported_collation_error);
+        bool is_found = false;
+        const sxml_status status = find_known_collation(
+            (known_collation_request){
+                .call = call, .context = context, .collation_uri = collation_uri},
+            &is_found, collation);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        return is_found ? SXML_STATUS_OK
+                        : sxml_function_library_report(call, &unsupported_collation_error);
     }
     /* A relative URI reference: resolved against the static base URI. */
     const sxml_byte_view base_uri = call->dynamic_context == NULL
@@ -801,8 +833,14 @@ sxml_status sxml_function_library_find_collation(const sxml_function_call *call,
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    const bool is_found = find_known_collation(context, resolution.uri, collation);
+    bool is_found = false;
+    status = find_known_collation(
+        (known_collation_request){.call = call, .context = context, .collation_uri = resolution.uri},
+        &is_found, collation);
     sxml_allocator_release(allocator, resolution.memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
     return is_found ? SXML_STATUS_OK
                     : sxml_function_library_report(call, &unsupported_collation_error);
 }

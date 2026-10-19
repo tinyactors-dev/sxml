@@ -16,6 +16,8 @@
  */
 #include "operator_internal.h"
 
+#include "collation_internal.h"
+
 #include <math.h>
 
 /* --------------------------------------------------------------- Errors */
@@ -77,14 +79,48 @@ typedef struct sxml_item_comparison {
     sxml_item_pair pair;
     int16_t implicit_timezone_offset_minutes;
     sxml_error_record *error_record;
+    /* NULL for the codepoint collation. */
+    const sxml_collation *collation;
 } sxml_item_comparison;
+
+/* Orders two strings under a collation other than the codepoint one
+   (F&O 4.0, fn:compare); *is_compared is false when an item is not a
+   string. */
+typedef struct sxml_collated_comparison {
+    sxml_item_heap *item_heap;
+    const sxml_item_comparison *comparison;
+} sxml_collated_comparison;
+
+static sxml_status sxml_items_compare_collated(sxml_collated_comparison collated,
+                                               bool *is_compared,
+                                               sxml_ordering *ordering) {
+    *is_compared = false;
+    sxml_atomic_datum first;
+    sxml_atomic_datum second;
+    if (sxml_atomic_item_get_datum(collated.comparison->pair.first, &first) !=
+            SXML_STATUS_OK ||
+        sxml_atomic_item_get_datum(collated.comparison->pair.second, &second) !=
+            SXML_STATUS_OK ||
+        first.datum_kind != SXML_DATUM_KIND_STRING ||
+        second.datum_kind != SXML_DATUM_KIND_STRING) {
+        return SXML_STATUS_OK;
+    }
+    *is_compared = true;
+    return sxml_collation_compare(
+        &(sxml_collation_comparison){
+            .collation = collated.comparison->collation,
+            .allocator = sxml_item_heap_as_allocator(collated.item_heap),
+            .first = first.datum_details.string,
+            .second = second.datum_details.string},
+        ordering);
+}
 
 /* The outcome of comparing one pair. */
 typedef struct sxml_comparison_outcome {
     bool is_true;
 } sxml_comparison_outcome;
 
-static sxml_status sxml_items_compare(const sxml_item_heap *item_heap,
+static sxml_status sxml_items_compare(sxml_item_heap *item_heap,
                                       const sxml_item_comparison *comparison,
                                       sxml_comparison_outcome *outcome) {
     sxml_item first = comparison->pair.first;
@@ -99,6 +135,21 @@ static sxml_status sxml_items_compare(const sxml_item_heap *item_heap,
         return SXML_STATUS_OK;
     }
     sxml_ordering ordering = SXML_ORDERING_EQUAL;
+    if (comparison->collation != NULL) {
+        bool is_compared = false;
+        const sxml_status collated_status = sxml_items_compare_collated(
+            (sxml_collated_comparison){.item_heap = item_heap,
+                                       .comparison = comparison},
+            &is_compared, &ordering);
+        if (collated_status != SXML_STATUS_OK) {
+            return collated_status;
+        }
+        if (is_compared) {
+            outcome->is_true = sxml_ordering_satisfies(
+                comparison->comparison_operator, ordering);
+            return SXML_STATUS_OK;
+        }
+    }
     sxml_status status = sxml_atomic_item_compare(
         &(sxml_atomic_comparison){
             .first = first,
@@ -156,7 +207,8 @@ sxml_operator_make_value_comparison(sxml_item_heap *item_heap,
             .pair = {.first = left_operand.item, .second = right_operand.item},
             .implicit_timezone_offset_minutes =
                 request->implicit_timezone_offset_minutes,
-            .error_record = request->error_record},
+            .error_record = request->error_record,
+            .collation = request->collation},
         &outcome);
     if (status != SXML_STATUS_OK) {
         return status;
@@ -314,7 +366,8 @@ static sxml_status sxml_general_pair_compare(sxml_item_heap *item_heap,
             .pair = {.first = left_item, .second = right_converted.item},
             .implicit_timezone_offset_minutes =
                 request->implicit_timezone_offset_minutes,
-            .error_record = request->error_record},
+            .error_record = request->error_record,
+            .collation = request->collation},
         outcome);
     sxml_converted_item_release(&right_converted);
     return status;

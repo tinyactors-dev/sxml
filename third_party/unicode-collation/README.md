@@ -1,7 +1,7 @@
 # Unicode collation data (UTS #10, version 16.0.0)
 
 Vendored for the UCA collation feature (`sxml_uca_collation_feature`,
-`src/collation_uca.c`, packet 7.15a, D210) under D13 and D208. The version is
+`src/collation_uca.c`, packet 7.15a, D213) under D13 and D208. The version is
 pinned in `third_party/unicode-collation.version`. sxml does not compile these
 files in: hosts serve `allkeys.txt` through their resource resolver as
 `SXML_RESOURCE_KIND_COLLATION_DATA` (D184, D189). The test drivers, the

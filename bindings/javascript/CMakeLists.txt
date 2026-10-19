@@ -55,7 +55,7 @@ if(SXML_BUILD_TESTS AND SXML_NODE_EXECUTABLE)
             "${CMAKE_CURRENT_SOURCE_DIR}/test/package.test.ts"
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
     set_tests_properties(javascript/package_full PROPERTIES
-        ENVIRONMENT "SXML_WASM_PATH=$<TARGET_FILE:sxml_javascript_full_module>;SXML_WASM_FEATURES=test,expath-binary,html,xslt-transform,timezone-database,dtd-validation")
+        ENVIRONMENT "SXML_WASM_PATH=$<TARGET_FILE:sxml_javascript_full_module>;SXML_WASM_FEATURES=test,expath-binary,html,xslt-transform,timezone-database,dtd-validation,uca-collation")
     # The TypeScript compiler's checks, when `npm ci` has installed it here.
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/node_modules/typescript/bin/tsc")
         add_test(NAME javascript/typecheck
@@ -68,7 +68,8 @@ if(SXML_BUILD_TESTS AND SXML_NODE_EXECUTABLE)
     # XSLT and the pattern and value template grammars (packet 4.15, D157),
     # and with sxml validate, which links schema compilation and validation
     # (packet 5.10, D176; the CLI module's budget is 7,000,000 / 1,500,000
-    # since D202).
+    # since D202), and with the DUCET it embeds for the UCA collation
+    # feature (packet 7.15a, D213: 7,500,000 / 1,650,000).
     # The owner's budgets for the JavaScript modules (D184): 2,100,000
     # bytes stripped for the core sxml.wasm and 3,000,000 for the full
     # module; the gzipped limits keep D138's ratio of 700,000 to 2,000,000
@@ -79,7 +80,7 @@ if(SXML_BUILD_TESTS AND SXML_NODE_EXECUTABLE)
     if(TARGET sxml_cli)
         add_test(NAME javascript/size_budget
             COMMAND "${SXML_NODE_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test/size-budget.mjs"
-                "$<TARGET_FILE:sxml_cli>" 7000000 1500000
+                "$<TARGET_FILE:sxml_cli>" 7500000 1650000
                 "$<TARGET_FILE:sxml_javascript_module>" 2200000 770000
                 "$<TARGET_FILE:sxml_javascript_full_module>" 4000000 1400000)
     endif()

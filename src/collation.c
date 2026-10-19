@@ -1,28 +1,32 @@
 /*
- * Collations (src/collation_internal.h, docs/DECISIONS.md D97, D116):
- * finding the collation a URI names, comparing strings, collation keys
- * and substring matching (F&O 4.0, section 5.2 "Collations" and section
- * 5.4 "Functions based on substring matching").
+ * Collations (src/collation_internal.h, docs/DECISIONS.md D97, D116,
+ * D213): finding the collation a URI names, comparing strings, collation
+ * keys and substring matching (F&O 4.0, section 5.2 "Collations" and
+ * section 5.4 "Functions based on substring matching").
  *
  * Golden file: src/unicode.c (growing arrays through an allocator, tables
  * as lookups), src/memory.c (overflow checks).
  *
- * Every collation is computed from collation elements (UTS #10, section
- * 3.2), made one codepoint at a time by make_elements: four weights,
- * primary to quaternary, each zero when the element is ignorable at that
- * level. The codepoint, Unicode case-insensitive and HTML ASCII
- * case-insensitive collations give primary weights only (the codepoint,
- * mapped, plus one). The UCA fallback gives the weights described in the
- * header. A sort key (UTS #10, section 7.3) lists the nonzero weights of
- * each compared level, three bytes each, big-endian, with three zero
- * bytes between levels, so keys compare as bytes; strings compare by
- * their keys. Substring matching compares collation units, the elements
- * that are not ignorable on every compared level, and accepts a match
- * only when it starts and ends at the boundary of a codepoint's elements.
+ * Every collation is computed from the collation elements of a string
+ * (UTS #10, section 3.2): five weights, primary, secondary, case, tertiary
+ * and quaternary, each zero when the element is ignorable at that level,
+ * and the bytes of the input they came from. The UCA collation feature
+ * makes the elements of SXML_COLLATION_KIND_UCA (src/collation_uca.c);
+ * make_elements here makes the others, one codepoint at a time. The
+ * codepoint, Unicode case-insensitive and HTML ASCII case-insensitive
+ * collations give primary weights only (the codepoint, mapped, plus one).
+ * The UCA fallback gives the weights described in the header. A sort key
+ * (UTS #10, section 7.3) lists the nonzero weights of each compared level,
+ * three bytes each, big-endian, with three zero bytes between levels, so
+ * keys compare as bytes; strings compare by their keys. Substring matching
+ * compares collation units, the elements that are not ignorable on every
+ * compared level, and accepts a match only when it starts and ends at the
+ * boundary of a group of elements (a codepoint's, a contraction's).
  */
 #include "collation_internal.h"
 
 #include "function_library_core_internal.h"
+#include "optional_feature_internal.h"
 #include "regex_internal.h"
 #include "sxml/xpath.h"
 #include "unicode_internal.h"
@@ -47,9 +51,15 @@ sxml_collation sxml_collation_codepoint(void) {
                             .strength = SXML_COLLATION_STRENGTH_TERTIARY,
                             .alternate = SXML_COLLATION_ALTERNATE_NON_IGNORABLE,
                             .maximum_variable = SXML_COLLATION_VARIABLE_GROUP_PUNCTUATION,
+                            .case_first = SXML_COLLATION_CASE_FIRST_OFF,
                             .has_case_level = false,
-                            .is_upper_first = false,
-                            .is_backwards = false};
+                            .is_backwards = false,
+                            .is_numeric = false,
+                            .is_fallback_allowed = true,
+                            .has_unsupported_parameter = false,
+                            .version = {.bytes = NULL, .byte_count = 0},
+                            .uca_operations = NULL,
+                            .element_table = NULL};
 }
 
 sxml_byte_view sxml_collation_codepoint_uri(void) { return codepoint_uri; }
@@ -86,52 +96,162 @@ static const sxml_byte_view strength_numbers[] = {
     SXML_BYTE_VIEW_INITIALIZER("3"), SXML_BYTE_VIEW_INITIALIZER("4"),
     SXML_BYTE_VIEW_INITIALIZER("5")};
 
-/* Applies one parameter. Unknown keywords and values are ignored, as
-   fallback=yes allows (F&O 4.0, section 5.2.4); fallback itself is read
-   by the caller. */
+/* The lang values the root collation serves without a tailoring (CLDR
+   has none for en, und and root): BCP 47 tags compared without case. */
+static bool is_root_language(sxml_byte_view value) {
+    uint8_t lowered[16];
+    if (value.byte_count >= sizeof(lowered)) {
+        return false;
+    }
+    for (size_t byte_index = 0; byte_index < value.byte_count; byte_index += 1) {
+        const uint8_t byte = value.bytes[byte_index];
+        lowered[byte_index] = byte >= 'A' && byte <= 'Z' ? (uint8_t)(byte + 0x20U) : byte;
+    }
+    const sxml_byte_view tag = {.bytes = lowered, .byte_count = value.byte_count};
+    if (tag.byte_count == 0 || SXML_COLLATION_TEXT_IS(tag, "root") ||
+        SXML_COLLATION_TEXT_IS(tag, "und") || SXML_COLLATION_TEXT_IS(tag, "en")) {
+        return true;
+    }
+    /* en with a region, but not en-US-POSIX, which CLDR tailors. */
+    return tag.byte_count == 5 && memcmp(tag.bytes, "en-", 3) == 0;
+}
+
+/* Reads a value from names; false when it is none of them. */
+typedef struct value_choice {
+    const char *const *names;
+    size_t name_count;
+} value_choice;
+
+static bool choose_value(sxml_byte_view value, value_choice choice, size_t *chosen_index) {
+    for (size_t name_index = 0; name_index < choice.name_count; name_index += 1) {
+        if (sxml_byte_view_equals(value, sxml_byte_view_from_c_string(choice.names[name_index]))) {
+            *chosen_index = name_index;
+            return true;
+        }
+    }
+    return false;
+}
+
+static const char *const alternate_names[] = {"non-ignorable", "shifted", "blanked"};
+static const char *const variable_group_names[] = {"space", "punct", "symbol", "currency"};
+static const char *const case_first_names[] = {"off", "lower", "upper"};
+
+/* The keywords of F&O 4.0, section 5.2.4, by what they set. */
+typedef enum uca_keyword {
+    SXML_UCA_KEYWORD_STRENGTH,
+    SXML_UCA_KEYWORD_ALTERNATE,
+    SXML_UCA_KEYWORD_MAXIMUM_VARIABLE,
+    SXML_UCA_KEYWORD_CASE_FIRST,
+    SXML_UCA_KEYWORD_CASE_LEVEL,
+    SXML_UCA_KEYWORD_BACKWARDS,
+    SXML_UCA_KEYWORD_NUMERIC,
+    SXML_UCA_KEYWORD_NORMALIZATION,
+    SXML_UCA_KEYWORD_LANGUAGE,
+    SXML_UCA_KEYWORD_VERSION,
+    SXML_UCA_KEYWORD_REORDER,
+    SXML_UCA_KEYWORD_UNKNOWN,
+} uca_keyword;
+
+static uca_keyword read_keyword(sxml_byte_view keyword) {
+    /* The hyphenated spellings are those of earlier drafts. */
+    static const char *const keyword_names[] = {
+        "strength",  "alternate", "maxVariable",   "caseFirst", "caseLevel", "backwards",
+        "numeric",   "normalization", "lang",      "version",   "reorder",
+        "max-variable", "case-first", "case-level"};
+    static const uca_keyword keyword_values[] = {
+        SXML_UCA_KEYWORD_STRENGTH,      SXML_UCA_KEYWORD_ALTERNATE,
+        SXML_UCA_KEYWORD_MAXIMUM_VARIABLE, SXML_UCA_KEYWORD_CASE_FIRST,
+        SXML_UCA_KEYWORD_CASE_LEVEL,    SXML_UCA_KEYWORD_BACKWARDS,
+        SXML_UCA_KEYWORD_NUMERIC,       SXML_UCA_KEYWORD_NORMALIZATION,
+        SXML_UCA_KEYWORD_LANGUAGE,      SXML_UCA_KEYWORD_VERSION,
+        SXML_UCA_KEYWORD_REORDER,       SXML_UCA_KEYWORD_MAXIMUM_VARIABLE,
+        SXML_UCA_KEYWORD_CASE_FIRST,    SXML_UCA_KEYWORD_CASE_LEVEL};
+    size_t keyword_index = 0;
+    if (choose_value(keyword, (value_choice){.names = keyword_names,
+                                             .name_count = sizeof(keyword_names) /
+                                                           sizeof(keyword_names[0])},
+                     &keyword_index)) {
+        return keyword_values[keyword_index];
+    }
+    return SXML_UCA_KEYWORD_UNKNOWN;
+}
+
+/* Applies one parameter. An unknown keyword or value leaves the collation
+   as it was and marks it, which fallback=yes allows and fallback=no does
+   not (F&O 4.0, section 5.2.4); fallback itself is read by the caller. */
 static void apply_parameter(sxml_collation *collation, uca_parameter parameter) {
-    const sxml_byte_view keyword = parameter.keyword;
     const sxml_byte_view value = parameter.value;
     const yes_no_value yes_no = read_yes_no(value);
-    if (SXML_COLLATION_TEXT_IS(keyword, "strength")) {
+    size_t chosen_index = 0;
+    bool is_honoured = true;
+    switch (read_keyword(parameter.keyword)) {
+    case SXML_UCA_KEYWORD_STRENGTH:
+        is_honoured = false;
         for (size_t strength_index = 0; strength_index < 5; strength_index += 1) {
             if (sxml_byte_view_equals(value, strength_names[strength_index]) ||
                 sxml_byte_view_equals(value, strength_numbers[strength_index])) {
                 collation->strength = (sxml_collation_strength)(strength_index + 1);
+                is_honoured = true;
             }
         }
-    } else if (SXML_COLLATION_TEXT_IS(keyword, "alternate")) {
-        if (SXML_COLLATION_TEXT_IS(value, "non-ignorable")) {
-            collation->alternate = SXML_COLLATION_ALTERNATE_NON_IGNORABLE;
-        } else if (SXML_COLLATION_TEXT_IS(value, "shifted")) {
-            collation->alternate = SXML_COLLATION_ALTERNATE_SHIFTED;
-        } else if (SXML_COLLATION_TEXT_IS(value, "blanked")) {
-            collation->alternate = SXML_COLLATION_ALTERNATE_BLANKED;
+        break;
+    case SXML_UCA_KEYWORD_ALTERNATE:
+        is_honoured = choose_value(value, (value_choice){.names = alternate_names, .name_count = 3},
+                                   &chosen_index);
+        if (is_honoured) {
+            collation->alternate = (sxml_collation_alternate)chosen_index;
         }
-    } else if (SXML_COLLATION_TEXT_IS(keyword, "maxVariable") || SXML_COLLATION_TEXT_IS(keyword, "max-variable")) {
-        if (SXML_COLLATION_TEXT_IS(value, "space")) {
-            collation->maximum_variable = SXML_COLLATION_VARIABLE_GROUP_SPACE;
-        } else if (SXML_COLLATION_TEXT_IS(value, "punct")) {
-            collation->maximum_variable = SXML_COLLATION_VARIABLE_GROUP_PUNCTUATION;
-        } else if (SXML_COLLATION_TEXT_IS(value, "symbol")) {
-            collation->maximum_variable = SXML_COLLATION_VARIABLE_GROUP_SYMBOL;
-        } else if (SXML_COLLATION_TEXT_IS(value, "currency")) {
-            collation->maximum_variable = SXML_COLLATION_VARIABLE_GROUP_CURRENCY;
+        break;
+    case SXML_UCA_KEYWORD_MAXIMUM_VARIABLE:
+        is_honoured = choose_value(
+            value, (value_choice){.names = variable_group_names, .name_count = 4}, &chosen_index);
+        if (is_honoured) {
+            collation->maximum_variable = (sxml_collation_variable_group)chosen_index;
         }
-    } else if (SXML_COLLATION_TEXT_IS(keyword, "caseFirst") || SXML_COLLATION_TEXT_IS(keyword, "case-first")) {
-        if (SXML_COLLATION_TEXT_IS(value, "upper")) {
-            collation->is_upper_first = true;
-        } else if (SXML_COLLATION_TEXT_IS(value, "lower")) {
-            collation->is_upper_first = false;
+        break;
+    case SXML_UCA_KEYWORD_CASE_FIRST:
+        is_honoured = choose_value(value, (value_choice){.names = case_first_names, .name_count = 3},
+                                   &chosen_index);
+        if (is_honoured) {
+            collation->case_first = (sxml_collation_case_first)chosen_index;
         }
-    } else if (SXML_COLLATION_TEXT_IS(keyword, "caseLevel") || SXML_COLLATION_TEXT_IS(keyword, "case-level")) {
-        if (yes_no.is_valid) {
-            collation->has_case_level = yes_no.is_yes;
-        }
-    } else if (SXML_COLLATION_TEXT_IS(keyword, "backwards")) {
-        if (yes_no.is_valid) {
-            collation->is_backwards = yes_no.is_yes;
-        }
+        break;
+    case SXML_UCA_KEYWORD_CASE_LEVEL:
+        is_honoured = yes_no.is_valid;
+        collation->has_case_level = is_honoured ? yes_no.is_yes : collation->has_case_level;
+        break;
+    case SXML_UCA_KEYWORD_BACKWARDS:
+        is_honoured = yes_no.is_valid;
+        collation->is_backwards = is_honoured ? yes_no.is_yes : collation->is_backwards;
+        break;
+    case SXML_UCA_KEYWORD_NUMERIC:
+        is_honoured = yes_no.is_valid;
+        collation->is_numeric = is_honoured ? yes_no.is_yes : collation->is_numeric;
+        break;
+    case SXML_UCA_KEYWORD_NORMALIZATION:
+        /* The UCA kind always normalizes to NFD (UTS #10, step S1.1),
+           which gives the same results for every string normalization=no
+           is meant for (FCD strings, UTS #10, section 6.5). */
+        is_honoured = yes_no.is_valid;
+        break;
+    case SXML_UCA_KEYWORD_LANGUAGE:
+        /* Other languages need a tailoring (packet 7.15b). */
+        is_honoured = is_root_language(value);
+        break;
+    case SXML_UCA_KEYWORD_VERSION:
+        /* Compared with the table's version by sxml_collation_resolve. */
+        collation->version = value;
+        break;
+    case SXML_UCA_KEYWORD_REORDER:
+        /* A reordering is a tailoring (packet 7.15b). */
+        is_honoured = value.byte_count == 0;
+        break;
+    case SXML_UCA_KEYWORD_UNKNOWN:
+        is_honoured = false;
+        break;
+    }
+    if (!is_honoured) {
+        collation->has_unsupported_parameter = true;
     }
 }
 
@@ -159,16 +279,20 @@ static split_text split_at(sxml_byte_view text, uint8_t separator) {
 }
 
 /* Reads the query of a UCA URI (F&O 4.0, section 5.2.4): semicolon-
-   separated keyword=value pairs, the last one of a keyword winning. */
+   separated keyword=value pairs, the last one of a keyword winning.
+   False for a fallback value other than yes and no. */
 static bool read_uca_query(sxml_byte_view query, sxml_collation *collation) {
-    bool is_fallback = true;
     sxml_byte_view rest = query;
     while (rest.byte_count > 0) {
         const split_text pair = split_at(rest, ';');
         rest = pair.rest;
+        if (pair.part.byte_count == 0) {
+            continue;
+        }
         const split_text parameter = split_at(pair.part, '=');
         if (!parameter.has_separator) {
             /* Not keyword=value: an unrecognized parameter. */
+            collation->has_unsupported_parameter = true;
             continue;
         }
         if (SXML_COLLATION_TEXT_IS(parameter.part, "fallback")) {
@@ -176,15 +300,13 @@ static bool read_uca_query(sxml_byte_view query, sxml_collation *collation) {
             if (!fallback.is_valid) {
                 return false;
             }
-            is_fallback = fallback.is_yes;
+            collation->is_fallback_allowed = fallback.is_yes;
             continue;
         }
         apply_parameter(collation,
                         (uca_parameter){.keyword = parameter.part, .value = parameter.rest});
     }
-    /* fallback=no asks for a conformant UCA collation, which sxml does not
-       have (D97): FOCH0002, as for an unknown URI. */
-    return is_fallback;
+    return true;
 }
 
 bool sxml_collation_find(sxml_byte_view collation_uri, sxml_collation *collation) {
@@ -223,37 +345,111 @@ bool sxml_collation_find(sxml_byte_view collation_uri, sxml_collation *collation
 }
 
 bool sxml_collation_is_supported(sxml_byte_view collation_uri) {
+    /* Without a processor there is no collation element table: a UCA URI
+       with fallback=no is not supported (include/sxml/xpath.h). */
     sxml_collation collation;
-    return sxml_collation_find(collation_uri, &collation);
+    return sxml_collation_find(collation_uri, &collation) && collation.is_fallback_allowed;
+}
+
+sxml_status sxml_collation_resolve(const sxml_collation_resolution_request *request,
+                                   sxml_collation_resolution *resolution) {
+    resolution->is_supported = false;
+    resolution->collation = sxml_collation_codepoint();
+    sxml_collation collation;
+    if (!sxml_collation_find(request->collation_uri, &collation)) {
+        return SXML_STATUS_OK;
+    }
+    if (collation.collation_kind != SXML_COLLATION_KIND_UCA_FALLBACK) {
+        resolution->is_supported = true;
+        resolution->collation = collation;
+        return SXML_STATUS_OK;
+    }
+    /* The feature's D162 place (D189): without it, the fallback. */
+    const sxml_uca_collation_operations *operations = sxml_processor_find_optional_feature(
+        request->processor, SXML_OPTIONAL_FEATURE_KIND_UCA_COLLATION);
+    const sxml_collation_element_table *table = NULL;
+    if (operations != NULL) {
+        const sxml_status status = operations->find_table(request->processor, &table);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+    }
+    if (table != NULL) {
+        collation.collation_kind = SXML_COLLATION_KIND_UCA;
+        collation.uca_operations = operations;
+        collation.element_table = table;
+        if (collation.version.byte_count > 0 &&
+            !sxml_byte_view_equals(collation.version, operations->get_version(table))) {
+            collation.has_unsupported_parameter = true;
+        }
+    }
+    /* The version was borrowed from the URI for this check only. */
+    collation.version = (sxml_byte_view){.bytes = NULL, .byte_count = 0};
+    /* F&O 4.0, section 5.2.4: with fallback=no, a collation that does not
+       honour every parameter (the fallback honours none of UTS #10's
+       weights) is not supported. */
+    resolution->is_supported =
+        collation.is_fallback_allowed ||
+        (table != NULL && !collation.has_unsupported_parameter);
+    resolution->collation = collation;
+    return SXML_STATUS_OK;
 }
 
 bool sxml_collation_is_codepoint_order(const sxml_collation *collation) {
     return collation->collation_kind == SXML_COLLATION_KIND_CODEPOINT;
 }
 
-/* ---------------------------------------------------- Collation elements */
+/* --------------------------------------------------------- Element arrays */
 
-/* The levels of a sort key, in the order they are compared. */
-typedef enum collation_level {
-    SXML_COLLATION_LEVEL_PRIMARY,
-    SXML_COLLATION_LEVEL_SECONDARY,
-    /* caseLevel=yes: the case part of the tertiary weight of each element
-       with a primary weight (UTS #35, part 5, "Case Parameters"). */
-    SXML_COLLATION_LEVEL_CASE,
-    SXML_COLLATION_LEVEL_TERTIARY,
-    SXML_COLLATION_LEVEL_QUATERNARY,
-    /* The codepoints themselves (UTS #10, section 7.4, "Identical
-       Level"). */
-    SXML_COLLATION_LEVEL_IDENTICAL,
-} collation_level;
+sxml_status sxml_collation_element_array_append(sxml_collation_element_array *array,
+                                                const sxml_collation_element *element) {
+    if (array->element_count == array->element_capacity) {
+        size_t new_capacity = array->element_capacity < 32 ? 32 : array->element_capacity;
+        sxml_status status = SXML_STATUS_OK;
+        if (array->element_capacity >= 32) {
+            status = sxml_size_multiply(new_capacity, 2, &new_capacity);
+        }
+        size_t byte_count = 0;
+        if (status == SXML_STATUS_OK) {
+            status = sxml_size_multiply(new_capacity, sizeof(sxml_collation_element), &byte_count);
+        }
+        void *memory = NULL;
+        if (status == SXML_STATUS_OK) {
+            status = sxml_allocator_allocate(
+                array->allocator,
+                (sxml_allocation_request){.byte_count = byte_count,
+                                          .alignment = alignof(sxml_collation_element)},
+                &memory);
+        }
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        if (array->element_count > 0) {
+            memcpy(memory, array->elements, array->element_count * sizeof(sxml_collation_element));
+        }
+        sxml_allocator_release(array->allocator, array->elements);
+        array->elements = memory;
+        array->element_capacity = new_capacity;
+    }
+    array->elements[array->element_count] = *element;
+    array->element_count += 1;
+    return SXML_STATUS_OK;
+}
 
-#define SXML_COLLATION_LEVEL_COUNT 6U
+void sxml_collation_element_array_release(sxml_collation_element_array *array) {
+    sxml_allocator_release(array->allocator, array->elements);
+    array->elements = NULL;
+    array->element_count = 0;
+    array->element_capacity = 0;
+}
 
-/* One collation element: weights for the primary, secondary, tertiary
-   and quaternary levels, zero where it is ignorable. */
-typedef struct collation_element {
+/* ------------------------------------- Elements of the other collations */
+
+/* One element made by make_elements: primary, secondary, tertiary and
+   quaternary weights, zero where it is ignorable. */
+typedef struct codepoint_element {
     uint32_t weights[4];
-} collation_element;
+} codepoint_element;
 
 /* The secondary weight of a base character, below every mark's. */
 #define SXML_COLLATION_COMMON_SECONDARY 1U
@@ -267,11 +463,11 @@ typedef struct collation_element {
 
 /* The elements of one codepoint. */
 typedef struct element_buffer {
-    collation_element elements[SXML_COLLATION_MAXIMUM_ELEMENT_COUNT];
+    codepoint_element elements[SXML_COLLATION_MAXIMUM_ELEMENT_COUNT];
     size_t element_count;
 } element_buffer;
 
-static void add_element(element_buffer *buffer, collation_element element) {
+static void add_element(element_buffer *buffer, codepoint_element element) {
     if (buffer->element_count < SXML_COLLATION_MAXIMUM_ELEMENT_COUNT) {
         buffer->elements[buffer->element_count] = element;
         buffer->element_count += 1;
@@ -280,7 +476,7 @@ static void add_element(element_buffer *buffer, collation_element element) {
 
 /* A primary-only element for the codepoint-like collations. */
 static void add_primary(element_buffer *buffer, uint32_t codepoint) {
-    add_element(buffer, (collation_element){.weights = {codepoint + 1U, 0, 0, 0}});
+    add_element(buffer, (codepoint_element){.weights = {codepoint + 1U, 0, 0, 0}});
 }
 
 /* Whether codepoint is variable under collation (UTS #10, section 4;
@@ -306,8 +502,8 @@ static bool is_variable(const sxml_collation *collation, uint32_t codepoint) {
 }
 
 /* A mark (combining class above 0): ignorable on the primary level. */
-static collation_element mark_element(uint32_t codepoint) {
-    return (collation_element){
+static codepoint_element mark_element(uint32_t codepoint) {
+    return (codepoint_element){
         .weights = {0, SXML_COLLATION_COMMON_SECONDARY + 1U + codepoint, 1U,
                     SXML_COLLATION_HIGHEST_QUATERNARY}};
 }
@@ -318,15 +514,16 @@ typedef struct tertiary_traits {
     bool is_compatibility_variant;
 } tertiary_traits;
 
-/* Lower case first (caseFirst=lower, the default): 1 for lower, 2 for
-   upper; compatibility variants (a ligature, a full-width form) above
+/* Lower case first (caseFirst=lower or off, the default): 1 for lower, 2
+   for upper; compatibility variants (a ligature, a full-width form) above
    both. */
 static uint32_t tertiary_weight(const sxml_collation *collation, tertiary_traits traits) {
-    const bool is_second = collation->is_upper_first ? !traits.is_upper : traits.is_upper;
+    const bool is_upper_first = collation->case_first == SXML_COLLATION_CASE_FIRST_UPPER;
+    const bool is_second = is_upper_first ? !traits.is_upper : traits.is_upper;
     return (is_second ? 2U : 1U) + (traits.is_compatibility_variant ? 2U : 0U);
 }
 
-/* The case part of a tertiary weight: 1 or 2. */
+/* The case part of a fallback tertiary weight: 1 or 2. */
 static uint32_t case_weight(uint32_t tertiary) { return ((tertiary - 1U) % 2U) + 1U; }
 
 /* The UCA fallback's elements of a base character or mark that its
@@ -356,7 +553,7 @@ static void add_uca_character(const sxml_collation *collation, decomposed_charac
             continue;
         }
         add_element(buffer,
-                    (collation_element){
+                    (codepoint_element){
                         .weights = {mapped + 1U, SXML_COLLATION_COMMON_SECONDARY,
                                     tertiary_weight(collation,
                                                     (tertiary_traits){
@@ -380,7 +577,7 @@ static void add_uca_elements(const sxml_collation *collation, uint32_t codepoint
     if (collation->alternate != SXML_COLLATION_ALTERNATE_NON_IGNORABLE &&
         is_variable(collation, codepoint)) {
         if (collation->alternate == SXML_COLLATION_ALTERNATE_SHIFTED) {
-            add_element(buffer, (collation_element){.weights = {0, 0, 0, codepoint + 1U}});
+            add_element(buffer, (codepoint_element){.weights = {0, 0, 0, codepoint + 1U}});
         }
         /* Blanked: completely ignorable. */
         return;
@@ -407,7 +604,8 @@ static void add_uca_elements(const sxml_collation *collation, uint32_t codepoint
     }
 }
 
-/* Writes the elements of codepoint under collation to *buffer. */
+/* Writes the elements of codepoint under collation (not the UCA kind) to
+   *buffer. */
 static void make_elements(const sxml_collation *collation, uint32_t codepoint,
                           element_buffer *buffer) {
     buffer->element_count = 0;
@@ -433,14 +631,49 @@ static void make_elements(const sxml_collation *collation, uint32_t codepoint,
         return;
     }
     case SXML_COLLATION_KIND_UCA_FALLBACK:
+    case SXML_COLLATION_KIND_UCA:
         add_uca_elements(collation, codepoint, buffer);
         return;
     }
 }
 
+/* Writes the collation elements of request->input to *elements. */
+static sxml_status make_string_elements(const sxml_collation_element_request *request,
+                                        sxml_collation_element_array *elements) {
+    const sxml_collation *collation = request->collation;
+    if (collation->collation_kind == SXML_COLLATION_KIND_UCA) {
+        return collation->uca_operations->append_elements(request, elements);
+    }
+    sxml_codepoint_iterator iterator = {.string = request->input, .byte_offset = 0};
+    uint32_t codepoint = 0;
+    element_buffer buffer;
+    sxml_status status = SXML_STATUS_OK;
+    size_t byte_offset = 0;
+    while (status == SXML_STATUS_OK && sxml_codepoint_iterator_next(&iterator, &codepoint)) {
+        make_elements(collation, codepoint, &buffer);
+        for (size_t element_index = 0;
+             status == SXML_STATUS_OK && element_index < buffer.element_count;
+             element_index += 1) {
+            const codepoint_element made = buffer.elements[element_index];
+            const sxml_collation_element element = {
+                .weights = {made.weights[0], made.weights[1],
+                            made.weights[0] != 0 && made.weights[2] != 0
+                                ? case_weight(made.weights[2])
+                                : 0,
+                            made.weights[2], made.weights[3]},
+                .byte_offset = byte_offset,
+                .byte_end = iterator.byte_offset};
+            status = sxml_collation_element_array_append(elements, &element);
+        }
+        byte_offset = iterator.byte_offset;
+    }
+    return status;
+}
+
 /* Whether level is compared under collation. */
-static bool is_level_compared(const sxml_collation *collation, collation_level level) {
-    if (collation->collation_kind != SXML_COLLATION_KIND_UCA_FALLBACK) {
+static bool is_level_compared(const sxml_collation *collation, sxml_collation_level level) {
+    if (collation->collation_kind != SXML_COLLATION_KIND_UCA_FALLBACK &&
+        collation->collation_kind != SXML_COLLATION_KIND_UCA) {
         return level == SXML_COLLATION_LEVEL_PRIMARY;
     }
     switch (level) {
@@ -460,25 +693,6 @@ static bool is_level_compared(const sxml_collation *collation, collation_level l
         return collation->strength >= SXML_COLLATION_STRENGTH_IDENTICAL;
     }
     return false;
-}
-
-/* The weight of element on level (not the identical level). */
-static uint32_t element_weight(collation_element element, collation_level level) {
-    switch (level) {
-    case SXML_COLLATION_LEVEL_PRIMARY:
-        return element.weights[0];
-    case SXML_COLLATION_LEVEL_SECONDARY:
-        return element.weights[1];
-    case SXML_COLLATION_LEVEL_CASE:
-        return element.weights[0] != 0 ? case_weight(element.weights[2]) : 0;
-    case SXML_COLLATION_LEVEL_TERTIARY:
-        return element.weights[2];
-    case SXML_COLLATION_LEVEL_QUATERNARY:
-        return element.weights[3];
-    case SXML_COLLATION_LEVEL_IDENTICAL:
-        break;
-    }
-    return 0;
 }
 
 /* ------------------------------------------------------- Collation keys */
@@ -553,34 +767,51 @@ static void reverse_weights(sxml_collation_key *key, size_t byte_offset) {
 
 /* One level of a key to append. */
 typedef struct level_request {
-    const sxml_collation *collation;
-    sxml_string input;
-    collation_level level;
+    const sxml_collation_key_request *key_request;
+    const sxml_collation_element_array *elements;
+    sxml_collation_level level;
 } level_request;
 
 static sxml_status append_level(level_request request, sxml_collation_key *key) {
     const size_t level_offset = key->byte_count;
-    sxml_codepoint_iterator iterator = {.string = request.input, .byte_offset = 0};
-    uint32_t codepoint = 0;
-    element_buffer buffer;
     sxml_status status = SXML_STATUS_OK;
-    while (status == SXML_STATUS_OK && sxml_codepoint_iterator_next(&iterator, &codepoint)) {
-        if (request.level == SXML_COLLATION_LEVEL_IDENTICAL) {
-            status = append_weight(key, codepoint + 1U);
-            continue;
-        }
-        make_elements(request.collation, codepoint, &buffer);
-        for (size_t element_index = 0;
-             status == SXML_STATUS_OK && element_index < buffer.element_count;
-             element_index += 1) {
-            const uint32_t weight = element_weight(buffer.elements[element_index], request.level);
-            if (weight != 0) {
-                status = append_weight(key, weight);
+    if (request.level == SXML_COLLATION_LEVEL_IDENTICAL) {
+        /* UTS #10, section 7.4: the codepoints of the NFD form under the
+           UCA; the input's own under the fallback. */
+        sxml_string identical_input = request.key_request->input;
+        sxml_unicode_normalized_text normalized = {
+            .allocator = key->allocator, .bytes = NULL, .byte_count = 0};
+        if (request.key_request->collation->collation_kind == SXML_COLLATION_KIND_UCA) {
+            status = sxml_unicode_normalize(
+                &(sxml_unicode_normalization_request){
+                    .allocator = key->allocator,
+                    .normalization_form = SXML_UNICODE_NORMALIZATION_FORM_NFD,
+                    .input = identical_input},
+                &normalized);
+            if (status == SXML_STATUS_OK) {
+                status = sxml_string_from_utf8(sxml_unicode_normalized_text_view(&normalized),
+                                               &identical_input);
             }
+        }
+        sxml_codepoint_iterator iterator = {.string = identical_input, .byte_offset = 0};
+        uint32_t codepoint = 0;
+        while (status == SXML_STATUS_OK && sxml_codepoint_iterator_next(&iterator, &codepoint)) {
+            status = append_weight(key, codepoint + 1U);
+        }
+        sxml_unicode_normalized_text_release(&normalized);
+        return status;
+    }
+    const sxml_collation_element_array *elements = request.elements;
+    for (size_t element_index = 0;
+         status == SXML_STATUS_OK && element_index < elements->element_count;
+         element_index += 1) {
+        const uint32_t weight = elements->elements[element_index].weights[request.level];
+        if (weight != 0) {
+            status = append_weight(key, weight);
         }
     }
     if (status == SXML_STATUS_OK && request.level == SXML_COLLATION_LEVEL_SECONDARY &&
-        request.collation->is_backwards) {
+        request.key_request->collation->is_backwards) {
         reverse_weights(key, level_offset);
     }
     return status;
@@ -589,11 +820,15 @@ static sxml_status append_level(level_request request, sxml_collation_key *key) 
 sxml_status sxml_collation_make_key(const sxml_collation_key_request *request,
                                     sxml_collation_key *key) {
     key->byte_count = 0;
-    sxml_status status = SXML_STATUS_OK;
+    sxml_collation_element_array elements = {.allocator = key->allocator, .elements = NULL};
+    sxml_status status = make_string_elements(
+        &(sxml_collation_element_request){
+            .collation = request->collation, .input = request->input, .allocator = key->allocator},
+        &elements);
     bool is_first_level = true;
-    for (uint32_t level = 0; status == SXML_STATUS_OK && level < SXML_COLLATION_LEVEL_COUNT;
+    for (uint32_t level = 0; status == SXML_STATUS_OK && level <= SXML_COLLATION_LEVEL_IDENTICAL;
          level += 1) {
-        if (!is_level_compared(request->collation, (collation_level)level)) {
+        if (!is_level_compared(request->collation, (sxml_collation_level)level)) {
             continue;
         }
         if (!is_first_level) {
@@ -602,12 +837,13 @@ sxml_status sxml_collation_make_key(const sxml_collation_key_request *request,
         }
         is_first_level = false;
         if (status == SXML_STATUS_OK) {
-            status = append_level((level_request){.collation = request->collation,
-                                                  .input = request->input,
-                                                  .level = (collation_level)level},
+            status = append_level((level_request){.key_request = request,
+                                                  .elements = &elements,
+                                                  .level = (sxml_collation_level)level},
                                   key);
         }
     }
+    sxml_collation_element_array_release(&elements);
     if (status != SXML_STATUS_OK) {
         sxml_collation_key_release(key);
     }
@@ -670,10 +906,10 @@ sxml_status sxml_collation_compare(const sxml_collation_comparison *comparison,
 /* ------------------------------------------------------------- Matching */
 
 /* One collation unit: the weights of an element on every compared level
-   (zero on the others; the identical level holds the codepoint it came
-   from), and the bytes of that codepoint. */
+   up to the quaternary (zero on the others), and the bytes it came from.
+   The identical level compares the matched bytes themselves. */
 typedef struct collation_unit {
-    uint32_t weights[SXML_COLLATION_LEVEL_COUNT];
+    uint32_t weights[SXML_COLLATION_ELEMENT_LEVEL_COUNT];
     size_t byte_offset;
     size_t byte_end;
 } collation_unit;
@@ -734,44 +970,63 @@ typedef struct unit_request {
 } unit_request;
 
 static sxml_status make_units(unit_request request, unit_array *array) {
-    sxml_codepoint_iterator iterator = {.string = request.input, .byte_offset = 0};
-    uint32_t codepoint = 0;
-    element_buffer buffer;
-    sxml_status status = SXML_STATUS_OK;
-    size_t byte_offset = 0;
-    while (status == SXML_STATUS_OK && sxml_codepoint_iterator_next(&iterator, &codepoint)) {
-        make_elements(request.collation, codepoint, &buffer);
-        for (size_t element_index = 0;
-             status == SXML_STATUS_OK && element_index < buffer.element_count;
-             element_index += 1) {
-            collation_unit unit = {.weights = {0},
-                                   .byte_offset = byte_offset,
-                                   .byte_end = iterator.byte_offset};
-            bool is_significant = false;
-            for (uint32_t level = 0; level < SXML_COLLATION_LEVEL_IDENTICAL; level += 1) {
-                if (is_level_compared(request.collation, (collation_level)level)) {
-                    unit.weights[level] =
-                        element_weight(buffer.elements[element_index], (collation_level)level);
-                    is_significant = is_significant || unit.weights[level] != 0;
-                }
-            }
-            if (is_level_compared(request.collation, SXML_COLLATION_LEVEL_IDENTICAL)) {
-                unit.weights[SXML_COLLATION_LEVEL_IDENTICAL] = codepoint + 1U;
-            }
-            if (is_significant) {
-                status = append_unit(array, &unit);
+    sxml_collation_element_array elements = {.allocator = array->allocator, .elements = NULL};
+    sxml_status status = make_string_elements(
+        &(sxml_collation_element_request){
+            .collation = request.collation, .input = request.input, .allocator = array->allocator},
+        &elements);
+    for (size_t element_index = 0;
+         status == SXML_STATUS_OK && element_index < elements.element_count;
+         element_index += 1) {
+        const sxml_collation_element *element = &elements.elements[element_index];
+        collation_unit unit = {
+            .weights = {0}, .byte_offset = element->byte_offset, .byte_end = element->byte_end};
+        bool is_significant = false;
+        for (uint32_t level = 0; level < SXML_COLLATION_ELEMENT_LEVEL_COUNT; level += 1) {
+            if (is_level_compared(request.collation, (sxml_collation_level)level)) {
+                unit.weights[level] = element->weights[level];
+                is_significant = is_significant || unit.weights[level] != 0;
             }
         }
-        byte_offset = iterator.byte_offset;
+        if (is_significant) {
+            status = append_unit(array, &unit);
+        }
     }
+    sxml_collation_element_array_release(&elements);
     return status;
 }
 
+/* The bytes units first to first + count - 1 of input came from: all of
+   them, since canonical reordering may put a later codepoint's unit
+   first. */
+typedef struct unit_range {
+    const unit_array *units;
+    size_t first;
+    size_t count;
+} unit_range;
+
+static sxml_collation_match bytes_of_units(unit_range range) {
+    const collation_unit *units = range.units->units;
+    size_t byte_offset = units[range.first].byte_offset;
+    size_t byte_end = units[range.first].byte_end;
+    for (size_t unit_index = range.first; unit_index < range.first + range.count;
+         unit_index += 1) {
+        byte_offset = units[unit_index].byte_offset < byte_offset ? units[unit_index].byte_offset
+                                                                  : byte_offset;
+        byte_end = units[unit_index].byte_end > byte_end ? units[unit_index].byte_end : byte_end;
+    }
+    return (sxml_collation_match){
+        .is_found = true, .byte_offset = byte_offset, .byte_count = byte_end - byte_offset};
+}
+
 /* Whether the units of search match those of input from start_index on,
-   starting and ending at codepoint boundaries. */
+   starting and ending at boundaries of element groups. */
 typedef struct match_candidate {
     const unit_array *input;
     const unit_array *search;
+    sxml_string input_text;
+    sxml_string search_text;
+    bool is_identical_compared;
     size_t start_index;
 } match_candidate;
 
@@ -793,6 +1048,14 @@ static bool is_match(match_candidate candidate) {
                    sizeof(input[0].weights)) != 0) {
             return false;
         }
+    }
+    if (candidate.is_identical_compared) {
+        /* The identical level: the matched bytes are the search's. */
+        const sxml_collation_match bytes = bytes_of_units(
+            (unit_range){.units = candidate.input, .first = start, .count = search_count});
+        return bytes.byte_count == candidate.search_text.utf8.byte_count &&
+               memcmp(candidate.input_text.utf8.bytes + bytes.byte_offset,
+                      candidate.search_text.utf8.bytes, bytes.byte_count) == 0;
     }
     return true;
 }
@@ -865,16 +1128,18 @@ sxml_status sxml_collation_find_match(const sxml_collation_match_request *reques
                 first = last_start;
             }
             const bool is_from_end = request->match_kind == SXML_COLLATION_MATCH_KIND_LAST;
+            const bool is_identical_compared =
+                is_level_compared(request->collation, SXML_COLLATION_LEVEL_IDENTICAL);
             for (size_t attempt = 0; !found.is_found && attempt <= last - first; attempt += 1) {
                 const size_t start = is_from_end ? last - attempt : first + attempt;
-                if (is_match((match_candidate){
-                        .input = &input, .search = &search, .start_index = start})) {
-                    const size_t byte_offset = input.units[start].byte_offset;
-                    found = (sxml_collation_match){
-                        .is_found = true,
-                        .byte_offset = byte_offset,
-                        .byte_count =
-                            input.units[start + search.unit_count - 1].byte_end - byte_offset};
+                if (is_match((match_candidate){.input = &input,
+                                               .search = &search,
+                                               .input_text = request->input,
+                                               .search_text = request->search,
+                                               .is_identical_compared = is_identical_compared,
+                                               .start_index = start})) {
+                    found = bytes_of_units((unit_range){
+                        .units = &input, .first = start, .count = search.unit_count});
                 }
             }
         }

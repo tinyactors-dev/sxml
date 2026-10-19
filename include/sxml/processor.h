@@ -177,6 +177,12 @@ typedef enum sxml_resource_kind {
        digits, "_", "-", "+" and "/" between parts, no part "." or "..".
        Form: BYTES. */
     SXML_RESOURCE_KIND_TIMEZONE_DATA,
+    /* The collation element table of the UCA collation feature
+       (sxml_uca_collation_feature; D213): absolute_uri is
+       "http://www.unicode.org/Public/UCA/16.0.0/allkeys.txt", the DUCET
+       of UTS #10 version 16.0.0 in its file format (UTS #10, section
+       9.1). Form: BYTES. */
+    SXML_RESOURCE_KIND_COLLATION_DATA,
 } sxml_resource_kind;
 
 /* What sxml asks a resolver for. Views are borrowed for the call. */
@@ -619,6 +625,19 @@ SXML_EXPORT sxml_optional_feature sxml_expath_file_feature(void);
  * "timezone-database" (packet 7.16, D209).
  */
 SXML_EXPORT sxml_optional_feature sxml_timezone_database_feature(void);
+
+/*
+ * UCA collations (F&O 4.0, 5.2.4; UTS #10, version 16.0.0): a UCA
+ * collation URI orders strings by the DUCET, which the feature asks the
+ * resolver for as SXML_RESOURCE_KIND_COLLATION_DATA when a UCA collation
+ * is first used, with the parameters strength, alternate, maxVariable,
+ * backwards, caseLevel, caseFirst, numeric and normalization. Without it,
+ * or when the resolver has no data, a UCA URI with fallback=yes (the
+ * default) uses sxml's fallback (D97), and one with fallback=no is not
+ * supported (FOCH0002, XQST0038). Its name is "uca-collation" (packet
+ * 7.15a, D213).
+ */
+SXML_EXPORT sxml_optional_feature sxml_uca_collation_feature(void);
 
 /*
  * Every optional feature sxml has, as static data, for hosts that want

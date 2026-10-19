@@ -32,6 +32,13 @@ export interface LoadOptions {
    *  optional feature. sxml-full.wasm, beside it, has every optional
    *  feature (Sxml.features). */
   wasm?: WasmSource;
+  /** The DUCET for a module with the uca-collation feature (D213), the
+   *  text of allkeys.txt of the Unicode Collation Algorithm 16.0.0: a URL
+   *  or path, or the bytes. Default: allkeys.txt next to this file, which
+   *  the package ships; when that cannot be read, UCA collation URIs use
+   *  sxml's fallback (and fallback=no is FOCH0002). false: none. A
+   *  resolver's own answer for 'collation-data' comes first. */
+  collationData?: string | URL | BufferSource | false;
 }
 
 /** What a resolver is asked for (include/sxml/processor.h, "Resource
@@ -51,7 +58,11 @@ export type ResourceKind =
    *  timezone-database feature: absoluteUri is 'urn:sxml:timezone-data:'
    *  and a zoneinfo path, a zone name ('Europe/Paris', a TZif file) or
    *  'zone1970.tab'. Answer with the file's bytes. */
-  | 'timezone-data';
+  | 'timezone-data'
+  /** The DUCET for the full module's uca-collation feature: absoluteUri
+   *  is 'http://www.unicode.org/Public/UCA/16.0.0/allkeys.txt'. Answer
+   *  with the file's text, or leave it to LoadOptions.collationData. */
+  | 'collation-data';
 
 export interface ResourceRequest {
   kind: ResourceKind;
@@ -207,7 +218,11 @@ const resource_kinds: ResourceKind[] = [
   'schema-document',
   'external-entity',
   'timezone-data',
+  'collation-data',
 ];
+
+/** The URI the uca-collation feature asks for its DUCET by. */
+const ducet_uri = 'http://www.unicode.org/Public/UCA/16.0.0/allkeys.txt';
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -355,6 +370,9 @@ export class Sxml {
    *  sxml-full.wasm ('test' adds nothing; it checks that the list reaches
    *  the processor). */
   readonly features: readonly string[];
+  /** The DUCET served for 'collation-data' (LoadOptions.collationData).
+   *  @internal */
+  collationData: Uint8Array | undefined;
   /** Processors by address, for the resolver import. @internal */
   readonly processors = new Map<number, ProcessorState>();
   private readonly registry: FinalizationRegistry<Held>;
@@ -440,7 +458,7 @@ export class Sxml {
   /** The resolver import (sxml_javascript_host_resolve). @internal */
   resolve(processorAddress: number, requestAddress: number, resourceAddress: number): number {
     const state = this.processors.get(processorAddress);
-    if (state === undefined || state.resolver === undefined) {
+    if (state === undefined) {
       return status_ok;
     }
     const request = this.words().subarray(requestAddress / 4, requestAddress / 4 + 5);
@@ -450,14 +468,23 @@ export class Sxml {
       absoluteUri: this.text(request[3] ?? 0, request[4] ?? 0),
     };
     let answer: string | Uint8Array | null | undefined;
-    state.isInResolver = true;
-    try {
-      answer = state.resolver(resourceRequest);
-    } catch (exception) {
-      state.pendingException = exception;
-      return status_input_output_failed;
-    } finally {
-      state.isInResolver = false;
+    if (state.resolver !== undefined) {
+      state.isInResolver = true;
+      try {
+        answer = state.resolver(resourceRequest);
+      } catch (exception) {
+        state.pendingException = exception;
+        return status_input_output_failed;
+      } finally {
+        state.isInResolver = false;
+      }
+    }
+    if (
+      (answer === null || answer === undefined) &&
+      resourceRequest.kind === 'collation-data' &&
+      resourceRequest.absoluteUri === ducet_uri
+    ) {
+      answer = this.collationData;
     }
     if (answer === null || answer === undefined) {
       return status_ok;
@@ -494,7 +521,37 @@ export async function load(options: LoadOptions = {}): Promise<Sxml> {
   memory = exports.memory;
   exports._initialize();
   sxml = new Sxml(exports);
+  if (sxml.features.includes('uca-collation') && options.collationData !== false) {
+    if (options.collationData === undefined) {
+      // The package's copy; without it the feature falls back (D213).
+      sxml.collationData = await readBytes(new URL('./allkeys.txt', import.meta.url)).catch(
+        () => undefined,
+      );
+    } else {
+      sxml.collationData = await readBytes(options.collationData);
+    }
+  }
   return sxml;
+}
+
+/** The bytes of a URL, a path or a buffer. */
+async function readBytes(source: string | URL | BufferSource): Promise<Uint8Array> {
+  if (source instanceof ArrayBuffer) {
+    return new Uint8Array(source);
+  }
+  if (ArrayBuffer.isView(source)) {
+    return new Uint8Array(source.buffer, source.byteOffset, source.byteLength);
+  }
+  const url = source instanceof URL ? source : new URL(source, import.meta.url);
+  if (url.protocol === 'file:') {
+    const { readFile } = await import('node:fs/promises');
+    return new Uint8Array(await readFile(url));
+  }
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`sxml: cannot fetch ${url.href} (${response.status})`);
+  }
+  return new Uint8Array(await response.arrayBuffer());
 }
 
 async function compileModule(source: WasmSource): Promise<WebAssembly.Module> {

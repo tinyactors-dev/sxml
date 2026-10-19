@@ -59,6 +59,36 @@ describe('optional features', () => {
   test('a feature the module does not have is refused', () => {
     assert.throws(() => sxml.createProcessor({ features: ['no-such-feature'] }), /no optional feature/);
   });
+
+  // The uca-collation feature reads the DUCET that load() was given
+  // (D213); the vendored copy stands in for the package's.
+  test('UCA collations use the DUCET when the module has the feature', async () => {
+    const uca = 'http://www.w3.org/2013/collation/UCA?numeric=yes;fallback=no';
+    const query = `compare('Chap2', 'Chap10', '${uca}')`;
+    const hasFeature = expectedFeatures.includes('uca-collation');
+    const withData = await load({
+      wasm: pathToFileURL(wasmPath),
+      collationData: new URL('../../../third_party/unicode-collation/allkeys.txt', import.meta.url),
+    });
+    const withoutData = await load({ wasm: pathToFileURL(wasmPath), collationData: false });
+    for (const [module, isServed] of [
+      [withData, hasFeature],
+      [withoutData, false],
+    ] as const) {
+      const processor = module.createProcessor();
+      if (isServed) {
+        const result = processor.evaluate(query);
+        assert.equal(result.toString(), '-1');
+        result.dispose();
+      } else {
+        assert.throws(
+          () => processor.evaluate(query),
+          (error: unknown) => error instanceof SxmlError && error.code === 'err:FOCH0002',
+        );
+      }
+      disposeChecked(processor);
+    }
+  });
 });
 
 describe('XPath', () => {

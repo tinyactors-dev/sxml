@@ -11,6 +11,7 @@
 #include "query_command.h"
 
 #include "cli_arguments.h"
+#include "collation_data.h"
 #include "sxml/memory.h"
 #include "sxml/name.h"
 #include "sxml/types.h"
@@ -114,9 +115,48 @@ static sxml_byte_view sxml_query_zoneinfo_path(const sxml_resource_request *requ
     return (sxml_byte_view){.bytes = path, .byte_count = directory.byte_count + name.byte_count};
 }
 
+/* The UCA collation feature's DUCET (SXML_RESOURCE_KIND_COLLATION_DATA,
+   D213): the program's copy (collation_data.h), joined into allocator
+   memory that sxml_query_release_file gives back. */
+static sxml_status sxml_query_serve_collation_data(const sxml_query_file_resolver *resolver,
+                                                   const sxml_resource_request *request,
+                                                   sxml_resource *resource) {
+    if (!sxml_byte_view_equals(request->absolute_uri,
+                               SXML_TEXT("http://www.unicode.org/Public/UCA/16.0.0/allkeys.txt"))) {
+        resource->resource_form = SXML_RESOURCE_FORM_NONE;
+        resource->description = SXML_TEXT("sxml has no such collation data");
+        return SXML_STATUS_OK;
+    }
+    const sxml_cli_text_chunks data = sxml_cli_collation_data();
+    size_t byte_count = 0;
+    for (size_t chunk_index = 0; chunk_index < data.chunk_count; chunk_index += 1) {
+        byte_count += strlen(data.chunks[chunk_index]);
+    }
+    void *memory = NULL;
+    const sxml_status status = sxml_allocator_allocate(
+        resolver->invocation->allocator,
+        (sxml_allocation_request){.byte_count = byte_count, .alignment = 1}, &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    uint8_t *bytes = memory;
+    size_t byte_offset = 0;
+    for (size_t chunk_index = 0; chunk_index < data.chunk_count; chunk_index += 1) {
+        const size_t chunk_byte_count = strlen(data.chunks[chunk_index]);
+        memcpy(bytes + byte_offset, data.chunks[chunk_index], chunk_byte_count);
+        byte_offset += chunk_byte_count;
+    }
+    resource->resource_form = SXML_RESOURCE_FORM_BYTES;
+    resource->content = (sxml_byte_view){.bytes = bytes, .byte_count = byte_count};
+    return SXML_STATUS_OK;
+}
+
 static sxml_status sxml_query_resolve_file(void *state, const sxml_resource_request *request,
                                            sxml_resource *resource) {
     const sxml_query_file_resolver *resolver = state;
+    if (request->resource_kind == SXML_RESOURCE_KIND_COLLATION_DATA) {
+        return sxml_query_serve_collation_data(resolver, request, resource);
+    }
     uint8_t zoneinfo_path[SXML_QUERY_ZONEINFO_PATH_CAPACITY];
     const sxml_byte_view path = request->resource_kind == SXML_RESOURCE_KIND_TIMEZONE_DATA
                                     ? sxml_query_zoneinfo_path(request, zoneinfo_path)

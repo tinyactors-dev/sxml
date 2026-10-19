@@ -149,13 +149,18 @@ typedef struct sxml_comparison_request {
     sxml_namespace_binding_view namespace_bindings;
     /* Receives the error; may be NULL. */
     sxml_error_record *error_record;
+    /* The collation two strings (xs:string, xs:anyURI, xs:untypedAtomic)
+       compare under: the default collation of the static context (XPath
+       4.0, sections 4.11.1 and 4.11.2; D213); NULL for the codepoint
+       collation. Borrowed. */
+    const struct sxml_collation *collation;
 } sxml_comparison_request;
 
 /*
  * A value comparison (XPath 4.0, section 4.11.1): the empty sequence when
  * an operand is empty, XPTY0004 when one has more than one item; for two
  * numbers of which one is NaN, false (true for ne); otherwise fn:compare
- * with the codepoint collation decides (xs:untypedAtomic compares as a
+ * with request->collation (the codepoint collation when NULL) decides (xs:untypedAtomic compares as a
  * string, numbers by exact value, every type family ordered, PR2218 and
  * PR2256). Writes the xs:boolean or empty sequence, owned, to *result.
  *
