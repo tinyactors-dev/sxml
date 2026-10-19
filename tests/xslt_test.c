@@ -37,6 +37,12 @@
 static const char included_text[] =
     STYLESHEET("<xsl:template name='included'><inc/></xsl:template>");
 
+/* Raises its errors on line 2 of failing.xsl. */
+static const char failing_text[] =
+    STYLESHEET("\n<xsl:template name='fails'><xsl:sequence select=\"error(QName('urn:e', 'e:E'))\"/>"
+               "</xsl:template><xsl:function name='f:fails'><xsl:sequence "
+               "select=\"error(QName('urn:e', 'e:F'))\"/></xsl:function>");
+
 static const char imported_text[] =
     STYLESHEET("<xsl:template match='b'><imported/></xsl:template>"
                "<xsl:template match='c'><imported-c/></xsl:template>");
@@ -58,6 +64,8 @@ static const char simplified_text[] = "<out xsl:version='3.0' " XSL_NAMESPACE "/
 static const sxml_resource_entry fixture_resources[] = {
     {.uri = SXML_BYTE_VIEW_INITIALIZER("http://example.com/x/included.xsl"),
      .content = {.bytes = (const uint8_t *)included_text, .byte_count = sizeof(included_text) - 1}},
+    {.uri = SXML_BYTE_VIEW_INITIALIZER("http://example.com/x/failing.xsl"),
+     .content = {.bytes = (const uint8_t *)failing_text, .byte_count = sizeof(failing_text) - 1}},
     {.uri = SXML_BYTE_VIEW_INITIALIZER("http://example.com/x/imported.xsl"),
      .content = {.bytes = (const uint8_t *)imported_text, .byte_count = sizeof(imported_text) - 1}},
     {.uri = SXML_BYTE_VIEW_INITIALIZER("http://example.com/x/resolved.xsl"),
@@ -874,6 +882,55 @@ static void test_principal_module_from_the_resolver(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
 }
 
+/* A dynamic error inside an included module names that module (D169):
+   in a template and in a stylesheet function. The record is read before
+   the stylesheet goes (include/sxml/status.h, D21). */
+static void test_errors_name_their_module(sxml_test_state *state) {
+    fixture test_fixture;
+    SXML_TEST_EXPECT(state, fixture_create(0, &test_fixture) == SXML_STATUS_OK);
+    static const char *const stylesheets[] = {
+        STYLESHEET("<xsl:include href='failing.xsl'/><xsl:template "
+                   "name='xsl:initial-template'><xsl:call-template name='fails'/></xsl:template>"),
+        STYLESHEET("<xsl:include href='failing.xsl'/><xsl:template "
+                   "name='xsl:initial-template'><xsl:sequence select='f:fails()'/></xsl:template>")};
+    for (size_t stylesheet_index = 0; stylesheet_index < 2; stylesheet_index += 1) {
+        sxml_error_record error_record;
+        memset(&error_record, 0, sizeof(error_record));
+        sxml_xslt_stylesheet *stylesheet = NULL;
+        sxml_status status = sxml_xslt_stylesheet_create(
+            fixture_allocator(&test_fixture),
+            &(sxml_xslt_stylesheet_configuration){
+                .processor = test_fixture.processor,
+                .principal_module_text = sxml_byte_view_from_c_string(stylesheets[stylesheet_index]),
+                .static_context = {.static_base_uri = TEXT("http://example.com/x/main.xsl")},
+                .principal_module_source = SXML_XSLT_PRINCIPAL_MODULE_SOURCE_TEXT,
+                .error_record = &error_record},
+            &stylesheet);
+        SXML_TEST_EXPECT(state, status == SXML_STATUS_OK);
+        sxml_sequence result = sxml_sequence_empty();
+        if (status == SXML_STATUS_OK) {
+            sxml_dynamic_context_configuration dynamic_context;
+            memset(&dynamic_context, 0, sizeof(dynamic_context));
+            status = sxml_xslt_stylesheet_transform(
+                stylesheet,
+                &(sxml_xslt_transformation_request){
+                    .dynamic_context = dynamic_context,
+                    .error_record = &error_record,
+                    .invocation_kind = SXML_XSLT_INVOCATION_KIND_CALL_TEMPLATE,
+                    .result_delivery = SXML_XSLT_RESULT_DELIVERY_RAW},
+                &result);
+        }
+        SXML_TEST_EXPECT(state, status == SXML_STATUS_DYNAMIC_ERROR);
+        const sxml_source_location location = error_record.diagnostic.location;
+        SXML_TEST_EXPECT(state, sxml_byte_view_equals(location.source_name,
+                                                      TEXT("http://example.com/x/failing.xsl")));
+        SXML_TEST_EXPECT(state, location.line_number == 2);
+        sxml_sequence_release(result);
+        sxml_xslt_stylesheet_destroy(stylesheet);
+    }
+    SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
+}
+
 /* ------------------------------------------------------------- Lifecycle */
 
 static void test_stylesheet_lifecycle_checks_its_arguments(sxml_test_state *state) {
@@ -1006,6 +1063,7 @@ static const sxml_test_case xslt_test_cases[] = {
     {.name = "output_definitions_are_read", .function = test_output_definitions_are_read},
     {.name = "principal_module_from_the_resolver",
      .function = test_principal_module_from_the_resolver},
+    {.name = "errors_name_their_module", .function = test_errors_name_their_module},
     {.name = "stylesheet_lifecycle_checks_its_arguments",
      .function = test_stylesheet_lifecycle_checks_its_arguments},
     {.name = "transformation_survives_every_allocation_failure",

@@ -2509,6 +2509,11 @@ static sxml_status lower_into_unit(const unit_lowering *work) {
         status = sxml_xslt_declare_named_types(&lowering, memory.static_contexts);
     }
     if (status == SXML_STATUS_OK) {
+        /* Before any expression is lowered: their calls name the modules,
+           and the functions made below take theirs. */
+        status = sxml_xslt_declare_static_context_modules(&lowering, memory.static_contexts);
+    }
+    if (status == SXML_STATUS_OK) {
         status = collect_aliases(&lowering, &memory, &lowering);
     }
     /* Function 1 is the main function, whose body comes last. */
@@ -2537,10 +2542,6 @@ static sxml_status lower_into_unit(const unit_lowering *work) {
         /* Stylesheet functions and attribute sets (packet 4.12): in every
            static context before anything calls them. */
         status = sxml_xslt_declare_components(&lowering, memory.static_contexts);
-    }
-    if (status == SXML_STATUS_OK) {
-        /* Before any expression is lowered: their calls name the modules. */
-        status = sxml_xslt_declare_static_context_modules(&lowering, memory.static_contexts);
     }
     if (status == SXML_STATUS_OK) {
         status = sxml_xslt_lower_templates(&lowering);

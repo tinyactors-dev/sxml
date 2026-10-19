@@ -854,11 +854,15 @@ static sxml_status add_function_shells(const sxml_xslt_lowering *lowering,
                 continue;
             }
             sxml_ir_function_index function_index = {0};
+            /* Its module: a dynamic error in it names its stylesheet
+               module (D169). */
+            const uint32_t module_number = sxml_xslt_lowering_module_of_node(lowering, function->node);
             status = sxml_ir_unit_add_function(
                 lowering->lowerer->unit,
                 &(sxml_ir_function){.function_name = function->function_name,
                                     .signature = *signature,
-                                    .parameter_count = arity},
+                                    .parameter_count = arity,
+                                    .module_number = module_number},
                 &function_index);
             if (arity == function->required_count) {
                 function->first_function = function_index;
@@ -869,7 +873,8 @@ static sxml_status add_function_shells(const sxml_xslt_lowering *lowering,
                     lowering->lowerer->unit,
                     &(sxml_ir_function){.function_name = function->function_name,
                                         .signature = *signature,
-                                        .parameter_count = arity},
+                                        .parameter_count = arity,
+                                        .module_number = module_number},
                     &function->cached_body);
             }
         }
@@ -1205,8 +1210,11 @@ static sxml_status add_attribute_set_shells(const sxml_xslt_lowering *lowering,
     for (size_t index = 0; status == SXML_STATUS_OK && index < components->attribute_set_count;
          index += 1) {
         attribute_set *set = &components->attribute_sets[index];
-        const sxml_ir_function shell = {.signature = components->attribute_set_signature,
-                                        .parameter_count = ATTRIBUTE_SET_PARAMETER_COUNT};
+        const sxml_ir_function shell = {
+            .signature = components->attribute_set_signature,
+            .parameter_count = ATTRIBUTE_SET_PARAMETER_COUNT,
+            .module_number = sxml_xslt_lowering_module_of_node(
+                lowering, components->declaration_nodes[set->first_declaration])};
         status = sxml_ir_unit_add_function(lowering->lowerer->unit, &shell, &set->function);
         if (status == SXML_STATUS_OK) {
             status =
@@ -2344,6 +2352,7 @@ typedef struct static_context_module {
     const sxml_xpath_static_context *context;
     const sxml_xslt_ast_static_context *ast_context;
     const package_decimal_formats *formats;
+    sxml_byte_view module_uri;
 } static_context_module;
 
 static sxml_status add_static_context_module(const sxml_xslt_lowering *lowering,
@@ -2352,7 +2361,9 @@ static sxml_status add_static_context_module(const sxml_xslt_lowering *lowering,
     return sxml_ir_unit_add_module(
         lowering->lowerer->unit,
         &(sxml_ir_module){
-            .source_name = {.bytes = NULL, .byte_count = 0},
+            /* Its stylesheet module's URI, which never moves (D102): the
+               source name of errors in code that reads the module. */
+            .source_name = request.module_uri,
             .static_base_uri = request.context->static_base_uri,
             .text_memory = NULL,
             .has_static_context = true,
@@ -2399,10 +2410,36 @@ sxml_status sxml_xslt_declare_static_context_modules(const sxml_xslt_lowering *l
                 .collation_bindings = {.collation_bindings = NULL, .collation_binding_count = 0},
                 .in_scope_schemas = schemas});
     }
+    /* The stylesheet module of each static context: that of a node that
+       has it (a static context belongs to one element of one module). */
+    uint32_t *context_modules = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = allocate_array(
+            lowering, (array_request){.element_count = lowering->static_context_count,
+                                      .element_size = sizeof(uint32_t),
+                                      .element_alignment = alignof(uint32_t)},
+            &memory);
+        context_modules = memory;
+    }
+    for (uint32_t node_number = 1; context_modules != NULL && node_number < lowering->ast->node_count;
+         node_number += 1) {
+        const sxml_xslt_ast_node *node =
+            node_of(lowering, (sxml_xslt_ast_node_index){.value = node_number});
+        if (node->static_context.value < lowering->static_context_count) {
+            context_modules[node->static_context.value] = node->module.value;
+        }
+    }
     for (uint32_t context_index = 1;
          status == SXML_STATUS_OK && context_index < lowering->static_context_count;
          context_index += 1) {
         const sxml_xslt_ast_static_context_index index = {.value = context_index};
+        const sxml_byte_view module_uri =
+            context_modules[context_index] == 0
+                ? (sxml_byte_view){.bytes = NULL, .byte_count = 0}
+                : sxml_xslt_ast_get_module(
+                      lowering->ast,
+                      (sxml_xslt_ast_module_index){.value = context_modules[context_index]})
+                      ->module_uri;
         uint32_t package = sxml_xslt_package_of_static_context(lowering, index);
         if (package == 0 || package > package_count) {
             package = 1;
@@ -2412,9 +2449,11 @@ sxml_status sxml_xslt_declare_static_context_modules(const sxml_xslt_lowering *l
             (static_context_module){
                 .context = &contexts[context_index],
                 .ast_context = sxml_xslt_ast_get_static_context(lowering->ast, index),
-                .formats = &formats[package]},
+                .formats = &formats[package],
+                .module_uri = module_uri},
             &contexts[context_index].ir_module_number);
     }
+    sxml_xpath_lowerer_release_scratch(lowering->lowerer, context_modules);
     for (uint32_t package = 1; formats != NULL && package <= package_count; package += 1) {
         release_decimal_formats(lowering, &formats[package].storage);
     }

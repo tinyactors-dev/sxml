@@ -5074,8 +5074,13 @@ static sxml_status lower_initializer(initializer_request request,
                             .occurrence = SXML_OCCURRENCE_ZERO_OR_MORE}},
         &signature);
     if (status == SXML_STATUS_OK) {
+        /* The declaration's module: a dynamic error names its stylesheet
+           module (D169). */
         status = sxml_ir_unit_add_function(
-            lowerer->unit, &(sxml_ir_function){.signature = signature}, initializer);
+            lowerer->unit,
+            &(sxml_ir_function){.signature = signature,
+                                .module_number = sxml_xslt_lowering_module_of_node(lowering, node)},
+            initializer);
     }
     if (status != SXML_STATUS_OK) {
         return status;

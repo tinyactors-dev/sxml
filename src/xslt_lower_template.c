@@ -2612,17 +2612,16 @@ static sxml_status collect_templates(const sxml_xslt_lowering *lowering) {
                                              "4.0, 6.9.6)"));
                 break;
             }
-            status = sxml_ir_unit_add_function(
-                lowering->lowerer->unit,
-                &(sxml_ir_function){.signature = templates->template_signature,
-                                    .parameter_count = TEMPLATE_PARAMETER_COUNT},
-                &entry->function);
+            /* The template's module: a dynamic error in it names its
+               stylesheet module (D169). */
+            const sxml_ir_function shell = {
+                .signature = templates->template_signature,
+                .parameter_count = TEMPLATE_PARAMETER_COUNT,
+                .module_number = sxml_xslt_lowering_module_of_node(lowering, node)};
+            status = sxml_ir_unit_add_function(lowering->lowerer->unit, &shell, &entry->function);
             if (status == SXML_STATUS_OK && entry->template_name.index != 0) {
-                status = sxml_ir_unit_add_function(
-                    lowering->lowerer->unit,
-                    &(sxml_ir_function){.signature = templates->template_signature,
-                                        .parameter_count = TEMPLATE_PARAMETER_COUNT},
-                    &entry->absent_function);
+                status = sxml_ir_unit_add_function(lowering->lowerer->unit, &shell,
+                                                   &entry->absent_function);
             }
         }
     }
