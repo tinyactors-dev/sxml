@@ -483,6 +483,17 @@ static void test_doubles_and_floats_write_xpath_text(sxml_test_state *state) {
         {"1e400", "INF"},
         {"-1e-400", "-0"},
         {"0.30000000000000004", "0.30000000000000004"},
+        /* The edges of Clinger's fast path (src/cast_lexical.c) and just
+           beyond them, where strtod answers. */
+        {"999999999999999", "9.99999999999999E14"},
+        {"1000000000000000", "1.0E15"},
+        {"1e22", "1.0E22"},
+        {"1e23", "1.0E23"},
+        {"1e-22", "1.0E-22"},
+        {"1.5e-23", "1.5E-23"},
+        {"-0.000", "-0"},
+        {"-12.50e1", "-125"},
+        {"0.1e-21", "1.0E-22"},
     };
     for (size_t case_index = 0; case_index < SXML_TEST_COUNT(doubles);
          case_index += 1) {

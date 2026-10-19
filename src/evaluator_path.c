@@ -136,12 +136,19 @@ sxml_status sxml_evaluator_sort_indices(sxml_allocator allocator,
 
 /* ----------------------------------------------------------- Item lists */
 
-/* Items collected in allocator memory, each owned. */
+/* Items a list holds before it takes allocator memory: most steps and
+   document orders give a few nodes. */
+#define SXML_ITEM_LIST_INLINE_COUNT 8U
+
+/* Items collected in the list itself and then in allocator memory, each
+   owned. */
 typedef struct sxml_item_list {
     sxml_allocator allocator;
+    /* NULL while the items fit inline_items. */
     sxml_item *items;
     size_t item_count;
     size_t item_capacity;
+    sxml_item inline_items[SXML_ITEM_LIST_INLINE_COUNT];
 } sxml_item_list;
 
 static sxml_item_list sxml_item_list_start(sxml_allocator allocator) {
@@ -151,22 +158,38 @@ static sxml_item_list sxml_item_list_start(sxml_allocator allocator) {
                             .item_capacity = 0};
 }
 
+/* Where the list's items are. */
+static sxml_item *sxml_item_list_items(sxml_item_list *list) {
+    return list->items != NULL ? list->items : list->inline_items;
+}
+
 /* Appends item, taking over the caller's reference; on failure the item
    is released. */
 static sxml_status sxml_item_list_take(sxml_item_list *list, sxml_item item) {
-    if (list->item_count == list->item_capacity) {
+    if (list->items == NULL && list->item_count < SXML_ITEM_LIST_INLINE_COUNT) {
+        list->inline_items[list->item_count] = item;
+        list->item_count += 1;
+        return SXML_STATUS_OK;
+    }
+    if (list->items == NULL || list->item_count == list->item_capacity) {
         void *elements = list->items;
+        /* Leaving the inline items: the array starts empty and they are
+           copied in once it has room for one more. */
+        const size_t kept_count = list->items != NULL ? list->item_count : 0;
         sxml_status status = sxml_evaluator_grow(
             list->allocator,
             &(sxml_evaluator_growth){.elements = &elements,
                                      .element_capacity = &list->item_capacity,
-                                     .element_count = list->item_count,
+                                     .element_count = kept_count,
                                      .required_count = list->item_count + 1,
                                      .element_byte_count = sizeof(sxml_item),
                                      .alignment = alignof(sxml_item)});
         if (status != SXML_STATUS_OK) {
             sxml_item_release(item);
             return status;
+        }
+        if (list->items == NULL) {
+            memcpy(elements, list->inline_items, list->item_count * sizeof(sxml_item));
         }
         list->items = elements;
     }
@@ -183,24 +206,31 @@ static sxml_status sxml_item_list_append(sxml_item_list *list,
 }
 
 static void sxml_item_list_finalize(sxml_item_list *list) {
+    const sxml_item *items = sxml_item_list_items(list);
     for (size_t item_index = 0; item_index < list->item_count;
          item_index += 1) {
-        sxml_item_release(list->items[item_index]);
+        sxml_item_release(items[item_index]);
     }
     if (list->items != NULL) {
         sxml_allocator_release(list->allocator, list->items);
     }
-    *list = sxml_item_list_start(list->allocator);
+    list->items = NULL;
+    list->item_count = 0;
+    list->item_capacity = 0;
 }
 
-/* Makes the vector of the list's items, owned, and empties the list. */
+/* Makes the sequence of the list's items, owned, and empties the list:
+   the sequence takes over the list's references. */
 static sxml_status sxml_item_list_finish(sxml_item_list *list,
                                          sxml_item_heap *item_heap,
                                          sxml_sequence *result) {
-    sxml_status status = sxml_sequence_make_vector(
+    sxml_status status = sxml_sequence_make_vector_taking(
         item_heap,
-        (sxml_item_view){.items = list->items, .item_count = list->item_count},
+        (sxml_item_view){.items = sxml_item_list_items(list), .item_count = list->item_count},
         result);
+    if (status == SXML_STATUS_OK) {
+        list->item_count = 0;
+    }
     sxml_item_list_finalize(list);
     return status;
 }
@@ -796,11 +826,12 @@ static void sxml_item_list_reverse_from(sxml_item_list *list,
                                         size_t first_index) {
     size_t low = first_index;
     size_t high = list->item_count;
+    sxml_item *items = sxml_item_list_items(list);
     while (high > low + 1) {
         high -= 1;
-        const sxml_item swap = list->items[low];
-        list->items[low] = list->items[high];
-        list->items[high] = swap;
+        const sxml_item swap = items[low];
+        items[low] = items[high];
+        items[high] = swap;
         low += 1;
     }
 }
@@ -1186,7 +1217,7 @@ static sxml_status sxml_make_sorted_nodes(sxml_dynamic_context *dynamic_context,
         const sxml_item item = array->items[indices[position]];
         if (list.item_count > 0 &&
             sxml_generic_node_is_same_node(
-                (sxml_item_pair){.first = list.items[list.item_count - 1],
+                (sxml_item_pair){.first = sxml_item_list_items(&list)[list.item_count - 1],
                                  .second = item})) {
             continue;
         }

@@ -331,6 +331,16 @@ static inline sxml_sequence sxml_sequence_from_cell(
     return sequence;
 }
 
+/*
+ * Makes the sequence of items (the empty sequence, the item itself or a
+ * vector), taking over the caller's reference to each item on success
+ * instead of retaining them, so a caller that owns its items saves a
+ * retain and a release per item; on failure the references stay the
+ * caller's. The array itself stays the caller's.
+ */
+SXML_NODISCARD sxml_status sxml_sequence_make_vector_taking(
+    sxml_item_heap *item_heap, sxml_item_view items, sxml_sequence *sequence);
+
 /* --------------------------------------------------------- Heap memory */
 
 /*

@@ -878,6 +878,9 @@ static sxml_status sxml_machine_push(sxml_dynamic_context *context,
     return SXML_STATUS_OK;
 }
 
+static sxml_status sxml_machine_push_operand(sxml_dynamic_context *context,
+                                             const sxml_evaluator_task *operand);
+
 /* A task evaluating expression in the frame of function at frame_base. */
 static sxml_evaluator_task sxml_expression_task(const sxml_ir_function *function,
                                                 size_t frame_base,
@@ -3417,7 +3420,7 @@ static sxml_status sxml_loop_advance_focus(sxml_dynamic_context *context,
     sxml_evaluator_task body =
         sxml_expression_task(task->function, task->frame_base, advance.body);
     body.delivers_content = advance.delivers_content;
-    return sxml_machine_push(context, &body);
+    return sxml_machine_push_operand(context, &body);
 }
 
 /*
@@ -3583,7 +3586,7 @@ static sxml_status sxml_machine_step_map(sxml_dynamic_context *context,
             sxml_evaluator_task body =
                 sxml_expression_task(task->function, task->frame_base, map->body);
             body.delivers_content = sxml_map_body_delivers(task, map);
-            return sxml_machine_push(context, &body);
+            return sxml_machine_push_operand(context, &body);
         }
         const sxml_ir_expression *body =
             sxml_ir_unit_get_expression(task->function->unit, map->body);
@@ -3838,6 +3841,94 @@ static sxml_status sxml_make_leaf_value(sxml_dynamic_context *context,
                                         const sxml_ir_expression *expression,
                                         sxml_sequence *result);
 
+/* Expression kinds sxml_make_leaf_value computes: their value needs no
+   nested evaluation. */
+static bool sxml_expression_kind_is_leaf(sxml_ir_expression_kind kind) {
+    switch (kind) {
+    case SXML_IR_EXPRESSION_KIND_ATOM:
+    case SXML_IR_EXPRESSION_KIND_SEQUENCE:
+    case SXML_IR_EXPRESSION_KIND_BINARY:
+    case SXML_IR_EXPRESSION_KIND_UNARY:
+    case SXML_IR_EXPRESSION_KIND_FUNCTION_DEFINITION:
+    case SXML_IR_EXPRESSION_KIND_FUNCTION_REFERENCE:
+    case SXML_IR_EXPRESSION_KIND_LOOKUP:
+    case SXML_IR_EXPRESSION_KIND_STEP:
+    case SXML_IR_EXPRESSION_KIND_DOCUMENT_ORDER:
+    case SXML_IR_EXPRESSION_KIND_CAST:
+    case SXML_IR_EXPRESSION_KIND_CASTABLE:
+    case SXML_IR_EXPRESSION_KIND_INSTANCE_OF:
+    case SXML_IR_EXPRESSION_KIND_TREAT:
+    case SXML_IR_EXPRESSION_KIND_COERCE:
+    case SXML_IR_EXPRESSION_KIND_MAP_CONSTRUCTOR:
+    case SXML_IR_EXPRESSION_KIND_ARRAY_CONSTRUCTOR:
+    case SXML_IR_EXPRESSION_KIND_RAISE:
+        return true;
+    case SXML_IR_EXPRESSION_KIND_NONE:
+    case SXML_IR_EXPRESSION_KIND_LET:
+    case SXML_IR_EXPRESSION_KIND_CONDITIONAL:
+    case SXML_IR_EXPRESSION_KIND_STATIC_CALL:
+    case SXML_IR_EXPRESSION_KIND_DYNAMIC_CALL:
+    case SXML_IR_EXPRESSION_KIND_MAP:
+    case SXML_IR_EXPRESSION_KIND_FILTER:
+    case SXML_IR_EXPRESSION_KIND_QUANTIFIED:
+    case SXML_IR_EXPRESSION_KIND_SORT:
+    case SXML_IR_EXPRESSION_KIND_TRY_CATCH:
+    case SXML_IR_EXPRESSION_KIND_DOCUMENT_CONSTRUCTOR:
+    case SXML_IR_EXPRESSION_KIND_ELEMENT_CONSTRUCTOR:
+    case SXML_IR_EXPRESSION_KIND_ATTRIBUTE_CONSTRUCTOR:
+    case SXML_IR_EXPRESSION_KIND_NAMESPACE_CONSTRUCTOR:
+    case SXML_IR_EXPRESSION_KIND_TEXT_CONSTRUCTOR:
+    case SXML_IR_EXPRESSION_KIND_COMMENT_CONSTRUCTOR:
+    case SXML_IR_EXPRESSION_KIND_PROCESSING_INSTRUCTION_CONSTRUCTOR:
+    case SXML_IR_EXPRESSION_KIND_SHALLOW_COPY:
+    case SXML_IR_EXPRESSION_KIND_APPLY_TEMPLATES:
+    case SXML_IR_EXPRESSION_KIND_STREAM:
+    case SXML_IR_EXPRESSION_KIND_COUNT:
+        break;
+    }
+    return false;
+}
+
+/*
+ * Pushes operand, an EXPRESSION task whose value the top task takes on its
+ * next turn (a MAP's body, a predicate, a LET's bound expression, a
+ * quantified condition, a sort key), or runs it in place (glossary
+ * leaf_in_place): a leaf expression in the top task's own frame that
+ * delivers nothing is computed now, without a task of its own, and its
+ * value is left as the task value, as sxml_machine_finish leaves it. The
+ * leaf is charged the step its task's turn would have been (D89), so step
+ * counts do not change. When it fails, the task is pushed after all and
+ * the failure returned, so the machine loop locates and catches the error
+ * at the operand's task, as when the task fails in its turn; when the
+ * step cannot be charged, the task is pushed and the loop's charge fails
+ * the same way.
+ */
+static sxml_status sxml_machine_push_operand(sxml_dynamic_context *context,
+                                             const sxml_evaluator_task *operand) {
+    const sxml_evaluator_task *top = sxml_machine_top(context);
+    if (operand->task_kind != SXML_EVALUATOR_TASK_KIND_EXPRESSION || operand->phase != 0 ||
+        operand->delivers_content || operand->catches_errors || operand->counts_depth ||
+        operand->function != top->function || operand->frame_base != top->frame_base) {
+        return sxml_machine_push(context, operand);
+    }
+    const sxml_ir_expression *expression =
+        sxml_ir_unit_get_expression(operand->function->unit, operand->expression);
+    if (!sxml_expression_kind_is_leaf(expression->expression_kind) ||
+        sxml_dynamic_context_charge_steps(context, 1) != SXML_STATUS_OK) {
+        return sxml_machine_push(context, operand);
+    }
+    sxml_sequence value = sxml_sequence_empty();
+    const sxml_status status = sxml_make_leaf_value(context, expression, &value);
+    if (status != SXML_STATUS_OK) {
+        const sxml_status push_status = sxml_machine_push(context, operand);
+        return push_status != SXML_STATUS_OK ? push_status : status;
+    }
+    sxml_sequence_release(context->task_value);
+    context->task_value = value;
+    context->has_task_value = true;
+    return SXML_STATUS_OK;
+}
+
 /* The predicate of a FILTER when it is computed in the FILTER's own task,
    without a task of its own: a comparison, arithmetic or other leaf over
    atoms (sxml_make_leaf_value) that no subtask computes and that has no
@@ -4089,7 +4180,7 @@ static sxml_status sxml_machine_step_filter(sxml_dynamic_context *context,
             task->phase |= SXML_FILTER_PHASE_ONCE;
             const sxml_evaluator_task predicate_task =
                 sxml_expression_task(task->function, task->frame_base, filter->predicate);
-            return sxml_machine_push(context, &predicate_task);
+            return sxml_machine_push_operand(context, &predicate_task);
         } else if (inline_predicate != NULL) {
             return sxml_filter_select_inline(context, filter, inline_predicate);
         }
@@ -4157,7 +4248,7 @@ static sxml_status sxml_machine_step_quantified(sxml_dynamic_context *context,
                       sxml_sequence_from_item(step.item));
     const sxml_evaluator_task condition =
         sxml_expression_task(task->function, task->frame_base, quantified->condition);
-    return sxml_machine_push(context, &condition);
+    return sxml_machine_push_operand(context, &condition);
 }
 
 /* How one sort key compares, resolved once per SORT. */
@@ -4567,7 +4658,7 @@ static sxml_status sxml_machine_step_sort(sxml_dynamic_context *context,
     task->phase = 1;
     const sxml_evaluator_task key = sxml_expression_task(
         task->function, task->frame_base, sort_keys.sort_keys[key_index].key);
-    return sxml_machine_push(context, &key);
+    return sxml_machine_push_operand(context, &key);
 }
 
 /* ------------------------------------------------------- Expressions */
@@ -5236,7 +5327,7 @@ static sxml_status sxml_machine_step_expression(sxml_dynamic_context *context) {
                 task->function, task->frame_base, expression->let.bound_expression);
             /* A content LET's value goes into the construction (D166). */
             bound.delivers_content = task->delivers_content && expression->let.is_content;
-            return sxml_machine_push(context, &bound);
+            return sxml_machine_push_operand(context, &bound);
         }
         /* The body replaces the LET: no task waits for it (tail). */
         sxml_machine_bind(context,

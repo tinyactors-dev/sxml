@@ -9,6 +9,7 @@
 #include <float.h>
 #include <math.h>
 #include <stdalign.h>
+#include <stdlib.h>
 #include <string.h>
 
 #if defined(_WIN32)
@@ -839,6 +840,40 @@ static void test_to_double_rounds_to_nearest(sxml_test_state *state) {
     sxml_decimal_finalize(&tenth);
 }
 
+/* Clinger's fast path (sxml_scaled_integer_to_double) at its edges and
+   just beyond them, where the conversion text and strtod answer: the same
+   doubles as strtod of the same text. */
+static void test_to_double_fast_path_agrees_with_strtod(sxml_test_state *state) {
+    static const char *const texts[] = {
+        "2.20371",          "999999999999999",  "1000000000000000",
+        "-0.000000000000000000001", "10000000000000000000000", "0.1",
+        "123456789012345",  "12345678901234.5", "0.0000000000000000000000123",
+        "4503599627370497", "9007199254740993", "-77.125"};
+    for (size_t text_index = 0; text_index < SXML_TEST_COUNT(texts);
+         text_index += 1) {
+        const char *text = texts[text_index];
+        SXML_TEST_EXPECT(state,
+                         double_of(text_of(text)) == strtod(text, NULL));
+    }
+    double number = 0.0;
+    SXML_TEST_EXPECT(state, sxml_scaled_integer_to_double(
+                                (sxml_scaled_integer){.is_negative = true,
+                                                      .mantissa = 125,
+                                                      .power = -2},
+                                &number) &&
+                                number == -1.25);
+    SXML_TEST_EXPECT(state, !sxml_scaled_integer_to_double(
+                                (sxml_scaled_integer){.is_negative = false,
+                                                      .mantissa = 1,
+                                                      .power = 23},
+                                &number));
+    SXML_TEST_EXPECT(state, !sxml_scaled_integer_to_double(
+                                (sxml_scaled_integer){.is_negative = false,
+                                                      .mantissa = 0,
+                                                      .power = 0},
+                                &number));
+}
+
 /* A double and the canonical text of a conversion of it. */
 typedef struct double_case {
     double double_number;
@@ -1498,6 +1533,8 @@ static const sxml_test_case decimal_test_cases[] = {
      .function = test_to_integer_needs_integral_value_in_range},
     {.name = "to_double_rounds_to_nearest",
      .function = test_to_double_rounds_to_nearest},
+    {.name = "to_double_fast_path_agrees_with_strtod",
+     .function = test_to_double_fast_path_agrees_with_strtod},
     {.name = "from_double_shortest_gives_fewest_digits",
      .function = test_from_double_shortest_gives_fewest_digits},
     {.name = "from_double_exactly_keeps_every_digit",

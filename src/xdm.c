@@ -716,13 +716,17 @@ static const sxml_cell_class sxml_vector_cell_class = {
     .sequence_operations = &sxml_vector_sequence_operations,
 };
 
-/*
- * Makes a vector of two or more items, copying the items without retaining
- * them: the caller hands over one reference to each on success.
- */
-static sxml_status sxml_sequence_make_vector_taking(sxml_item_heap *item_heap,
-                                                    sxml_item_view items,
-                                                    sxml_sequence *sequence) {
+sxml_status sxml_sequence_make_vector_taking(sxml_item_heap *item_heap,
+                                             sxml_item_view items,
+                                             sxml_sequence *sequence) {
+    if (items.item_count == 0) {
+        *sequence = sxml_sequence_empty();
+        return SXML_STATUS_OK;
+    }
+    if (items.item_count == 1) {
+        *sequence = sxml_sequence_from_item(items.items[0]);
+        return SXML_STATUS_OK;
+    }
     size_t items_byte_count = 0;
     sxml_status status =
         sxml_size_multiply(items.item_count, sizeof(sxml_item),

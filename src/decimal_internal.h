@@ -211,6 +211,29 @@ double sxml_decimal_to_double(const sxml_decimal *decimal);
 /* As sxml_decimal_to_double for xs:float, rounded once. */
 float sxml_decimal_to_float(const sxml_decimal *decimal);
 
+/* A number written as (-1)^sign x mantissa x 10^power (glossary
+   scaled_integer). */
+typedef struct sxml_scaled_integer {
+    bool is_negative;
+    uint64_t mantissa;
+    int64_t power;
+} sxml_scaled_integer;
+
+/* Mantissas below this (10^15 < 2^53) are exact in a double. */
+#define SXML_EXACT_DOUBLE_MANTISSA_LIMIT 1000000000000000ULL
+
+/*
+ * Clinger's fast path (W. D. Clinger, "How to Read Floating Point Numbers
+ * Accurately", PLDI 1990): when the mantissa is nonzero and below
+ * SXML_EXACT_DOUBLE_MANTISSA_LIMIT and |power| <= 22, the mantissa and
+ * 10^|power| are exact doubles, and one IEEE 754 multiplication or
+ * division rounds the number correctly to nearest, a tie to even, as
+ * strtod does. Writes it to *number and returns true; returns false,
+ * changing nothing, when the path does not apply or floating point is not
+ * evaluated in the double type itself (FLT_EVAL_METHOD other than 0).
+ */
+bool sxml_scaled_integer_to_double(sxml_scaled_integer scaled, double *number);
+
 /*
  * The arithmetic of F&O 4.0, "Arithmetic operators on numeric values", on xs:decimal operands. Sum,
  * difference and product are exact (op:numeric-add, op:numeric-subtract,

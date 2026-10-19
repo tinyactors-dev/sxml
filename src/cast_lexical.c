@@ -18,6 +18,7 @@
  * "Casting from xs:string and xs:untypedAtomic".
  */
 #include "cast_internal.h"
+#include "decimal_internal.h"
 
 #include "sxml/name.h"
 #include "sxml/string.h"
@@ -467,6 +468,35 @@ sxml_write_binary_conversion_text(const sxml_binary_lexical_form *form,
     return true;
 }
 
+/*
+ * The form as a double by Clinger's fast path
+ * (sxml_scaled_integer_to_double): the digits, without the point, as the
+ * mantissa and the power of ten of the last digit. False when the path does
+ * not apply; zero mantissas are left to the general path for their signs.
+ */
+static bool sxml_binary_form_exact_double(const sxml_binary_lexical_form *form,
+                                          double *number) {
+    uint64_t mantissa = 0;
+    for (size_t part_index = 0; part_index < 2; part_index += 1) {
+        sxml_byte_view digits =
+            part_index == 0 ? form->integer_digits : form->fraction_digits;
+        for (size_t byte_index = 0; byte_index < digits.byte_count;
+             byte_index += 1) {
+            mantissa = mantissa * 10U + (uint64_t)(digits.bytes[byte_index] - '0');
+            if (mantissa >= SXML_EXACT_DOUBLE_MANTISSA_LIMIT) {
+                return false;
+            }
+        }
+    }
+    /* The exponent is clamped (sxml_cast_exponent_clamp): no overflow. */
+    return sxml_scaled_integer_to_double(
+        (sxml_scaled_integer){
+            .is_negative = form->is_negative,
+            .mantissa = mantissa,
+            .power = form->exponent - (int64_t)form->fraction_digits.byte_count},
+        number);
+}
+
 static sxml_status
 sxml_parse_binary_number(sxml_item_heap *item_heap,
                          const sxml_lexical_form_request *request,
@@ -484,6 +514,9 @@ sxml_parse_binary_number(sxml_item_heap *item_heap,
     } else if (form.is_infinite) {
         double_number = form.is_negative ? -(double)INFINITY : (double)INFINITY;
         float_number = form.is_negative ? -INFINITY : INFINITY;
+    } else if (!is_float &&
+               sxml_binary_form_exact_double(&form, &double_number)) {
+        /* Correctly rounded without the conversion text. */
     } else {
         sxml_conversion_text text;
         if (sxml_write_binary_conversion_text(&form, &text)) {

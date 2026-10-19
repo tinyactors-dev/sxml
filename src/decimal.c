@@ -12,6 +12,7 @@
  */
 #include "decimal_internal.h"
 
+#include <float.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -679,9 +680,64 @@ static void sxml_decimal_write_conversion_text(const mpd_t *number,
     sxml_decimal_sink_put(&sink, 0);
 }
 
+/*
+ * The exact powers of ten of a double: 10^22 is the largest whose value
+ * fits the 53-bit significand.
+ */
+static const double sxml_exact_powers_of_ten[] = {
+    1e0,  1e1,  1e2,  1e3,  1e4,  1e5,  1e6,  1e7,  1e8,  1e9,  1e10, 1e11,
+    1e12, 1e13, 1e14, 1e15, 1e16, 1e17, 1e18, 1e19, 1e20, 1e21, 1e22};
+
+bool sxml_scaled_integer_to_double(sxml_scaled_integer scaled, double *number) {
+#if defined(FLT_EVAL_METHOD) && FLT_EVAL_METHOD == 0
+    const int64_t power_count = (int64_t)(sizeof(sxml_exact_powers_of_ten) /
+                                          sizeof(sxml_exact_powers_of_ten[0]));
+    if (scaled.mantissa == 0 || scaled.mantissa >= SXML_EXACT_DOUBLE_MANTISSA_LIMIT ||
+        scaled.power <= -power_count || scaled.power >= power_count) {
+        return false;
+    }
+    double magnitude = (double)scaled.mantissa;
+    if (scaled.power < 0) {
+        magnitude /= sxml_exact_powers_of_ten[-scaled.power];
+    } else {
+        magnitude *= sxml_exact_powers_of_ten[scaled.power];
+    }
+    *number = scaled.is_negative ? -magnitude : magnitude;
+    return true;
+#else
+    (void)scaled;
+    (void)number;
+    return false;
+#endif
+}
+
+/* The decimal as a scaled integer, when its coefficient is below
+   SXML_EXACT_DOUBLE_MANTISSA_LIMIT (15 digits fit one word of 10^19 or
+   two of 10^9); false for larger coefficients and special values. */
+static bool sxml_decimal_get_scaled_integer(const mpd_t *number,
+                                            sxml_scaled_integer *scaled) {
+    if (mpd_isspecial(number) || number->digits > 15) {
+        return false;
+    }
+    uint64_t mantissa = 0;
+    for (mpd_ssize_t word_index = number->len; word_index > 0; word_index -= 1) {
+        mantissa = mantissa * (uint64_t)MPD_RADIX + (uint64_t)number->data[word_index - 1];
+    }
+    *scaled = (sxml_scaled_integer){.is_negative = mpd_isnegative(number) != 0,
+                                    .mantissa = mantissa,
+                                    .power = (int64_t)number->exp};
+    return true;
+}
+
 double sxml_decimal_to_double(const sxml_decimal *decimal) {
     if (mpd_iszero(&decimal->number)) {
         return 0.0;
+    }
+    sxml_scaled_integer scaled = {.is_negative = false, .mantissa = 0, .power = 0};
+    double fast_number = 0.0;
+    if (sxml_decimal_get_scaled_integer(&decimal->number, &scaled) &&
+        sxml_scaled_integer_to_double(scaled, &fast_number)) {
+        return fast_number;
     }
     uint8_t text[SXML_DECIMAL_CONVERSION_TEXT_CAPACITY];
     sxml_decimal_write_conversion_text(
