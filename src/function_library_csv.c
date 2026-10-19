@@ -1231,7 +1231,7 @@ static const sxml_function_parameter csv_doc_parameters[] = {
 static const sxml_native_function csv_functions[] = {
     SXML_FUNCTION_ROW("parse-csv", parse_csv_parameters, "fn:parsed-csv-structure-record?", 0,
                       call_parse_csv),
-    SXML_FUNCTION_ROW("csv-to-xml", parse_csv_parameters, "document-node()?",
+    SXML_FUNCTION_ROW("csv-to-xml", parse_csv_parameters, "document-node(fn:csv)?",
                       SXML_NATIVE_FUNCTION_USES_DYNAMIC_CONTEXT |
                           SXML_NATIVE_FUNCTION_IS_NONDETERMINISTIC,
                       call_csv_to_xml),

@@ -1562,15 +1562,15 @@ static const sxml_function_parameter parse_xml_parameters[] = {
 
 static const sxml_native_function json_functions[] = {
     JSON_RESUMABLE_ROW("parse-json", parse_json_parameters, "item()?", 0, parse_json_body),
-    JSON_RESUMABLE_ROW("json-to-xml", parse_json_parameters, "document-node()?",
+    JSON_RESUMABLE_ROW("json-to-xml", parse_json_parameters, "document-node(fn:*)?",
                        SXML_NATIVE_FUNCTION_IS_NONDETERMINISTIC, json_to_xml_body),
     /* Reads the evaluation environment (src/function_library_resource.c). */
     JSON_RESUMABLE_ROW("json-doc", json_doc_parameters, "item()?",
                        SXML_NATIVE_FUNCTION_USES_DYNAMIC_CONTEXT, json_doc_body),
     JSON_ROW("xml-to-json", xml_to_json_parameters, "xs:string?", 0, call_xml_to_json),
-    JSON_ROW("jtree", jtree_parameters, "jnode()", SXML_NATIVE_FUNCTION_IS_NONDETERMINISTIC,
+    JSON_ROW("jtree", jtree_parameters, "jnode(())", SXML_NATIVE_FUNCTION_IS_NONDETERMINISTIC,
              call_jtree),
-    JSON_ROW("parse-xml", parse_xml_parameters, "document-node()?",
+    JSON_ROW("parse-xml", parse_xml_parameters, "document-node(*)?",
              SXML_NATIVE_FUNCTION_USES_DYNAMIC_CONTEXT | SXML_NATIVE_FUNCTION_IS_NONDETERMINISTIC,
              call_parse_xml),
     JSON_ROW("parse-xml-fragment", parse_xml_parameters, "document-node()?",
