@@ -3309,14 +3309,13 @@ static sxml_status bind_row_call(sxml_xpath_lowerer *lowerer, row_call call, sxm
 
 /* Whether the received tunnel parameters mark temporary output state,
    bound in block: false() outside a template function. */
-static sxml_status bind_received_state(sxml_xpath_lowering_machine *machine,
-                                       sxml_xpath_lowering_frame *frame, sxml_ir_atom *atom) {
-    sxml_xpath_lowerer *lowerer = machine->state;
-    const result_document_locals *locals = frame->locals;
+sxml_status sxml_xslt_lowering_bind_received_output_state(
+    sxml_xpath_lowerer *lowerer, const sxml_xslt_output_state_mark *mark,
+    sxml_ir_atom *is_temporary) {
     sxml_ir_atom tunnel_parameters = {0};
-    if (!sxml_xslt_lowering_received_tunnel_parameters(locals->head.lowering,
-                                                       &tunnel_parameters)) {
-        return sxml_xpath_lowerer_add_item_constant(lowerer, sxml_atomic_item_false(), atom);
+    if (!sxml_xslt_lowering_received_tunnel_parameters(mark->lowering, &tunnel_parameters)) {
+        return sxml_xpath_lowerer_add_item_constant(lowerer, sxml_atomic_item_false(),
+                                                    is_temporary);
     }
     sxml_ir_atom name = {0};
     const sxml_status status = add_state_name(lowerer, &name);
@@ -3326,10 +3325,20 @@ static sxml_status bind_received_state(sxml_xpath_lowering_machine *machine,
     const sxml_ir_atom arguments[2] = {tunnel_parameters, name};
     return sxml_xslt_lowering_bind_library_call(
         lowerer,
-        &(sxml_xslt_library_call){.block = frame->block,
+        &(sxml_xslt_library_call){.block = mark->block,
                                   .function_namespace = SXML_NAMESPACE_MAP_FUNCTIONS,
                                   .local_name = SXML_BYTE_VIEW_FROM_LITERAL("contains"),
                                   .arguments = {.atoms = arguments, .atom_count = 2}},
+        is_temporary);
+}
+
+static sxml_status bind_received_state(sxml_xpath_lowering_machine *machine,
+                                       sxml_xpath_lowering_frame *frame, sxml_ir_atom *atom) {
+    const result_document_locals *locals = frame->locals;
+    return sxml_xslt_lowering_bind_received_output_state(
+        machine->state,
+        &(sxml_xslt_output_state_mark){
+            .lowering = locals->head.lowering, .node = locals->head.node, .block = frame->block},
         atom);
 }
 

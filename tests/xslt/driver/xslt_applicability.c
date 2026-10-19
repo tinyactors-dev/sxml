@@ -72,6 +72,8 @@ static const sxml_xslt_test_supported_dependency
            4.0 has it. */
         SXML_XSLT_TEST_SUPPORTED("feature", "XPath_3.1"),
         SXML_XSLT_TEST_SUPPORTED("feature", "HTML5"),
+        /* XSLT 4.0, 26.1.8, with the XML, XHTML and HTML methods (D188). */
+        SXML_XSLT_TEST_SUPPORTED("feature", "disabling_output_escaping"),
         /* streamable="yes" runs unstreamed (D97). */
         SXML_XSLT_TEST_SUPPORTED("feature", "streaming-fallback"),
         SXML_XSLT_TEST_SUPPORTED("default_language_for_numbering", "en"),

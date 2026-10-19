@@ -219,6 +219,7 @@ static sxml_node_description sxml_node_description_empty(void) {
         .is_idrefs = false,
         .is_nilled = false,
         .is_cdata_section = false,
+        .disables_output_escaping = false,
     };
 }
 
@@ -651,7 +652,9 @@ static sxml_status sxml_node_copy_send_leaf(
             copy->builder.state,
             &(sxml_text_event){.text = content,
                                .location = location,
-                               .is_cdata_section = description->is_cdata_section});
+                               .is_cdata_section = description->is_cdata_section,
+                               .disables_output_escaping =
+                                   description->disables_output_escaping});
     case SXML_NODE_KIND_COMMENT:
         return operations->add_comment(
             copy->builder.state,

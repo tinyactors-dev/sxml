@@ -454,6 +454,43 @@ static void test_result_documents(sxml_test_state *state) {
     CHECK(state, cases);
 }
 
+/* 26.1.8: disable-output-escaping, ignored in temporary output state
+   and when cdata is present (11.4.3; D188). */
+static void test_disabled_output_escaping(sxml_test_state *state) {
+#define NO_DECLARATION "<xsl:output omit-xml-declaration='yes'/>"
+    static const transform_case cases[] = {
+        {STYLESHEET(NO_DECLARATION,
+                    "<a>&lt;<xsl:text disable-output-escaping='yes'>&lt;b/&gt;</xsl:text>"
+                    "<xsl:value-of select=\"'&amp;amp;'\" disable-output-escaping='yes'/></a>"),
+         "<a>&lt;<b/>&amp;</a>"},
+        /* A text node at the top of the result, and in a result document. */
+        {STYLESHEET(NO_DECLARATION,
+                    "<xsl:text disable-output-escaping='yes'>&lt;b/&gt;</xsl:text>"
+                    "<xsl:result-document href='r'><xsl:text disable-output-escaping='yes'>"
+                    "&lt;c/&gt;</xsl:text></xsl:result-document>"),
+         "<b/> | file:///out/r=<c/>"},
+        {STYLESHEET(NO_DECLARATION,
+                    "<xsl:variable name='v'><a><xsl:value-of select=\"'&lt;'\" "
+                    "disable-output-escaping='yes'/></a></xsl:variable>"
+                    "<xsl:copy-of select='$v'/>"),
+         "<a>&lt;</a>"},
+        {STYLESHEET(NO_DECLARATION
+                    "<xsl:template name='t'><xsl:text disable-output-escaping='yes'>&lt;"
+                    "</xsl:text></xsl:template>",
+                    "<xsl:variable name='v'><a><xsl:call-template name='t'/></a></xsl:variable>"
+                    "<xsl:copy-of select='$v'/><b><xsl:call-template name='t'/></b>"),
+         "<a>&lt;</a><b><</b>"},
+        {STYLESHEET(NO_DECLARATION,
+                    "<a><xsl:text cdata='no' disable-output-escaping='yes'>&lt;</xsl:text></a>"),
+         "<a>&lt;</a>"},
+        {STYLESHEET("<xsl:output method='text'/>",
+                    "<a><xsl:text disable-output-escaping='yes'>&lt;</xsl:text></a>"),
+         "<"},
+    };
+#undef NO_DECLARATION
+    CHECK(state, cases);
+}
+
 /* 26.3: fn:current-output-uri. */
 static void test_current_output_uri(sxml_test_state *state) {
     static const transform_case cases[] = {
@@ -477,6 +514,7 @@ static const sxml_test_case xslt_output_test_cases[] = {
     {.name = "output_definitions", .function = test_output_definitions},
     {.name = "character_maps", .function = test_character_maps},
     {.name = "result_documents", .function = test_result_documents},
+    {.name = "disabled_output_escaping", .function = test_disabled_output_escaping},
     {.name = "current_output_uri", .function = test_current_output_uri},
 };
 

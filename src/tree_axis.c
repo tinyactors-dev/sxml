@@ -70,6 +70,7 @@ static sxml_node_description sxml_axis_empty_description(void) {
         .is_idrefs = false,
         .is_nilled = false,
         .is_cdata_section = false,
+        .disables_output_escaping = false,
     };
 }
 

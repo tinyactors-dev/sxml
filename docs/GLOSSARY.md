@@ -858,7 +858,7 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `dynamic_evaluation` | Compiling and evaluating an XPath expression whose text is computed at run time: xsl:evaluate (XSLT 4.0, 10.5), run as a unit evaluation |
 | `xpath_1_compatibility_mode` | The static context setting under which comparisons, arithmetic and function arguments follow XPath 1.0's conversions (XPath 4.0, section 2.2.1); XSLT sets it for elements whose effective version is below 2.0 |
 | `backwards_compatible_behaviour` | XSLT's processing of an element whose effective version is below 2.0 by the XSLT 1.0 rules (XSLT 4.0, 3.8) |
-| `output_escaping_marker` | The processing-instruction pair `javax.xml.transform.disable-output-escaping` / `enable-output-escaping` around result text whose escaping is disabled (XSLT 4.0, 26.2); read by the serializer, dropped otherwise |
+| `disable_output_escaping` | A text node's request to be serialized unescaped (XSLT 4.0, 26.1.8: the disable-output-escaping attribute of xsl:text and xsl:value-of), ignored in temporary output state; a builder and serializer property, not part of XDM (`disables_output_escaping`, D188) |
 | `posture` | How a construct's value relates to a streamed input: grounded, climbing, striding, crawling or roaming (XSLT 4.0, 19.1) |
 | `sweep` | How much of a streamed input a construct reads: motionless, consuming or free-ranging (XSLT 4.0, 19.1) |
 | `streamability` | Whether a construct is guaranteed-streamable by the rules of XSLT 4.0, chapter 19, computed from postures and sweeps |

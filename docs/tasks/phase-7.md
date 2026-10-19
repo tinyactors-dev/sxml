@@ -731,13 +731,11 @@ start only when the owner accepts them.
   28, bug 4, and others).
 - **Replaces**: today the attribute is read and ignored
   (`src/xslt_read.c`); the place where it is ignored is the place.
-- **Mechanism**: `tree.h` is frozen, so a text node cannot carry a mark.
-  Instead the result tree carries the JAXP processing-instruction pair
-  `javax.xml.transform.disable-output-escaping` and
-  `javax.xml.transform.enable-output-escaping` around the text. The XML
-  and HTML methods' character pipeline interprets the pair when it
-  serializes a final result tree, and drops it otherwise (as 26.2
-  allows).
+- **Mechanism** (changed by D188, on the owner's prompt): a text node
+  mark, as D163's CDATA request, additive to `tree.h`
+  (`disables_output_escaping`); the XML, XHTML and HTML methods write
+  marked text unescaped. The JAXP processing-instruction pair is not
+  used.
 - **Header**: none; a comment in `serialize.h`.
 - **After**: nothing.
 - **Owns**: the d-o-e branches in `src/xslt_lower_construct.c`, and
@@ -745,6 +743,10 @@ start only when the owner accepts them.
 - **Size**: about 3 KB, in the CLI only (the serializer is in
   `sxml.wasm`: under 1 KB there).
 - **Gate**: ≥ 90 % of the 32.
+**Done** 2026-10-19 (D188): disable-output-escaping 25 of 25 run pass
+(7 not run: 3 need streaming, 1 is XSLT 2.0 only, 3 need the feature
+absent), bug 4 more; XT40 8,759 to 8,784 passed, 0 errors, none lost
+(5 cases that need the feature absent are not run any more).
 
 ### 7.13 XML 1.1 input (implementation; proposed, D183)
 - **Specifications**: XML 1.1 (Second Edition), 2.2 (Char, RestrictedChar:

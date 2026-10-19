@@ -88,6 +88,9 @@
 #define SXML_ARENA_NODE_IS_NILLED 0x40U
 /* A text node to serialize as CDATA sections (glossary cdata_section). */
 #define SXML_ARENA_NODE_IS_CDATA_SECTION 0x80U
+/* A text node whose escaping is disabled (glossary
+   disable_output_escaping, D188). */
+#define SXML_ARENA_NODE_DISABLES_OUTPUT_ESCAPING 0x100U
 
 /* --------------------------------------------------------------- Types */
 
@@ -112,7 +115,7 @@ typedef struct sxml_arena_node {
     uint32_t previous_sibling;
     uint32_t next_sibling;
     uint8_t node_kind;
-    uint8_t flags;
+    uint16_t flags;
 } sxml_arena_node;
 
 /* An unparsed entity, in a list newest first. */
@@ -174,6 +177,8 @@ struct sxml_arena_tree {
     bool has_attribute_index;
     /* Some event of the pending text asked for CDATA sections (D163). */
     bool pending_text_is_cdata_section;
+    /* The pending text's events disable output escaping (D188). */
+    bool pending_text_disables_output_escaping;
 
     /* The text store. */
     uint8_t *text_block;
@@ -731,7 +736,7 @@ typedef struct sxml_new_node {
     sxml_name_identifier node_name;
     sxml_namespace_prefix_identifier namespace_prefix;
     sxml_type_identifier type_annotation;
-    uint8_t flags;
+    uint16_t flags;
     sxml_byte_view content;
     sxml_source_location location;
 } sxml_new_node;
@@ -817,7 +822,12 @@ static sxml_status sxml_arena_tree_flush_text(sxml_arena_tree *arena_tree) {
         .node_name = {.index = 0},
         .namespace_prefix = {.index = 0},
         .type_annotation = {.index = SXML_TYPE_NONE},
-        .flags = arena_tree->pending_text_is_cdata_section ? SXML_ARENA_NODE_IS_CDATA_SECTION : 0,
+        .flags = (uint16_t)((arena_tree->pending_text_is_cdata_section
+                                 ? SXML_ARENA_NODE_IS_CDATA_SECTION
+                                 : 0U) |
+                            (arena_tree->pending_text_disables_output_escaping
+                                 ? SXML_ARENA_NODE_DISABLES_OUTPUT_ESCAPING
+                                 : 0U)),
         .content = sxml_arena_tree_take_text(arena_tree),
         .location = arena_tree->pending_text_location,
     };
@@ -827,6 +837,7 @@ static sxml_status sxml_arena_tree_flush_text(sxml_arena_tree *arena_tree) {
         arena_tree->pending_text_offset = pending_offset;
     } else {
         arena_tree->pending_text_is_cdata_section = false;
+        arena_tree->pending_text_disables_output_escaping = false;
     }
     return status;
 }
@@ -1486,8 +1497,8 @@ typedef struct sxml_node_properties {
     bool is_nilled;
 } sxml_node_properties;
 
-static uint8_t sxml_arena_tree_flags_of(sxml_node_properties properties) {
-    return (uint8_t)((properties.is_id ? SXML_ARENA_NODE_IS_ID : 0U) |
+static uint16_t sxml_arena_tree_flags_of(sxml_node_properties properties) {
+    return (uint16_t)((properties.is_id ? SXML_ARENA_NODE_IS_ID : 0U) |
                      (properties.is_idrefs ? SXML_ARENA_NODE_IS_IDREFS : 0U) |
                      (properties.is_nilled ? SXML_ARENA_NODE_IS_NILLED : 0U));
 }
@@ -1778,7 +1789,7 @@ static void sxml_arena_tree_replace_attribute(sxml_arena_tree *arena_tree,
     node->content = attribute->content;
     node->namespace_prefix = attribute->namespace_prefix;
     node->type_annotation = attribute->type_annotation;
-    node->flags = (uint8_t)((node->flags & SXML_ARENA_NODE_HAS_PARENT) |
+    node->flags = (uint16_t)((node->flags & SXML_ARENA_NODE_HAS_PARENT) |
                             attribute->flags);
     if (arena_tree->configuration.keeps_locations) {
         *sxml_arena_tree_get_location(arena_tree, node_number) =
@@ -1902,6 +1913,17 @@ static sxml_status sxml_arena_tree_add_text(void *state,
     if (event->text.byte_count == 0) {
         return SXML_STATUS_OK;
     }
+    /* Inside a parent, text that differs in disables_output_escaping
+       starts a node of its own: the property belongs to each character
+       (XSLT 4.0, section 26.1.8; D188). Parentless text keeps one node. */
+    if (sxml_arena_tree_has_pending_text(arena_tree) &&
+        arena_tree->phase != SXML_ARENA_TREE_PHASE_TOP_TEXT &&
+        event->disables_output_escaping != arena_tree->pending_text_disables_output_escaping) {
+        status = sxml_arena_tree_flush_text(arena_tree);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+    }
     if (!sxml_arena_tree_has_pending_text(arena_tree)) {
         /* A run's node is located where its first text is. The source name
            is copied before the run starts, so it is not part of it. */
@@ -1914,6 +1936,9 @@ static sxml_status sxml_arena_tree_add_text(void *state,
     status = sxml_arena_tree_append_text(arena_tree, event->text);
     if (status == SXML_STATUS_OK && event->is_cdata_section) {
         arena_tree->pending_text_is_cdata_section = true;
+    }
+    if (status == SXML_STATUS_OK && event->disables_output_escaping) {
+        arena_tree->pending_text_disables_output_escaping = true;
     }
     return status;
 }
@@ -2105,6 +2130,8 @@ static sxml_status sxml_arena_tree_describe_node(
         .is_idrefs = sxml_arena_node_has_flag(node, SXML_ARENA_NODE_IS_IDREFS),
         .is_nilled = sxml_arena_node_has_flag(node, SXML_ARENA_NODE_IS_NILLED),
         .is_cdata_section = sxml_arena_node_has_flag(node, SXML_ARENA_NODE_IS_CDATA_SECTION),
+        .disables_output_escaping =
+            sxml_arena_node_has_flag(node, SXML_ARENA_NODE_DISABLES_OUTPUT_ESCAPING),
     };
     return SXML_STATUS_OK;
 }

@@ -762,6 +762,15 @@ SXML_NODISCARD sxml_status sxml_xslt_lowering_mark_temporary_output_state(
     sxml_xpath_lowerer *lowerer, const sxml_xslt_output_state_mark *mark,
     sxml_ir_atom *tunnel_parameters);
 
+/* Binds in mark->block whether the template function being lowered was
+   called in temporary output state (the tunnel parameter that
+   sxml_xslt_lowering_mark_temporary_output_state puts in) to
+   *is_temporary, an xs:boolean; the constant false outside a template
+   function. mark->node is the instruction that asks. src/xslt_output.c. */
+SXML_NODISCARD sxml_status sxml_xslt_lowering_bind_received_output_state(
+    sxml_xpath_lowerer *lowerer, const sxml_xslt_output_state_mark *mark,
+    sxml_ir_atom *is_temporary);
+
 /* Writes the atom of the tunnel parameters the template function being
    lowered received to *tunnel_parameters and returns true; false outside a
    template function. src/xslt_lower_template.c. */

@@ -7421,6 +7421,46 @@ expressions and their application (the task file's 7.7a and 7.7b);
   order, each updating one's changed trees replace the sources they
   came from, and the last test's result is checked.
 
+### D188. disable-output-escaping: a text node mark (packet 7.5)
+Recorded 2026-10-19, after D99, D163, D183, D184. The owner's prompt for
+7.5 asked for a mark on text nodes as D163 added the CDATA request,
+in place of D183's processing-instruction pair (glossary
+`disable_output_escaping` replaces `output_escaping_marker`).
+- **Substrate, additive** (`include/sxml/tree.h`, frozen by D99):
+  `sxml_text_event.disables_output_escaping` and
+  `sxml_node_description.disables_output_escaping`, false by default
+  (designated initializers keep every caller as it was). Arena trees keep
+  it in a node flag (the flags field is 16 bits, the node stays 56
+  bytes); copies (`sxml_tree_builder_copy_node`) keep it.
+- **Per character** (XSLT 4.0, 26.1.8: "an additional boolean property
+  disable-escaping associated with every character in a text node"):
+  inside a parent, text events that differ in the mark make separate
+  text nodes, so `<out>` with "<" then an unescaped "&lt;" serializes as
+  `&lt;&lt;` (doe-0182 to doe-0186). Such a final result tree has
+  adjacent text nodes, a deviation from XDM 4.0, 6.7.1 limited to trees
+  that use the deprecated feature; parentless text keeps one node.
+- **Where it is set**: XSLT lowering of xsl:value-of and xsl:text with
+  disable-output-escaping="yes" (construction flag
+  DISABLES_OUTPUT_ESCAPING on TEXT_CONSTRUCTOR). The request is ignored
+  in temporary output state (26.1.8), with 26.2.6's tracking of
+  xsl:result-document: lexically inside xsl:variable and the other
+  temporary containers the flag is not set; in a template that received
+  the temporary-output-state tunnel parameter it is chosen at run time
+  (`sxml_xslt_lowering_bind_received_output_state`, shared with
+  xsl:result-document). Not covered: templates reached only through an
+  initial function call (the writer's state), as for XTDE1480.
+- **Where it is honoured**: the XML, XHTML and HTML methods write such
+  text in the character context UNESCAPED_TEXT: mapped and normalized,
+  not escaped, never in CDATA sections (26.1.8: CDATA "is treated as an
+  alternative escaping mechanism"), a character the encoding cannot
+  represent as a character reference. Canonical output escapes it; the
+  text method has no escaping. Sequence normalization gives such a text
+  node as a node, not merged, so it keeps the mark at the top level and
+  in xsl:result-document's tree. Attributes, comments, processing
+  instructions and namespaces atomize it and lose it.
+- **Driver**: feature disabling_output_escaping is supported; the cases
+  that need it unsatisfied are not run any more.
+
 ### D189. Optional features and the size budgets (packet 7.2)
 Recorded 2026-10-19, after D71, D138, D162, D183, D184. Carries out the
 owner's size choice (D184): link-time optional features through one

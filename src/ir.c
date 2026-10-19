@@ -2421,6 +2421,7 @@ static void write_construction_flags(text_writer *writer, uint32_t flags) {
         {(uint32_t)SXML_IR_CONSTRUCTION_PRESERVES_TYPES, " preserves-types"},
         {(uint32_t)SXML_IR_CONSTRUCTION_XSLT_RULES, " xslt-rules"},
         {(uint32_t)SXML_IR_CONSTRUCTION_CDATA_SECTION, " cdata-section"},
+        {(uint32_t)SXML_IR_CONSTRUCTION_DISABLES_OUTPUT_ESCAPING, " disables-output-escaping"},
     };
     for (size_t flag_index = 0;
          flag_index < sizeof(flag_names) / sizeof(flag_names[0]);

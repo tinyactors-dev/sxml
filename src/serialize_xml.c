@@ -1535,8 +1535,14 @@ static sxml_status sxml_xml_writer_write_leaf(sxml_xml_writer *writer, sxml_node
            methods (it is implementation-defined, D163). */
         const bool asks_cdata_section =
             description->is_cdata_section && !writer->is_canonical && !writer->is_html;
-        if ((parent != NULL && parent->is_cdata_parent) ||
-            (asks_cdata_section && (parent == NULL || !parent->is_raw_text))) {
+        if (description->disables_output_escaping && !writer->is_canonical) {
+            /* XSLT 4.0, section 26.1.8: the XML, XHTML and HTML methods
+               write it unescaped, and not in CDATA sections ("CDATA is
+               treated as an alternative escaping mechanism"); canonical
+               output keeps escaping (D188). */
+            character_context = SXML_CHARACTER_CONTEXT_UNESCAPED_TEXT;
+        } else if ((parent != NULL && parent->is_cdata_parent) ||
+                   (asks_cdata_section && (parent == NULL || !parent->is_raw_text))) {
             character_context = SXML_CHARACTER_CONTEXT_CDATA_SECTION;
         } else if (parent != NULL && parent->is_raw_text) {
             character_context = SXML_CHARACTER_CONTEXT_RAW_TEXT;
@@ -1804,6 +1810,9 @@ static sxml_status sxml_xml_writer_check_document_shape(sxml_xml_writer *writer,
                                      description.node_kind == SXML_NODE_KIND_ELEMENT
                                  ? 1U
                                  : 0U;
+            /* A text node whose escaping is disabled (D188). */
+            has_text = has_text || (status == SXML_STATUS_OK &&
+                                    description.node_kind == SXML_NODE_KIND_TEXT);
         }
     }
     sxml_sequence_normalizer_finish(&normalizer);
@@ -1984,8 +1993,30 @@ static sxml_status sxml_xml_writer_write_top_level(sxml_xml_writer *writer,
                                                    sxml_top_level *top_level,
                                                    const sxml_normalized_event *event) {
     sxml_status status = SXML_STATUS_OK;
-    if (event->event_kind == SXML_NORMALIZED_EVENT_KIND_TEXT) {
-        const bool is_whitespace = sxml_xml_text_is_whitespace(event->text);
+    sxml_node_description description = {.node_kind = SXML_NODE_KIND_ANY};
+    sxml_byte_view text = event->text;
+    sxml_character_context character_context = SXML_CHARACTER_CONTEXT_TEXT;
+    bool is_text = event->event_kind == SXML_NORMALIZED_EVENT_KIND_TEXT;
+    if (!is_text) {
+        status = sxml_node_describe(event->node, &description);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        if (description.node_kind == SXML_NODE_KIND_TEXT) {
+            /* A text node whose escaping is disabled (XSLT 4.0, section
+               26.1.8; D188). */
+            is_text = true;
+            status = sxml_node_get_content(event->node, &text);
+            if (status != SXML_STATUS_OK) {
+                return status;
+            }
+            if (!writer->is_canonical) {
+                character_context = SXML_CHARACTER_CONTEXT_UNESCAPED_TEXT;
+            }
+        }
+    }
+    if (is_text) {
+        const bool is_whitespace = sxml_xml_text_is_whitespace(text);
         top_level->has_nonwhitespace_text = top_level->has_nonwhitespace_text || !is_whitespace;
         if (writer->is_canonical) {
             /* Canonical XML 1.1, section 2.3: whitespace outside the
@@ -1998,14 +2029,8 @@ static sxml_status sxml_xml_writer_write_top_level(sxml_xml_writer *writer,
         top_level->has_written = true;
         top_level->was_previous_text = true;
         return sxml_serializer_write_character_data(
-            writer->serializer, &(sxml_character_data){.text = event->text,
-                                                       .character_context =
-                                                           SXML_CHARACTER_CONTEXT_TEXT});
-    }
-    sxml_node_description description;
-    status = sxml_node_describe(event->node, &description);
-    if (status != SXML_STATUS_OK) {
-        return status;
+            writer->serializer,
+            &(sxml_character_data){.text = text, .character_context = character_context});
     }
     const bool is_element = description.node_kind == SXML_NODE_KIND_ELEMENT;
     if (is_element) {

@@ -90,6 +90,12 @@ typedef enum sxml_character_context {
        elements (section 7.1): mapped and normalized; a character the
        encoding cannot represent is SERE0008. */
     SXML_CHARACTER_CONTEXT_RAW_TEXT,
+    /* A text node whose output escaping is disabled (glossary
+       disable_output_escaping; XSLT 4.0, section 26.1.8): mapped and
+       normalized, not escaped; a character the encoding cannot represent
+       is written as a character reference, since the request "is ignored
+       in respect of that character" (D188). */
+    SXML_CHARACTER_CONTEXT_UNESCAPED_TEXT,
 } sxml_character_context;
 
 /* Text to write and where it goes. */
@@ -239,7 +245,8 @@ typedef enum sxml_normalized_event_kind {
     /* A text node of the result tree: merged, never empty. */
     SXML_NORMALIZED_EVENT_KIND_TEXT,
     /* An element, comment or processing instruction to copy as a child
-       of the result tree. */
+       of the result tree; or a text node whose output escaping is
+       disabled, kept apart from the merged text (D188). */
     SXML_NORMALIZED_EVENT_KIND_NODE,
 } sxml_normalized_event_kind;
 

@@ -639,6 +639,73 @@ static void test_text_keeps_cdata_requests(sxml_test_state *state) {
     tree_fixture_destroy(&fixture);
 }
 
+/* Text whose output escaping is disabled is a text node of its own
+   inside a parent (the property belongs to each character, XSLT 4.0,
+   section 26.1.8; D188), and copies keep the mark. */
+static void test_text_keeps_escaping_marks_apart(sxml_test_state *state) {
+    tree_fixture fixture;
+    SXML_TEST_REQUIRE(state, tree_fixture_create(&fixture) == SXML_STATUS_OK);
+    sxml_arena_tree_configuration configuration = arena_configuration(&fixture);
+    built_tree built;
+    SXML_TEST_REQUIRE(state, built_tree_create(&configuration, &built) == SXML_STATUS_OK);
+    event_writer writer = writer_for(&fixture, &built);
+    write_element(&writer, "a");
+    write_text(&writer, "<");
+    for (size_t event_index = 0; event_index < 2 && writer.status == SXML_STATUS_OK;
+         event_index += 1) {
+        writer.status = writer.builder.operations->add_text(
+            writer.builder.state, &(sxml_text_event){.text = text_view("&lt;"),
+                                                     .location = no_location,
+                                                     .is_cdata_section = false,
+                                                     .disables_output_escaping = true});
+    }
+    write_text(&writer, "!");
+    write_end_element(&writer);
+    SXML_TEST_EXPECT(state, writer.status == SXML_STATUS_OK);
+    SXML_TEST_REQUIRE(state,
+                      sxml_arena_tree_finish(built.arena_tree, &built.tree) == SXML_STATUS_OK);
+    /* a, "<", "&lt;&lt;" (one node of two events), "!". */
+    const bool expected[4] = {false, false, true, false};
+    const char *const contents[4] = {"", "<", "&lt;&lt;", "!"};
+    for (uint32_t node_index = 1; node_index < 4; node_index += 1) {
+        sxml_node_description description;
+        const sxml_node_reference node = {
+            .tree = built.tree, .node_index = {.index = node_index}, .namespace_number = 0};
+        sxml_byte_view content = {.bytes = NULL, .byte_count = 0};
+        SXML_TEST_EXPECT(state, sxml_node_describe(node, &description) == SXML_STATUS_OK &&
+                                    description.node_kind == SXML_NODE_KIND_TEXT &&
+                                    description.disables_output_escaping ==
+                                        expected[node_index]);
+        SXML_TEST_EXPECT(state,
+                         sxml_node_get_content(node, &content) == SXML_STATUS_OK &&
+                             sxml_byte_view_equals(content, text_view(contents[node_index])));
+    }
+    built_tree copy;
+    SXML_TEST_REQUIRE(state, built_tree_create(&configuration, &copy) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(
+        state,
+        sxml_tree_builder_copy_node(
+            sxml_arena_tree_as_tree_builder(copy.arena_tree),
+            &(sxml_copy_request){
+                .node = {.tree = built.tree, .node_index = {.index = 2}, .namespace_number = 0},
+                .preserves_namespaces = true,
+                .inherits_namespaces = true,
+                .preserves_type_annotations = true}) == SXML_STATUS_OK);
+    SXML_TEST_REQUIRE(state,
+                      sxml_arena_tree_finish(copy.arena_tree, &copy.tree) == SXML_STATUS_OK);
+    sxml_node_description copied;
+    SXML_TEST_EXPECT(
+        state,
+        sxml_node_describe((sxml_node_reference){.tree = copy.tree,
+                                                 .node_index = {.index = 0},
+                                                 .namespace_number = 0},
+                           &copied) == SXML_STATUS_OK &&
+            copied.disables_output_escaping);
+    built_tree_destroy(&copy);
+    built_tree_destroy(&built);
+    tree_fixture_destroy(&fixture);
+}
+
 static void test_roots_take_the_configured_base_uri(sxml_test_state *state) {
     tree_fixture fixture;
     SXML_TEST_REQUIRE(state, tree_fixture_create(&fixture) == SXML_STATUS_OK);
@@ -1347,6 +1414,7 @@ static const sxml_test_case arena_tree_test_cases[] = {
     {.name = "parentless_nodes_are_roots",
      .function = test_parentless_nodes_are_roots},
     {.name = "text_keeps_cdata_requests", .function = test_text_keeps_cdata_requests},
+    {.name = "text_keeps_escaping_marks_apart", .function = test_text_keeps_escaping_marks_apart},
     {.name = "roots_take_the_configured_base_uri",
      .function = test_roots_take_the_configured_base_uri},
     {.name = "parentless_namespace_nodes_are_stored",

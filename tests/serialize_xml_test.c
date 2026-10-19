@@ -597,6 +597,111 @@ static void test_cdata_sections(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
 }
 
+/* ---------------------------------------- Disabled output escaping */
+
+/* Builds <b>&lt;</b> whose text is "<" and then "&lt;\xC3\xA9" with
+   output escaping disabled (two text nodes, D188), or, when element_name
+   is 0, the parentless text "&lt;" with escaping disabled. */
+static sxml_status build_unescaped_tree(fixture *test_fixture, sxml_name_identifier element_name,
+                                        sxml_item *root) {
+    sxml_arena_tree *arena_tree = NULL;
+    sxml_status status = sxml_arena_tree_create(
+        fixture_allocator(test_fixture),
+        &(sxml_arena_tree_configuration){.allocator = fixture_allocator(test_fixture),
+                                         .item_heap = test_fixture->item_heap,
+                                         .duplicate_attribute_policy =
+                                             SXML_DUPLICATE_ATTRIBUTE_POLICY_REJECT,
+                                         .is_destroyed_when_unreferenced = true},
+        &arena_tree);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    const sxml_tree_builder builder = sxml_arena_tree_as_tree_builder(arena_tree);
+    if (element_name.index != 0) {
+        status = builder.operations->start_element(
+            builder.state, &(sxml_element_start_event){.element_name = element_name});
+        if (status == SXML_STATUS_OK) {
+            status = builder.operations->add_text(builder.state,
+                                                  &(sxml_text_event){.text = text_view("<")});
+        }
+    }
+    if (status == SXML_STATUS_OK) {
+        status = builder.operations->add_text(
+            builder.state,
+            &(sxml_text_event){.text = text_view(element_name.index != 0 ? "&lt;\xC3\xA9" : "&lt;"),
+                               .disables_output_escaping = true});
+    }
+    if (status == SXML_STATUS_OK && element_name.index != 0) {
+        status = builder.operations->end_element(builder.state);
+    }
+    sxml_tree *tree = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_arena_tree_finish(arena_tree, &tree);
+    }
+    if (status != SXML_STATUS_OK) {
+        sxml_arena_tree_destroy(arena_tree);
+        return status;
+    }
+    *root = sxml_node_item_make(
+        (sxml_node_reference){.tree = tree, .node_index = {.index = 0}, .namespace_number = 0});
+    sxml_tree_release(tree);
+    return SXML_STATUS_OK;
+}
+
+/* XSLT 4.0, section 26.1.8: unescaped, not in CDATA sections, a character
+   the encoding lacks as a reference; canonical output escapes. */
+static void test_disabled_output_escaping(sxml_test_state *state) {
+    fixture test_fixture;
+    SXML_TEST_REQUIRE(state, fixture_create(0, &test_fixture) == SXML_STATUS_OK);
+    fixture *current = &test_fixture;
+    const sxml_name_identifier name = intern_name(current, "", "b");
+    sxml_item element = {.representation = 0};
+    sxml_item text = {.representation = 0};
+    SXML_TEST_REQUIRE(state, build_unescaped_tree(current, name, &element) == SXML_STATUS_OK);
+    SXML_TEST_REQUIRE(state, build_unescaped_tree(current, (sxml_name_identifier){.index = 0},
+                                                  &text) == SXML_STATUS_OK);
+    const sxml_sequence element_value = sxml_sequence_from_item(element);
+    const sxml_sequence text_value = sxml_sequence_from_item(text);
+    SXML_TEST_EXPECT(state, serialization_gives(
+                                current,
+                                &(serialization_case){.value = element_value,
+                                                      .parameters = {XML_METHOD}},
+                                text_view("<b>&lt;&lt;\xC3\xA9</b>")));
+    const sxml_serialization_parameters cdata_ascii = {
+        XML_METHOD,
+        .cdata_section_elements = {.element_names = &name, .element_name_count = 1},
+        .character_encoding = SXML_CHARACTER_ENCODING_US_ASCII};
+    SXML_TEST_EXPECT(state, serialization_gives(
+                                current,
+                                &(serialization_case){.value = element_value,
+                                                      .parameters = cdata_ascii},
+                                text_view("<b><![CDATA[<]]>&lt;&#xE9;</b>")));
+    SXML_TEST_EXPECT(state,
+                     serialization_gives(
+                         current,
+                         &(serialization_case){
+                             .value = element_value,
+                             .parameters = {.serialization_method = SXML_SERIALIZATION_METHOD_HTML}},
+                         text_view("<b>&lt;&lt;\xC3\xA9</b>")));
+    /* At the top level the text node is not merged away (D188). */
+    SXML_TEST_EXPECT(state, serialization_gives(
+                                current,
+                                &(serialization_case){.value = text_value,
+                                                      .parameters = {XML_METHOD}},
+                                text_view("&lt;")));
+    SXML_TEST_EXPECT(
+        state,
+        serialization_gives(
+            current,
+            &(serialization_case){
+                .value = text_value,
+                .parameters = {.serialization_method = SXML_SERIALIZATION_METHOD_TEXT}},
+            text_view("&lt;")));
+    sxml_item_release(element);
+    sxml_item_release(text);
+    SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
+}
+
 /* ------------------------------------------- Declarations and doctype */
 
 static void test_declarations(sxml_test_state *state) {
@@ -1082,6 +1187,7 @@ static const sxml_test_case serialize_xml_test_cases[] = {
     {.name = "line_endings", .function = test_line_endings},
     {.name = "indentation", .function = test_indentation},
     {.name = "cdata_sections", .function = test_cdata_sections},
+    {.name = "disabled_output_escaping", .function = test_disabled_output_escaping},
     {.name = "declarations", .function = test_declarations},
     {.name = "namespaces", .function = test_namespaces},
     {.name = "character_maps_and_normalization",

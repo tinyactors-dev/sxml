@@ -70,6 +70,17 @@ sxml_status sxml_serialize_text_method(sxml_serializer *serializer, sxml_sequenc
         status = sxml_node_describe(event.node, &description);
         if (status == SXML_STATUS_OK && description.node_kind == SXML_NODE_KIND_ELEMENT) {
             status = sxml_text_write_descendants(serializer, event.node);
+        } else if (status == SXML_STATUS_OK && description.node_kind == SXML_NODE_KIND_TEXT) {
+            /* A text node whose escaping is disabled: the text method
+               escapes nothing anyway (XSLT 4.0, section 26.1.8). */
+            sxml_byte_view content = {.bytes = NULL, .byte_count = 0};
+            status = sxml_node_get_content(event.node, &content);
+            if (status == SXML_STATUS_OK) {
+                status = sxml_serializer_write_character_data(
+                    serializer, &(sxml_character_data){
+                                    .text = content,
+                                    .character_context = SXML_CHARACTER_CONTEXT_TEXT});
+            }
         }
     }
     sxml_sequence_normalizer_finish(&normalizer);

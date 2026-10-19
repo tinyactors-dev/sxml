@@ -4,6 +4,14 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 7.5 done (D188): disable-output-escaping. Text nodes carry a mark
+  (`disables_output_escaping`, additive to `tree.h`, as D163's CDATA
+  request); text that differs in it stays a node of its own; ignored in
+  temporary output state and when cdata is present; the XML, XHTML and
+  HTML methods write it unescaped, never in CDATA. XT40 8,759 to 8,784
+  passed (disable-output-escaping 25 of 25 run, bug 4), 0 errors, none
+  lost; 5 cases that need the feature absent are not run any more.
+
 - 2.21 done (D190): XPath and XQuery sweep. Casts and castable to
   array, map and record types (the coercion frames with cast rules);
   fn:function-lookup binds context-dependent functions to the caller's

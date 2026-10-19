@@ -1720,6 +1720,9 @@ typedef struct sxml_construct_leaf {
     bool is_id;
     /* TEXT: asks for CDATA sections (glossary cdata_section). */
     bool is_cdata_section;
+    /* TEXT: asks to be serialized unescaped (glossary
+       disable_output_escaping). */
+    bool disables_output_escaping;
     /* PROCESSING_INSTRUCTION: the target; NAMESPACE: the prefix. */
     sxml_byte_view target;
     /* The value, content or namespace URI. */
@@ -1745,7 +1748,8 @@ static sxml_status sxml_construct_send_leaf(sxml_dynamic_context *context,
             builder.state,
             &(sxml_text_event){.text = leaf->text,
                                .location = sxml_construct_no_location,
-                               .is_cdata_section = leaf->is_cdata_section});
+                               .is_cdata_section = leaf->is_cdata_section,
+                               .disables_output_escaping = leaf->disables_output_escaping});
     case SXML_CONSTRUCT_LEAF_KIND_COMMENT:
         return builder.operations->add_comment(
             builder.state,
@@ -1962,6 +1966,10 @@ static sxml_status sxml_construct_step_text(sxml_dynamic_context *dynamic_contex
                                    .is_cdata_section =
                                        (construction_flags &
                                         (uint32_t)SXML_IR_CONSTRUCTION_CDATA_SECTION) != 0,
+                                   .disables_output_escaping =
+                                       (construction_flags &
+                                        (uint32_t)SXML_IR_CONSTRUCTION_DISABLES_OUTPUT_ESCAPING) !=
+                                       0,
                                    .target = {.bytes = NULL, .byte_count = 0},
                                    .text = sxml_construct_text_buffer_view(&buffer)},
             &result);

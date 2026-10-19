@@ -615,7 +615,9 @@ static sxml_status sxml_serializer_write_escaped(sxml_serializer *serializer,
     const sxml_byte_view text = character_data->text;
     const sxml_escape_style style = serializer->escape_style;
     const bool is_canonical = style == SXML_ESCAPE_STYLE_CANONICAL;
-    const bool is_raw = style == SXML_ESCAPE_STYLE_NONE ||
+    const bool is_unescaped_text =
+        character_data->character_context == SXML_CHARACTER_CONTEXT_UNESCAPED_TEXT;
+    const bool is_raw = style == SXML_ESCAPE_STYLE_NONE || is_unescaped_text ||
                         character_data->character_context == SXML_CHARACTER_CONTEXT_RAW_TEXT;
     const bool is_attribute =
         character_data->character_context == SXML_CHARACTER_CONTEXT_ATTRIBUTE ||
@@ -656,9 +658,13 @@ static sxml_status sxml_serializer_write_escaped(sxml_serializer *serializer,
             continue;
         }
         if (is_raw) {
-            status = sxml_serializer_can_encode(serializer, codepoint)
-                         ? sxml_serializer_put_text_codepoint(serializer, codepoint)
-                         : sxml_serializer_raise_unencodable(serializer);
+            if (sxml_serializer_can_encode(serializer, codepoint)) {
+                status = sxml_serializer_put_text_codepoint(serializer, codepoint);
+            } else {
+                status = is_unescaped_text
+                             ? sxml_serializer_put_character_reference(serializer, codepoint)
+                             : sxml_serializer_raise_unencodable(serializer);
+            }
             continue;
         }
         sxml_byte_view escape = sxml_find_escape(
@@ -835,6 +841,7 @@ sxml_status sxml_serializer_write_character_data(sxml_serializer *serializer,
     case SXML_CHARACTER_CONTEXT_TEXT:
     case SXML_CHARACTER_CONTEXT_ATTRIBUTE:
     case SXML_CHARACTER_CONTEXT_RAW_TEXT:
+    case SXML_CHARACTER_CONTEXT_UNESCAPED_TEXT:
         break;
     }
     if (!serializer->applies_character_maps || serializer->mapping_count == 0) {
@@ -1354,6 +1361,12 @@ static sxml_status sxml_sequence_normalizer_take_leaf(sxml_sequence_normalizer *
         normalizer->next_child = description.first_child;
         return SXML_STATUS_OK;
     case SXML_NODE_KIND_TEXT: {
+        if (description.disables_output_escaping) {
+            /* Not merged: the method writes it unescaped (D188). */
+            normalizer->has_pending_node = true;
+            normalizer->pending_node = node;
+            return SXML_STATUS_OK;
+        }
         sxml_byte_view content = {.bytes = NULL, .byte_count = 0};
         status = sxml_node_get_content(node, &content);
         return status == SXML_STATUS_OK ? sxml_sequence_normalizer_append_text(normalizer, content)
@@ -1386,7 +1399,7 @@ static sxml_status sxml_sequence_normalizer_take_child(sxml_sequence_normalizer 
     normalizer->has_next_child = description.has_next_sibling;
     normalizer->next_child = description.next_sibling;
     normalizer->is_in_document = normalizer->has_next_child;
-    if (description.node_kind == SXML_NODE_KIND_TEXT) {
+    if (description.node_kind == SXML_NODE_KIND_TEXT && !description.disables_output_escaping) {
         sxml_byte_view content = {.bytes = NULL, .byte_count = 0};
         status = sxml_node_get_content(child, &content);
         return status == SXML_STATUS_OK ? sxml_sequence_normalizer_append_text(normalizer, content)

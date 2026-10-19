@@ -875,6 +875,10 @@ typedef enum sxml_ir_construction_flag {
        (glossary cdata_section; XSLT 4.0, section 11.4.3, the cdata
        attribute; D163). */
     SXML_IR_CONSTRUCTION_CDATA_SECTION = 1U << 4U,
+    /* TEXT only: the text node's characters are serialized unescaped
+       (glossary disable_output_escaping; XSLT 4.0, section 26.1.8;
+       D188). */
+    SXML_IR_CONSTRUCTION_DISABLES_OUTPUT_ESCAPING = 1U << 5U,
 } sxml_ir_construction_flag;
 
 /* Every bit of sxml_ir_construction_flag. */
@@ -883,14 +887,16 @@ typedef enum sxml_ir_construction_flag {
      (uint32_t)SXML_IR_CONSTRUCTION_NO_INHERIT_NAMESPACES |                   \
      (uint32_t)SXML_IR_CONSTRUCTION_PRESERVES_TYPES |                         \
      (uint32_t)SXML_IR_CONSTRUCTION_XSLT_RULES |                              \
-     (uint32_t)SXML_IR_CONSTRUCTION_CDATA_SECTION)
+     (uint32_t)SXML_IR_CONSTRUCTION_CDATA_SECTION |                           \
+     (uint32_t)SXML_IR_CONSTRUCTION_DISABLES_OUTPUT_ESCAPING)
 
 /*
  * The node constructor kinds and SHALLOW_COPY. Which fields apply:
  * DOCUMENT content, construction_flags; ELEMENT name, namespace_bindings,
  * name_namespaces, content, construction_flags; ATTRIBUTE name,
  * name_namespaces, value; NAMESPACE name (the prefix), value (the URI);
- * TEXT value, construction_flags (CDATA_SECTION only); COMMENT value;
+ * TEXT value, construction_flags (CDATA_SECTION and
+ * DISABLES_OUTPUT_ESCAPING only); COMMENT value;
  * PROCESSING_INSTRUCTION name (the target), value;
  * SHALLOW_COPY value (the item), content, construction_flags.
  * The others are empty (the verifier checks). A NONE name or value is the

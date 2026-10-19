@@ -887,24 +887,128 @@ static sxml_status bind_checked_namespace_uri(sxml_xpath_lowerer *lowerer,
                 value);
 }
 
+/* How xsl:value-of or xsl:text treats output escaping (26.1.8). */
+typedef enum escaping_choice {
+    /* disable-output-escaping is no, or it is ignored because the
+       instruction is lexically in temporary output state. */
+    SXML_ESCAPING_KEPT,
+    /* yes, and the instruction is in final output state. */
+    SXML_ESCAPING_DISABLED,
+    /* yes in a template that may be called in temporary output state:
+       chosen at run time from the tunnel parameter that says so. */
+    SXML_ESCAPING_DISABLED_UNLESS_TEMPORARY,
+} escaping_choice;
+
+/* 26.1.8: "If output escaping is disabled for an xsl:value-of or xsl:text
+   instruction evaluated when temporary output state is in effect, the
+   request to disable output escaping is ignored." So the mark is set only
+   in final output state, which src/xslt_output.c tracks for
+   xsl:result-document (26.2.6): lexically, and through a tunnel
+   parameter in the templates called (D188). */
+static escaping_choice escaping_choice_of(const text_instruction_locals *locals) {
+    const sxml_xslt_lowering *lowering = locals->head.lowering;
+    const sxml_xslt_ast_attribute *attribute =
+        find_attribute(lowering, (attribute_lookup){
+                                     .node = locals->head.node,
+                                     .kind = SXML_XSLT_AST_ATTRIBUTE_DISABLE_OUTPUT_ESCAPING});
+    /* 11.4.3: "If the cdata attribute is present, regardless of its
+       effective value, then the disable-output-escaping attribute is
+       ignored." */
+    const bool has_cdata =
+        find_attribute(lowering, (attribute_lookup){.node = locals->head.node,
+                                                    .kind = SXML_XSLT_AST_ATTRIBUTE_CDATA})
+            ->value.kind == SXML_XSLT_AST_VALUE_KIND_VALUE_TEMPLATE;
+    if (attribute->value.kind != SXML_XSLT_AST_VALUE_KIND_BOOLEAN ||
+        !attribute->value.payload.is_true || has_cdata ||
+        sxml_xslt_lowering_is_in_temporary_output_state(lowering, locals->head.node)) {
+        return SXML_ESCAPING_KEPT;
+    }
+    sxml_ir_atom tunnel_parameters = {0};
+    return sxml_xslt_lowering_received_tunnel_parameters(lowering, &tunnel_parameters)
+               ? SXML_ESCAPING_DISABLED_UNLESS_TEMPORARY
+               : SXML_ESCAPING_DISABLED;
+}
+
+/* A text constructor of text with the flags, its output escaping as
+   chosen; is_temporary is the received output state for
+   SXML_ESCAPING_DISABLED_UNLESS_TEMPORARY. */
+typedef struct text_node_request {
+    sxml_ir_atom text;
+    uint32_t construction_flags;
+    escaping_choice escaping;
+    sxml_ir_atom is_temporary;
+} text_node_request;
+
+static sxml_status make_text_node(sxml_xpath_lowerer *lowerer, const text_node_request *request,
+                                  sxml_ir_expression *expression) {
+    const sxml_ir_expression escaped = {
+        .expression_kind = SXML_IR_EXPRESSION_KIND_TEXT_CONSTRUCTOR,
+        .node_construction = {.value = request->text,
+                              .construction_flags = request->construction_flags}};
+    sxml_ir_expression unescaped = escaped;
+    unescaped.node_construction.construction_flags |=
+        (uint32_t)SXML_IR_CONSTRUCTION_DISABLES_OUTPUT_ESCAPING;
+    switch (request->escaping) {
+    case SXML_ESCAPING_KEPT:
+        *expression = escaped;
+        return SXML_STATUS_OK;
+    case SXML_ESCAPING_DISABLED:
+        *expression = unescaped;
+        return SXML_STATUS_OK;
+    case SXML_ESCAPING_DISABLED_UNLESS_TEMPORARY:
+        break;
+    }
+    sxml_ir_expression_index then_branch = {0};
+    sxml_ir_expression_index else_branch = {0};
+    sxml_status status = sxml_xslt_lowering_add_expression(lowerer, escaped, &then_branch);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xslt_lowering_add_expression(lowerer, unescaped, &else_branch);
+    }
+    *expression = (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_CONDITIONAL,
+                                       .conditional = {.condition = request->is_temporary,
+                                                       .then_branch = then_branch,
+                                                       .else_branch = else_branch}};
+    return status;
+}
+
 /* The text node of xsl:value-of or xsl:text: one asking for CDATA
    sections when the cdata attribute is yes (11.4.3), chosen at run time
-   when the attribute is computed. */
+   when the attribute is computed; one whose escaping is disabled as
+   escaping_choice_of says. */
 static sxml_status finish_text_node(sxml_xpath_lowering_machine *machine,
                                     sxml_xpath_lowering_frame *frame, sxml_ir_atom text) {
     sxml_xpath_lowerer *lowerer = machine->state;
     const text_instruction_locals *locals = frame->locals;
-    const sxml_ir_expression plain = {.expression_kind = SXML_IR_EXPRESSION_KIND_TEXT_CONSTRUCTOR,
-                                      .node_construction = {.value = text}};
-    sxml_ir_expression cdata_section = plain;
-    cdata_section.node_construction.construction_flags =
-        (uint32_t)SXML_IR_CONSTRUCTION_CDATA_SECTION;
+    text_node_request request = {.text = text,
+                                 .construction_flags = 0,
+                                 .escaping = escaping_choice_of(locals),
+                                 .is_temporary = {0}};
+    sxml_status status = SXML_STATUS_OK;
+    if (request.escaping == SXML_ESCAPING_DISABLED_UNLESS_TEMPORARY) {
+        status = sxml_xslt_lowering_bind_received_output_state(
+            lowerer,
+            &(sxml_xslt_output_state_mark){
+                .lowering = locals->head.lowering, .node = locals->head.node, .block = frame->block},
+            &request.is_temporary);
+    }
+    sxml_ir_expression plain = {0};
+    sxml_ir_expression cdata_section = {0};
+    if (status == SXML_STATUS_OK) {
+        status = make_text_node(lowerer, &request, &plain);
+    }
+    if (status == SXML_STATUS_OK && (locals->is_cdata_section || locals->has_computed_cdata)) {
+        request.construction_flags = (uint32_t)SXML_IR_CONSTRUCTION_CDATA_SECTION;
+        status = make_text_node(lowerer, &request, &cdata_section);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
     if (!locals->has_computed_cdata) {
         return finish_with_expression(machine, frame,
                                       locals->is_cdata_section ? cdata_section : plain);
     }
     sxml_ir_atom is_yes = {0};
-    sxml_status status = sxml_xslt_lowering_bind_boolean_value(
+    status = sxml_xslt_lowering_bind_boolean_value(
         lowerer, (sxml_xslt_boolean_value){.block = frame->block, .value = locals->cdata},
         &is_yes);
     sxml_ir_expression_index then_branch = {0};
