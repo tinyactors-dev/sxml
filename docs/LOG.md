@@ -4,6 +4,16 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- cli-2 done (D217): the sxml command writes files, only where its
+  command line says. `--output=FILE` (`-o`) and `--force` on xpath,
+  xquery, transform and serialize; `sxml transform --result-directory=DIR`
+  writes result documents with an href below DIR (the base output URI);
+  `sxml xquery --allow-put` lets fn:put store documents. Every file goes
+  through a temporary file and is committed only when the command
+  succeeds (new `sxml_cli_file_writer`, `apps/sxml/platform_file_writer.c`).
+  Also `--method=csv`, and an unknown option names the commands that
+  have it. Folded in 7.10b's static base URI for the query commands. CLI
+  tests 161 to 203 (debug preset, ASan and UBSan); wasm builds.
 - js-1 done (D216): the JavaScript package's full module,
   `sxml-full.wasm`, has XQuery 4.0 with the Update Facility
   (`Processor.compileQuery`: external variables, output declarations,

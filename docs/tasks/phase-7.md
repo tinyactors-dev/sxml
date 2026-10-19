@@ -808,6 +808,28 @@ After 7.2 (D189), D207 and D208. The package covered XPath only.
 `javascript/languages_full`); `sxml.wasm` 2,134,058 bytes, unchanged;
 `sxml-full.wasm` 3,666,545 to 6,570,723 (budget 7,000,000 / 2,450,000).
 
+### cli-2 The sxml command's gaps: written files, csv, option hints (implementation)
+After D44, D200, D205. The command wrote nothing but EXPath File output.
+- **Specifications**: XSLT 4.0 (2.4.6 base output URI, 26.2 result
+  documents), the XQuery Update Facility 3.0 (6.1 fn:put),
+  Serialization 4.0 (CSV output method); the rules of `docs/CLI.md`
+  (D44: one intent, one action; files only where the command line names
+  them; `--force` to replace).
+- **Mechanism**: one file writer interface for the commands
+  (`sxml_cli_file_writer`, beside the file reader), temporary file and
+  move on commit; the query run commits or abandons all its files at
+  the end. No library header changes.
+- **Owns**: `apps/` (new `apps/sxml/platform_file_writer.c`),
+  `tests/cli/`, `apps/sxml/README.md`, `docs/CLI.md`.
+- **Done when**: `--output` and `--force` on xpath, xquery, transform
+  and serialize; result documents with an href under an explicit
+  option; fn:put under an explicit flag; `--method=csv`; hints for a
+  command's misspelled options; CLI tests with goldens, help and README
+  with real output.
+**Done** 2026-10-19 (D217): `--output=FILE`/`-o`, `--force`,
+`sxml transform --result-directory=DIR`, `sxml xquery --allow-put`,
+`--method=csv`, other commands' options named; CLI tests 161 to 203.
+
 ## Proposed for the owner
 
 No phase covers these four features yet (D183 Proposed). The owner has

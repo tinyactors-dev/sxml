@@ -521,6 +521,8 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `attribute_definition` | One attribute of an attribute-list declaration: its name, type and default (XML 1.0, section 3.3) |
 | `attribute_default` | The value an attribute definition supplies when an element does not specify the attribute (XML 1.0, section 3.3.2) |
 | `file_reader` | Interface through which a command of the sxml program reads a named file or standard input (`sxml_cli_file_reader`) |
+| `file_writer` | Interface through which a command of the sxml program writes the files its command line names: each write goes to a temporary file beside the target and is committed (moved into place in one step) or abandoned (`sxml_cli_file_writer`, `sxml_cli_file_write`; D217) |
+| `result_directory` | The directory `sxml transform --result-directory` names: its URI is the base output URI, and only result documents below it are written (D217) |
 | `file_system` | Host interface through which the EXPath File functions reach files and directories: describe, read, write, list, create, delete, move and temporary names, on absolute normalized paths, with the host's separators, current directory and temporary directory (`sxml_file_system`; EXPath File 4.0; D184, D200) |
 | `file_description` | What a file system tells about one path: whether it is a file, a directory or absent, its size and its last modification time (`sxml_file_description`; EXPath File 4.0, 3) |
 | `sandpit` | The directory of files a QT4 test environment names for EXPath File cases, which the QT4 driver copies to a fresh temporary directory for each case and serves as the current directory (D200) |

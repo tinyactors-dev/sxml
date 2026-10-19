@@ -20,17 +20,21 @@ Every invocation does exactly what its words say, and nothing else.
   never a mode guessed from the input (file or expression, XML or JSON).
 - **The command line fully determines behaviour.** No configuration files.
   The environment changes presentation only (color, once there is any).
-- **No hidden side effects.** sxml writes a file only when `--output=FILE`
-  names it, refuses to replace an existing file unless `--force` is given,
-  never deletes anything, and never touches the network: `fn:doc`,
-  `fn:unparsed-text` and friends resolve local files only.
+- **No hidden side effects.** sxml writes a file only when the command
+  line names it (see "Written files" below), refuses to replace an existing
+  file unless `--force` is given, never deletes anything, and never
+  touches the network: `fn:doc`, `fn:unparsed-text` and friends resolve
+  local files only.
 - **Standard input is read only when `-` is given** as a file operand.
 - **Nothing is advertised that is not implemented.** A command or option
   enters the program's table with its working code; planned ones are
   listed only under "Planned commands" below.
 - **No abbreviations, no auto-correction.** `--form` is not `--format`
   (unlike GNU getopt_long); a typo gets a "did you mean" suggestion and exit
-  code 2, never a guess. Commands have no aliases except `help`/`--help` and
+  code 2, never a guess. An unknown option with no close match among the
+  command's own that another command has is named as theirs:
+  `sxml xpath: unknown option '--expression'; it is an option of 'sxml
+  xquery'`. Commands have no aliases except `help`/`--help` and
   `version`/`--version`, which the guidelines ask for.
 - **No repeated single options.** `--format=json --format=text` is a usage
   error, not "last one wins"; collecting options (`--param`) say
@@ -55,6 +59,44 @@ Every invocation does exactly what its words say, and nothing else.
 - `sxml` with no arguments is a usage error (exit 2) that prints the usage
   line: a script that forgot the command must not succeed.
 
+### Written files
+
+Decided in D217 (packet cli-2). Three options name files to write; nothing
+else writes one, except the EXPath File functions that
+`--allow-file-access` grants (D200).
+
+- **`--output=FILE` (`-o FILE`)** on `xpath`, `xquery`, `transform` and
+  `serialize`: the result goes to FILE instead of standard output, byte
+  for byte what standard output would get. `-` and the empty name are
+  usage errors (standard output is the default).
+- **`--result-directory=DIR`** on `transform`, for `xsl:result-document`
+  with an `href`: DIR's file URI is the base output URI (XSLT 4.0, 2.4.6),
+  so relative hrefs resolve against it; a result document whose absolute
+  URI is not a file below DIR (`..`, another directory, another scheme,
+  an escaped `/`) is an error, exit 3. DIR must exist; directories below
+  it are made as hrefs need. Without the option, each result document is
+  evaluated, reported on standard error ("not written; give
+  --result-directory") and dropped. `--output` alone does not write result
+  documents next to FILE: two intents, two options.
+- **`--allow-put`** on `xquery`, for `fn:put` (XQUF 3.0, 6.1; D205): the
+  document goes to the local file its `file:` URI names, resolved against
+  the static base URI (the working directory), serialized with fn:put's
+  `$params`. Other schemes are an error, exit 3. Without the flag fn:put
+  raises FOUP0002, as the library does for a host that stores nothing.
+  `--allow-file-access` does not imply it: that flag grants the EXPath
+  File functions, a different feature.
+
+Every written file:
+- is written to a temporary file beside it and moved into place in one
+  step (POSIX `rename`, or `link` when not replacing, so a file that
+  appeared meanwhile is not overwritten; `MoveFileEx` on Windows), so no
+  reader sees it half written;
+- is committed only when the whole command succeeds; on any error every
+  temporary file is removed and no file changes;
+- replaces an existing file only with `--force` (exit 3 otherwise, checked
+  before the work starts and again when committing). `--force` without one
+  of these options is a usage error.
+
 ### Output
 
 - Results go to standard output; diagnostics, warnings and usage errors to
@@ -77,17 +119,14 @@ Every invocation does exactly what its words say, and nothing else.
 
 ## Planned commands
 
-Later phases add these, with exactly these synopses. Shared options:
-`--format=text|json` (report format), `--context-item=FILE` (parse FILE, or
-stdin for `-`, as the context item), `--param=NAME=VALUE` (repeatable;
-binds external variable `$NAME` to `xs:untypedAtomic(VALUE)`),
-`--method=adaptive|xml|json|text` (serialization of results),
-`--output=FILE` and `--force` (write results to a file; replace it).
-
-| Phase | Synopsis | Exit 1 when |
-| --- | --- | --- |
-| 3 | `--output=FILE [--force]` for `xquery` and `serialize` (the CLI framework has no file writer yet) | as the command |
-| 4 | `--output=FILE [--force]` for `transform`, and writing its result documents below FILE's directory (the CLI framework has no file writer yet) | as the command |
+None today. The options the commands share: `--format=text|json`
+(report format), `--context-item=FILE` (parse FILE, or stdin for `-`, as
+the context item), `--param=NAME=VALUE` (repeatable; binds external
+variable `$NAME` to `xs:untypedAtomic(VALUE)`),
+`--method=adaptive|xml|xhtml|html|text|json|csv` (serialization of
+results), `--output=FILE` and `--force` (write results to a file; replace
+it). `--output`, `--force` and result documents arrived with packet cli-2
+(D217).
 
 The QT4 and XSLT 4.0 conformance drivers are not `sxml` commands but
 developer tools under `tests/` built with the same framework (D44).
@@ -101,8 +140,10 @@ developer tools under `tests/` built with the same framework (D44).
   opens files: all I/O goes through `sxml_cli_output_stream`.
 - `apps/sxml/`: the program table with the program's description and
   examples (`program.c`), the command handlers (`command_<name>.c`),
-  `main.c`, and the only file that touches stdio and the working
-  directory (for the URIs of relative file names), `platform_stdio.c`. The
+  `main.c`, and the platform layer: `platform_stdio.c` (stdio and the
+  working directory, for the URIs of relative file names),
+  `platform_file_system.c` (EXPath File) and `platform_file_writer.c` (the
+  file writer of `--output`, `--result-directory` and `--allow-put`). The
   query commands `xpath`, `xquery` and `serialize` share (and `transform`
   reuses) their processor, the local-file resolver, `--param`,
   `--context-item`, the `--method` choices, error reports and result
@@ -110,11 +151,15 @@ developer tools under `tests/` built with the same framework (D44).
   `command_<name>.c` plus one table entry, imitating `command_version.c`.
   Files are read through the invocation's `sxml_cli_file_reader`
   (`cli_command.h`), which the platform layer implements over stdio
-  (`command_check.c` uses it).
+  (`command_check.c` uses it), and written through its
+  `sxml_cli_file_writer` (begin, commit, abandon; `query_command.h`'s
+  `sxml_query_run_begin_file` and `sxml_query_run_finish`).
 - Tests, all in `tests/cli/` (registered from `apps/CMakeLists.txt`, outside
   the `tests/*_test.c` glob): framework unit tests `cli_*_test.c`, and
   end-to-end golden tests (`sxml_add_cli_test`: arguments, exit code,
-  `expected/<name>.stdout` and `.stderr`; `SXML_UPDATE_GOLDEN=1` rewrites).
+  `expected/<name>.stdout` and `.stderr`; `SXML_UPDATE_GOLDEN=1` rewrites;
+  `WORKSPACE` runs in an empty directory and compares the files written
+  with `expected/<name>.files`).
   They run in `tests/cli/input/`, which holds the input files. The help
   texts have golden files too (`expected/*_help.stdout`): a change to a
   help text updates its golden file and `apps/sxml/README.md` together,

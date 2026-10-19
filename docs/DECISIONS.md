@@ -8794,6 +8794,58 @@ The package (`bindings/javascript`) covered XPath only.
   module, where it checks that the three are refused. The existing
   package tests pass on both modules.
 
+### D217. The sxml command writes files: --output, --result-directory, --allow-put (packet cli-2)
+Recorded 2026-10-19, after D44, D200, D205. Closes the CLI gaps D44 left
+planned ("no files written without --output") and the queue's cli items.
+- **One mechanism** (`apps/cli_framework/cli_command.h`): the invocation
+  gets an `sxml_cli_file_writer` beside the file reader (find_kind,
+  create_directory, begin, commit, abandon), implemented by the platform
+  layer's new `apps/sxml/platform_file_writer.c`. A write goes to a
+  temporary file `.NAME.sxml-N.tmp` beside the target, made with O_EXCL
+  (fopen "x" on Windows), and is moved into place on commit: rename when
+  replacing, else link (EEXIST refuses a file that appeared meanwhile)
+  then unlink, falling back to a second look and rename where link is
+  refused (WASI, file systems without hard links); MoveFileEx on Windows.
+  The query commands keep their files in `sxml_query_run`;
+  `sxml_query_run_finish(run, exit_code)` commits them all on success and
+  abandons them all otherwise, so a failing command changes no file.
+- **--output=FILE (-o FILE) and --force** on xpath, xquery, transform and
+  serialize: FILE gets the bytes standard output would get. An existing
+  FILE without --force is refused before the work starts (exit 3, "'FILE'
+  exists; give --force to replace it"); `-` or an empty name is a usage
+  error, as is --force with no option that writes. For transform, FILE's
+  URI is the base output URI unless --result-directory is given.
+- **--result-directory=DIR** (transform; XSLT 4.0, 2.4.6 and 26.2): the
+  explicit option the orchestrator proposed, not "below --output's
+  directory" (D44's planned row), because one option naming one file must
+  not write others (one intent, one action). DIR must exist; its
+  normalized file URI is the base output URI; a result document whose
+  absolute URI, percent-decoded, is not a file below it (dot segments,
+  an escaped "/", another directory or scheme) is refused with exit 3;
+  directories below DIR are made. Without the option result documents
+  with an href are reported on standard error and dropped, as before but
+  no longer silently.
+- **--allow-put** (xquery; XQUF 3.0, 6.1; D205): an explicit flag, not
+  part of --allow-file-access, which grants the EXPath File feature. With
+  it the update sink gets receive_put_document: the node is serialized
+  with fn:put's $params (`sxml_serialization_parameter_reader`) to the
+  local file its `file:` URI names (resolved against the static base URI,
+  the working directory since 7.10b); another scheme exits 3. Without it
+  fn:put still raises FOUP0002.
+- **--method=csv** in every command's choices (Serialization 4.0, CSV
+  output method); the query commands add no final line feed after it,
+  since every record ends with one.
+- **Option hints**: an unknown long option with no close match among the
+  command's own names the commands that have it ("it is an option of 'sxml
+  xquery'"), in `cli_help.c`; close matches keep "did you mean".
+- **Tests**: `sxml_add_cli_test(... WORKSPACE FILES ... EXISTING ...)`
+  runs in an empty directory and compares every file written (changed
+  inputs included) with `expected/<name>.files`, which catches a
+  temporary file left behind. CLI tests 161 to 203.
+- **Left**: Windows paths of the file writer are written but not built or
+  run here; the permissions of a replaced file are not kept (the new file
+  has the default mode); fn:put does not make missing directories.
+
 ## Proposed
 
 - **A streamability option and a streamed source in `xslt.h`** (packet

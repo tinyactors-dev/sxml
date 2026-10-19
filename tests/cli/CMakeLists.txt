@@ -298,7 +298,7 @@ sxml_add_cli_test(transform_result_directory_output EXIT_CODE 0 WORKSPACE FILES 
 sxml_add_cli_test(transform_result_directory_exists EXIT_CODE 3 WORKSPACE FILES books.xml xslt/chapters.xsl EXISTING site/books/b2.xml ARGUMENTS transform --result-directory=site --output=index.txt xslt/chapters.xsl books.xml)
 sxml_add_cli_test(transform_result_directory_force EXIT_CODE 0 WORKSPACE FILES books.xml xslt/chapters.xsl EXISTING site/books/b2.xml ARGUMENTS transform --result-directory=site --force xslt/chapters.xsl books.xml)
 sxml_add_cli_test(transform_result_directory_parent EXIT_CODE 3 WORKSPACE FILES xslt/escape.xsl EXISTING site/keep.txt ARGUMENTS transform --result-directory=site xslt/escape.xsl)
-sxml_add_cli_test(transform_result_directory_absolute EXIT_CODE 3 WORKSPACE FILES xslt/escape.xsl EXISTING site/keep.txt ARGUMENTS transform --result-directory=site --param=href=file:///elsewhere.xml xslt/escape.xsl)
+sxml_add_cli_test(transform_result_directory_other_scheme EXIT_CODE 3 WORKSPACE FILES xslt/escape.xsl EXISTING site/keep.txt ARGUMENTS transform --result-directory=site --param=href=http://example.com/a.xml xslt/escape.xsl)
 sxml_add_cli_test(transform_result_directory_escaped EXIT_CODE 3 WORKSPACE FILES xslt/escape.xsl EXISTING site/keep.txt ARGUMENTS transform --result-directory=site --param=href=a%2F..%2F..%2Fb.xml xslt/escape.xsl)
 sxml_add_cli_test(transform_result_directory_missing EXIT_CODE 3 WORKSPACE FILES books.xml xslt/chapters.xsl ARGUMENTS transform --result-directory=site xslt/chapters.xsl books.xml)
 sxml_add_cli_test(transform_result_directory_force_alone EXIT_CODE 2 ARGUMENTS transform --force xslt/hello.xsl)

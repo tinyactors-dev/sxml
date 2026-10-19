@@ -3,7 +3,7 @@
 `sxml` is the command-line program of the sxml library. It checks XML
 documents, validates them against XSD 1.1 schemas, evaluates XPath 4.0
 expressions and XQuery 4.0 queries, runs XSLT 4.0 stylesheets, and writes
-the results to standard output.
+the results to standard output or to the file that `--output` names.
 
 ```console
 $ sxml xpath --context-item=books.xml '//book[@year < 1980]/title/string()'
@@ -54,9 +54,15 @@ sxml [-h | --help | --version] COMMAND [ARGUMENT...]
 - Results go to standard output. Errors and diagnostics go to standard
   error.
 - `sxml` reads documents, schemas, modules and stylesheets from local files
-  only. It does not use the network and reads no configuration files. It
-  writes files only when `sxml xpath` or `sxml xquery` is given
-  `--allow-file-access`.
+  only. It does not use the network and reads no configuration files.
+- `sxml` writes a file only when an option names it: `--output=FILE`
+  (`-o FILE`) for the result of `xpath`, `xquery`, `transform` and
+  `serialize`, `--result-directory=DIR` for the result documents of
+  `transform`, `--allow-put` for `fn:put` in `xquery`, and
+  `--allow-file-access` for the EXPath File functions. Each file is
+  written only when the command succeeds, in one step (through a
+  temporary file beside it), and replaces an existing file only with
+  `--force`.
 
 ## Sample files
 
@@ -115,6 +121,26 @@ The examples on this page use these files.
 </xsl:stylesheet>
 ```
 
+`chapters.xsl`, which writes one page for each book as a result
+document:
+
+```xml
+<xsl:stylesheet version="4.0" expand-text="yes" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
+  <xsl:output method="html"/>
+  <xsl:template match="/books">
+    <ul>
+      <xsl:for-each select="book">
+        <xsl:variable name="page" select="'books/' || @year || '.html'"/>
+        <xsl:result-document href="{$page}" method="html">
+          <h1>{title}</h1>
+        </xsl:result-document>
+        <li><a href="{$page}">{title}</a></li>
+      </xsl:for-each>
+    </ul>
+  </xsl:template>
+</xsl:stylesheet>
+```
+
 `page.xml`:
 
 ```xml
@@ -156,7 +182,7 @@ The examples on this page use these files.
 Evaluate an XPath 4.0 expression.
 
 ```
-sxml xpath [--context-item=FILE] [--param=NAME=VALUE]... [--method=METHOD] [--allow-file-access] EXPRESSION
+sxml xpath [--context-item=FILE] [--param=NAME=VALUE]... [--method=METHOD] [--allow-file-access] [--output=FILE] [--force] EXPRESSION
 ```
 
 `sxml xpath` evaluates EXPRESSION as XPath 4.0, with the F&O 4.0 function
@@ -167,8 +193,10 @@ adaptive output method writes the result, one item on each line.
 | --- | --- |
 | `--context-item=FILE` | Parse FILE and make it the context item. Without this option, there is no context item. |
 | `--param=NAME=VALUE` | Bind `$NAME` to `xs:untypedAtomic(VALUE)`. Repeatable. |
-| `--method=METHOD` | Serialization method: `adaptive` (default), `xml`, `xhtml`, `html`, `text` or `json`, each with its default parameters |
+| `--method=METHOD` | Serialization method: `adaptive` (default), `xml`, `xhtml`, `html`, `text`, `json` or `csv`, each with its default parameters |
 | `--allow-file-access` | Let the expression read and write files with the EXPath File functions (`file:`). Without this option, they do not exist. |
+| `--output=FILE`, `-o FILE` | Write the result to FILE instead of standard output: the same bytes, written only when the expression succeeds |
+| `--force` | Let `--output` replace a file that exists. Without it, an existing FILE is an error (exit 3) and stays as it is. |
 
 - `fn:doc` and the other resource functions (`fn:html-doc`,
   `fn:unparsed-text`, `fn:json-doc` and others) read local files. The
@@ -199,8 +227,9 @@ adaptive output method writes the result, one item on each line.
 
 Exit status: 0 on success; 1 for a static, type or dynamic error
 (serialization errors included) or a context document that is not
-well-formed; 2 for a bad `--param` or `--method`; 3 when a file cannot be
-read; 4 when a limit is exceeded.
+well-formed; 2 for a bad option; 3 when a file cannot be read or written
+(also an `--output` FILE that exists without `--force`); 4 when a limit is
+exceeded.
 
 ```console
 $ sxml xpath '1 to 3'
@@ -229,6 +258,18 @@ true()
 306
 $ sxml xpath "file:exists('books.xml')"
 expression:1:1: err:XPST0017: no function with this name and arity is known
+$ sxml xpath --context-item=books.xml --method=csv '(["title", "year"], //book ! [string(title), string(@year)])'
+title,year
+"Godel, Escher, Bach",1979
+The Art of Computer Programming,1968
+Structure and Interpretation of Computer Programs,1986
+$ sxml xpath --context-item=books.xml --output=titles.txt '//title/string()'
+$ cat titles.txt
+"Godel, Escher, Bach"
+"The Art of Computer Programming"
+"Structure and Interpretation of Computer Programs"
+$ sxml xpath --output=titles.txt '1'
+sxml xpath: 'titles.txt' exists; give --force to replace it
 ```
 
 ## sxml xquery
@@ -236,7 +277,7 @@ expression:1:1: err:XPST0017: no function with this name and arity is known
 Run an XQuery 4.0 query.
 
 ```
-sxml xquery [--context-item=FILE] [--expression=TEXT] [--param=NAME=VALUE]... [--method=METHOD] [--allow-file-access] [QUERY-FILE]
+sxml xquery [--context-item=FILE] [--expression=TEXT] [--param=NAME=VALUE]... [--method=METHOD] [--allow-file-access] [--allow-put] [--output=FILE] [--force] [QUERY-FILE]
 ```
 
 `sxml xquery` runs the XQuery 4.0 main module in QUERY-FILE, or the query
@@ -249,8 +290,11 @@ serialization. The default method is xml.
 | `--context-item=FILE` | Parse FILE and make it the context item |
 | `--expression=TEXT` | The query text, instead of QUERY-FILE |
 | `--param=NAME=VALUE` | Bind the external variable `$NAME`, if the query declares it, to `xs:untypedAtomic(VALUE)`. Repeatable. |
-| `--method=METHOD` | Replace the serialization method of the query: `adaptive`, `xml`, `xhtml`, `html`, `text` or `json` |
+| `--method=METHOD` | Replace the serialization method of the query: `adaptive`, `xml`, `xhtml`, `html`, `text`, `json` or `csv` |
 | `--allow-file-access` | Let the query read and write files with the EXPath File functions, as for [sxml xpath](#sxml-xpath) |
+| `--allow-put` | Let `fn:put` write the documents it stores to local files |
+| `--output=FILE`, `-o FILE` | Write the result to FILE instead of standard output |
+| `--force` | Let `--output` and `fn:put` replace files that exist |
 
 - `import module ... at` reads library modules from local files, relative
   to the working directory. `import schema ... at` reads schema documents
@@ -263,6 +307,13 @@ serialization. The default method is xml.
   replace, rename, updating functions) writes the context item's document
   as its updates left it, in place of its value, which is empty. The file
   itself is not changed; copy-modify and transform-with work in any query.
+- `fn:put($node, $uri)` stores a document only with `--allow-put`: sxml
+  serializes the node, with the parameters of fn:put's third argument, to
+  the local file that `$uri` names. A relative `$uri` is a file in the
+  working directory; a URI with another scheme than `file:` is an error
+  (exit 3). Without `--allow-put`, fn:put raises `err:FOUP0002`.
+- Files are written only when the whole query succeeds: the `--output`
+  file and every fn:put file, or none of them.
 - An error is reported on standard error as
   `QUERY-FILE:LINE:COLUMN: err:CODE: description`, or with `expression`
   in place of QUERY-FILE for `--expression`. A static error in a library
@@ -285,6 +336,17 @@ $ sxml xquery --context-item=books.xml --expression='import schema default eleme
 true
 $ sxml xquery --allow-file-access --method=text --expression='file:write-text-lines("notes.txt", ("one", "two")), file:read-text-lines("notes.txt")[2]'
 two
+$ sxml xquery --context-item=books.xml --method=csv --expression='//book ! [string(title), number(price)]'
+"Godel, Escher, Bach",22.5
+The Art of Computer Programming,180
+Structure and Interpretation of Computer Programs,55
+$ sxml xquery --allow-put --context-item=books.xml --expression='put(//book[1], "first.xml")' > /dev/null
+$ cat first.xml
+<book year="1979"><title>Godel, Escher, Bach</title><price>22.50</price></book>
+$ sxml xquery --allow-put --context-item=books.xml --expression='put(//book[1], "first.xml")' > /dev/null
+sxml xquery: 'first.xml' exists; give --force to replace it
+$ sxml xquery --context-item=books.xml --expression='put(., "copy.xml")'
+expression: err:FOUP0002: fn:put has no location to store at: the host's update sink takes no documents (XQuery Update Facility 3.0, 6.1)
 ```
 
 ## sxml transform
@@ -292,7 +354,7 @@ two
 Transform a document with an XSLT 4.0 stylesheet.
 
 ```
-sxml transform [--initial-mode=NAME] [--initial-template=NAME] [--method=METHOD] [--param=NAME=VALUE]... STYLESHEET [INPUT]
+sxml transform [--initial-mode=NAME] [--initial-template=NAME] [--method=METHOD] [--param=NAME=VALUE]... [--result-directory=DIR] [--output=FILE] [--force] STYLESHEET [INPUT]
 ```
 
 `sxml transform` compiles the XSLT 4.0 stylesheet STYLESHEET and runs one
@@ -305,12 +367,28 @@ transformation.
 - Without INPUT, it calls the template that `--initial-template` names,
   or else `xsl:initial-template`, without a context item.
 
-The principal result goes to standard output. The unnamed `xsl:output` of
-the stylesheet controls the serialization. A final line feed is added
-when the result does not end with one. An `xsl:result-document` without
-`href` is part of the principal result. Result documents with an `href`
-are not written. `xsl:message` output goes to standard error, one message
+The principal result goes to standard output, or to the file that
+`--output` names. The unnamed `xsl:output` of the stylesheet controls the
+serialization. A final line feed is added when the result does not end
+with one. An `xsl:result-document` without `href` is part of the
+principal result. `xsl:message` output goes to standard error, one message
 on each line.
+
+Result documents with an `href` are written only with
+`--result-directory=DIR`:
+
+- DIR must be a directory that exists. Its file URI is the base output
+  URI, so a relative `href` such as `books/1979.html` is the file
+  `DIR/books/1979.html`. sxml makes the directories below DIR that the
+  hrefs need.
+- A result document whose URI is not a file below DIR (`../x.html`, an
+  absolute URI elsewhere, another scheme) is an error, exit 3.
+- Without the option, each result document with an `href` is reported on
+  standard error and not written.
+
+All files are written only when the transformation succeeds: the
+`--output` file and every result document, or none of them. A file that
+exists is replaced only with `--force`.
 
 A stylesheet, or an element, with `version="1.0"` runs with XSLT 1.0
 behaviour (XSLT 4.0, 3.8.1): its XPath expressions use XPath 1.0
@@ -322,8 +400,11 @@ XTDE1425 only when called.
 | --- | --- |
 | `--initial-mode=NAME` | The mode whose template rules process INPUT, instead of the default mode. Needs INPUT. Cannot be used with `--initial-template`. |
 | `--initial-template=NAME` | The named template to call, instead of applying templates to INPUT |
-| `--method=METHOD` | Replace the serialization method of the stylesheet: `adaptive`, `xml`, `xhtml`, `html`, `text` or `json` |
+| `--method=METHOD` | Replace the serialization method of the stylesheet: `adaptive`, `xml`, `xhtml`, `html`, `text`, `json` or `csv` |
 | `--param=NAME=VALUE` | Bind the stylesheet parameter or static parameter `$NAME` to `xs:untypedAtomic(VALUE)`. Repeatable. |
+| `--result-directory=DIR` | Write the result documents with an `href` into DIR, which must exist |
+| `--output=FILE`, `-o FILE` | Write the principal result to FILE instead of standard output |
+| `--force` | Let `--output` and `--result-directory` replace files that exist |
 
 - NAME is an NCName or `Q{uri}local`.
 - Included and imported modules, schemas that `xsl:import-schema` names,
@@ -334,8 +415,9 @@ XTDE1425 only when called.
 
 Exit status: 0 on success; 1 for a static, type or dynamic error
 (`xsl:message terminate="yes"` included) or a STYLESHEET or INPUT that is
-not well-formed; 2 for a bad option; 3 when a file cannot be read; 4 when
-a limit is exceeded.
+not well-formed; 2 for a bad option; 3 when a file cannot be read or
+written (a result document outside DIR included); 4 when a limit is
+exceeded.
 
 ```console
 $ sxml transform list.xsl books.xml
@@ -359,6 +441,26 @@ $ sxml transform hello.xsl
 Hello from XSLT 4.0
 $ sxml transform --initial-template=main hello.xsl
 hello.xsl: err:XTDE0040: the stylesheet has no template of the initial template's name (XSLT 4.0, 2.4.4)
+$ sxml transform chapters.xsl books.xml
+sxml transform: result document 'books/1979.html' not written; give --result-directory
+sxml transform: result document 'books/1968.html' not written; give --result-directory
+sxml transform: result document 'books/1986.html' not written; give --result-directory
+<ul>
+  <li><a href="books/1979.html">Godel, Escher, Bach</a></li>
+  <li><a href="books/1968.html">The Art of Computer Programming</a></li>
+  <li><a href="books/1986.html">Structure and Interpretation of Computer Programs</a></li>
+</ul>
+$ mkdir site
+$ sxml transform --result-directory=site --output=site/index.html chapters.xsl books.xml
+$ find site -type f | sort
+site/books/1968.html
+site/books/1979.html
+site/books/1986.html
+site/index.html
+$ cat site/books/1979.html
+<h1>Godel, Escher, Bach</h1>
+$ sxml transform --result-directory=site --output=site/index.html chapters.xsl books.xml
+sxml transform: 'site/index.html' exists; give --force to replace it
 ```
 
 ## sxml serialize
@@ -366,7 +468,7 @@ hello.xsl: err:XTDE0040: the stylesheet has no template of the initial template'
 Parse an XML document and write it again.
 
 ```
-sxml serialize [--indent] [--method=METHOD] FILE
+sxml serialize [--indent] [--method=METHOD] [--output=FILE] [--force] FILE
 ```
 
 `sxml serialize` parses FILE and writes the document to standard output
@@ -377,10 +479,12 @@ method. A FILE that is not well-formed is reported on standard error as
 | Option | Description |
 | --- | --- |
 | `--indent` | Indent the output |
-| `--method=METHOD` | Serialization method: `xml` (default), `adaptive`, `xhtml`, `html`, `text` or `json` |
+| `--method=METHOD` | Serialization method: `xml` (default), `adaptive`, `xhtml`, `html`, `text`, `json` or `csv` |
+| `--output=FILE`, `-o FILE` | Write the document to FILE instead of standard output |
+| `--force` | Let `--output` replace a file that exists, FILE itself included |
 
 Exit status: 0 on success; 1 when FILE is not well-formed or cannot be
-serialized; 3 when FILE cannot be read.
+serialized; 3 when a file cannot be read or written.
 
 ```console
 $ echo '<a><b>1</b><b>2</b></a>' | sxml serialize --indent -
@@ -390,6 +494,11 @@ $ echo '<a><b>1</b><b>2</b></a>' | sxml serialize --indent -
 </a>
 $ sxml serialize --method=html page.xml
 <!DOCTYPE html><html><head><meta charset="UTF-8"><title>Hi</title></head><body><p>One<br>two</p></body></html>
+$ sxml serialize --indent --output=page-indented.xml page.xml
+$ head -3 page-indented.xml
+<html>
+  <head>
+    <title>Hi</title>
 ```
 
 ## sxml check
@@ -621,6 +730,19 @@ $ sxml chek books.xml
 sxml: unknown command 'chek'; did you mean 'check'?
 Usage: sxml [--version] COMMAND [ARGUMENT...]
 Try 'sxml --help'.
+$ sxml xpath --contxt-item=books.xml 1
+sxml xpath: unknown option '--contxt-item'; did you mean '--context-item'?
+Usage: sxml xpath [--context-item=FILE] [--param=NAME=VALUE]... [--method=METHOD] [--allow-file-access] [--output=FILE] [--force] EXPRESSION
+Try 'sxml xpath --help'.
+```
+
+An option of another command is named as such:
+
+```console
+$ sxml xpath --expression=1
+sxml xpath: unknown option '--expression'; it is an option of 'sxml xquery'
+Usage: sxml xpath [--context-item=FILE] [--param=NAME=VALUE]... [--method=METHOD] [--allow-file-access] [--output=FILE] [--force] EXPRESSION
+Try 'sxml xpath --help'.
 ```
 
 ## Exit codes
@@ -630,5 +752,5 @@ Try 'sxml --help'.
 | 0 | Success |
 | 1 | The operation failed: a document is not well-formed or not valid, a schema has errors, or a query or stylesheet raised a static, dynamic or type error |
 | 2 | Usage error: unknown command or option, missing or extra operand, bad option value |
-| 3 | Input or output error: a file cannot be read, or a write to standard output or standard error failed (closed pipe, full disk) |
+| 3 | Input or output error: a file cannot be read or written (or exists and `--force` is not given), or a write to standard output or standard error failed (closed pipe, full disk) |
 | 4 | Internal error: out of memory, a limit was exceeded, a bug in sxml |
