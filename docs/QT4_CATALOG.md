@@ -19,7 +19,9 @@ definition is `third_party/qt4tests/catalog-schema.xsd` together with
 - `<test-case name>` holds `description`, `created`, `modified*`, an optional
   `<environment>`, `<module>*`, `<dependency>*`, `<test>` and `<result>`.
 - `<test>` holds the expression text, or `@file` names an external query
-  (rare: encodings, large queries). Every `file` attribute is resolved
+  (rare: encodings, large queries). An XQuery Update test case has several:
+  the ones before the last (`@update="true"`) change the mutable sources,
+  in order, and the last one's result is checked (D187). Every `file` attribute is resolved
   against the base URI of the XML file that contains it.
 
 Test-set names are prefixed by area: `fn-`, `op-`, `math-`, `map-`,

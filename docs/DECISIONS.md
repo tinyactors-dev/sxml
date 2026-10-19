@@ -7420,6 +7420,29 @@ expressions and their application (the task file's 7.7a and 7.7b);
 - **QT4 driver**: XQUpdate is supported; the tests of a test case run in
   order, each updating one's changed trees replace the sources they
   came from, and the last test's result is checked.
+- **Done in 7.7a** (amended at the end of the packet): besides the
+  above, transform-with (a MAP whose body copies the item and lowers the
+  modify clause with the copy as fixed focus), the prolog's construction
+  and copy-namespaces modes for copies and for the nodes insert and
+  replace copy in, upd:removeType (only the primitives that change a type
+  touch their node and its ancestors, which become xs:anyType when
+  typed), upd:propagateNamespace under no-inherit, XUDY0021 also inside
+  removed subtrees, and `sxml xquery` writing the context document as an
+  updating query left it (no flag; the file is not changed).
+- **upd-* (XQ40, release driver)**: before 0 of 825 run; after 733
+  passed (10 of them with another error code), 24 failed,
+  0 errors, 68 not run: 27 staticTyping, 40 revalidation lax and strict
+  (XUST0026 until 7.7c), 1 that needs skip unsupported.
+- **Left for 7.7b (the 4.0 draft)**: the updating return clause of
+  copy-modify (id-transform-expr-014), XUDY0038 on a dynamic call of an
+  updating function item (no test), the 4.0 draft's other additions.
+  **For 7.7c**: fn:put (13 cases) and revalidation lax and strict (40,
+  with revalidate-valtrans-ins-003). **Not ours**: copies made with
+  construction strip keep is-id and is-idrefs (sxml_tree_builder_copy_node,
+  src/tree.c: "the ID properties stay"), so 11 cases that ask for schema
+  IDs to go fail (setToUntyped, transform-expr-045 to -048); 6
+  propagateNamespace cases differ only in whitespace that assert-xml
+  compares; valskip-repnode-006 revalidates a source with an IDREF.
 
 ### D188. disable-output-escaping: a text node mark (packet 7.5)
 Recorded 2026-10-19, after D99, D163, D183, D184. The owner's prompt for

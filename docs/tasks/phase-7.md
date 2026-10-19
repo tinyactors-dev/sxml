@@ -371,6 +371,17 @@ After the owner's size decision (D183 Proposed).
 - **7.7c fn:put and revalidation**: fn:put through the update sink;
   revalidation by the schema validator over the rebuilt tree
   (`schema.h`, D165).
+**7.7a done** 2026-10-19 (D187), with the 3.0 part of 7.7b as the owner's
+order asked (D184: 3.0 first): grammar, static rules, every 3.0
+expression including transform-with and invoke updating, application,
+the xquery.h update sink, the QT4 driver and `sxml xquery`. upd-* 0 to
+733 of 825 passed (10 wrong error), 24 failed, 0 errors, 68 not run; the
+gate's 85 % of 798 is 679. **7.7b** is now the 4.0 draft's additions
+(the updating return clause of copy-modify, id-transform-expr-014;
+XUDY0038 for dynamic calls of updating function items), **7.7c** fn:put
+(13 cases) and revalidation lax and strict (40 cases, XUST0026 today).
+Not in this packet: copies with construction strip keep is-id and
+is-idrefs (src/tree.c), which 11 cases need gone.
 - **Header**: `xquery.h`, additive (7.7a). `tree.h`: none.
 - **After**: 7.7b after 7.7a; 7.7c after 7.7b.
 - **Owns**: `grammars/xquery` (the update productions), new

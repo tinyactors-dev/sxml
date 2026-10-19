@@ -4,6 +4,20 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 7.7a done (D187): the XQuery Update Facility 3.0. Grammar (all 1,159
+  upd-* query texts parse), static rules in one stackless AST walk
+  (XUST0001/0002/0028; %updating replaces D162's XQST0045 place), the
+  pending update list as a sequence of update primitives (function items
+  with an inert body: no new item kind, no evaluator state), a lowering
+  part of STATIC_CALLs, application by rebuilding trees through the tree
+  builder (tree.h unchanged), copy-modify and transform-with, the
+  additive xquery.h update sink, `sxml xquery` writing the updated
+  context document, and the QT4 driver's update test cases. upd-* 0 to
+  733 of 825 passed (10 wrong error), 24 failed, 0 errors, 68 not run
+  (staticTyping, revalidation lax/strict); the rest of XQ40 unchanged
+  case by case. Next: 7.7b (4.0 draft additions), 7.7c (fn:put,
+  revalidation).
+
 - 7.8 done (D198): EXPath Binary 4.0 as the optional feature
   `sxml_expath_binary_feature()` (33 bin: functions; D191's library
   functions, so `sxml.wasm` does not link them). bin-* 0 to 646 of 646 in
