@@ -4,6 +4,17 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 7.2 done (D189): optional features. `processor.h` gains
+  `sxml_optional_feature` and a feature view in the processor
+  configuration; the D162 place of each feature asks the processor for
+  it by kind; feature data comes from the resolver. The CLI and drivers
+  name every feature. JavaScript ships `sxml.wasm` (core, no feature)
+  and `sxml-full.wasm` (all); budgets 2,100,000 and 3,000,000 bytes
+  (D184). `sxml.wasm` 2,003,575 to 2,004,485 bytes (+910, the
+  mechanism's fixed cost). Not moved, measured: schema validation 71 KB,
+  XQuery lowering parts 60 KB and XSLT parts 15 KB in the XPath-only
+  module (registry links, about 75 KB to save). 7.8 to 7.18 may start.
+
 - 4.19 done (D185): XSLT sweep after the Phase 4 gate. XT40 8,650 to
   8,759 passed (0 errors, nothing lost; whole suite, release, case by
   case after each change). Extension instructions call named templates

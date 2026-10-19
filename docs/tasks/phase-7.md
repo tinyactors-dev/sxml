@@ -240,6 +240,9 @@ After the owner's size decision (D183 Proposed).
 - **Done when**: the mechanism exists, with one feature-free test
   feature; the size test checks both modules; and the size of
   `sxml.wasm` is measured before and after (it must not grow).
+**Done** 2026-10-19 (D189): `sxml.wasm` 2,003,575 to 2,004,485 bytes
+(the mechanism's own 910 bytes; no feature in the core),
+`sxml-full.wasm` 2,005,513; budgets 2,100,000 and 3,000,000.
 
 ### 7.4 XSLT backwards-compatible behaviour and XPath 1.0 compatibility mode (implementation)
 - **Specifications**:
