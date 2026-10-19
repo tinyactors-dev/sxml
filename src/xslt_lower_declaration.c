@@ -2297,6 +2297,27 @@ static sxml_status finish_decimal_formats(const sxml_xslt_lowering *lowering,
                                                     property_count - first};
         const sxml_decimal_format_settings defaults = sxml_decimal_format_default_settings();
         sxml_decimal_format_settings settings = defaults;
+        for (size_t property_index = first; property_index < property_count;
+             property_index += 1) {
+            /* 5.5, XTSE1295: zero-digit is a digit of value zero, before
+               the other rules (XTSE1300) are checked. */
+            const sxml_decimal_format_property *property = &storage->properties[property_index];
+            if (property->property_kind == SXML_DECIMAL_FORMAT_PROPERTY_ZERO_DIGIT &&
+                sxml_decimal_format_apply(
+                    &(sxml_decimal_format_change){
+                        .base_settings = &defaults,
+                        .decimal_format_properties = {.decimal_format_properties = property,
+                                                      .decimal_format_property_count = 1}},
+                    &settings) == SXML_STATUS_MALFORMED_INPUT) {
+                return sxml_xslt_lowering_report_static_error(
+                    lowering, (sxml_xslt_static_error){
+                                  .node = sxml_xslt_ast_get_declaration(lowering->ast, 1),
+                                  .code_and_description = SXML_BYTE_VIEW_FROM_LITERAL(
+                                      "XTSE1295 the zero-digit of a decimal format is not a "
+                                      "digit of value zero (XSLT 4.0, 5.5)")});
+            }
+            settings = defaults;
+        }
         const sxml_status status = sxml_decimal_format_apply(
             &(sxml_decimal_format_change){
                 .base_settings = &defaults,

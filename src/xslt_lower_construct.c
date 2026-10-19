@@ -832,47 +832,24 @@ static const sxml_xslt_error_mapping namespace_mappings[] = {
          "11.7)")},
 };
 
-/* XTDE0930 (11.7): an xsl:namespace whose value is "". */
-static sxml_status bind_checked_namespace_uri(sxml_xpath_lowerer *lowerer,
-                                              sxml_xpath_lowering_block *block,
-                                              sxml_ir_atom *value) {
-    sxml_ir_atom is_empty = {0};
-    sxml_status status =
-        bind_call(lowerer,
-                  (call_request){.block = block,
-                                 .function_namespace = SXML_NAMESPACE_FUNCTIONS,
-                                 .local_name = SXML_BYTE_VIEW_FROM_LITERAL("string-length"),
-                                 .arguments = {.atoms = value, .atom_count = 1}},
-                  &is_empty);
-    sxml_ir_atom zero = {0};
-    if (status == SXML_STATUS_OK) {
-        status =
-            sxml_xpath_lowerer_add_item_constant(lowerer, sxml_atomic_item_from_integer(0), &zero);
-    }
-    if (status == SXML_STATUS_OK) {
-        status = bind(
-            lowerer,
-            (sxml_xslt_expression_to_bind){
-                .block = block,
-                .expression =
-                    (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_BINARY,
-                                         .binary = {.operator= SXML_IR_BINARY_OPERATOR_VALUE_EQUAL,
-                                                    .left_operand = is_empty,
-                                                    .right_operand = zero}}},
-            &is_empty);
-    }
+/* *value replaced by if (condition) then raise code else *value, bound
+   in block: a run-time check of an instruction's operand. */
+typedef struct operand_guard {
+    sxml_xpath_lowering_block *block;
+    sxml_ir_atom condition;
+    sxml_byte_view code;
+    sxml_byte_view description;
+} operand_guard;
+
+static sxml_status bind_guarded(sxml_xpath_lowerer *lowerer, const operand_guard *guard,
+                                sxml_ir_atom *value) {
     sxml_ir_expression_index raise = {0};
-    if (status == SXML_STATUS_OK) {
-        status = sxml_xpath_lowerer_add_raise(
-            lowerer,
-            (sxml_xpath_lowering_raise_request){
-                .node = no_ast_node,
-                .error_status = SXML_STATUS_DYNAMIC_ERROR,
-                .code_local_name = SXML_BYTE_VIEW_FROM_LITERAL("XTDE0930"),
-                .description = SXML_BYTE_VIEW_FROM_LITERAL(
-                    "the value of xsl:namespace is a zero-length string (XSLT 4.0, 11.7)")},
-            &raise);
-    }
+    sxml_status status = sxml_xpath_lowerer_add_raise(
+        lowerer, (sxml_xpath_lowering_raise_request){.node = no_ast_node,
+                                                     .error_status = SXML_STATUS_DYNAMIC_ERROR,
+                                                     .code_local_name = guard->code,
+                                                     .description = guard->description},
+        &raise);
     sxml_ir_expression_index kept = {0};
     if (status == SXML_STATUS_OK) {
         status = add_atom_content(lowerer, *value, &kept);
@@ -882,13 +859,116 @@ static sxml_status bind_checked_namespace_uri(sxml_xpath_lowerer *lowerer,
     }
     return bind(lowerer,
                 (sxml_xslt_expression_to_bind){
-                    .block = block,
+                    .block = guard->block,
                     .expression =
                         (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_CONDITIONAL,
-                                             .conditional = {.condition = is_empty,
+                                             .conditional = {.condition = guard->condition,
                                                              .then_branch = raise,
                                                              .else_branch = kept}}},
                 value);
+}
+
+/* The xs:boolean atom value eq text, bound in block. */
+typedef struct text_comparison {
+    sxml_xpath_lowering_block *block;
+    sxml_ir_atom value;
+    sxml_byte_view text;
+} text_comparison;
+
+static sxml_status bind_equals_text(sxml_xpath_lowerer *lowerer, const text_comparison *comparison,
+                                    sxml_ir_atom *is_equal) {
+    sxml_ir_atom text = {0};
+    const sxml_status status =
+        sxml_xpath_lowerer_add_string_constant(lowerer, comparison->text, &text);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return bind(lowerer,
+                (sxml_xslt_expression_to_bind){
+                    .block = comparison->block,
+                    .expression =
+                        (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_BINARY,
+                                             .binary = {.operator= SXML_IR_BINARY_OPERATOR_VALUE_EQUAL,
+                                                        .left_operand = comparison->value,
+                                                        .right_operand = text}}},
+                is_equal);
+}
+
+/* 11.7: XTDE0930 for an xsl:namespace whose value is "", XTDE0905 for
+   the xmlns namespace as its value. */
+static sxml_status bind_checked_namespace_uri(sxml_xpath_lowerer *lowerer,
+                                              sxml_xpath_lowering_block *block,
+                                              sxml_ir_atom *value) {
+    sxml_ir_atom is_empty = {0};
+    sxml_status status = bind_equals_text(
+        lowerer, &(text_comparison){.block = block, .value = *value, .text = {.bytes = NULL, .byte_count = 0}},
+        &is_empty);
+    if (status == SXML_STATUS_OK) {
+        status = bind_guarded(
+            lowerer,
+            &(operand_guard){.block = block,
+                             .condition = is_empty,
+                             .code = SXML_BYTE_VIEW_FROM_LITERAL("XTDE0930"),
+                             .description = SXML_BYTE_VIEW_FROM_LITERAL(
+                                 "the value of xsl:namespace is a zero-length string (XSLT 4.0, "
+                                 "11.7)")},
+            value);
+    }
+    sxml_ir_atom is_xmlns = {0};
+    if (status == SXML_STATUS_OK) {
+        status = bind_equals_text(
+            lowerer,
+            &(text_comparison){.block = block,
+                               .value = *value,
+                               .text = SXML_BYTE_VIEW_FROM_LITERAL("http://www.w3.org/2000/xmlns/")},
+            &is_xmlns);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return bind_guarded(
+        lowerer,
+        &(operand_guard){.block = block,
+                         .condition = is_xmlns,
+                         .code = SXML_BYTE_VIEW_FROM_LITERAL("XTDE0905"),
+                         .description = SXML_BYTE_VIEW_FROM_LITERAL(
+                             "the value of xsl:namespace is the xmlns namespace (XSLT 4.0, "
+                             "11.7)")},
+        value);
+}
+
+/* 11.7, XTDE0920: an xsl:namespace named xmlns (the evaluator's XQDY0101
+   would make it XTDE0925). */
+static sxml_status bind_checked_namespace_name(sxml_xpath_lowerer *lowerer,
+                                               sxml_xpath_lowering_block *block,
+                                               sxml_ir_atom *name) {
+    sxml_ir_atom trimmed = {0};
+    sxml_status status =
+        bind_call(lowerer,
+                  (call_request){.block = block,
+                                 .function_namespace = SXML_NAMESPACE_FUNCTIONS,
+                                 .local_name = SXML_BYTE_VIEW_FROM_LITERAL("normalize-space"),
+                                 .arguments = {.atoms = name, .atom_count = 1}},
+                  &trimmed);
+    sxml_ir_atom is_xmlns = {0};
+    if (status == SXML_STATUS_OK) {
+        status = bind_equals_text(lowerer,
+                                  &(text_comparison){.block = block,
+                                                     .value = trimmed,
+                                                     .text = SXML_BYTE_VIEW_FROM_LITERAL("xmlns")},
+                                  &is_xmlns);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return bind_guarded(lowerer,
+                        &(operand_guard){.block = block,
+                                         .condition = is_xmlns,
+                                         .code = SXML_BYTE_VIEW_FROM_LITERAL("XTDE0920"),
+                                         .description = SXML_BYTE_VIEW_FROM_LITERAL(
+                                             "the name of xsl:namespace is xmlns (XSLT 4.0, "
+                                             "11.7)")},
+                        name);
 }
 
 /* How xsl:value-of or xsl:text treats output escaping (26.1.8). */
@@ -1122,6 +1202,9 @@ static sxml_status finish_text_instruction(sxml_xpath_lowering_machine *machine,
     const bool is_processing_instruction = kind == SXML_TEXT_INSTRUCTION_PROCESSING_INSTRUCTION;
     status = is_processing_instruction ? fix_instruction_text(lowerer, frame->block, &text)
                                        : bind_checked_namespace_uri(lowerer, frame->block, &text);
+    if (status == SXML_STATUS_OK && !is_processing_instruction) {
+        status = bind_checked_namespace_name(lowerer, frame->block, &locals->name);
+    }
     sxml_ir_atom constructed = {0};
     if (status == SXML_STATUS_OK) {
         status = sxml_xslt_lowering_bind_mapped_expression(

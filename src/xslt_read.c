@@ -3205,9 +3205,24 @@ typedef struct value_request {
     element_source source;
 } value_request;
 
+/* The code of an attribute value its syntax does not allow: XTSE0020
+   (2.3), or the more specific code the specification gives the
+   attribute: XTSE0550 for the mode list of xsl:template (6.4), XTSE0710
+   for use-attribute-sets (10.2), XTSE1570 for the method of xsl:output
+   (26). */
+static const char *value_error_code(const attribute_rule *rule) {
+    if (rule->value_syntax == SXML_VALUE_SYNTAX_MODES) {
+        return "XTSE0550";
+    }
+    if (rule->attribute_kind == SXML_XSLT_AST_ATTRIBUTE_USE_ATTRIBUTE_SETS) {
+        return "XTSE0710";
+    }
+    return rule->attribute_kind == SXML_XSLT_AST_ATTRIBUTE_METHOD ? "XTSE1570" : "XTSE0020";
+}
+
 static sxml_status raise_value_error(stylesheet_reader *reader, const value_request *request,
                                      reader_error error) {
-    return raise_error(reader, (reader_error){.error_code = "XTSE0020",
+    return raise_error(reader, (reader_error){.error_code = value_error_code(request->rule),
                                               .description = error.description,
                                               .module = request->module,
                                               .source_span = request->attribute->source_span});
@@ -3391,6 +3406,26 @@ static sxml_status read_name_token(stylesheet_reader *reader, name_token_request
     return SXML_STATUS_OK;
 }
 
+/* 6.4, XTSE0550: a mode list is not empty, has no token twice, and has
+   #all only alone. */
+static bool is_valid_mode_list(const sxml_xslt_ast_name_token *tokens, size_t token_count) {
+    if (token_count == 0) {
+        return false;
+    }
+    for (size_t token_index = 0; token_index < token_count; token_index += 1) {
+        if (tokens[token_index].kind == SXML_XSLT_AST_NAME_TOKEN_KIND_ALL && token_count > 1) {
+            return false;
+        }
+        for (size_t other = 0; other < token_index; other += 1) {
+            if (tokens[other].kind == tokens[token_index].kind &&
+                tokens[other].name.index == tokens[token_index].name.index) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
 static sxml_status read_name_list(stylesheet_reader *reader, const value_request *request,
                                   sxml_xslt_ast_value *value) {
     reader->name_tokens.count = 0;
@@ -3411,6 +3446,12 @@ static sxml_status read_name_list(stylesheet_reader *reader, const value_request
         return raise_value_error(reader, request,
 (reader_error){.description = "The mode of xsl:apply-templates is not one token (XSLT 4.0, "
                                  "6.6)"});
+    }
+    if (request->rule->value_syntax == SXML_VALUE_SYNTAX_MODES &&
+        !is_valid_mode_list(reader->name_tokens.elements, reader->name_tokens.count)) {
+        return raise_value_error(reader, request,
+(reader_error){.description = "The mode list of xsl:template is empty, repeats a token, or "
+                                 "has #all with another token (XSLT 4.0, 6.4)"});
     }
     sxml_xslt_ast_name_token_list list = {.first_name_token_index = 0, .name_token_count = 0};
     const sxml_status status = sxml_xslt_ast_add_name_tokens(
@@ -5869,6 +5910,101 @@ static sxml_status add_record_constructor(stylesheet_reader *reader,
     return status;
 }
 
+/* The template rule an instruction is in when that rule is a child of
+   xsl:override; 0 otherwise. */
+static sxml_xslt_ast_node_index overriding_rule_of(const stylesheet_reader *reader,
+                                                   sxml_xslt_ast_node_index node) {
+    for (sxml_xslt_ast_node_index current = node; current.value != 0;
+         current = sxml_xslt_ast_get_node(reader->ast, current)->parent) {
+        const sxml_xslt_ast_node *current_node = sxml_xslt_ast_get_node(reader->ast, current);
+        if (current_node->kind == SXML_XSLT_AST_KIND_TEMPLATE) {
+            return sxml_xslt_ast_get_node(reader->ast, current_node->parent)->kind ==
+                               SXML_XSLT_AST_KIND_OVERRIDE
+                           ? current
+                           : (sxml_xslt_ast_node_index){.value = 0};
+        }
+    }
+    return (sxml_xslt_ast_node_index){.value = 0};
+}
+
+/* 6.6, XTSE3440: the modes of a template rule in xsl:override name no
+   #all, no #unnamed, and not the unnamed mode by #default or by an
+   absent mode attribute. */
+static bool has_overridable_modes(const stylesheet_reader *reader, sxml_xslt_ast_node_index rule) {
+    const sxml_xslt_ast_node *node = sxml_xslt_ast_get_node(reader->ast, rule);
+    const bool is_default_unnamed =
+        sxml_xslt_ast_get_static_context(reader->ast, node->static_context)->default_mode.kind !=
+        SXML_XSLT_AST_NAME_TOKEN_KIND_NAME;
+    const sxml_xslt_ast_value modes = attribute_value_of(reader, rule, SXML_XSLT_AST_ATTRIBUTE_MODE);
+    if (modes.kind != SXML_XSLT_AST_VALUE_KIND_NAME_LIST) {
+        return !is_default_unnamed;
+    }
+    const sxml_xslt_ast_name_token_view tokens =
+        sxml_xslt_ast_get_name_tokens(reader->ast, modes.payload.name_tokens);
+    for (size_t token_index = 0; token_index < tokens.name_token_count; token_index += 1) {
+        const sxml_xslt_ast_name_token_kind kind = tokens.name_tokens[token_index].kind;
+        if (kind == SXML_XSLT_AST_NAME_TOKEN_KIND_ALL ||
+            kind == SXML_XSLT_AST_NAME_TOKEN_KIND_UNNAMED ||
+            (kind == SXML_XSLT_AST_NAME_TOKEN_KIND_DEFAULT && is_default_unnamed)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/* XTSE3440 and XTSE3460 (6.6, 6.11): the rules of template rules in
+   xsl:override. */
+static sxml_status check_overriding_rule(stylesheet_reader *reader, const open_element *frame) {
+    const sxml_xslt_ast_node *node = sxml_xslt_ast_get_node(reader->ast, frame->node);
+    const char *error_code = NULL;
+    const char *description = NULL;
+    if (node->kind == SXML_XSLT_AST_KIND_TEMPLATE &&
+        attribute_value_of(reader, frame->node, SXML_XSLT_AST_ATTRIBUTE_MATCH).kind !=
+            SXML_XSLT_AST_VALUE_KIND_NONE &&
+        overriding_rule_of(reader, frame->node).value != 0 &&
+        !has_overridable_modes(reader, frame->node)) {
+        error_code = "XTSE3440";
+        description = "A template rule in xsl:override has the mode #all or #unnamed, or the "
+                      "unnamed mode as its default (XSLT 4.0, 6.6)";
+    } else if (node->kind == SXML_XSLT_AST_KIND_APPLY_IMPORTS &&
+               overriding_rule_of(reader, frame->node).value != 0) {
+        error_code = "XTSE3460";
+        description = "xsl:apply-imports is in a template rule of xsl:override (XSLT 4.0, 6.11)";
+    }
+    if (error_code == NULL) {
+        return SXML_STATUS_OK;
+    }
+    return raise_error(reader, (reader_error){.error_code = error_code,
+                                              .description = description,
+                                              .module = frame->module,
+                                              .source_span =
+                                                  location_of(frame->tree, frame->element)});
+}
+
+/* 9.3, XTSE0580: two xsl:param children of one element with one name. */
+static bool has_repeated_parameter(const stylesheet_reader *reader,
+                                   sxml_xslt_ast_node_index parent) {
+    for (sxml_xslt_ast_node_index child = sxml_xslt_ast_get_node(reader->ast, parent)->first_child;
+         child.value != 0; child = sxml_xslt_ast_get_node(reader->ast, child)->next_sibling) {
+        if (sxml_xslt_ast_get_node(reader->ast, child)->kind != SXML_XSLT_AST_KIND_PARAM) {
+            continue;
+        }
+        const sxml_xslt_ast_value name = attribute_value_of(reader, child, SXML_XSLT_AST_ATTRIBUTE_NAME);
+        for (sxml_xslt_ast_node_index other = sxml_xslt_ast_get_node(reader->ast, child)->next_sibling;
+             name.kind == SXML_XSLT_AST_VALUE_KIND_NAME && other.value != 0;
+             other = sxml_xslt_ast_get_node(reader->ast, other)->next_sibling) {
+            const sxml_xslt_ast_value other_name =
+                attribute_value_of(reader, other, SXML_XSLT_AST_ATTRIBUTE_NAME);
+            if (sxml_xslt_ast_get_node(reader->ast, other)->kind == SXML_XSLT_AST_KIND_PARAM &&
+                other_name.kind == SXML_XSLT_AST_VALUE_KIND_NAME &&
+                other_name.payload.name.index == name.payload.name.index) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 /* A frame whose children are all read: its required child (XTSE0010). */
 static sxml_status end_frame(stylesheet_reader *reader, size_t frame_index) {
     const open_element *frame = frame_at(reader, frame_index);
@@ -5895,6 +6031,19 @@ static sxml_status end_frame(stylesheet_reader *reader, size_t frame_index) {
     }
     if (frame->rule != NULL && frame->rule->kind == SXML_XSLT_AST_KIND_RECORD_TYPE) {
         return add_record_constructor(reader, frame->node);
+    }
+    if (frame->rule != NULL && frame->rule->kind == SXML_XSLT_AST_KIND_TEMPLATE &&
+        has_repeated_parameter(reader, frame->node)) {
+        return raise_error(reader, (reader_error){.error_code = "XTSE0580",
+                                                  .description = "Two parameters of a template "
+                                                                 "have the same name (XSLT 4.0, "
+                                                                 "9.3)",
+                                                  .module = frame->module,
+                                                  .source_span = location_of(frame->tree,
+                                                                             frame->element)});
+    }
+    if (frame->rule != NULL) {
+        return check_overriding_rule(reader, frame);
     }
     return SXML_STATUS_OK;
 }
