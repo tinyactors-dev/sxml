@@ -10163,6 +10163,87 @@ reading an accumulator streams nothing.
   value of a window node no entry holds any more (a streamed node kept
   past its body) falls back to the tree of its window.
 
+### D230. XSLT conformance sweep after the leftovers (packet 4.20)
+Recorded 2026-10-19, after D29, D71, D84, D162, D169, D179, D185, D195,
+D203, D206, D208. Verified as D181 asks: the debug preset, the unit tests
+touched (collation, xslt, schema, xpath, xquery), clang-tidy on the files
+changed, and the whole XT40 suite with the release driver after each
+change, compared case by case. **XT40 11,826 to 11,912 passed, 0 errors,
+no case lost.** QT4: fn-transform XQ40 129 to 130 of 137; the XQ40 and
+XP40 sets an inline function's module or a QName cast touch unchanged.
+- **xsl:merge** (15.3, 15.4): XTDE2220 by stability: each merge tuple
+  ends with its anchor's and item's positions; an input sequence is in
+  merge-key order exactly when its tuples keep their order once the
+  stable sort ran, one fold over the sorted tuples (sort-before-merge
+  sources are not checked). XTDE2210 for computed lang, order,
+  collation, case-order and data-type (every source's value, compared
+  when evaluated, before the order check). validation and type of
+  xsl:merge-source validate the documents for-each-source reads (not by
+  default-validation, as xsl:source-document). merge 97 to 107.
+- **[before 1] tailorings** (UTS #35, Part 5, 3.7) in
+  `src/collation_tailoring.c`: the reset is the root primary less one,
+  so what follows sorts before the reset's element. Swedish is vendored
+  (`third_party/cldr` sv.xml, D208's default: data as CLDR publishes
+  it); the merge cases of Swedish city names need it once the order is
+  checked. [before 2] and [before 3] stay unsupported.
+- **Record constructors** (5.4.2.2): the reader synthesizes the
+  "implicit xsl:function" beside the xsl:record-type, as the
+  specification writes it (a parameter per non-static field sharing its
+  as and select, an xsl:map of xsl:map-entry). Replaces D185's delayed
+  place. A field's initial value given as content is not a default yet.
+- **Schema awareness** (D179's leftovers): element validation does not
+  apply Validation Root Valid (ID/IDREF) (25.2), through
+  `sxml_schema_scope_validate_node` (skips_id_constraints, internal);
+  XTTE1555 is cvc-id.1/.2 of a document only; xs:untypedAtomic as a
+  validation type (xs:string, then annotated, XTTE1540 for element
+  children); XTTE1545 for a new attribute of a QName- or NOTATION-based
+  type; XTSE0265. The XSLT driver gives assertions the environment's
+  schema.
+- **Codes the specification gives**: XTSE0550 (mode lists), XTSE0710,
+  XTSE1570 (one table in the reader), XTSE3440, XTSE3460, XTSE0580,
+  XTSE1295, XTDE0830/XTDE0860 (a computed lexical QName with an unbound
+  prefix), XTDE0905, XTDE0920, XTTE0945, XTDE1360.
+- **Modules** (D169): xsl:iterate bodies and inline functions take the
+  IR module of the code they are written in, so their errors name the
+  included module.
+- **xs:QName casts** of a string constant resolve while lowering with
+  the expression's statically known namespaces (not XQuery's, whose
+  direct constructors bind prefixes the static context does not show);
+  xml-version-016 passes.
+- **fn:transform**: enable-assertions (false by default) disables
+  xsl:assert through the unit evaluation's extension.
+- **Driver**: ISO-8859-1 and UTF-16 serializations are decoded for the
+  assertions on them (an expected file that is not UTF-8 is not compared).
+- **Lazy globals (XTDE3052; design, not done)**: XSLT globals are
+  computed eagerly before the initial template (D185's leftover), so an
+  unread abstract variable raises XTDE3052 and an unread global that
+  reads an absent context item raises XPDY0002 (accept-042, -043a,
+  document-4061..-4067). The design: a global read becomes an IR
+  expression (GLOBAL_READ) the machine evaluates as a step: a set slot
+  is its value; an absent one with an initializer pushes the
+  initializer's call and stores its value (BEING_COMPUTED raises
+  XTDE0640, the cycle, as XQDY0054 does for XQuery); XSLT's eager global
+  part then computes nothing. It needs `src/evaluator*.c`, another
+  packet's files during this sweep.
+- **Left, with causes**: XTDE3490 and the merge collection with
+  ?select= (merge-097, a Saxon collection URI); merge-001a/-016 (the
+  hoist pass evaluates the key-array text for an empty merge, perf's);
+  typed modes reading name tests as schema-element() and XTSE3105 (the
+  template lowering, another packet's file); xml-version-007 (the value
+  template grammar rejects C0 controls of XML 1.1); namespace-2606
+  (namespace undeclarations of inherit-namespaces="no" in the
+  evaluator's constructors); namespace-6202 (fn and the other XPath
+  prefixes are predeclared in XSLT too; XSLT 4.0 has only xml); a
+  string cast to xs:QName at run time still uses the module's
+  namespaces (D84); docbook-004 (an xml:id fragment in
+  xsl:source-document); fn:transform's cache false (fn-transform-27),
+  xslt-version 2.0 (82e: the suite expects a 3.0 processor) and
+  fn-transform-94 (the QT4 driver's base URI of a query file); xsl:copy
+  of JNodes (needs a parentless JNode with a key, xdm.h); XTDE0430/0440
+  (XQDY0102 in the evaluator); system-property and function-available
+  with a non-NCName (`src/function_library_xslt.c`, another packet's
+  uncommitted file).
+
 ## Proposed
 
 - **The CLI's WebAssembly budget after the Phase 7 features** (packet

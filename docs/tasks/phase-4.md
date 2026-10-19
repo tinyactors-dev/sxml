@@ -399,3 +399,21 @@ the release driver).
   included modules name their module; one array allocation helper.
   Left: the match="$var" index (D185), the record constructor,
   XTDE3490, the group key equality.
+- [x] **4.20 XSLT conformance sweep** (implementation). Owns the XSLT
+  reader and lowering files it changes (`src/xslt_*`), the XSLT test
+  driver, the files a leftover's root cause is in when no other packet
+  has them open, their unit tests, and single insertions in the
+  ledgers. In order of value: the XSLT leftovers of `docs/agents/QUEUE.md`
+  (D185, D179, D195, D203, D206), then the largest failure clusters of a
+  fresh XT40 run outside strm/: merge errors and validation, the record
+  constructor, the schema-aware leftovers, xml-version and namespace
+  cases, errors of inline functions and xsl:iterate in included modules,
+  docbook-004, fn:transform's options, XTDE3052 (globals computed on
+  first read, as a design if not done).
+  **Done** 2026-10-19 (D230): XT40 11,826 to 11,912 passed, 0 errors,
+  none lost; merge 97 to 107, record 35 to 37, validation 40 to 51,
+  import-schema 200 to 206, error 448 to 474, namespace 209 to 217,
+  normalize-unicode 18/18; QT4 fn-transform 130/137.
+  Left (causes in D230): lazy globals (designed; needs the evaluator),
+  typed modes and XTSE3105, XTDE3490, xml-version-007, namespace-2606
+  and -6202, docbook-004, three fn:transform cases, xsl:copy of JNodes.

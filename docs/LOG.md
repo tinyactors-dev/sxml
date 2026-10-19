@@ -4,6 +4,23 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 4.20 done (D230): XSLT conformance sweep, XT40 11,826 to 11,912
+  passed, none lost, 0 errors (whole suite, release, case by case after
+  each change). xsl:merge checks its input order (XTDE2220, by the
+  stable sort), computed key attributes (XTDE2210) and validates
+  for-each-source documents; [before 1] collation resets and the
+  vendored Swedish collation; record constructors synthesized as the
+  implicit xsl:function; element validation without ID/IDREF,
+  xs:untypedAtomic as a type, XTTE1545, XTSE0265; the codes the
+  specification gives (XTSE0550, 0580, 0710, 1295, 1570, 3440, 3460,
+  XTDE0830, 0860, 0905, 0920, 1360, XTTE0945); inline functions and
+  xsl:iterate bodies in their module; string casts to xs:QName with the
+  expression's namespaces; fn:transform's enable-assertions; the XSLT
+  driver's assertions see the environment's schema and decode
+  ISO-8859-1 and UTF-16 output. Left: lazy globals (XTDE3052, designed
+  in D230, needs the evaluator), typed modes, XTDE3490, xml-version-007,
+  namespace-2606/-6202, docbook-004.
+
 - 7.6e in progress (D230): accumulators computed while streaming (each
   event a STREAM takes calls the accumulator functions, full windows get
   descend-K; fn:accumulator-before and -after read the values of streamed
