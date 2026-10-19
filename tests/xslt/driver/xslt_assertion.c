@@ -530,6 +530,13 @@ sxml_xslt_test_check_serialized(const sxml_xslt_test_check_request *request,
     if (status == SXML_STATUS_OK) {
         status = sxml_xslt_test_make_string(processor, expected_text, &expected);
     }
+    if (status == SXML_STATUS_INVALID_UTF8) {
+        /* An expected file in another encoding is not compared. */
+        sxml_sequence_release(serialized);
+        *verdict = sxml_xslt_test_verdict(
+            SXML_QT4_VERDICT_FAIL, SXML_TEXT("assert-serialization: the expected file is not UTF-8"));
+        return SXML_STATUS_OK;
+    }
     if (status == SXML_STATUS_OK) {
         status = sxml_xslt_test_compare_serialization(
             request,

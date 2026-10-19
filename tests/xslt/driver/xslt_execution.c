@@ -562,6 +562,11 @@ sxml_xslt_test_static_context(const sxml_xslt_test_context *context) {
         .namespace_bindings = context->namespace_bindings,
         .namespace_binding_count = context->namespace_binding_count};
     static_context.static_base_uri = context->test_set_uri;
+    /* The environment's schema, as the stylesheet's (D179): assertions
+       such as schema-element() name its declarations. */
+    static_context.in_scope_schemas = (sxml_schema_view){
+        .schemas = context->schema == NULL ? NULL : (const sxml_schema *const *)&context->schema,
+        .schema_count = context->schema == NULL ? 0 : 1};
     return static_context;
 }
 
@@ -1443,6 +1448,88 @@ sxml_xslt_test_invocation_kind_of(const sxml_xslt_test_context *context) {
 
 /* Parses a serialized result back for the other assertions: a document
    when it is well-formed XML, else an xs:string. */
+/* Serialized bytes and their encoding (the stylesheet's xsl:output). */
+typedef struct sxml_xslt_test_encoded_bytes {
+    sxml_byte_view bytes;
+    sxml_character_encoding encoding;
+} sxml_xslt_test_encoded_bytes;
+
+/* Appends codepoint to text as UTF-8; text has room for 4 more bytes. */
+static size_t sxml_xslt_test_append_utf8(uint8_t *text, uint32_t codepoint) {
+    if (codepoint < 0x80U) {
+        text[0] = (uint8_t)codepoint;
+        return 1;
+    }
+    if (codepoint < 0x800U) {
+        text[0] = (uint8_t)(0xC0U | (codepoint >> 6U));
+        text[1] = (uint8_t)(0x80U | (codepoint & 0x3FU));
+        return 2;
+    }
+    if (codepoint < 0x10000U) {
+        text[0] = (uint8_t)(0xE0U | (codepoint >> 12U));
+        text[1] = (uint8_t)(0x80U | ((codepoint >> 6U) & 0x3FU));
+        text[2] = (uint8_t)(0x80U | (codepoint & 0x3FU));
+        return 3;
+    }
+    text[0] = (uint8_t)(0xF0U | (codepoint >> 18U));
+    text[1] = (uint8_t)(0x80U | ((codepoint >> 12U) & 0x3FU));
+    text[2] = (uint8_t)(0x80U | ((codepoint >> 6U) & 0x3FU));
+    text[3] = (uint8_t)(0x80U | (codepoint & 0x3FU));
+    return 4;
+}
+
+/* The serialization as UTF-8 text for the assertions on it: ISO-8859-1
+   and UTF-16 (big endian, a byte order mark dropped; Serialization 4.0,
+   5.1.3) decoded into the test's scratch memory, UTF-8 and US-ASCII as
+   they are. */
+static sxml_status
+sxml_xslt_test_decode_serialization(sxml_xslt_test_context *context,
+                                    const sxml_xslt_test_encoded_bytes *encoded,
+                                    sxml_byte_view *text) {
+    const sxml_byte_view bytes = encoded->bytes;
+    *text = bytes;
+    if (encoded->encoding != SXML_CHARACTER_ENCODING_ISO_8859_1 &&
+        encoded->encoding != SXML_CHARACTER_ENCODING_UTF_16) {
+        return SXML_STATUS_OK;
+    }
+    void *memory = NULL;
+    const sxml_status status = sxml_xslt_test_scratch_array(
+        context,
+        (sxml_xslt_test_scratch_request){.element_count = 2 * bytes.byte_count + 4,
+                                         .element_byte_count = 1,
+                                         .alignment = 1},
+        &memory);
+    if (status != SXML_STATUS_OK || memory == NULL) {
+        return status;
+    }
+    uint8_t *decoded = memory;
+    size_t decoded_count = 0;
+    size_t position = 0;
+    const bool is_utf16 = encoded->encoding == SXML_CHARACTER_ENCODING_UTF_16;
+    if (is_utf16 && bytes.byte_count >= 2 && bytes.bytes[0] == 0xFEU && bytes.bytes[1] == 0xFFU) {
+        position = 2;
+    }
+    while (position < bytes.byte_count) {
+        uint32_t codepoint = bytes.bytes[position];
+        position += 1;
+        if (is_utf16) {
+            if (position >= bytes.byte_count) {
+                break;
+            }
+            codepoint = (codepoint << 8U) | bytes.bytes[position];
+            position += 1;
+            if (codepoint >= 0xD800U && codepoint < 0xDC00U && position + 1 < bytes.byte_count) {
+                const uint32_t low = ((uint32_t)bytes.bytes[position] << 8U) | bytes.bytes[position + 1];
+                position += 2;
+                codepoint = 0x10000U + ((codepoint - 0xD800U) << 10U) + (low - 0xDC00U);
+            }
+        }
+        decoded_count += sxml_xslt_test_append_utf8(decoded + decoded_count, codepoint);
+    }
+    *text = (sxml_byte_view){.bytes = decoded, .byte_count = decoded_count};
+    return SXML_STATUS_OK;
+}
+
 static sxml_status sxml_xslt_test_parse_back(sxml_xslt_test_context *context,
                                              sxml_byte_view bytes, sxml_sequence *value) {
     sxml_diagnostic diagnostic;
@@ -1601,8 +1688,16 @@ static void sxml_xslt_test_transform(sxml_xslt_test_context *context,
     }
     if (status == SXML_STATUS_OK && delivery == SXML_XSLT_RESULT_DELIVERY_SERIALIZED) {
         answer->is_serialized = true;
-        answer->serialized_bytes = sxml_output_buffer_get_bytes(outputs->output_buffer);
-        status = sxml_xslt_test_parse_back(context, answer->serialized_bytes, &answer->value);
+        const sxml_byte_view bytes = sxml_output_buffer_get_bytes(outputs->output_buffer);
+        status = sxml_xslt_test_parse_back(context, bytes, &answer->value);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xslt_test_decode_serialization(
+                context,
+                &(sxml_xslt_test_encoded_bytes){
+                    .bytes = bytes,
+                    .encoding = answer->serialization_parameters.character_encoding},
+                &answer->serialized_bytes);
+        }
     }
     answer->status = status;
 }
