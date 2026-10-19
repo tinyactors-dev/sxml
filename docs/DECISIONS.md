@@ -8551,6 +8551,78 @@ until 7.6b.
   streamable mode or source document is what it may stream, and the
   postures name what each construct selects.
 
+### D213. Full UCA collations over the host's DUCET (packet 7.15a)
+Recorded 2026-10-19, after D97, D116, D162, D183, D184, D189, D191, D208.
+Replaces D97's UCA fallback as the behaviour of a UCA collation URI when
+the host serves the DUCET; the fallback stays for hosts that do not.
+- **Public** (`include/sxml/processor.h`, additive): the optional feature
+  `sxml_uca_collation_feature()` ("uca-collation", in
+  `sxml_all_optional_features`) and the resource kind
+  `SXML_RESOURCE_KIND_COLLATION_DATA` (form BYTES): the feature asks for
+  "http://www.unicode.org/Public/UCA/16.0.0/allkeys.txt" once per
+  processor, at the first UCA collation, and keeps the table (also "no
+  data") in its slot. Nothing is compiled into the core (D184, D189):
+  `sxml.wasm` gains only the resolution path (below).
+- **Internal**: `src/collation_uca.c` reads allkeys.txt (UTS #10, 9.1)
+  in two passes into sorted arrays (elements, single-codepoint entries,
+  contractions) and computes implicit weights (10.1, with the file's
+  @implicitweights and Unicode 16.0's Unified_Ideograph). The elements
+  of a string: NFD with canonical ordering, the longest contiguous match,
+  discontiguous contractions (S2.1.1 to S2.1.3), variable weighting
+  (shifted, blanked; maxVariable groups from the general categories of
+  the characters a primary starts), caseFirst and caseLevel from the
+  tertiary weights of UTS #10's tertiary table (upper: 08 to 0C, 0E, 11,
+  12, 1D), numeric=yes (UTS #35, 3.7: a digit run weighs as its count
+  of significant digits, then its digits, in the 255 weights after digit
+  zero's primary, primaries being shifted left 8 bits), the identical
+  level over NFD (7.4). normalization=yes|no both normalize (the same
+  result for every FCD string). `src/collation.c` keeps one element
+  array for every collation (keys, comparison and matching are shared);
+  `sxml_collation_resolve` is the one place a UCA URI becomes the
+  feature's collation (D162's place: without the feature or data, the
+  fallback, and fallback=no is not supported).
+- **fallback=no**: supported only with the table and when every
+  parameter is honoured: lang empty, root, und, en or en-XX (CLDR has no
+  tailoring for these; others are 7.15b), no reorder (7.15b), version
+  equal to the table's @version, known keywords and values. Otherwise
+  FOCH0002 dynamically and XQST0038 for `declare default collation`
+  (now checked with the processor). `sxml_collation_is_supported`
+  (xpath.h) has no processor and still says false for fallback=no.
+- **Default collation in comparisons**: value and general comparisons
+  of strings and the sort keys of order by and xsl:sort without a
+  collation now use the static context's default collation (XPath 4.0,
+  4.11.1 and 4.11.2; XQuery 4.0, order by), through the one resolver;
+  before, they used the codepoint collation whatever the default was,
+  which the 4 XQST0038 "wrong error" passes had hidden.
+- **Hosts**: the QT4 driver serves the vendored copy
+  (`third_party/unicode-collation/`, D13, D208) and claims
+  advanced-uca-fallback and non_unicode_codepoint_collation (no longer
+  non-goals); the sxml command embeds allkeys.txt without comments
+  (generated at build time by `apps/sxml/embed-collation-data.cmake`) and
+  serves it; the JavaScript package forwards 'collation-data' to the
+  host's resolver and otherwise serves `LoadOptions.collationData`,
+  default the allkeys.txt it ships next to the modules (false: none).
+  The XSLT driver names the feature but serves no data yet (fallback).
+- **Tests**: `tests/collation_uca_test.c` sorts a sample of Unicode's
+  CollationTest (every 20th line of the _SHORT files, NON_IGNORABLE
+  10,314 lines and SHIFTED 11,391, both in order; the full _SHORT files,
+  206,286 and 227,801 lines, also pass, not vendored), the parameters,
+  matching, malformed data and an allocation-failure loop.
+- **Measured** (release drivers, the sets that use collations): QT4
+  advanced-uca-fallback 49 of 49 pass (XQ40 and XP40), not run before;
+  non_unicode_codepoint_collation 13 of 13 (XQ40), 5 of 5 applicable
+  (XP40). XQ40 passes 3,896 to 3,961 over fn-compare, fn-contains,
+  fn-starts-with, fn-ends-with, the four fn-substring sets,
+  fn-collation-key, fn-deep-equal, prod-GroupByClause,
+  prod-DefaultCollationDecl (12 of 12, no longer 4 of them by a wrong
+  error), app-spec-examples and the other collation sets; XP40 3,301 to
+  3,358; no case that passed fails. XT40 collations 35 to 39 of 43
+  (the default collation in comparisons and sorts), sort, merge,
+  for-each-group, avt, function, choose, error, maps unchanged.
+- **Left for 7.15b**: tailorings (lang other than the root languages,
+  reorder) from CLDR rules, the XSLT driver serving the DUCET (with lang
+  sorts), CLDR's root order where it differs from the DUCET.
+
 ## Proposed
 
 - **A streamability option and a streamed source in `xslt.h`** (packet
