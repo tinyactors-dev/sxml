@@ -39,6 +39,7 @@
 #include "sxml/xdm.h"
 #include "xml_internal.h"
 #include "xslt_accumulator_internal.h"
+#include "xslt_snippet_text_internal.h"
 
 #include <stdalign.h>
 #include <stdbool.h>
@@ -373,8 +374,11 @@ static validation_choice validation_of(sxml_xslt_validation_query query) {
     const sxml_xslt_ast_node *node = node_of(query.lowering, query.node);
     if (validation->value.kind == SXML_XSLT_AST_VALUE_KIND_KEYWORD) {
         choice.keyword = validation->value.payload.keyword;
-    } else if (node->kind != SXML_XSLT_AST_KIND_SOURCE_DOCUMENT) {
-        /* 25: the [xsl:]default-validation in force (3.6.1). */
+    } else if (node->kind != SXML_XSLT_AST_KIND_SOURCE_DOCUMENT &&
+               node->kind != SXML_XSLT_AST_KIND_MERGE_SOURCE) {
+        /* 25: the [xsl:]default-validation in force (3.6.1); not for the
+           documents xsl:source-document and xsl:merge-source read (18.1.2,
+           15.3), which are validated only when asked. */
         choice.keyword =
             sxml_xslt_ast_get_static_context(query.lowering->ast, node->static_context)
                 ->default_validation;
@@ -1582,6 +1586,185 @@ static sxml_status bind_name_for_namespace(sxml_xpath_lowerer *lowerer,
                 &locals->name);
 }
 
+/* The in-scope prefixes of the instruction (not the default namespace's)
+   and xml, each between spaces: " xml p q ". */
+static sxml_status add_known_prefixes(const named_constructor_locals *locals, sxml_ir_atom *atom) {
+    const sxml_xslt_lowering *lowering = locals->head.lowering;
+    sxml_xpath_lowerer *lowerer = lowering->lowerer;
+    sxml_namespace_binding_view in_scope = {.namespace_bindings = NULL,
+                                            .namespace_binding_count = 0};
+    sxml_status status =
+        sxml_xslt_lowering_get_element_namespaces(lowering, locals->head.node, &in_scope);
+    sxml_xslt_snippet_text text = {.allocator = lowerer->allocator, .status = SXML_STATUS_OK};
+    SXML_XSLT_SNIPPET_APPEND(&text, " xml ");
+    for (size_t binding_index = 0;
+         status == SXML_STATUS_OK && binding_index < in_scope.namespace_binding_count;
+         binding_index += 1) {
+        const sxml_namespace_binding binding = in_scope.namespace_bindings[binding_index];
+        sxml_byte_view prefix = {.bytes = NULL, .byte_count = 0};
+        if (binding.namespace_prefix.index == 0) {
+            continue;
+        }
+        status = sxml_name_pool_get_namespace_prefix(lowerer->name_pool, binding.namespace_prefix,
+                                                     &prefix);
+        sxml_xslt_snippet_text_append(&text, prefix);
+        SXML_XSLT_SNIPPET_APPEND(&text, " ");
+    }
+    if (status == SXML_STATUS_OK) {
+        status = text.status;
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_add_string_constant(lowerer, sxml_xslt_snippet_text_view(&text),
+                                                        atom);
+    }
+    sxml_xslt_snippet_text_release(&text);
+    return status;
+}
+
+/*
+ * 11.2, 11.3: a computed name that is a lexical QName whose prefix has no
+ * in-scope namespace declaration is XTDE0830 (xsl:element) or XTDE0860
+ * (xsl:attribute), not the XTDE0820 or XTDE0850 of a name that is no
+ * lexical QName; the evaluator's XQDY0074 (XQuery 4.0, 4.12.3.1) is both.
+ * So the prefix is checked first:
+ *
+ *     if (matches($n, QNAME) and not(contains(KNOWN, " " || prefix || " ")))
+ *     then raise else $name
+ */
+static sxml_status bind_checked_prefix(sxml_xpath_lowerer *lowerer,
+                                       sxml_xpath_lowering_block *block,
+                                       named_constructor_locals *locals) {
+    const bool is_attribute = is_attribute_instruction(locals);
+    sxml_ir_atom trimmed = {0};
+    sxml_status status =
+        bind_call(lowerer,
+                  (call_request){.block = block,
+                                 .function_namespace = SXML_NAMESPACE_FUNCTIONS,
+                                 .local_name = SXML_BYTE_VIEW_FROM_LITERAL("normalize-space"),
+                                 .arguments = {.atoms = &locals->name, .atom_count = 1}},
+                  &trimmed);
+    sxml_ir_atom texts[3] = {trimmed, {0}, {0}};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_add_string_constant(
+            lowerer, SXML_BYTE_VIEW_FROM_LITERAL("^[\\i-[:]][\\c-[:]]*:[\\i-[:]][\\c-[:]]*$"),
+            &texts[1]);
+    }
+    sxml_ir_atom is_qname = {0};
+    if (status == SXML_STATUS_OK) {
+        status = bind_call(lowerer,
+                           (call_request){.block = block,
+                                          .function_namespace = SXML_NAMESPACE_FUNCTIONS,
+                                          .local_name = SXML_BYTE_VIEW_FROM_LITERAL("matches"),
+                                          .arguments = {.atoms = texts, .atom_count = 2}},
+                           &is_qname);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_add_string_constant(lowerer, SXML_BYTE_VIEW_FROM_LITERAL(":"),
+                                                        &texts[1]);
+    }
+    sxml_ir_atom prefix = {0};
+    if (status == SXML_STATUS_OK) {
+        status = bind_call(lowerer,
+                           (call_request){.block = block,
+                                          .function_namespace = SXML_NAMESPACE_FUNCTIONS,
+                                          .local_name = SXML_BYTE_VIEW_FROM_LITERAL("substring-before"),
+                                          .arguments = {.atoms = texts, .atom_count = 2}},
+                           &prefix);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_add_string_constant(lowerer, SXML_BYTE_VIEW_FROM_LITERAL(" "),
+                                                        &texts[0]);
+    }
+    sxml_ir_atom spaced = {0};
+    if (status == SXML_STATUS_OK) {
+        texts[1] = prefix;
+        texts[2] = texts[0];
+        status = bind_call(lowerer,
+                           (call_request){.block = block,
+                                          .function_namespace = SXML_NAMESPACE_FUNCTIONS,
+                                          .local_name = SXML_BYTE_VIEW_FROM_LITERAL("concat"),
+                                          .arguments = {.atoms = texts, .atom_count = 3}},
+                           &spaced);
+    }
+    sxml_ir_atom known[2] = {{0}, spaced};
+    if (status == SXML_STATUS_OK) {
+        status = add_known_prefixes(locals, &known[0]);
+    }
+    sxml_ir_atom is_known = {0};
+    if (status == SXML_STATUS_OK) {
+        status = bind_call(lowerer,
+                           (call_request){.block = block,
+                                          .function_namespace = SXML_NAMESPACE_FUNCTIONS,
+                                          .local_name = SXML_BYTE_VIEW_FROM_LITERAL("contains"),
+                                          .arguments = {.atoms = known, .atom_count = 2}},
+                           &is_known);
+    }
+    /* The inner branch: the name when the prefix is known, else the
+       raise. */
+    branch raised = {.block = {.first = {0}, .open_let = {0}}, .result = {0}};
+    sxml_ir_atom raise = {0};
+    if (status == SXML_STATUS_OK) {
+        status = bind_raise(
+            lowerer,
+            (raise_request){.block = &raised.block,
+                            .code = is_attribute ? SXML_BYTE_VIEW_FROM_LITERAL("XTDE0860")
+                                                 : SXML_BYTE_VIEW_FROM_LITERAL("XTDE0830"),
+                            .description = is_attribute
+                                               ? SXML_BYTE_VIEW_FROM_LITERAL(
+                                                     "the prefix of the name of xsl:attribute has "
+                                                     "no in-scope namespace (XSLT 4.0, 11.3)")
+                                               : SXML_BYTE_VIEW_FROM_LITERAL(
+                                                     "the prefix of the name of xsl:element has no "
+                                                     "in-scope namespace (XSLT 4.0, 11.2)")},
+            &raise);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = add_atom_content(lowerer, raise, &raised.result);
+    }
+    sxml_ir_expression_index raise_branch = {0};
+    if (status == SXML_STATUS_OK) {
+        status = finish_branch(lowerer, &raised, &raise_branch);
+    }
+    sxml_ir_expression_index name_branch = {0};
+    if (status == SXML_STATUS_OK) {
+        status = add_atom_content(lowerer, locals->name, &name_branch);
+    }
+    branch inner = {.block = {.first = {0}, .open_let = {0}}, .result = {0}};
+    sxml_ir_atom inner_value = {0};
+    if (status == SXML_STATUS_OK) {
+        status = bind(lowerer,
+                      (sxml_xslt_expression_to_bind){
+                          .block = &inner.block,
+                          .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_CONDITIONAL,
+                                         .conditional = {.condition = is_known,
+                                                         .then_branch = name_branch,
+                                                         .else_branch = raise_branch}}},
+                      &inner_value);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = add_atom_content(lowerer, inner_value, &inner.result);
+    }
+    sxml_ir_expression_index then_branch = {0};
+    if (status == SXML_STATUS_OK) {
+        status = finish_branch(lowerer, &inner, &then_branch);
+    }
+    sxml_ir_expression_index else_branch = {0};
+    if (status == SXML_STATUS_OK) {
+        status = add_atom_content(lowerer, locals->name, &else_branch);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return bind(lowerer,
+                (sxml_xslt_expression_to_bind){
+                    .block = block,
+                    .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_CONDITIONAL,
+                                   .conditional = {.condition = is_qname,
+                                                   .then_branch = then_branch,
+                                                   .else_branch = else_branch}}},
+                &locals->name);
+}
+
 /* The computed name: an xs:string resolved by the evaluator, or with a
    namespace, fn:QName($namespace, $name). */
 static sxml_status bind_computed_name(sxml_xpath_lowering_machine *machine,
@@ -1591,6 +1774,10 @@ static sxml_status bind_computed_name(sxml_xpath_lowering_machine *machine,
         locals->head.lowering,
         (attribute_lookup){.node = locals->head.node, .kind = SXML_XSLT_AST_ATTRIBUTE_NAMESPACE});
     if (!has_namespace) {
+        const sxml_status status = bind_checked_prefix(machine->state, frame->block, locals);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
         return add_name_namespaces(
             machine,
             (name_namespaces_request){.head = &locals->head,

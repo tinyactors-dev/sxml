@@ -642,6 +642,7 @@ static const char *const cldr_files[][2] = {
     {"urn:sxml:collation-data:collation/fr.xml", "cldr/common/collation/fr.xml"},
     {"urn:sxml:collation-data:collation/it.xml", "cldr/common/collation/it.xml"},
     {"urn:sxml:collation-data:collation/nl.xml", "cldr/common/collation/nl.xml"},
+    {"urn:sxml:collation-data:collation/sv.xml", "cldr/common/collation/sv.xml"},
     {"urn:sxml:collation-data:collation/fr_CA.xml", "cldr/common/collation/fr_CA.xml"},
     {"urn:sxml:collation-data:collation/de_AT.xml", "cldr/common/collation/de_AT.xml"},
     {"urn:sxml:collation-data:collation/en_US.xml", "cldr/common/collation/en_US.xml"},
@@ -660,6 +661,7 @@ static const char made_up_locale[] =
     "  &a <* xyz   & 'b' < \\u00FE / e\n"
     "]]></cr></collation>\n"
     "<collation type='before'><cr>&amp;[before 1] q &lt; r</cr></collation>\n"
+    "<collation type='beforeb'><cr>&amp;[before 2] q &lt;&lt; r</cr></collation>\n"
     "<collation type='prefix'><cr>&amp;q &lt; a|b</cr></collation>\n"
     "<collation type='plain'><cr><![CDATA[ [reorder Grek digit] &c <<< k = \\x{1F600} ]]></cr>"
     "</collation>\n"
@@ -770,6 +772,15 @@ static const comparison_case tailoring_cases[] = {
      SXML_ORDERING_GREATER},
     {UCA_URI "?lang=zz-u-co-plain;strength=tertiary", "\xF0\x9F\x98\x80", "k",
      SXML_ORDERING_EQUAL},
+    /* [before 1] (UTS #35, part 5, section 3.7): r just before q. */
+    {UCA_URI "?lang=zz-u-co-before", "r", "q", SXML_ORDERING_LESS},
+    {UCA_URI "?lang=zz-u-co-before", "r", "p", SXML_ORDERING_GREATER},
+    {UCA_URI "?lang=zz-u-co-before", "rz", "q", SXML_ORDERING_LESS},
+    /* Swedish: å, ä and ö after z, by &[before 1]ǀ. */
+    {UCA_URI "?lang=sv", "\xC3\xA4", "z", SXML_ORDERING_GREATER},
+    {UCA_URI "?lang=sv", "\xC3\xA5", "\xC3\xA4", SXML_ORDERING_LESS},
+    {UCA_URI "?lang=sv", "\xC3\xB6", "\xC3\xA4", SXML_ORDERING_GREATER},
+    {UCA_URI "?lang=sv;strength=primary", "\xC3\x85", "\xC3\xA5", SXML_ORDERING_EQUAL},
 };
 
 static void test_tailorings_order_strings(sxml_test_state *state) {
@@ -825,7 +836,8 @@ static void test_tailorings_are_honoured_or_not(sxml_test_state *state) {
         UCA_URI "?fallback=no;lang=es-u-co-trad", UCA_URI "?fallback=no;lang=und",
         UCA_URI "?fallback=no;reorder=Grek,Latn", UCA_URI "?fallback=no;reorder=default",
         UCA_URI "?fallback=no;reorder=space,others,digit", UCA_URI "?fallback=no;lang=zz",
-        UCA_URI "?fallback=no;version=16.0.0;lang=nl;reorder=Cyrl"};
+        UCA_URI "?fallback=no;version=16.0.0;lang=nl;reorder=Cyrl",
+        UCA_URI "?fallback=no;lang=zz-u-co-before", UCA_URI "?fallback=no;lang=sv"};
     for (size_t uri_index = 0; uri_index < SXML_TEST_COUNT(supported_uris); uri_index += 1) {
         sxml_status status = SXML_STATUS_OK;
         const sxml_collation_resolution resolution =
@@ -846,7 +858,7 @@ static void test_tailorings_are_honoured_or_not(sxml_test_state *state) {
         UCA_URI "?fallback=no;reorder=default,Grek", UCA_URI "?fallback=no;lang=de-u-kn-true",
         UCA_URI "?fallback=no;lang=de-x-private", UCA_URI "?fallback=no;lang=-",
         UCA_URI "?fallback=no;lang=es;reorder=Zyxw", UCA_URI "?fallback=no;lang=es-u-co-traditional",
-        UCA_URI "?fallback=no;lang=zz-u-co-before", UCA_URI "?fallback=no;lang=zz-u-co-prefix"};
+        UCA_URI "?fallback=no;lang=zz-u-co-beforeb", UCA_URI "?fallback=no;lang=zz-u-co-prefix"};
     for (size_t uri_index = 0; uri_index < SXML_TEST_COUNT(unsupported_uris); uri_index += 1) {
         sxml_status status = SXML_STATUS_OK;
         const sxml_collation_resolution resolution =

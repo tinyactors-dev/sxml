@@ -16,7 +16,8 @@ unit tests.
 
 The subset, unchanged, is: the CLDR root collation and the collations of
 the languages D208 names (en, de, fr, it, es, nl) with their regional
-files; the main/ files of root, those languages and de_AT (the calendar
+files, and the Swedish collation (sv, for the XT40 merge cases that
+merge Swedish city names, packet 4.20); the main/ files of root, those languages and de_AT (the calendar
 names; the localization feature reads ldml/dates/calendars); their rbnf/
 files (the spell-out rules); and supplemental/supplementalData.xml (the
 eras' dates in calendarData) and supplemental/ordinals.xml (the ordinal
@@ -36,6 +37,7 @@ plural rules):
 | `common/collation/fr_CA.xml` | `e7d7a78410f69eafa175d6d14f420ded883026db18b56d703f215daa8dac6012` |
 | `common/collation/it.xml` | `761d0da3191f4668c00879e4cb2d37feb9f55e682bc39870dc88d9cd45be2555` |
 | `common/collation/nl.xml` | `1c6edcb895297e9f1496e8733195f04910e193cff0ae2c6a8b95671b283a05de` |
+| `common/collation/sv.xml` | `e1f1ba79ec79ee120f462e3883c995db6e45720cb3f77d3806fee0d6b8455ec5` |
 | `common/main/root.xml` | `1ac705812e9e186b8d904813a4989d160729cc4d217849ad3736257da10f69b0` |
 | `common/main/en.xml` | `cdb3d09f4d5cd206616a57cc8a8cb54c458c6678758c59b8b817125fe2dfb147` |
 | `common/main/de.xml` | `7530b4c93f36102965b09685aea50b82934707a2bd025b7fc61ae0acb8a7114c` |

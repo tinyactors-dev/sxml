@@ -256,10 +256,12 @@ static sxml_status finish_branch(sxml_xpath_lowerer *lowerer, branch_result bran
         expression);
 }
 
-/* The focus value of focus, read in block. */
+/* A part of focus (its value unless part says otherwise), read in
+   block. */
 typedef struct focus_value_read {
     sxml_xpath_lowering_focus *focus;
     sxml_xpath_lowering_block *block;
+    sxml_xpath_lowering_focus_part part;
 } focus_value_read;
 
 static sxml_status read_focus_value(sxml_xpath_lowerer *lowerer, focus_value_read request,
@@ -268,9 +270,8 @@ static sxml_status read_focus_value(sxml_xpath_lowerer *lowerer, focus_value_rea
     lowerer->function->focus = request.focus;
     const sxml_status status = sxml_xpath_lowerer_read_focus(
         lowerer,
-        (sxml_xpath_lowering_focus_read){.block = request.block,
-                                         .node = no_ast_node,
-                                         .part = SXML_XPATH_LOWERING_FOCUS_PART_VALUE},
+        (sxml_xpath_lowering_focus_read){
+            .block = request.block, .node = no_ast_node, .part = request.part},
         atom);
     lowerer->function->focus = outer_focus;
     return status;
@@ -1722,7 +1723,32 @@ static const sxml_xpath_lowering_procedure group_procedure = {
 /* 15.4 to 15.6: the merge-action's view of a group. */
 static const char merge_items_text[] = GROUP_VARIABLE "tuples ! ?2";
 static const char merge_key_array_text[] =
-    "Q{http://www.w3.org/2005/xpath-functions/array}subarray(head(" GROUP_VARIABLE "tuples), 3)";
+    "let $t := head(" GROUP_VARIABLE "tuples) return "
+    "Q{http://www.w3.org/2005/xpath-functions/array}subarray($t, 3, "
+    "Q{http://www.w3.org/2005/xpath-functions/array}size($t) - 4)";
+/* 15.4: XTDE2210 for corresponding merge keys whose computed lang, order,
+   collation, case-order or data-type differ: the values of one attribute
+   of one key, one per source. */
+static const char merge_key_attribute_text[] =
+    "if (count(distinct-values(" GROUP_VARIABLE "values ! normalize-space(.))) gt 1) then "
+    "error(QName('http://www.w3.org/2005/xqt-errors', 'XTDE2210'), 'Corresponding merge keys "
+    "of two merge sources differ in lang, order, collation, case-order or data-type "
+    "(XSLT 4.0, 15.4)') else ()";
+/* 15.4, XTDE2220: each input sequence of a merge source (one per anchor)
+   must be in merge-key order. The sort is stable, so an input sequence is
+   in order exactly when its tuples keep their input order once sorted:
+   the tuples end with the anchor's and the item's positions. The checks
+   of merge_key_attribute_text come first. */
+static const char merge_order_text[] =
+    "if (exists(" GROUP_VARIABLE "checks)) then () else "
+    "if (Q{http://www.w3.org/2005/xpath-functions/map}size(fold-left(" GROUP_VARIABLE
+    "tuples, {}, function($seen, $t) { "
+    "let $n := Q{http://www.w3.org/2005/xpath-functions/array}size($t), "
+    "$k := $t(1) || ' ' || $t($n - 1), $p := $t($n) return "
+    "if ($seen($k) gt $p) then error(QName('http://www.w3.org/2005/xqt-errors', 'XTDE2220'), "
+    "'The input of a merge source is not in merge-key order (XSLT 4.0, 15.4)') "
+    "else Q{http://www.w3.org/2005/xpath-functions/map}put($seen, $k, $p) })) ge 0) "
+    "then " GROUP_VARIABLE "tuples else ()";
 static const char merge_sources_text[] =
     "Q{http://www.w3.org/2005/xpath-functions/map}merge(for $i in 1 to count(" GROUP_VARIABLE
     "names) return Q{http://www.w3.org/2005/xpath-functions/map}entry("
@@ -1733,14 +1759,17 @@ static const char merge_documents_text[] =
 
 typedef enum merge_phase {
     SXML_XSLT_MERGE_PHASE_START,
+    SXML_XSLT_MERGE_PHASE_ATTRIBUTE_CHECK,
     SXML_XSLT_MERGE_PHASE_KEY_ATTRIBUTES,
     SXML_XSLT_MERGE_PHASE_ANCHORS,
     SXML_XSLT_MERGE_PHASE_ANCHOR_DOCUMENTS,
+    SXML_XSLT_MERGE_PHASE_ANCHOR_VALIDATION,
     SXML_XSLT_MERGE_PHASE_SELECT,
     SXML_XSLT_MERGE_PHASE_KEY,
     SXML_XSLT_MERGE_PHASE_KEY_VALUE,
     SXML_XSLT_MERGE_PHASE_TUPLES,
     SXML_XSLT_MERGE_PHASE_SORT,
+    SXML_XSLT_MERGE_PHASE_ORDER_CHECK,
     SXML_XSLT_MERGE_PHASE_GROUPS,
     SXML_XSLT_MERGE_PHASE_ITEMS,
     SXML_XSLT_MERGE_PHASE_KEY_ARRAY,
@@ -1750,8 +1779,33 @@ typedef enum merge_phase {
 } merge_phase;
 
 /* The members of a merge tuple before its keys: [source number, item,
-   keys...]. */
+   keys..., anchor position, item position]. */
 #define MERGE_TUPLE_KEY_OFFSET 3U
+/* The positions after the keys (merge_order_text). */
+#define MERGE_TUPLE_POSITION_COUNT 2U
+
+/* The merge-key attributes whose effective values must agree (15.4). */
+static const sxml_xslt_ast_attribute_kind merge_compared_attributes[] = {
+    SXML_XSLT_AST_ATTRIBUTE_LANG, SXML_XSLT_AST_ATTRIBUTE_ORDER,
+    SXML_XSLT_AST_ATTRIBUTE_COLLATION, SXML_XSLT_AST_ATTRIBUTE_CASE_ORDER,
+    SXML_XSLT_AST_ATTRIBUTE_DATA_TYPE};
+static const char *const merge_compared_defaults[] = {"", "ascending", "", "", ""};
+#define MERGE_COMPARED_COUNT (sizeof(merge_compared_attributes) / sizeof(merge_compared_attributes[0]))
+
+/* Where the XTDE2210 checks of computed merge-key attributes are. */
+typedef struct merge_attribute_check {
+    size_t key_index;
+    size_t attribute_index;
+    sxml_xslt_ast_node_index source;
+    size_t source_index;
+    /* The values are lowered; the check of them is next. */
+    bool is_collected;
+    /* The check of the last attribute, to join to checks. */
+    bool is_pending;
+    sxml_ir_atom check;
+    bool has_checks;
+    sxml_ir_atom checks;
+} merge_attribute_check;
 
 typedef struct merge_locals {
     sxml_xslt_instruction_locals head;
@@ -1796,6 +1850,7 @@ typedef struct merge_locals {
     sxml_xpath_lowering_focus body_focus;
     sxml_ir_atom body;
     size_t scope_mark;
+    merge_attribute_check attribute_check;
 } merge_locals;
 
 /* 15.3, 15.4: XTSE2200, XTSE3195, XTSE3190; the counts. */
@@ -1867,11 +1922,6 @@ static sxml_status check_merge(const sxml_xslt_lowering *lowering, merge_locals 
    are compared; an absent attribute is its default. */
 static bool has_inconsistent_merge_keys(const sxml_xslt_lowering *lowering,
                                         sxml_xslt_ast_node_index merge) {
-    static const sxml_xslt_ast_attribute_kind compared[] = {
-        SXML_XSLT_AST_ATTRIBUTE_LANG, SXML_XSLT_AST_ATTRIBUTE_ORDER,
-        SXML_XSLT_AST_ATTRIBUTE_COLLATION, SXML_XSLT_AST_ATTRIBUTE_CASE_ORDER,
-        SXML_XSLT_AST_ATTRIBUTE_DATA_TYPE};
-    static const char *const defaults[] = {"", "ascending", "", "", ""};
     const sxml_xslt_ast_node_index first_source =
         first_child_of(lowering, (child_query){.node = merge, .kind = SXML_XSLT_AST_KIND_MERGE_SOURCE});
     for (sxml_xslt_ast_node_index source = next_like(lowering, first_source); source.value != 0;
@@ -1882,14 +1932,14 @@ static bool has_inconsistent_merge_keys(const sxml_xslt_lowering *lowering,
             lowering, (child_query){.node = source, .kind = SXML_XSLT_AST_KIND_MERGE_KEY});
         for (; first_key.value != 0 && key.value != 0;
              first_key = next_like(lowering, first_key), key = next_like(lowering, key)) {
-            for (size_t attribute_index = 0;
-                 attribute_index < sizeof(compared) / sizeof(compared[0]); attribute_index += 1) {
+            for (size_t attribute_index = 0; attribute_index < MERGE_COMPARED_COUNT;
+                 attribute_index += 1) {
                 const sxml_xslt_ast_attribute *first_attribute =
-                    find_attribute(lowering, first_key, compared[attribute_index]);
+                    find_attribute(lowering, first_key, merge_compared_attributes[attribute_index]);
                 const sxml_xslt_ast_attribute *attribute =
-                    find_attribute(lowering, key, compared[attribute_index]);
+                    find_attribute(lowering, key, merge_compared_attributes[attribute_index]);
                 const sxml_byte_view fallback =
-                    sxml_byte_view_from_c_string(defaults[attribute_index]);
+                    sxml_byte_view_from_c_string(merge_compared_defaults[attribute_index]);
                 const fixed_text first_text =
                     first_attribute->kind == SXML_XSLT_AST_ATTRIBUTE_NONE
                         ? (fixed_text){.is_fixed = true, .text = fallback}
@@ -1908,6 +1958,152 @@ static bool has_inconsistent_merge_keys(const sxml_xslt_lowering *lowering,
     return false;
 }
 
+/* The merge key of key_index of source. */
+static sxml_xslt_ast_node_index nth_merge_key(const sxml_xslt_lowering *lowering,
+                                              sxml_xslt_ast_node_index source, size_t key_index) {
+    sxml_xslt_ast_node_index key =
+        first_child_of(lowering, (child_query){.node = source, .kind = SXML_XSLT_AST_KIND_MERGE_KEY});
+    for (size_t index = 0; index < key_index && key.value != 0; index += 1) {
+        key = next_like(lowering, key);
+    }
+    return key;
+}
+
+/* True when the attribute is an attribute value template with enclosed
+   expressions. */
+static bool is_computed_attribute(const sxml_xslt_lowering *lowering,
+                                  const sxml_xslt_ast_attribute *attribute) {
+    return attribute->kind != SXML_XSLT_AST_ATTRIBUTE_NONE &&
+           attribute->value.kind == SXML_XSLT_AST_VALUE_KIND_VALUE_TEMPLATE &&
+           !read_fixed_text(lowering, attribute).is_fixed;
+}
+
+/* True when a source computes the attribute of the check's key. */
+static bool is_any_computed(const sxml_xslt_lowering *lowering, const merge_locals *locals) {
+    const merge_attribute_check *check = &locals->attribute_check;
+    for (sxml_xslt_ast_node_index source = locals->first_source; source.value != 0;
+         source = next_like(lowering, source)) {
+        const sxml_xslt_ast_node_index key = nth_merge_key(lowering, source, check->key_index);
+        if (key.value != 0 &&
+            is_computed_attribute(
+                lowering,
+                find_attribute(lowering, key, merge_compared_attributes[check->attribute_index]))) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/* Moves the check to the next attribute or key. */
+static void advance_attribute_check(merge_attribute_check *check) {
+    check->attribute_index += 1;
+    if (check->attribute_index == MERGE_COMPARED_COUNT) {
+        check->attribute_index = 0;
+        check->key_index += 1;
+    }
+    check->source_index = 0;
+    check->is_collected = false;
+}
+
+/* One step of the XTDE2210 checks of computed merge-key attributes
+   (15.4): for each attribute some source computes, every source's value
+   (fixed ones and defaults as constants, in source_tuples while the
+   sources are not lowered yet), then merge_key_attribute_text over them;
+   the checks are joined in attribute_check.checks. */
+static sxml_status step_attribute_check(sxml_xpath_lowering_machine *machine,
+                                        sxml_xpath_lowering_frame *frame, step_outcome *outcome) {
+    sxml_xpath_lowerer *lowerer = machine->state;
+    merge_locals *locals = frame->locals;
+    const sxml_xslt_lowering *lowering = locals->head.lowering;
+    merge_attribute_check *check = &locals->attribute_check;
+    outcome->is_pushed = false;
+    sxml_status status = SXML_STATUS_OK;
+    if (check->is_pending) {
+        check->is_pending = false;
+        if (!check->has_checks) {
+            check->has_checks = true;
+            check->checks = check->check;
+        } else {
+            const sxml_ir_atom both[2] = {check->checks, check->check};
+            sxml_ir_atom_list list = {0};
+            status = sxml_ir_unit_add_atoms(
+                lowerer->unit, (sxml_ir_atom_view){.atoms = both, .atom_count = 2}, &list);
+            if (status == SXML_STATUS_OK) {
+                status = bind(lowerer,
+                              (binding){.block = frame->block,
+                                        .expression = {.expression_kind =
+                                                           SXML_IR_EXPRESSION_KIND_SEQUENCE,
+                                                       .sequence = list}},
+                              &check->checks);
+            }
+        }
+        advance_attribute_check(check);
+    }
+    while (status == SXML_STATUS_OK && check->key_index < locals->key_count) {
+        if (check->source_index == 0 && !check->is_collected) {
+            if (!is_any_computed(lowering, locals)) {
+                advance_attribute_check(check);
+                continue;
+            }
+            check->source = locals->first_source;
+        }
+        if (check->source_index < locals->source_count) {
+            const size_t source_index = check->source_index;
+            const sxml_xslt_ast_node_index key =
+                nth_merge_key(lowering, check->source, check->key_index);
+            check->source = next_like(lowering, check->source);
+            check->source_index += 1;
+            const sxml_xslt_ast_attribute *attribute =
+                find_attribute(lowering, key, merge_compared_attributes[check->attribute_index]);
+            if (is_computed_attribute(lowering, attribute)) {
+                outcome->is_pushed = true;
+                return sxml_xslt_lowering_call_value_template(
+                    machine, &(sxml_xslt_expression_call){
+                                 .lowering = lowering,
+                                 .expression = attribute->value.payload.expression,
+                                 .block = frame->block,
+                                 .atom = &locals->source_tuples[source_index],
+                                 .focus = NULL});
+            }
+            const sxml_byte_view text =
+                attribute->kind == SXML_XSLT_AST_ATTRIBUTE_NONE
+                    ? sxml_byte_view_from_c_string(merge_compared_defaults[check->attribute_index])
+                    : read_fixed_text(lowering, attribute).text;
+            status = sxml_xpath_lowerer_add_string_constant(lowerer, text,
+                                                            &locals->source_tuples[source_index]);
+            continue;
+        }
+        check->is_collected = true;
+        sxml_ir_atom_list list = {0};
+        status = sxml_ir_unit_add_atoms(
+            lowerer->unit,
+            (sxml_ir_atom_view){.atoms = locals->source_tuples, .atom_count = locals->source_count},
+            &list);
+        sxml_ir_atom values = {0};
+        if (status == SXML_STATUS_OK) {
+            status = bind(lowerer,
+                          (binding){.block = frame->block,
+                                    .expression = {.expression_kind =
+                                                       SXML_IR_EXPRESSION_KIND_SEQUENCE,
+                                                   .sequence = list}},
+                          &values);
+        }
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        const text_variable variable = {.local_name = "values", .atom = values};
+        check->is_pending = true;
+        outcome->is_pushed = true;
+        return call_text(machine, &(text_call){.lowering = lowering,
+                                               .text = merge_key_attribute_text,
+                                               .variables = &variable,
+                                               .variable_count = 1,
+                                               .block = frame->block,
+                                               .atom = &check->check});
+    }
+    return status;
+}
+
 /* Allocates the owned arrays and the source names. */
 static sxml_status start_merge(sxml_xpath_lowering_machine *machine,
                                sxml_xpath_lowering_frame *frame) {
@@ -1915,7 +2111,9 @@ static sxml_status start_merge(sxml_xpath_lowering_machine *machine,
     merge_locals *locals = frame->locals;
     const sxml_xslt_lowering *lowering = locals->head.lowering;
     sxml_status status = check_merge(lowering, locals);
-    const size_t counts[4] = {locals->key_count, MERGE_TUPLE_KEY_OFFSET - 1 + locals->key_count,
+    const size_t counts[4] = {locals->key_count,
+                              MERGE_TUPLE_KEY_OFFSET - 1 + locals->key_count +
+                                  MERGE_TUPLE_POSITION_COUNT,
                               locals->source_count, locals->source_count};
     for (size_t memory_index = 0; status == SXML_STATUS_OK && memory_index < 4;
          memory_index += 1) {
@@ -2067,12 +2265,40 @@ static sxml_status bind_source_tuples(sxml_xpath_lowerer *lowerer, sxml_xpath_lo
         lowerer, sxml_atomic_item_from_integer((int64_t)locals->source_index + 1),
         &locals->members[0]);
     locals->members[1] = locals->key_focus.fixed_value;
+    /* The positions merge_order_text reads (15.4, XTDE2220). */
+    sxml_ir_atom *positions = &locals->members[MERGE_TUPLE_KEY_OFFSET - 1 + locals->key_count];
+    if (status == SXML_STATUS_OK && locals->has_anchors) {
+        status = read_focus_value(lowerer,
+                                  (focus_value_read){.focus = &locals->anchor_focus,
+                                                     .block = &locals->item_block,
+                                                     .part = SXML_XPATH_LOWERING_FOCUS_PART_POSITION},
+                                  &positions[0]);
+    } else if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_add_item_constant(lowerer, sxml_atomic_item_from_integer(1),
+                                                      &positions[0]);
+    }
+    /* 15.3: sort-before-merge="yes" sorts the input first, so its order
+       is never checked (every item at position 1). */
+    const sxml_xslt_ast_attribute *sort_before_merge =
+        find_attribute(locals->head.lowering, locals->source, SXML_XSLT_AST_ATTRIBUTE_SORT_BEFORE_MERGE);
+    if (status == SXML_STATUS_OK && sort_before_merge->value.kind == SXML_XSLT_AST_VALUE_KIND_BOOLEAN &&
+        sort_before_merge->value.payload.is_true) {
+        status = sxml_xpath_lowerer_add_item_constant(lowerer, sxml_atomic_item_from_integer(1),
+                                                      &positions[1]);
+    } else if (status == SXML_STATUS_OK) {
+        status = read_focus_value(lowerer,
+                                  (focus_value_read){.focus = &locals->item_focus,
+                                                     .block = &locals->item_block,
+                                                     .part = SXML_XPATH_LOWERING_FOCUS_PART_POSITION},
+                                  &positions[1]);
+    }
     sxml_ir_atom_list member_list = {0};
     if (status == SXML_STATUS_OK) {
         status = sxml_ir_unit_add_atoms(
             lowerer->unit,
             (sxml_ir_atom_view){.atoms = locals->members,
-                                .atom_count = MERGE_TUPLE_KEY_OFFSET - 1 + locals->key_count},
+                                .atom_count = MERGE_TUPLE_KEY_OFFSET - 1 + locals->key_count +
+                                              MERGE_TUPLE_POSITION_COUNT},
             &member_list);
     }
     sxml_ir_atom tuple = {0};
@@ -2240,10 +2466,17 @@ static sxml_status step_merge(sxml_xpath_lowering_machine *machine,
             }
             return sxml_xpath_lowering_finish_frame(machine, frame, raise);
         }
+        locals->phase = SXML_XSLT_MERGE_PHASE_ATTRIBUTE_CHECK;
         status = start_merge(machine, frame);
         locals->key = first_child_of(
             lowering, (child_query){.node = locals->source, .kind = SXML_XSLT_AST_KIND_MERGE_KEY});
         locals->key_index = 0;
+        return status;
+    case SXML_XSLT_MERGE_PHASE_ATTRIBUTE_CHECK:
+        status = step_attribute_check(machine, frame, outcome);
+        if (status == SXML_STATUS_OK && !outcome->is_pushed) {
+            locals->phase = SXML_XSLT_MERGE_PHASE_KEY_ATTRIBUTES;
+        }
         return status;
     case SXML_XSLT_MERGE_PHASE_KEY_ATTRIBUTES:
         status = lower_merge_key_attribute(machine, frame, outcome);
@@ -2273,7 +2506,7 @@ static sxml_status step_merge(sxml_xpath_lowering_machine *machine,
                                                   .focus = NULL});
     }
     case SXML_XSLT_MERGE_PHASE_ANCHOR_DOCUMENTS: {
-        locals->phase = SXML_XSLT_MERGE_PHASE_SELECT;
+        locals->phase = SXML_XSLT_MERGE_PHASE_ANCHOR_VALIDATION;
         if (!has_attribute(lowering, locals->source, SXML_XSLT_AST_ATTRIBUTE_FOR_EACH_SOURCE)) {
             return SXML_STATUS_OK;
         }
@@ -2297,6 +2530,22 @@ static sxml_status step_merge(sxml_xpath_lowering_machine *machine,
                                                      .atom = &locals->anchors});
         }
         return status;
+    }
+    case SXML_XSLT_MERGE_PHASE_ANCHOR_VALIDATION: {
+        /* 15.3: the documents for-each-source reads are validated as
+           validation or type asks (25). */
+        locals->phase = SXML_XSLT_MERGE_PHASE_SELECT;
+        const sxml_xslt_validation_query validation = {.lowering = lowering,
+                                                       .node = locals->source};
+        if (!has_attribute(lowering, locals->source, SXML_XSLT_AST_ATTRIBUTE_FOR_EACH_SOURCE) ||
+            !sxml_xslt_lowering_validates(validation)) {
+            return SXML_STATUS_OK;
+        }
+        return sxml_xslt_lowering_bind_validation(
+            lowerer,
+            &(sxml_xslt_validation_request){
+                .query = validation, .block = frame->block, .value = locals->anchors},
+            &locals->anchors);
     }
     case SXML_XSLT_MERGE_PHASE_SELECT: {
         locals->phase = SXML_XSLT_MERGE_PHASE_KEY;
@@ -2356,7 +2605,7 @@ static sxml_status step_merge(sxml_xpath_lowering_machine *machine,
             locals->source.value != 0 ? SXML_XSLT_MERGE_PHASE_KEY_ATTRIBUTES : SXML_XSLT_MERGE_PHASE_SORT;
         return status;
     case SXML_XSLT_MERGE_PHASE_SORT: {
-        locals->phase = SXML_XSLT_MERGE_PHASE_GROUPS;
+        locals->phase = SXML_XSLT_MERGE_PHASE_ORDER_CHECK;
         sxml_ir_expression all = {0};
         sxml_ir_atom_list list = {0};
         status = sxml_ir_unit_add_atoms(
@@ -2383,6 +2632,30 @@ static sxml_status step_merge(sxml_xpath_lowering_machine *machine,
                                             .tuple_key_offset = MERGE_TUPLE_KEY_OFFSET,
                                             .block = frame->block,
                                             .atom = &locals->sorted});
+    }
+    case SXML_XSLT_MERGE_PHASE_ORDER_CHECK: {
+        locals->phase = SXML_XSLT_MERGE_PHASE_GROUPS;
+        sxml_ir_atom checks = locals->attribute_check.checks;
+        if (!locals->attribute_check.has_checks) {
+            status = bind(lowerer,
+                          (binding){.block = frame->block,
+                                    .expression = {.expression_kind =
+                                                       SXML_IR_EXPRESSION_KIND_SEQUENCE,
+                                                   .sequence = {0}}},
+                          &checks);
+        }
+        const text_variable variables[2] = {{.local_name = "tuples", .atom = locals->sorted},
+                                            {.local_name = "checks", .atom = checks}};
+        if (status == SXML_STATUS_OK) {
+            outcome->is_pushed = true;
+            status = call_text(machine, &(text_call){.lowering = lowering,
+                                                     .text = merge_order_text,
+                                                     .variables = variables,
+                                                     .variable_count = 2,
+                                                     .block = frame->block,
+                                                     .atom = &locals->sorted});
+        }
+        return status;
     }
     case SXML_XSLT_MERGE_PHASE_GROUPS: {
         locals->phase = SXML_XSLT_MERGE_PHASE_ITEMS;

@@ -32,7 +32,8 @@
  * then resets (&X) and relations (< << <<< =, and their starred lists
  * with ranges), each relation optionally with an extension (/Y). Strings
  * are put into NFD; quotes and \u, \U and \x escapes are read; # starts
- * a comment. sxml does not support [before n] resets, special reset
+ * a comment. sxml does not support [before 2] and [before 3] resets
+ * ([before 1] resets are, 3.7), special reset
  * positions ([first variable] and the like), prefixes (x|y), quaternary
  * relations, [suppressContractions] and [optimize]: rules with them are
  * not honoured, so the language falls back to the root order.
@@ -844,13 +845,42 @@ static sxml_status apply_relation(tailoring_builder *builder, const relation *ap
     return set_entry(builder, applied->text, &list);
 }
 
-static void apply_reset(tailoring_builder *builder, const rule_string *text) {
+/* A reset: &X, or &[before 1]X (UTS #35, Part 5, section 3.7). */
+typedef struct reset {
+    const rule_string *text;
+    bool is_before_primary;
+} reset;
+
+static void apply_reset(tailoring_builder *builder, const reset *applied) {
+    const rule_string *text = applied->text;
     reference_list list;
     find_string_elements((string_lookup){.builder = builder, .text = text, .is_root_only = false},
                          &list);
     if (text->is_too_long || list.is_too_long || list.reference_count == 0) {
         builder->is_supported = false;
         return;
+    }
+    if (applied->is_before_primary) {
+        /* 3.7: [before 1] resets to the position just before the last
+           element at primary strength. Its root element's primary less
+           one, with common secondary and tertiary weights, is that
+           position: what is tailored after it sorts after every element
+           of a smaller primary and before the reset's element. A
+           tailored element there, or a primary of 1 or less, is not
+           supported. */
+        element_reference *last = &list.references[list.reference_count - 1];
+        if (last->node != SXML_TAILORING_NO_NODE || last->element.primary <= 1 ||
+            last->element.primary_offset != 0) {
+            builder->is_supported = false;
+            return;
+        }
+        last->element = (sxml_uca_element){.primary = (uint16_t)(last->element.primary - 1U),
+                                           .secondary = 0x20U,
+                                           .tertiary = 0x02U,
+                                           .primary_offset = 0,
+                                           .secondary_offset = 0,
+                                           .tertiary_offset = 0,
+                                           .flags = 0};
     }
     memcpy(builder->position, list.references, list.reference_count * sizeof(element_reference));
     builder->position_count = list.reference_count;
@@ -1262,6 +1292,19 @@ static sxml_status import_rules(tailoring_builder *builder, const option_words *
     return status;
 }
 
+/* After "&[": reads "before 1]"; false (and the frame anywhere) for any
+   other option, which the caller does not support. */
+static bool read_before_option(rules_frame *frame) {
+    option_text option;
+    if (!read_option(frame, &option)) {
+        return false;
+    }
+    option_words words;
+    split_option(&option, &words);
+    return !words.is_unusual && words.word_count == 2 &&
+           view_is(option_word(&words, 0), "before") && view_is(option_word(&words, 1), "1");
+}
+
 static sxml_status read_top_option(tailoring_builder *builder, rules_frame *frame) {
     option_text option;
     if (!read_option(frame, &option)) {
@@ -1398,15 +1441,22 @@ static sxml_status read_rule_item(tailoring_builder *builder) {
     if (codepoint == '&') {
         frame->position += 1;
         skip_white_space(frame);
+        const bool has_option = peek(frame) == '[';
+        bool is_before = false;
+        if (has_option) {
+            frame->position += 1;
+            is_before = read_before_option(frame);
+            skip_white_space(frame);
+        }
         raw_string raw;
-        if (peek(frame) == '[' || !read_raw_string(frame, &raw)) {
-            /* [before n] and special reset positions. */
+        if (has_option != is_before || !read_raw_string(frame, &raw)) {
+            /* [before 2], [before 3] and special reset positions. */
             builder->is_supported = false;
             return SXML_STATUS_OK;
         }
         rule_string text;
         normalize_raw(&raw, &text);
-        apply_reset(builder, &text);
+        apply_reset(builder, &(reset){.text = &text, .is_before_primary = is_before});
         return SXML_STATUS_OK;
     }
     relation_operator operator_read;
