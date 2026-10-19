@@ -36,6 +36,15 @@ One short entry per week, newest first: what passed, what's next, what is blocke
   special reset positions, prefixes, `[suppressContractions]`. The
   JavaScript package still ships the DUCET only.
 
+- 7.12a done (D214): XQuery and XPath Full Text 3.0 as the optional
+  feature full-text. Grammar in `grammars/xquery` (43 contextual
+  keywords, +500 KB of parser), AST, static rules, a tokenizer, the
+  match program (an XDM array of postfix text and operands) run over
+  AllMatches rows, every connective, FTWords variant and positional
+  filter, case, diacritics, wildcards, explicit stop words, score
+  variables. QT4 ft-* 0 to 624 of 685 (91 %; 0 errors); the rest is
+  thesauri and stop word lists by URI (29) and stemming (21), 7.12b/c.
+  `sxml.wasm` +2 KB; every budget holds.
 - 7.10b done (D218): HTML input sniffs its encoding as browsers do
   (BOM, the encoding option, the `<meta>` prescan, then UTF-8 or
   windows-1252, tentative) and parses again when a later meta element

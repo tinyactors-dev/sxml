@@ -623,6 +623,14 @@ assertion the driver does not check (transform-009). The rest is D203's
   tables).
 - **Gate**: ≥ 75 % of the 685. Scoring and thesaurus results are partly
   implementation-dependent.
+**7.12a done** 2026-10-19 (D214): the grammar, AST, static rules,
+tokenizer, the match program over AllMatches rows with every
+connective, FTWords variant and positional filter, case, diacritics,
+wildcards and explicit stop words, score variables, as the optional
+feature full-text; QT4 ft-* 624 of 685 pass (91 %), gate met.
+`sxml.wasm` +2 KB, the CLI and `sxml-full.wasm` +540 KB (grammar
+500 KB). 7.12b/c: stemming, stop word lists and thesauri by URI
+(the two resource kinds; fullText-defaults), scores from the matches.
 
 ### 7.15 Full UCA collations (implementation, two packets)
 - **Specifications**: F&O 4.0, 5.2.4 "The Unicode Collation Algorithm"
