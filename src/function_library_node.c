@@ -260,6 +260,8 @@ static sxml_status call_doc(const sxml_function_call *call, sxml_sequence *resul
         return SXML_STATUS_OK;
     }
     sxml_document_options options = {.strips_space = false,
+                                     .validates_dtd = false,
+                                     .trusts_external = false,
                                      .xsd_validation = sxml_sequence_empty()};
     status = sxml_function_library_read_document_options(call, 1, &options);
     sxml_string uri_reference;
@@ -273,7 +275,9 @@ static sxml_status call_doc(const sxml_function_call *call, sxml_sequence *resul
             &(sxml_document_request){.uri_reference = uri_reference.utf8,
                                      .base_uri = sxml_dynamic_context_get_static_base_uri(
                                          call->dynamic_context),
-                                     .error_record = call->error_record},
+                                     .error_record = call->error_record,
+                                     .blocks_external_resources = !options.trusts_external,
+                                     .validates_dtd = options.validates_dtd},
             &document_node);
     }
     if (status == SXML_STATUS_OK && options.strips_space) {

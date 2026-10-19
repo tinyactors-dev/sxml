@@ -1008,7 +1008,10 @@ static const expression_case function_cases[] = {
     {"parse-xml(())", ""},
     {"parse-xml('<a x=\"1\"><b/></a>')", "<a x=\"1\"><b/></a>"},
     {"parse-xml('<a>')", "!FODC0006"},
-    {"parse-xml('<a/>', {'dtd-validation': true()})", "!FODC0013"},
+    /* The option reaches the loader (D199), which validates; this test's
+       loader does not: tests/xpath_test.c checks the processor's. */
+    {"parse-xml('<a/>', {'dtd-validation': true()})", "<a/>"},
+    {"parse-xml('<a/>', {'xinclude': true()})", "!FODC0013"},
     /* F&O 4.0, fn:parse-xml: strip-space="all" drops whitespace-only text. */
     {"parse-xml('<a> <b/> </a>', {'strip-space': 'all'})", "<a><b/></a>"},
     {"parse-xml('<a/>', {'strip-space': 'some'})", "!XPTY0004"},

@@ -631,6 +631,27 @@ static void test_doc_is_stable_and_resolves_through_the_resolver(sxml_test_state
     run.expression_text = TEXT("parse-xml('<a>')");
     SXML_TEST_EXPECT(state, run_query(&test_fixture, &run) == SXML_STATUS_DYNAMIC_ERROR);
     SXML_TEST_EXPECT(state, error_code_is(&run, TEXT("FODC0006")));
+    /* F&O 4.0, fn:parse-xml: dtd-validation (FODC0007 for an invalid
+       document, one without a DTD too) and trust-external (FODC0016 when
+       an external resource is needed; default false). D199. */
+    run.expression_text = TEXT("parse-xml('<!DOCTYPE a [<!ELEMENT a EMPTY>]><a/>', "
+                               "{'dtd-validation': true()}) ! name(*)");
+    SXML_TEST_EXPECT(state, run_query(&test_fixture, &run) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, output_is(&test_fixture, TEXT("\"a\"")));
+    run.expression_text = TEXT("parse-xml('<!DOCTYPE a [<!ELEMENT a EMPTY>]><a><b/></a>', "
+                               "{'dtd-validation': true()})");
+    SXML_TEST_EXPECT(state, run_query(&test_fixture, &run) == SXML_STATUS_DYNAMIC_ERROR);
+    SXML_TEST_EXPECT(state, error_code_is(&run, TEXT("FODC0007")));
+    run.expression_text = TEXT("parse-xml('<a/>', {'dtd-validation': true()})");
+    SXML_TEST_EXPECT(state, run_query(&test_fixture, &run) == SXML_STATUS_DYNAMIC_ERROR);
+    SXML_TEST_EXPECT(state, error_code_is(&run, TEXT("FODC0007")));
+    run.expression_text = TEXT("parse-xml('<!DOCTYPE a SYSTEM \"a.dtd\"><a/>')");
+    SXML_TEST_EXPECT(state, run_query(&test_fixture, &run) == SXML_STATUS_DYNAMIC_ERROR);
+    SXML_TEST_EXPECT(state, error_code_is(&run, TEXT("FODC0016")));
+    run.expression_text = TEXT("parse-xml('<!DOCTYPE a SYSTEM \"a.dtd\"><a/>', "
+                               "{'trust-external': true()}) ! name(*)");
+    SXML_TEST_EXPECT(state, run_query(&test_fixture, &run) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, output_is(&test_fixture, TEXT("\"a\"")));
     /* The null resolver of the request means the processor's; another
        resolver replaces it. */
     static const sxml_resource_entry_view no_entries = {.resource_entries = NULL,

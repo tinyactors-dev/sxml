@@ -136,6 +136,14 @@ typedef struct sxml_document_request {
     /* The static base URI to resolve it against; may be empty. */
     sxml_byte_view base_uri;
     sxml_error_record *error_record;
+    /* fn:doc without trust-external (F&O 4.0, 17.1.1): an external DTD or
+       entity the document refers to is FODC0016 instead of being read
+       (D199). Other callers (XSLT's fn:document) leave it false and read
+       them through the resolver. */
+    bool blocks_external_resources;
+    /* dtd-validation=true: FODC0007 when the document is not valid against
+       its DTD. */
+    bool validates_dtd;
 } sxml_document_request;
 
 /* Bytes fn:parse-xml parses into a new document (F&O 4.0,
@@ -145,6 +153,9 @@ typedef struct sxml_document_parse_request {
     /* The base URI of the new document node; may be empty. */
     sxml_byte_view base_uri;
     sxml_error_record *error_record;
+    /* As in sxml_document_request (fn:parse-xml's options). */
+    bool blocks_external_resources;
+    bool validates_dtd;
 } sxml_document_parse_request;
 
 /*

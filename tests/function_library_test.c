@@ -1355,7 +1355,9 @@ static void test_doc_and_qname(sxml_test_state *state) {
         {"doc('a.xml', {'stable': true(), 'trust-external': false()})/a/b ! local-name()",
          "\"b\""},
         {"doc('a.xml', {'strip-space': 'all'})/a/b ! local-name()", "\"b\""},
-        {"doc('a.xml', {'dtd-validation': true()})", "!FODC0013"},
+        /* The option reaches the loader (D199); this test's loader does
+           not validate: tests/xpath_test.c checks the processor's. */
+        {"doc('a.xml', {'dtd-validation': true()})/a/b ! local-name()", "\"b\""},
         /* Validated as fn:parse-xml validates: no schema declares a
            (F&O 4.0, 17.2.1; packet 2.21). */
         {"doc('a.xml', {'xsd-validation': 'strict'})", "!FODC0014"},

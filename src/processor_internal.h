@@ -39,6 +39,25 @@
  * Thread safety: the thread of the processor (D35).
  */
 
+/*
+ * External entities asked of a resource resolver for the XML parser
+ * (include/sxml/xml.h; D199): the resource being read is kept until the
+ * parser releases it. With refuses set nothing is asked and was_refused
+ * records that a document referred to an external entity (fn:doc and
+ * fn:parse-xml without trust-external: FODC0016).
+ */
+typedef struct sxml_entity_resolution {
+    sxml_processor *processor;
+    sxml_resource_resolver resolver;
+    bool refuses;
+    bool was_refused;
+    sxml_resource resource;
+    bool holds_resource;
+} sxml_entity_resolution;
+
+/* The entity resolver over *resolution. */
+sxml_xml_entity_resolver sxml_entity_resolution_as_resolver(sxml_entity_resolution *resolution);
+
 struct sxml_processor {
     /* The configuration's allocator: every object and value of the
        processor is made through it. */
@@ -53,10 +72,8 @@ struct sxml_processor {
     sxml_clock clock;
     /* May be the null sink, which discards. */
     sxml_trace_sink trace_sink;
-    /* The external entity sxml_processor_entity_resolver is reading, until
-       the XML parser releases it (D199). */
-    sxml_resource entity_resource;
-    bool holds_entity_resource;
+    /* The state of sxml_processor_entity_resolver (D199). */
+    sxml_entity_resolution entity_resolution;
     /* In the processor's memory. */
     sxml_name_pool *name_pool;
     sxml_type_registry *type_registry;

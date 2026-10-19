@@ -745,12 +745,17 @@ sxml_status sxml_processor_parse_document(sxml_processor *processor,
 
 /* -------------------------------------------------- External entities */
 
-/* Asks the processor's resource resolver for an external entity (D199). */
-static sxml_status sxml_processor_resolve_entity(void *state,
-                                                 const sxml_xml_external_entity_request *request,
-                                                 sxml_xml_external_entity *entity) {
-    sxml_processor *processor = state;
-    const sxml_resource_resolver resolver = processor->resource_resolver;
+/* Asks the resolution's resource resolver for an external entity, or
+   records the reference when it refuses (D199). */
+static sxml_status sxml_resolution_resolve_entity(void *state,
+                                                  const sxml_xml_external_entity_request *request,
+                                                  sxml_xml_external_entity *entity) {
+    sxml_entity_resolution *resolution = state;
+    const sxml_resource_resolver resolver = resolution->resolver;
+    if (resolution->refuses) {
+        resolution->was_refused = true;
+        return SXML_STATUS_OK;
+    }
     if (resolver.operations == NULL || resolver.operations->resolve == NULL) {
         return SXML_STATUS_OK;
     }
@@ -761,7 +766,7 @@ static sxml_status sxml_processor_resolve_entity(void *state,
         &(sxml_resource_request){.resource_kind = SXML_RESOURCE_KIND_EXTERNAL_ENTITY,
                                  .uri_reference = request->system_identifier,
                                  .absolute_uri = request->absolute_uri,
-                                 .processor = processor},
+                                 .processor = resolution->processor},
         &resource);
     if (status != SXML_STATUS_OK) {
         return status;
@@ -778,8 +783,8 @@ static sxml_status sxml_processor_resolve_entity(void *state,
         }
         return SXML_STATUS_OK;
     }
-    processor->entity_resource = resource;
-    processor->holds_entity_resource = true;
+    resolution->resource = resource;
+    resolution->holds_resource = true;
     *entity = (sxml_xml_external_entity){.is_available = true,
                                          .content = resource.content,
                                          .encoding_name = resource.encoding_name,
@@ -787,24 +792,34 @@ static sxml_status sxml_processor_resolve_entity(void *state,
     return SXML_STATUS_OK;
 }
 
-static void sxml_processor_release_entity(void *state, const sxml_xml_external_entity *entity) {
+static void sxml_resolution_release_entity(void *state, const sxml_xml_external_entity *entity) {
     (void)entity;
-    sxml_processor *processor = state;
-    const sxml_resource_resolver resolver = processor->resource_resolver;
-    if (processor->holds_entity_resource && resolver.operations->release != NULL) {
-        resolver.operations->release(resolver.state, &processor->entity_resource);
+    sxml_entity_resolution *resolution = state;
+    const sxml_resource_resolver resolver = resolution->resolver;
+    if (resolution->holds_resource && resolver.operations->release != NULL) {
+        resolver.operations->release(resolver.state, &resolution->resource);
     }
-    processor->holds_entity_resource = false;
+    resolution->holds_resource = false;
 }
 
-static const sxml_xml_entity_resolver_operations sxml_processor_entity_resolver_operations = {
-    .resolve = sxml_processor_resolve_entity,
-    .release = sxml_processor_release_entity,
+static const sxml_xml_entity_resolver_operations sxml_entity_resolution_operations = {
+    .resolve = sxml_resolution_resolve_entity,
+    .release = sxml_resolution_release_entity,
 };
 
+sxml_xml_entity_resolver sxml_entity_resolution_as_resolver(sxml_entity_resolution *resolution) {
+    return (sxml_xml_entity_resolver){.state = resolution,
+                                      .operations = &sxml_entity_resolution_operations};
+}
+
 sxml_xml_entity_resolver sxml_processor_entity_resolver(sxml_processor *processor) {
-    return (sxml_xml_entity_resolver){.state = processor,
-                                      .operations = &sxml_processor_entity_resolver_operations};
+    processor->entity_resolution = (sxml_entity_resolution){
+        .processor = processor,
+        .resolver = processor->resource_resolver,
+        .refuses = false,
+        .was_refused = false,
+        .holds_resource = false};
+    return sxml_entity_resolution_as_resolver(&processor->entity_resolution);
 }
 
 /* ------------------------------------------------------- Document loader */
@@ -1077,6 +1092,107 @@ typedef struct sxml_resolution_exchange {
     const sxml_resource *resource;
 } sxml_resolution_exchange;
 
+static const sxml_static_error sxml_document_untrusted_error = {
+    .error_status = SXML_STATUS_DYNAMIC_ERROR,
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("FODC0016"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(
+        "The document refers to an external DTD or entity, and the call does not "
+        "trust external resources (F&O 4.0, fn:doc, fn:parse-xml: trust-external)"),
+};
+
+/* How a document of fn:doc or fn:parse-xml is parsed (D199). */
+typedef struct sxml_loader_parse {
+    const sxml_processor_document_loader *loader;
+    /* The request without its entity resolver and validator. */
+    const sxml_xml_parse_request *request;
+    bool blocks_external_resources;
+    bool validates_dtd;
+    sxml_error_record *error_record;
+} sxml_loader_parse;
+
+/* Raises FODC0007 with the DTD validator's description, which the raise
+   copies (F&O 4.0, fn:parse-xml, fn:doc: dtd-validation). */
+static sxml_status sxml_loader_report_invalid(const sxml_loader_parse *parse,
+                                              const sxml_error_record *validation_error) {
+    sxml_byte_view description = validation_error->diagnostic.description;
+    if (description.byte_count == 0) {
+        description = SXML_BYTE_VIEW_FROM_LITERAL(
+            "The document is not valid against its DTD (F&O 4.0, dtd-validation)");
+    }
+    return sxml_item_heap_raise_error(
+        parse->loader->configuration.evaluation_environment.processor->item_heap,
+        &(sxml_error_raise_request){
+            .error_status = SXML_STATUS_DYNAMIC_ERROR,
+            .code = {.namespace_uri = SXML_BYTE_VIEW_FROM_LITERAL(SXML_ERROR_NAMESPACE_URI),
+                     .local_name = SXML_BYTE_VIEW_FROM_LITERAL("FODC0007"),
+                     .namespace_prefix = SXML_BYTE_VIEW_FROM_LITERAL("err")},
+            .description = description,
+            .has_value = false,
+            .value = sxml_sequence_empty(),
+            .location = validation_error->diagnostic.location},
+        parse->error_record);
+}
+
+/*
+ * Parses a document of fn:doc or fn:parse-xml: its external DTD and
+ * entities read through the evaluation's resolver, or refused (FODC0016)
+ * when the call does not trust external resources; validated against its
+ * DTD on request (FODC0007). F&O 4.0, 17.1.1 and 17.2.1.
+ */
+static sxml_status sxml_loader_parse_with_dtd(const sxml_loader_parse *parse,
+                                              sxml_item *document_node) {
+    sxml_processor *processor = parse->loader->configuration.evaluation_environment.processor;
+    sxml_entity_resolution resolution = {
+        .processor = processor,
+        .resolver = parse->loader->configuration.evaluation_environment.resource_resolver,
+        .refuses = parse->blocks_external_resources,
+        .was_refused = false,
+        .holds_resource = false};
+    sxml_error_record validation_error;
+    memset(&validation_error, 0, sizeof(validation_error));
+    sxml_dtd_validator *validator = NULL;
+    sxml_status status = SXML_STATUS_OK;
+    if (parse->validates_dtd) {
+        status = sxml_dtd_validator_create(
+            processor->allocator,
+            &(sxml_dtd_validator_configuration){
+                .processor = processor,
+                .report_sink = {.state = NULL, .operations = NULL},
+                .error_record = &validation_error},
+            &validator);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_xml_parse_request request = *parse->request;
+    request.entity_resolver = sxml_entity_resolution_as_resolver(&resolution);
+    request.validator = validator == NULL
+                            ? (sxml_xml_validator){.state = NULL, .operations = NULL}
+                            : sxml_dtd_validator_as_xml_validator(validator);
+    status = sxml_processor_parse_document(processor, &request, document_node);
+    bool is_invalid = status == SXML_STATUS_DYNAMIC_ERROR && validator != NULL &&
+                      validation_error.code.local_name.byte_count != 0;
+    if (status == SXML_STATUS_OK && validator != NULL) {
+        sxml_validation_outcome outcome = {.validity = SXML_VALIDITY_INVALID, .error_count = 0};
+        is_invalid = sxml_dtd_validator_get_outcome(validator, &outcome) != SXML_STATUS_OK ||
+                     outcome.validity != SXML_VALIDITY_VALID;
+    }
+    if (status == SXML_STATUS_OK && (resolution.was_refused || is_invalid)) {
+        sxml_item_release(*document_node);
+        *document_node = (sxml_item){.representation = 0};
+    }
+    /* A refused external resource decides the error, whatever the parse
+       made of its absence: the document needed it (FODC0016). */
+    const bool is_resource_failure = status == SXML_STATUS_OUT_OF_MEMORY;
+    if (resolution.was_refused && !is_resource_failure) {
+        status = sxml_error_record_report(parse->error_record, &sxml_document_untrusted_error);
+    } else if (is_invalid) {
+        status = sxml_loader_report_invalid(parse, &validation_error);
+    }
+    sxml_dtd_validator_destroy(validator);
+    return status;
+}
+
 /* Parses the bytes a resolver delivered into a document node, owned. */
 static sxml_status sxml_loader_parse_resource(sxml_processor_document_loader *loader,
                                               const sxml_resolution_exchange *exchange,
@@ -1088,14 +1204,18 @@ static sxml_status sxml_loader_parse_resource(sxml_processor_document_loader *lo
         document_uri = exchange->absolute_uri.byte_count > 0 ? exchange->absolute_uri
                                                              : request->uri_reference;
     }
-    const sxml_status status = sxml_processor_parse_document(
-        loader->configuration.evaluation_environment.processor,
-        &(sxml_xml_parse_request){.input = resource->content,
-                                  .source_name = document_uri,
-                                  .document_uri = document_uri,
-                                  .base_uri = document_uri,
-                                  .encoding_name = resource->encoding_name,
-                                  .diagnostic = NULL},
+    const sxml_status status = sxml_loader_parse_with_dtd(
+        &(sxml_loader_parse){
+            .loader = loader,
+            .request = &(sxml_xml_parse_request){.input = resource->content,
+                                                 .source_name = document_uri,
+                                                 .document_uri = document_uri,
+                                                 .base_uri = document_uri,
+                                                 .encoding_name = resource->encoding_name,
+                                                 .diagnostic = NULL},
+            .blocks_external_resources = request->blocks_external_resources,
+            .validates_dtd = request->validates_dtd,
+            .error_record = request->error_record},
         document_node);
     if (status == SXML_STATUS_MALFORMED_INPUT || status == SXML_STATUS_INVALID_UTF8 ||
         status == SXML_STATUS_UNSUPPORTED_FEATURE) {
@@ -1239,14 +1359,18 @@ static sxml_status sxml_loader_parse_document(void *state,
     /* The caller passes the static base URI of the expression that calls
        the function (lexical, D91), or the base-uri option. */
     const sxml_byte_view base_uri = request->base_uri;
-    const sxml_status status = sxml_processor_parse_document(
-        loader->configuration.evaluation_environment.processor,
-        &(sxml_xml_parse_request){.input = request->xml_bytes,
-                                  .source_name = {.bytes = NULL, .byte_count = 0},
-                                  .document_uri = {.bytes = NULL, .byte_count = 0},
-                                  .base_uri = base_uri,
-                                  .encoding_name = {.bytes = NULL, .byte_count = 0},
-                                  .diagnostic = NULL},
+    const sxml_status status = sxml_loader_parse_with_dtd(
+        &(sxml_loader_parse){
+            .loader = loader,
+            .request = &(sxml_xml_parse_request){.input = request->xml_bytes,
+                                                 .source_name = {.bytes = NULL, .byte_count = 0},
+                                                 .document_uri = {.bytes = NULL, .byte_count = 0},
+                                                 .base_uri = base_uri,
+                                                 .encoding_name = {.bytes = NULL, .byte_count = 0},
+                                                 .diagnostic = NULL},
+            .blocks_external_resources = request->blocks_external_resources,
+            .validates_dtd = request->validates_dtd,
+            .error_record = request->error_record},
         document_node);
     if (status == SXML_STATUS_MALFORMED_INPUT || status == SXML_STATUS_INVALID_UTF8 ||
         status == SXML_STATUS_UNSUPPORTED_FEATURE) {
