@@ -7421,6 +7421,46 @@ expressions and their application (the task file's 7.7a and 7.7b);
   order, each updating one's changed trees replace the sources they
   came from, and the last test's result is checked.
 
+### D188. disable-output-escaping: a text node mark (packet 7.5)
+Recorded 2026-10-19, after D99, D163, D183, D184. The owner's prompt for
+7.5 asked for a mark on text nodes as D163 added the CDATA request,
+in place of D183's processing-instruction pair (glossary
+`disable_output_escaping` replaces `output_escaping_marker`).
+- **Substrate, additive** (`include/sxml/tree.h`, frozen by D99):
+  `sxml_text_event.disables_output_escaping` and
+  `sxml_node_description.disables_output_escaping`, false by default
+  (designated initializers keep every caller as it was). Arena trees keep
+  it in a node flag (the flags field is 16 bits, the node stays 56
+  bytes); copies (`sxml_tree_builder_copy_node`) keep it.
+- **Per character** (XSLT 4.0, 26.1.8: "an additional boolean property
+  disable-escaping associated with every character in a text node"):
+  inside a parent, text events that differ in the mark make separate
+  text nodes, so `<out>` with "<" then an unescaped "&lt;" serializes as
+  `&lt;&lt;` (doe-0182 to doe-0186). Such a final result tree has
+  adjacent text nodes, a deviation from XDM 4.0, 6.7.1 limited to trees
+  that use the deprecated feature; parentless text keeps one node.
+- **Where it is set**: XSLT lowering of xsl:value-of and xsl:text with
+  disable-output-escaping="yes" (construction flag
+  DISABLES_OUTPUT_ESCAPING on TEXT_CONSTRUCTOR). The request is ignored
+  in temporary output state (26.1.8), with 26.2.6's tracking of
+  xsl:result-document: lexically inside xsl:variable and the other
+  temporary containers the flag is not set; in a template that received
+  the temporary-output-state tunnel parameter it is chosen at run time
+  (`sxml_xslt_lowering_bind_received_output_state`, shared with
+  xsl:result-document). Not covered: templates reached only through an
+  initial function call (the writer's state), as for XTDE1480.
+- **Where it is honoured**: the XML, XHTML and HTML methods write such
+  text in the character context UNESCAPED_TEXT: mapped and normalized,
+  not escaped, never in CDATA sections (26.1.8: CDATA "is treated as an
+  alternative escaping mechanism"), a character the encoding cannot
+  represent as a character reference. Canonical output escapes it; the
+  text method has no escaping. Sequence normalization gives such a text
+  node as a node, not merged, so it keeps the mark at the top level and
+  in xsl:result-document's tree. Attributes, comments, processing
+  instructions and namespaces atomize it and lose it.
+- **Driver**: feature disabling_output_escaping is supported; the cases
+  that need it unsatisfied are not run any more.
+
 ### D189. Optional features and the size budgets (packet 7.2)
 Recorded 2026-10-19, after D71, D138, D162, D183, D184. Carries out the
 owner's size choice (D184): link-time optional features through one
@@ -7496,6 +7536,68 @@ host through the resolver.
   named by the CLI only under `--allow-file-access`. The fuzz fixtures do
   not name features yet: the packet that adds a parser names its feature
   there.
+
+### D190. XPath and XQuery conformance sweep (packet 2.21)
+Recorded 2026-10-19, after D143, D158, D174, D113. Takes the "XPath and
+XQuery" leftovers of `docs/agents/QUEUE.md`. No public header changed; no
+IR expression kind added.
+- **Composite casts** (glossary `composite_cast`; XPath 4.0, 4.19.2.4 to
+  4.19.2.7): `cast as` and `castable as` an array, map or record type
+  run the coercion frames with the cast rules
+  (`sxml_coercion_request.applies_cast_rules`): an item that matches its
+  item type stays; a generalized atomic, list or union type casts the
+  atomized item with the static namespaces; arrays, maps and records
+  rebuild their parts; a record cast makes a record with every field and
+  drops other entries; duplicate keys are XQDY0137; anything else is
+  XPTY0004. castable answers false for dynamic and type errors of the
+  cast and of atomizing the operand (4.19.3). Lowering: XPST0080 for a
+  choice that is not generalized atomic and for function or node types,
+  XQST0052 in XQuery for a non-simple named type.
+- **The caller's focus** (glossary `caller_focus`): a native row marked
+  `SXML_NATIVE_FUNCTION_TAKES_CALLER_FOCUS` (only fn:function-lookup)
+  gets the static call's context value, position and size as three
+  extra arguments, dropped at run time when the context value is absent;
+  its arities do not count them. fn:function-lookup binds a row that
+  needs the focus: fn:position#0 and fn:last#0 return the captured part,
+  a context-value default is the next arity partially applied (name
+  kept). A dynamic call of fn:function-lookup passes no focus.
+- **Paths over JNodes**: `SXML_IR_MAP_IS_AXIS_STEP` marks the item
+  axis's MAP as navigational for the selector analysis (4.7.3); "/" is
+  `fn:root(.) treat as (document-node() | jnode())` (4.7.1.1); XPTY0019
+  and XPTY0020 are XPTY0004 (PR 2627); preceding:: of a JTree root is
+  empty.
+- **Contextual equality** of dates and times without timezone uses the
+  implicit timezone in fn:distinct-values and fn:duplicate-values
+  (`sxml_function_library_adjust_to_implicit_timezone`, shared with
+  group by).
+- **fn:doc's xsd-validation** validates the loaded document as
+  fn:parse-xml does (D174); FODC0009 stays for fn:parse-xml-fragment.
+- **QT4 driver**: assert-xml trims whitespace around inline expected XML
+  that starts and ends with markup, as it did for files.
+- **Measured** (release, full XP40 and XQ40 runs; before at 7d70d01):
+  XP40 30,931 to 31,098 passed, wrong error 85 to 44; XQ40 41,273 to
+  41,456, wrong error 123 to 70; none lost, 0 errors. XT40 at the same
+  HEADs no set lost. sxml.wasm grew about 5.8 KB (inside D189's core
+  budget).
+- **Not done** (for later sweeps): (d) fn:serialize's canonical JSON
+  cases call EXPath Binary's bin:unpack-double (27 cases, 7.8's module),
+  serialize-xml-canonical-5 needs an external entity (7.14); (e) the
+  built-in schema of the fn namespace (F&O 4.0, appendix D): an import
+  of the namespace the resolver does not deliver could fall back to it
+  as xml.xsd does in `src/schema_assemble.c`, but json-to-xml's
+  validate, typed analyze-string results and their schema-element()
+  tests also need it compiled once per processor and a validation
+  against a given schema (about 25 cases); (f) the record model of the
+  current draft (records annotated, record(*) only for records, a
+  record matching only with all its fields, lookups of other keys
+  XPTY0004: cast-record-901, recordTypeDecl-019..021, -072, -089);
+  NamedRecordTypeDecl's module cases name `recordTypeDecl/` where the
+  suite has `RecordTypeDecl/` (a case-sensitive file system finds
+  none); the item axis's JNode for a singleton is a child of a new array
+  (D113); NCName and Q{}N name tests are one in sxml_name_test (frozen);
+  a declared function's "$a := ." found by fn:function-lookup; lax
+  validation without any in-scope schema raises FODC0014
+  (`src/function_library_schema.c`); use-xsi-schema-location.
 
 ## Proposed
 

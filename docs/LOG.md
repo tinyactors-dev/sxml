@@ -4,6 +4,19 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 2.21 done (D190): XPath and XQuery sweep. Casts and castable to
+  array, map and record types (the coercion frames with cast rules);
+  fn:function-lookup binds context-dependent functions to the caller's
+  focus (three extra arguments of a static call); the item axis is
+  navigational, "/" reaches a JTree root, XPTY0019/XPTY0020 are
+  XPTY0004; distinct-values with the implicit timezone; fn:doc's
+  xsd-validation; the QT4 driver's assert-xml trims inline expected XML.
+  Release, full runs from 7d70d01: XP40 30,931 to 31,098, XQ40 41,273 to
+  41,456, none lost, 0 errors; XT40 no set lost. Also fixed GCC's build
+  of tests/optional_feature_test.c. Not done: the fn namespace's
+  built-in schema, the current draft's record model, EXPath Binary's
+  serialize cases (D190).
+
 - 7.2 done (D189): optional features. `processor.h` gains
   `sxml_optional_feature` and a feature view in the processor
   configuration; the D162 place of each feature asks the processor for

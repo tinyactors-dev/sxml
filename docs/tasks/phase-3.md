@@ -344,3 +344,9 @@ op-same-key and prod-NamedRecordTypeDecl. Files: the evaluator, the XPath
 lowering and the function library parts the fixes touch (never `src/xslt*`
 or `src/schema*`, which 4.19 and 5.14 own). Verification as D181 says;
 before/after counts in each commit and the LOG entry.
+**Done** 2026-10-19 (D190): composite casts (prod-Cast*Expr.composite
+19/33 to 66 of 67), fn:function-lookup with the caller's focus (612/630
+to 656/674), JNode paths (prod-AxisStep.J XQ 132 to 147, prod-PathExpr.J
+177 to 184), distinct-values with the implicit timezone (op-same-key XQ
+19 to 27), fn:doc's xsd-validation (65 to 69); XP40 30,931 to 31,098,
+XQ40 41,273 to 41,456, none lost. Open: D190's "Not done".
