@@ -107,7 +107,7 @@ if(SXML_BUILD_TESTS AND SXML_NODE_EXECUTABLE)
     # in D207. The core stays under its budget by keeping large parts
     # behind optional features (D208): DTD validation and the schema
     # compiler it needs are in the full module only (D211). The full
-    # module's XQuery, XSLT and XSD entry points (packet js-1, D215) link
+    # module's XQuery, XSLT and XSD entry points (packet js-1, D216) link
     # the XQuery compiler and its grammar: 7,000,000 / 2,450,000 (D208,
     # keeping D207's ratio of 0.35).
     if(TARGET sxml_cli)

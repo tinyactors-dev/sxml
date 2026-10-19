@@ -8740,6 +8740,60 @@ D208. Amended as the packet goes on.
   of iXML grammars is compiled in as a constant table of its XML form, so
   the one Earley parser reads grammars and inputs alike.
 
+### D216. JavaScript bindings for XQuery, XSLT and XSD validation (packet js-1)
+Recorded 2026-10-19, after D10, D138, D187, D189, D205, D207, D208.
+The package (`bindings/javascript`) covered XPath only.
+- **Mechanism**: D189's two links. The full module links four more shim
+  files (`sxml_javascript_full.c`, `_xquery.c`, `_xslt.c`, `_schema.c`);
+  the core module links none, so `sxml.wasm` is byte for byte what it
+  was. The package tells the modules apart by the exports
+  (`sxml_javascript_query_compile` present or not), not by a feature:
+  XQuery, XSLT and XSD are whole front ends, not optional features of a
+  processor. The handles and helpers both links share moved to
+  `sxml_javascript_internal.h`, still `static` (an inline hint on all of
+  them made the core 1,609 bytes larger).
+- **API** (`src/index.ts`), in the XPath style, compile once, run many
+  times: `Processor.compileQuery(text, { namespaces, baseUri })` gives an
+  `XQuery` (`evaluate({ context, variables, updates, messages })` to a
+  Value, `serialize(value)` with the prolog's output declarations, `run()`
+  both, `isUpdating`); `Processor.compileStylesheet(text, { baseUri,
+  staticParameters })` gives a `Stylesheet` (`transform({ source,
+  initialMatchSelection, initialMode, initialTemplate, initialFunction,
+  args, parameters, templateParameters, tunnelParameters, baseOutputUri,
+  delivery, resultDocumentDelivery, serialization, messages })` to `{
+  output, value, resultDocuments }`); `Processor.compileSchema(documents,
+  { baseUri })` gives a `Schema` (`validate(text or node, { mode, type,
+  uri })` to `{ validity, reports, document }`). Errors are SxmlError
+  (now with `sourceName`); a schema that does not compile throws
+  `SchemaError` with every report. Library modules, included modules,
+  packages and schema documents come through the resolver.
+- **Side results** (glossary `side_result`): what a call delivers besides
+  its result (updated trees and fn:put documents of the update sink,
+  result documents from the built-in collector, trace output, schema
+  reports) is kept by the handle until its next call and written into the
+  request; the package adopts every value at once, then hands them to the
+  `updates` sink and `messages` callback after the call, also when it
+  failed. No host import is added: callbacks never run inside sxml.
+- **Defaults taken** (D208): invalid input is a result, not an
+  exception; a transformation without `source` and `initialMatchSelection`
+  calls xsl:initial-template, as `sxml transform` does; `serialization`
+  replaces the unnamed xsl:output's parameters, method included (the
+  parameter reader cannot merge); fn:put without `putDocument` raises
+  FOUP0002 (xquery.h); text is validated in one pass by the XML parser
+  without external entities (the null entity resolver), so reports have
+  lines and columns, a node by copy (sxml_schema_validate_node's steps,
+  keeping the validator for the not-known outcome that function does not
+  give); xsl:message as the text method writes it, fn:trace and
+  fn:message by the adaptive method.
+- **Sizes** (stripped / gzip -9): `sxml.wasm` 2,134,058 / 730,518
+  unchanged; `sxml-full.wasm` 3,666,545 / 1,124,343 to 6,570,723 /
+  1,328,474, almost all the XQuery compiler and its grammar. The full
+  budget rises to 7,000,000 / 2,450,000 (D208; D207's ratio of 0.35).
+- **Tests**: `test/full.test.ts`, 24 tests under Node 22, as
+  `javascript/languages_full`; `javascript/languages` runs it on the core
+  module, where it checks that the three are refused. The existing
+  package tests pass on both modules.
+
 ## Proposed
 
 - **A streamability option and a streamed source in `xslt.h`** (packet
