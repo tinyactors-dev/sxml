@@ -914,11 +914,16 @@ text, 72 s) and D185 (`match="$var"` membership is a linear scan).
   becomes such a FILTER, and the evaluator keeps the index in the
   evaluation memo (D149).
 - **Owns**: `tests/bench/`, `src/tree_axis.c`, `src/evaluator_path.c`,
-  `src/evaluator_index.c`, `src/ir_filter_index.c`; the FILTER parts of
+  `src/evaluator_index.c`, `src/ir_loop_passes.c`; the FILTER parts of
   `src/evaluator.c`, `src/ir.c`, `src/ir_verify.c`, `src/ir_internal.h`.
 - **Done when**: the baseline and the numbers after each change in a
   D-record and the commit messages; no QT4 XQ40 or XT40 outcome
   changes; D71, the memory limits and honest step counts kept.
+**Done** 2026-10-19 (D224): `tests/bench/`; axis walks; filter indexes
+(the filter-index pass, `src/evaluator_index.c`); a path's step from all
+origins at once; the hoist pass. xmark-all 6.73 to 1.52 processor
+seconds, app-Demos itunes 80.6 to 3.4; QT4 XQ40 and XT40 unchanged case
+by case.
 
 ### xml-mem Bounded memory for XML parsing (design and implementation)
 After D12 (tree-sitter parses XML, the owner's choice), D199 (DTD and

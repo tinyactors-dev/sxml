@@ -9393,6 +9393,11 @@ progress; completed when the packet ends.
   behind a guard, LET(g, QUANTIFIED(some, input, true()), LET(s,
   CONDITIONAL(g, e, ()), loop)), so nothing runs for an empty input that
   did not run before. Content LETs (D166) stay. Steps are fewer.
+- **STREAM** (D223): a STREAM rebinds its counter and fold variables
+  while it runs, so the loop passes leave every MAP and FILTER inside a
+  STREAM's predicate or body alone (no hoisting, no filter index, no
+  where rewrite); `tests/evaluator_stream_test.c` has a streamed body
+  with such loops.
 - **What a step is**: unchanged (D89). Step counts fall where work is
   skipped (index probes, hoisted expressions), so a step budget
   (QT4's 4 x 10^8, D178; the library's 10^9) lasts longer, never

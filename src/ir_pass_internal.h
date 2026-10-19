@@ -101,6 +101,17 @@ typedef struct sxml_ir_pass_view {
 SXML_NODISCARD sxml_status sxml_ir_verify(const sxml_ir_pass_request *request);
 
 /*
+ * The hoist pass (src/ir_loop_passes.c, D224): moves the LETs at the start
+ * of a loop's body (a MAP without flags, a FILTER's predicate) whose bound
+ * expressions are plain (make no nodes or function items, call nothing
+ * nondeterministic) and read nothing the loop binds out of the loop,
+ * computed once, and only when the loop's input is not empty. LETs whose
+ * bound expression is a LET are flattened first. Returns the allocator's
+ * failures.
+ */
+SXML_NODISCARD sxml_status sxml_ir_hoist_invariant_lets(const sxml_ir_pass_request *request);
+
+/*
  * The filter-index pass (src/ir_loop_passes.c, D224): gives a FILTER
  * whose predicate needs "key = probe", "key eq probe" or "key is probe"
  * to be true, with a key that reads only the focus value and a probe that
@@ -113,8 +124,9 @@ SXML_NODISCARD sxml_status sxml_ir_index_filters(const sxml_ir_pass_request *req
 
 /*
  * The passes compile runs, in order (src/ir.c, packet 1.12):
- * {"verify", sxml_ir_verify}, {"filter-index", sxml_ir_index_filters}
- * (D224).
+ * {"verify", sxml_ir_verify}, {"filter-index", sxml_ir_index_filters},
+ * {"hoist", sxml_ir_hoist_invariant_lets} (D224): filter indexes first,
+ * while index keys still read globals and not the slots hoisting binds.
  */
 extern const sxml_ir_pass_view sxml_ir_standard_passes;
 

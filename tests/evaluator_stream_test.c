@@ -278,6 +278,14 @@ static const stream_case stream_cases[] = {
                 "<xsl:for-each select='shop/book[position() lt 3]'>"
                 "<xsl:value-of select='t'/></xsl:for-each>",
                 books, DECLARATION "<out>AB</out>"),
+    /* Loops inside a STREAM's body read its counter (position()): the
+       loop passes leave them alone (D223, D224): no LET hoisted out of
+       the inner for, no filter index for the filter. */
+    STREAM_CASE("loops-in-a-streamed-body", "",
+                "<xsl:for-each select='shop/book'><xsl:variable name='n' select='position()'/>"
+                "<xsl:value-of select='(for $i in 1 to 2 return $n * 10 + $i), "
+                "(1 to 20)[string(.) = string($n)]'/>;</xsl:for-each>",
+                books, DECLARATION "<out>11 12 1;21 22 2;31 32 3;</out>"),
     STREAM_CASE("nested-shallow-windows", "",
                 "<xsl:for-each select='shop'><s a='{@a}'><xsl:for-each select='book'>"
                 "<xsl:value-of select='position(), sum(p)' separator=':'/>;</xsl:for-each>"

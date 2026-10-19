@@ -3152,6 +3152,7 @@ sxml_status sxml_ir_function_has_same_static_form(sxml_ir_function_pair pair,
 static const sxml_ir_pass standard_passes[] = {
     {.pass_name = SXML_BYTE_VIEW_INITIALIZER("verify"), .run = sxml_ir_verify},
     {.pass_name = SXML_BYTE_VIEW_INITIALIZER("filter-index"), .run = sxml_ir_index_filters},
+    {.pass_name = SXML_BYTE_VIEW_INITIALIZER("hoist"), .run = sxml_ir_hoist_invariant_lets},
 };
 
 const sxml_ir_pass_view sxml_ir_standard_passes = {

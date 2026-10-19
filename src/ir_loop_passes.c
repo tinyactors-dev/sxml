@@ -329,6 +329,10 @@ typedef struct loop_pass {
        holds it, 0 for none; made on first need. */
     uint32_t *owners;
     size_t owner_count;
+    /* One flag per expression of owners: set for one inside a STREAM's
+       predicate or body, which the passes leave alone (D223: a STREAM
+       rebinds its counter and fold variables while it runs). */
+    bool *is_in_stream;
     /* The constants true() and false(), added on first need. */
     sxml_ir_constant_index true_constant;
     sxml_ir_constant_index false_constant;
@@ -1080,6 +1084,13 @@ static sxml_status push_every_child(loop_pass *pass, sxml_ir_expression_index in
     return status;
 }
 
+/* True for an expression the loop passes leave alone: unknown to owners
+   (not in a function body when they were made) or inside a STREAM. */
+static bool is_left_alone(const loop_pass *pass, sxml_ir_expression_index index) {
+    return index.value >= pass->owner_count || pass->owners[index.value] == 0 ||
+           pass->is_in_stream[index.value];
+}
+
 /* Makes owners: walks every function body. */
 static sxml_status make_owners(loop_pass *pass, uint32_t expression_count) {
     void *memory = NULL;
@@ -1094,6 +1105,16 @@ static sxml_status make_owners(loop_pass *pass, uint32_t expression_count) {
     }
     pass->owners = memory;
     pass->owner_count = expression_count;
+    status = sxml_allocator_allocate_array(
+        pass->allocator,
+        (sxml_array_allocation_request){.element_count = expression_count,
+                                        .element_size = sizeof(bool),
+                                        .element_alignment = alignof(bool)},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    pass->is_in_stream = memory;
     for (uint32_t function_number = 1;
          status == SXML_STATUS_OK && function_number < pass->unit->function_count;
          function_number += 1) {
@@ -1113,7 +1134,19 @@ static sxml_status make_owners(loop_pass *pass, uint32_t expression_count) {
                 continue;
             }
             pass->owners[index.value] = function_number;
+            const size_t first_child = pass->walk.element_count;
             status = push_every_child(pass, index);
+            const bool marks_children =
+                pass->is_in_stream[index.value] ||
+                expression_at(pass, index).expression_kind == SXML_IR_EXPRESSION_KIND_STREAM;
+            for (size_t child = first_child; marks_children && child < pass->walk.element_count;
+                 child += 1) {
+                const sxml_ir_expression_index child_index =
+                    ((const sxml_ir_expression_index *)pass->walk.elements)[child];
+                if (child_index.value < expression_count) {
+                    pass->is_in_stream[child_index.value] = true;
+                }
+            }
         }
     }
     return status;
@@ -1163,6 +1196,9 @@ static sxml_status add_constant_atom(loop_pass *pass, sxml_ir_constant_index con
  * order, which XQuery 4.0, 2.4.4 allows.
  */
 static sxml_status index_where_clause(loop_pass *pass, sxml_ir_expression_index index) {
+    if (is_left_alone(pass, index)) {
+        return SXML_STATUS_OK;
+    }
     const sxml_ir_expression map = expression_at(pass, index);
     if (map.map.flags != 0 || map.map.focus.context_value.value == 0 ||
         map.map.focus.context_position.value != 0 || map.map.focus.context_size.value != 0) {
@@ -1281,6 +1317,313 @@ static sxml_status index_where_clause(loop_pass *pass, sxml_ir_expression_index 
     return status;
 }
 
+/* --------------------------------------------------------- Hoisting */
+
+/* A LET at the start of a loop body. */
+typedef struct prefix_let {
+    sxml_ir_expression_index index;
+    sxml_ir_let let;
+    bool is_hoisted;
+} prefix_let;
+
+/* True for a LET the passes may move: not a content LET (D166), whose
+   place in its block matters when it delivers. */
+static bool is_movable_let(const sxml_ir_expression *expression) {
+    return expression->expression_kind == SXML_IR_EXPRESSION_KIND_LET &&
+           !expression->let.is_content;
+}
+
+/*
+ * Flattens the LETs at the start of the expression at body: a LET whose
+ * bound expression is a LET, LET(l, LET(a, e, B), C), becomes LET(a, e,
+ * LET(l, B, C)), in place. The same value, computed in the same order: C
+ * cannot read a, which is bound inside l's bound expression only.
+ */
+static sxml_status flatten_lets(loop_pass *pass, sxml_ir_expression_index body) {
+    sxml_ir_expression_index current = body;
+    sxml_status status = SXML_STATUS_OK;
+    while (status == SXML_STATUS_OK && current.value != 0) {
+        const sxml_ir_expression outer = expression_at(pass, current);
+        if (!is_movable_let(&outer)) {
+            break;
+        }
+        const sxml_ir_expression_index bound_index = outer.let.bound_expression;
+        const sxml_ir_expression bound = expression_at(pass, bound_index);
+        if (!is_movable_let(&bound)) {
+            current = outer.let.body;
+            continue;
+        }
+        sxml_ir_expression new_outer = bound;
+        new_outer.let.body = bound_index;
+        sxml_ir_expression new_inner = outer;
+        new_inner.let.bound_expression = bound.let.body;
+        status = sxml_ir_unit_replace_expression(
+            pass->unit,
+            &(sxml_ir_expression_replacement){.index = current, .expression = new_outer});
+        if (status == SXML_STATUS_OK) {
+            status = sxml_ir_unit_replace_expression(
+                pass->unit,
+                &(sxml_ir_expression_replacement){.index = bound_index, .expression = new_inner});
+        }
+        /* current now binds a; look at it again, its e may be a LET. */
+    }
+    return status;
+}
+
+/* True when slot is one of the loop's focus slots or bound by a LET of
+   the prefix that stays in the loop. */
+typedef struct variant_slots {
+    sxml_ir_focus focus;
+    const prefix_let *lets;
+    size_t let_count;
+} variant_slots;
+
+static bool is_variant(variant_slots variants, sxml_ir_slot slot) {
+    if (slot.value == variants.focus.context_value.value ||
+        slot.value == variants.focus.context_position.value ||
+        slot.value == variants.focus.context_size.value) {
+        return slot.value != 0;
+    }
+    for (size_t let_index = 0; let_index < variants.let_count; let_index += 1) {
+        if (!variants.lets[let_index].is_hoisted &&
+            variants.lets[let_index].let.variable.value == slot.value) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/* What hoisting a loop needs to know of it. */
+typedef struct hoisted_loop {
+    sxml_ir_expression_index index;
+    sxml_ir_atom input;
+    sxml_ir_focus focus;
+    sxml_ir_expression_index body;
+} hoisted_loop;
+
+/* Marks the prefix LETs whose bound expression is plain and reads no slot
+   the loop binds (its focus, or a LET of the prefix that stays). */
+static sxml_status mark_invariant_lets(loop_pass *pass, const hoisted_loop *loop,
+                                       pass_array *prefix) {
+    sxml_status status = SXML_STATUS_OK;
+    for (size_t let_index = 0; status == SXML_STATUS_OK && let_index < prefix->element_count;
+         let_index += 1) {
+        /* analyse_let works on pass->lets: one entry for this LET. */
+        prefix_let *candidate = &((prefix_let *)prefix->elements)[let_index];
+        pass->lets.element_count = 0;
+        pass->read_slots.element_count = 0;
+        status = add_let(pass, &candidate->let);
+        if (status == SXML_STATUS_OK) {
+            status = analyse_let(pass, 0);
+        }
+        if (status != SXML_STATUS_OK) {
+            break;
+        }
+        const conjunct_let *analysed = let_at(pass, 0);
+        bool is_invariant = analysed->is_plain;
+        const sxml_ir_slot *reads = pass->read_slots.elements;
+        for (size_t read_index = 0; is_invariant && read_index < analysed->read_slot_count;
+             read_index += 1) {
+            is_invariant = !is_variant(
+                (variant_slots){.focus = loop->focus,
+                                .lets = prefix->elements,
+                                .let_count = let_index},
+                reads[analysed->first_read_slot + read_index]);
+        }
+        candidate = &((prefix_let *)prefix->elements)[let_index];
+        candidate->is_hoisted = is_invariant;
+    }
+    return status;
+}
+
+/* An expression the loop pass adds, at the loop's source span. */
+static sxml_status add_loop_expression(loop_pass *pass, sxml_ir_expression expression,
+                                       sxml_ir_expression_index *index) {
+    return sxml_ir_unit_add_expression(pass->unit, &expression, index);
+}
+
+/*
+ * Rebuilds the loop at loop->index with the marked LETs outside it:
+ *
+ *     LET(guard, QUANTIFIED(some, input, true()),
+ *       LET(s1, CONDITIONAL(guard, e1, ()), ...
+ *         LOOP with the other LETs))
+ *
+ * The guard keeps a hoisted expression from running for an empty input,
+ * where the loop never ran its body (so no error comes that would not
+ * have come).
+ */
+static sxml_status hoist_marked_lets(loop_pass *pass, const hoisted_loop *loop,
+                                     const pass_array *prefix) {
+    const prefix_let *lets = prefix->elements;
+    const size_t let_count = prefix->element_count;
+    const uint32_t owner = loop->index.value < pass->owner_count ? pass->owners[loop->index.value] : 0;
+    if (owner == 0) {
+        return SXML_STATUS_OK;
+    }
+    sxml_ir_function function =
+        *sxml_ir_unit_get_function(pass->unit, (sxml_ir_function_index){.value = owner});
+    if (function.slot_count > UINT32_MAX - 2) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_ir_slot guard = {.value = function.slot_count + 1};
+    const sxml_ir_slot quantified = {.value = function.slot_count + 2};
+    function.slot_count += 2;
+    /* The body without the hoisted LETs: each LET that stays reads on to
+       the next one that stays, the last to what followed the prefix. */
+    sxml_ir_expression_index rest = expression_at(pass, lets[let_count - 1].index).let.body;
+    sxml_status status = SXML_STATUS_OK;
+    for (size_t let_number = let_count; status == SXML_STATUS_OK && let_number > 0;
+         let_number -= 1) {
+        const prefix_let *staying = &lets[let_number - 1];
+        if (staying->is_hoisted) {
+            continue;
+        }
+        sxml_ir_expression expression = expression_at(pass, staying->index);
+        expression.let.body = rest;
+        status = sxml_ir_unit_replace_expression(
+            pass->unit,
+            &(sxml_ir_expression_replacement){.index = staying->index, .expression = expression});
+        rest = staying->index;
+    }
+    sxml_ir_expression moved = expression_at(pass, loop->index);
+    if (moved.expression_kind == SXML_IR_EXPRESSION_KIND_MAP) {
+        moved.map.body = rest;
+    } else {
+        moved.filter.predicate = rest;
+    }
+    sxml_ir_expression_index inner = {.value = 0};
+    if (status == SXML_STATUS_OK) {
+        status = add_loop_expression(pass, moved, &inner);
+    }
+    const sxml_ir_source_span span = moved.source_span;
+    for (size_t let_number = let_count; status == SXML_STATUS_OK && let_number > 0;
+         let_number -= 1) {
+        const prefix_let *hoisted = &lets[let_number - 1];
+        if (!hoisted->is_hoisted) {
+            continue;
+        }
+        sxml_ir_expression_index empty = {.value = 0};
+        sxml_ir_expression_index guarded = {.value = 0};
+        status = add_loop_expression(
+            pass,
+            (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_SEQUENCE,
+                                 .source_span = span,
+                                 .sequence = {.first_atom_index = 0, .atom_count = 0}},
+            &empty);
+        if (status == SXML_STATUS_OK) {
+            status = add_loop_expression(
+                pass,
+                (sxml_ir_expression){
+                    .expression_kind = SXML_IR_EXPRESSION_KIND_CONDITIONAL,
+                    .source_span = span,
+                    .conditional = {.condition = sxml_ir_slot_atom(guard),
+                                    .then_branch = hoisted->let.bound_expression,
+                                    .else_branch = empty}},
+                &guarded);
+        }
+        if (status == SXML_STATUS_OK) {
+            sxml_ir_expression expression = expression_at(pass, hoisted->index);
+            expression.let.bound_expression = guarded;
+            expression.let.body = inner;
+            status = sxml_ir_unit_replace_expression(
+                pass->unit,
+                &(sxml_ir_expression_replacement){.index = hoisted->index, .expression = expression});
+            inner = hoisted->index;
+        }
+    }
+    sxml_ir_constant_index true_constant = {.value = 0};
+    sxml_ir_expression_index condition = {.value = 0};
+    sxml_ir_expression_index exists = {.value = 0};
+    if (status == SXML_STATUS_OK) {
+        status = boolean_constant(pass, true, &true_constant);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = add_constant_atom(pass, true_constant, &condition);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = add_loop_expression(
+            pass,
+            (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_QUANTIFIED,
+                                 .source_span = span,
+                                 .quantified = {.quantifier = SXML_IR_QUANTIFIER_SOME,
+                                                .input = loop->input,
+                                                .variable = quantified,
+                                                .condition = condition}},
+            &exists);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_ir_unit_replace_function(
+            pass->unit,
+            &(sxml_ir_function_replacement){.index = {.value = owner}, .function = function});
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_ir_unit_replace_expression(
+            pass->unit,
+            &(sxml_ir_expression_replacement){
+                .index = loop->index,
+                .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_LET,
+                               .source_span = span,
+                               .let = {.variable = guard,
+                                       .bound_expression = exists,
+                                       .body = inner,
+                                       .is_content = false}}});
+    }
+    return status;
+}
+
+/*
+ * Moves the LETs at the start of a loop's body (a MAP without flags, a
+ * FILTER) whose bound expressions are plain and read nothing the loop
+ * binds out of the loop, so they are computed once and not once per item
+ * (XQuery 4.0, 2.4.4: an expression's value does not depend on how often
+ * it is computed; plain expressions make no nodes).
+ */
+static sxml_status hoist_loop(loop_pass *pass, sxml_ir_expression_index index) {
+    if (is_left_alone(pass, index)) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_ir_expression expression = expression_at(pass, index);
+    hoisted_loop loop = {.index = index};
+    if (expression.expression_kind == SXML_IR_EXPRESSION_KIND_MAP) {
+        if (expression.map.flags != 0) {
+            return SXML_STATUS_OK;
+        }
+        loop.input = expression.map.input;
+        loop.focus = expression.map.focus;
+        loop.body = expression.map.body;
+    } else {
+        loop.input = expression.filter.input;
+        loop.focus = expression.filter.focus;
+        loop.body = expression.filter.predicate;
+    }
+    sxml_status status = flatten_lets(pass, loop.body);
+    pass_array prefix = pass_array_start(sizeof(prefix_let), alignof(prefix_let));
+    sxml_ir_expression_index current = loop.body;
+    while (status == SXML_STATUS_OK && current.value != 0) {
+        const sxml_ir_expression let = expression_at(pass, current);
+        if (!is_movable_let(&let)) {
+            break;
+        }
+        const prefix_let found = {.index = current, .let = let.let, .is_hoisted = false};
+        status = pass_array_append(pass->allocator, &prefix, &found);
+        current = let.let.body;
+    }
+    if (status == SXML_STATUS_OK && prefix.element_count > 0) {
+        status = mark_invariant_lets(pass, &loop, &prefix);
+    }
+    bool has_hoisted = false;
+    for (size_t let_index = 0; status == SXML_STATUS_OK && let_index < prefix.element_count;
+         let_index += 1) {
+        has_hoisted = has_hoisted || ((const prefix_let *)prefix.elements)[let_index].is_hoisted;
+    }
+    if (status == SXML_STATUS_OK && has_hoisted) {
+        status = hoist_marked_lets(pass, &loop, &prefix);
+    }
+    pass_array_finalize(pass->allocator, &prefix);
+    return status;
+}
+
 static void loop_pass_finalize(loop_pass *pass) {
     pass_array *arrays[] = {&pass->lets,       &pass->necessary, &pass->comparisons,
                             &pass->read_slots, &pass->walk,      &pass->subtree,
@@ -1297,6 +1640,9 @@ static void loop_pass_finalize(loop_pass *pass) {
     }
     if (pass->owners != NULL) {
         sxml_allocator_release(pass->allocator, pass->owners);
+    }
+    if (pass->is_in_stream != NULL) {
+        sxml_allocator_release(pass->allocator, pass->is_in_stream);
     }
 }
 
@@ -1323,9 +1669,36 @@ static loop_pass loop_pass_start(const sxml_ir_pass_request *request) {
         .copy_target_count = 0,
         .owners = NULL,
         .owner_count = 0,
+        .is_in_stream = NULL,
         .true_constant = {.value = 0},
         .false_constant = {.value = 0},
     };
+}
+
+sxml_status sxml_ir_hoist_invariant_lets(const sxml_ir_pass_request *request) {
+    loop_pass pass = loop_pass_start(request);
+    const uint32_t expression_count = request->unit->expression_count;
+    sxml_status status = SXML_STATUS_OK;
+    for (uint32_t expression_number = 1;
+         status == SXML_STATUS_OK && expression_number < expression_count;
+         expression_number += 1) {
+        const sxml_ir_expression_index index = {.value = expression_number};
+        const sxml_ir_expression_kind kind = expression_at(&pass, index).expression_kind;
+        if (kind != SXML_IR_EXPRESSION_KIND_FILTER && kind != SXML_IR_EXPRESSION_KIND_MAP) {
+            continue;
+        }
+        if (pass.function_plainness == NULL) {
+            status = make_function_plainness(&pass);
+        }
+        if (status == SXML_STATUS_OK && pass.owners == NULL) {
+            status = make_owners(&pass, expression_count);
+        }
+        if (status == SXML_STATUS_OK) {
+            status = hoist_loop(&pass, index);
+        }
+    }
+    loop_pass_finalize(&pass);
+    return status == SXML_STATUS_LIMIT_EXCEEDED ? SXML_STATUS_OK : status;
 }
 
 sxml_status sxml_ir_index_filters(const sxml_ir_pass_request *request) {
@@ -1346,16 +1719,14 @@ sxml_status sxml_ir_index_filters(const sxml_ir_pass_request *request) {
         if (pass.function_plainness == NULL) {
             status = make_function_plainness(&pass);
         }
-        if (status == SXML_STATUS_OK && kind == SXML_IR_EXPRESSION_KIND_FILTER) {
-            status = index_filter(&pass, index);
-        } else if (status == SXML_STATUS_OK) {
-            if (pass.owners == NULL) {
-                status = make_owners(&pass, expression_count);
-            }
-            if (status == SXML_STATUS_OK) {
-                status = index_where_clause(&pass, index);
-            }
+        if (status == SXML_STATUS_OK && pass.owners == NULL) {
+            status = make_owners(&pass, expression_count);
         }
+        if (status != SXML_STATUS_OK || is_left_alone(&pass, index)) {
+            continue;
+        }
+        status = kind == SXML_IR_EXPRESSION_KIND_FILTER ? index_filter(&pass, index)
+                                                         : index_where_clause(&pass, index);
     }
     loop_pass_finalize(&pass);
     /* A unit at its expression limit keeps the filters it could index. */

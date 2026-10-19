@@ -198,6 +198,17 @@ static const golden_case golden_cases[] = {
      "      (let $2 (step $1 attribute attribute(k))\n"
      "        $2)\n"
      "      $global:2)))\n"},
+    /* Hoisting: the invariant LET leaves the loop, behind a guard. */
+    {"declare variable $c external; declare variable $v external; "
+     "for $x in $c let $y := $v + 1 return $x + $y",
+     "(function 1 main (parameters 0) (captures) (slots 4)\n"
+     "  (let $3 (quantified some $4 $global:1\n"
+     "            true())\n"
+     "    (let $2 (conditional $3\n"
+     "              (binary add $global:2 1)\n"
+     "              (sequence))\n"
+     "      (map $global:1 (focus $1 _ _)\n"
+     "        (binary add $1 $2)))))\n"},
     /* A where clause: the MAP runs over the FILTER of its input. */
     {"declare variable $c external; declare variable $v external; "
      "for $x in $c where $x/@k = $v return $x",
@@ -284,6 +295,8 @@ static const shape_case shape_cases[] = {
     /* Nodes are made in the key or the probe. */
     {SHAPE_PROLOG "$c[local:making(.) = $v]", false},
     {SHAPE_PROLOG "$c[@k = <a>{$v}</a>]", false},
+    /* A hoisted LET reads a slot of the guard. */
+    {SHAPE_PROLOG "for $x in $c let $y := $v + 1 return $x + $y", false},
     /* A where clause of a for clause becomes an indexed FILTER. */
     {SHAPE_PROLOG "for $x in $c where $x/@k = $v return $x/@n", true},
     {SHAPE_PROLOG "for $x at $p in $c where $x/@k = $v return $p", false},
@@ -372,6 +385,15 @@ static const value_case value_cases[] = {
     /* An input that changes every time. */
     {"for $i in 1 to 4 return count(((1 to 20 + $i) ! <e k='{. mod 2}'/>)[@k = '1'])",
      "11 11 12 12"},
+    /* Hoisting: an invariant LET runs once, and not for an empty input. */
+    {"for $x in () let $y := error() return $y", ""},
+    {"for $x in (1, 2) let $y := error() return $x", "error:FOER0000"},
+    {"let $v := 4 return for $x in 1 to 3 let $y := $v * 2 return $x + $y", "9 10 11"},
+    {"let $v := 4 return (1 to 12)[. > $v + 5]", "10 11 12"},
+    {"for $x at $i in (5, 6) let $y := $i * 2 let $z := $x + 1 return $y + $z", "8 11"},
+    {"let $s := (1 to 3) ! <e n='{.}'/> return "
+     "for $p in $s let $l := for $q in $s/@n where $q > $p/@n return $q return count($l)",
+     "2 1 0"},
     /* A where clause. */
     {"let $s := (1 to 40) ! <e k='{. mod 4}' n='{.}'/> "
      "return for $i in 0 to 2 return "
