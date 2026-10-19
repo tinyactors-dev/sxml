@@ -4,7 +4,7 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
-- 5.14 done (D181): the Phase 5 review. The gate boxes that need full
+- 5.14 done (D182): the Phase 5 review. The gate boxes that need full
   runs or fuzzing are deferred to the owner's machine (owner's change);
   the review's own runs, at 02303a7 and again at 3b0812a: XSD in scope 41,483 of 41,518
   (99.9 %; datatypes 100 %, structures 99.7 %, XSD 1.1 99.6 %),
@@ -1805,7 +1805,7 @@ For the owner. Four gate boxes wait for the full runs and fuzzing on the
 owner's machine (D181); the review's runs met every number, and schema
 validation works.
 
-0. **Confirming runs** (D181): on the owner's machine, `tools/check-main.sh`
+0. **Confirming runs** (D182): on the owner's machine, `tools/check-main.sh`
    (with the full lint, cut off here), the four suites (`tools/run-qt4.sh`
    XP40 and XQ40, `run-xslt.sh`, `run-xsd.sh`, then
    `tools/conformance-report.py`) and `tools/fuzz.sh --seconds 300`,
@@ -1823,17 +1823,17 @@ validation works.
    optional modules.
 3. **XQuery's omit-xml-declaration default** (Proposed, D146): no (write
    the declaration, as QT4 expects) or keep yes.
-4. **Accepted designs for later sweeps** (D169, D181; out of Proposed):
+4. **Accepted designs for later sweeps** (D169, D182; out of Proposed):
    match="$var" membership by a node index; IR modules that carry their
    stylesheet module's URI, for errors in included modules; exporting
    the package-version match from xslt.h; the XSLT functions in the
    run-time function table; globals computed on first read (XTDE3052).
-5. **Not done in Phase 5** (D178 to D181): is-id of union and list
+5. **Not done in Phase 5** (D178 to D182): is-id of union and list
    elements; XSLT's ID/IDREF for elements, schema roles, typed modes'
    schema-element() names, xs:untypedAtomic as a type, xml:lang
    declarations; the remaining XSD failures (XSD 1.0 rules 1.1 changed,
    NOTATION union members, XML 1.1 instances, EDC with wildcards).
-6. **Performance** (D181): about 4 million evaluation steps a second
+6. **Performance** (D182): about 4 million evaluation steps a second
    (release) and no index for `$seq[f(.) = $key]`; QT4's itunes takes
    72 s. A general evaluator item, not a schema one.
 7. **Phase 6 and 7 plans** (D162): no `docs/tasks/phase-6.md` or

@@ -19,7 +19,7 @@ headers (`include/sxml/`) are stable from 0.2.0 on (D47):
 - The frozen substrate headers (D99) change only additively, and each change
   has a record.
 - `xquery.h`, `xslt.h` and `schema.h` were provisional until the Phase 3,
-  4 and 5 gates (D151, D165) and are stable since (D161, D169, D181).
+  4 and 5 gates (D151, D165) and are stable since (D161, D169, D182).
 
 The JavaScript package (`bindings/javascript/`) has the same version as the
 library. Its API grows only additively within a minor version, as the

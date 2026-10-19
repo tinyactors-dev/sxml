@@ -7065,10 +7065,11 @@ that. Amends the done-when of the packet procedure (D123's local checks).
 - The user-facing CLI reference is `apps/sxml/README.md`; `docs/CLI.md`
   keeps the design rules (D44).
 
-### D181. Phase 5 gate review (packet 5.14)
-Recorded 2026-10-19 by the review agent (D11), after D151, D161, D169.
-**The owner moved the confirming runs to a machine of their own**: the
-gate boxes that need full suite runs or fuzzing stay open, marked
+### D182. Phase 5 gate review (packet 5.14)
+Recorded 2026-10-19 by the review agent (D11), after D151, D161, D169
+and D181. **The owner moved the confirming runs to a machine of their
+own** (D181): the gate boxes that need full suite runs or fuzzing stay
+open, marked
 "deferred to the owner's machine (D181)"; the review's own runs below
 met every number. Checked locally (D123): `tools/check-main.sh` on clean
 HEAD 3b0812a (the review's code changes) builds `release`, `debug`
@@ -7219,7 +7220,7 @@ cycle in 176 files). The dashboard is regenerated at 3b0812a.
   4,877,565 bytes (1,126,567 gzipped), over 4.15's 1,100,000 gzipped;
   5.10 set the ctest budget to 5,500,000 / 1,250,000, leaving room for
   5.8 and 5.9. `sxml.wasm` was unchanged then (1,916,341 / 663,954). At
-  the Phase 5 review (D181) the CLI is 4,950,289 / 1,154,545 and
+  the Phase 5 review (D182) the CLI is 4,950,289 / 1,154,545 and
   `sxml.wasm` 1,997,773 / 695,343 of 2,000,000 / 700,000. Choose:
   confirm, or split the optional front ends into modules.
 

@@ -14,7 +14,7 @@
  * one only with a decision record and a new major version (before 1.0.0,
  * minor version). xquery.h, xslt.h and schema.h were provisional until
  * the Phase 3, 4 and 5 gates (D151, D165) and are stable since (D161,
- * D169, D181).
+ * D169, D182).
  * docs/RELEASE.md describes a release.
  */
 

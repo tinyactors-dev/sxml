@@ -10,7 +10,7 @@ release are in `docs/RELEASE.md`.
 ## [Unreleased]
 
 XQuery 4.0 (Phase 3, D161), XSLT 4.0 (Phase 4, D169) and XSD 1.1 with
-schema awareness (Phase 5, D181). The owner decides whether this goes
+schema awareness (Phase 5, D182). The owner decides whether this goes
 into 0.2.0, which is not tagged yet, or into the next minor release.
 
 ### Added
@@ -85,7 +85,7 @@ into 0.2.0, which is not tagged yet, or into the next minor release.
   still the owner's choice (D146) and may change with a record.
 - `xslt.h` is no longer provisional (D169): it changes only as the other
   public headers do.
-- `schema.h` is no longer provisional (D181): it changes only as the
+- `schema.h` is no longer provisional (D182): it changes only as the
   other public headers do.
 - XSLT's xsl:import-schema and validation attributes are supported now
   (they raised XTSE1650 and XTSE1660, D162), and fn:system-properties

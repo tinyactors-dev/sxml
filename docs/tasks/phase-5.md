@@ -443,7 +443,7 @@ accepted. XT40 8,650 (0 errors), XP40 30,931, XQ40 41,273, XSD 41,483.
 ### 5.14 Phase 5 review (review)
 After everything. Owns the gate boxes. A separate agent (D11) runs the
 rubric and re-checks each "done when"; open items go under "Proposed".
-**Done** 2026-10-19 (D181), except the confirming full runs and
+**Done** 2026-10-19 (D182), except the confirming full runs and
 fuzzing, deferred to the owner's machine: numbers at 02303a7 and
 3b0812a, a new schema fuzz target, both step budgets judged fair, no
 driver reclassifies (the XSD driver's "not run" for an unsupported
@@ -524,8 +524,8 @@ $ sxml validate --schema=po.xsd --format=json po.xml
 - [ ] No in-scope test crashes, leaks or ends in an "error" outcome.
   (deferred to the owner's machine (D181), with the fuzzing; measured:
   every test set of the four suites finished, 0 errors)
-- [x] `sxml validate` matches docs/CLI.md. (agent review, D181)
+- [x] `sxml validate` matches docs/CLI.md. (agent review, D182)
 - [x] Review agent pass (D11), findings fixed; the owner is told schema
-  validation works (D11 goal). (agent review, D181; the confirming full
+  validation works (D11 goal). (agent review, D182; the confirming full
   runs and fuzzing are the owner's, the larger follow-ups are listed in
-  D181 and the LOG)
+  D182 and the LOG)
