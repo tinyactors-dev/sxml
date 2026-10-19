@@ -985,6 +985,12 @@ expressions and sorts, the `$V[. instance of gnode()]` check per
   `src/decimal.c`, `src/xdm*.c`, `tests/bench/`.
 - **Done when**: each change measured before and after, the numbers in
   its commit and in a D-record; no QT4 XQ40 or XT40 outcome changes.
+**Done** 2026-10-19 (D229): Clinger's fast path for numbers to doubles;
+leaves in place; inline item lists and matcher frames; single-node
+atomization; the memoized match="$var" type check; numeric index keys;
+quantified hoisting. xmark-all 12.29 to 9.84 x 10^9 instructions (1.55
+to 1.20 s), match="$var" 9.30 to 3.91; QT4 XQ40 and XT40 unchanged case
+by case.
 
 ### xml-mem Bounded memory for XML parsing (design and implementation)
 After D12 (tree-sitter parses XML, the owner's choice), D199 (DTD and

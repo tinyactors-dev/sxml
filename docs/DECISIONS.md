@@ -10002,17 +10002,19 @@ tree; a streamed principal source would be an additive `xslt.h` field)".
   input (the identity) keeps memory proportional to the output.
 
 ### D229. Evaluator performance, second round (packet perf-2)
-Recorded 2026-10-19, after D46, D71, D89, D149, D223, D224. In progress;
-completed when the packet ends. The benchmarks of D224
-(`tests/bench/run-bench.py`); processor seconds, release, fastest of
-three, on a machine other builds share; and instructions of xmark-all
-under callgrind (one run, exact), the measure each change is judged by.
+Recorded 2026-10-19, after D46, D71, D89, D149, D223, D224. The
+benchmarks of D224 (`tests/bench/run-bench.py`) and a new one,
+numeric-join (a self-join of the persons on xs:decimal incomes);
+processor seconds, release, fastest of three, on a machine other builds
+share; and instructions under callgrind (one run, exact), the measure
+each change is judged by.
 - **Profile** (callgrind, xmark-all, 12.29 x 10^9 instructions at
   9a93061): parsing the document 20 %; casting xs:untypedAtomic to
   xs:double 14 % (strtod alone 6 %, 830,000 casts); the axis walks'
   node descriptions 7 %; malloc and free 8 %; the machine loop's own
   code 8 %; atomization 17 % (inclusive, most of it the casts and the
-  string values).
+  string values). match="$var": the type check of $V 55 %, its matcher
+  frames in allocator memory. Recursion: coercion of arguments 15 %.
 - **Numbers to doubles** (glossary `scaled_integer`; Clinger, PLDI
   1990): a decimal or xs:double lexical form whose digits make a mantissa
   below 10^15 and whose power of ten is within +-22 is converted with one
@@ -10029,15 +10031,69 @@ under callgrind (one run, exact), the measure each change is judged by.
   failing leaf is pushed after all and its failure returned, so the loop
   locates and catches the error at its task as before; a step that cannot
   be charged leaves the task to the loop, whose charge fails the same way.
-- **Small sequences**: the item lists of steps and document order hold 8
-  items in themselves before taking allocator memory, and hand their
-  references to the sequence they make (`sxml_sequence_make_vector_taking`,
-  internal, `src/xdm_internal.h`) instead of retaining and releasing each.
-- **Measured** (xmark-all instructions; seconds before and after): numbers
-  12.29 to 11.55 x 10^9; leaves in place to 11.47; small sequences to
-  11.09 (xmark-all 1.55 to 1.41 s, Q11 0.75 to 0.65, predicate-join 0.33
-  to 0.31; the rest within the machine's noise). QT4 XQ40 and XT40 whole,
-  release, case by case: 0 outcomes differ (45,913 and 11,826 passed).
+- **Small sequences and fewer allocations**: the item lists of steps and
+  document order hold 8 items in themselves before taking allocator
+  memory, and hand their references to the sequence they make
+  (`sxml_sequence_make_vector_taking`, internal, `src/xdm_internal.h`)
+  instead of retaining and releasing each; the type matcher and the
+  coercion engine hold 4 frames in themselves (an item against one type
+  allocated and freed a frame array each time).
+- **Atomization**: one XNode atomizes to its typed value without a
+  sequence builder and an explicit stack; a node's string value is
+  validated as UTF-8 once (the atomic item validates it), not twice.
+- **Type matches**: one atomic item against its own type annotation
+  matches without the matcher (XDM 4.0, 3.2), the common case of
+  argument coercion; two inline integers compare without the type
+  families (`sxml_atomic_item_compare_in_heap`), as sorting by integers
+  does.
+- **match="$var"** (D185, D224's leftover): the FILTER of
+  `$V[. instance of gnode()]` keeps in the evaluation memo (D149) the
+  last input of 16 items or more whose every item matched; the same
+  input again (the same value: a sequence's items never change) is the
+  value at once, charged one step instead of one per item. Step counts
+  fall there, never rise.
+- **Numeric index keys** (`src/evaluator_index.c`): a filter index holds
+  keys of one class: strings (as before), numbers (xs:decimal, the
+  integers, xs:float, xs:double, not NaN) or nodes. Numbers of different
+  types compare by exact value in sxml (fn:compare, PR2218, D57), so two
+  equal numbers have one nearest double: the index orders keys by it, a
+  probe finds the keys of its double, and the predicate decides among
+  them (integers beyond 2^53 share doubles). Keys of two classes, or a
+  probe of another class than the keys (an xs:untypedAtomic key against
+  a number is cast), leave the index unused and every item tested, as
+  before.
+- **Hoisting from quantified expressions** (`src/ir_loop_passes.c`): the
+  hoist pass of D224 also takes a QUANTIFIED, whose variable is what the
+  loop binds; the same guard keeps hoisted expressions from running for
+  an empty input. STREAM bodies are still left alone (D223).
+- **Node descriptions**: `sxml_node_describe` no longer fills the
+  description before the tree's describe_node writes it whole (every
+  implementation does: the arena tree, the test trees).
+- **Measured**, instructions x 10^9 (processor seconds): the first
+  milestone at 9a93061: xmark-all 12.29 to 11.55 (numbers), 11.47
+  (leaves in place), 11.09 (small sequences); 1.55 to 1.41 s. The second
+  at 1487b93, before and after: xmark-all 11.08 to 9.84 (1.32 to 1.20);
+  Q8 2.49 to 2.48; Q9 2.50 to 2.50; Q11 5.84 to 5.27 (0.64 to 0.59);
+  predicate-join 2.79 to 2.77; numeric-join 4.98 to 2.54 (0.56 to 0.28);
+  paths 5.97 to 5.88; recursion 8.28 to 7.23 (1.20 to 1.03);
+  flwor-group 4.04 to 3.99; flwor-order 5.81 to 5.52 (0.72 to 0.69);
+  xslt-key 5.27 to 4.96 (0.60 to 0.57); match="$var" 9.30 to 3.91 (1.02
+  to 0.45); itunes 3.36 to 2.97 s. By change: atomization, one UTF-8
+  validation and inline frames xmark-all 11.09 to 9.96, match="$var"
+  9.30 to 7.76, recursion 8.28 to 7.95; the memo match="$var" 7.76 to
+  3.92; descriptions xmark-all 9.96 to 9.84; numeric keys numeric-join
+  4.98 to 2.54; integer comparisons and quantified hoisting flwor-order
+  5.78 to 5.52; the annotation match recursion 7.92 to 7.23, xslt-key
+  5.06 to 4.96. Every benchmark's output is the same byte for byte. QT4
+  XQ40 and XT40 whole, release, case by case, each milestone against its
+  base commit built the same way: 0 outcomes differ.
+- **Left**: XML parsing is now a quarter of xmark-all (tree-sitter,
+  D222's segments); the cast pipeline's layers (cast_begin, the
+  whitespace facet, the lexical form) still cost about 1,100
+  instructions per cast; the arena tree's describe_node (5 %) writes a
+  whole description for every node a step looks at; hoisting skips path
+  MAPs (their XPTY0019 and JNode selector rules order errors) and sort
+  keys; the machine's task struct is copied whole on each push.
 
 ## Proposed
 

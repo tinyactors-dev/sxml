@@ -4,6 +4,20 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- perf-2 done (D229): the second round of evaluator performance,
+  profile first (callgrind). Numbers to doubles by Clinger's fast path
+  (strtod was 6 % of XMark-All); leaves computed at their push, charged
+  their step; item lists, type matcher and coercion frames inline; one
+  XNode atomizes without a builder, its string value validated once;
+  one atomic item matches its own annotation directly; inline integers
+  compare directly; match="$var"'s type check of $V memoized; numeric
+  filter index keys (exact comparisons share nearest doubles); the hoist
+  pass takes quantified expressions. Instructions: xmark-all 12.29 to
+  9.84 x 10^9 (1.55 to 1.20 s), match="$var" 9.30 to 3.91, numeric-join
+  (new) 4.98 to 2.54, recursion 8.28 to 7.23, itunes 3.36 to 2.97 s.
+  QT4 XQ40 and XT40 unchanged case by case at each milestone. Left:
+  parsing is a quarter of XMark-All; the cast pipeline's layers; the
+  arena describe_node; hoisting from path MAPs and sort keys.
 - 7.6d done (D228): a streamed principal source. `xslt.h` (additive):
   `streamed_source_uri` in the transformation request and
   `sxml_xslt_stylesheet_streams_source`; the invocation opens the URI
