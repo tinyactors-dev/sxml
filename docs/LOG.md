@@ -4,6 +4,21 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 7.6c done (D223): more streamed shapes in xsl:source-document
+  streamable="yes". A streamed path (a downward path, perhaps ending in
+  @a) in the select of value-of, copy-of, sequence, for-each,
+  apply-templates, iterate or for-each-group streams in place through a
+  new lowering override of the XPath lowerer; count/exists/empty read only
+  the chain's counter, sum/min/max fold node by node (IR `fold`), other
+  atomizing functions get one value per node, the rest full windows.
+  Template rules of a guaranteed-streamable mode run on each node as it
+  passes (IR `apply_templates.focus`). Unused accumulators no longer stop
+  streaming; a D219 bug lost text after empty child elements. XT40 no case
+  changed; streamed source documents 164 to 986; 57 nodes get templates
+  one by one, 600,075 fold. 2.4 MB under 1 MB: count 186 KB, sum 223 KB,
+  apply-templates 233 KB. Left: streamed accumulators, fork, merge, a
+  streamed principal source.
+
 - health-3 done (D225): `sxml.wasm` back under budget, 2,352,234 /
   823,283 to 2,180,960 / 762,788 (budget 2,200,000 / 770,000, not
   raised). Per-commit linker maps since ae7ef0b: c008c7c (lax validation

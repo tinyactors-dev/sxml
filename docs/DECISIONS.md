@@ -9488,9 +9488,63 @@ rules.
 
 ### D223. More streamed shapes: streamed paths and aggregates (packet 7.6c)
 Recorded 2026-10-19, after D71, D212, D219, D222. Extends D219's streamed
-bodies: a path inside the select of an instruction of a streamed body
-streams in place (glossary `streamed_path`, `lowering_override`). (The
-details and the measurements follow with the implementation.)
+bodies of xsl:source-document streamable="yes"; the rest of D219 stands.
+- **Streamed paths** (glossary `streamed_path`): a downward path (D219's
+  steps, perhaps a last attribute step: "E/@a" is "E ! @a" in a shallow
+  window) inside the select of xsl:value-of, xsl:copy-of, xsl:sequence,
+  xsl:for-each, xsl:apply-templates, xsl:iterate or xsl:for-each-group of
+  a streamed body is a stream point when the instruction is consuming and
+  grounded by 7.6a's sweep (19.8.1, 19.8.4) and the rest of the select is
+  motionless around the path (operators, conditionals, function calls; a
+  simple map or filter on it reads its nodes). One per body, as before.
+- **Lowering override** (glossary `lowering_override`,
+  `src/xpath_lower_internal.h`): the XPath lowerer has a view of nodes a
+  caller's procedure lowers instead of their kind's rule (also when a
+  chain's spine walk meets them). The plan publishes one per streamed
+  path; it is valid in any focus (a STREAM walks a tree when its origin is
+  no open node), and a body whose path was not lowered by it is an
+  internal error, not a wrong result.
+- **Grounding** (19.4): the node in a full window; fn:data of it for
+  distinct-values, data, string-join, avg and multi-argument forms; for
+  fn:count, fn:exists and fn:empty the chain's counter only (shallow
+  windows, the call is the overridden node); for one-argument fn:sum,
+  fn:min and fn:max a fold: the new IR field `sxml_ir_stream.fold`, a slot
+  the body's value F((fold, fn:data(.))) is bound to after each node, the
+  STREAM's own value empty, F(fold) read after the chain (F&O 4.0, 14.4:
+  each is the fold of its pairwise form). STREAM's counter and fold LETs
+  are rebound by the evaluator: IR passes must not move them (the hoist
+  pass of D224 moves LETs of MAP and FILTER bodies only).
+- **Template rules node by node**: an xsl:apply-templates with a path
+  select (no xsl:sort or separator), motionless xsl:with-param, whose
+  mode names one mode declared streamable whose every template rule is
+  guaranteed-streamable (new `sxml_xslt_assess_mode`, 6.6.4) and reads no
+  fn:last, fn:path, fn:has-children, call-template or attribute set, is a
+  stream point: each node's full window gets the templates as it passes,
+  with its position in the path. New IR field
+  `sxml_ir_apply_templates.focus`: with select NONE, the item and position
+  of a STREAM's focus, no size. Other apply-templates of a streamable mode
+  over a streamed path apply them to the full windows of the selection.
+- **Accumulators**: declared accumulators no longer stop streaming when
+  the document's use-accumulators names none and no expression calls
+  fn:accumulator-before or -after. Streamed accumulator values are not done.
+- **Fixed** (D219): a text, comment or processing instruction queued before
+  a following start tag was read at the depth after it, losing text after
+  an empty child element.
+- **Not done**: accumulators computed while streaming, xsl:fork,
+  xsl:merge, a streamed principal source (no `xslt.h` field yet, so no
+  record), template rules streamed with shallow windows (their own stream
+  points), the IR printer's fold and focus (src/ir.c had another packet's
+  change), incremental tokenizing (D222's segments now bound the parser).
+- **Measured** (release driver, whole XT40, same HEAD with and without):
+  xsl:source-document executions that stream 164 to 986 (no case
+  changed: 11,827 at 623bf87, 11,826 at 4589ec8); template rules applied
+  node by node 0 to 57 nodes in 6 test sets (most XT40 template rules of
+  streamable modes read fn:last or are applied to "."); folded aggregates
+  over 600,075 nodes in sf-sum, sf-min, sf-max. Allocator peaks over a
+  2.4 MB generated document under a 1 MB limit (each unstreamed run
+  exceeds it): count 186 KB, sum 223 KB, sum of attributes and max 213 KB,
+  copy-of of a selection 232 KB, apply-templates over all 30,000 records
+  233 KB (`tests/evaluator_stream_test.c`).
 
 ### D221. Calendars and languages in the formatting functions (packet 7.17)
 Recorded 2026-10-19, after D71, D97, D119, D162, D189, D208, D209, D220.

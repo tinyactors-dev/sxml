@@ -361,6 +361,26 @@ part 1.2 KB of the core module.
     to 11,804, none lost. Left: accumulators, streamable modes and
     apply-templates, iterate, fork, merge, aggregates, the principal
     source, incremental tokenizing of content.
+- **7.6c More streamed shapes** (after 7.6b; D223): reuse the STREAM
+  machinery, 7.6a's sweeps and the shared evaluator for, in order,
+  apply-templates and streamable modes with position(); accumulators;
+  aggregates over a streamed path; attribute steps at the end of a path;
+  xsl:iterate, xsl:fork, xsl:merge; a streamed principal source. Count
+  the source-document executions and mode runs that stream.
+  - Owns: `src/xslt_lower_stream.c`, `src/evaluator_stream.c`,
+    `tests/evaluator_stream_test.c`; single hunks in `src/xpath_lower.c`
+    (the lowering override), `src/xslt_streamability.c` (mode verdicts),
+    `src/xslt_lower_template.c`, `src/evaluator_template.c` and the IR.
+  - **Done** 2026-10-19 (D223): streamed paths in value-of, copy-of,
+    sequence, for-each, apply-templates, iterate and for-each-group
+    selects (counted, folded, atomized or full windows; a last attribute
+    step); template rules applied node by node with their position;
+    declared but unused accumulators no longer stop streaming; a D219
+    text bug fixed. XT40 no case changed; streamed source documents 164
+    to 986; 57 nodes get templates one by one, 600,075 fold. Left:
+    accumulators computed while streaming, xsl:fork, xsl:merge, the
+    streamed principal source (no `xslt.h` field), template rules with
+    stream points of their own.
 - **Header**: possibly `xslt.h`, additive: a streamed principal source
   given as bytes or a parser, with a record. The resolver's BYTES form
   already serves xsl:source-document.
