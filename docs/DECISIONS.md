@@ -7212,7 +7212,110 @@ cycle in 176 files). The dashboard is regenerated at 3b0812a.
   members, XML 1.1 instances, Element Declarations Consistent with
   wildcards).
 
+### D183. Phase 7 plan: one packet per deferred feature, optional features for size (packet 7.1)
+Recorded 2026-10-19, after D95, D97, D154, D157, D162, D165, D166, D181.
+Plans Phase 7 (D162) in `docs/tasks/phase-7.md`, as D165 planned Phase 5.
+- **Packets** (numbers in wave order; "a, b" are packet groups):
+  - 7.2: optional features and the size budget;
+  - 7.3: xsl:evaluate;
+  - 7.4: XSLT backwards-compatible behaviour and XPath 1.0 compatibility
+    mode;
+  - 7.5: disable-output-escaping;
+  - 7.6a, b: streaming (streamability analysis, then streamed
+    evaluation);
+  - 7.7a, b, c: the Update Facility;
+  - 7.8: EXPath Binary;
+  - 7.9: EXPath File;
+  - 7.10a, b: HTML5;
+  - 7.11: fn:transform;
+  - 7.12a, b, c: Full Text;
+  - 7.13: XML 1.1 input;
+  - 7.14a, b: DTD processing;
+  - 7.15a, b: UCA;
+  - 7.16: timezone database;
+  - 7.17: calendars and languages;
+  - 7.18: Invisible XML;
+  - 7.19: review.
+
+  7.3, 7.5, 7.13 and 7.14 are proposed for the owner (below). The order
+  weighs the cases unlocked, user demand and risk:
+  - 7.4 comes early because every `version="1.0"` stylesheet now raises
+    XTDE0160 when evaluated;
+  - Full Text is late because it is the riskiest;
+  - UCA, timezones, languages and iXML come last: they are few cases
+    and much data.
+- **Counts** (not run at 3b0812a; first unmet dependency where the
+  dashboard has it, else from the catalogs):
+  - XT40: streaming 2,932, backwards compatibility 124, xsl:evaluate 83,
+    dtd 78, XML 1.1 65, disable-output-escaping 32, numbering languages 14;
+  - XQ40: HTML 1,401, Update 825, Full Text 685, Binary 673, XML 1.1 313,
+    File 271, fn:transform 133, UCA 49 (+13), infoset-dtd 32, languages 24,
+    Olson 8, iXML 10, XPath 1.0 mode 5;
+  - xmlconf: 275 XML 1.1 cases and 265 with external entities.
+
+  About 4,400 of XQ40's 5,505 not-run cases and 3,330 of XT40's 4,659.
+  staticTyping, the xsl-stylesheet PI, HTML4 output, XInclude and
+  remote_http stay unplanned (listed in the plan).
+- **Mechanisms, no parallel machinery**:
+  - xsl:evaluate and fn:transform compile at run time and run a unit
+    evaluation (D154, D157); fn:transform is supplied by the XSLT layer,
+    as fn:load-xquery-module is supplied by XQuery.
+  - HTML5, iXML, XML 1.1 and DTD entities send tree builder events; HTML
+    tree construction works on a working node table first, because the
+    adoption agency moves built nodes.
+  - DTD validation is schema validation against components built from
+    the DTD.
+  - Updates are applied by rebuilding trees through the tree builder, so
+    `tree.h` stays frozen (node identity across an update is not
+    observable within a snapshot).
+  - Streaming is first a static streamability pass with unstreamed
+    evaluation, which yields every result and static error; then a
+    receiving task (D166) fed by the parser. The feature is claimed only
+    then.
+  - Full Text selections compile into a match program as regexes do
+    (D53); Full Text goes in the XQuery grammar only.
+  - The XPath 1.0 mode is a static-context flag that the lowering reads.
+  - disable-output-escaping uses the JAXP processing-instruction pair,
+    because text nodes cannot carry a mark.
+- **Header changes** (additive, each with its record): `processor.h`
+  (optional features, a file-system interface, resource kinds for Full
+  Text, entities and optionally collation and timezone data), `xpath.h`
+  (the 1.0 compatibility flag), `xquery.h` (updating queries), `xml.h`
+  (DTD options). No substrate header changes.
+- **Gates** (proposed): each feature has its own gate in its packet, from
+  75 % (Full Text, languages) to 95 % (Binary, HTML5, the xmlconf
+  cases). The Phase 7 gate is every accepted feature's gate, the earlier
+  gates still held with no passed count dropped, no error outcome, the
+  owner's size budgets, and fuzz targets for every new parser.
+- **PLAN.md**: the Phase 7 row names the optional features and the four
+  proposed additions.
+
 ## Proposed
+
+- **Phase 7: four more features and the size of optional parts** (packet
+  7.1, D183; for the owner). The details are in `docs/tasks/phase-7.md`,
+  under "Proposed for the owner", "Size" and "Questions for the owner".
+  - *Features no phase covers yet*: xsl:evaluate (83 XT40 cases, 7.3),
+    disable-output-escaping (32 XT40, 7.5), XML 1.1 input (313 XQ40, 65
+    XT40, 275 xmlconf; 7.13) and DTD processing (32 XQ40, 78 XT40, 265
+    xmlconf; 7.14). Proposed: they join Phase 7.
+  - *Size*: `sxml.wasm` has 1,277 bytes left. The XPath-reachable
+    features would add an estimated 0.5 to 0.8 MB. Choose one of:
+    1. raise the budget per feature;
+    2. optional features chosen at link time through the processor
+       configuration (one additive `processor.h` change; `sxml.wasm`
+       unchanged, plus a larger module that names the features);
+    3. CMake options with stub files;
+    4. large data (DUCET, CLDR rules, the timezone database) supplied by
+       the host in its standard formats through the resolver.
+
+    Recommended: 2 with 4, a 2,100,000-byte core budget and a
+    3,000,000-byte full module.
+  - *Also*: the per-feature gate numbers; vendoring the iXML community
+    tests and a sample of Unicode's CollationTest; the languages,
+    calendars and tailorings (proposed: en, de, fr, it, es, nl; ISO, AD,
+    BE, JE, OS, AH); XQUF 3.0 only, or also the 4.0 draft; EXPath File off
+    in the CLI unless `--allow-file-access` is given.
 
 - **The CLI's WebAssembly budget after sxml validate** (packet 5.10,
   D176; for the owner, with the 4.15 item below): linking schema

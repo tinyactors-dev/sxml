@@ -4,6 +4,19 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 7.1 done (D183): Phase 7 is planned in `docs/tasks/phase-7.md`, with
+  one packet or packet group per deferred feature, each with its
+  specifications, unlocked cases, D162 place, header changes, owned files,
+  size and a proposed gate. The plan would unlock about 4,400 of XQ40's
+  5,505 not-run cases, 3,330 of XT40's 4,659 and 540 xmlconf cases;
+  the largest are streaming (2,932), HTML5 (1,401), the Update Facility
+  (825), Full Text (685) and Binary (673). Wave 1 can start now: 7.3
+  xsl:evaluate, 7.4 backwards compatibility, 7.5
+  disable-output-escaping. Waiting on the owner (D183 Proposed): the
+  four new features, the size option (`sxml.wasm` has 1,277 bytes
+  left; recommended are link-time optional features with large data
+  supplied by the host), and the gate numbers.
+
 - 5.14 done (D182): the Phase 5 review. The gate boxes that need full
   runs or fuzzing are deferred to the owner's machine (owner's change);
   the review's own runs, at 02303a7 and again at 3b0812a: XSD in scope 41,483 of 41,518
