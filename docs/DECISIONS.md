@@ -8728,6 +8728,18 @@ Amended as the packet goes on.
 - XPath's Full Text is not implemented: the QT4 cases are XQuery only,
   and the XPath grammar and `sxml.wasm` stay as they are.
 
+### D215. Invisible XML: fn:invisible-xml over an Earley parser (packet 7.18)
+Recorded 2026-10-19, after D12, D13, D53, D71, D162, D183, D189, D191,
+D208. Amended as the packet goes on.
+- **No tree-sitter for user grammars** (D12 gives way, as D53 did for
+  regex): an iXML grammar is run-time data, the argument of
+  fn:invisible-xml, and its language is any context-free language, so it
+  needs a general parser built while the query runs (Earley, as the
+  packet says). The iXML notation itself could be a tree-sitter grammar,
+  but then sxml would carry two parsers for one job; instead the grammar
+  of iXML grammars is compiled in as a constant table of its XML form, so
+  the one Earley parser reads grammars and inputs alike.
+
 ## Proposed
 
 - **A streamability option and a streamed source in `xslt.h`** (packet
