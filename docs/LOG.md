@@ -4,6 +4,24 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 7.14 done (D199): DTD processing. The external subset, external
+  parameter and parsed entities (through an entity resolver in `xml.h`;
+  the processor adapts its resource resolver, new resource kind
+  EXTERNAL_ENTITY), conditional sections and parameter-entity expansion
+  (grammar in `grammars/xml`, the rest one explicit-stack loop, D71).
+  Validation is schema validation: the DTD becomes XSD documents run
+  through the schema validator as the document is parsed
+  (`sxml_dtd_validator`, `schema.h`). fn:doc and fn:parse-xml:
+  dtd-validation (FODC0007) and trust-external (default false,
+  FODC0016). xmlconf entity cases 0 to 265 run (valid 127/127, invalid
+  54/54, not-wf 66/66), XML 1.1 not-wf 140 to 169 of 169; validation
+  finds 594/594 valid and 173/173 invalid standalone cases. XT40 8,861 to
+  8,931, dtd 68 of 79 (86 %, gate 90 %); QT4 fn-doc +4, fn-parse-xml +7
+  in each language; none lost. Left: the QT4 driver's infoset-dtd and
+  dtd-validation-option claims with supports-dtd-validation (files
+  busy), three Proposed items (element base URI, unparsed entities on
+  copy, an `sxml check` flag).
+
 - 7.9 done (D200): EXPath File 4.0 as the optional feature
   `sxml_expath_file_feature()` (37 file: functions) over a new host
   interface, `sxml_file_system` in the processor configuration; library

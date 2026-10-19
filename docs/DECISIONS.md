@@ -7770,6 +7770,56 @@ entities are skipped in content".
   66/66, error 18; XML 1.1 not-wf 140/169 to 169/169 (D195's 29). The
   remaining parts (the processor's resource kind, trust-external, the
   drivers, the CLI, DTD validation) follow in this record.
+- **Validation (7.14b) is schema validation** (no second content-model
+  engine): `src/dtd.c` writes the DTD as XSD documents, one per
+  namespace (names resolve through the root element's xmlns attributes
+  and the DTD's xmlns defaults; content models become model groups,
+  attribute types simple types: ID, IDREF(S), ENTITY(IES), NMTOKEN(S),
+  NOTATION, enumerations; an element referred to but not declared gets a
+  type that refuses it). `src/schema_from_dtd.c` compiles them and runs a
+  schema validator without a result tree; the parser sends its events to
+  it as well (a tee). The constraints about declarations themselves
+  (Root Element Type, Standalone Document Declaration, the PE nesting
+  ones, Unique Element Type Declaration, Unique Notation Name, One ID
+  per Element Type, ID Attribute Default, Notation Declared, No
+  Duplicate Types and Tokens, Entity Declared, Fixed Attribute Default)
+  the parser checks and reports through the hook, code xml-validity. **Public, additive**: `xml.h`'s `sxml_xml_validator` hook
+  (`sxml_xml_parse_request.validator`); `schema.h`'s
+  `sxml_dtd_validator` (memory_requirements, initialize, finalize,
+  create, destroy, as_xml_validator, get_outcome); `processor.h`'s
+  resource kind `SXML_RESOURCE_KIND_EXTERNAL_ENTITY` (form BYTES) and
+  `sxml_processor_entity_resolver`, which adapts the processor's resource
+  resolver for a parse.
+- **Tree**: element content whitespace (a declared element-only content
+  model) makes no text node (XDM 4.0, 7.5.7.3); unparsed entities keep
+  absolute system identifiers, so fn:unparsed-entity-uri and
+  fn:unparsed-entity-public-id work (replaces D81's "unparsed entities
+  are not reported").
+- **fn:doc and fn:parse-xml** (F&O 4.0, 17.1.1 and 17.2.1): the loader
+  parses with an entity resolver over the evaluation's resource resolver.
+  trust-external defaults to false, so a document that refers to an
+  external DTD or entity raises FODC0016 (the 4.0 incompatibility the
+  specification names); dtd-validation=true validates and raises FODC0007
+  (also for a document without a DTD, 2.8). FODC0013 stays for XInclude.
+  XSLT's fn:document and stylesheet modules read external entities
+  through the resolver. The CLI parses its input files with the null
+  resolver, so it never reads an external entity (D44); a query reads one
+  only through trust-external=true.
+- **Measured**: DTD validation of xmlconf: standalone valid 594 of 594
+  valid, invalid 173 of 173 invalid; external valid 127 of 127, invalid
+  54 of 54. XT40 8,861 to 8,931 passed (release, whole suite, none lost);
+  dtd cases 68 of 79 (86 %, under the 90 % gate): base-uri-051/051a/051b
+  need an element base URI from the entity (tree.h; Proposed),
+  unparsed-entity-05 to 08 need unparsed entities kept by xsl:copy-of
+  (Proposed), error-1370a, 1380a and 1380b raise the wrong code without a
+  focus, id-043 needs a parse-xml source in the driver. QT4 (release):
+  fn-doc XQ40 69 to 73, XP40 63 to 67; fn-parse-xml XQ40 46 to 53, XP40
+  35 to 42; none lost. Left for the QT4 driver (its files were others'
+  work in progress): claiming infoset-dtd and dtd-validation-option,
+  environment sources read with the entity resolver, and
+  supports-dtd-validation true in `src/system_property.c` with the
+  feature claim. Fuzzing: `tests/fuzz/dtd_fuzz.c`, 20 minutes, clean
+  after one fix.
 
 ### D198. EXPath Binary (packet 7.8)
 Recorded 2026-10-19, after D51, D99, D162, D163, D189, D191. The EXPath
@@ -8212,6 +8262,27 @@ processor but not hundreds of megabytes to get java".
   license, tagging and publishing releases, and the npm package name.
 
 ## Proposed
+
+- **The base URI of an element from an external entity** (packet 7.14,
+  D199; for the owner of `tree.h`, frozen by D99): XML Base and XDM 4.0
+  (5.2, dm:base-uri) give an element inside an external parsed entity
+  the entity's URI. The tree keeps one document base URI and xml:base
+  attributes only, so XT40 base-uri-051, 051a and 051b fail. Choose: an
+  additive per-element base URI in `tree.h` (set by the builder for an
+  entity's top-level elements), or leave it.
+
+- **Unparsed entities kept by copies** (packet 7.14, D199; for the
+  owner of `tree.h`): xsl:copy-of and xsl:copy of a document node make a
+  new tree without the source's unparsed entities, so
+  fn:unparsed-entity-uri on the copy is empty (XT40 unparsed-entity-05
+  to 08). Choose: copy them with the document node (a builder event for
+  unparsed entities), or leave it.
+
+- **`sxml check` with the DTD** (packet 7.14, D199, D44): the CLI never
+  reads an external DTD or entity. Proposed flag: `sxml check
+  --external-entities` reads them as local files relative to the input,
+  and `--validate-dtd` adds DTD validation (sxml_dtd_validator). Not
+  added: `apps/` and `tests/cli` held others' work in progress.
 
 - **xs:numeric parameters in XPath 1.0 compatibility mode** (packet 7.4b,
   D197; for the owner): XPath 4.0, 3.4.1 applies fn:number to an
