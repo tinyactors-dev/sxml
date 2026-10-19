@@ -35,4 +35,6 @@
      the owner's machine, unless the packet is a gate review that says
      otherwise. Never regenerate `docs/CONFORMANCE.md` from a partial run.
 8. Tick the packet in the task file, commit and push.
-9. Delete your snapshot and scratch directories, then send the final report.
+9. Keep at most one debug and one release snapshot at a time (each is about
+   4 GB); the disk has filled up more than once. Delete your snapshots and
+   scratch directories, then send the final report.

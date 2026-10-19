@@ -40,7 +40,6 @@ JavaScript (js-1, D216): 7,000,000 / 2,450,000
 
 ## Running
 
-- xml-mem: bounded memory in the XML parser (106 MB input takes 3.98 GB).
 - 7.6c more streamed shapes: apply-templates, accumulators, aggregates.
 - health-3: core sxml.wasm regrew to 2,347,868 (over 2,200,000); debug-gcc fails in function_library_binary.c.
 - 2.22 XPath/XQuery leftovers sweep.
