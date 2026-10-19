@@ -8846,6 +8846,69 @@ planned ("no files written without --output") and the queue's cli items.
   run here; the permissions of a replaced file are not kept (the new file
   has the default mode); fn:put does not make missing directories.
 
+### D218. HTML follow-ups: encoding sniffing, every legacy decoder, the html5lib tests, XHTML (packet 7.10b)
+Recorded 2026-10-19, after D13, D71, D189, D201, D208. Closes D201's list
+for 7.10b.
+- **Determining the encoding** (HTML, 13.2.3.2): octets without a byte
+  order mark or encoding option are prescanned (the first 1024 bytes,
+  the standard's "get an attribute", then "get an XML encoding"), then
+  step 9 (well-formed UTF-8 is UTF-8), then windows-1252; the confidence
+  is then tentative. `sxml_html_prepare_input` reports the encoding and
+  the confidence.
+- **Changing the encoding while parsing** (13.2.3.4): a meta element in
+  "in head" (also reached from "in body") whose charset, or whose
+  http-equiv Content-Type content (HTML, 2.5.3), names another encoding
+  while the confidence is tentative stops tree construction, and the
+  document is parsed again from memory with that encoding, certain: at
+  most two passes. The optional change of decoder on the fly is not
+  done. With fail-on-error and a tentative encoding a pass does not stop
+  at its first parse error, so the errors of a discarded pass never
+  count.
+- **Every encoding** (Encoding Standard, 10 to 13): gb18030 (also GBK's
+  decoder), Big5, EUC-JP, ISO-2022-JP, Shift_JIS and EUC-KR decode, one
+  loop each in `src/html_encoding.c`; "restore to ioQueue" moves the
+  offset back over the bytes just read. The indexes are generated into
+  `src/html_encoding_tables.c` by `tools/generate-html-encodings.py`
+  (dense uint16 tables by pointer; Big5's 1,713 plane 2 code points as a
+  sorted pointer list; the 207 gb18030 ranges). No label is FODC0011 any
+  more; an unknown label still is.
+- **XHTML** (F&O 4.0, fn:parse-html, a "should"): without a media type
+  the input says what it is. When the document element after the prolog
+  is an unprefixed `html` with `xmlns="http://www.w3.org/1999/xhtml"` and
+  the decoded input is well-formed XML, `sxml_processor_parse_document`
+  parses it (the XMLDocument mapping of 17.3.1); otherwise it is HTML.
+  No external DTD is read, so `&nbsp;` and the like make it HTML. A
+  prefixed XHTML root is parsed as HTML.
+- **Source locations**: not done. The arena tree keeps dm:location only
+  with `keeps_locations`, and the processor builds every document without
+  it (`src/processor.c`, XML documents too), so HTML locations would be
+  dropped. When the processor keeps locations, the tokenizer records the
+  line and column of each token's start and the walk of `src/html.c`
+  puts them on the events, in that one place (D162).
+- **The html5lib tests are vendored** (D13, D208's default):
+  `third_party/html5lib-tests/` holds web-platform-tests'
+  `html/syntax/parsing/resources` (6df7a6ed, BSD) and html5lib-tests'
+  `tokenizer/` and `encoding/` (c777c408, MIT), pinned in
+  `third_party/html5lib-tests.commit`; 2.4 MB. `tests/html5lib_test.c`
+  runs them: tree construction 1,749 of 1,753 (the 4 are selectedcontent,
+  filled by DOM steps of option and select, not by the parser; listed as
+  known failures), 220 fragment and script-on cases left out; tokenizer
+  7,045 of 7,045 (4 with lone surrogates left out); encoding 82 of 82.
+  Whether there is a parse error agrees in every tokenizer case, and is
+  found in every tree case that lists one (fail-on-error depends on it).
+- **CLI**: `sxml xpath` and `sxml xquery` have the working directory's
+  file URI as static base URI, so html-doc and unparsed-text of a
+  relative name work (folded into cli-2's 430379b).
+- **Counts** (release driver, before and after): fn-parse-html 22/22
+  (XQ40 and XP40), fn-html-doc 9/10, misc-HtmlTestSuite 1,378/1,379
+  (XQ40). html-doc-010 and html-test-1281 stay as D201 says.
+- **Sizes** (stripped / gzipped, wasm): `sxml.wasm` 2,134,058 / 743,746
+  before and after; `sxml-full.wasm` 6,570,723 / 1,347,198 to 6,755,529 /
+  1,497,292 (+184,806 / +150,094, nearly all the indexes; budget
+  7,000,000 / 2,450,000); the CLI module 7,817,964 / 1,593,193 to
+  8,002,794 / 1,740,606 (budget 9,000,000 / 2,000,000). No budget
+  changes.
+
 ## Proposed
 
 - **A streamability option and a streamed source in `xslt.h`** (packet

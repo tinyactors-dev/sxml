@@ -534,6 +534,12 @@ Windows file system is not written yet.
 **7.10a done** 2026-10-19 (D201): the tokenizer and tree construction both,
 so the gate is met: misc-HtmlTestSuite 1,378 of 1,379, fn-parse-html 22 of
 22, fn-html-doc 9 of 10 (XQ40). 7.10b: the list at the end of D201.
+**7.10b done** 2026-10-19 (D218): the meta prescan and the change of
+encoding while parsing, every legacy multi-byte decoder, XHTML parsed as
+XML, the html5lib tests vendored and run by `tests/html5lib_test.c`
+(tree construction 1,749 of 1,753, tokenizer 7,045 of 7,045, encoding 82
+of 82), the CLI's static base URI; source locations wait for the
+processor to keep them.
 
 ### 7.11 fn:transform (implementation)
 - **Specifications**: F&O 4.0, fn:transform (the options map:

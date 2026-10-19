@@ -4,6 +4,17 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 7.10b done (D218): HTML input sniffs its encoding as browsers do
+  (BOM, the encoding option, the `<meta>` prescan, then UTF-8 or
+  windows-1252, tentative) and parses again when a later meta element
+  changes it; every legacy multi-byte encoding decodes (gb18030/GBK,
+  Big5, EUC-JP, ISO-2022-JP, Shift_JIS, EUC-KR); XHTML input is parsed
+  as XML. The html5lib tests are vendored (`third_party/html5lib-tests`)
+  and run by `tests/html5lib_test.c`: tree construction 1,749 of 1,753
+  (4 selectedcontent), tokenizer 7,045 of 7,045, encoding 82 of 82. QT4
+  unchanged (fn-parse-html 22/22, fn-html-doc 9/10, misc-HtmlTestSuite
+  1,378/1,379). `sxml-full.wasm` +184,806 bytes stripped (the indexes),
+  core unchanged. Source locations wait for the processor to keep them.
 - cli-2 done (D217): the sxml command writes files, only where its
   command line says. `--output=FILE` (`-o`) and `--force` on xpath,
   xquery, transform and serialize; `sxml transform --result-directory=DIR`
