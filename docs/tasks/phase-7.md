@@ -946,6 +946,22 @@ origins at once; the hoist pass. xmark-all 6.73 to 1.52 processor
 seconds, app-Demos itunes 80.6 to 3.4; QT4 XQ40 and XT40 unchanged case
 by case.
 
+### perf-2 Evaluator performance, second round (implementation)
+After D224 (perf-1: its benchmarks, and what it left: describe_node 15 %
+and the machine loop 12 % of XMark-All, atomization, reference counts and
+small sequences, numeric index keys, hoisting of path MAPs, quantified
+expressions and sorts, the `$V[. instance of gnode()]` check per
+`match="$var"` test).
+- **Mechanism**: profile first (callgrind), then general mechanisms of
+  the one IR and evaluator for the hot spots; D223's rule (no IR pass
+  moves STREAM bindings), D71 and honest step counts kept.
+- **Owns**: `src/evaluator.c`, `src/evaluator_function.c`,
+  `src/evaluator_path.c`, `src/evaluator_index.c`, `src/ir_loop_passes.c`,
+  `src/tree_axis.c`, `src/arena_tree.c`, `src/tree.c`, `src/cast*.c`,
+  `src/decimal.c`, `src/xdm*.c`, `tests/bench/`.
+- **Done when**: each change measured before and after, the numbers in
+  its commit and in a D-record; no QT4 XQ40 or XT40 outcome changes.
+
 ### xml-mem Bounded memory for XML parsing (design and implementation)
 After D12 (tree-sitter parses XML, the owner's choice), D199 (DTD and
 entities) and D219 (parsing 106 MB took 3.98 GB resident, nearly all
