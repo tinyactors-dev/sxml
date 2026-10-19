@@ -4,6 +4,17 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- perf-3 done (D232): XML parsing speed within D12. The profile showed
+  tree-sitter's cost per token and node, so the grammar makes fewer:
+  '<a>', '<a/>', '</a>' and attributes without references are single
+  tokens and nodes without children, the content items of a segment are
+  a left-recursive rule tree-sitter does not rebalance; the walk reads
+  fields by number and node types by symbol. Parse-only 14.9 to 25.2
+  MB/s (100 MB: 14.7 to 25.5), the tree 13.4 to 21.3 MB/s; 10 MB check
+  6.71 to 3.90 x 10^9 instructions; XMark-All 9.87 to 8.88 (1.17 to
+  1.08 s), parsing now 16 % of it. QT4 and XT40 unchanged case by case.
+  Left: tree-sitter's per-character lexer and per-token stack.
+
 - 4.20 done (D230): XSLT conformance sweep, XT40 11,826 to 11,912
   passed, none lost, 0 errors (whole suite, release, case by case after
   each change). xsl:merge checks its input order (XTDE2220, by the

@@ -1036,6 +1036,23 @@ tree-sitter's syntax tree of the whole input).
 100 MB parses in 98 MB resident (3,789 MB before; the input is 97 MB),
 CPU 25.0 s to 19.7 s; xmlconf, QT4 and XT40 unchanged case by case.
 
+### perf-3 XML parsing speed (implementation)
+After D12 (tree-sitter parses XML, the owner's choice), D222 (segmented
+parsing) and D224, D229 (the benchmarks; parsing a quarter of
+XMark-All).
+- **Mechanism**: profile parsing alone (callgrind, 10 MB and 100 MB);
+  fewer tokens and nodes in the grammar and its scanner, a cheaper walk;
+  tree-sitter, the segments and the incremental events kept.
+- **Owns**: `grammars/xml/`, `src/xml.c`, `src/xml_segment.c`,
+  `src/xml_encoding.c`; the validation loop of `src/string.c`.
+- **Done when**: MB/s before and after for parse-only and the tree, and
+  XMark-All, in a D-record; xmlconf, QT4 and XT40 unchanged case by case.
+**Done** 2026-10-19 (D232): tags and attributes without references as
+single tokens and childless nodes, content items without rebalancing,
+fields by number, node types by symbol. Parse-only 14.9 to 25.2 MB/s,
+the tree 13.4 to 21.3 MB/s (6.71 to 3.90 x 10^9 instructions at 10 MB);
+XMark-All 9.87 to 8.88; QT4 and XT40 unchanged case by case.
+
 ## Proposed for the owner
 
 No phase covers these four features yet (D183 Proposed). The owner has

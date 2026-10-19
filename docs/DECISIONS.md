@@ -10293,6 +10293,77 @@ reading an accumulator streams nothing.
   another packet (perf-3) is changing now, so neither the form nor the
   parser change is made here; the header is unchanged.
 
+### D232. XML parsing speed: fewer tokens and nodes (packet perf-3)
+Recorded 2026-10-19, after D12, D222, D224, D229. tree-sitter stays the
+parser (D12, the owner's choice); the grammar and its external scanner
+stay the one source of the lexical rules; D222's segments are kept.
+- **Profile** (callgrind, `sxml check` of a 10.5 MB document made of
+  three copies of the XMark auction): 6.7 x 10^9 instructions, 640 a
+  byte, about 1.3 million tokens. Three quarters were tree-sitter's work
+  per token and per node: lexing 29 % (the lexer's advance per
+  character 9 %), the parse stack and subtrees, and 11 % rebalancing the
+  repeat of a content segment's items after each parse; the walk 22 %
+  (field lookups by name, node types by string, a cursor per tag). The
+  cost is per token and node, not per character, so the change cuts
+  tokens and nodes.
+- **Grammar** (`grammars/xml`, README contract updated): a tag's '<'
+  and its name are one external token; '<a>', '<a/>' and a whole end
+  tag '</a S?>' are one token each, nodes without children (start_tag,
+  empty_element_tag, end_tag), and an attribute whose value holds no
+  reference is one token, Name Eq AttValue, an attribute without
+  children ([40] to [44], [41], [25], [10]). The scanner still checks
+  every end tag against its start (WFC: Element Type Match) and every
+  character ([2] Char); a value with a reference, a '<' or a bad
+  character falls back to the grammar's own rules. The items of a
+  content segment are a left-recursive hidden rule rather than a
+  repeat, which tree-sitter does not rebalance (right recursion was
+  slower). The helper rules that choose the token or the full rule are
+  inlined, saving a reduction per tag.
+- **Builder** (`src/xml.c`): the tag name is read past the '<' up to the
+  first '>', '/' or S, and a one-token attribute is split at its first S
+  or '=' and its quotes, none of which a Name holds; fields by number
+  (the language is checked before each parse to number its fields as
+  `sxml_xml_field_texts` lists them); node types from a table of the
+  language's symbols filled per parse; no child cursor for a tag
+  without children. The segment cut scan uses memchr; the position
+  tracker counts lines and columns in place for UTF-8 and US-ASCII;
+  `sxml_utf8_validate` passes eight ASCII bytes at a time.
+- **Measured** (instructions x 10^9, exact; seconds are processor time,
+  fastest of three, on a machine other builds share), at ceacfa3
+  without and with the change:
+
+  | Input | Mode | Instructions | Seconds | MB/s |
+  | --- | --- | ---: | ---: | ---: |
+  | 10.5 MB | check | 6.710 to 3.901 | 0.707 to 0.417 | 14.9 to 25.2 |
+  | 101.7 MB | check | | 6.906 to 3.983 | 14.7 to 25.5 |
+  | 10.5 MB | tree | 7.296 to 4.326 | 0.785 to 0.494 | 13.4 to 21.3 |
+  | 101.7 MB | tree | | 7.666 to 4.762 | 13.3 to 21.4 |
+  | XMark 3.5 MB | parse (bench) | 2.440 to 1.444 | 0.263 to 0.157 | |
+  | XMark-All | query | 9.870 to 8.877 | 1.165 to 1.084 | |
+
+  Each change, `check` of 10.5 MB: tag tokens 6.715 to 5.941; content
+  items left-recursive 5.409; attribute values as tokens 5.211 (later
+  folded into whole attributes); fields by number 5.100; node types by
+  symbol and memchr 4.906; scanner ASCII paths 4.786; no cursor for
+  childless tags 4.687; tags without children 4.210; whole attributes
+  3.969; UTF-8 validation by words 3.901 (byte by byte was slower). The
+  tracker: building the tree 5.363 to 5.220. Segments (D222) of 4 KB and
+  64 KB: 4.982 and 4.968; 16 KB kept. Resident memory unchanged. Parsing
+  is now 16 % of XMark-All (25 % before).
+- **Behaviour**: the same documents are accepted and refused, with the
+  same events and positions; a syntax error inside a tag may be located
+  a few bytes away (at the tag's '<' rather than at its name). Tests:
+  debug 378/378, xmlconf (xml_conformance), the grammar corpus 67/67,
+  xml_parse_fuzz seeds and 3 minutes clean; QT4 and XT40 whole, release,
+  case by case: no outcome changes (XP40 32,655, XQ40 45,914, XT40
+  11,913 passed).
+- **Left**: what remains is tree-sitter's own cost per token (the lexer's
+  advance per character, the stack, subtree allocation, the tree's
+  deletion) and per character data item, which only fewer tokens or a
+  change of the runtime (vendored unmodified) would reduce; a long
+  character data or attribute token still passes the lexer a character
+  at a time.
+
 ## Proposed
 
 - **The CLI's WebAssembly budget after the Phase 7 features** (packet
