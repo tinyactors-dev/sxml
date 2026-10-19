@@ -411,6 +411,171 @@ static const sxml_static_error xslt_attribute_type_error = {
     .description = SXML_BYTE_VIEW_INITIALIZER(
         "An attribute is to be validated against a complex type (XSLT 4.0, 25.1.2)")};
 
+static const sxml_static_error xslt_untyped_atomic_error = {
+    .error_status = SXML_STATUS_TYPE_ERROR,
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XTTE1540"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(
+        "An element with element children is validated against xs:untypedAtomic (XSLT 4.0, "
+        "25.1.2)")};
+
+/* True when name is xs:untypedAtomic. */
+static bool is_untyped_atomic_name(const sxml_function_call *call, sxml_name_identifier name) {
+    sxml_name_parts parts;
+    return sxml_name_pool_get_name_parts(sxml_item_heap_get_name_pool(call->item_heap), name,
+                                         &parts) == SXML_STATUS_OK &&
+           parts.namespace_uri.index == SXML_NAMESPACE_XML_SCHEMA &&
+           sxml_byte_view_equals(parts.local_name, SXML_BYTE_VIEW_FROM_LITERAL("untypedAtomic"));
+}
+
+/*
+ * A tree builder in front of another that annotates the outermost element
+ * xs:untypedAtomic and notes whether it has element children: the copy
+ * that validating an element against xs:untypedAtomic makes.
+ */
+typedef struct untyped_atomic_builder {
+    sxml_tree_builder target;
+    uint32_t depth;
+    bool has_element_child;
+} untyped_atomic_builder;
+
+static sxml_status untyped_atomic_start_document(void *state,
+                                                 const sxml_document_start_event *event) {
+    const untyped_atomic_builder *builder = state;
+    return builder->target.operations->start_document(builder->target.state, event);
+}
+
+static sxml_status untyped_atomic_end_document(void *state) {
+    const untyped_atomic_builder *builder = state;
+    return builder->target.operations->end_document(builder->target.state);
+}
+
+static sxml_status untyped_atomic_start_element(void *state,
+                                                const sxml_element_start_event *event) {
+    untyped_atomic_builder *builder = state;
+    sxml_element_start_event annotated = *event;
+    if (builder->depth == 0) {
+        annotated.type_annotation = sxml_builtin_type_identifier(SXML_TYPE_XS_UNTYPED_ATOMIC);
+    } else {
+        builder->has_element_child = true;
+    }
+    builder->depth += 1;
+    return builder->target.operations->start_element(builder->target.state, &annotated);
+}
+
+static sxml_status untyped_atomic_add_namespace_binding(
+    void *state, const sxml_namespace_binding *namespace_binding) {
+    const untyped_atomic_builder *builder = state;
+    return builder->target.operations->add_namespace_binding(builder->target.state,
+                                                             namespace_binding);
+}
+
+static sxml_status untyped_atomic_add_attribute(void *state, const sxml_attribute_event *event) {
+    const untyped_atomic_builder *builder = state;
+    return builder->target.operations->add_attribute(builder->target.state, event);
+}
+
+static sxml_status untyped_atomic_end_element(void *state) {
+    untyped_atomic_builder *builder = state;
+    builder->depth -= 1;
+    return builder->target.operations->end_element(builder->target.state);
+}
+
+static sxml_status untyped_atomic_add_text(void *state, const sxml_text_event *event) {
+    const untyped_atomic_builder *builder = state;
+    return builder->target.operations->add_text(builder->target.state, event);
+}
+
+static sxml_status untyped_atomic_add_comment(void *state, const sxml_comment_event *event) {
+    const untyped_atomic_builder *builder = state;
+    return builder->target.operations->add_comment(builder->target.state, event);
+}
+
+static sxml_status
+untyped_atomic_add_processing_instruction(void *state,
+                                          const sxml_processing_instruction_event *event) {
+    const untyped_atomic_builder *builder = state;
+    return builder->target.operations->add_processing_instruction(builder->target.state, event);
+}
+
+static sxml_status untyped_atomic_add_unparsed_entity(void *state,
+                                                      const sxml_unparsed_entity *entity) {
+    const untyped_atomic_builder *builder = state;
+    return builder->target.operations->add_unparsed_entity(builder->target.state, entity);
+}
+
+static const sxml_tree_builder_operations untyped_atomic_operations = {
+    .start_document = untyped_atomic_start_document,
+    .end_document = untyped_atomic_end_document,
+    .start_element = untyped_atomic_start_element,
+    .add_namespace_binding = untyped_atomic_add_namespace_binding,
+    .add_attribute = untyped_atomic_add_attribute,
+    .end_element = untyped_atomic_end_element,
+    .add_text = untyped_atomic_add_text,
+    .add_comment = untyped_atomic_add_comment,
+    .add_processing_instruction = untyped_atomic_add_processing_instruction,
+    .add_unparsed_entity = untyped_atomic_add_unparsed_entity,
+};
+
+/*
+ * 25.1.2: validating against xs:untypedAtomic is validating against
+ * xs:string, then annotating the element or attribute xs:untypedAtomic;
+ * an element with element children is invalid (XTTE1540). An xs:string
+ * accepts every text, so the copy is all: attributes are xs:untypedAtomic
+ * when copied untyped, an element's annotation is set while copying.
+ */
+static sxml_status copy_untyped_atomic(const sxml_function_call *call, sxml_node_reference node,
+                                       sxml_item *copy) {
+    sxml_node_description description;
+    sxml_status status = sxml_node_describe(node, &description);
+    if (status != SXML_STATUS_OK || description.node_kind != SXML_NODE_KIND_ELEMENT) {
+        return status == SXML_STATUS_OK ? copy_untyped(call, node, copy) : status;
+    }
+    sxml_arena_tree *arena_tree = NULL;
+    status = sxml_arena_tree_create(
+        sxml_item_heap_as_allocator(call->item_heap),
+        &(sxml_arena_tree_configuration){
+            .allocator = sxml_item_heap_as_allocator(call->item_heap),
+            .initial_memory = {.bytes = NULL, .byte_count = 0},
+            .item_heap = call->item_heap,
+            .maximum_node_count = 0,
+            .maximum_depth = 0,
+            .maximum_text_byte_count = 0,
+            .keeps_locations = false,
+            .duplicate_attribute_policy = SXML_DUPLICATE_ATTRIBUTE_POLICY_REJECT,
+            .is_destroyed_when_unreferenced = true,
+            .error_record = NULL,
+            .base_uri = {.bytes = NULL, .byte_count = 0}},
+        &arena_tree);
+    untyped_atomic_builder builder = {.target = {.state = NULL, .operations = NULL},
+                                      .depth = 0,
+                                      .has_element_child = false};
+    if (status == SXML_STATUS_OK) {
+        builder.target = sxml_arena_tree_as_tree_builder(arena_tree);
+        status = sxml_tree_builder_copy_node(
+            (sxml_tree_builder){.state = &builder, .operations = &untyped_atomic_operations},
+            &(sxml_copy_request){.node = node,
+                                 .preserves_namespaces = true,
+                                 .inherits_namespaces = true,
+                                 .preserves_type_annotations = false});
+    }
+    if (status == SXML_STATUS_OK && builder.has_element_child) {
+        sxml_arena_tree_destroy(arena_tree);
+        return sxml_function_library_report(call, &xslt_untyped_atomic_error);
+    }
+    sxml_tree *tree = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_arena_tree_finish(arena_tree, &tree);
+    }
+    if (status != SXML_STATUS_OK) {
+        sxml_arena_tree_destroy(arena_tree);
+        return status;
+    }
+    *copy = sxml_node_item_make(
+        (sxml_node_reference){.tree = tree, .node_index = {.index = 0}, .namespace_number = 0});
+    sxml_tree_release(tree);
+    return SXML_STATUS_OK;
+}
+
 /* The code of an invalid node (25.1.1, 25.1.2, 25.2). */
 typedef struct invalid_node {
     sxml_schema_validate_mode mode;
@@ -472,6 +637,11 @@ static sxml_status validate_xslt_item(const sxml_function_call *call, const xslt
         if (status == SXML_STATUS_OK && !form.is_well_formed) {
             return sxml_function_library_report(call, &xslt_document_error);
         }
+    }
+    if (status == SXML_STATUS_OK && request->mode == SXML_SCHEMA_VALIDATE_MODE_TYPE &&
+        description.node_kind != SXML_NODE_KIND_DOCUMENT &&
+        is_untyped_atomic_name(call, request->type_name)) {
+        return copy_untyped_atomic(call, node, validated);
     }
     const scope_validation validation = {
         .node = node, .mode = request->mode, .type_name = request->type_name};

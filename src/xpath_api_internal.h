@@ -69,6 +69,9 @@ typedef struct sxml_unit_evaluation_extension {
     /* xsl:message hands nothing to the trace sink (fn:transform's
        enable-messages false, F&O 4.0, 18.3). */
     bool discards_messages;
+    /* xsl:assert is not evaluated (fn:transform's enable-assertions,
+       false by default, F&O 4.0, 18.3; XSLT 4.0, 23.2). */
+    bool disables_assertions;
 } sxml_unit_evaluation_extension;
 
 /* The global slots of one evaluation of unit: global n gets the binding

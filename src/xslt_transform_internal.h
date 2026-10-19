@@ -45,6 +45,8 @@ typedef struct sxml_xslt_machine_transformation_request {
     const sxml_xslt_transformation_request *transformation;
     /* xsl:message hands nothing to the trace sink. */
     bool discards_messages;
+    /* xsl:assert is not evaluated. */
+    bool disables_assertions;
 } sxml_xslt_machine_transformation_request;
 
 /*

@@ -1261,7 +1261,11 @@ static sxml_status prime_transformation(const sxml_function_call *call, transfor
             .stylesheet = state->stylesheet,
             .transformation = request,
             .discards_messages = sxml_function_library_option_is_false((sxml_option_lookup){
-                .values = &state->options, .option_index = SXML_TRANSFORM_OPTION_ENABLE_MESSAGES})},
+                .values = &state->options, .option_index = SXML_TRANSFORM_OPTION_ENABLE_MESSAGES}),
+            /* 18.3: enable-assertions is false by default. */
+            .disables_assertions = !sxml_function_library_option_is_true((sxml_option_lookup){
+                .values = &state->options,
+                .option_index = SXML_TRANSFORM_OPTION_ENABLE_ASSERTIONS})},
         &state->running);
     if (status == SXML_STATUS_INVALID_ARGUMENT) {
         return sxml_function_library_report(call, &option_error);

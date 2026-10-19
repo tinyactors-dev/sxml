@@ -2435,6 +2435,9 @@ typedef struct message_locals {
     sxml_xslt_instruction_locals head;
     bool is_assert;
     sxml_ir_atom test;
+    /* An assertion's test and its check, run only when assertions are
+       enabled. */
+    sxml_xpath_lowering_block test_block;
     sxml_xpath_lowering_block body_block;
     sxml_ir_atom select;
     bool has_select;
@@ -2775,6 +2778,29 @@ static const sxml_native_function error_code_function = {
     .parameters = {message_parameters, 3},
     .result_type = SXML_BYTE_VIEW_INITIALIZER("xs:QName"),
     .call = call_error_code,
+    .resumable_body = NULL};
+
+/* The internal native row xslt-assertions-enabled() as xs:boolean: false
+   when the unit evaluation's extension disables assertions (fn:transform's
+   enable-assertions, F&O 4.0, 18.3; XSLT 4.0, 23.2), true otherwise. */
+static sxml_status call_assertions_enabled(const sxml_function_call *call,
+                                           sxml_sequence *result) {
+    const sxml_unit_evaluation_extension *extension =
+        sxml_dynamic_context_get_unit_extension(call->dynamic_context);
+    *result = sxml_sequence_from_item(extension != NULL && extension->disables_assertions
+                                          ? sxml_atomic_item_false()
+                                          : sxml_atomic_item_true());
+    return SXML_STATUS_OK;
+}
+
+static const sxml_native_function assertions_enabled_function = {
+    .function_namespace = SXML_NAMESPACE_NONE,
+    /* Reads the unit evaluation's extension: never folded. */
+    .properties = SXML_NATIVE_FUNCTION_USES_DYNAMIC_CONTEXT,
+    .local_name = SXML_BYTE_VIEW_INITIALIZER("xslt-assertions-enabled"),
+    .parameters = {NULL, 0},
+    .result_type = SXML_BYTE_VIEW_INITIALIZER("xs:boolean"),
+    .call = call_assertions_enabled,
     .resumable_body = NULL};
 
 static const sxml_native_function xslt_message_function = {
@@ -3188,11 +3214,51 @@ static sxml_status finish_message(sxml_xpath_lowering_machine *machine,
         return status;
     }
     if (locals->is_assert) {
-        /* The body and the message were bound in the failing branch. */
+        /* The body and the message were bound in the failing branch; the
+           test and the check run only when assertions are enabled (23.2):
+           if (xslt-assertions-enabled()) then (if (test) then () else
+           failing) else (). */
+        sxml_ir_atom checked = {0};
+        status = bind(lowerer,
+                      (binding){.block = &locals->test_block,
+                                .expression = conditional_expression((conditional_parts){
+                                    .condition = locals->test,
+                                    .then_branch = quiet,
+                                    .else_branch = failing})},
+                      &checked);
+        sxml_ir_expression_index check = {0};
+        if (status == SXML_STATUS_OK) {
+            status = finish_branch(
+                lowerer, (branch_result){.block = &locals->test_block, .value = checked}, &check);
+        }
+        sxml_xpath_lowering_block skipped_block = {.first = {0}, .open_let = {0}};
+        sxml_ir_expression_index skipped = {0};
+        if (status == SXML_STATUS_OK) {
+            status = finish_branch(
+                lowerer, (branch_result){.block = &skipped_block, .value = empty}, &skipped);
+        }
+        sxml_ir_atom enabled = {0};
+        if (status == SXML_STATUS_OK) {
+            status = bind(lowerer,
+                          (binding){.block = frame->block,
+                                    .expression = {.expression_kind =
+                                                       SXML_IR_EXPRESSION_KIND_STATIC_CALL,
+                                                   .static_call = {
+                                                       .target = {.target_kind =
+                                                                      SXML_IR_FUNCTION_TARGET_KIND_NATIVE,
+                                                                  .native_function =
+                                                                      &assertions_enabled_function},
+                                                       .arguments = {.first_atom_index = 0,
+                                                                     .atom_count = 0}}}},
+                          &enabled);
+        }
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
         return finish_with_expression(
             machine, frame,
             conditional_expression((conditional_parts){
-                .condition = locals->test, .then_branch = quiet, .else_branch = failing}));
+                .condition = enabled, .then_branch = check, .else_branch = skipped}));
     }
     sxml_ir_atom termination = {0};
     status = bind(
@@ -3235,7 +3301,7 @@ static sxml_status step_message(sxml_xpath_lowering_machine *machine,
         return sxml_xslt_lowering_call_expression(
             machine, &(sxml_xslt_expression_call){.lowering = lowering,
                                                   .expression = test->value.payload.expression,
-                                                  .block = frame->block,
+                                                  .block = &locals->test_block,
                                                   .atom = &locals->test,
                                                   .focus = NULL});
     }

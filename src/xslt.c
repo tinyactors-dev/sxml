@@ -1142,7 +1142,8 @@ static void sxml_transformation_describe(const sxml_transformation *transformati
                 ? sxml_xslt_whitespace_stripping_as_document_preparation(&stylesheet->stripping)
                 : (sxml_document_preparation){.state = NULL, .operations = NULL},
         .result_writer = transformation->writer,
-        .discards_messages = false};
+        .discards_messages = false,
+        .disables_assertions = false};
 }
 
 /* Delivers the raw result as the request asks (2.4.6). */
@@ -1304,6 +1305,7 @@ sxml_status sxml_xslt_machine_transformation_create(
     if (status == SXML_STATUS_OK) {
         sxml_transformation_describe(&running->transformation, &context, &running->extension);
         running->extension.discards_messages = request->discards_messages;
+        running->extension.disables_assertions = request->disables_assertions;
         const sxml_ir_unit *unit = running->transformation.unit;
         running->global_slot_count =
             unit->global_variable_count > 1 ? unit->global_variable_count - 1U : 0;
