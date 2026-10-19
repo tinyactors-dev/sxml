@@ -14,7 +14,7 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 - Optional features (D189). Budgets (D202, D207): core `sxml.wasm`
   2,200,000 / 770,000 (2,131,859 after 7.2b moved DTD validation behind a
   feature, D211), `sxml-full.wasm` 4,000,000 / 1,400,000 (3,577,133), CLI
-  module 9,000,000 / 2,000,000 (7,803,988). The full module carries
+  module 9,000,000 / 2,000,000 (8,532,870 / 1,900,382 after 7.15b; near the gzipped limit). The full module carries
   XQuery, XSLT and XSD for CLI (cli-2, D217): `--output`/`-o` with `--force` and atomic writes,
 `sxml transform --result-directory=DIR`, `sxml xquery --allow-put`,
 `--method=csv`, hints for misspelled and other commands' options. Left: the
@@ -31,7 +31,7 @@ JavaScript (js-1, D216): 7,000,000 / 2,450,000
 
 - 7.12a XQuery/XPath Full Text, part 1.
 - 7.6b XSLT streamed evaluation.
-- 7.15b CLDR tailorings.
+- 7.17 calendars and languages.
 - 7.18 Invisible XML.
 
 ## Next
