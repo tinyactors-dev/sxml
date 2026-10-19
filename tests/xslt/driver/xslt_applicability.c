@@ -48,7 +48,7 @@ bool sxml_xslt_test_spec_token_matches(sxml_xslt_test_spec_token spec_token) {
 
 /*
  * What sxml provides, as dependency type and whole value. A
- * schema-aware XSLT 4.0 processor (D179; no streaming, D97) with
+ * schema-aware XSLT 4.0 processor (D179) with streamability analysis (D212),
  * serialization (packets 3.3 and 3.4) and higher-order functions. A
  * dependency type of the dependencyTypeTrue kind has no value; its entry
  * has an empty value. Grows with sxml.
@@ -84,8 +84,14 @@ static const sxml_xslt_test_supported_dependency
         SXML_XSLT_TEST_SUPPORTED("feature", "disabling_output_escaping"),
         /* XSLT 1.0 behaviour (XSLT 4.0, 3.8.1; D197). */
         SXML_XSLT_TEST_SUPPORTED("feature", "backwards_compatibility"),
-        /* streamable="yes" runs unstreamed (D97). */
-        SXML_XSLT_TEST_SUPPORTED("feature", "streaming-fallback"),
+        /* The streamability analysis of XSLT 4.0, 19 (packet 7.6a, D212):
+           a construct declared streamable that is not guaranteed-
+           streamable is XTSE3430; a guaranteed-streamable one runs
+           unstreamed until packet 7.6b, which its results cannot tell
+           apart (19.10). sxml has no option to fall back to unstreamed
+           processing instead of XTSE3430, so streaming-fallback is not
+           claimed. */
+        SXML_XSLT_TEST_SUPPORTED("feature", "streaming"),
         SXML_XSLT_TEST_SUPPORTED("default_language_for_numbering", "en"),
         SXML_XSLT_TEST_SUPPORTED("languages_for_numbering", "en"),
         /* The alphabets and symbol sequences of src/format.c (packet
@@ -211,6 +217,8 @@ bool sxml_xslt_test_dependency_is_supported(
 
 static const sxml_byte_view sxml_xslt_test_non_goal_features[] = {
     SXML_BYTE_VIEW_INITIALIZER("schema_aware"),
+    /* Run since packet 7.6a (D212), kept out of the D95 denominator as
+       XML_1.1 is. */
     SXML_BYTE_VIEW_INITIALIZER("streaming"),
     /* Supported since packet 7.14 (D199), but kept out of the D95
        denominator, as XML_1.1 is. */

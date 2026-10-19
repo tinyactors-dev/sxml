@@ -50,6 +50,7 @@
 #include "xslt_output_internal.h"
 #include "xslt_read_internal.h"
 #include "xslt_schema_internal.h"
+#include "xslt_streamability_internal.h"
 #include "xslt_whitespace_internal.h"
 
 #include <stdalign.h>
@@ -405,6 +406,17 @@ static sxml_status sxml_xslt_compile(const sxml_xslt_stylesheet_configuration *c
                                     .has_initial_match_selection = false,
                                     .error_record = configuration->error_record},
             &compiled->unit);
+    }
+    if (status == SXML_STATUS_OK) {
+        /* XSLT 4.0, 19.10: XTSE3430 for a construct declared streamable
+           that is not guaranteed-streamable (packet 7.6a), after the
+           static errors lowering finds. */
+        status = sxml_xslt_check_streamability(&(sxml_xslt_streamability_request){
+            .ast = compiled->ast,
+            .allocator = processor->allocator,
+            .name_pool = sxml_item_heap_get_name_pool(processor->item_heap),
+            .maximum_frame_count = 0,
+            .error_record = configuration->error_record});
     }
     if (status == SXML_STATUS_OK) {
         status = sxml_xslt_stylesheet_outputs_create(

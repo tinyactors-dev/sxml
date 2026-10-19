@@ -5,13 +5,13 @@
       <spec value="XSLT30+"/>
    </dependencies>
    <test-case name="streaming-fallback">
-      <description>Runs unstreamed, but out of scope.</description>
+      <description>Runs (unstreamed after the streamability analysis), but out of scope.</description>
       <created by="sxml" on="2026-10-17"/>
       <environment>
          <source role="." file="big.xml" streaming="true"/>
       </environment>
       <dependencies>
-         <feature value="streaming-fallback"/>
+         <feature value="streaming"/>
       </dependencies>
       <test><stylesheet file="s.xsl"/></test>
       <result><assert>/out</assert></result>

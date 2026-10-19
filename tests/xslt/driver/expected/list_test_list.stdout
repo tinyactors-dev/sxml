@@ -12,7 +12,7 @@ set-streaming streaming-fallback
   source . tests/strm/streaming/big.xml streaming
   stylesheet - tests/strm/streaming/s.xsl
   invoke apply-templates
-  dependency feature streaming-fallback
+  dependency feature streaming
   plan stylesheet tests/strm/streaming/s.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
   assertions assert 1
   out of scope: group strm
