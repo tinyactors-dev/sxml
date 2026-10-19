@@ -72,7 +72,7 @@ static sxml_status evaluate_with_writer(const evaluation_setup *setup, transform
         &(sxml_function_library_configuration){
             .allocator = sxml_default_allocator(),
             .item_heap = processor->item_heap,
-            .parts = sxml_function_library_parts_for_language(SXML_LANGUAGE_XSLT)},
+            .parts = *sxml_function_library_xslt_parts()},
         &library);
     sxml_processor_document_loader loader_memory;
     sxml_processor_document_loader *loader = NULL;

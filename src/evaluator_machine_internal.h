@@ -6,6 +6,7 @@
 
 #include "evaluator_internal.h"
 #include "function_library_internal.h"
+#include "function_library_parts_internal.h"
 #include "ir_internal.h"
 #include "sxml/status.h"
 #include "sxml/view.h"
@@ -234,6 +235,11 @@ typedef struct sxml_evaluator_registered_part {
     /* The <part> of its file name, for diagnostics and tests. */
     sxml_byte_view part_name;
     const sxml_evaluator_part *part;
+    /* The languages whose programs it evaluates, as CMake read them from
+       the file's
+           const sxml_language_set sxml_evaluator_part_<part>_languages = ...;
+       (as a library part's, D101); all three when the file has none. */
+    sxml_language_set languages;
 } sxml_evaluator_registered_part;
 
 typedef struct sxml_evaluator_registered_part_view {
@@ -244,6 +250,13 @@ typedef struct sxml_evaluator_registered_part_view {
 /* Every registered evaluator part, sorted by part name. Defined in the
    generated evaluator_parts.c. */
 sxml_evaluator_registered_part_view sxml_evaluator_registered_parts(void);
+
+/* The registered evaluator parts serving one language, sorted by part
+   name (static data; D227). Each is defined in a generated unit of its
+   own, evaluator_parts_<language>.c, so naming one links only its parts. */
+const sxml_evaluator_registered_part_view *sxml_evaluator_xpath_parts(void);
+const sxml_evaluator_registered_part_view *sxml_evaluator_xquery_parts(void);
+const sxml_evaluator_registered_part_view *sxml_evaluator_xslt_parts(void);
 
 /*
  * The step function of the one registered part that claims kind; NULL when

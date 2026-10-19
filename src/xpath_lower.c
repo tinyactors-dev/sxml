@@ -9069,9 +9069,8 @@ sxml_status sxml_xpath_lowerer_initialize(
         .item_heap = context->item_heap,
         .language = configuration->language == 0 ? SXML_LANGUAGE_XPATH
                                                  : configuration->language,
-        .parts = configuration->parts.part_count == 0
-                     ? sxml_xpath_lowering_registered_parts()
-                     : configuration->parts,
+        .parts = configuration->parts.parts == NULL ? *sxml_xpath_lowering_xpath_parts()
+                                                    : configuration->parts,
         .function = NULL,
         .is_running = false,
         .overrides = {.overrides = NULL, .override_count = 0},
@@ -9176,7 +9175,7 @@ sxml_status sxml_xpath_lower(const sxml_xpath_lowering_request *request,
             .static_context = context,
             .unit = new_unit,
             .language = SXML_LANGUAGE_XPATH,
-            .parts = {.parts = NULL, .part_count = 0},
+            .parts = *sxml_xpath_lowering_xpath_parts(),
             .maximum_expression_depth = request->maximum_expression_depth,
             .error_record = request->error_record},
         &lowerer);

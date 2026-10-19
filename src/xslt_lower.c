@@ -2482,7 +2482,7 @@ static sxml_status lower_into_unit(const unit_lowering *work) {
             .static_context = work->base_context,
             .unit = work->unit,
             .language = SXML_LANGUAGE_XSLT,
-            .parts = {.parts = NULL, .part_count = 0},
+            .parts = *sxml_xpath_lowering_xslt_parts(),
             .maximum_expression_depth =
                 sxml_processor_get_maximum_expression_depth(request->processor),
             .error_record = request->error_record},

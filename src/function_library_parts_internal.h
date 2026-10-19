@@ -28,7 +28,7 @@
  *         SXML_LANGUAGE_XSLT;
  *
  * CMake reads the language names from that line, so the per-language lists
- * are static data; the registry also points at the variable, and a unit
+ * are static data, each in a unit of its own (D227); the registry also points at the variable, and a unit
  * test checks that the two agree. A part file needs no declaration of its
  * own: the generated unit declares the view and the language set.
  *
@@ -71,10 +71,22 @@ typedef struct sxml_function_library_part_view {
 sxml_function_library_part_view sxml_function_library_registered_parts(void);
 
 /*
- * The parts serving language, sorted by part name, as a list to put into
- * sxml_function_library_configuration.parts (static data, valid for the
- * life of the program). A value that is not one sxml_language gives the
- * empty list. Defined in the generated function_library_parts.c.
+ * The parts serving one language, sorted by part name, as a list to put
+ * into sxml_function_library_configuration.parts (static data, valid for
+ * the life of the program; D227). Each is defined in a generated unit of
+ * its own, function_library_parts_<language>.c, so naming one links only
+ * the parts serving it: the processor names XPath's (XQuery has no part
+ * of its own), XSLT compilation XSLT's.
+ */
+const sxml_native_function_view_list *sxml_function_library_xpath_parts(void);
+const sxml_native_function_view_list *sxml_function_library_xquery_parts(void);
+const sxml_native_function_view_list *sxml_function_library_xslt_parts(void);
+
+/*
+ * The list of language, one of the three above; the empty list for a
+ * value that is not one sxml_language. It links every part, so library
+ * code names its language's function instead; for tests. Defined in the
+ * generated function_library_parts.c.
  */
 sxml_native_function_view_list sxml_function_library_parts_for_language(
     sxml_language language);

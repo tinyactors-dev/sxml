@@ -231,7 +231,7 @@ typedef struct sxml_processor_layout {
 /* Every library part serving XPath, as CMake registers them (D45, D101):
    static data, so the processor's configuration may borrow it. */
 static sxml_native_function_view_list sxml_processor_library_parts(void) {
-    return sxml_function_library_parts_for_language(SXML_LANGUAGE_XPATH);
+    return *sxml_function_library_xpath_parts();
 }
 
 /* The library functions of the processor: every registered XPath part,

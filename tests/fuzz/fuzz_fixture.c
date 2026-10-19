@@ -60,7 +60,7 @@ sxml_fuzz_fixture_create(const sxml_fuzz_fixture_configuration *configuration,
                 .item_heap = fixture->item_heap,
                 /* Every part serving XPath, as the processor takes them
                    (D101). */
-                .parts = sxml_function_library_parts_for_language(SXML_LANGUAGE_XPATH)},
+                .parts = *sxml_function_library_xpath_parts()},
             &fixture->function_library);
     }
     if (status == SXML_STATUS_OK && configuration->has_function_library) {

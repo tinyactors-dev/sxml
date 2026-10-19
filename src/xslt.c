@@ -434,7 +434,7 @@ static sxml_status sxml_xslt_compile(const sxml_xslt_stylesheet_configuration *c
             &(sxml_function_library_configuration){
                 .allocator = processor->allocator,
                 .item_heap = processor->item_heap,
-                .parts = sxml_function_library_parts_for_language(SXML_LANGUAGE_XSLT)},
+                .parts = *sxml_function_library_xslt_parts()},
             &compiled->function_library);
     }
     if (status == SXML_STATUS_OK) {

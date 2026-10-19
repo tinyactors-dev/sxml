@@ -57,17 +57,16 @@ list(SORT SXML_SOURCES)
 # The part registries (D101, D103): generated from the library parts
 # (src/function_library_<part>.c), evaluator parts (src/evaluator_<part>.c)
 # and lowering parts (src/<name>_lower[_<part>].c) that define a part, so a
-# new part needs no edit here or anywhere else.
+# new part needs no edit here or anywhere else. Each registry is one file
+# with every part and one per language (D227).
 sxml_generate_library_part_registry("${CMAKE_CURRENT_SOURCE_DIR}/src"
-    "${CMAKE_CURRENT_BINARY_DIR}/generated/function_library_parts.c")
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/function_library_parts.c" sxml_library_part_sources)
 sxml_generate_evaluator_part_registry("${CMAKE_CURRENT_SOURCE_DIR}/src"
-    "${CMAKE_CURRENT_BINARY_DIR}/generated/evaluator_parts.c")
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/evaluator_parts.c" sxml_evaluator_part_sources)
 sxml_generate_lowering_part_registry("${CMAKE_CURRENT_SOURCE_DIR}/src"
-    "${CMAKE_CURRENT_BINARY_DIR}/generated/lowering_parts.c")
-list(APPEND SXML_SOURCES
-    "${CMAKE_CURRENT_BINARY_DIR}/generated/function_library_parts.c"
-    "${CMAKE_CURRENT_BINARY_DIR}/generated/evaluator_parts.c"
-    "${CMAKE_CURRENT_BINARY_DIR}/generated/lowering_parts.c")
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/lowering_parts.c" sxml_lowering_part_sources)
+list(APPEND SXML_SOURCES ${sxml_library_part_sources} ${sxml_evaluator_part_sources}
+    ${sxml_lowering_part_sources})
 
 if(SXML_BUILD_SHARED)
     add_library(sxml SHARED ${SXML_SOURCES})

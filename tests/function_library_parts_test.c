@@ -173,7 +173,7 @@ static sxml_status fixture_create(uint64_t failing_allocation_number,
             &(sxml_function_library_configuration){
                 .allocator = fixture_allocator(test_fixture),
                 .item_heap = test_fixture->item_heap,
-                .parts = sxml_function_library_parts_for_language(SXML_LANGUAGE_XPATH)},
+                .parts = *sxml_function_library_xpath_parts()},
             &test_fixture->library);
     }
     return status;

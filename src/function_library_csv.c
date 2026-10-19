@@ -1167,8 +1167,7 @@ static sxml_status call_csv_to_xml(const sxml_function_call *call, sxml_sequence
 /* The fn:unparsed-text row of the resource part, found by name among the
    parts that serve XPath; NULL when there is none. */
 static const sxml_native_function *csv_find_unparsed_text(void) {
-    const sxml_native_function_view_list parts =
-        sxml_function_library_parts_for_language(SXML_LANGUAGE_XPATH);
+    const sxml_native_function_view_list parts = *sxml_function_library_xpath_parts();
     for (size_t part_index = 0; part_index < parts.native_function_view_count; part_index += 1) {
         const sxml_native_function_view *part = parts.native_function_views[part_index];
         for (size_t row_index = 0; row_index < part->native_function_count; row_index += 1) {

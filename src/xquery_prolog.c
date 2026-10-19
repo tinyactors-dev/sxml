@@ -1435,7 +1435,7 @@ static sxml_status lower_library_modules(module_lowering *module,
                 .static_context = &context->xpath,
                 .unit = module->unit,
                 .language = SXML_LANGUAGE_XQUERY,
-                .parts = {.parts = NULL, .part_count = 0},
+                .parts = *sxml_xpath_lowering_xquery_parts(),
                 .maximum_expression_depth = request->maximum_expression_depth,
                 .error_record = request->error_record},
             &lowerer);
@@ -1624,7 +1624,7 @@ static sxml_status run_lowering(const lowering_run *run, sxml_ir_unit *unit) {
             .static_context = &main_context->xpath,
             .unit = unit,
             .language = SXML_LANGUAGE_XQUERY,
-            .parts = {.parts = NULL, .part_count = 0},
+            .parts = *sxml_xpath_lowering_xquery_parts(),
             .maximum_expression_depth = run->request->maximum_expression_depth,
             .error_record = run->request->error_record},
         &lowerer);

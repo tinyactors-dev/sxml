@@ -43,7 +43,11 @@
  * CMake (cmake/SxmlParts.cmake) reads every src/<name>_lower.c and
  * src/<name>_lower_<part>.c for that definition and generates the
  * registry, sxml_xpath_lowering_registered_parts(), so XQuery (packets 3.7 to 3.10) and XSLT (4.5 to
- * 4.11) add files, not lines. The lowering of a kind is the rule of the
+ * 4.11) add files, not lines. CMake also reads the definition's
+ * .languages and generates one list per language,
+ * sxml_xpath_lowering_<language>_parts(); each language's entry point
+ * names its own list, so a module that offers only XPath links no
+ * XQuery-only part (D227). The lowering of a kind is the rule of the
  * first part, in registry order, that serves the lowerer's language and
  * lists the kind; then the core's. A part may list kinds the core lowers
  * (XQuery's FLWOR clauses) and serve only its language; no two registered
@@ -236,8 +240,10 @@ typedef struct sxml_xpath_lowerer_configuration {
     sxml_ir_unit *unit;
     /* Whose lowering parts apply; 0 means SXML_LANGUAGE_XPATH. */
     sxml_language language;
-    /* The parts to use; empty means sxml_xpath_lowering_registered_parts().
-       Borrowed for the lowerer's life. */
+    /* The parts to use: the language's list,
+       sxml_xpath_lowering_<language>_parts() (D227); parts NULL means
+       sxml_xpath_lowering_xpath_parts(). Borrowed for the lowerer's
+       life. */
     sxml_xpath_lowering_part_view parts;
     /* As sxml_xpath_lowering_request.maximum_expression_depth. */
     uint32_t maximum_expression_depth;
@@ -796,8 +802,20 @@ struct sxml_xpath_lowering_registered_part {
     /* The <part> of its definition, for diagnostics and tests. */
     sxml_byte_view part_name;
     const sxml_xpath_lowering_part *part;
+    /* Its languages as CMake read them from the definition's .languages;
+       a unit test checks that they agree. */
+    sxml_language_set languages;
 };
 
 /* Every registered lowering part, sorted by part name (static data).
-   Defined in the generated lowering_parts.c. */
+   Defined in the generated lowering_parts.c. Only tests and checks use it:
+   it links every part. */
 sxml_xpath_lowering_part_view sxml_xpath_lowering_registered_parts(void);
+
+/* The registered lowering parts serving one language, sorted by part name
+   (static data; D227). Each is defined in a generated unit of its own,
+   lowering_parts_<language>.c, so naming one links only its parts:
+   sxml_xpath_lower uses XPath's, XQuery's and XSLT's compilations theirs. */
+const sxml_xpath_lowering_part_view *sxml_xpath_lowering_xpath_parts(void);
+const sxml_xpath_lowering_part_view *sxml_xpath_lowering_xquery_parts(void);
+const sxml_xpath_lowering_part_view *sxml_xpath_lowering_xslt_parts(void);
