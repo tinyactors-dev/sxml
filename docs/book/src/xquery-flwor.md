@@ -76,8 +76,8 @@ $ sxml xquery --context-item=library.xml --method=adaptive --expression='
 ```
 
 `doc` reads a document by its URI. The `sxml` command resolves a relative
-URI against the working directory, so `loans.xml` is the file beside
-the query. Chapter 8 explains how files are found.
+URI against the working directory, so `loans.xml` is the file in the
+directory you run the command from. Chapter 8 explains how files are found.
 
 ## group by
 

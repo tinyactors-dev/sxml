@@ -14,8 +14,8 @@
 # file one command writes is there for the next. Each command runs as
 # `sh -c COMMAND` with standard input from /dev/null and these variables:
 #   PATH        the directory of the sxml command first
-#   SXML        the repository root (for the C chapter's include files)
-#   SXML_BUILD  the build directory (for the C chapter's libraries)
+#   SXML        the sxml source the C chapter builds: the repository root,
+#               unless SXML is set already (to a snapshot of HEAD, say)
 #
 # Usage: tools/check-book-examples.sh [--update] [BUILD-DIRECTORY] [CHAPTER.md...]
 #   BUILD-DIRECTORY defaults to build/release; it must hold apps/sxml.
@@ -61,8 +61,7 @@ else:
 
 environment = dict(os.environ)
 environment["PATH"] = os.path.dirname(sxml_command) + os.pathsep + environment.get("PATH", "")
-environment["SXML"] = repository_root
-environment["SXML_BUILD"] = build_directory
+environment.setdefault("SXML", repository_root)
 environment["LC_ALL"] = "C.UTF-8"
 environment["TZ"] = "UTC"
 
@@ -154,10 +153,10 @@ for chapter_file in chapter_files:
             completed = subprocess.run(
                 ["sh", "-c", example["command"]], cwd=work_directory,
                 env=environment, stdin=subprocess.DEVNULL,
-                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=300)
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=900)
             actual = completed.stdout.decode("utf-8", errors="replace")
         except subprocess.TimeoutExpired:
-            actual = "(timed out after 300 seconds)\n"
+            actual = "(timed out after 900 seconds)\n"
         actual_lines = [line.rstrip() for line in actual.rstrip("\n").split("\n")] if actual.strip("\n") else []
         expected_lines = [line.rstrip() for line in example["output"]]
         while expected_lines and expected_lines[-1] == "":
