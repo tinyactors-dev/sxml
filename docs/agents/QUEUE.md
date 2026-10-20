@@ -31,8 +31,8 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 
 
 - 4.28: XSLT sweep (D274's open list).
-- 2.25: XPath/XQuery sweep (D263's open list; XSLT's per-element default
-  collation, choose-0107 and collations-0121..0124).
+- 2.26: XPath/XQuery sweep (D275's open list).
+- 5.15: XSD sweep (the 32 XSD 1.1 failures, D270/D271's validation leftovers).
 
 ## Next
 
@@ -75,6 +75,16 @@ does not (6.12 to compare).
 Swift (6.7/6.8 done, D241, D248): 55 tests on Linux; the bundled DUCET is a
 copy of third_party/unicode-collation/allkeys.txt that must be updated with
 it.
+
+XPath and XQuery (2.25, D275): XP40 32,793 -> 32,797, XQ40 46,070 ->
+46,101 passed (107 failed); XT40 +13 (`//` lowering, inline functions read
+globals at call time, per-element default collation). XML 1.1 query text
+(processor.h `reads_query_text_as_xml_1_1`, additive; the QT4 driver sets
+it, the CLI keeps 1.0). Left: Q{}N name tests on JNodes, named item type
+constructors and function items via fn:function-lookup (xqhof18/19),
+eqname-007, two modules of one namespace without a location hint,
+serialization singletons, IDREF at an element validation root (kept as
+cvc-id).
 
 XPath and XQuery (2.24, D263): XP40 32,716 -> 32,731, XQ40 46,017 ->
 46,070 passed. tree.h gained the optional set_element_identity operation
@@ -169,10 +179,8 @@ fn-parse-html 22/22, fn-html-doc 9/10; html5lib tree construction 1,749 of
 decoders; XHTML input. Left: source locations (the processor builds every
 tree without them), a prefixed XHTML root, XHTML that needs an external DTD.
 
-XML 1.1 (after 7.13, D195):
-- XT40 xml-version-007/-016 and namespace-2606/-6202 fail in `src/xslt*`.
-- Owner: 13 XQ40 cases need query text lexed by XML 1.1 rules; keep 1.0,
-  switch to 1.1, or a processor option (Proposed in DECISIONS.md).
+XML 1.1 (after 7.13, D195; D275): query text by XML 1.1 rules is a
+processor option; XT40 namespace-2606/-6202 still fail in `src/xslt*`.
 
 XSD:
 - is-id for union and list elements (needs the element's flags after its
