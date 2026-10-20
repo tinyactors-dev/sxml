@@ -3880,6 +3880,20 @@ static sxml_status start_iterate(sxml_xpath_lowering_machine *machine,
         if (status != SXML_STATUS_OK) {
             return status;
         }
+        /* 9.3: without select or content, a type that does not allow the
+           empty sequence makes the parameter implicitly mandatory, which
+           xsl:iterate's may not be (XSLT 4.0, 7.2). */
+        const sxml_occurrence occurrence = type.sequence_type.occurrence;
+        if (type.has_type && node_of(lowering, child)->first_child.value == 0 &&
+            !has_attribute(lowering,
+                           (attribute_lookup){.node = child, .kind = SXML_XSLT_AST_ATTRIBUTE_SELECT}) &&
+            (occurrence == SXML_OCCURRENCE_EXACTLY_ONE ||
+             occurrence == SXML_OCCURRENCE_ONE_OR_MORE)) {
+            return report_static(lowering, child,
+                                 SXML_BYTE_VIEW_FROM_LITERAL(
+                                     "XTSE3520 a parameter of xsl:iterate is implicitly "
+                                     "mandatory (XSLT 4.0, 7.2)"));
+        }
         parameter->sequence_type = type.sequence_type;
         parameter_index += 1;
     }

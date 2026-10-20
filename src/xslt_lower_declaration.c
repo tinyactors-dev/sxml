@@ -1580,16 +1580,33 @@ static sxml_status bind_default(sxml_xpath_lowerer *lowerer, sxml_xpath_lowering
                                                       .expression = locals->default_value},
             &value);
     }
-    if (status == SXML_STATUS_OK) {
+    /* 9.3: XTTE0600 for an explicit default; the implicit () keeps the
+       coercion's XPTY0004. */
+    const bool is_explicit = has_attribute(lowering, parameter, SXML_XSLT_AST_ATTRIBUTE_SELECT) ||
+                             node_of(lowering, parameter)->first_child.value != 0;
+    const sxml_sequence_type type = locals->components->parameter_types[parameter_index];
+    sxml_ir_atom *argument = &locals->arguments[locals->parameter_offset];
+    if (status == SXML_STATUS_OK && is_explicit) {
+        status = sxml_xslt_lowering_bind_mapped_expression(
+            lowerer,
+            &(sxml_xslt_mapped_expression){
+                .block = frame->block,
+                .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_COERCE,
+                               .coercion = {.value = value,
+                                            .sequence_type = type,
+                                            .role = SXML_IR_COERCION_ROLE_FUNCTION_ARGUMENT}},
+                .mappings = {.mappings = &sxml_xslt_default_value_mapping, .mapping_count = 1}},
+            argument);
+    } else if (status == SXML_STATUS_OK) {
         status = sxml_xpath_lowerer_coerce_atom(
             lowerer,
             (sxml_xpath_lowering_coercion_request){
                 .block = frame->block,
                 .node = no_ast_node,
                 .value = value,
-                .sequence_type = locals->components->parameter_types[parameter_index],
+                .sequence_type = type,
                 .role = SXML_IR_COERCION_ROLE_FUNCTION_ARGUMENT},
-            &locals->arguments[locals->parameter_offset]);
+            argument);
     }
     locals->parameter_offset += 1;
     return status;

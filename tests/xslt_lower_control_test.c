@@ -340,6 +340,14 @@ static void test_iterate(sxml_test_state *state) {
         {STYLESHEET("<xsl:iterate select='1'><xsl:next-iteration>"
                     "<xsl:with-param name='q' select='1'/></xsl:next-iteration></xsl:iterate>"),
          "error:XTSE3130"},
+        /* 7.2: a parameter of xsl:iterate may not be implicitly
+           mandatory (9.3). */
+        {STYLESHEET("<xsl:iterate select='1'><xsl:param name='p' as='xs:integer'/>"
+                    "<xsl:sequence select='.'/></xsl:iterate>"),
+         "error:XTSE3520"},
+        {STYLESHEET("<xsl:iterate select='1'><xsl:param name='p' as='xs:integer?'/>"
+                    "<xsl:sequence select='count($p)'/></xsl:iterate>"),
+         "0"},
         /* 7.2: XTSE3120 outside a tail position; xsl:if, xsl:choose and
            xsl:try bodies in tail position may hold them. */
         {STYLESHEET("<xsl:iterate select='1'><xsl:if test='true()'><xsl:break/><x/></xsl:if>"

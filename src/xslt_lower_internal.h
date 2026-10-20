@@ -531,6 +531,11 @@ typedef struct sxml_xslt_mapped_expression {
 SXML_NODISCARD sxml_status sxml_xslt_lowering_bind_mapped_expression(
     sxml_xpath_lowerer *lowerer, const sxml_xslt_mapped_expression *request, sxml_ir_atom *atom);
 
+/* XTTE0600 where the coercion of a parameter's explicit default value
+   (select or content) to its type raises XPTY0004 (XSLT 4.0, 9.3): for
+   template and stylesheet function parameters. */
+extern const sxml_xslt_error_mapping sxml_xslt_default_value_mapping;
+
 /*
  * 6.5: a match that an error makes false. Writes to *guarded a TRY_CATCH
  * of body whose clauses raise a circularity again (XTDE0640, 9.11, and

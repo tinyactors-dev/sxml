@@ -918,13 +918,15 @@ static sxml_status finish_default_branch(sxml_xpath_lowerer *lowerer,
                                                   .expression = locals->default_branch},
         &value);
     if (status == SXML_STATUS_OK) {
-        status = sxml_xpath_lowerer_coerce_atom(
+        status = sxml_xslt_lowering_bind_mapped_expression(
             lowerer,
-            (sxml_xpath_lowering_coercion_request){.block = &block,
-                                                   .node = no_ast_node,
-                                                   .value = value,
-                                                   .sequence_type = locals->plan.type.sequence_type,
-                                                   .role = SXML_IR_COERCION_ROLE_TEMPLATE_PARAMETER},
+            &(sxml_xslt_mapped_expression){
+                .block = &block,
+                .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_COERCE,
+                               .coercion = {.value = value,
+                                            .sequence_type = locals->plan.type.sequence_type,
+                                            .role = SXML_IR_COERCION_ROLE_VARIABLE}},
+                .mappings = {.mappings = &sxml_xslt_default_value_mapping, .mapping_count = 1}},
             &value);
     }
     sxml_ir_expression_index result = {0};

@@ -422,6 +422,13 @@ sxml_status sxml_xslt_lowering_parse_attribute(const sxml_xslt_lowering *lowerin
     return sxml_xslt_lowering_keep_ast(lowering, made);
 }
 
+const sxml_xslt_error_mapping sxml_xslt_default_value_mapping = {
+    .caught_code = SXML_BYTE_VIEW_INITIALIZER("XPTY0004"),
+    .raised_status = SXML_STATUS_TYPE_ERROR,
+    .raised_code = SXML_BYTE_VIEW_INITIALIZER("XTTE0600"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(
+        "the default value of a parameter does not match its required type (XSLT 4.0, 9.3)")};
+
 sxml_status sxml_xslt_lowering_bind_mapped_expression(sxml_xpath_lowerer *lowerer,
                                                       const sxml_xslt_mapped_expression *request,
                                                       sxml_ir_atom *atom) {

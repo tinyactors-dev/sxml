@@ -390,6 +390,21 @@ static void test_optional_parameters(sxml_test_state *state) {
                   "<xsl:sequence select='$a'/></xsl:function>",
                   "f:g(1, 2)"),
          "error:XTSE0580"},
+        /* 9.3: an explicit default of the wrong type is XTTE0600, the
+           implicit () keeps the coercion's XPTY0004; also for template
+           parameters. */
+        {EVALUATE("<xsl:function name='f:g'><xsl:param name='a' as='xs:integer' required='no' "
+                  "select='1.5'/><xsl:sequence select='$a'/></xsl:function>",
+                  "f:g()"),
+         "error:XTTE0600"},
+        {EVALUATE("<xsl:function name='f:g'><xsl:param name='a' as='xs:integer' required='no'/>"
+                  "<xsl:sequence select='$a'/></xsl:function>",
+                  "f:g()"),
+         "error:XPTY0004"},
+        {STYLESHEET("<xsl:template match='/'><xsl:call-template name='t'/></xsl:template>"
+                    "<xsl:template name='t'><xsl:param name='p' as='xs:integer' select='1.5'/>"
+                    "<xsl:sequence select='$p'/></xsl:template>"),
+         "error:XTTE0600"},
     };
     CHECK(state, cases);
 }
