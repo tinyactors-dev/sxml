@@ -3,7 +3,8 @@
 sxml is an XML toolchain in portable C. It parses XML and HTML, validates
 documents against XSD 1.1 schemas and DTDs, and runs XPath 4.0, XQuery 4.0
 and XSLT 4.0, from one small library with no dependencies. Use it from C,
-from JavaScript in browsers and Node.js, or as the `sxml` command.
+from JavaScript in browsers and Node.js, from Swift, or as the `sxml`
+command.
 
 ```console
 $ sxml xpath --context-item=books.xml '//book[@year < 1980]/title/string()'
@@ -18,7 +19,8 @@ $ sxml xpath --context-item=books.xml '//book[@year < 1980]/title/string()'
   [HTML](#read-html), [Invisible XML](#parse-text-with-invisible-xml),
   [Full Text](#search-text)
 - [Features by module](#features-by-module)
-- [Use it from C](#use-it-from-c) and [from JavaScript](#use-it-from-javascript)
+- [Use it from C](#use-it-from-c), [from JavaScript](#use-it-from-javascript)
+  and [from Swift](#use-it-from-swift)
 - [Conformance](#conformance)
 - [Status](#status)
 
@@ -50,7 +52,8 @@ model (XDM 4.0) and one evaluator.
 | macOS, Windows | The same C17 code, with an MSVC build preset. Neither platform has been built yet. |
 | Browsers and Node.js | The `@tinyactors/sxml` package: a TypeScript wrapper over two WebAssembly modules (below). |
 | WASI | The `sxml` command as a WebAssembly program. |
-| iOS, Android | Planned. There are no Swift or Kotlin bindings yet. |
+| Swift on Linux | The `Sxml` Swift package over the native library (below). |
+| iOS, Android | Planned. The Swift package's iOS and macOS build and the Kotlin library for Android are not made yet. |
 
 The WebAssembly modules, at commit `9c5b1ba`:
 
@@ -492,6 +495,32 @@ query.run({ context: library.parse('<books><book year="1968">TAOCP</book></books
 ```
 
 The package's [README](bindings/javascript/README.md) describes its API.
+
+## Use it from Swift
+
+The Swift package `Sxml` in [`bindings/swift`](bindings/swift), with
+`Package.swift` at the root of this repository, has the same API in
+Swift's idiom, over the native library with every language. It builds on
+Linux now; iOS and macOS wait for its XCFramework.
+
+```swift
+import Sxml
+
+let processor = try Processor()
+let books = try processor.parse(
+    "<books><book year=\"1979\">Godel, Escher, Bach</book>"
+    + "<book year=\"1968\">The Art of Computer Programming</book></books>")
+let titles = try processor.evaluate("//book[@year < $year] ! string()", context: books, variables: ["year": 1975])
+print(titles)
+// "The Art of Computer Programming"
+
+let query = try processor.compileQuery("declare variable $n external; //book[@year < $n] ! string()")
+print(try query.run(context: processor.parse("<books><book year=\"1968\">TAOCP</book></books>"), variables: ["n": 1975]))
+// TAOCP
+```
+
+The package's [README](bindings/swift/README.md) describes its API and how
+to build it.
 
 ## Conformance
 
