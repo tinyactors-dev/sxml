@@ -172,6 +172,12 @@ output the book shows updates the book. Left: chapters for a published
 npm package and release archives once they exist, more on XSLT 4.0's new
 instructions, and schema-aware XSLT output validation.
 
+perf-4 (D259): the book's join 12.9 s -> 0.045 s (descendant pass, the
+filter index's number view, probe order); early exit through item demands
+and quantifier fusion (10^7 items: seconds -> 4 ms); default step bound
+10^8 (about 8 s). Left: two filters in a row index only the first;
+FILTER/MAP over MAP not fused; demands do not enter function bodies.
+
 Platform and tooling:
 - macOS, Windows and MSVC have never been built; `_getcwd` is untested.
 - CI is disabled (D123).
