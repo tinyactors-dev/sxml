@@ -445,14 +445,18 @@ typedef struct sxml_document_options {
     /* The xsd-validation option's xs:string item, owned (the caller
        releases it); empty when absent or "skip". */
     sxml_sequence xsd_validation;
+    /* use-xsi-schema-location=true: the document's schema location hints
+       join the validation's schemas (D278). */
+    bool uses_schema_location_hints;
 } sxml_document_options;
 
 /*
  * Reads fn:doc's options map from argument argument_index into *options,
  * defined in src/function_library_json.c: dtd-validation and xinclude true
  * are FODC0013, a strip-space value outside the enumeration XPTY0004;
- * xsd-validation is kept for sxml_schema_scope_validate_document; stable,
- * trust-external and the location options are accepted.
+ * xsd-validation and use-xsi-schema-location are kept for
+ * sxml_schema_scope_validate_document; stable, trust-external and the
+ * location options are accepted.
  */
 SXML_NODISCARD sxml_status sxml_function_library_read_document_options(
     const sxml_function_call *call, size_t argument_index, sxml_document_options *options);

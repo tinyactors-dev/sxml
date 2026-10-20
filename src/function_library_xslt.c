@@ -707,7 +707,12 @@ static sxml_status call_document(const sxml_function_call *call, sxml_sequence *
                 status == SXML_STATUS_OK ? stripped.content : (sxml_item){.representation = 0};
         }
         if (status == SXML_STATUS_OK && xsd_validation.byte_count > 0) {
-            status = sxml_schema_scope_validate_document(call, xsd_validation, &document_node);
+            status = sxml_schema_scope_validate_document(
+                call,
+                &(sxml_schema_scope_document_validation){
+                    .xsd_validation = xsd_validation,
+                    .uses_schema_location_hints = options.uses_schema_location_hints},
+                &document_node);
         }
         if (status == SXML_STATUS_OK) {
             status = sxml_sequence_builder_append_item(builder, document_node);

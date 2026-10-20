@@ -19,9 +19,11 @@ typedef struct sxml_qt4_supported_dependency {
 
 /*
  * What sxml supports (D83, D108, D134). Everything else, staticTyping,
- * XInclude, remote HTTP, schema location hints and older Unicode versions
+ * remote HTTP, schema location hints and older Unicode versions
  * included, is not satisfied.
  * - higherOrderFunctions: XPath 4.0 function items (D38, packet 1.21).
+ * - xinclude-option: the xinclude option of fn:doc and fn:parse-xml
+ *   (src/xinclude_internal.h, packet 2.27).
  * - namespace-axis: the namespace axis (D77).
  * - xml-version 1.0, 1.0:5+ and 1.1: documents are read by XML 1.0 Fifth
  *   Edition or, when they declare version 1.1, by XML 1.1 (D28, D81,
@@ -75,6 +77,8 @@ static const sxml_qt4_supported_dependency sxml_qt4_supported_dependencies[] = {
      SXML_BYTE_VIEW_INITIALIZER("fn-load-xquery-module")},
     {SXML_BYTE_VIEW_INITIALIZER("feature"),
      SXML_BYTE_VIEW_INITIALIZER("namespace-axis")},
+    {SXML_BYTE_VIEW_INITIALIZER("feature"),
+     SXML_BYTE_VIEW_INITIALIZER("xinclude-option")},
     {SXML_BYTE_VIEW_INITIALIZER("xml-version"),
      SXML_BYTE_VIEW_INITIALIZER("1.0")},
     {SXML_BYTE_VIEW_INITIALIZER("xml-version"),
@@ -89,8 +93,8 @@ static const sxml_qt4_supported_dependency sxml_qt4_supported_dependencies[] = {
      SXML_BYTE_VIEW_INITIALIZER("year_lt_0")},
     /* The numbering sequences fn:format-integer has beyond the decimal
        digit families: Arabic-Indic digits, circled, parenthesized and
-       full-stop numbers, Greek letters (F&O 4.0, 4.6.1); not the CJK
-       numerals (U+4E00). */
+       full-stop numbers, Greek letters, the Japanese ideographic
+       numerals (U+4E00) (F&O 4.0, 4.6.1). */
     {SXML_BYTE_VIEW_INITIALIZER("format-integer-sequence"),
      SXML_BYTE_VIEW_INITIALIZER("\xD9\xA1")},
     {SXML_BYTE_VIEW_INITIALIZER("format-integer-sequence"),
@@ -103,6 +107,8 @@ static const sxml_qt4_supported_dependency sxml_qt4_supported_dependencies[] = {
      SXML_BYTE_VIEW_INITIALIZER("\xCE\x91")},
     {SXML_BYTE_VIEW_INITIALIZER("format-integer-sequence"),
      SXML_BYTE_VIEW_INITIALIZER("\xCE\xB1")},
+    {SXML_BYTE_VIEW_INITIALIZER("format-integer-sequence"),
+     SXML_BYTE_VIEW_INITIALIZER("\xE4\xB8\x80")},
     {SXML_BYTE_VIEW_INITIALIZER("language"), SXML_BYTE_VIEW_INITIALIZER("en")},
     {SXML_BYTE_VIEW_INITIALIZER("language"), SXML_BYTE_VIEW_INITIALIZER("de")},
     {SXML_BYTE_VIEW_INITIALIZER("language"), SXML_BYTE_VIEW_INITIALIZER("fr")},
@@ -202,6 +208,11 @@ static const sxml_byte_view sxml_qt4_schema_aware_features[] = {
 
 /* Supported only when the run targets XQuery. */
 static const sxml_qt4_supported_dependency sxml_qt4_xquery_dependencies[] = {
+    /* "import schema ... at" with a relative location hint, resolved
+       against the static base URI (XQuery 4.0, 5.11; schema location
+       hints, packet 5.16, D278). */
+    {SXML_BYTE_VIEW_INITIALIZER("feature"),
+     SXML_BYTE_VIEW_INITIALIZER("schema-location-hint")},
     /* Library modules (XQuery 4.0, 5.12, the Module Feature; D148). */
     {SXML_BYTE_VIEW_INITIALIZER("feature"),
      SXML_BYTE_VIEW_INITIALIZER("moduleImport")},

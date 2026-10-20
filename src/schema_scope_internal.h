@@ -243,18 +243,28 @@ extern const sxml_native_function sxml_schema_validate_function;
 /* validate-items($node, $mode, $type) as item()*, XSLT's rules (above). */
 extern const sxml_native_function sxml_schema_validate_items_function;
 
+/* The validation options of fn:parse-xml and fn:doc (F&O 4.0, 17.2.1). */
+typedef struct sxml_schema_scope_document_validation {
+    /* The xsd-validation option's value. Borrowed. */
+    sxml_byte_view xsd_validation;
+    /* use-xsi-schema-location: a schema of the document's schema location
+       hints joins the in-scope schemas, after them (D278). */
+    bool uses_schema_location_hints;
+} sxml_schema_scope_document_validation;
+
 /*
  * The xsd-validation option of fn:parse-xml and fn:doc (F&O 4.0, 17.2.1;
- * D174), xsd_validation its value: "skip" leaves *document_node as it is;
- * "strict", "lax" and "type Q{uri}local" replace it, owned, by its
- * validated copy against the in-scope schemas of call's static context
- * (FODC0008 for another value or a type not in the static context,
- * FODC0014 for invalid content or, strict, an element without a
+ * D174): "skip" leaves *document_node as it is; "strict", "lax" and
+ * "type Q{uri}local" replace it, owned, by its validated copy against the
+ * in-scope schemas of call's static context, and with
+ * uses_schema_location_hints those its hints name (FODC0008 for another
+ * value or a type not in the static context, FODC0014 for invalid
+ * content, hints that do not compile or, strict, an element without a
  * declaration); on failure *document_node is released.
  */
-SXML_NODISCARD sxml_status sxml_schema_scope_validate_document(const sxml_function_call *call,
-                                                               sxml_byte_view xsd_validation,
-                                                               sxml_item *document_node);
+SXML_NODISCARD sxml_status sxml_schema_scope_validate_document(
+    const sxml_function_call *call, const sxml_schema_scope_document_validation *request,
+    sxml_item *document_node);
 
 /*
  * Replaces *node, a document or element node owned by the caller, with

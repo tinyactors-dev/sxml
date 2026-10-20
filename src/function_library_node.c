@@ -278,7 +278,11 @@ static sxml_status load_document_with_options(const sxml_function_call *call,
         status = sxml_atomic_item_get_datum(options->xsd_validation.content, &validation);
         if (status == SXML_STATUS_OK) {
             status = sxml_schema_scope_validate_document(
-                call, validation.datum_details.string.utf8, document_node);
+                call,
+                &(sxml_schema_scope_document_validation){
+                    .xsd_validation = validation.datum_details.string.utf8,
+                    .uses_schema_location_hints = options->uses_schema_location_hints},
+                document_node);
         } else {
             sxml_item_release(*document_node);
         }

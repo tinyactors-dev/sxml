@@ -70,11 +70,15 @@ static sxml_status fixture_create(fixture *test_fixture) {
         return status;
     }
     const sxml_allocator allocator = fixture_allocator(test_fixture);
+    /* fn:xsd-validator compiles its own schemas (options, hints) with the
+       builtin-schemas feature's compiler (D225, D278). */
+    const sxml_optional_feature feature = sxml_builtin_schemas_feature();
     status = sxml_processor_create(
         allocator,
         &(sxml_processor_configuration){
             .allocator = allocator,
-            .resource_resolver = sxml_table_resource_resolver(&fixture_resource_view)},
+            .resource_resolver = sxml_table_resource_resolver(&fixture_resource_view),
+            .optional_features = {.optional_features = &feature, .optional_feature_count = 1}},
         &test_fixture->processor);
     if (status == SXML_STATUS_OK) {
         status = sxml_output_buffer_create(
@@ -263,6 +267,28 @@ static const query_case xquery_cases[] = {
      "true", NULL},
     {IMPORT "xsd-validator()(())", "", NULL},
     {IMPORT "xsd-validator({'validation-mode': 'loose'})", NULL, "XPTY0004"},
+    /* use-xsi-schema-location (17.2.5; D278): the target's hints are read
+       through the resolver; without the option they are not; a hint that
+       does not compile is an invalidity, not an error. */
+    {"xsd-validator({'use-xsi-schema-location': true()})(<hat xmlns='urn:s' size='3' "
+     "xsi:schemaLocation='urn:s http://example.com/s.xsd'/>)?is-valid",
+     "true", NULL},
+    {"xsd-validator({'use-xsi-schema-location': true()})(<hat xmlns='urn:s' size='30' "
+     "xsi:schemaLocation='urn:s http://example.com/s.xsd'/>)?is-valid",
+     "false", NULL},
+    {"xsd-validator()(<hat xmlns='urn:s' size='3' "
+     "xsi:schemaLocation='urn:s http://example.com/s.xsd'/>)?is-valid",
+     "false", NULL},
+    {"xsd-validator({'use-xsi-schema-location': true(), 'return-error-details': true()})"
+     "(<hat xmlns='urn:x' xsi:schemaLocation='urn:x http://example.com/s.xsd'/>)"
+     "?error-details?rule",
+     "schema_reference", NULL},
+    /* fn:parse-xml's use-xsi-schema-location (17.2.1; D278). */
+    {"data(parse-xml('<hat xmlns=\"urn:s\" size=\"4\" xmlns:xsi=\"http://www.w3.org/2001/"
+     "XMLSchema-instance\" xsi:schemaLocation=\"urn:s http://example.com/s.xsd\"/>', "
+     "{'xsd-validation': 'strict', 'use-xsi-schema-location': true()})/*/@size) "
+     "instance of xs:integer",
+     "true", NULL},
     /* The xsd-validation option of fn:parse-xml (17.2.1). */
     {IMPORT "data(parse-xml('<hat xmlns=\"urn:s\" size=\"4\"/>', {'xsd-validation': 'strict'})"
             "/s:hat/@size) instance of s:size",

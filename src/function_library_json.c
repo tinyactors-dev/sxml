@@ -1089,6 +1089,9 @@ sxml_status sxml_function_library_read_document_options(const sxml_function_call
                                         SXML_BYTE_VIEW_FROM_LITERAL("none"));
     options->validates_dtd = handling.validates_dtd;
     options->trusts_external = handling.trusts_external;
+    options->uses_schema_location_hints =
+        status == SXML_STATUS_OK && values.is_present[SXML_XML_OPTION_USE_XSI_SCHEMA_LOCATION] &&
+        json_option_is_true(&values, SXML_XML_OPTION_USE_XSI_SCHEMA_LOCATION);
     options->xsd_validation = sxml_sequence_empty();
     if (status == SXML_STATUS_OK && values.is_present[SXML_XML_OPTION_XSD_VALIDATION] &&
         !json_text_is(json_option_text(&values, SXML_XML_OPTION_XSD_VALIDATION),
@@ -1130,6 +1133,8 @@ typedef struct xml_input {
     bool trusts_external;
     /* The xsd-validation option; empty for "skip". */
     sxml_byte_view xsd_validation;
+    /* use-xsi-schema-location (D278). */
+    bool uses_schema_location_hints;
 } xml_input;
 
 /* Reads the input and the options of fn:parse-xml or
@@ -1170,7 +1175,10 @@ static sxml_status xml_read_input(const sxml_function_call *call, sxml_option_va
                             : sxml_dynamic_context_get_static_base_uri(call->dynamic_context),
             .strips_space = handling.strips_space,
             .validates_dtd = handling.validates_dtd,
-            .trusts_external = handling.trusts_external};
+            .trusts_external = handling.trusts_external,
+            .uses_schema_location_hints =
+                values->is_present[SXML_XML_OPTION_USE_XSI_SCHEMA_LOCATION] &&
+                json_option_is_true(values, SXML_XML_OPTION_USE_XSI_SCHEMA_LOCATION)};
     }
     return status;
 }
@@ -1190,8 +1198,12 @@ static sxml_status xml_parse_document(const sxml_function_call *call, const xml_
         &document_node);
     if (status == SXML_STATUS_OK && input->xsd_validation.byte_count != 0) {
         /* F&O 4.0, 17.2.1: validated as by a validate expression (D174). */
-        status =
-            sxml_schema_scope_validate_document(call, input->xsd_validation, &document_node);
+        status = sxml_schema_scope_validate_document(
+            call,
+            &(sxml_schema_scope_document_validation){
+                .xsd_validation = input->xsd_validation,
+                .uses_schema_location_hints = input->uses_schema_location_hints},
+            &document_node);
     }
     if (status != SXML_STATUS_OK) {
         return status;
