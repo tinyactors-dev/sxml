@@ -1384,7 +1384,6 @@ typedef struct integer_argument {
 
 static sxml_status read_clamped_integer(const sxml_function_call *call,
                                         integer_argument argument, int64_t *value) {
-    const int64_t bound = INT64_C(1) << 62;
     sxml_optional_item item;
     sxml_status status = sxml_function_library_read_optional_item(call, argument.argument_index,
                                                                   &item);
@@ -1401,13 +1400,14 @@ static sxml_status read_clamped_integer(const sxml_function_call *call,
         return status;
     }
     if (datum.datum_kind == SXML_DATUM_KIND_INTEGER) {
-        const int64_t integer = datum.datum_details.integer;
-        *value = integer > bound ? bound : (integer < -bound ? -bound : integer);
+        *value = datum.datum_details.integer;
         return SXML_STATUS_OK;
     }
-    /* An integer beyond int64_t, as decimal text. */
+    /* An integer beyond int64_t, as decimal text: the nearest int64_t
+       (positions this far out select the same items, but for the parity
+       of a step). */
     const sxml_byte_view text = datum.datum_details.decimal_text;
-    *value = text.byte_count > 0 && text.bytes[0] == '-' ? -bound : bound;
+    *value = text.byte_count > 0 && text.bytes[0] == '-' ? INT64_MIN : INT64_MAX;
     return SXML_STATUS_OK;
 }
 
@@ -1440,12 +1440,20 @@ typedef struct slice_bounds {
     int64_t step;
 } slice_bounds;
 
-/* $S and $E of fn:slice for a positive or negative $step. */
+/* $S and $E of fn:slice for a positive or negative $step. A negative
+   bound gives at least INT64_MIN + 2 (item_count is at least 1), so it
+   can be negated. */
 static int64_t normalize_bound(int64_t bound, int64_t item_count, int64_t zero_value) {
     if (bound == 0) {
         return zero_value;
     }
     return bound < 0 ? item_count + bound + 1 : bound;
+}
+
+/* -bound, INT64_MAX for INT64_MIN (a raw positive bound is never
+   INT64_MIN; a normalized negative one never is). */
+static int64_t negate_bound(int64_t bound) {
+    return bound == INT64_MIN ? INT64_MAX : -bound;
 }
 
 /*
@@ -1481,21 +1489,31 @@ static sxml_status call_slice(const sxml_function_call *call, sxml_sequence *res
     const bool is_negative_step = requested.step < 0;
     int64_t start = normalize_bound(requested.start, item_count, is_negative_step ? item_count : 1);
     int64_t end = normalize_bound(requested.end, item_count, is_negative_step ? 1 : item_count);
-    int64_t step = requested.step != 0 ? requested.step : (end >= start ? 1 : -1);
+    const int64_t signed_step = requested.step != 0 ? requested.step : (end >= start ? 1 : -1);
+    /* Positions are computed without overflow for every int64_t argument
+       (slice-195): the step's magnitude is unsigned. */
+    uint64_t step = (uint64_t)signed_step;
     bool is_reversed = false;
-    if (step < 0) {
+    if (signed_step < 0) {
         /* Over the reversed input: -$S and -$E normalized again, $STEP
            made positive. */
         is_reversed = true;
-        start = normalize_bound(-start, item_count, 1);
-        end = normalize_bound(-end, item_count, item_count);
-        step = -step;
+        start = normalize_bound(negate_bound(start), item_count, 1);
+        end = normalize_bound(negate_bound(end), item_count, item_count);
+        step = UINT64_C(0) - (uint64_t)signed_step;
     }
     int64_t first = start;
     if (first < 1) {
-        /* The first position at or after 1 with (p - S) mod STEP = 0. */
-        const int64_t distance = 1 - start;
-        first = start + ((distance + step - 1) / step) * step;
+        /* The first position at or after 1 with (p - S) mod STEP = 0:
+           S + k * STEP for the least k with k * STEP >= 1 - S. */
+        const uint64_t distance = (uint64_t)1 - (uint64_t)start;
+        const uint64_t multiple = distance / step + (distance % step != 0 ? 1U : 0U);
+        const uint64_t past_one = multiple * step - distance;
+        if (past_one >= (uint64_t)item_count) {
+            *result = sxml_sequence_empty();
+            return SXML_STATUS_OK;
+        }
+        first = 1 + (int64_t)past_one;
     }
     const int64_t last = end < item_count ? end : item_count;
     sxml_sequence_builder *builder = NULL;
@@ -1503,11 +1521,11 @@ static sxml_status call_slice(const sxml_function_call *call, sxml_sequence *res
         sxml_item_heap_as_allocator(call->item_heap),
         &(sxml_sequence_builder_configuration){.item_heap = call->item_heap}, &builder);
     for (int64_t position = first; status == SXML_STATUS_OK && position <= last;
-         position += step) {
+         position += (int64_t)step) {
         const uint64_t index = is_reversed ? (uint64_t)(item_count - position)
                                            : (uint64_t)(position - 1);
         status = append_item_at(call, (item_copy){.input = input, .item_index = index}, builder);
-        if (step > last - position) {
+        if (step > (uint64_t)(last - position)) {
             break;
         }
     }

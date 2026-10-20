@@ -354,6 +354,11 @@ static const slice_case library_cases[] = {
                 "\"a%20b%2F~\" \"http://a/b%20c%7B%7D\" \"a b<%C3%A9\""),
     SLICE_VALUE("slice", "slice(1 to 5, 2, 4), slice(1 to 5, -2), slice(1 to 5, step := -2)",
                 "2 3 4 4 5 5 3 1"),
+    /* slice-195: bounds at the limits of xs:long keep their parity. */
+    SLICE_VALUE("slice-limits",
+                "slice(('a', 'b', 'c'), 9223372036854775807, -9223372036854775807 - 1, -2), "
+                "slice(1 to 3, -9223372036854775807 - 1, (), 9223372036854775807)",
+                "\"c\" \"a\" 3"),
     SLICE_VALUE("sequences",
                 "items-at(('a', 'b', 'c'), (3, 1, 7)), replicate((1, 2), 2), "
                 "insert-separator(1 to 3, 0), foot(1 to 4), trunk(1 to 3), void(1 to 9), "
