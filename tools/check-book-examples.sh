@@ -17,6 +17,13 @@
 #   SXML        the sxml source the C chapter builds: the repository root,
 #               unless SXML is set already (to a snapshot of HEAD, say)
 #
+# A chapter file with the comment <!-- requires: javascript --> runs its
+# examples with Node.js against the JavaScript package: set
+# SXML_JAVASCRIPT to a built package directory (bindings/javascript after
+# `npm run build`, with dist/), which is linked into the copy as
+# node_modules/@tinyactors/sxml. Without SXML_JAVASCRIPT those chapters
+# are skipped, and the summary says so.
+#
 # Usage: tools/check-book-examples.sh [--update] [BUILD-DIRECTORY] [CHAPTER.md...]
 #   BUILD-DIRECTORY defaults to build/release; it must hold apps/sxml.
 #   CHAPTER.md files (paths below docs/book/src) limit the check to them.
@@ -117,6 +124,10 @@ def parse_examples(lines):
         yield current
 
 
+def requires_javascript(lines):
+    return any(line.strip() == "<!-- requires: javascript -->" for line in lines)
+
+
 def examples_directory_of(lines):
     for line in lines:
         stripped = line.strip()
@@ -127,6 +138,8 @@ def examples_directory_of(lines):
 
 failures = 0
 command_count = 0
+skipped_chapters = []
+javascript_package = os.environ.get("SXML_JAVASCRIPT", "")
 for chapter_file in chapter_files:
     with open(chapter_file, encoding="utf-8") as chapter:
         lines = chapter.readlines()
@@ -134,6 +147,10 @@ for chapter_file in chapter_files:
     if not examples:
         continue
     relative_chapter = os.path.relpath(chapter_file, repository_root)
+    needs_javascript = requires_javascript(lines)
+    if needs_javascript and not javascript_package:
+        skipped_chapters.append(relative_chapter)
+        continue
     name = examples_directory_of(lines)
     work_root = tempfile.mkdtemp(prefix="sxml-book-")
     work_directory = os.path.join(work_root, name or "empty")
@@ -146,6 +163,10 @@ for chapter_file in chapter_files:
         shutil.copytree(source, work_directory)
     else:
         os.makedirs(work_directory)
+    if needs_javascript:
+        package_link = os.path.join(work_directory, "node_modules", "@tinyactors", "sxml")
+        os.makedirs(os.path.dirname(package_link), exist_ok=True)
+        os.symlink(os.path.abspath(javascript_package), package_link)
     replacements = []
     for example in examples:
         command_count += 1
@@ -183,6 +204,8 @@ for chapter_file in chapter_files:
             chapter.writelines(lines)
         print(f"{relative_chapter}: updated {len(replacements)} outputs")
 
+for chapter in skipped_chapters:
+    print(f"check-book-examples: {chapter} skipped; set SXML_JAVASCRIPT to check it")
 if failures:
     print(f"check-book-examples: {failures} of {command_count} examples differ", file=sys.stderr)
     sys.exit(1)

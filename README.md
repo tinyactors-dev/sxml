@@ -242,7 +242,8 @@ $ sxml transform list.xsl books.xml
 </html>
 ```
 
-`sxml help` lists every command.
+`sxml help` lists every command. [The sxml Book](docs/book/src/SUMMARY.md)
+teaches the languages step by step.
 [apps/sxml/README.md](apps/sxml/README.md) is the full reference.
 
 ## Examples
@@ -659,6 +660,11 @@ sxml is released under the MIT License; see [LICENSE](LICENSE).
 
 ## Documentation
 
+- [The sxml Book](docs/book/src/SUMMARY.md): a guide to sxml and its
+  languages, from installing it to XPath, XQuery, XSLT, XSD, other
+  formats, and embedding it in C and JavaScript. Build it with
+  `mise run book` (or `mdbook build docs/book`); `mise run book:serve`
+  serves it locally.
 - [apps/sxml/README.md](apps/sxml/README.md): the `sxml` command.
 - [include/sxml/](include/sxml/): the C API. Each header documents its
   types and functions; start with `processor.h` and `xpath.h`.

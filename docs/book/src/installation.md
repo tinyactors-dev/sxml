@@ -10,21 +10,33 @@ feature of the library in it and no dependencies.
 ## Installing a release archive
 
 Each release of sxml comes with an archive of the `sxml` command for
-each supported platform. Download the archive for your operating system
-and processor from the releases page of the repository,
-<https://github.com/dhamidi/sxml/releases>, unpack it, and put the
-directory with `sxml` in it on your `PATH`.
+each supported platform, named `sxml-VERSION-TARGET`:
 
-On Linux or macOS, for example, if you unpacked the archive into
-`~/opt/sxml`:
+| Target | Archive | Program |
+| --- | --- | --- |
+| `x86_64-linux`, `aarch64-linux` | `.tar.gz` | `sxml`, a static executable that runs on any Linux distribution |
+| `x86_64-macos`, `aarch64-macos` | `.tar.gz` | `sxml`, for macOS 11 and later |
+| `x86_64-windows`, `aarch64-windows` | `.zip` | `sxml.exe`, for Windows 10 and later |
+| `wasm32-wasi` | `.tar.gz` | `sxml.wasm`, for any WebAssembly runtime with WASI preview 1 |
+
+Download the archive for your system from the releases page of the
+repository, <https://github.com/dhamidi/sxml/releases>, together with
+the file `SHA256SUMS`. Check the archive, unpack it, and put the program
+in a directory on your `PATH`. On Linux, for example:
 
 ```sh
-export PATH="$HOME/opt/sxml:$PATH"
+sha256sum --check --ignore-missing SHA256SUMS
+tar -xzf sxml-0.2.0-x86_64-linux.tar.gz
+install -m 755 sxml-0.2.0-x86_64-linux/sxml ~/.local/bin/sxml
 ```
 
-Add that line to your shell's startup file (such as `~/.bashrc` or
-`~/.zshrc`) to keep it. On Windows, add the directory to the `Path`
-environment variable in the system settings.
+On macOS, a downloaded program that is not notarized is quarantined;
+`xattr -d com.apple.quarantine sxml` lets it run. On Windows, unpack the
+`.zip` and add its directory to the `Path` environment variable. The
+WebAssembly program runs in a WASI runtime that gives it the directories
+it may read, for example `wasmtime --dir=. sxml.wasm xpath '1 + 1'`.
+
+Each archive also holds `USAGE.md`, the manual of the command.
 
 > sxml has no tagged release yet. Until the first one is published,
 > build it from source as the next section describes; it takes a few
@@ -53,6 +65,20 @@ The command is now `build/release/apps/sxml`. Put its directory on your
 
 ```sh
 export PATH="$PWD/build/release/apps:$PATH"
+```
+
+Add that line, with the full path, to your shell's startup file (such as
+`~/.bashrc` or `~/.zshrc`) to keep it.
+
+If you use [mise](https://mise.jdx.dev), the repository's `mise.toml`
+fetches the exact tools it is built with, and one task builds sxml for
+your machine and installs it into `~/.local/bin` (or the prefix you
+name):
+
+```sh
+mise install
+mise run install
+mise run install -- /usr/local
 ```
 
 ## Checking the installation

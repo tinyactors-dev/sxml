@@ -64,3 +64,15 @@ run = "tools/dist.sh verify"
 [tasks.install]
 description = "Build sxml for this machine and install it: mise run install [-- PREFIX], default ~/.local"
 run = "tools/dist.sh install"
+
+[tasks.book]
+description = "Build the sxml book (docs/book) into build/book with mdbook, which must be on PATH"
+run = "mdbook build docs/book"
+
+[tasks."book:serve"]
+description = "Serve the sxml book on http://localhost:3000, rebuilt as its files change (needs mdbook)"
+run = "mdbook serve docs/book"
+
+[tasks."book:check"]
+description = "Re-run every example of the book against build/release and compare the outputs"
+run = "tools/check-book-examples.sh"
