@@ -6,3 +6,7 @@
 
 # Python bytecode from tools/*.py.
 __pycache__/
+
+# SwiftPM build trees and state (Package.swift, D238).
+/.build/
+/.swiftpm/

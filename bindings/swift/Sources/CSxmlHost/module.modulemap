@@ -1,0 +1,13 @@
+// The host shim (docs/GLOSSARY.md, "host_shim"; D238) as a Clang module,
+// for the Swift package's module Sxml, which imports it with internal
+// import. No Swift-specific C: the module is the shim's own header.
+// sxml_host.h includes the public headers of include/; the manifest adds
+// that directory to the include path. The archive libsxml_host.a holds the
+// shim and the library (bindings/swift/CMakeLists.txt on Linux; the
+// XCFramework of packet 6.9 on Apple platforms).
+module CSxmlHost [system] {
+    header "../../../host/sxml_host.h"
+    link "sxml_host"
+    link "m"
+    export *
+}

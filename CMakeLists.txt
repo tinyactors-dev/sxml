@@ -130,6 +130,10 @@ add_subdirectory(bindings/host)
 # also measures the CLI module.
 add_subdirectory(bindings/javascript)
 
+# The Swift package (D238; Package.swift at the root): on Linux, the host
+# shim merged into one archive and the ctest swift/linux.
+add_subdirectory(bindings/swift)
+
 # The QT4 test-suite driver (D44, D45): a developer tool built on the CLI
 # framework, so it comes after apps/. Joins the build once its
 # CMakeLists.txt exists.
