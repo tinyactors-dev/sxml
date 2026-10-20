@@ -547,3 +547,17 @@ the release driver).
   function-lookup and accumulators per package, per-package
   strip-space, schema roles kept apart, merge-when, streaming,
   namespace undeclarations.
+- [x] **4.31 XSLT per-package items and leftovers** (implementation,
+  D245, D289). Owns the XSLT files a cause is in, the IR, evaluator,
+  loader and function library parts it needs, their unit tests, and
+  single insertions in the ledgers. From a fresh XT40 run at HEAD:
+  namespace undeclarations in the tree, function-lookup, accumulators
+  and strip-space per package, schema roles kept apart, copy-4308,
+  map-for-key-005, merge-when and D276's current rule if cheap;
+  streaming left.
+  **Done** 2026-10-20 (D291): XT40 12,268 to 12,273 passed (99 to 98
+  wrong error), 250 to 245 failed, 0 errors, no case lost. Namespace
+  undeclarations needed no tree change (D69; namespace-2606's expected
+  file is indented). Left (sizes in D291): function-lookup-005, schema
+  roles kept apart (import-schema-216), merge-when, D276's current rule,
+  streaming.

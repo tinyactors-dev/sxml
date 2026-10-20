@@ -4,6 +4,18 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 4.31 done (D291): XSLT per-package items. Accumulators, fn:document's
+  and fn:doc's xsl:strip-space and fn:function-lookup's visibility per
+  package (the IR static context's package_number, a private flag on IR
+  functions, the loader keeps a document per URI and preparation);
+  xsl:call-template from a global calls the absent-focus function when
+  the global context item is absent (copy-4308); map-for-key with an
+  empty $top. XT40 12,268 -> 12,273 passed (98 wrong error), 245
+  failed, 0 errors. Namespace undeclarations needed no tree change
+  (D69); namespace-2606's expected file is indented. Left:
+  function-lookup-005 (the packages' use relation), schema roles kept
+  apart (import-schema-216), merge-when, streaming.
+
 - js-2 done (D294): streamed output and input in the JavaScript API.
   The host shim gains an output writer (chunks of 64 KiB from a reused
   buffer, result documents between open and close events) and byte

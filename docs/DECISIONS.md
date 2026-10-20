@@ -13573,7 +13573,83 @@ the tests (ef46866), then the implementation (fdff1ee); one parser
   csv met its bound without it.
 
 ### D291. XSLT per-package items, an absent global focus through call-template, namespace undeclarations (packet 4.31)
-Recorded 2026-10-20, after D99, D245, D289; in progress.
+Recorded 2026-10-20, after D69, D99, D163, D245, D287, D289. Verified as
+D181 asks: the debug preset (xslt*, cli, function_library*, processor,
+xquery*, xpath*, evaluator*, ir* tests), clang-tidy on the changed
+files, the call-cycle check, the QT4 sets the loader and fn:function-lookup
+touch (XQ40/XP40 fn-function-lookup, fn-doc, fn-doc-available,
+fn-collection, prod-ModuleImport: equal to docs/CONFORMANCE.md), and the
+whole XT40 suite with the release driver after each change, case by
+case. **XT40 12,268 to 12,273 passed (99 to 98 wrong error), 250 to 245
+failed, 0 errors, no case lost**, from a whole run at fdff1ee. No
+public header changed. Commits 4df51df, bb89091.
+- **Namespace undeclarations need no tree change**: D289's sketch was
+  wrong. The tree has stored an element that does not inherit its
+  parent's namespaces since D69 (sxml_element_start_event's
+  ignores_parent_namespaces; copies send undeclarations for the
+  descendants, sxml_tree_builder_copy_node), and XSLT's
+  inherit-namespaces="no" (xsl:element, xsl:copy, literal result
+  elements; 5.7.1, 11.1.2) and XQuery's copy-namespaces no-inherit use
+  it. Probed: in-scope-prefixes of namespace-2606's b and c are right,
+  and its serialization (XML 1.1, undeclare-prefixes) is the expected
+  file's byte for byte except whitespace. namespace-2606 fails only
+  because its expected file is indented while the stylesheet does not
+  indent (assert-xml compares whitespace text nodes): **the suite
+  decides**, left. So does document-2402 (its overriding template "a"
+  has no visibility, so it is private, 3.4.5.3, and no initial template:
+  XTDE0040, 2.4.4; document-2401, which says public, passes).
+- **An absent global focus through xsl:call-template** (3.4.9, 10.1.2,
+  11.9.1): a call from a global, whose focus is the global context item,
+  is `if (exists(try { item } catch err:XPDY0002 { () })) then
+  template(item, 1, 1, ...) else template-absent((), 0, 0, ...)`, the
+  template's absent-focus function (D144) chosen at run time; an XSLT
+  error mapping with no raised code catches to the empty sequence
+  (copy-4308: XTTE0945).
+- **fn:map-for-key#2** (20.2.3: "If the argument is omitted or empty,
+  the selected subtree is the document containing the context node"):
+  $top is node()? and the caller's context value is passed after it,
+  the empty sequence where the focus is statically absent (D287's
+  is_empty_without_focus); none gives XTDE1270 (map-for-key-005). Left:
+  in a global whose global context item is absent at run time, reading
+  it for the hidden argument raises XPDY0002 even with $top given.
+- **Accumulators per package** (3.5.3.1, 19.8): an accumulator's
+  definition records its package; XTSE3350 compares declarations of one
+  package; each package has its own fn:accumulator-before and -after
+  (as fn:key, D163), which test its accumulators' names only;
+  use-accumulators names those of its element's package
+  (override-misc-005, -007).
+- **The package of a static context**: sxml_ir_static_context gains
+  package_number (the index of the package's top module,
+  sxml_xslt_package_top_module; 0 outside XSLT), set on each XSLT
+  module. Two uses:
+  - *fn:document and fn:doc strip by their package's xsl:strip-space*
+    (4.2.2): sxml_document_request.preparation_number selects the
+    preparation (sxml_preparation_request, an internal operations
+    change), the loader keeps one document per URI and preparation, and
+    the stripping filter collects the declarations of that package only;
+    the principal source document is the top-level package's
+    (document-2401).
+  - *fn:function-lookup by visibility* (10.3.5: only a function in the
+    static context of the call): sxml_ir_function.is_private for a
+    private or hidden stylesheet function; the unit-function search
+    takes one of the caller's package first, then one of another package
+    that is not private (function-lookup-004). XQuery is unchanged (one
+    package, nothing private); its %private functions could use the
+    same flag.
+- **Not done, with causes and sizes**: function-lookup-005 (from a
+  used package, a public function of a package it does not use, and an
+  abstract one overridden there, are found: the IR would need the
+  packages' use relation, small to medium; the suite's effect="7" for
+  an overridden function is what sxml gives); import-schema-216 (schema
+  roles kept apart: one schema per role and per-static-context in-scope
+  schemas by the nearest [xsl:]schema-role, also for type names and
+  validation, medium to large, only this case fails); merge-when (no suite case) and D276's
+  current rule in an attribute set inside xsl:for-each (an evaluator
+  operation, no case) were not cheap, left; streaming (D289's sketch)
+  is a later packet.
+- **Records**: the scratchpad was emptied by another session during the
+  packet; the baseline was run again at fdff1ee. The XT40 section of
+  `docs/CONFORMANCE.md` was not regenerated.
 
 ### D292. The codegen chapter builds a tree of the TypeScript program and prints it with XSLT (packet book-4)
 Recorded 2026-10-20, after D257, D282, D285, D288. The owner: for the
