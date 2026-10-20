@@ -4,6 +4,16 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 4.27 done (D274): XSLT sweep, XT40 12,210 to 12,226 passed (115 to
+  107 wrong error), 308 to 292 failed, 0 errors, none lost. CDATA
+  requests make text nodes of their own in final output (D188's way),
+  adjacent CDATA sections join; static XTSE0020 for fixed start-at,
+  non-top-level static and item types with "?"; XTSE1220, XTSE0620,
+  XTSE3022 orders; keys over namespace nodes; strip-space "none" skips
+  xsl:strip-space; XTTE0950 (XQTY0086's check) and fn:copy-of
+  preserving types; XML 1.1 characters in value templates;
+  Q{uri}prefix:local names. CONFORMANCE.md not regenerated.
+
 - 4.26 done (D273): XSLT sweep, XT40 12,191 to 12,209 passed (118
   wrong error), 327 to 309 failed, 0 errors. fn:stream-available by a
   streamed open of the document's head; fn:document's options map as

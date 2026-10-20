@@ -496,3 +496,17 @@ the release driver).
   wrong error as the draft decides). Left (causes in D273): "//"
   lowered right-nested (for 2.25), globals captured by XSLT's inline
   functions, CDATA text merging, fn:document strip-space "none".
+- [x] **4.27 XSLT conformance sweep** (implementation, D245, D273). Owns
+  the XSLT files a cluster's root cause is in, the XSLT driver, the
+  serializer, tree, loader and function library files a cluster needs
+  when no other packet has them open, their unit tests, and single
+  insertions in the ledgers. From a fresh XT40 run at HEAD, failures and
+  wrong-error passes by root cause, largest first; D273's open list
+  (CDATA merging, static start-at, key namespace nodes, strip-space
+  "none", XTTE lines); src/xpath_lower.c and XSLT's default collations
+  and global capture stay with 2.25.
+  **Done** 2026-10-20 (D274): XT40 12,210 to 12,226 passed (115 to 107
+  wrong error), 308 to 292 failed, 0 errors, no case lost. Left (causes
+  in D274): xsl:next-match in attribute sets, per-package strip-space
+  for fn:document, xsl:source-document fragment identifiers, XTTE
+  errors without a line (D271).
