@@ -98,6 +98,8 @@ struct sxml_processor {
     /* The configuration's file system, for the EXPath File feature
        (D200); the null file system when none. */
     sxml_file_system file_system;
+    /* The configuration's reads_query_text_as_xml_1_1 (D275). */
+    bool reads_query_text_as_xml_1_1;
 };
 
 /*
@@ -187,6 +189,9 @@ uint64_t sxml_processor_get_maximum_evaluation_step_count(
    SXML_XPATH_DEFAULT_MAXIMUM_EXPRESSION_DEPTH (src/xpath_static_internal.h). */
 uint32_t sxml_processor_get_maximum_expression_depth(
     const sxml_processor *processor);
+
+/* The configuration's reads_query_text_as_xml_1_1; false for NULL. */
+bool sxml_processor_reads_query_text_as_xml_1_1(const sxml_processor *processor);
 
 /* ------------------------------------------------- Evaluation environment */
 

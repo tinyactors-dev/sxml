@@ -833,6 +833,15 @@ typedef struct sxml_processor_configuration {
        null file system means none. Its state must outlive the processor.
        Ignored when the feature is not named (D200). */
     sxml_file_system file_system;
+    /* The version of XML whose rules XQuery query text is read by (XQuery
+       4.0, xgc: xml-version leaves it to the implementation; glossary
+       query_text_xml_version): false, the default, XML 1.0 and XML Names
+       1.0; true, XML 1.1 and XML Names 1.1: NEL and LINE SEPARATOR are
+       line ends, character references may denote the C0 controls (not
+       U+0000), a direct constructor's xmlns:p="" undeclares p, and
+       a query that declares no output:version is serialized with version
+       1.1 (D195, D237, D275). XPath and XSLT are not affected. */
+    bool reads_query_text_as_xml_1_1;
 } sxml_processor_configuration;
 
 /*

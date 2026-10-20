@@ -1322,6 +1322,14 @@ static sxml_status sxml_qt4_evaluate_main_query(sxml_qt4_test_context *context,
     if (status == SXML_STATUS_OK) {
         answer->serialization_parameters =
             sxml_xquery_query_get_serialization_parameters(query);
+        /* XQuery leaves omit-xml-declaration's default to the
+           implementation (XQuery 4.0, 5.22.1); the driver, as a host, takes
+           no where the query does not declare it (D237, D275), so a
+           declared standalone or version is written. */
+        if (answer->serialization_parameters.omit_xml_declaration ==
+            SXML_SERIALIZATION_FLAG_DEFAULT) {
+            answer->serialization_parameters.omit_xml_declaration = SXML_SERIALIZATION_FLAG_NO;
+        }
         status = sxml_xquery_query_evaluate(
             query,
             &(sxml_xquery_evaluation_request){
@@ -1759,6 +1767,21 @@ static bool sxml_qt4_lists_file_feature(sxml_qt4_dependency_view dependencies) {
     return false;
 }
 
+/* True when the dependencies ask for XML 1.1 alone (xml-version 1.1): the
+   test runs with XQuery text read by XML 1.1's rules (D275). */
+static bool sxml_qt4_lists_xml_version_1_1(sxml_qt4_dependency_view dependencies) {
+    for (size_t dependency_index = 0; dependency_index < dependencies.dependency_count;
+         dependency_index += 1) {
+        const sxml_qt4_dependency *dependency = &dependencies.dependencies[dependency_index];
+        if (dependency->requires_satisfaction &&
+            sxml_byte_view_equals(dependency->dependency_type, SXML_TEXT("xml-version")) &&
+            sxml_byte_view_equals(dependency->value, SXML_TEXT("1.1"))) {
+            return true;
+        }
+    }
+    return false;
+}
+
 /* Runs an applicable test in its own processor and budget. */
 static void sxml_qt4_run_isolated(const sxml_qt4_test_run_request *request,
                                   sxml_qt4_test_answer *answer) {
@@ -1838,7 +1861,10 @@ static void sxml_qt4_run_isolated(const sxml_qt4_test_run_request *request,
             .clock = sxml_system_clock(),
             .optional_features = {.optional_features = features,
                                   .optional_feature_count = feature_count},
-            .file_system = sandpit.file_system},
+            .file_system = sandpit.file_system,
+            .reads_query_text_as_xml_1_1 =
+                sxml_qt4_lists_xml_version_1_1(request->test_case->test_set_dependencies) ||
+                sxml_qt4_lists_xml_version_1_1(request->test_case->dependencies)},
         &context.processor);
     }
     if (status == SXML_STATUS_OK) {

@@ -1712,6 +1712,10 @@ sxml_ast_front_end_get_expression_text(const sxml_ast_front_end *front_end) {
     return front_end->request->expression_text;
 }
 
+bool sxml_ast_front_end_reads_xml_1_1(const sxml_ast_front_end *front_end) {
+    return front_end->request->reads_xml_1_1;
+}
+
 sxml_status sxml_ast_front_end_raise(sxml_ast_front_end *front_end,
                                      sxml_ast_static_error error) {
     front_end->error_code = error.error_code;

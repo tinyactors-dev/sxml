@@ -15,6 +15,7 @@
  */
 #include "xquery_module_internal.h"
 
+#include "processor_internal.h"
 #include "xdm_internal.h"
 #include "xpath_static_internal.h"
 #include "xquery_static_internal.h"
@@ -250,7 +251,9 @@ static sxml_status add_module(const module_loader *loader, const import_request 
                                   .allocator = loader->request->allocator,
                                   .maximum_expression_depth =
                                       loader->request->maximum_expression_depth,
-                                  .error_record = loader->request->error_record},
+                                  .error_record = loader->request->error_record,
+                                  .reads_xml_1_1 = sxml_processor_reads_query_text_as_xml_1_1(
+                                      loader->request->processor)},
         &ast);
     sxml_namespace_uri_identifier namespace_uri = {0};
     if (status == SXML_STATUS_OK && node_of(ast, module_of(ast))->kind == SXML_AST_KIND_LIBRARY_MODULE) {

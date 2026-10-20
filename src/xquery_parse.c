@@ -419,8 +419,13 @@ static bool sxml_xquery_is_whitespace(uint8_t byte) {
     return byte == 0x20U || byte == 0x09U || byte == 0x0DU || byte == 0x0AU;
 }
 
-/* XML 1.0 [2] Char: what a character reference may produce (XQST0090). */
-static bool sxml_xquery_is_xml_character(uint32_t codepoint) {
+/* XML 1.0 [2] Char: what a character reference may produce (XQST0090);
+   with XML 1.1 query text, XML 1.1 [2] Char, which adds the C0 controls
+   but U+0000 (D275). */
+static bool sxml_xquery_is_xml_character(uint32_t codepoint, bool reads_xml_1_1) {
+    if (reads_xml_1_1 && codepoint >= 0x01U && codepoint < 0x20U) {
+        return true;
+    }
     return codepoint == 0x09U || codepoint == 0x0AU || codepoint == 0x0DU ||
            (codepoint >= 0x20U && codepoint <= 0xD7FFU) ||
            (codepoint >= 0xE000U && codepoint <= 0xFFFDU) ||
@@ -791,7 +796,8 @@ sxml_xquery_replace_reference(sxml_xquery_decoder *decoder,
                                     sxml_xquery_syntax_error_description},
             error_offset);
     }
-    if (!sxml_xquery_is_xml_character(reference.codepoint)) {
+    if (!sxml_xquery_is_xml_character(reference.codepoint,
+                                      sxml_ast_front_end_reads_xml_1_1(site.front_end))) {
         return sxml_xquery_raise_at(
             site.front_end,
             (sxml_xquery_error){.code = sxml_xquery_reference_code,
@@ -1574,6 +1580,8 @@ typedef struct sxml_xquery_namespace_binding {
     bool has_prefix;
     sxml_byte_view prefix;
     sxml_xquery_attribute_value value;
+    /* XML 1.1 query text: XML Names 1.1 allows undeclaring a prefix. */
+    bool allows_undeclaration;
 } sxml_xquery_namespace_binding;
 
 static sxml_xquery_error
@@ -1600,9 +1608,10 @@ sxml_xquery_check_binding(sxml_xquery_namespace_binding binding) {
                                  sxml_xquery_xmlns_namespace_uri)) {
         return reserved;
     }
-    /* A prefix bound to "" undeclares it, which needs XML Names 1.1; sxml
-       follows XML 1.0 and XML Names 1.0 (xgc: xml-version). */
-    if (binding.has_prefix &&
+    /* A prefix bound to "" undeclares it, which needs XML Names 1.1: query
+       text read by XML 1.0's rules does not allow it (xgc: xml-version;
+       D195, D275). */
+    if (binding.has_prefix && !binding.allows_undeclaration &&
         sxml_xquery_value_equals(binding.value, sxml_xquery_empty_view())) {
         return (sxml_xquery_error){
             .code = sxml_xquery_undeclared_prefix_code,
@@ -1657,7 +1666,8 @@ sxml_xquery_finish_direct_attribute(sxml_ast_front_end *front_end,
         sxml_xquery_check_binding((sxml_xquery_namespace_binding){
             .has_prefix = has_prefix,
             .prefix = name.local_name,
-            .value = {.ast = ast, .value = value}});
+            .value = {.ast = ast, .value = value},
+            .allows_undeclaration = sxml_ast_front_end_reads_xml_1_1(front_end)});
     if (error.code.byte_count != 0) {
         status = sxml_xquery_raise_at_node(
             front_end,
@@ -1846,8 +1856,69 @@ static const sxml_ast_parser_part sxml_xquery_parser_part = {
     .extension = &sxml_full_text_parser_part,
 };
 
+/* The length of a NEL (U+0085) or LINE SEPARATOR (U+2028) in UTF-8 at
+   byte_index of text; 0 for anything else. */
+static size_t sxml_xquery_xml_1_1_line_end_at(sxml_byte_view text,
+                                              size_t byte_index) {
+    const uint8_t *bytes = text.bytes + byte_index;
+    const size_t left = text.byte_count - byte_index;
+    if (left >= 2U && bytes[0] == 0xC2U && bytes[1] == 0x85U) {
+        return 2U;
+    }
+    if (left >= 3U && bytes[0] == 0xE2U && bytes[1] == 0x80U &&
+        bytes[2] == 0xA8U) {
+        return 3U;
+    }
+    return 0;
+}
+
+/*
+ * Query text read by XML 1.1's rules (glossary query_text_xml_version):
+ * NEL and LINE SEPARATOR are line ends (XML 1.1, 2.11), translated to LF
+ * in a copy of the text before parsing, as the XML parser does for an XML
+ * 1.1 document (D195); CR NEL then reads as CR LF, one line end. Error
+ * locations after a translated character are offsets in the copy.
+ */
 sxml_status sxml_xquery_build_ast(const sxml_ast_build_request *request,
                                   sxml_ast **ast) {
-    return sxml_ast_build_with_parser_part(request, &sxml_xquery_parser_part,
-                                           ast);
+    const sxml_byte_view text = request->expression_text;
+    size_t line_end_count = 0;
+    for (size_t byte_index = 0; request->reads_xml_1_1 && text.bytes != NULL &&
+                                byte_index < text.byte_count;
+         byte_index += 1U) {
+        if (sxml_xquery_xml_1_1_line_end_at(text, byte_index) != 0) {
+            line_end_count += 1U;
+        }
+    }
+    if (line_end_count == 0) {
+        return sxml_ast_build_with_parser_part(request, &sxml_xquery_parser_part,
+                                               ast);
+    }
+    void *memory = NULL;
+    sxml_status status = sxml_allocator_allocate(
+        request->allocator,
+        (sxml_allocation_request){.byte_count = text.byte_count, .alignment = 1},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    uint8_t *copy = memory;
+    size_t copied = 0;
+    for (size_t byte_index = 0; byte_index < text.byte_count;) {
+        const size_t line_end = sxml_xquery_xml_1_1_line_end_at(text, byte_index);
+        if (line_end != 0) {
+            copy[copied] = (uint8_t)'\n';
+            byte_index += line_end;
+        } else {
+            copy[copied] = text.bytes[byte_index];
+            byte_index += 1U;
+        }
+        copied += 1U;
+    }
+    sxml_ast_build_request translated = *request;
+    translated.expression_text = (sxml_byte_view){.bytes = copy, .byte_count = copied};
+    status = sxml_ast_build_with_parser_part(&translated, &sxml_xquery_parser_part,
+                                             ast);
+    sxml_allocator_release(request->allocator, memory);
+    return status;
 }

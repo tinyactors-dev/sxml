@@ -378,7 +378,9 @@ static sxml_status sxml_xquery_compile_query(
                                   .source_name = configuration->source_name,
                                   .allocator = processor->allocator,
                                   .maximum_expression_depth = maximum_expression_depth,
-                                  .error_record = configuration->error_record},
+                                  .error_record = configuration->error_record,
+                                  .reads_xml_1_1 =
+                                      sxml_processor_reads_query_text_as_xml_1_1(processor)},
         &ast);
     if (status != SXML_STATUS_OK) {
         return status;
@@ -709,5 +711,12 @@ sxml_xquery_query_get_serialization_parameters(const sxml_xquery_query *query) {
         defaults.serialization_method = SXML_SERIALIZATION_METHOD_XML;
         return defaults;
     }
-    return query->serialization_parameters;
+    sxml_serialization_parameters parameters = query->serialization_parameters;
+    if (!parameters.has_version &&
+        sxml_processor_reads_query_text_as_xml_1_1(query->processor)) {
+        /* XML 1.1 query text: version 1.1 by default (D275). */
+        parameters.has_version = true;
+        parameters.version = SXML_BYTE_VIEW_FROM_LITERAL("1.1");
+    }
+    return parameters;
 }

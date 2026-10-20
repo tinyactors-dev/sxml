@@ -586,7 +586,8 @@ static sxml_status parse_query(const compilation *compiling, sxml_byte_view quer
             .allocator = compiling->processor->allocator,
             .maximum_expression_depth =
                 sxml_processor_get_maximum_expression_depth(compiling->processor),
-            .error_record = compiling->call->error_record},
+            .error_record = compiling->call->error_record,
+            .reads_xml_1_1 = sxml_processor_reads_query_text_as_xml_1_1(compiling->processor)},
         ast);
 }
 

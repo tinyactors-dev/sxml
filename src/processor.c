@@ -508,7 +508,8 @@ sxml_status sxml_processor_initialize(sxml_memory_view memory,
         .function_namespace_schema = NULL,
         .optional_features =
             sxml_optional_feature_slots_from_view(configuration->optional_features),
-        .file_system = configuration->file_system};
+        .file_system = configuration->file_system,
+        .reads_query_text_as_xml_1_1 = configuration->reads_query_text_as_xml_1_1};
     status = sxml_processor_place_members(new_processor, &layout, memory);
     if (status != SXML_STATUS_OK) {
         return status;
@@ -691,6 +692,10 @@ uint64_t sxml_processor_get_maximum_evaluation_step_count(const sxml_processor *
     return processor->limits.maximum_evaluation_step_count == 0
                ? SXML_EVALUATOR_DEFAULT_MAXIMUM_EVALUATION_STEP_COUNT
                : processor->limits.maximum_evaluation_step_count;
+}
+
+bool sxml_processor_reads_query_text_as_xml_1_1(const sxml_processor *processor) {
+    return processor != NULL && processor->reads_query_text_as_xml_1_1;
 }
 
 uint32_t sxml_processor_get_maximum_expression_depth(const sxml_processor *processor) {

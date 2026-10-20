@@ -333,6 +333,9 @@ SXML_NODISCARD SXML_EXPORT sxml_status sxml_xquery_query_evaluate(
  * include/sxml/serialize.h. Names in cdata-section-elements and
  * suppress-indentation are expanded with the default element namespace
  * rule. Declarations outside the serialization namespace are ignored.
+ * When the processor reads query text by XML 1.1's rules
+ * (reads_query_text_as_xml_1_1) and the query declares no version, the
+ * version is 1.1.
  *
  * Declaring parameters does not serialize: the host decides whether to,
  * and may override any of them (the CLI's --method) by changing fields of

@@ -26,8 +26,9 @@ typedef struct sxml_qt4_supported_dependency {
  * - xml-version 1.0, 1.0:5+ and 1.1: documents are read by XML 1.0 Fifth
  *   Edition or, when they declare version 1.1, by XML 1.1 (D28, D81,
  *   D195); 1.0:4- is not. Query texts follow the XML 1.0 rules (line
- *   ends, character references, namespace undeclaration), so the 1.1
- *   cases that need XQuery's 1.1 mode fail (D195).
+ *   ends, character references, namespace undeclaration), and XML 1.1's
+ *   for a test that depends on xml-version 1.1 alone: test_run.c sets
+ *   the processor's reads_query_text_as_xml_1_1 (D275).
  * - xsd-version 1.1: XSD 1.1 lexical and value spaces (D66).
  * - limits big_integer: xs:integer is unbounded (D36); year_lt_0: years
  *   are int64_t with year 0 as XSD 1.1 has it (D36, D66).

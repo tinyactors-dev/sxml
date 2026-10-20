@@ -545,6 +545,82 @@ static void test_compile_survives_every_allocation_failure(sxml_test_state *stat
     SXML_TEST_EXPECT(state, failing_number > 10);
 }
 
+/* ------------------------------------------------------ XML 1.1 text */
+
+/* Query text read by XML 1.1's rules (reads_query_text_as_xml_1_1, D275),
+   and the same text by XML 1.0's (the default). */
+typedef struct xml_version_case {
+    const char *expression_text;
+    const char *xml_1_1_output;
+    const char *xml_1_0_error_code;
+} xml_version_case;
+
+static const xml_version_case xml_version_cases[] = {
+    /* Character references to C0 controls (XML 1.1, [2] Char). */
+    {"string-to-codepoints('&#1;&#x1F;')", "1 31", "XQST0090"},
+    /* NEL and LINE SEPARATOR are line ends (XML 1.1, 2.11). */
+    {"string-to-codepoints('a\xC2\x85" "b\xE2\x80\xA8" "c\r\xC2\x85" "d')", "97 10 98 10 99 10 100",
+     NULL},
+    /* xmlns:p="" undeclares p (XML Names 1.1). */
+    {"<a xmlns:p='urn:p'><b xmlns:p=''/></a>/b ! in-scope-prefixes(.) => sort()", "xml",
+     "XQST0085"},
+    {"<a xmlns:p='urn:p'><b xmlns:p='' p:c=''/></a>", NULL, "XQST0085"},
+};
+
+static void test_xml_1_1_query_text(sxml_test_state *state) {
+    for (size_t case_index = 0; case_index < SXML_TEST_COUNT(xml_version_cases);
+         case_index += 1) {
+        const xml_version_case *current = &xml_version_cases[case_index];
+        for (int version = 0; version < 2; version += 1) {
+            fixture test_fixture;
+            sxml_status status = fixture_create(0, &test_fixture);
+            const bool reads_xml_1_1 = version == 1;
+            if (status == SXML_STATUS_OK && reads_xml_1_1) {
+                const sxml_allocator allocator = fixture_allocator(&test_fixture);
+                sxml_processor_destroy(test_fixture.processor);
+                test_fixture.processor = NULL;
+                status = sxml_processor_create(
+                    allocator,
+                    &(sxml_processor_configuration){.allocator = allocator,
+                                                    .reads_query_text_as_xml_1_1 = true},
+                    &test_fixture.processor);
+            }
+            query_run run = {.expression_text = {.bytes = (const uint8_t *)current->expression_text,
+                                                 .byte_count = strlen(current->expression_text)}};
+            if (status == SXML_STATUS_OK) {
+                status = run_query(&test_fixture, &run);
+            }
+            bool passed = false;
+            if (reads_xml_1_1 && current->xml_1_1_output != NULL) {
+                passed = status == SXML_STATUS_OK &&
+                         output_is(&test_fixture,
+                                   (sxml_byte_view){
+                                       .bytes = (const uint8_t *)current->xml_1_1_output,
+                                       .byte_count = strlen(current->xml_1_1_output)});
+            } else if (reads_xml_1_1) {
+                /* p is undeclared: p:c has no namespace (XPST0081). */
+                passed = status != SXML_STATUS_OK && error_code_is(&run, TEXT("XPST0081"));
+            } else if (current->xml_1_0_error_code != NULL) {
+                passed = status != SXML_STATUS_OK &&
+                         error_code_is(&run,
+                                       (sxml_byte_view){
+                                           .bytes = (const uint8_t *)current->xml_1_0_error_code,
+                                           .byte_count = strlen(current->xml_1_0_error_code)});
+            } else {
+                /* XML 1.0: NEL and LINE SEPARATOR are characters. */
+                passed = status == SXML_STATUS_OK &&
+                         output_is(&test_fixture, TEXT("97 133 98 8232 99 10 133 100"));
+            }
+            (void)sxml_test_record_check(state, (sxml_test_check){.passed = passed,
+                                                                  .expression =
+                                                                      current->expression_text,
+                                                                  .file_name = __FILE__,
+                                                                  .line_number = __LINE__});
+            SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
+        }
+    }
+}
+
 static const sxml_test_case xquery_test_cases[] = {
     {.name = "queries_round_trip", .function = test_queries_round_trip},
     {.name = "output_declarations_give_serialization_parameters",
@@ -560,6 +636,7 @@ static const sxml_test_case xquery_test_cases[] = {
      .function = test_query_lifecycle_checks_its_arguments},
     {.name = "compile_survives_every_allocation_failure",
      .function = test_compile_survives_every_allocation_failure},
+    {.name = "xml_1_1_query_text", .function = test_xml_1_1_query_text},
 };
 
 int main(int argument_count, char **arguments) {

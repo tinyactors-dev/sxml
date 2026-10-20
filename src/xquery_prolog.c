@@ -63,6 +63,7 @@
 #include "evaluator_machine_internal.h"
 #include "full_text_internal.h"
 #include "ir_pass_internal.h"
+#include "processor_internal.h"
 #include "sxml/memory.h"
 #include "xpath_lower_internal.h"
 #include "xquery_load_module_internal.h"
@@ -1982,7 +1983,9 @@ sxml_status sxml_xquery_compile(const sxml_xpath_compile_request *request, sxml_
                                   .source_name = request->source_name,
                                   .allocator = request->static_context->allocator,
                                   .maximum_expression_depth = request->maximum_expression_depth,
-                                  .error_record = request->error_record},
+                                  .error_record = request->error_record,
+                                  .reads_xml_1_1 = sxml_processor_reads_query_text_as_xml_1_1(
+                                      request->static_context->processor)},
         &ast);
     if (status != SXML_STATUS_OK) {
         return status;

@@ -508,6 +508,7 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `binary_value` | An `xs:hexBinary` or `xs:base64Binary` item, a sequence of octets; the EXPath Binary functions accept both and return `xs:base64Binary` (EXPath Binary 4.0, 1.2) |
 | `line_end_normalization` | Turning CR LF and lone CR into LF in all text of a document (XML 1.0, section 2.11); in XML 1.1 also NEL, CR NEL and LINE SEPARATOR (XML 1.1, section 2.11) |
 | `xml_version` | The version of XML a document follows, 1.0 or 1.1, read from its XML declaration (`sxml_xml_version`; XML 1.1, section 4.3.4); it decides the characters allowed, the line ends and whether prefixes may be undeclared |
+| `query_text_xml_version` | The version of XML whose rules XQuery query text is read by, a processor option (`reads_query_text_as_xml_1_1`): XML 1.0 by default, or XML 1.1 for line ends, character references and namespace undeclaration in direct constructors (XQuery 4.0, xgc: xml-version; D275) |
 | `restricted_character` | A C0 or C1 control (other than tab, LF, CR and NEL) that an XML 1.1 document may contain only as a character reference (XML 1.1, [2a] RestrictedChar) |
 | `general_entity` | An entity referenced as `&name;` (XML 1.0, section 4): internal (with replacement text), external parsed, or unparsed |
 | `parameter_entity` | An entity referenced as `%name;` inside the DTD (XML 1.0, section 4) |

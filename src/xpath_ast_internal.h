@@ -1588,6 +1588,10 @@ typedef struct sxml_ast_build_request {
     /* Receives XPST0003 with the location of the first ERROR or MISSING
        node or failed check; may be NULL. */
     sxml_error_record *error_record;
+    /* XQuery text read by XML 1.1's rules (glossary
+       query_text_xml_version; D275); parser parts read it through
+       sxml_ast_front_end_reads_xml_1_1. */
+    bool reads_xml_1_1;
 } sxml_ast_build_request;
 
 /*
@@ -1808,6 +1812,9 @@ sxml_ast *sxml_ast_front_end_get_ast(sxml_ast_front_end *front_end);
 /* The request's expression text, for hooks (spans are offsets into it). */
 sxml_byte_view
 sxml_ast_front_end_get_expression_text(const sxml_ast_front_end *front_end);
+
+/* The request's reads_xml_1_1, for hooks. */
+bool sxml_ast_front_end_reads_xml_1_1(const sxml_ast_front_end *front_end);
 
 /* A static error a hook raises. */
 typedef struct sxml_ast_static_error {
