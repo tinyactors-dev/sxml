@@ -1994,6 +1994,9 @@ static sxml_status make_static_contexts(context_source source, lowering_storage 
            static namespaces, without XPath's other predeclared prefixes
            (D261). */
         storage->static_contexts[context_index].omits_predeclared_namespaces = true;
+        /* 5.1.2.1: xpath-default-namespace="##any" (as XPath 4.0, 2.2.1). */
+        storage->static_contexts[context_index].has_any_default_element_namespace =
+            context->is_any_namespace;
     }
     lowering->static_contexts = storage->static_contexts;
     lowering->static_context_count = context_count;

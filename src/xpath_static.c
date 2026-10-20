@@ -264,9 +264,18 @@ typedef struct default_namespace_lookup {
     const sxml_xpath_static_context *static_context;
 } default_namespace_lookup;
 
-static sxml_status look_up_default_element_namespace(
-    default_namespace_lookup lookup, sxml_namespace_uri_identifier *uri) {
+/* The default element namespace: its URI, or "##any" (no namespace; XPath
+   4.0, 2.2.1: unprefixed element names match any namespace). */
+typedef struct default_element_namespace {
+    sxml_namespace_uri_identifier namespace_uri;
+    bool is_any_namespace;
+} default_element_namespace;
+
+static sxml_status look_up_default_element_namespace(default_namespace_lookup lookup,
+                                                     default_element_namespace *found) {
     const sxml_ast *ast = lookup.ast;
+    sxml_namespace_uri_identifier *uri = &found->namespace_uri;
+    found->is_any_namespace = false;
     for (sxml_ast_node_index declaration = sxml_ast_find_child(
              ast, (sxml_ast_child_query){.parent = ast->root,
                                          .field = SXML_AST_FIELD_DECLARATION});
@@ -279,12 +288,19 @@ static sxml_status look_up_default_element_namespace(
         const sxml_ast_node_index uri_node = sxml_ast_find_child(
             ast, (sxml_ast_child_query){.parent = declaration,
                                         .field = SXML_AST_FIELD_URI});
+        const sxml_byte_view text =
+            sxml_ast_get_text(ast, sxml_ast_get_node(ast, uri_node)->payload.text);
+        if (sxml_byte_view_equals(sxml_xml_text_trim_whitespace(text),
+                                  SXML_BYTE_VIEW_FROM_LITERAL("##any"))) {
+            /* XPath 4.0, 2.2.1 (as XQuery 4.0, 5.14.1): "##any". */
+            *uri = (sxml_namespace_uri_identifier){.index = SXML_NAMESPACE_NONE};
+            found->is_any_namespace = true;
+            return SXML_STATUS_OK;
+        }
         return intern_uri_text(
-            (uri_text){.text = sxml_ast_get_text(
-                           ast, sxml_ast_get_node(ast, uri_node)->payload.text),
-                       .static_context = lookup.static_context},
-            uri);
+            (uri_text){.text = text, .static_context = lookup.static_context}, uri);
     }
+    found->is_any_namespace = lookup.static_context->has_any_default_element_namespace;
     const sxml_namespace_binding_view bindings =
         lookup.static_context->namespace_bindings;
     for (size_t binding_index = 0;
@@ -355,13 +371,16 @@ sxml_status sxml_xpath_resolve_name(const sxml_xpath_name_request *request,
         uri = binding.namespace_uri;
     } else {
         switch (request->name_role) {
-        case SXML_XPATH_NAME_ROLE_ELEMENT_OR_TYPE:
+        case SXML_XPATH_NAME_ROLE_ELEMENT_OR_TYPE: {
+            default_element_namespace found = {.namespace_uri = {0}, .is_any_namespace = false};
             status = look_up_default_element_namespace(
                 (default_namespace_lookup){
                     .ast = ast, .static_context = request->static_context},
-                &uri);
-            is_any_namespace = request->static_context->has_any_default_element_namespace;
+                &found);
+            uri = found.namespace_uri;
+            is_any_namespace = found.is_any_namespace;
             break;
+        }
         case SXML_XPATH_NAME_ROLE_FUNCTION:
             switch (request->static_context->function_namespace_rule) {
             case SXML_XPATH_FUNCTION_NAMESPACE_RULE_STANDARD:
@@ -813,9 +832,19 @@ static sxml_status resolve_name_test(const type_resolver *resolver,
                                      name_test_request request,
                                      sxml_name_test *name_test) {
     const sxml_ast_node *node = sxml_ast_get_node(resolver->ast, request.node);
-    if (is_name_kind(node->kind) && request.name_role == SXML_XPATH_NAME_ROLE_ELEMENT_OR_TYPE &&
-        resolver->static_context->has_any_default_element_namespace &&
+    default_element_namespace default_namespace = {.namespace_uri = {0},
+                                                   .is_any_namespace = false};
+    if (request.name_role == SXML_XPATH_NAME_ROLE_ELEMENT_OR_TYPE &&
         node->kind == SXML_AST_KIND_NCNAME) {
+        const sxml_status status = look_up_default_element_namespace(
+            (default_namespace_lookup){.ast = resolver->ast,
+                                       .static_context = resolver->static_context},
+            &default_namespace);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+    }
+    if (default_namespace.is_any_namespace) {
         /* "##any": the element name matching rule reads local as *:local
            (XPath 4.0, 2.2.1). */
         *name_test = (sxml_name_test){
