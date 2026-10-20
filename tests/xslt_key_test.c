@@ -308,6 +308,27 @@ static void test_keys(sxml_test_state *state) {
                     "<xsl:sequence select='string(@n)'/></xsl:template>"
                     "<xsl:template match='city'/>"),
          "\"2.0\" \"4\" \"5\""},
+        /* A pattern that matches namespace nodes (6.3): each element has
+           the xml namespace node. */
+        {STYLESHEET("<xsl:key name='ns' match='namespace-node()' use='name()'/>"
+                    "<xsl:template match='/'>"
+                    "<xsl:sequence select='count(key(\"ns\", \"xml\")) eq count(//*), "
+                    "key(\"ns\", \"xml\")[1]/../name()'/>"
+                    "</xsl:template>"),
+         "true() \"doc\""},
+        /* Declarations of one name that differ in collation or composite. */
+        {STYLESHEET("<xsl:key name='d' match='city' use='@n'/>"
+                    "<xsl:key name='d' match='region' use='@n' "
+                    "collation='http://www.w3.org/2005/xpath-functions/collation/"
+                    "html-ascii-case-insensitive'/>"
+                    "<xsl:template match='/'><xsl:sequence select='key(\"d\", 1)'/>"
+                    "</xsl:template>"),
+         "error:XTSE1220"},
+        {STYLESHEET("<xsl:key name='d' match='city' use='@n'/>"
+                    "<xsl:key name='d' match='region' use='@n' composite='yes'/>"
+                    "<xsl:template match='/'><xsl:sequence select='key(\"d\", 1)'/>"
+                    "</xsl:template>"),
+         "error:XTSE1222"},
         /* Errors: an undeclared key name; use and content. */
         {STYLESHEET("<xsl:template match='/'><xsl:sequence select='key(\"none\", 1)'/>"
                     "</xsl:template>"),

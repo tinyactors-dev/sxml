@@ -12,7 +12,8 @@
  * declarations d1, d2, the build function of k is
  *
  *     map:build(($root/descendant-or-self::node()
- *                | $root/descendant-or-self::*\/@*),
+ *                | $root/descendant-or-self::*\/@*
+ *                [| $root/descendant-or-self::*\/namespace::*]),
  *               fn($node) {
  *                 (if (match-1($node))
  *                  then key-normalize(use-1($node), "collation", false())
@@ -23,7 +24,8 @@
  * where match-N is the match function of dN's pattern (D118) inside a
  * TRY_CATCH that makes every error false (6.5), and use-N the use
  * attribute or sequence constructor of dN with the node as its fixed
- * focus. fn:key#3 is
+ * focus; the bracketed part only when a pattern of k may match namespace
+ * nodes. fn:key#3 is
  *
  *     let $name := key-name($key-name), $root := root($top)
  *     return (if ($name eq QName("u", "k"))
@@ -239,6 +241,9 @@ typedef struct key_definition {
        its declarations has XSLT 1.0 behaviour and composite is no, so
        key values are compared as strings. */
     bool is_backwards_compatible;
+    /* The match pattern of a declaration may match namespace nodes
+       (pattern_may_match_namespace_nodes), so build-K visits them too. */
+    bool may_match_namespace_nodes;
     /* The private function build-K. */
     table_function build;
 } key_definition;
@@ -597,8 +602,34 @@ static bool is_composite(const sxml_xslt_lowering *lowering, sxml_xslt_ast_node_
            composite->value.payload.is_true;
 }
 
-/* The key of name, added when new (20.2.1: XTSE1222 when declarations of
-   one name differ in collation or composite). */
+/* Whether the match pattern of the xsl:key at node may match namespace
+   nodes (20.2.1 allows any pattern; 6.3: only a step on the namespace
+   axis, or one whose test is namespace-node() and so on the
+   namespace-or-top axis, selects them). A namespace-node() test anywhere
+   in the pattern counts, which may include a predicate's: the key then
+   only visits more nodes. */
+static bool pattern_may_match_namespace_nodes(const sxml_xslt_lowering *lowering,
+                                              sxml_xslt_ast_node_index node) {
+    const sxml_xslt_ast_attribute *match =
+        find_attribute(lowering, node, SXML_XSLT_AST_ATTRIBUTE_MATCH);
+    if (match->value.kind != SXML_XSLT_AST_VALUE_KIND_PATTERN) {
+        return false;
+    }
+    const sxml_ast *ast =
+        sxml_xslt_ast_get_expression(lowering->ast, match->value.payload.expression)->ast;
+    for (uint32_t node_index = 1; ast != NULL && node_index < ast->node_count; node_index += 1) {
+        const sxml_ast_node *pattern_node = &ast->nodes[node_index];
+        if (pattern_node->kind == SXML_AST_KIND_NAMESPACE_NODE_TYPE ||
+            (pattern_node->kind == SXML_AST_KIND_AXIS_STEP_PATTERN &&
+             pattern_node->detail.axis == SXML_AST_AXIS_NAMESPACE)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/* The key of name, added when new (20.2.1: XTSE1220 or XTSE1222 when
+   declarations of one name differ in collation or composite). */
 static sxml_status add_key_declaration(sxml_xslt_function_table *table,
                                        sxml_xslt_ast_node_index node) {
     const sxml_xslt_lowering *lowering = table->lowering;
@@ -647,16 +678,23 @@ static sxml_status add_key_declaration(sxml_xslt_function_table *table,
                                        .has_short_signature = false},
                 &key->build);
         }
-    } else if (!sxml_byte_view_equals(table->keys[key_index].collation, collation) ||
-               table->keys[key_index].is_composite != composite) {
+    } else if (!sxml_byte_view_equals(table->keys[key_index].collation, collation)) {
+        return report_static_error(
+            lowering, node,
+            SXML_BYTE_VIEW_FROM_LITERAL("XTSE1220 xsl:key declarations of one name differ in "
+                                        "their collation (20.2.1)"));
+    } else if (table->keys[key_index].is_composite != composite) {
         return report_static_error(
             lowering, node,
             SXML_BYTE_VIEW_FROM_LITERAL("XTSE1222 xsl:key declarations of one name differ in "
-                                        "their collation or composite attribute (20.2.1)"));
+                                        "their composite attribute (20.2.1)"));
     }
     if (status == SXML_STATUS_OK && !composite &&
         sxml_xslt_lowering_has_xslt_1_behaviour(lowering, node)) {
         table->keys[key_index].is_backwards_compatible = true;
+    }
+    if (status == SXML_STATUS_OK && pattern_may_match_namespace_nodes(lowering, node)) {
+        table->keys[key_index].may_match_namespace_nodes = true;
     }
     const size_t declaration_number = table->declaration_count + 1;
     key_declaration *declaration = &table->declarations[table->declaration_count];
@@ -1276,10 +1314,13 @@ static void append_compatible_strings(sxml_xslt_snippet_text *text, const key_de
 static void write_build_text(const sxml_xslt_function_table *table, size_t key_index,
                              sxml_xslt_snippet_text *text) {
     const key_definition *key = &table->keys[key_index];
-    SXML_XSLT_SNIPPET_APPEND(text,
-                             "Q{http://www.w3.org/2005/xpath-functions/map}build("
-                             "($root/descendant-or-self::node() | $root/descendant-or-self::*/@*), "
-                             "fn($node) { ()");
+    SXML_XSLT_SNIPPET_APPEND(text, "Q{http://www.w3.org/2005/xpath-functions/map}build("
+                                   "($root/descendant-or-self::node() | "
+                                   "$root/descendant-or-self::*/@*");
+    if (key->may_match_namespace_nodes) {
+        SXML_XSLT_SNIPPET_APPEND(text, " | $root/descendant-or-self::*/namespace::*");
+    }
+    SXML_XSLT_SNIPPET_APPEND(text, "), fn($node) { ()");
     for (size_t declaration_index = 0; declaration_index < table->declaration_count;
          declaration_index += 1) {
         if (table->declarations[declaration_index].key_index != key_index) {
