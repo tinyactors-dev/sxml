@@ -762,11 +762,16 @@ typedef struct sxml_ir_sort {
 /* STEP: node_test is a registered item type: a node test for the
    principal node kind of the axis (element, attribute or namespace) with
    the step's name test, node() for a kind test of any node, or a JNode
-   test (XPath 4.0, section 4.6.5). */
+   test (XPath 4.0, section 4.6.5). has_qualified_name_test: the name
+   test was written as a prefixed QName or a URIQualifiedName, not as an
+   NCName; on JNodes an NCName selects string keys and any other name
+   xs:QName keys (section 4.7.5.4), which the registered test, a name
+   alone, does not tell apart (Q{}a and a). */
 typedef struct sxml_ir_step {
     sxml_ir_atom origin;
     sxml_axis axis;
     sxml_type_identifier node_test;
+    bool has_qualified_name_test;
 } sxml_ir_step;
 
 /* DOCUMENT_ORDER. */

@@ -4215,6 +4215,8 @@ typedef struct step_request {
     sxml_ir_atom origin;
     sxml_axis axis;
     sxml_type_identifier node_test;
+    /* sxml_ir_step.has_qualified_name_test. */
+    bool has_qualified_name_test;
 } step_request;
 
 static sxml_status add_step(sxml_xpath_lowerer *state, step_request request,
@@ -4226,7 +4228,9 @@ static sxml_status add_step(sxml_xpath_lowerer *state, step_request request,
             .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_STEP,
                            .step = {.origin = request.origin,
                                     .axis = request.axis,
-                                    .node_test = request.node_test}}},
+                                    .node_test = request.node_test,
+                                    .has_qualified_name_test =
+                                        request.has_qualified_name_test}}},
         expression);
 }
 
@@ -5602,7 +5606,9 @@ static sxml_status add_item_axis_step(sxml_xpath_lowerer *state, step_request re
                                          .node = request.node,
                                          .origin = origin_atom,
                                          .axis = SXML_AXIS_CHILD,
-                                         .node_test = request.node_test},
+                                         .node_test = request.node_test,
+                                         .has_qualified_name_test =
+                                             request.has_qualified_name_test},
                           &children);
     }
     /* Not a sequence: empty, or the one item as a JNode. */
@@ -5654,7 +5660,9 @@ static sxml_status add_item_axis_step(sxml_xpath_lowerer *state, step_request re
                                          .node = request.node,
                                          .origin = item_node,
                                          .axis = SXML_AXIS_SELF,
-                                         .node_test = request.node_test},
+                                         .node_test = request.node_test,
+                                         .has_qualified_name_test =
+                                             request.has_qualified_name_test},
                           &single);
     }
     if (status == SXML_STATUS_OK) {
@@ -5944,11 +5952,18 @@ static sxml_status add_axis_step_expression(sxml_xpath_lowerer *state,
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    const step_request request = {.block = frame->block,
-                                  .node = frame->node,
-                                  .origin = origin,
-                                  .axis = locals->axis,
-                                  .node_test = node_test};
+    /* An NCName and Q{}N name the same node test; on JNodes they differ
+       (XPath 4.0, section 4.7.5.4). */
+    const sxml_ast_kind test_kind =
+        node_of(state, child_of(state, frame->node, SXML_AST_FIELD_TEST))->kind;
+    const step_request request = {
+        .block = frame->block,
+        .node = frame->node,
+        .origin = origin,
+        .axis = locals->axis,
+        .node_test = node_test,
+        .has_qualified_name_test = test_kind == SXML_AST_KIND_PREFIXED_NAME ||
+                                   test_kind == SXML_AST_KIND_URI_QUALIFIED_NAME};
     return locals->is_item_axis
                ? add_item_axis_step(state, request, &locals->result)
                : add_step(state, request, &locals->result);

@@ -2223,6 +2223,7 @@ static sxml_status shorten_descendant_path(loop_pass *pass, const slot_census *c
     sxml_ir_expression descendant_step = self_step;
     descendant_step.step.axis = SXML_AXIS_DESCENDANT;
     descendant_step.step.node_test = child_step.step.node_test;
+    descendant_step.step.has_qualified_name_test = child_step.step.has_qualified_name_test;
     status = sxml_ir_unit_replace_expression(
         pass->unit,
         &(sxml_ir_expression_replacement){.index = self_step_index, .expression = descendant_step});

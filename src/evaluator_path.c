@@ -420,6 +420,8 @@ typedef struct sxml_step_test {
     /* SXML_TYPE_NODE (xnode()) matches no JNode. */
     bool matches_json_nodes;
     sxml_node_test node_test;
+    /* sxml_step_request.has_qualified_name_test. */
+    bool has_qualified_name_test;
     sxml_type_identifier type;
 } sxml_step_test;
 
@@ -523,19 +525,20 @@ static sxml_status sxml_json_key_equals_text(sxml_item json_key,
     return status;
 }
 
-/* A JNode and the name test of a step's element test. */
+/* A JNode and the name test of a step's element test, and whether the
+   test was written as a qualified name (sxml_ir_step). */
 typedef struct sxml_json_name_question {
     sxml_item json_node;
     const sxml_name_test *name_test;
+    bool has_qualified_name_test;
 } sxml_json_name_question;
 
 /*
  * Whether a JNode's ·jkey· matches a name test (XPath 4.0, section
- * 4.7.5.4): * matches every JNode; an NCName (a name in no namespace) a
- * string, xs:anyURI or xs:untypedAtomic key equal to it; any other name or
- * wildcard an xs:QName key, by the rules of XNode name tests. The IR does
- * not keep the difference between NCName a and EQName Q{}a, so Q{}a is
- * read as the NCName.
+ * 4.7.5.4): * matches every JNode; an NCName a string, xs:anyURI or
+ * xs:untypedAtomic key equal to it (its local name: a default element
+ * namespace does not apply to keys); any other name or wildcard, Q{}a and
+ * p:a among them, an xs:QName key, by the rules of XNode name tests.
  */
 static sxml_status sxml_json_key_matches_name_test(const sxml_item_heap *item_heap,
                                                    sxml_json_name_question question,
@@ -552,16 +555,15 @@ static sxml_status sxml_json_key_matches_name_test(const sxml_item_heap *item_he
         !sxml_item_is_atomic(description.json_key)) {
         return status;
     }
-    if (name_test->name_test_kind == SXML_NAME_TEST_KIND_EXPANDED_NAME) {
+    if (name_test->name_test_kind == SXML_NAME_TEST_KIND_EXPANDED_NAME &&
+        !question.has_qualified_name_test) {
         sxml_name_parts parts;
         status = sxml_name_pool_get_name_parts(sxml_item_heap_get_name_pool(item_heap),
                                                name_test->expanded_name, &parts);
         if (status != SXML_STATUS_OK) {
             return status;
         }
-        if (parts.namespace_uri.index == SXML_NAMESPACE_NONE) {
-            return sxml_json_key_equals_text(description.json_key, parts.local_name, match);
-        }
+        return sxml_json_key_equals_text(description.json_key, parts.local_name, match);
     }
     if (sxml_atomic_item_get_primitive_type(description.json_key).index != SXML_TYPE_XS_QNAME) {
         return SXML_STATUS_OK;
@@ -592,8 +594,10 @@ static sxml_status sxml_step_output_take_json_node(
         if (node_test->node_kind == SXML_NODE_KIND_ELEMENT) {
             status = sxml_json_key_matches_name_test(
                 output->dynamic_context->item_heap,
-                (sxml_json_name_question){.json_node = json_node,
-                                          .name_test = &node_test->name_test},
+                (sxml_json_name_question){
+                    .json_node = json_node,
+                    .name_test = &node_test->name_test,
+                    .has_qualified_name_test = test->has_qualified_name_test},
                 &match);
         } else {
             match.is_match = node_test->node_kind == SXML_NODE_KIND_ANY;
@@ -1059,6 +1063,7 @@ sxml_status sxml_evaluator_make_step_value(sxml_dynamic_context *dynamic_context
     if (status != SXML_STATUS_OK) {
         return status;
     }
+    test.has_qualified_name_test = request->has_qualified_name_test;
     sxml_item_list list = sxml_item_list_start(dynamic_context->allocator);
     const sxml_step_output output = {.dynamic_context = dynamic_context,
                                      .test = &test,

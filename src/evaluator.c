@@ -3673,6 +3673,7 @@ static sxml_status sxml_map_step_at_once(sxml_dynamic_context *context,
             &(sxml_step_request){.origin = input,
                                  .axis = step->axis,
                                  .node_test = step->node_test,
+                                 .has_qualified_name_test = step->has_qualified_name_test,
                                  .error_record = context->error_record,
                                  .maximum_node_count = body->item_demand},
             &value);
@@ -5426,6 +5427,8 @@ static sxml_status sxml_make_leaf_value(sxml_dynamic_context *context,
                 &(sxml_step_request){.origin = value,
                                      .axis = expression->step.axis,
                                      .node_test = expression->step.node_test,
+                                     .has_qualified_name_test =
+                                         expression->step.has_qualified_name_test,
                                      .error_record = context->error_record},
                 result);
         }

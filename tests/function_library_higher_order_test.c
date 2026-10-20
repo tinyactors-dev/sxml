@@ -1602,6 +1602,10 @@ static void test_json_node_accessors_and_selectors(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, evaluates_to("{ #Q{u}a: 1, #Q{v}a: 2, #Q{u}b: 3 }/*:a "
                                          "=!> jvalue()",
                                          "1 2"));  /* JAxes-294 */
+    SXML_TEST_EXPECT(state, evaluates_to("{ #a: 1, 'a': 2 }/Q{}a =!> jvalue(), "
+                                         "{ #a: 1, 'a': 2 }/a =!> jvalue(), "
+                                         "count({ 'a': 1 }//Q{}a)",
+                                         "1 2 0"));  /* JAxes-292, PathExpr-J-157 */
     SXML_TEST_EXPECT(state, fails_with("{'a': 1}/count(.)", "XPDY0002"));
     SXML_TEST_EXPECT(state, fails_with("[1]/jvalue()", "XPDY0002"));
     SXML_TEST_EXPECT(state, evaluates_to("({ 'a': { 'b': 1 } }/a)?b, "
