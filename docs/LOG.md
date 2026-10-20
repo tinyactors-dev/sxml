@@ -4,6 +4,26 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 7.19 done (D237): the Phase 7 review and gate. Whole release runs at
+  9c5b1ba, 0 error outcomes: XP40 32,689 (99.5 %), XQ40 45,969 (99.5 %),
+  XT40 12,075 (94.8 %, core sets 88.5 % to 100 %), XSD in scope 41,486
+  of 41,518; schema-aware XQ40 92.2 %, XT40 95.6 %; CONFORMANCE.md
+  regenerated. Every packet meets its gate but 7.11's "all 12 XT40
+  transform cases" (9; 7.4's QT4 part as D208 reads it). Sizes under
+  budget: core 2,090,746, full 7,637,162, CLI 9,231,791. Fixed: an
+  undefined pointer offset on empty input in `src/xml_input.c` (fuzzing);
+  the iXML suite's 4 errors (inputs no xs:string holds, now not run);
+  EXPath File's four-parameter functions and clang-tidy findings; Full
+  Text's copy of `sxml_xml_buffer`; citations of D192 and D222. Added
+  `ixml_fuzz` and `full_text_fuzz`, seeds for them and html_parse_fuzz.
+  Proposed resolved: XQuery's XML version, the Phase 7 and budget items
+  (D184, D189, D202, D207, D208), omit-xml-declaration (a design, D208).
+  Not done: 7.11's three cases; the larger duplicates of D237 (three
+  text decoders, Full Text's own resource reading, private growable
+  arrays); fuzzing at length and the full lint on the owner's machine
+  (D181). For the owner (D208): the license, tagging and publishing
+  releases, and the npm package name.
+
 - 7.6g done (D236): the last streaming items. xsl:merge with streamed
   sources is the IR kind MERGE: one cursor per anchor document, keyed
   k-way stepping through the grounded merge's own sort and grouping,

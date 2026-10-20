@@ -10695,87 +10695,133 @@ driver, compared case by case.
   merge actions reading fn:last; capture-206 fails as before (an
   unstreamed difference); merge-097's collection URI (D234).
 
+### D237. Phase 7 gate review (packet 7.19)
+Recorded 2026-10-20 by the review agent (D11), after D161, D169, D181,
+D182 and the Phase 7 records D183 to D236. The four suites were run
+whole in release (tools/run-qt4.sh XP40 and XQ40, run-xslt.sh,
+run-xsd.sh; every test set finished, 0 error outcomes) at 6f79d8d and
+again at 9c5b1ba after the review's code changes, with the same numbers;
+`docs/CONFORMANCE.md` is regenerated from the second run. The gate boxes
+and a table of every Phase 7 packet against its gate are in
+`docs/tasks/phase-7.md`. Fuzzing beyond two minutes a target and the
+full lint of every preset are left to the owner's machine (D181).
+- **Numbers** (release, 9c5b1ba): XP40 32,689 passed, gate rate 99.5 %
+  (gate 90 %); XQ40 45,969, 99.5 % (85 %); XT40 12,075, 94.8 % (70 %),
+  the 12 core sets 88.5 % (mode) to 100 % (80 % each); XSD in scope
+  41,486 of 41,518, 99.9 % (90 %), datatypes 100 % (95 %), structures
+  99.7 % (80 %), XSD 1.1 99.7 % (70 %); schema-aware XQ40 1,397 of 1,516,
+  92.2 % (70 %), XT40 928 of 971, 95.6 % (60 %). None lower than at the
+  Phase 5 gate (D182). Slices 198/198, XSLT 149/154, XSD 147/147.
+  xmlconf: XML 1.0 valid 601, invalid 175, not-wf 948, external
+  entities 127 / 54 / 66, XML 1.1 84 / 13 / 169, all pass, DTD
+  validation of the invalid cases 173 + 54. html5lib 1,749 of 1,753 /
+  7,045 / 82. Sizes: `sxml.wasm` 2,090,746 / 730,902, `sxml-full.wasm`
+  7,637,162 / 1,690,683, the CLI module 9,231,791 / 1,973,839, all under
+  D235's budgets; the D225 guard reports +1,978 bytes over its baseline
+  (ir_verify, ir, ir_global_read: 4.21's GLOBAL_READ), a lean core. A
+  streamed sum over 1,000,000 orders (74.7 MB) peaks at 11.0 MB
+  resident (7.6's 64 MB). Benchmarks: xmark-all 1.10 s, itunes 2.29 s.
+- **Per-packet gates**: met by every packet but two. 7.11's "all 12 XT40
+  transform cases" is not met (9 pass; transform-004, a static
+  fn:transform, transform-401, a ~record pattern; transform-009 not run,
+  an assertion the driver does not check). 7.4's "all 5 QT4 cases" is
+  met as D208 reads it: the 4 that fail expect fn:number conversion of
+  xs:numeric parameters, which XPath 4.0, 3.4.1 gives only to
+  xs:double. 7.3 (evaluate 77 of 83, 92.8 %) and 7.13 (xmlconf 1.1 271 of
+  271) now meet the gates they had not met when they were done.
+- **Fixed**:
+  - Fuzzing (the fuzz preset's smoke runs, then two minutes each of
+    html_parse_fuzz, ixml_fuzz, dtd_fuzz, full_text_fuzz and
+    xml_parse_fuzz): `src/xml_input.c` (7.6f) added an offset to the
+    null bytes pointer of an empty input, undefined (C17 6.5.6p8), so
+    four targets stopped on their first input; no other finding.
+  - The iXML suite's 4 error outcomes: inputs with C0 controls, which no
+    xs:string holds (XML 1.0, 2.2), so fn:invisible-xml cannot be given
+    them. The driver reads the file's bytes and reports the case not run
+    with that reason (D178: the cause is outside the processor, and a
+    decoding fault of sxml still shows as an error). Suite 886 of 907,
+    0 errors, 21 not run.
+  - docs/C_GUIDELINES.md on a sample of the new files (html, ixml,
+    full_text, cldr, collation, timezone, dtd, evaluator_stream,
+    xml_input, the EXPath libraries, xquery_update): no abbreviated or
+    single-letter names; three functions of `src/function_library_file.c`
+    had four parameters (now request structs) and the file had four
+    clang-tidy findings (two analyzer null dereferences behind
+    require_file_system, a short loop variable), now clean.
+  - Conceptual smallness: Full Text's `sxml_full_text_bytes` and its two
+    append functions were a copy of `sxml_xml_buffer`; Full Text uses
+    the buffer.
+  - Record numbers: every D-number is unique (D186, D192 to D194 and
+    D204 are unused, left by renumbering). Code citing D192 (HTML, now
+    D201) and D222 for 7.6c's lowering override, mode query and
+    streamed attribute paths (now D223) is corrected; every other
+    citation names an existing record of the matching packet.
+- **Added**: the fuzz targets `ixml_fuzz` (a grammar text and an input
+  through fn:invisible-xml) and `full_text_fuzz` (a selection over a text
+  and stop word list through XQuery), with seeds from the iXML suite, the
+  QT4 ft- sets and html5lib (html_parse_fuzz had none); tools/fuzz.sh
+  runs the dtd, html, ixml and full-text targets by default. The XQuery
+  run and the heap leak check are shared in the fuzz fixture.
+- **D71**: tools/check-call-cycles.py finds no cycle (229 files, empty
+  allowlist). Through function pointers: features are reached only
+  through their operations tables and call neither each other nor their
+  caller; the Earley parser charges steps through a meter that only
+  counts; the RBNF interpreter (`src/spell_out.c`) and the Snowball
+  interpreter (`src/full_text_stem.c`) keep their substitutions and
+  routine returns on explicit stacks; the parse tree, the HTML working
+  tree and update application are walked by links or explicit stacks;
+  STREAM and MERGE are resumable tasks of the evaluator, the parser's
+  events are queued (NOTIFY) or copied into window builders (tees,
+  CAPTURE) and never evaluate; fn:transform and xsl:evaluate ask the
+  machine for a unit evaluation, no nested run.
+- **D162**: each still-delayed feature has one place: staticTyping
+  (the drivers' non-goal), XInclude (FODC0013 in
+  `src/function_library_json.c`), DTD validation without its feature
+  (FODC0013 in `src/processor.c`), schema location hints and remote HTTP
+  (the resolver serves nothing), xsl-stylesheet-processing-instruction
+  and HTML4 output (the XSLT driver's non-goals), merge sources with
+  validation, type, accumulators or predicates (grounded, D236),
+  XSLT's own Full Text (grammars/xpath, XPST0003), the CLI's Windows
+  file system (no platform file). The places the Phase 7 packets
+  replaced are gone (XTDE0160, XTDE3175, XUST0026, the absent functions);
+  the supports-* properties name the features.
+- **D189/D208**: the core links no feature definition; the guard's
+  growth is the IR's. XQuery, XSLT and the features stay out of
+  `sxml.wasm`.
+- **Larger duplicates, listed** (D182's list stands): three UTF-8 and
+  UTF-16 decoders with different error rules (`src/xml_encoding.c`
+  fails, `src/text_decoding.c` for fn:unparsed-text and the EXPath
+  libraries fails with its own newline rule, `src/html_encoding.c`
+  replaces, as WHATWG asks); Full Text's stop word and thesaurus
+  reading calls the resolver itself (`src/full_text_resource.c`, for the
+  document-node form) beside `sxml_optional_feature_read_data` and the
+  document loader; private growable arrays in
+  `src/collation_tailoring.c`, `src/function_library_element_map.c`,
+  `src/cldr.c` and `src/collation_uca.c` beside `sxml_xml_array`. The
+  interpreters are not duplicates: Earley (iXML), RBNF (CLDR spell-out),
+  Snowball (stemming), the regex engine and the full-text match program
+  each run the notation their specification defines; there is one CLDR
+  reader (`src/cldr.c`) and one feature data loader.
+- **Proposed, resolved here**: XQuery's XML version (D195) and the Phase
+  7 scope and size items were decided by D184, D189 and D208 (a
+  processor option for the version of query text, defaulting to 1.0, is
+  the design; the header field waits for a packet); the three CLI and
+  core WebAssembly budget items (2.18, 3.12, 4.15, 5.10) are superseded
+  by D202, D207 and D208 (budgets follow features, the core stays lean);
+  XQuery's omit-xml-declaration default (D146) takes the proposed
+  default by D208, as a design for a later XQuery sweep: the library's
+  XQuery default becomes no (K2-Serialization-22, -23 and
+  Serialization-xml-01 expect a declaration), with the header's comment,
+  while `sxml xquery` keeps writing none unless the query asks. They
+  leave Proposed; the owner's three items stay.
+- **Not done** (listed in the LOG): 7.11's three XT40 transform cases;
+  7.4's four QT4 cases (by D208); the larger duplicates above; Phase 7
+  fuzzing at length and the full lint on the owner's machine.
+
 ## Proposed
 
-- **XQuery's XML version** (packet 7.13, D195; for the owner of
-  `xquery.h` and `processor.h`): query texts follow XML 1.0 (line ends,
-  XQST0090 for `&#1;`, XQST0085 for `xmlns:p=""` in direct constructors,
-  version 1.0 as the default serialization version). XQuery 4.0 (A.2,
-  xgc: xml-version) leaves it implementation-defined and recommends
-  1.1's control-character rules with a 1.0 mode. QT4 has 13 XQ40 cases
-  that need 1.1 lexing and about as many 1.0 cases that need 1.0
-  lexing. Choose: keep 1.0; switch to 1.1; or add a processor option
-  for the XML version (one additive header field; the QT4 driver then
-  sets it per case).
-
-- **Phase 7: four more features and the size of optional parts** (packet
-  7.1, D183; for the owner). The details are in `docs/tasks/phase-7.md`,
-  under "Proposed for the owner", "Size" and "Questions for the owner".
-  - *Features no phase covers yet*: xsl:evaluate (83 XT40 cases, 7.3),
-    disable-output-escaping (32 XT40, 7.5), XML 1.1 input (313 XQ40, 65
-    XT40, 275 xmlconf; 7.13) and DTD processing (32 XQ40, 78 XT40, 265
-    xmlconf; 7.14). Proposed: they join Phase 7.
-  - *Size*: `sxml.wasm` has 1,277 bytes left. The XPath-reachable
-    features would add an estimated 0.5 to 0.8 MB. Choose one of:
-    1. raise the budget per feature;
-    2. optional features chosen at link time through the processor
-       configuration (one additive `processor.h` change; `sxml.wasm`
-       unchanged, plus a larger module that names the features);
-    3. CMake options with stub files;
-    4. large data (DUCET, CLDR rules, the timezone database) supplied by
-       the host in its standard formats through the resolver.
-
-    Recommended: 2 with 4, a 2,100,000-byte core budget and a
-    3,000,000-byte full module.
-  - *Also*: the per-feature gate numbers; vendoring the iXML community
-    tests and a sample of Unicode's CollationTest; the languages,
-    calendars and tailorings (proposed: en, de, fr, it, es, nl; ISO, AD,
-    BE, JE, OS, AH); XQUF 3.0 only, or also the 4.0 draft; EXPath File off
-    in the CLI unless `--allow-file-access` is given.
-
-- **The CLI's WebAssembly budget after sxml validate** (packet 5.10,
-  D176; for the owner, with the 4.15 item below): linking schema
-  compilation and validation makes the stripped `sxml` CLI module
-  4,877,565 bytes (1,126,567 gzipped), over 4.15's 1,100,000 gzipped;
-  5.10 set the ctest budget to 5,500,000 / 1,250,000, leaving room for
-  5.8 and 5.9. `sxml.wasm` was unchanged then (1,916,341 / 663,954). At
-  the Phase 5 review (D182) the CLI is 4,950,289 / 1,154,545 and
-  `sxml.wasm` 1,997,773 / 695,343 of 2,000,000 / 700,000. Choose:
-  confirm, or split the optional front ends into modules.
-
-- **The CLI's WebAssembly budget after sxml transform** (packet 4.15,
-  D157; for the owner, with the budget items below): linking XSLT (its
-  lowering and the pattern and value template grammars) makes the
-  stripped `sxml` CLI module 4,609,397 bytes (1,026,010 gzipped); 4.15 set
-  its ctest budget to 5,000,000 / 1,100,000. `sxml.wasm` is unchanged
-  (no XSLT in the JavaScript package yet). Choose: confirm, or split the
-  XSLT front ends into an optional module.
-
-- **XQuery's default for omit-xml-declaration** (packet 3.12, D146; for
-  the owner of `include/sxml/xquery.h`): the header gives every
-  undeclared parameter serialize.h's default, so omit-xml-declaration is
-  yes; Serialization 4.0 leaves it implementation-defined for XQuery and
-  QT4 expects a declaration (K2-Serialization-22, -23, Serialization-xml-01:
-  standalone or item-separator declared alone). Proposed: XQuery's default
-  is no (the declaration is written), in the header's comment and in
-  `src/xquery.c`.
-
-- **The CLI's WebAssembly budget after sxml xquery** (packet 3.12, D146;
-  for the owner, with the budget item below): linking the XQuery grammar
-  makes the stripped `sxml` CLI module 3,450,339 bytes (767,283 gzipped).
-  3.12 set its ctest budget to 3,700,000 / 820,000 and kept `sxml.wasm`
-  at 2,000,000 / 700,000, so `compileQuery()` is not in the JavaScript
-  package yet. Choose: confirm, or split the XQuery grammar into an
-  optional module (then compileQuery() and a lower CLI budget follow).
-
-- **The WebAssembly size budget** (packet 2.18, D138; for the owner):
-  Phase 2 grew the stripped `sxml` CLI module from 1.21 MB to 1.82 MB
-  and its gzipped size from 358 KB to 630 KB, past D93's 1.5 MB / 450 KB.
-  2.18 set the ctest budget (`javascript/size_budget`) to 2,000,000
-  bytes stripped and 700,000 gzipped for the CLI and `sxml.wasm`, so it
-  holds today with about 10% headroom. Choose: confirm that budget, or
-  ask for optional parts (XQuery and XSLT grammars, collation and Unicode
-  tables) as separate modules (PLAN.md, risks) and keep a lower budget
-  for the core. At the Phase 2 gate (D151) `sxml.wasm` is
-  1,865,152 bytes stripped and 647,721 gzipped: 7 % left.
-
+- **Outward-facing choices** (D208; for the owner): the license (there is
+  no LICENSE file; the JavaScript package says MIT), tagging and
+  publishing releases (0.2.0 and after, `docs/RELEASE.md`), and the npm
+  package name. Everything else takes its proposed default (D208); the
+  items that were here are resolved in D237.

@@ -769,6 +769,17 @@ feature full-text; QT4 ft-* 624 of 685 pass (91 %), gate met.
 `sxml.wasm` +2 KB, the CLI and `sxml-full.wasm` +540 KB (grammar
 500 KB). 7.12b/c: stemming, stop word lists and thesauri by URI
 (the two resource kinds; fullText-defaults), scores from the matches.
+**7.12b and 7.12c done** 2026-10-19 (D214, amended): Snowball stemmers
+for en, de, fr, it, es and nl, interpreted from the vendored .sbl files
+(all 210,829 snowball-data words stem as Snowball 3.1.1 does); stop
+word lists and thesauri by URI through the resolver (the two resource
+kinds of `processor.h`, FTST0008 and FTST0018, relationships and
+levels, the defaults; fullText-defaults); scores from the matches and
+their weights (let score and for score); zh and ja by UAX #29's
+one-character words. QT4 ft-* 624 to 672 of 685 (98.1 %), XQ40 45,839
+to 45,868; the 13 left are expected-result whitespace (9),
+stemmer-dependent (2) and fullText-units (2). `sxml.wasm` +2 KB (it was
+over its budget before), `sxml-full.wasm` and the CLI +19 KB.
 - **7.12d XPath Full Text; EXPath prefixes in the JavaScript package**
   (after 7.12c): (1) the Full Text productions for XPath (Appendix B),
   with XQuery's contextual keywords, sharing XQuery's lowering and the
@@ -988,6 +999,14 @@ unchanged but for 4 bytes.
 After every packet the owner accepted. Owns the gate boxes. A separate
 agent (D11) runs the rubric and re-checks each "done when" and the size
 budgets. Open items go under "Proposed".
+**Done** 2026-10-20 (D237): the gate below, with whole release runs of
+the four suites; three gate boxes ticked by agent review, one open for
+7.11's XT40 cases, the fuzzing box deferred to the owner's machine
+(D181). Fixed: an undefined pointer offset found by fuzzing
+(`src/xml_input.c`), the iXML driver's four error outcomes, EXPath
+File's four-parameter functions and its clang-tidy findings, Full Text's
+copy of the XML buffer, two stale record citations; added the fuzz
+targets `ixml_fuzz` and `full_text_fuzz`.
 
 ## Bindings
 
@@ -1178,26 +1197,7 @@ json-doc and unparsed-text-available (2 cases).
 **Done** 2026-10-19 (D188): disable-output-escaping 25 of 25 run pass
 (7 not run: 3 need streaming, 1 is XSLT 2.0 only, 3 need the feature
 absent), bug 4 more; XT40 8,759 to 8,784 passed, 0 errors, none lost
-(5 cases that need the feature absent are not run any more).**7.12a done** 2026-10-19 (D214): the grammar, AST, static rules,
-tokenizer, the match program over AllMatches rows with every
-connective, FTWords variant and positional filter, case, diacritics,
-wildcards and explicit stop words, score variables, as the optional
-feature full-text; QT4 ft-* 624 of 685 pass (91 %), gate met.
-`sxml.wasm` +2 KB, the CLI and `sxml-full.wasm` +540 KB (grammar
-500 KB). 7.12b/c: stemming, stop word lists and thesauri by URI
-(the two resource kinds; fullText-defaults), scores from the matches.
-**7.12b and 7.12c done** 2026-10-19 (D214, amended): Snowball stemmers
-for en, de, fr, it, es and nl, interpreted from the vendored .sbl files
-(all 210,829 snowball-data words stem as Snowball 3.1.1 does); stop
-word lists and thesauri by URI through the resolver (the two resource
-kinds of `processor.h`, FTST0008 and FTST0018, relationships and
-levels, the defaults; fullText-defaults); scores from the matches and
-their weights (let score and for score); zh and ja by UAX #29's
-one-character words. QT4 ft-* 624 to 672 of 685 (98.1 %), XQ40 45,839
-to 45,868; the 13 left are expected-result whitespace (9),
-stemmer-dependent (2) and fullText-units (2). `sxml.wasm` +2 KB (it was
-over its budget before), `sxml-full.wasm` and the CLI +19 KB.
-
+(5 cases that need the feature absent are not run any more).
 
 ### 7.13 XML 1.1 input (implementation; proposed, D183)
 - **Specifications**: XML 1.1 (Second Edition), 2.2 (Char, RestrictedChar:
@@ -1313,18 +1313,65 @@ unchanged.
 
 ## Gate (proposed in D183; the owner may change the numbers)
 
-- [ ] Each feature meets its packet's gate above under `release`.
-- [ ] XP40 ≥ 90 %, XQ40 ≥ 85 % and XT40 ≥ 70 % still; the passed counts
+Reviewed by packet 7.19 (D237) on whole release runs at 9c5b1ba.
+
+- [ ] Each feature meets its packet's gate above under `release`: every
+  one but two, see the table below. Not met: 7.11's "all 12 XT40
+  `transform` cases" (9 pass, 2 fail, 1 not run: a static fn:transform,
+  a ~record pattern, an assertion the driver does not check; D203). Met
+  as D208 reads it: 7.4's "all 5 QT4 cases" (1 passes; the other 4
+  expect fn:number conversion of xs:numeric parameters, which XPath 4.0,
+  3.4.1 gives only to xs:double, and D208 follows the specification).
+- [x] XP40 ≥ 90 %, XQ40 ≥ 85 % and XT40 ≥ 70 % still; the passed counts
   of XP40, XQ40, XT40 and XSD have not dropped; the schema-aware gates of
-  Phase 5 still hold; all ctest slices are at their baselines.
-- [ ] No in-scope test crashes, leaks or ends in an "error" outcome,
+  Phase 5 still hold; all ctest slices are at their baselines (agent
+  review): XP40 99.5 %, XQ40 99.5 %, XT40 94.8 % (core sets 88.5 % to
+  100 %); passed 32,689, 45,969, 12,075 and 41,486 (D182: 30,931,
+  41,273, 8,650, 41,483); XSD in scope 99.9 %, datatypes 100 %,
+  structures 99.7 %, XSD 1.1 99.7 %; schema-aware XQ40 92.2 %, XT40
+  95.6 %; slices 198/198, XSLT 149 of 154 (baseline), XSD 147/147.
+- [x] No in-scope test crashes, leaks or ends in an "error" outcome,
   including the new suites (xmlconf 1.1 and entity cases, and the iXML
-  suite if vendored).
-- [ ] `sxml.wasm` and the CLI module are within the budgets the owner set
+  suite if vendored) (agent review): 0 errors in XP40, XQ40, XT40 and
+  XSD; xmlconf, html5lib and the iXML suite pass their whole runs (the
+  iXML suite's 4 errors were inputs no xs:string holds, now not run with
+  that reason, D237).
+- [x] `sxml.wasm` and the CLI module are within the budgets the owner set
   in answer to D183's size item; the size test checks every module
-  variant.
+  variant (agent review): `sxml.wasm` 2,090,746 / 730,902 of 2,200,000 /
+  770,000, `sxml-full.wasm` 7,637,162 / 1,690,683 of 8,000,000 /
+  2,800,000, the CLI 9,231,791 / 1,973,839 of 9,500,000 / 2,100,000; the
+  D225 guard names +1,978 bytes since its baseline (the IR's
+  GLOBAL_READ, 4.21).
 - [ ] The fuzz targets cover each new parser (HTML, iXML, DTD, XML 1.1,
-  Full Text selections), run on the owner's machine (D181).
+  Full Text selections), run on the owner's machine (D181): the targets
+  exist (agent review: `ixml_fuzz` and `full_text_fuzz` added, XML 1.1
+  through `xml_parse_fuzz`), two-minute runs here found one bug, fixed
+  (D237); the full runs are deferred to the owner's machine (D181).
+
+| Packet | Its gate or done-when | Fresh numbers (9c5b1ba, release) | |
+| --- | --- | --- | --- |
+| 7.2, 7.2b, 7.2c (size-2), health-3 | core under budget, one part list per language, the size guard | sizes above; the core links no feature definition, the guard prints its top growths | met |
+| 7.3 | ≥ 90 % of 83 | evaluate 77 of 83 (92.8 %) | met |
+| 7.4, 7.4b | ≥ 80 % of the 124; all 5 QT4 | backwards_compatibility 115 of 131 (87.8 %); QT4 1 of 5 | met as D208 reads it |
+| 7.5 | ≥ 90 % of 32 | disable_output_escaping 32 of 32 run (9 more need the feature absent, XSLT 2.0 or streaming fallback) | met |
+| 7.6a–g | ≥ 85 % of the streaming cases; XT40 passes kept; peak under 64 MB | streaming 2,882 of 2,938 (98.1 %); strm 2,521 of 2,564; 1,000,000 orders (74.7 MB) summed streamed in 11.0 MB peak resident | met |
+| 7.7a–c | ≥ 85 % of 798 | upd-* 787 of 798 (98.6 %; 27 staticTyping not run) | met |
+| 7.8 | ≥ 95 % of 673 | binary 673 of 674 (XQ40), bin-* 672 of 672 (XP40, XQ40) | met |
+| 7.9 | ≥ 90 % of 271 | expath-file 270 of 270 (XQ40), 267 of 267 (XP40) | met |
+| 7.10a, 7.10b | ≥ 95 % HtmlTestSuite; ≥ 90 % parse-html, html-doc | 1,378 of 1,379; 22 of 22; 9 of 10; html5lib 1,749 / 7,045 / 82 | met |
+| 7.11 | ≥ 80 % of 133; all 12 XT40 | fn-transform 130 of 137 (XQ40), 127 of 137 (XP40); XT40 transform 9 of 12 | not met (XT40) |
+| 7.12a–d | ≥ 75 % of 685 | ft-* 672 of 685 (98.1 %); XP40 unchanged | met |
+| 7.13 | ≥ 95 % of the xmlconf 1.1 cases; ≥ 90 % QT4 and XT40 | xmlconf 1.1 271 of 271 (valid 84, invalid 13, not-wf 169, error 5); QT4 300 + 1 of 313 (96.2 %); XT40 XML_1.1 62 of 65 run | met |
+| 7.14a–c | ≥ 95 % of the entity and invalid cases; ≥ 90 % QT4 and XT40 dtd | xmlconf entities 265 of 265, invalid 175 of 175, DTD validation 173 + 54 of 227; XT40 dtd 84 of 87 (96.6 %); QT4 infoset-dtd 33 of 34 | met |
+| 7.15a, 7.15b | ≥ 95 % of 49; ≥ 90 % others; CollationTest | 49 of 49; 13 of 13 (XQ40), 5 of 5 run (XP40); CollationTest samples 10,314 and 11,391 lines in order | met |
+| 7.16 | all 14 | olson-timezone 8 of 8, fn-civil-timezone 9 of 9 | met |
+| 7.17 | ≥ 75 % of 38; none lost | QT4 20 of 20; XT40 9 of 9 (the cases naming the 14 dependencies); fn-format-date 137 of 137 run, fn-format-integer 94 of 94 run | met |
+| 7.18 | all 16 QT4; ≥ 90 % of the correct-grammar tests | 16 of 16 (XP40, XQ40); suite 886 of 907, correct-grammar 711 of 711 run, grammar tests 142 of 142 | met |
+| js-1 | the three languages in the package; `sxml.wasm` unchanged | the `javascript/*` tests pass (wasm preset, 383 of 383) | met |
+| cli-2 | written files, csv, hints | CLI tests pass (release, 379 of 379) | met |
+| perf-1, perf-2, perf-3 | numbers recorded; outcomes unchanged | xmark-all 1.10 s, itunes 2.29 s, parse 0.16 s (processor seconds, release); suite counts as at e4ea880 but XT40's gains | met |
+| xml-mem | memory by depth, not input | the 74.7 MB run above in 11.0 MB; the allocator-limit unit test passes | met |
 
 ## Questions for the owner (D183 Proposed)
 
