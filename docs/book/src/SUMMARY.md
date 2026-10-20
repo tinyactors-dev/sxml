@@ -39,6 +39,7 @@
     - [Reading Validation Errors](xsd-errors.md)
     - [Typed Data and Schema-Aware Queries](xsd-typed-data.md)
 - [JSON, CSV, HTML and Invisible XML](formats.md)
+- [Source Code as XML](source-code.md)
 - [Working with Text](text.md)
 - [Files and the Outside World](files.md)
 - [Embedding sxml in C](c.md)
