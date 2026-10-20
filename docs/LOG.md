@@ -4,6 +4,15 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- report-1 done: docs/CONFORMANCE.md regenerated from whole runs at
+  e74d4ad (release, GCC). XP40 32,815 of 32,841 run, XQ40 46,158 of
+  46,232 (74 failed), XT40 12,268 of 12,518 (250 failed), XSD11 41,599
+  of 41,610 (11 failed), torture slice 198/198, 0 errors in each; iXML
+  886 of 907, tree-sitter 1,410 of 1,438 (1 error: a corpus test with no
+  divider). Equal to the QUEUE counts. The book's appendix and README
+  figures updated. c982bf6 did not build with GCC (-Wshadow in
+  src/source_code.c), fixed by 7.23's c1a88af.
+
 - 7.23 done (D288): more source code languages. TypeScript, TSX,
   Markdown and its inline grammar built in; the locals query (a
   reference takes its definition's highlight) and the injections query
