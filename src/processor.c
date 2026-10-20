@@ -1049,7 +1049,10 @@ static bool sxml_item_is_document_node(sxml_item item) {
            description.node_kind == SXML_NODE_KIND_DOCUMENT;
 }
 
-/* Raises FODC0002 with the resolver's description, when it gave one. */
+/* Raises FODC0002 with the resolver's description, when it gave one,
+   followed by the URI reference as fn:doc was given it, in parentheses
+   (F&O 4.0, fn:doc: the error is about that resource; XSLT 4.0, 8.4's
+   $err:description). */
 static sxml_status sxml_loader_report_not_available(const sxml_processor_document_loader *loader,
                                                     const sxml_document_request *request,
                                                     sxml_byte_view description) {
@@ -1057,14 +1060,32 @@ static sxml_status sxml_loader_report_not_available(const sxml_processor_documen
         return sxml_error_record_report(request->error_record,
                                         &sxml_document_not_available_error);
     }
-    return sxml_item_heap_raise_error(
-        loader->configuration.evaluation_environment.processor->item_heap,
+    sxml_processor *processor = loader->configuration.evaluation_environment.processor;
+    const sxml_byte_view uri = request->uri_reference;
+    const size_t text_byte_count = description.byte_count + uri.byte_count + 3U;
+    void *memory = NULL;
+    sxml_status status = sxml_allocator_allocate(
+        processor->allocator,
+        (sxml_allocation_request){.byte_count = text_byte_count, .alignment = 1}, &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    uint8_t *text = memory;
+    memcpy(text, description.bytes, description.byte_count);
+    text[description.byte_count] = ' ';
+    text[description.byte_count + 1U] = '(';
+    if (uri.byte_count != 0) {
+        memcpy(text + description.byte_count + 2U, uri.bytes, uri.byte_count);
+    }
+    text[text_byte_count - 1U] = ')';
+    status = sxml_item_heap_raise_error(
+        processor->item_heap,
         &(sxml_error_raise_request){
             .error_status = SXML_STATUS_DYNAMIC_ERROR,
             .code = {.namespace_uri = SXML_BYTE_VIEW_FROM_LITERAL(SXML_ERROR_NAMESPACE_URI),
                      .local_name = SXML_BYTE_VIEW_FROM_LITERAL("FODC0002"),
                      .namespace_prefix = SXML_BYTE_VIEW_FROM_LITERAL("err")},
-            .description = description,
+            .description = {.bytes = text, .byte_count = text_byte_count},
             .has_value = false,
             .value = sxml_sequence_empty(),
             .location = {.source_name = {.bytes = NULL, .byte_count = 0},
@@ -1072,6 +1093,8 @@ static sxml_status sxml_loader_report_not_available(const sxml_processor_documen
                          .column_number = 0,
                          .byte_offset = 0}},
         request->error_record);
+    sxml_allocator_release(processor->allocator, memory);
+    return status;
 }
 
 /* What the resolver was asked and what it said. */

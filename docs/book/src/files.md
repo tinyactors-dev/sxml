@@ -45,9 +45,9 @@ local file is never fetched:
 
 ```console
 $ sxml xpath 'doc("missing.xml")'
-expression:1:1: err:FODC0002: The file cannot be read
+expression:1:1: err:FODC0002: The file cannot be read (missing.xml)
 $ sxml xpath 'doc("https://example.org/feed.xml")'
-expression:1:1: err:FODC0002: Only local files are available
+expression:1:1: err:FODC0002: Only local files are available (https://example.org/feed.xml)
 ```
 
 `doc-available` and `unparsed-text-available` ask first:
