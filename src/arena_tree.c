@@ -2100,6 +2100,25 @@ static sxml_status sxml_arena_tree_add_unparsed_entity(
     return SXML_STATUS_OK;
 }
 
+/* The open element's is-id and is-idrefs, which its typed value decides
+   (XDM 4.0, 7.5.2.4; include/sxml/tree.h, D263). */
+static sxml_status sxml_arena_tree_set_element_identity(
+    void *state, const sxml_element_identity_event *event) {
+    sxml_arena_tree *arena_tree = sxml_arena_tree_from_state(state);
+    if (!sxml_arena_tree_open_node_is(arena_tree, SXML_NODE_KIND_ELEMENT)) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    sxml_arena_node *element = sxml_arena_tree_get_node(arena_tree, arena_tree->open_node);
+    const uint16_t identity_flags =
+        (uint16_t)(SXML_ARENA_NODE_IS_ID | SXML_ARENA_NODE_IS_IDREFS);
+    element->flags = (uint16_t)((element->flags & ~identity_flags) |
+                                sxml_arena_tree_flags_of((sxml_node_properties){
+                                    .is_id = event->is_id,
+                                    .is_idrefs = event->is_idrefs,
+                                    .is_nilled = false}));
+    return SXML_STATUS_OK;
+}
+
 static const sxml_tree_builder_operations sxml_arena_tree_builder_operations = {
     .start_document = sxml_arena_tree_start_document,
     .end_document = sxml_arena_tree_end_document,
@@ -2111,6 +2130,7 @@ static const sxml_tree_builder_operations sxml_arena_tree_builder_operations = {
     .add_comment = sxml_arena_tree_add_comment,
     .add_processing_instruction = sxml_arena_tree_add_processing_instruction,
     .add_unparsed_entity = sxml_arena_tree_add_unparsed_entity,
+    .set_element_identity = sxml_arena_tree_set_element_identity,
 };
 
 sxml_tree_builder sxml_arena_tree_as_tree_builder(sxml_arena_tree *arena_tree) {

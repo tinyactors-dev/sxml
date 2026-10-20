@@ -11962,6 +11962,20 @@ record is completed when the packet ends.
   the tunnel parameters it received (scope entry Q{XSLT}context-variables);
   patterns, stylesheet functions and globals hide them.
 
+### D263. XPath and XQuery conformance sweep: D258's leftovers and fresh clusters (packet 2.24)
+Recorded 2026-10-20, after D84, D99, D180, D190, D226, D258. In
+progress; the record is completed when the packet ends.
+- **is-id of list and union elements** (XDM 4.0, 7.5.2.4): an additive
+  optional tree builder operation, `set_element_identity`
+  (`include/sxml/tree.h`, after the freeze as D99 allows, with
+  `sxml_element_identity_event`), replaces dm:is-id and dm:is-idrefs of
+  the open element after its content. The schema validator sends it for
+  an element of simple content when its typed value's marks differ from
+  those the start event had (a list of xs:ID of length one, a union whose
+  value is an xs:ID or xs:IDREF); the arena tree and the validator's
+  recorder implement it, other builders leave it NULL and keep the start
+  event's values. This replaces D180's "no later mark is possible".
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): tagging and

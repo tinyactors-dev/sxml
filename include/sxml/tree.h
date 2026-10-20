@@ -564,6 +564,14 @@ typedef struct sxml_processing_instruction_event {
     sxml_source_location location;
 } sxml_processing_instruction_event;
 
+/* The dm:is-id and dm:is-idrefs of an element that its typed value
+   decides (set_element_identity below). Added after the freeze (D99,
+   D263). */
+typedef struct sxml_element_identity_event {
+    bool is_id;
+    bool is_idrefs;
+} sxml_element_identity_event;
+
 /*
  * The operations of a tree builder: the events that construct a tree, in
  * document order. Implemented by the arena tree and, in later phases, by
@@ -618,6 +626,15 @@ typedef struct sxml_tree_builder_operations {
         void *state, const sxml_processing_instruction_event *event);
     sxml_status (*add_unparsed_entity)(void *state,
                                        const sxml_unparsed_entity *entity);
+    /* Optional, added after the freeze (D99, D263); NULL for a builder
+       that keeps the start event's values. Replaces dm:is-id and
+       dm:is-idrefs of the open element (started, not yet ended) with
+       event's, after its content and before its end_element: a schema
+       validator sends it for an element of simple content whose type
+       alone does not decide them, a list or union whose value may be one
+       xs:ID (XDM 4.0, 7.5.2.4, is-id from a PSVI). */
+    sxml_status (*set_element_identity)(void *state,
+                                        const sxml_element_identity_event *event);
 } sxml_tree_builder_operations;
 
 /* The tree builder interface, passed by value. */

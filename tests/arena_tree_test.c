@@ -1405,6 +1405,50 @@ static void test_entity_base_uris_are_kept(sxml_test_state *state) {
     tree_fixture_destroy(&fixture);
 }
 
+/* set_element_identity revises the open element's is-id and is-idrefs
+   (include/sxml/tree.h, D263); outside an open element it is refused. */
+static void test_element_identity_is_revised(sxml_test_state *state) {
+    tree_fixture fixture;
+    SXML_TEST_REQUIRE(state, tree_fixture_create(&fixture) == SXML_STATUS_OK);
+    sxml_arena_tree_configuration configuration = arena_configuration(&fixture);
+    built_tree built;
+    SXML_TEST_REQUIRE(state, built_tree_create(&configuration, &built) == SXML_STATUS_OK);
+    event_writer writer = writer_for(&fixture, &built);
+    write_start_document(&writer);
+    write_element(&writer, "root");
+    write_element(&writer, "key");
+    write_text(&writer, "k1");
+    if (writer.status == SXML_STATUS_OK) {
+        writer.status = writer.builder.operations->set_element_identity(
+            writer.builder.state,
+            &(sxml_element_identity_event){.is_id = true, .is_idrefs = false});
+    }
+    write_end_element(&writer);
+    write_end_element(&writer);
+    SXML_TEST_EXPECT(state, writer.builder.operations->set_element_identity(
+                                writer.builder.state,
+                                &(sxml_element_identity_event){.is_id = true,
+                                                               .is_idrefs = true}) ==
+                                SXML_STATUS_INVALID_ARGUMENT);
+    write_end_document(&writer);
+    SXML_TEST_REQUIRE(state, writer.status == SXML_STATUS_OK);
+    SXML_TEST_REQUIRE(state, sxml_arena_tree_finish(built.arena_tree, &built.tree) ==
+                                 SXML_STATUS_OK);
+    sxml_node_description description;
+    SXML_TEST_REQUIRE(state, sxml_node_describe((sxml_node_reference){.tree = built.tree,
+                                                                      .node_index = {.index = 2},
+                                                                      .namespace_number = 0},
+                                                &description) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, description.is_id && !description.is_idrefs);
+    SXML_TEST_REQUIRE(state, sxml_node_describe((sxml_node_reference){.tree = built.tree,
+                                                                      .node_index = {.index = 1},
+                                                                      .namespace_number = 0},
+                                                &description) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, !description.is_id);
+    built_tree_destroy(&built);
+    tree_fixture_destroy(&fixture);
+}
+
 /* ------------------------------------------------- Growth and failure */
 
 /* Builds <root> with child_count children, each with an attribute and a
@@ -1540,6 +1584,7 @@ static const sxml_test_case arena_tree_test_cases[] = {
     {.name = "unparsed_entities_are_found",
      .function = test_unparsed_entities_are_found},
     {.name = "entity_base_uris_are_kept", .function = test_entity_base_uris_are_kept},
+    {.name = "element_identity_is_revised", .function = test_element_identity_is_revised},
     {.name = "large_trees_grow_in_segments",
      .function = test_large_trees_grow_in_segments},
     {.name = "building_survives_every_allocation_failure",

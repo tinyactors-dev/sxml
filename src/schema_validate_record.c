@@ -187,6 +187,13 @@ static sxml_status record_add_unparsed_entity(void *state, const sxml_unparsed_e
     return SXML_STATUS_INVALID_ARGUMENT;
 }
 
+static sxml_status record_set_element_identity(void *state,
+                                               const sxml_element_identity_event *event) {
+    sxml_schema_validator *validator = state;
+    const sxml_tree_builder arena = arena_of(validator);
+    return arena.operations->set_element_identity(arena.state, event);
+}
+
 static const sxml_tree_builder_operations recorder_operations = {
     .start_document = record_start_document,
     .end_document = record_end_document,
@@ -198,6 +205,7 @@ static const sxml_tree_builder_operations recorder_operations = {
     .add_comment = record_add_comment,
     .add_processing_instruction = record_add_processing_instruction,
     .add_unparsed_entity = record_add_unparsed_entity,
+    .set_element_identity = record_set_element_identity,
 };
 
 sxml_tree_builder sxml_schema_recorder_as_tree_builder(sxml_schema_validator *validator) {

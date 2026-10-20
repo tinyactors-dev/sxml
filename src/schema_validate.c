@@ -1505,6 +1505,38 @@ static uint64_t parent_number_of(const sxml_schema_validator *validator) {
    value, or the value constraint of an empty element, against the simple
    type; fixed values compared; the schema normalized value goes on as
    the element's text (XDM 4.0, 7.5.7.4). */
+/* The element of frame and the is-id and is-idrefs its value has. */
+typedef struct identity_revision {
+    const sxml_schema_validation_frame *frame;
+    identity_marks value_marks;
+} identity_revision;
+
+/* XDM 4.0, 7.5.2.4: an element of simple content is an ID when its typed
+   value is one xs:ID, which a list or union type decides only with the
+   value: when the value's marks differ from those its start event had
+   (marks_of), the builders that can revise them are told
+   (set_element_identity, include/sxml/tree.h, D263). */
+static sxml_status send_identity(sxml_schema_validator *validator,
+                                 identity_revision revision) {
+    const identity_marks start_marks = marks_of(validator, revision.frame->simple_type);
+    if (start_marks.is_id == revision.value_marks.is_id &&
+        start_marks.is_idrefs == revision.value_marks.is_idrefs) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_element_identity_event event = {.is_id = revision.value_marks.is_id,
+                                               .is_idrefs = revision.value_marks.is_idrefs};
+    const event_targets targets = targets_of(validator);
+    sxml_status status = SXML_STATUS_OK;
+    for (size_t target = 0; status == SXML_STATUS_OK && target < targets.builder_count;
+         target += 1) {
+        if (targets.builders[target].operations->set_element_identity != NULL) {
+            status = targets.builders[target].operations->set_element_identity(
+                targets.builders[target].state, &event);
+        }
+    }
+    return status;
+}
+
 static sxml_status end_simple_content(sxml_schema_validator *validator,
                                       const sxml_schema_validation_frame *frame) {
     const sxml_schema_value_constraint value_constraint =
@@ -1529,6 +1561,12 @@ static sxml_status end_simple_content(sxml_schema_validator *validator,
         return status;
     }
     status = send_text(validator, outcome.normalized_value, frame->location);
+    if (status == SXML_STATUS_OK && outcome.is_valid) {
+        status = send_identity(
+            validator, (identity_revision){.frame = frame,
+                                           .value_marks = {.is_id = outcome.is_id,
+                                                           .is_idrefs = outcome.is_idrefs}});
+    }
     if (status == SXML_STATUS_OK && outcome.is_valid && !takes_value_constraint &&
         value_constraint.variety == SXML_SCHEMA_VALUE_CONSTRAINT_FIXED) {
         fixed_outcome fixed = {.is_equal = false};
