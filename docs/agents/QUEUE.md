@@ -32,6 +32,8 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 - 4.26: XSLT sweep (D262's and D260's open lists).
 - 2.24: XPath/XQuery sweep (D258's open list; a static-typing estimate).
 - cli-2: the CLI bugs book-2 found (D270).
+- size-3: one build with everything (D272): one WebAssembly module,
+  fn:load-xquery-module in XSLT, budgets raised.
 
 ## Next
 
