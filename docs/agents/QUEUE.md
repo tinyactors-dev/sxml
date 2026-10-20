@@ -24,7 +24,6 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 - 4.22: XSLT moves to the newest draft and the newest xslt40-test (D245).
 - 6.5: Kotlin full surface. 6.4 done (D247): Kotlin core on the JVM, 36 cases.
 - 6.3 (Android build) waits for 7.20 to commit src/processor.c.
-- 6.8: Swift full surface (XQuery, XSLT, XSD, DUCET resource). 6.7 done (D241).
 - 7.20: sweep (7.11's transform-004/401/009, the larger duplicates of D237).
 
 ## Next
@@ -46,7 +45,19 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 - More XPath/XQuery and XSLT sweeps on the leftovers below; perf-4 on casts
   and path-MAP hoisting.
 
+## Owner's machine (Phase 6)
+
+- 6.9: the XCFramework (`cmake/apple.cmake`, `tools/build-xcframework.sh`,
+  `libtool -static`), a `binaryTarget` for `CSxmlHost`, `swift test
+  --sanitize=address --disable-xctest` on macOS, `xcodebuild test` on an iOS
+  simulator and a device, and `Bundle.module` finding `allkeys.txt` (D248).
+- Android emulator and device runs (6.6, D238).
+
 ## Leftovers no packet owns yet
+
+Swift (6.7/6.8 done, D241, D248): 55 tests on Linux; the bundled DUCET is a
+copy of third_party/unicode-collation/allkeys.txt that must be updated with
+it.
 
 XPath and XQuery (after 2.22, D226):
 - XSLT's own expressions have no Full Text (they use grammars/xpath; D235).
