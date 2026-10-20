@@ -29,7 +29,7 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 (bindings/kotlin/DESIGN.md, bindings/swift/DESIGN.md).
 
 
-- 4.25: XSLT sweep (D260's open list, the run-time QName cast).
+- 4.26: XSLT sweep (D262's and D260's open lists).
 - 2.24: XPath/XQuery sweep (D258's open list; a static-typing estimate).
 - cli-2: the CLI bugs book-2 found (D270).
 
@@ -107,6 +107,15 @@ are not hoisted from; current-merge-group(()) per 15.5.1; globals computed
 on first read (GLOBAL_READ); typed modes and XTSE3105; XT40 11,943 at its
 last run. Left: document-4066 (fn:document's schema validation does not
 raise FODC0002); a global's side effects now happen at its first read.
+
+XSLT (4.25, D262): XT40 12,157 -> 12,187 passed. Left: stream-available-
+004/005 (a streamed open of the resource); choose-0106, type-0150 and
+collations-0121..0124 (casts and comparisons read the function's module,
+not the inner element's static context; 2.24's add_cast_namespaces covers
+XQuery only); fn:load-xquery-module in XSLT would link XQuery into XSLT
+builds (D189); D260's single cases. Kept as the draft decides: FORG0001 in
+coercions, no XTTE0600, sequence JNode copies, format-number under 1.0
+compatibility, XSD 1.1 regex syntax, XPDY0002 for unparsed-entity-*.
 
 XSLT prefixes (4.24, D261): a run-time cast of a string to xs:QName still
 falls back on XPath's predeclared prefixes in every language (the evaluator
