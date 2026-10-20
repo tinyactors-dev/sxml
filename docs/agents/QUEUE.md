@@ -32,7 +32,6 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 (bindings/kotlin/DESIGN.md, bindings/swift/DESIGN.md).
 
 
-- 4.32: XSLT streaming: D289's about 20 single causes.
   (Book-first pages carry <!-- status: draft -->; check-book-examples.sh
   skips them unless --drafts.)
 
@@ -153,6 +152,15 @@ are not hoisted from; current-merge-group(()) per 15.5.1; globals computed
 on first read (GLOBAL_READ); typed modes and XTSE3105; XT40 11,943 at its
 last run. Left: document-4066 (fn:document's schema validation does not
 raise FODC0002); a global's side effects now happen at its first read.
+
+XSLT (4.32, D296): XT40 12,273 -> 12,283 passed, 235 failed. XTSE3155,
+fn:filter's streamability, fn:snapshot keeps base URI and unparsed
+entities, document-node(element(N, T)) tests the annotation,
+input-type-annotations after validation. The newest draft moves
+streamability into a separate XSLT Streaming 4.0 specification. Of 54
+streaming failures: 9 fixed, 37 decided by the draft or the suite, 8 left
+(accumulator-061, capture-206, six merge cases). Streamed snapshot over
+13 MB: 8.5 MB resident.
 
 XSLT (4.31, D291): XT40 12,268 -> 12,273 passed, 245 failed. copy-4308,
 map-for-key-005, accumulators and fn:function-lookup per package,
