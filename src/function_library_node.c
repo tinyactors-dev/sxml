@@ -241,7 +241,9 @@ static sxml_status call_distinct_ordered_nodes(const sxml_function_call *call,
 
 /* Loads the document uri_reference names as fn:doc does with options:
    *document_node, owned, is the loader's node, its XInclude result, the
-   stripped copy of that, or the validated copy of that. On failure *document_node is released. */
+   validated copy of that, or the stripped copy of that (validation
+   first: strip-space "all" keeps the whitespace of elements of simple
+   content, F&O 4.0, 17.2.1). On failure *document_node is released. */
 typedef struct document_loading {
     sxml_byte_view uri_reference;
     const sxml_document_options *options;
@@ -273,13 +275,6 @@ static sxml_status load_document_with_options(const sxml_function_call *call,
                                      .error_record = loading->error_record},
             document_node);
     }
-    if (status == SXML_STATUS_OK && options->strips_space) {
-        sxml_sequence stripped = sxml_sequence_empty();
-        status = sxml_function_library_strip_document(call, *document_node, &stripped);
-        sxml_item_release(*document_node);
-        *document_node =
-            status == SXML_STATUS_OK ? stripped.content : (sxml_item){.representation = 0};
-    }
     if (status == SXML_STATUS_OK &&
         sxml_sequence_get_representation(options->xsd_validation) !=
             SXML_SEQUENCE_REPRESENTATION_EMPTY) {
@@ -295,6 +290,13 @@ static sxml_status load_document_with_options(const sxml_function_call *call,
         } else {
             sxml_item_release(*document_node);
         }
+    }
+    if (status == SXML_STATUS_OK && options->strips_space) {
+        sxml_sequence stripped = sxml_sequence_empty();
+        status = sxml_function_library_strip_document(call, *document_node, &stripped);
+        sxml_item_release(*document_node);
+        *document_node =
+            status == SXML_STATUS_OK ? stripped.content : (sxml_item){.representation = 0};
     }
     return status;
 }

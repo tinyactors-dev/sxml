@@ -1831,6 +1831,7 @@ typedef struct sxml_json_writer {
 typedef struct sxml_json_attributes {
     bool has_key;
     sxml_byte_view key;
+    bool has_escaped_key;
     bool is_escaped_key;
     bool is_escaped;
 } sxml_json_attributes;
@@ -1878,9 +1879,9 @@ static sxml_status sxml_json_read_attributes(const sxml_json_writer *writer,
     const sxml_node_description *description = described.description;
     *attributes = (sxml_json_attributes){.has_key = false,
                                          .key = {.bytes = NULL, .byte_count = 0},
+                                         .has_escaped_key = false,
                                          .is_escaped_key = false,
                                          .is_escaped = false};
-    bool has_escaped_key = false;
     for (uint32_t attribute_number = 1; attribute_number <= description->attribute_count;
          attribute_number += 1) {
         const sxml_node_reference attribute = {
@@ -1913,7 +1914,7 @@ static sxml_status sxml_json_read_attributes(const sxml_json_writer *writer,
             attributes->key = value;
         } else if (sxml_json_name_is(name, writer->names.escaped_key_name) &&
                    flag.is_boolean) {
-            has_escaped_key = true;
+            attributes->has_escaped_key = true;
             attributes->is_escaped_key = flag.value;
         } else if (sxml_json_name_is(name, writer->names.escaped_name) && flag.is_boolean) {
             attributes->is_escaped = flag.value;
@@ -1923,9 +1924,6 @@ static sxml_status sxml_json_read_attributes(const sxml_json_writer *writer,
         } else {
             return sxml_json_report_invalid(writer);
         }
-    }
-    if (has_escaped_key && !attributes->has_key) {
-        return sxml_json_report_invalid(writer);
     }
     return SXML_STATUS_OK;
 }
@@ -2278,8 +2276,12 @@ static sxml_status sxml_json_write_element(sxml_json_writer *writer,
     if (status != SXML_STATUS_OK) {
         return status;
     }
+    /* The top element may have key and escaped-key, which are ignored
+       (F&O 4.0, 17.4.7: "having a key attribute and/or an escaped-key
+       attribute"); a member of a map needs key, of an array neither. */
     if ((visit.place == SXML_JSON_ELEMENT_PLACE_IN_MAP && !attributes.has_key) ||
-        (visit.place == SXML_JSON_ELEMENT_PLACE_IN_ARRAY && attributes.has_key)) {
+        (visit.place == SXML_JSON_ELEMENT_PLACE_IN_ARRAY &&
+         (attributes.has_key || attributes.has_escaped_key))) {
         return sxml_json_report_invalid(writer);
     }
     if (visit.place == SXML_JSON_ELEMENT_PLACE_IN_MAP) {

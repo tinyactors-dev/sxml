@@ -805,8 +805,17 @@ static sxml_status read_timezone_field(const sxml_function_call *call, sxml_item
     return SXML_STATUS_OK;
 }
 
-/* Reads one entry of the record: its key must name a field, its value be
-   empty or one atomic item. */
+/* One atomized field value of the record. */
+typedef struct record_value {
+    size_t field_index;
+    sxml_sequence value;
+} record_value;
+
+static sxml_status read_record_value(const sxml_function_call *call, const record_value *value,
+                                     record_fields *fields);
+
+/* Reads one entry of the record: its key must name a field, its value
+   atomize to empty or one atomic item. */
 static sxml_status read_record_entry(const sxml_function_call *call, sxml_map_entry entry,
                                      record_fields *fields) {
     sxml_atomic_datum key;
@@ -826,8 +835,34 @@ static sxml_status read_record_entry(const sxml_function_call *call, sxml_map_en
     if (field_index == SXML_RECORD_FIELD_COUNT) {
         return sxml_function_library_report(call, &not_a_record_error);
     }
+    /* The field types are atomic: the value is atomized first (XPath
+       4.0, 3.4.3, coercion rules; QT4 fn-build-dateTime-date-without-
+       timezone-from-nodes passes elements). */
+    sxml_sequence atomized = sxml_sequence_empty();
+    if (call->dynamic_context != NULL) {
+        status = sxml_evaluator_atomize(
+            call->dynamic_context,
+            &(sxml_atomization_request){.value = entry.value, .error_record = call->error_record},
+            &atomized);
+    } else {
+        sxml_sequence_retain(entry.value);
+        atomized = entry.value;
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    status = read_record_value(
+        call, &(record_value){.field_index = field_index, .value = atomized}, fields);
+    sxml_sequence_release(atomized);
+    return status;
+}
+
+static sxml_status read_record_value(const sxml_function_call *call, const record_value *value,
+                                     record_fields *fields) {
+    const size_t field_index = value->field_index;
     sxml_single_operand single;
-    status = sxml_operator_read_single_operand(entry.value, call->error_record, &single);
+    sxml_status status =
+        sxml_operator_read_single_operand(value->value, call->error_record, &single);
     if (status == SXML_STATUS_INVALID_ARGUMENT) {
         return sxml_function_library_report(call, &not_a_record_error);
     }

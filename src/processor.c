@@ -1940,6 +1940,39 @@ static sxml_status sxml_loader_keep_collection(sxml_processor_document_loader *l
     return SXML_STATUS_OK;
 }
 
+/* Keeps the document nodes of a collection that have a document URI
+   among the documents loaded, unless one of that URI is: fn:doc of their
+   document-uri then gives the same nodes (F&O 4.0, 17.1.3: "the
+   documents ... are available documents"; QT4 collection-009). */
+static sxml_status sxml_loader_keep_collection_documents(sxml_processor_document_loader *loader,
+                                                         sxml_sequence items) {
+    sxml_sequence_iterator iterator = sxml_sequence_iterator_start(items);
+    sxml_status status = SXML_STATUS_OK;
+    for (;;) {
+        sxml_iteration_step step = {.has_item = false};
+        status = sxml_sequence_iterator_next(&iterator, NULL, &step);
+        if (status != SXML_STATUS_OK || !step.has_item) {
+            break;
+        }
+        sxml_node_reference document;
+        sxml_tree_description tree;
+        if (!sxml_item_is_document_node(step.item) ||
+            sxml_item_get_node(step.item, &document) != SXML_STATUS_OK ||
+            sxml_tree_describe(document.tree, &tree) != SXML_STATUS_OK ||
+            tree.document_uri.byte_count == 0 ||
+            sxml_loader_find_document(loader, tree.document_uri).is_found) {
+            continue;
+        }
+        status = sxml_loader_keep_document(
+            loader, &(sxml_loaded_document_request){.uri = tree.document_uri,
+                                                    .document_node = step.item});
+        if (status != SXML_STATUS_OK) {
+            break;
+        }
+    }
+    return status;
+}
+
 /* Asks the resolver for the collection key names and keeps it; *items
    gets one reference, owned. */
 static sxml_status sxml_loader_resolve_collection(sxml_processor_document_loader *loader,
@@ -1973,7 +2006,12 @@ static sxml_status sxml_loader_resolve_collection(sxml_processor_document_loader
         break;
     case SXML_RESOURCE_FORM_SEQUENCE:
         key->items = resource.items;
-        status = sxml_loader_keep_collection(loader, key);
+        status = key->resource_kind == SXML_RESOURCE_KIND_COLLECTION
+                     ? sxml_loader_keep_collection_documents(loader, resource.items)
+                     : SXML_STATUS_OK;
+        if (status == SXML_STATUS_OK) {
+            status = sxml_loader_keep_collection(loader, key);
+        }
         if (status == SXML_STATUS_OK) {
             collection->is_available = true;
             collection->items = resource.items;

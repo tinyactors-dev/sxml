@@ -1015,6 +1015,11 @@ static const expression_case function_cases[] = {
      "\"{\n  \"\"a\"\": [\n    1,\n    {}\n  ]\n}\""},
     {"xml-to-json(json-to-xml('\"" ESCAPE_U "0001\"', {'escape': true()}))",
      "\"\"\"" ESCAPE_U "0001\"\"\""},
+    /* A top element may have escaped-key without key (F&O 4.0, 17.4.7;
+       packet 2.27). */
+    {"xml-to-json(parse-xml('<map xmlns=\"http://www.w3.org/2005/xpath-functions\" "
+     "escaped-key=\"0\"><string key=\"a\">t</string></map>'))",
+     "\"{\"\"a\"\":\"\"t\"\"}\""},
     {"jtree(())", "jtree(())"},
     {"jtree({'a': [4, 5]})/a", "jnode(\"a\":[4,5])"},
     {"parse-xml(())", ""},

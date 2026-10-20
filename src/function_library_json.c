@@ -849,8 +849,45 @@ typedef struct space_stripper {
     size_t capacity;
 } space_stripper;
 
+/* The bits of a level of the stack: under xml:space="preserve"
+   (inherited), and an element whose XSD validation gave it a simple type
+   or simple content (its own: F&O 4.0, 17.2.1, strip-space "all" keeps
+   its whitespace-only text). */
+#define SXML_SPACE_PRESERVED 1U
+#define SXML_SPACE_SIMPLE_CONTENT 2U
+
 static bool space_stripper_preserves(const space_stripper *stripper) {
+    return stripper->depth > 0 &&
+           (stripper->preserves[stripper->depth - 1] & SXML_SPACE_PRESERVED) != 0;
+}
+
+/* Whether whitespace-only text of the open element is kept. */
+static bool space_stripper_keeps_text(const space_stripper *stripper) {
     return stripper->depth > 0 && stripper->preserves[stripper->depth - 1] != 0;
+}
+
+/* Whether type_annotation is a simple type or a complex type with simple
+   content; untyped elements have neither. */
+static bool space_stripper_is_simple(const space_stripper *stripper,
+                                     sxml_type_identifier type_annotation) {
+    if (type_annotation.index == SXML_TYPE_NONE || type_annotation.index == SXML_TYPE_XS_UNTYPED ||
+        type_annotation.index == SXML_TYPE_XS_ANY_TYPE) {
+        return false;
+    }
+    sxml_type_description description;
+    memset(&description, 0, sizeof(description));
+    if (sxml_type_registry_describe_type(sxml_item_heap_get_type_registry(stripper->item_heap),
+                                         type_annotation, &description) != SXML_STATUS_OK) {
+        return false;
+    }
+    if (description.variety == SXML_TYPE_VARIETY_COMPLEX) {
+        return description.variety_details.complex_type.content_type_variety ==
+               SXML_CONTENT_TYPE_VARIETY_SIMPLE;
+    }
+    return description.variety == SXML_TYPE_VARIETY_ANY_SIMPLE ||
+           description.variety == SXML_TYPE_VARIETY_ATOMIC ||
+           description.variety == SXML_TYPE_VARIETY_LIST ||
+           description.variety == SXML_TYPE_VARIETY_UNION;
 }
 
 static sxml_status strip_start_document(void *state, const sxml_document_start_event *event) {
@@ -883,7 +920,10 @@ static sxml_status strip_start_element(void *state, const sxml_element_start_eve
         stripper->preserves = memory;
         stripper->capacity = capacity;
     }
-    stripper->preserves[stripper->depth] = space_stripper_preserves(stripper) ? 1U : 0U;
+    stripper->preserves[stripper->depth] = (uint8_t)(
+        (space_stripper_preserves(stripper) ? SXML_SPACE_PRESERVED : 0U) |
+        (space_stripper_is_simple(stripper, event->type_annotation) ? SXML_SPACE_SIMPLE_CONTENT
+                                                                    : 0U));
     stripper->depth += 1;
     return stripper->target.operations->start_element(stripper->target.state, event);
 }
@@ -899,9 +939,11 @@ static sxml_status strip_add_attribute(void *state, const sxml_attribute_event *
     if (stripper->knows_space_name && stripper->depth > 0 &&
         event->attribute_name.index == stripper->space_name.index) {
         if (json_text_is(event->attribute_value, SXML_BYTE_VIEW_FROM_LITERAL("preserve"))) {
-            stripper->preserves[stripper->depth - 1] = 1U;
+            stripper->preserves[stripper->depth - 1] =
+                (uint8_t)(stripper->preserves[stripper->depth - 1] | SXML_SPACE_PRESERVED);
         } else if (json_text_is(event->attribute_value, SXML_BYTE_VIEW_FROM_LITERAL("default"))) {
-            stripper->preserves[stripper->depth - 1] = 0U;
+            stripper->preserves[stripper->depth - 1] =
+                (uint8_t)(stripper->preserves[stripper->depth - 1] & SXML_SPACE_SIMPLE_CONTENT);
         }
     }
     return stripper->target.operations->add_attribute(stripper->target.state, event);
@@ -923,7 +965,7 @@ static sxml_status strip_add_text(void *state, const sxml_text_event *event) {
         const uint8_t byte = event->text.bytes[byte_index];
         is_whitespace = byte == ' ' || byte == '\t' || byte == '\n' || byte == '\r';
     }
-    if (is_whitespace && !space_stripper_preserves(stripper)) {
+    if (is_whitespace && !space_stripper_keeps_text(stripper)) {
         return SXML_STATUS_OK;
     }
     return stripper->target.operations->add_text(stripper->target.state, event);
@@ -993,8 +1035,12 @@ static sxml_status json_send_copy(const document_copy_request *request,
                                              &(sxml_copy_request){.node = child_node,
                                                                   .preserves_namespaces = true,
                                                                   .inherits_namespaces = true,
+                                                                  /* A copy of a validated
+                                                                     document keeps its types
+                                                                     (strip-space after
+                                                                     xsd-validation). */
                                                                   .preserves_type_annotations =
-                                                                      false});
+                                                                      true});
         sxml_node_description child_description;
         if (status == SXML_STATUS_OK) {
             status = sxml_node_describe(child_node, &child_description);
