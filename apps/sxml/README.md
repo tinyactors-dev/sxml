@@ -412,8 +412,8 @@ serialization. The default method is xml.
   file and every fn:put file, or none of them.
 - An error is reported on standard error as
   `QUERY-FILE:LINE:COLUMN: err:CODE: description`, or with `expression`
-  in place of QUERY-FILE for `--expression`. A static error in a library
-  module names the file of that module.
+  in place of QUERY-FILE for `--expression`. An error in a library
+  module, static or dynamic, names the file of that module.
 
 Exit status: as for [sxml xpath](#sxml-xpath).
 

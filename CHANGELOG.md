@@ -161,6 +161,8 @@ not tagged yet, or into the next minor release.
 - `sxml xquery` and `sxml xpath`: `fn:collection` and
   `fn:uri-collection` raise FODC0002 for a relative URI too (it ended
   with exit 4 and `SXML_STATUS_INVALID_ARGUMENT`; D271).
+- `sxml xquery`: a dynamic error raised in a library module names the
+  module's file, as a static error does (D271).
 
 ## [0.2.0] - unreleased
 

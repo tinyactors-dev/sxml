@@ -183,4 +183,13 @@ expression:2:5: err:XQST0059: the module found is not a library module of the im
 ```
 
 An error inside a module is reported with the module's own file name,
-line and column, so you know where to look.
+line and column, so you know where to look. That holds for errors the
+module raises as it runs, too: a loan whose date isn't a date fails in
+`loans:start`, inside `loans.xqm`:
+
+```console
+$ sxml xquery --expression='
+    import module namespace loans = "https://example.org/loans" at "loans.xqm";
+    loans:due(<loan date="soon"/>)'
+loans.xqm:12:3: err:FORG0001: the value is not in the lexical space or value space of the target type
+```

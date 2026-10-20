@@ -216,6 +216,8 @@ sxml_add_cli_test(xquery_missing_file EXIT_CODE 3 ARGUMENTS xquery missing.xq)
 sxml_add_cli_test(xquery_module_import EXIT_CODE 0 ARGUMENTS xquery --method=text area.xq)
 sxml_add_cli_test(xquery_module_error EXIT_CODE 1 ARGUMENTS xquery import-broken.xq)
 sxml_add_cli_test(xquery_module_missing EXIT_CODE 1 ARGUMENTS xquery import-missing.xq)
+# A dynamic error in a library module names the module's file (D271).
+sxml_add_cli_test(xquery_module_dynamic_error EXIT_CODE 1 ARGUMENTS xquery import-failing.xq)
 # The program has no collections: FODC0002 for any URI (D271).
 sxml_add_cli_test(xquery_collection_relative EXIT_CODE 1 ARGUMENTS xquery "--expression=collection('books.xml')")
 sxml_add_cli_test(xpath_uri_collection_relative EXIT_CODE 1 ARGUMENTS xpath "uri-collection('books.xml')")

@@ -529,9 +529,11 @@ sxml_cli_exit_code sxml_query_run_fail(const sxml_query_run *run,
     sxml_cli_writer *error = run->invocation->standard_error;
     const sxml_error_record *error_record = failure->error_record;
     const sxml_diagnostic *diagnostic = &error_record->diagnostic;
-    /* A static error in an XQuery library module names that module (D148);
-       other locations may borrow from a unit released by now. */
-    const bool names_its_source = status == SXML_STATUS_STATIC_ERROR &&
+    /* An error in an XQuery library module names that module (D148): a
+       static error always, a dynamic or type error while its query is
+       alive, since the location borrows from the compiled unit (D271). */
+    const bool names_its_source = (status == SXML_STATUS_STATIC_ERROR ||
+                                   failure->has_live_location) &&
                                   diagnostic->location.line_number != 0 &&
                                   diagnostic->location.source_name.byte_count > 0;
     /* A module's name is its URI, resolved against the static base URI:

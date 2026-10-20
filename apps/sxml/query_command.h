@@ -212,6 +212,10 @@ typedef struct sxml_query_failure {
     sxml_byte_view source_name;
     const sxml_error_record *error_record;
     sxml_status status;
+    /* The compiled query the error came from is not released yet, so the
+       location's source name (borrowed from it) can be read: an error
+       raised in a library module then names that module's file. */
+    bool has_live_location;
 } sxml_query_failure;
 
 /* Reports failure on standard error (nothing for an output failure) and

@@ -368,13 +368,17 @@ static sxml_cli_exit_code sxml_xquery_evaluate(sxml_query_run *run,
         sxml_sequence_release(result);
     }
     sxml_serialization_parameter_reader_destroy(updated.parameter_reader);
+    /* Reported before the query is released: the location of an error
+       raised in a library module borrows the module's name from it. */
+    const sxml_cli_exit_code exit_code =
+        status == SXML_STATUS_OK
+            ? SXML_CLI_EXIT_SUCCESS
+            : sxml_query_run_fail(run, &(sxml_query_failure){.source_name = query_text->source_name,
+                                                             .error_record = &error_record,
+                                                             .status = status,
+                                                             .has_live_location = query != NULL});
     sxml_xquery_query_destroy(query);
-    if (status == SXML_STATUS_OK) {
-        return SXML_CLI_EXIT_SUCCESS;
-    }
-    return sxml_query_run_fail(run, &(sxml_query_failure){.source_name = query_text->source_name,
-                                                          .error_record = &error_record,
-                                                          .status = status});
+    return exit_code;
 }
 
 static sxml_cli_exit_code sxml_run_xquery_command(const sxml_cli_invocation *invocation) {
