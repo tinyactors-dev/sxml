@@ -98,7 +98,14 @@ the key `"ada"`; `?name` then takes the member's name.
 XQuery's `collection` function returns a whole set of documents by one
 URI, which processors map to a database, a directory or a list.
 The `sxml` command has no collections, and `collection` raises
-`err:FODC0002`. There are two good ways around it.
+`err:FODC0002` for any URI:
+
+```console
+$ sxml xquery --expression='collection("branches")'
+expression:1:1: err:FODC0002: No such collection
+```
+
+There are two good ways around it.
 
 The first is to pass the file names to the query, as an external
 variable (the next part of this section explains those):

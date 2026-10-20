@@ -178,6 +178,16 @@ static sxml_status sxml_query_resolve_file(void *state, const sxml_resource_requ
         request->resource_kind == SXML_RESOURCE_KIND_LOCALE_DATA) {
         return sxml_query_serve_cldr_data(resolver, request, resource);
     }
+    if (request->resource_kind == SXML_RESOURCE_KIND_COLLECTION ||
+        request->resource_kind == SXML_RESOURCE_KIND_URI_COLLECTION) {
+        /* A collection is a SEQUENCE, never a file's bytes
+           (include/sxml/processor.h): the program has none, so
+           fn:collection and fn:uri-collection raise FODC0002 (F&O 4.0,
+           17.1.3, 17.1.4) for every URI, relative or absolute. */
+        resource->resource_form = SXML_RESOURCE_FORM_NONE;
+        resource->description = SXML_TEXT("The sxml command has no collections");
+        return SXML_STATUS_OK;
+    }
     uint8_t zoneinfo_path[SXML_QUERY_ZONEINFO_PATH_CAPACITY];
     const sxml_byte_view path = request->resource_kind == SXML_RESOURCE_KIND_TIMEZONE_DATA
                                     ? sxml_query_zoneinfo_path(request, zoneinfo_path)

@@ -158,6 +158,9 @@ not tagged yet, or into the next minor release.
   (cvc-elt.4.1, cvc-datatype-valid), where XPath's predeclared prefixes
   used to fill in; a defaulted attribute or element value is read with
   the namespaces of the schema document that gives the default.
+- `sxml xquery` and `sxml xpath`: `fn:collection` and
+  `fn:uri-collection` raise FODC0002 for a relative URI too (it ended
+  with exit 4 and `SXML_STATUS_INVALID_ARGUMENT`; D271).
 
 ## [0.2.0] - unreleased
 

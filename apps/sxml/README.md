@@ -303,6 +303,8 @@ adaptive output method writes the result, one item on each line.
   be named, as `'w;o(%spellout-ordinal-feminine)'`). Other languages are
   English, dates after `[Language: en]`; other calendars are AD after
   `[Calendar: AD]`.
+- `fn:collection` and `fn:uri-collection` raise `err:FODC0002`: the
+  program has no collections.
 - An EXPRESSION that starts with `-` must come after `--`.
 - An error is reported on standard error as
   `expression:LINE:COLUMN: err:CODE: description`.
