@@ -428,3 +428,18 @@ the release driver).
   **Done** 2026-10-20 (D234): XT40 11,913 to 11,943 passed, 0 errors
   (document-4066 from wrong error to failure); QT4 XQ40 45,914, 0
   outcomes differ. Left: document-4066 (fn:document options).
+- [x] **4.22 XSLT on the newest draft** (implementation, D245). Owns
+  `grammars/xslt_pattern`, the pattern lowering and the XSLT files a
+  draft change needs, `third_party/xslt40-test` (D13's script), their
+  unit tests, the XT40 section of `docs/CONFORMANCE.md`, and single
+  insertions in the ledgers. Fetch the newest XSLT 4.0 editor's draft
+  (with XPath, XQuery and F&O 4.0) and the newest xslt40-test, run XT40
+  before and after, classify each changed or failing case (agree:
+  implement; disagree: the draft wins, recorded; neither: recorded),
+  starting with the priority set and the "~T" patterns.
+  **Done** 2026-10-20 (D252): neither moved. The drafts are those of 13
+  October 2026 (qtspecs 72f2229), the suite is 91328fb; the draft has no
+  type patterns, so 57 cases stay recorded as class (b) (53 "~T", 4
+  priorities, 2 patterns the draft allows). New from the draft: typed="~T"
+  on xsl:mode (6.9.4, XTTE3100). XT40 11,945 to 11,951 passed (+130
+  wrong error), 0 errors, no case lost; the six from 7.20.

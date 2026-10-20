@@ -4,6 +4,17 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 4.22 done (D252): XSLT on the newest draft. Nothing moved: the XSLT,
+  XPath, XQuery and F&O 4.0 editor's drafts are still those of 13 October
+  2026 (qtspecs 72f2229) and xslt40-test's newest commit is the vendored
+  91328fb. The draft's pattern grammar has no "~T", so the priority set's
+  type patterns stay XTSE0340: 57 cases are class (b), the draft wins
+  (53 "~T", 4 default priorities of 6.4.2/6.4.4/6.4.7, match-080 and
+  -239). sxml's default priorities match the draft in every form checked.
+  New: typed="~T" on xsl:mode (6.9.4, XTTE3100). XT40 11,951 + 130
+  wrong error of 12,518 run, 0 errors (CONFORMANCE XT40 section
+  regenerated). Next: refresh when qtspecs or xslt40-test move.
+
 - 6.5 done (D250): the Kotlin full surface. `dev.tinyactors.sxml` gains
   `compileQuery` (`XQuery`, `UpdateSink`, `UpdatedTree`, `PutDocument`,
   `Message`), `compileStylesheet` (`Stylesheet.transform`, `InitialMode`,

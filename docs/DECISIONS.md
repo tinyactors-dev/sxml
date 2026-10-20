@@ -11397,6 +11397,69 @@ Packet 6.5 added the rest of the task file's Kotlin API to
   `NativeSideResults`, `NativeBindings` and their fields in the consumer
   ProGuard rules: the glue looks them up by name.
 
+### D252. XSLT on the newest draft: nothing moved; typed="~T" (packet 4.22)
+Recorded 2026-10-20, after D13, D29, D179, D185, D245. Verified as D181
+asks: the debug preset, the touched unit and CLI tests (xslt, the
+cli/transform tests), clang-tidy and the call-cycle check, the
+`grammars/xslt_pattern` corpus (101 of 101), and the whole XT40 suite with
+the release driver before and after, case by case.
+- **Drafts** (fetched 2026-10-20; not vendored, as no spec copy is kept,
+  D29): the XSLT 4.0, XPath 4.0, XQuery 4.0 and F&O 4.0 editor's drafts
+  at qt4cg.org/specifications/ (xslt-40/Overview.html,
+  xquery-40/xpath-40.html, xquery-40/xquery-40.html,
+  xpath-functions-40/Overview.html) are all dated **13 October 2026**,
+  built from qt4cg/qtspecs master **72f2229** (2026-10-13; the last
+  merges are PRs 2977, 2966, 2931, 2920 and 2911). That is the draft D29
+  already targets: the grammars and the lowering need no change.
+- **Suite**: qt4cg/xslt40-test master is **91328fb** (2026-10-13), the
+  commit already vendored (D13). A checkout of it equals
+  `third_party/xslt40-test` apart from the parts the update script leaves
+  out, so `tools/update-test-suites.sh` has nothing to move and was not
+  run; `third_party/xslt40-test.commit` is unchanged.
+- **XT40**: 11,945 passed + 130 wrong error at 55d40c5 (before);
+  11,951 + 130 at aae4d04 (after), 437 failed, 0 errors. The six changed
+  cases (result-document-0201, -0212, -0285, -0286, -0287,
+  transform-009) are 7.20's 638871f, class (a). The XT40 section of
+  `docs/CONFORMANCE.md` and README's row are from the aae4d04 run.
+- **Class (b), the newest draft wins** (57 cases, recorded here):
+  - "~T" type patterns, 53 (48 failed, 5 wrong error): XSLT 4.0 6.3.1
+    and Appendix E have no TypePattern (PR 2911 replaced it with
+    atomic(), record(), map, array and JNode patterns); XTSE0340 stays.
+    priority-010, -012 to -018, -020, -030 to -033, -100 to -109, -120
+    to -122, -142, -160 to -162; array-023, -024; arrays-010, -024;
+    match-409, -410, -411; mode-4008; next-match-401 to -406, -420;
+    record-022; transform-401; type-alias-008, -009, -010, -013, -014,
+    -015. The draft's own examples still write "~T" (6.4.7, 6.6 and 6.9.6);
+    the grammar decides.
+  - Default priorities, 4: priority-002 (".[2=2]" is +0.5 by 6.4.2, the
+    suite says 1.0), -124 and -141 ("{'x'}" and "{42}" are 0 by 6.4.4,
+    "array(P)" is P's by 6.4.6; the suite says 0.25), -163
+    ("jnode(42, {*})" is +0.5 by 6.4.7, constant selector; the suite says
+    0). Every other form agrees: a scratch check of the suite's
+    expectations rewritten in the draft's syntax (atomic(xs:int) 0.4375,
+    array(atomic(xs:integer)) 0.25, jnode(42, atomic(xs:integer)) 0.5,
+    {} 0.5, and so on) passed in all 24 forms tried.
+  - The draft allows what the suite still refuses (XTSE0340), 2:
+    match-080 ("/key('k', 42)//a": "/" RelativePathExprP with a
+    FunctionCallP, 6.3.2) and match-239 ("(.[...])": ParenthesizedPattern
+    holds any Pattern, 6.3.2).
+- **Class (c)**: none found among the cases examined (the priority set,
+  the XTSE0340 cluster). The other failures were not examined one by
+  one: they are the open causes of D185, D230, D234 and D249 (class (a),
+  not done), for example fn:apply-templates (6.9.3.1, 5 cases) and
+  enclosing modes (6.9.6, 8 cases).
+- **Done (class a, from the draft without a suite case)**: 6.9.4's
+  typed="~T" on xsl:mode (sxml raised XTSE0020). The reader's value
+  syntax KEYWORD_OR_ITEM_TYPE reads "~" and an ItemType as an item type,
+  anything else as a keyword; such a mode gets typed 3, element names stay
+  names, and a typed rule of its own (D179's mechanism) whose match
+  function is not(. instance of T) raises XTTE3100. "unspecified" stays
+  ~item(). Two declarations of one precedence with different types are
+  not compared (XTSE0545), as `as` types are not. Two corpus tests pin
+  "~T" in patterns as an error.
+- **Left**: nothing for 4.22. When qtspecs or xslt40-test next move,
+  refresh both together (D245) and run this classification again.
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): the license (there is
