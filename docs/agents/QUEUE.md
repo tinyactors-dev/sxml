@@ -34,8 +34,7 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 
 - stream-1: method=text quadratic memory on streamed sources; a step limit
   option for the JavaScript package (D294).
-- 4.31: XSLT namespace undeclarations in the tree, per-package items,
-  copy-4308 (D289).
+- 4.32: XSLT streaming: D289's about 20 single causes.
   (Book-first pages carry <!-- status: draft -->; check-book-examples.sh
   skips them unless --drafts.)
 
@@ -156,6 +155,14 @@ are not hoisted from; current-merge-group(()) per 15.5.1; globals computed
 on first read (GLOBAL_READ); typed modes and XTSE3105; XT40 11,943 at its
 last run. Left: document-4066 (fn:document's schema validation does not
 raise FODC0002); a global's side effects now happen at its first read.
+
+XSLT (4.31, D291): XT40 12,268 -> 12,273 passed, 245 failed. copy-4308,
+map-for-key-005, accumulators and fn:function-lookup per package,
+document-2401 (strip-space per package; one document per URI and
+preparation). Namespace undeclarations need no tree.h change (D69 already
+stores them; namespace-2606's expected file is indented, a suite issue).
+Left: function-lookup-005 (the packages' use relation), import-schema-216
+(schema roles), merge-when, streaming (4.32).
 
 XSLT (4.30, D289): XT40 12,261 -> 12,268 passed, 250 failed; key-004 lost
 to the draft (20.2.2 note: keys compare by fn:atomic-equal). split-when
