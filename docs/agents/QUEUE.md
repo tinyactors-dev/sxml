@@ -34,6 +34,8 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 - 7.21: fast Invisible XML; book first, then tests, then implementation.
   (Book-first pages carry <!-- status: draft -->; check-book-examples.sh
   skips them unless --drafts.)
+- 7.23: TypeScript/TSX and Markdown built in; a public API and run-time
+  language files for tree-sitter languages (owner, 2026-10-20).
 - 2.28: XPath/XQuery: D286's open list and the string-constructor error
   location (D282).
 
@@ -293,8 +295,8 @@ additive); json, javascript (JSX), python, c, css, html, go vendored with
 highlights; tree-sitter/suite 630 of 639 (corpus 452/452, highlights
 178/187: 7 need locals, 2 injections). sxml.wasm 9,693,235 / 2,006,198
 (budget 10,000,000 / 2,800,000), CLI 11,289,043 / 2,288,933 (budget
-11,500,000 / 2,500,000). Owner: more languages and a registration API
-(Proposed).
+11,500,000 / 2,500,000). Owner (2026-10-20): TypeScript/TSX and Markdown
+built in, a registration API, run-time language files (7.23).
 
 Platform and tooling:
 - macOS, Windows and MSVC have never been built; `_getcwd` is untested.
