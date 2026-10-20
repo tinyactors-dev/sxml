@@ -30,7 +30,7 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 (bindings/kotlin/DESIGN.md, bindings/swift/DESIGN.md).
 
 
-- 4.29: XSLT sweep (D276's open list).
+- 4.30: XSLT real gaps from D281 (small and medium groups).
 - 2.27: XPath/XQuery sweep (D280's open list; XInclude for fn:doc, CJK
   numerals in format-integer).
 - 5.16: schema location hints (xsi:schemaLocation in the library, fn:xsd-validator
@@ -137,6 +137,16 @@ are not hoisted from; current-merge-group(()) per 15.5.1; globals computed
 on first read (GLOBAL_READ); typed modes and XTSE3105; XT40 11,943 at its
 last run. Left: document-4066 (fn:document's schema validation does not
 raise FODC0002); a global's side effects now happen at its first read.
+
+XSLT (4.29, D281): XT40 12,250 -> 12,261 passed (99 wrong error), 257
+failed. Of what is left: 112 the draft decides, 42 suite or environment,
+about 130 failed and 72 wrong error real gaps. Small: xsl:evaluate codes
+(12), package/override static codes (~20), serialization (~10),
+map-for-key with empty $top, copy-4308. Medium: schema-aware validation
+codes (~20), record coercion (12, to 2.27), D274's document items,
+new-each-time="no", split-when/merge-when, function-lookup visibility per
+package. Large: streaming (~20), namespace undeclarations in the tree
+(namespace-2606). self::element() selecting JNodes to 2.27.
 
 XSLT (4.28, D276): XT40 12,239 -> 12,250 passed, 268 failed. XSLT
 instruction errors carry module and line (D271's XTTE gap closed). Left:
