@@ -1003,3 +1003,9 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `highlights_query` | A tree-sitter query (the grammar's `queries/highlights.scm`) whose captures name what each node is for highlighting, such as `keyword` or `function.method` |
 | `capture` | A node that a pattern of a tree-sitter query names with `@name`; the last highlights pattern that captures a node gives its `highlight` attribute |
 | `token_element` | An `sxml:token` element: an anonymous syntax node that has a highlight, a field name or is missing, so it can carry attributes (D285) |
+| `locals_query` | A tree-sitter query (the grammar's `queries/locals.scm`) whose captures `local.scope`, `local.definition` and `local.reference` mark scopes, the names they define and the names that refer to them; a reference gets its definition's highlight (D288) |
+| `injections_query` | A tree-sitter query (the grammar's `queries/injections.scm`) whose captures `injection.content` and `injection.language` mark nodes whose text is code in another language (D288) |
+| `injection` | A node's text parsed with another source code language, as its injections query says: its tree is written inside the node's element, its document element with a `language` attribute (D288) |
+| `injection_regex` | A regex (tree-sitter.json's `injection-regex`) that the language names of injections match to mean a source code language, such as `^(js|javascript)$` (D288) |
+| `registered_language` | A source code language a host gives the processor (`sxml_processor_configuration.source_code_languages`): a tree-sitter grammar and its query texts; one with a built-in language's name replaces it (D288) |
+| `language_library` | A tree-sitter grammar compiled to a shared library (`libtree-sitter-NAME.so`, `.dylib`, `.dll`) that exports `tree_sitter_NAME()`, which the sxml command loads with `--code-language` (D288) |
