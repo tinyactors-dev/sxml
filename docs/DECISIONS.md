@@ -12655,6 +12655,79 @@ the validation frame's is_after_rejection).
   passed, 87 failed, unchanged; no case changed outcome. CONFORMANCE.md
   is not regenerated.
 
+### D278. Schema location hints (packet 5.16)
+Recorded 2026-10-20, after D13, D99, D165, D174, D179, D270, D271, D277.
+sxml follows xsi:schemaLocation and xsi:noNamespaceSchemaLocation when
+the host asks for it (XSD 1.1 Part 1, 4.3.2: "Schema processors should
+provide an option to control whether they do so").
+- **API** (additive, schema.h; no substrate header changes): one field at
+  the end of `sxml_schema_configuration`, `sxml_item
+  schema_location_hint_node`. The zero item is today's behaviour. A
+  document, element or attribute node names the instance: after the
+  configured documents and everything they refer to, every hint of the
+  node's subtree, in document order, is asked of the processor's
+  resolver (kind SCHEMA_DOCUMENT, the location resolved against the base
+  URI of the attribute's element, the hinted namespace as
+  target_namespace_uri) and read with what it refers to before the next
+  hint is weighed. No new resource kind, no file access of the library's
+  own: what the resolver delivers is the trust rule, as for xs:import.
+- **Why on the schema, not the validator.** Part 1, 4.1: an incremental
+  assembly "must result in an assessment outcome that is the same as
+  would be given if assessment were undertaken again with the final,
+  fully assembled schema", and 4.3.2: hints on any element have a global
+  effect. A validator that added documents while it validates could not
+  promise that for content it already assessed; collecting the hints of
+  the whole instance first and assembling one schema does, and it is the
+  existing reader and assembly (src/schema_assemble.c: a hint is one more
+  RESOLVED document in the work list; relation HINT, reported in itself
+  as a configured document). A streaming host that wants hints parses
+  the instance once to collect them (sxml validate does: two parses).
+- **When a hint is ignored** (4.3.2, strategy 1 "do nothing ... a schema
+  containing components for the given namespace name is already known"):
+  when a document already read has the hinted namespace as target
+  namespace (the configured schema, an earlier hint or what it imported),
+  and for the XML Schema and XML Schema instance namespaces. So hints only
+  add namespaces; they never replace, extend or redefine the configured
+  ones. This is also XSLT 4.0, 25.1.3's rule for hints ("must not
+  override or redefine any schema components in the static context") and
+  keeps 4.3.2's security note: a document cannot swap the schema of a
+  namespace the host chose. A namespace without a location is ignored;
+  a document the resolver does not deliver is no error ("It is not an
+  error for such an attempt to fail"); a delivered one with another
+  target namespace than its hint's is `schema_reference` (as a document
+  that is not a schema document), and errors of hinted documents fail
+  the compilation as configured ones do.
+- **The languages.** `fn:xsd-validator` with use-xsi-schema-location=true
+  (F&O 4.0, 17.2.5) compiles its options' documents with the target's
+  hints; with no documents option, the hints' schema comes after the
+  in-scope schemas, so that an in-scope declaration wins. A failure of
+  the hints (a document that is not a schema, a conflict) makes V return
+  is-valid false with the error in error-details, "an invalidity, not a
+  dynamic error" (17.2.5); FODC0009 for the option is gone. fn:doc,
+  fn:doc-available, fn:parse-xml and XSLT's fn:document with
+  use-xsi-schema-location=true (F&O 4.0, 17.1.1, 17.2.1; XSLT 4.0, 20.1)
+  validate against the in-scope schemas and then a schema of the
+  document's hints. XQuery's validate expression keeps
+  use-xsi-schema-location=false (XQuery 4.0, 4.25 recommends it) and XSLT
+  validation attributes ignore hints (XSLT 4.0, 25.1.3 leaves it
+  implementation-defined).
+- **sxml validate** gets the flag `--use-schema-location` (D44: an
+  explicit flag, never a mode guessed from the input or from a missing
+  option; like `sxml check --external-entities`, it opts in to reading
+  files a FILE names): each FILE's hints, relative to the FILE (standard
+  input: the working directory), are read as local files through the
+  CLI's resolver, never the network, and assembled with the `--schema`
+  documents into the schema of that FILE. `--schema` is required unless
+  the flag is given. A FILE is parsed twice then, once for its hints;
+  errors of a hinted document are reported as schema errors of that FILE
+  (`DOCUMENT:LINE:COLUMN: CONSTRAINT: description`, in JSON in its
+  `errors` with `document`) and make it invalid.
+- **xlink.xsd** (D277's introspection set): the W3C's
+  http://www.w3.org/XML/2008/06/xlink.xsd is vendored in
+  `third_party/w3c-xlink/` with its license (W3C Software and Document
+  License) and served by the XSD driver's resolver for that URI, as the
+  library serves its stand-in xml.xsd; the introspection set is run.
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): tagging and

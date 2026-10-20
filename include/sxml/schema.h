@@ -101,8 +101,12 @@
  * import (4.2.6.2): its components are then missing, and src-resolve is
  * reported where they are referred to. Schema
  * location hints in instances (xsi:schemaLocation,
- * xsi:noNamespaceSchemaLocation) are not followed (4.3.2 allows it): the
- * schema is the one the configuration names. Nothing else is read.
+ * xsi:noNamespaceSchemaLocation; glossary schema_location_hint) are
+ * followed only when the configuration names the instance
+ * (schema_location_hint_node, D278): the hinted documents are then
+ * assembled with the configured ones into the one schema, read through
+ * the same resolver; otherwise the schema is the one the configuration
+ * names (4.3.2 leaves the choice to the user). Nothing else is read.
  *
  * Errors carry XSD 1.1's constraint names as their codes (glossary
  * constraint_name; Part 1, appendix C "Outcome Tabulations"): the local
@@ -242,6 +246,28 @@ typedef struct sxml_schema_configuration {
        code the constraint name), or the location of a limit reached; may
        be NULL. Borrowed for the call. */
     sxml_error_record *error_record;
+    /* The zero item (no hints followed), or a document, element or
+       attribute node, in the processor's item heap, of the instance to be
+       validated: its schema location hints join the assembly (XSD 1.1
+       Part 1, 4.3.2; D278). Every xsi:schemaLocation pair and
+       xsi:noNamespaceSchemaLocation value of the node and its descendants,
+       in document order, is asked of the resolver after the configured
+       documents and what they refer to have been read: kind
+       SCHEMA_DOCUMENT, the location as uri_reference, resolved against the
+       base URI of the attribute's element as absolute_uri, the hinted
+       namespace (empty for xsi:noNamespaceSchemaLocation) as
+       target_namespace_uri, which the document must have (else the
+       compilation fails with schema_reference). A hint is ignored (4.3.2,
+       strategy 1) when a document already read has its namespace as
+       target namespace (the configured schema, an earlier hint or what it
+       refers to: hints add namespaces, never replace or extend one), and
+       for the XML Schema and XML Schema instance namespaces, whose
+       components every schema has. A document the resolver does not
+       deliver is no error (4.3.2: "not an error for such an attempt to
+       fail"); one that is not a schema document, or breaks a constraint
+       with the rest, fails the compilation as a configured one does.
+       Borrowed for the call. Added by D278. */
+    sxml_item schema_location_hint_node;
 } sxml_schema_configuration;
 
 /*

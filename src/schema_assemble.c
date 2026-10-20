@@ -173,6 +173,10 @@ typedef enum document_relation {
     SXML_DOCUMENT_RELATION_IMPORT,
     SXML_DOCUMENT_RELATION_REDEFINE,
     SXML_DOCUMENT_RELATION_OVERRIDE,
+    /* Named by a schema location hint of the configuration's instance
+       (glossary schema_location_hint; D278): reported in itself, as a
+       configured document is. */
+    SXML_DOCUMENT_RELATION_HINT,
 } document_relation;
 
 static const char *const unreadable_constraints[] = {
@@ -181,7 +185,15 @@ static const char *const unreadable_constraints[] = {
     [SXML_DOCUMENT_RELATION_IMPORT] = "src-import.2",
     [SXML_DOCUMENT_RELATION_REDEFINE] = "src-redefine.1",
     [SXML_DOCUMENT_RELATION_OVERRIDE] = "src-override.1",
+    [SXML_DOCUMENT_RELATION_HINT] = "schema_reference",
 };
+
+/* A document located in itself when it has a problem: one the
+   configuration or an instance's hint names, not one a schema document
+   refers to. */
+static bool is_located_in_itself(document_relation relation) {
+    return relation == SXML_DOCUMENT_RELATION_CONFIGURED || relation == SXML_DOCUMENT_RELATION_HINT;
+}
 
 static document_relation relation_of_reference(sxml_schema_document_relation relation) {
     switch (relation) {
@@ -268,7 +280,7 @@ static sxml_status parse_document(sxml_schema_assembly *assembly, const document
             status != SXML_STATUS_ARITHMETIC_OVERFLOW) {
             /* A configured document is located in itself, where the
                parser stopped; an included one where it is referred to. */
-            const bool is_configured = source->relation == SXML_DOCUMENT_RELATION_CONFIGURED;
+            const bool is_configured = is_located_in_itself(source->relation);
             return report_document(
                 assembly,
                 (document_error){
@@ -466,6 +478,7 @@ static namespace_decision decide_namespace(const document_source *source,
     switch (source->relation) {
     case SXML_DOCUMENT_RELATION_CONFIGURED:
     case SXML_DOCUMENT_RELATION_IMPORT:
+    case SXML_DOCUMENT_RELATION_HINT:
         decision.is_allowed =
             !source->checks_namespace || own_namespace.index == source->expected_namespace.index;
         break;
@@ -490,6 +503,7 @@ static const char *const namespace_constraints[] = {
     [SXML_DOCUMENT_RELATION_IMPORT] = "src-import.3.1",
     [SXML_DOCUMENT_RELATION_REDEFINE] = "src-redefine.3.1",
     [SXML_DOCUMENT_RELATION_OVERRIDE] = "src-override.2",
+    [SXML_DOCUMENT_RELATION_HINT] = "schema_reference",
 };
 
 /* Adds the document source describes, unless it was read already, and
@@ -524,7 +538,7 @@ static sxml_status add_document(sxml_schema_assembly *assembly, const document_s
     status = find_schema_element(assembly, root, &search);
     if (status == SXML_STATUS_OK && !search.is_found) {
         /* A configured document is located at its document element. */
-        const bool is_configured = source->relation == SXML_DOCUMENT_RELATION_CONFIGURED;
+        const bool is_configured = is_located_in_itself(source->relation);
         sxml_source_location element_location;
         memset(&element_location, 0, sizeof(element_location));
         if (is_configured && search.tree != NULL && search.tree->operations->get_location != NULL &&
@@ -558,13 +572,19 @@ static sxml_status add_document(sxml_schema_assembly *assembly, const document_s
     }
     const namespace_decision decision = decide_namespace(source, own_namespace);
     if (status == SXML_STATUS_OK && !decision.is_allowed) {
+        const bool is_hint = source->relation == SXML_DOCUMENT_RELATION_HINT;
         status = report_document(
             assembly, (document_error){.constraint_name = namespace_constraints[source->relation],
                                        .description = "A schema document has another target "
                                                       "namespace than the one it is referred "
                                                       "to with",
                                        .subject = source->uri,
-                                       .position = source->position});
+                                       .position = source->position,
+                                       /* A hinted document has no referring
+                                          element: it is the place. */
+                                       .document_uri = is_hint ? source->uri : SXML_TEXT(""),
+                                       .configured_uri =
+                                           is_hint ? source->configured_uri : SXML_TEXT("")});
         sxml_item_release(root);
         return status;
     }
@@ -1224,6 +1244,213 @@ static sxml_status read_document(sxml_schema_assembly *assembly, size_t position
     return sxml_schema_read_document(assembly, &request);
 }
 
+/* Reads the documents of the work list from *position on: reading a
+   document may add documents. */
+static sxml_status read_new_documents(sxml_schema_assembly *assembly, size_t *position) {
+    sxml_status status = SXML_STATUS_OK;
+    while (status == SXML_STATUS_OK && *position < assembly->document_count) {
+        status = read_document(assembly, *position, NULL);
+        *position += 1;
+    }
+    return status;
+}
+
+/* ------------------------------------------------------- Location hints */
+
+/* One schema location hint (glossary schema_location_hint; XSD 1.1 Part
+   1, 4.3.2): the URI reference of a schema document, the namespace it is
+   for (empty: no namespace), and the base URI of its attribute's element
+   that it is resolved against. Borrowed. */
+typedef struct location_hint {
+    sxml_byte_view location;
+    sxml_byte_view namespace_text;
+    sxml_byte_view base_uri;
+} location_hint;
+
+/* Adds the document a hint names and reads what it brings, unless a
+   document read already has its namespace (4.3.2, strategy 1: the
+   components of that namespace are known; include/sxml/schema.h). */
+static sxml_status follow_hint(sxml_schema_assembly *assembly, const location_hint *hint,
+                               size_t *position) {
+    sxml_namespace_uri_identifier hinted = {.index = SXML_NAMESPACE_NONE};
+    sxml_status status = SXML_STATUS_OK;
+    if (hint->namespace_text.byte_count != 0) {
+        status = sxml_name_pool_intern_namespace_uri(assembly->processor->name_pool,
+                                                     hint->namespace_text, &hinted);
+    }
+    if (status != SXML_STATUS_OK || hint->location.byte_count == 0 ||
+        hinted.index == (uint32_t)SXML_NAMESPACE_XML_SCHEMA ||
+        hinted.index == (uint32_t)SXML_NAMESPACE_XML_SCHEMA_INSTANCE ||
+        has_namespace_document(assembly, hinted)) {
+        return status;
+    }
+    sxml_uri_resolution resolution = {.uri = {.bytes = NULL, .byte_count = 0}, .memory = NULL};
+    status = sxml_uri_resolve(&(sxml_uri_resolution_request){.base_uri = hint->base_uri,
+                                                             .reference = hint->location,
+                                                             .allocator = assembly->allocator},
+                              &resolution);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    document_source source = {.relation = SXML_DOCUMENT_RELATION_HINT,
+                              .is_node = false,
+                              .uri = resolution.uri,
+                              .configured_uri = hint->location,
+                              .position = {.document = {.value = 0}},
+                              .checks_namespace = true,
+                              .expected_namespace = hinted,
+                              .includer_namespace = {.index = SXML_NAMESPACE_NONE}};
+    /* A document the resolver does not deliver is no error (4.3.2: "It is
+       not an error for such an attempt to fail"). */
+    bool is_missing = false;
+    size_t added = SIZE_MAX;
+    status = resolve_and_add(assembly, (resolution_request){.source = &source,
+                                                            .uri_reference = hint->location,
+                                                            .namespace_text = hint->namespace_text,
+                                                            .is_missing = &is_missing,
+                                                            .position = &added});
+    if (status == SXML_STATUS_OK) {
+        status = read_new_documents(assembly, position);
+    }
+    sxml_allocator_release(assembly->allocator, resolution.memory);
+    return status;
+}
+
+/* The hint attributes' names, interned when an instance has used them;
+   index 0 otherwise. */
+typedef struct hint_names {
+    sxml_name_identifier schema_location;
+    sxml_name_identifier no_namespace_schema_location;
+} hint_names;
+
+static sxml_name_identifier instance_attribute_name(const sxml_schema_assembly *assembly,
+                                                    sxml_byte_view local_name) {
+    sxml_name_identifier name = {.index = 0};
+    if (!sxml_name_pool_find_name(
+            assembly->processor->name_pool,
+            &(sxml_name_request){.namespace_uri = {.index = SXML_NAMESPACE_XML_SCHEMA_INSTANCE},
+                                 .local_name = local_name},
+            &name)) {
+        name.index = 0;
+    }
+    return name;
+}
+
+/* The next whitespace-separated token of value from *offset on; empty at
+   the end. */
+static sxml_byte_view next_token(sxml_byte_view value, size_t *offset) {
+    size_t start = *offset;
+    while (start < value.byte_count && sxml_xml_byte_is_whitespace(value.bytes[start])) {
+        start += 1;
+    }
+    size_t end = start;
+    while (end < value.byte_count && !sxml_xml_byte_is_whitespace(value.bytes[end])) {
+        end += 1;
+    }
+    *offset = end;
+    return (sxml_byte_view){.bytes = value.bytes + start, .byte_count = end - start};
+}
+
+/* One hint attribute: its value and its element. */
+typedef struct hint_attribute {
+    sxml_byte_view value;
+    sxml_node_reference element;
+    bool has_pairs;
+} hint_attribute;
+
+/* Follows the hints of one attribute: xsi:schemaLocation's pairs of a
+   namespace and a location (a namespace without a location is ignored),
+   or xsi:noNamespaceSchemaLocation's locations (Part 1, 2.7.3). */
+static sxml_status follow_attribute_hints(sxml_schema_assembly *assembly,
+                                          const hint_attribute *attribute, size_t *position) {
+    sxml_sequence base_uri_value = sxml_sequence_empty();
+    sxml_status status = sxml_node_make_base_uri(
+        assembly->processor->item_heap,
+        &(sxml_node_value_request){.node = attribute->element, .error_record = NULL},
+        &base_uri_value);
+    location_hint hint = {.location = {.bytes = NULL, .byte_count = 0},
+                          .namespace_text = {.bytes = NULL, .byte_count = 0},
+                          .base_uri = {.bytes = NULL, .byte_count = 0}};
+    sxml_item base_uri_item = {.representation = SXML_ITEM_REPRESENTATION_NONE};
+    sxml_atomic_datum datum;
+    if (status == SXML_STATUS_OK &&
+        sxml_sequence_get_representation(base_uri_value) != SXML_SEQUENCE_REPRESENTATION_EMPTY &&
+        sxml_sequence_get_item(base_uri_value,
+                               (sxml_item_request){.item_index = 0, .error_record = NULL},
+                               &base_uri_item) == SXML_STATUS_OK &&
+        sxml_atomic_item_get_datum(base_uri_item, &datum) == SXML_STATUS_OK &&
+        datum.datum_kind == SXML_DATUM_KIND_STRING) {
+        hint.base_uri = datum.datum_details.string.utf8;
+    }
+    size_t offset = 0;
+    while (status == SXML_STATUS_OK) {
+        if (attribute->has_pairs) {
+            hint.namespace_text = next_token(attribute->value, &offset);
+            if (hint.namespace_text.byte_count == 0) {
+                break;
+            }
+        }
+        hint.location = next_token(attribute->value, &offset);
+        if (hint.location.byte_count == 0) {
+            break;
+        }
+        status = follow_hint(assembly, &hint, position);
+    }
+    sxml_sequence_release(base_uri_value);
+    return status;
+}
+
+/* Follows the schema location hints of the configuration's instance, in
+   document order: the attributes of the node and its descendants, a
+   range of node indices (include/sxml/tree.h). */
+static sxml_status follow_hints(sxml_schema_assembly *assembly, size_t *position) {
+    const sxml_item instance = assembly->compilation->configuration->schema_location_hint_node;
+    if (instance.representation == SXML_ITEM_REPRESENTATION_NONE) {
+        return SXML_STATUS_OK;
+    }
+    sxml_node_reference node = {.tree = NULL, .node_index = {.index = 0}, .namespace_number = 0};
+    sxml_node_description description;
+    if (sxml_item_get_node(instance, &node) != SXML_STATUS_OK ||
+        sxml_node_describe(node, &description) != SXML_STATUS_OK) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    const hint_names names = {
+        .schema_location = instance_attribute_name(assembly, SXML_TEXT("schemaLocation")),
+        .no_namespace_schema_location =
+            instance_attribute_name(assembly, SXML_TEXT("noNamespaceSchemaLocation"))};
+    if (names.schema_location.index == 0 && names.no_namespace_schema_location.index == 0) {
+        /* No instance of the processor has a hint. */
+        return SXML_STATUS_OK;
+    }
+    sxml_status status = SXML_STATUS_OK;
+    const uint32_t last = description.last_descendant.index;
+    for (uint32_t index = node.node_index.index; status == SXML_STATUS_OK && index <= last;
+         index += 1) {
+        const sxml_node_reference candidate = {
+            .tree = node.tree, .node_index = {.index = index}, .namespace_number = 0};
+        sxml_node_description candidate_description;
+        status = sxml_node_describe(candidate, &candidate_description);
+        const sxml_name_identifier name = candidate_description.node_name;
+        if (status != SXML_STATUS_OK ||
+            candidate_description.node_kind != SXML_NODE_KIND_ATTRIBUTE || name.index == 0 ||
+            (name.index != names.schema_location.index &&
+             name.index != names.no_namespace_schema_location.index)) {
+            continue;
+        }
+        hint_attribute attribute = {
+            .value = {.bytes = NULL, .byte_count = 0},
+            .element = {.tree = node.tree,
+                        .node_index = candidate_description.parent,
+                        .namespace_number = 0},
+            .has_pairs = name.index == names.schema_location.index};
+        status = sxml_node_get_content(candidate, &attribute.value);
+        if (status == SXML_STATUS_OK && candidate_description.has_parent) {
+            status = follow_attribute_hints(assembly, &attribute, position);
+        }
+    }
+    return status;
+}
+
 static void release_assembly(sxml_schema_assembly *assembly) {
     for (size_t position = 0; position < assembly->document_count; position += 1) {
         assembly_document *document = assembly->documents[position];
@@ -1258,10 +1485,15 @@ sxml_status sxml_schema_read_documents(sxml_schema_compilation *compilation) {
          document_index += 1) {
         status = add_configured_document(&assembly, &configured.schema_documents[document_index]);
     }
-    /* The work list: reading a document may add documents. */
-    for (size_t position = 0; status == SXML_STATUS_OK && position < assembly.document_count;
-         position += 1) {
-        status = read_document(&assembly, position, NULL);
+    /* The work list: reading a document may add documents. Then the
+       instance's hints, each read with what it brings before the next is
+       weighed (include/sxml/schema.h, D278). */
+    size_t position = 0;
+    if (status == SXML_STATUS_OK) {
+        status = read_new_documents(&assembly, &position);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = follow_hints(&assembly, &position);
     }
     /* Redefinitions of documents met later are read first: a document
        read later is redefined by an earlier one, which must replace its
