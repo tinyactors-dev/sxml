@@ -117,7 +117,7 @@ deployment targets.
 The same names as the JavaScript package unless the language has its own
 idiom. Options are named arguments with defaults, not option objects.
 
-### Kotlin (`bindings/kotlin`, package `io.github.dhamidi.sxml`)
+### Kotlin (`bindings/kotlin`, package `dev.tinyactors.sxml`)
 
 ```kotlin
 val processor = Processor(resolver = { request -> files[request.absoluteUri] })
@@ -379,7 +379,7 @@ shim for the C.
 After 6.4. Owns the Kotlin and glue files for `compileQuery`,
 `compileStylesheet` and `compileSchema`: side results, `UpdateSink`,
 `Message`, `TransformResult` and `ValidationResult`. It also adds the
-DUCET as a Java resource (`io/github/dhamidi/sxml/allkeys.txt`, copied
+DUCET as a Java resource (`dev/tinyactors/sxml/allkeys.txt`, copied
 from `third_party/unicode-collation/allkeys.txt` by the build) and
 `CollationData`. Done when `kotlin/jvm` passes the whole parity list
 (`full.test.ts` included) with 0 leaks. Golden: `sxml_javascript_xquery.c`
@@ -462,7 +462,7 @@ After 6.6 and 6.8. Owns:
 - `bindings/kotlin/README.md` and `bindings/swift/README.md`, written
   after the JavaScript README's sections;
 - the bindings' part of `docs/RELEASE.md`: Maven Central coordinates
-  `io.github.dhamidi:sxml-android` and `:sxml-jvm`, signing, the Swift
+  `dev.tinyactors:sxml-android` and `:sxml-jvm`, signing, the Swift
   package tag and the XCFramework checksum;
 - the `README.md` and `CHANGELOG.md` lines.
 

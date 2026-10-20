@@ -48,7 +48,7 @@ model (XDM 4.0) and one evaluator.
 | --- | --- |
 | Linux | The C library, static or shared, and the `sxml` command. Built and tested with Clang and GCC. |
 | macOS, Windows | The same C17 code, with an MSVC build preset. Neither platform has been built yet. |
-| Browsers and Node.js | The `sxml-js` package: a TypeScript wrapper over two WebAssembly modules (below). |
+| Browsers and Node.js | The `@tinyactors/sxml` package: a TypeScript wrapper over two WebAssembly modules (below). |
 | WASI | The `sxml` command as a WebAssembly program. |
 | iOS, Android | Planned. There are no Swift or Kotlin bindings yet. |
 
@@ -460,12 +460,12 @@ them in the processor configuration, for example
 
 ## Use it from JavaScript
 
-The `sxml-js` package in [`bindings/javascript`](bindings/javascript)
+The `@tinyactors/sxml` package in [`bindings/javascript`](bindings/javascript)
 runs the same library as WebAssembly, with no runtime dependencies. It is
 not on npm yet: build it from this repository as its README describes.
 
 ```js
-import { load } from 'sxml-js';
+import { load } from '@tinyactors/sxml';
 
 const sxml = await load();
 const processor = sxml.createProcessor();
@@ -484,7 +484,7 @@ console.log(titles.toString());
 Load the full module for XQuery, XSLT and XSD:
 
 ```js
-const full = await load({ wasm: new URL('sxml-full.wasm', import.meta.resolve('sxml-js')) });
+const full = await load({ wasm: new URL('sxml-full.wasm', import.meta.resolve('@tinyactors/sxml')) });
 const library = full.createProcessor();
 const query = library.compileQuery('declare variable $n external; //book[@year < $n] ! string()');
 query.run({ context: library.parse('<books><book year="1968">TAOCP</book></books>'), variables: { n: 1975 } });
@@ -545,11 +545,11 @@ sxml 0.2.0 is in active development and has no tagged release yet.
 Everything above works in the library, the `sxml` command and, where the
 table says so, in JavaScript. The public C headers are stable. Not done
 yet: builds for macOS and Windows, bindings for iOS and Android,
-and `xsl:merge` over streamed inputs.
+and Android and iOS bindings (in progress).
 
 ## License
 
-The repository does not have a license file yet.
+sxml is released under the MIT License; see [LICENSE](LICENSE).
 
 ## Documentation
 

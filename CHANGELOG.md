@@ -177,7 +177,7 @@ and `xslt.h` (D151). `SXML_API_VERSION` is 0.2.0.
   `sxml xquery`, `sxml serialize` (with `--method`) and `sxml version`
   (`docs/CLI.md`).
 - **WebAssembly**: a `wasm` build preset (WASI SDK) that runs the tests
-  under Node.js. The JavaScript package `sxml-js` (`bindings/javascript/`)
+  under Node.js. The JavaScript package `@tinyactors/sxml` (`bindings/javascript/`)
   parses, evaluates XPath with variables and a context, serializes and
   resolves resources in Node.js and in browsers. Its WebAssembly size
   budget is checked by ctest.

@@ -10913,8 +10913,8 @@ planned Phases 5 and 7.
   device.
 - **Defaults taken** (D208; outward-facing, so the owner may change them
   before a release):
-  - Kotlin package `io.github.dhamidi.sxml`, Maven coordinates
-    `io.github.dhamidi:sxml-android` and `:sxml-jvm`;
+  - Kotlin package `dev.tinyactors.sxml`, Maven coordinates
+    `dev.tinyactors:sxml-android` and `:sxml-jvm` (D239);
   - Swift module `Sxml`, with `Package.swift` at the repository root;
   - size budget for `libsxml_kotlin.so` on arm64-v8a: 9,000,000 stripped,
     2,400,000 gzipped.
@@ -10927,6 +10927,21 @@ planned Phases 5 and 7.
   - the JavaScript tests and sizes are unchanged, and no conformance
     count has dropped.
 - **PLAN.md**: the Phase 6 row names the host shim and the device gate.
+
+### D239. MIT license; the tinyactors-dev organization and its names (owner)
+Recorded 2026-10-20 on the owner's word: "MIT, we'll move this under the
+tinyactors-dev organization once done, so the npm package will be
+@tinyactors/sxml". Settles the open items of D138, D208 and D238.
+- **License:** MIT, in `LICENSE` at the root, copyright "The sxml authors"
+  (the owner may name a holder). Vendored third-party code keeps its own
+  licenses (third_party/*).
+- **npm:** the JavaScript package is `@tinyactors/sxml` (was `sxml-js`).
+- **Repository:** moves to the `tinyactors-dev` GitHub organization once
+  the owner says so; URLs that name `dhamidi/sxml` (the grammars'
+  `tree-sitter.json`) change with the move, not before.
+- **Kotlin and Maven (default under D208, to match):** package
+  `dev.tinyactors.sxml`, coordinates `dev.tinyactors:sxml-android` and
+  `dev.tinyactors:sxml-jvm`; the Swift module stays `Sxml`. Amends D238.
 
 ## Proposed
 

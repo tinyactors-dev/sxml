@@ -1,4 +1,4 @@
-# sxml-js
+# @tinyactors/sxml
 
 sxml for JavaScript, in Node.js and browsers. It is the sxml C library
 compiled to WebAssembly, with a small TypeScript wrapper and no runtime
@@ -10,7 +10,7 @@ dependencies. It comes as two modules:
 | `sxml-full.wasm` (full) | The core, plus XQuery 4.0 with the Update Facility 3.0, XQuery and XPath Full Text 3.0, XSLT 4.0, XSD 1.1 validation, and every optional feature except EXPath File | 7.6 MB | 1.7 MB |
 
 ```js
-import { load } from 'sxml-js';
+import { load } from '@tinyactors/sxml';
 
 const sxml = await load();
 const processor = sxml.createProcessor();
@@ -43,7 +43,7 @@ full module, or a module from elsewhere, pass `load({ wasm })` with a URL,
 a path, the bytes, a `WebAssembly.Module` or a `fetch()` response:
 
 ```js
-const sxml = await load({ wasm: new URL('sxml-full.wasm', import.meta.resolve('sxml-js')) });
+const sxml = await load({ wasm: new URL('sxml-full.wasm', import.meta.resolve('@tinyactors/sxml')) });
 ```
 
 One loaded module serves any number of processors. `sxml.version` is the
@@ -131,7 +131,7 @@ prolog. A library module that the query imports is read through the
 resolver, with kind `'xquery-module'`.
 
 ```js
-const sxml = await load({ wasm: new URL('sxml-full.wasm', import.meta.resolve('sxml-js')) });
+const sxml = await load({ wasm: new URL('sxml-full.wasm', import.meta.resolve('@tinyactors/sxml')) });
 const processor = sxml.createProcessor();
 
 const books = processor.parse(`<books>

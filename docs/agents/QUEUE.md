@@ -119,10 +119,8 @@ Platform and tooling:
 
 ## Owner decisions open
 
-Only the outward-facing ones (D208): the license (no LICENSE file; the
-JavaScript package says MIT), tagging and publishing releases, the npm
-name. Everything else takes the proposed default and is recorded (D208):
-budgets rise with features (keep the core lean), Phase 7 gates as in D183,
-vendored iXML and CollationTest data, the listed languages and calendars,
-XPath 4.0's number conversion in compatibility mode, an XML-version option
-for query text defaulting to 1.0. CI stays off until the owner's machine.
+Decided in D239: MIT license, npm `@tinyactors/sxml`, the move to the
+tinyactors-dev organization (URLs change with the move), Kotlin
+`dev.tinyactors.sxml`. Still the owner's: tagging and publishing releases,
+the copyright holder's name if not "The sxml authors", and when to move
+the repository. Everything else takes the proposed default (D208).

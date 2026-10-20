@@ -791,14 +791,14 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `digest` | The octets a hash algorithm returns for a message: 16 (MD5), 20 (SHA-1), 32 (SHA-256, BLAKE3) or 4 (CRC-32, big-endian) |
 | `uri_structure` | The parts of a URI as `fn:parse-uri` finds them and `fn:build-uri` joins them: the fields of `fn:uri-structure-record` (F&O 4.0, section 7.6.1) |
 | `percent_decoding` | Replacing `%HH` by its octet and reading the octets as UTF-8, with U+FFFD for what is not (F&O 4.0, fn:decode-from-uri); `form_decoding` turns `+` into a space first |
-| `javascript_package` | The hand-written TypeScript package in `bindings/javascript/` (npm name `sxml-js` for now) that loads `sxml.wasm` in Node.js and browsers (D10, D138) |
+| `javascript_package` | The hand-written TypeScript package in `bindings/javascript/` (npm name `@tinyactors/sxml`, D239) that loads `sxml.wasm` in Node.js and browsers (D10, D138) |
 | `javascript_shim` | The C entry points `sxml.wasm` exports for the JavaScript package (`bindings/javascript/sxml_javascript.c`), written against the public API only |
 | `handle` | The address of a C object in WebAssembly memory that a JavaScript object owns; released by `dispose()` or, failing that, by a `FinalizationRegistry` |
 | `side_result` | What a call of the JavaScript shim delivers besides its result, kept by the handle that made it until its next call: a tree an updating query changed, a document fn:put stores, a result document, a message, a schema report (D216) |
 | `host_shim` | The C layer in `bindings/host/` that the JavaScript, Kotlin and Swift bindings share: handles, flat requests, one error per processor, side results and JSON-shaped input, over the public API only, with the resolver as a state and function (D238) |
 | `jni_glue` | The one C file of the Kotlin binding (`bindings/kotlin/src/main/c/sxml_kotlin_jni.c`): JNI entry points that turn native requests into host shim requests (D238) |
 | `native_request` | The internal Kotlin object a JNI entry point takes as its one argument besides the environment and class: the inputs of one host shim call, and fields the call writes back (handle, error, side results) |
-| `kotlin_package` | The Kotlin binding in `bindings/kotlin/` (package `io.github.dhamidi.sxml`): an Android library (AAR) and a JVM library over `libsxml_kotlin.so` |
+| `kotlin_package` | The Kotlin binding in `bindings/kotlin/` (package `dev.tinyactors.sxml`, D239): an Android library (AAR) and a JVM library over `libsxml_kotlin.so` |
 | `swift_package` | The Swift binding in `bindings/swift/` (module `Sxml`, manifest `Package.swift` at the repository root), importing the host shim through the module map `CSxmlHost` |
 | `device_test` | A binding test run on an Android emulator or device, or an iOS simulator or device, rather than on the build host (Phase 6 gate) |
 | `size_budget` | The most bytes a WebAssembly module may have, stripped and gzipped, checked by a ctest (D93) |

@@ -76,6 +76,6 @@ headers do.
    ```
 
    The npm name `sxml` belongs to another project. The package is named
-   `sxml-js` until the owner chooses a name or a scope (D138).
+   `@tinyactors/sxml` (D239).
 8. **After the release**, open a new "unreleased" section in
    `CHANGELOG.md`.

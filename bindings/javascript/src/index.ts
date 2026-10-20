@@ -1,7 +1,7 @@
 // sxml for JavaScript: XML parsing, XPath 4.0 and serialization in Node.js
 // and browsers, over sxml.wasm (docs/DECISIONS.md, D10, D138).
 //
-//     import { load } from 'sxml-js';
+//     import { load } from '@tinyactors/sxml';
 //     const sxml = await load();
 //     const processor = sxml.createProcessor();
 //     const book = processor.parse('<book><title>XPath</title></book>');
