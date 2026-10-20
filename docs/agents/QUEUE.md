@@ -31,6 +31,13 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 
 
 - 4.30: XSLT real gaps from D281 (small and medium groups).
+- book-3: a book chapter on code generation with XQuery, XSD and XSLT
+  (typed RPC for browser and backend; owner, 2026-10-20).
+- 7.21: fast Invisible XML; book first, then tests, then implementation.
+- 7.22: tree-sitter trees as XDM with highlights captures; book first,
+  then the grammars' corpus and highlight tests, then implementation.
+  (Book-first pages carry <!-- status: draft -->; check-book-examples.sh
+  skips them unless --drafts.)
 - 2.27: XPath/XQuery sweep (D280's open list; XInclude for fn:doc, CJK
   numerals in format-integer).
 - 5.16: schema location hints (xsi:schemaLocation in the library, fn:xsd-validator
