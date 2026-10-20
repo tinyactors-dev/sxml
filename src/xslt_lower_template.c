@@ -1662,8 +1662,8 @@ static sxml_status continue_parameter_maps(sxml_xpath_lowering_machine *machine,
     if (status == SXML_STATUS_OK) {
         /* 17.2.2: the captured groups an enclosing xsl:matching-substring
            or xsl:non-matching-substring sets pass on (D262). */
-        status = sxml_xslt_lowering_pass_captured_groups(
-            lowerer, &(sxml_xslt_captured_groups_pass){.block = frame->block,
+        status = sxml_xslt_lowering_pass_dynamic_context(
+            lowerer, &(sxml_xslt_dynamic_context_pass){.block = frame->block,
                                                        .tunnel_parameters =
                                                            locals->tunnel_parameters});
     }

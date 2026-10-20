@@ -981,19 +981,21 @@ SXML_NODISCARD sxml_status sxml_xslt_lowering_bind_received_output_state(
 
 /* The tunnel parameters an instruction passes to the templates it calls,
    being built in block. */
-typedef struct sxml_xslt_captured_groups_pass {
+typedef struct sxml_xslt_dynamic_context_pass {
     sxml_xpath_lowering_block *block;
     sxml_ir_atom *tunnel_parameters;
-} sxml_xslt_captured_groups_pass;
+} sxml_xslt_dynamic_context_pass;
 
-/* XSLT 4.0, 17.2.2: where xsl:matching-substring or
-   xsl:non-matching-substring of the function being lowered sets the
-   current captured groups, binds in pass->block the map
-   *pass->tunnel_parameters (in/out) with them as the entry
-   Q{XSLT}regex-groups, which the called template reads (D262); otherwise
-   leaves it as it is. src/xslt_lower_number.c. */
-SXML_NODISCARD sxml_status sxml_xslt_lowering_pass_captured_groups(
-    sxml_xpath_lowerer *lowerer, const sxml_xslt_captured_groups_pass *pass);
+/* The dynamic context the templates an instruction calls inherit (D262),
+   put in the map *pass->tunnel_parameters (in/out), bound in pass->block:
+   where xsl:matching-substring or xsl:non-matching-substring of the
+   function being lowered sets the current captured groups, them as the
+   entry Q{XSLT}regex-groups (17.2.2); where the current output URI is
+   cleared (a stylesheet function, a global), true as the entry
+   Q{XSLT}current-output-uri (26.3.1). Otherwise leaves it as it is.
+   src/xslt_lower_number.c. */
+SXML_NODISCARD sxml_status sxml_xslt_lowering_pass_dynamic_context(
+    sxml_xpath_lowerer *lowerer, const sxml_xslt_dynamic_context_pass *pass);
 
 /* Writes the atom of the tunnel parameters the template function being
    lowered received to *tunnel_parameters and returns true; false outside a

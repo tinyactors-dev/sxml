@@ -1235,27 +1235,22 @@ static sxml_status intern_captured_groups_name(sxml_xpath_lowerer *lowerer,
         name);
 }
 
-sxml_status sxml_xslt_lowering_pass_captured_groups(sxml_xpath_lowerer *lowerer,
-                                                    const sxml_xslt_captured_groups_pass *pass) {
-    sxml_name_identifier name = {0};
-    sxml_status status = intern_captured_groups_name(lowerer, &name);
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    /* Only an instruction of the function being lowered sets them; a
-       template function passes on what it received unchanged. */
-    sxml_xpath_context_variable_lookup lookup;
-    sxml_xpath_lowerer_find_context_variable(lowerer, name, &lookup);
-    if (!lookup.is_in_scope) {
-        return SXML_STATUS_OK;
-    }
+/* One entry an instruction puts in the tunnel parameters it passes. */
+typedef struct tunnel_entry {
+    sxml_name_identifier name;
+    sxml_ir_atom value;
+} tunnel_entry;
+
+static sxml_status put_tunnel_entry(sxml_xpath_lowerer *lowerer,
+                                    const sxml_xslt_dynamic_context_pass *pass,
+                                    tunnel_entry entry) {
     sxml_item key = {.representation = 0};
-    status = sxml_atomic_item_make(
+    sxml_status status = sxml_atomic_item_make(
         lowerer->item_heap,
         &(sxml_atomic_item_request){
             .type = sxml_builtin_type_identifier(SXML_TYPE_XS_QNAME),
             .datum = {.datum_kind = SXML_DATUM_KIND_QNAME,
-                      .datum_details = {.qname = {.expanded_name = name,
+                      .datum_details = {.qname = {.expanded_name = entry.name,
                                                   .namespace_prefix = {.index = 0}}}}},
         &key);
     sxml_ir_atom key_atom = {0};
@@ -1265,7 +1260,7 @@ sxml_status sxml_xslt_lowering_pass_captured_groups(sxml_xpath_lowerer *lowerer,
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    const sxml_ir_atom arguments[3] = {*pass->tunnel_parameters, key_atom, lookup.atom};
+    const sxml_ir_atom arguments[3] = {*pass->tunnel_parameters, key_atom, entry.value};
     return sxml_xslt_lowering_bind_library_call(
         lowerer,
         &(sxml_xslt_library_call){.block = pass->block,
@@ -1273,6 +1268,44 @@ sxml_status sxml_xslt_lowering_pass_captured_groups(sxml_xpath_lowerer *lowerer,
                                   .local_name = SXML_BYTE_VIEW_FROM_LITERAL("put"),
                                   .arguments = {.atoms = arguments, .atom_count = 3}},
         pass->tunnel_parameters);
+}
+
+sxml_status sxml_xslt_lowering_pass_dynamic_context(sxml_xpath_lowerer *lowerer,
+                                                    const sxml_xslt_dynamic_context_pass *pass) {
+    sxml_name_identifier name = {0};
+    sxml_status status = intern_captured_groups_name(lowerer, &name);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    /* Only an instruction of the function being lowered sets them; a
+       template function passes on what it received unchanged. */
+    sxml_xpath_context_variable_lookup lookup;
+    sxml_xpath_lowerer_find_context_variable(lowerer, name, &lookup);
+    if (lookup.is_in_scope) {
+        status = put_tunnel_entry(lowerer, pass,
+                                  (tunnel_entry){.name = name, .value = lookup.atom});
+    }
+    if (status != SXML_STATUS_OK || !sxml_xpath_lowerer_is_output_uri_cleared(lowerer)) {
+        return status;
+    }
+    /* 26.3.1: the current output URI stays cleared in the templates a
+       stylesheet function or a global calls (fn:current-output-uri reads
+       the mark, src/xpath_lower.c). */
+    sxml_name_identifier output_uri_name = {0};
+    status = sxml_name_pool_intern_name(
+        lowerer->name_pool,
+        &(sxml_name_request){.namespace_uri = {.index = SXML_NAMESPACE_XSLT},
+                             .local_name = SXML_BYTE_VIEW_FROM_LITERAL("current-output-uri")},
+        &output_uri_name);
+    sxml_ir_atom mark = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_add_item_constant(lowerer, sxml_atomic_item_true(), &mark);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return put_tunnel_entry(lowerer, pass,
+                            (tunnel_entry){.name = output_uri_name, .value = mark});
 }
 
 /* Puts the current captured groups (the variable Q{XSLT}regex-groups,

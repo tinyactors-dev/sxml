@@ -419,6 +419,10 @@ SXML_NODISCARD sxml_status sxml_xpath_lowerer_push_variable(
    context variables too (17.2.2: the captured groups; D262). */
 SXML_NODISCARD sxml_status sxml_xpath_lowerer_clear_output_uri(sxml_xpath_lowerer *lowerer);
 
+/* Whether sxml_xpath_lowerer_clear_output_uri cleared the current output
+   URI where the lowerer is. */
+bool sxml_xpath_lowerer_is_output_uri_cleared(const sxml_xpath_lowerer *lowerer);
+
 /* The local name, in the XSLT namespace, of the scope entry whose atom is
    the map of context variables a template function received (its tunnel
    parameters, D262): a context variable not in scope there is read from

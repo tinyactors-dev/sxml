@@ -2995,8 +2995,7 @@ sxml_status sxml_xpath_lowerer_receive_context_variables(sxml_xpath_lowerer *low
                                                    .atom = received});
 }
 
-/* Whether the current output URI is cleared where the lowerer is. */
-static bool is_output_uri_cleared(const sxml_xpath_lowerer *state) {
+bool sxml_xpath_lowerer_is_output_uri_cleared(const sxml_xpath_lowerer *state) {
     sxml_name_identifier variable_name = {0};
     if (!sxml_name_pool_find_name(
             state->name_pool,
@@ -3020,41 +3019,132 @@ typedef struct output_uri_reference {
     sxml_name_identifier name;
 } output_uri_reference;
 
+/* In a template function, whether the caller cleared the current output
+   URI (D262): the received tunnel parameters' entry
+   Q{XSLT}current-output-uri (true), bound in block; NONE outside a
+   template function. */
+static sxml_status bind_received_output_uri_mark(sxml_xpath_lowerer *state,
+                                                 sxml_xpath_lowering_block *block,
+                                                 sxml_ir_atom *mark) {
+    mark->atom_kind = SXML_IR_ATOM_KIND_NONE;
+    sxml_name_identifier name = {0};
+    sxml_status status = sxml_name_pool_intern_name(
+        state->name_pool,
+        &(sxml_name_request){.namespace_uri = {.index = SXML_NAMESPACE_XSLT},
+                             .local_name = SXML_BYTE_VIEW_FROM_LITERAL("current-output-uri")},
+        &name);
+    sxml_xpath_context_variable_lookup lookup;
+    if (status == SXML_STATUS_OK) {
+        sxml_xpath_lowerer_find_context_variable(state, name, &lookup);
+    }
+    if (status != SXML_STATUS_OK || lookup.received.atom_kind == SXML_IR_ATOM_KIND_NONE) {
+        return status;
+    }
+    sxml_item key = {.representation = 0};
+    status = sxml_atomic_item_make(
+        state->item_heap,
+        &(sxml_atomic_item_request){
+            .type = sxml_builtin_type_identifier(SXML_TYPE_XS_QNAME),
+            .datum = {.datum_kind = SXML_DATUM_KIND_QNAME,
+                      .datum_details = {.qname = {.expanded_name = name,
+                                                  .namespace_prefix = {.index = 0}}}}},
+        &key);
+    sxml_ir_atom key_atom = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_add_item_constant(state, key, &key_atom);
+    }
+    sxml_ir_expression_index lookup_expression = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_add_expression(
+            state,
+            (sxml_xpath_lowering_expression_to_add){
+                .node = {0},
+                .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_LOOKUP,
+                               .lookup = {.value = lookup.received, .key = key_atom}}},
+            &lookup_expression);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_xpath_lowerer_bind_expression(
+        state,
+        (sxml_xpath_lowering_expression_in_block){.block = block, .expression = lookup_expression},
+        mark);
+}
+
+/* The current output URI where it is not cleared lexically, bound in
+   block: fn:current-output-uri(), or () where the caller of the template
+   function cleared it (26.3.1: it stays cleared in templates a stylesheet
+   function calls). */
+typedef struct output_uri_value {
+    sxml_ast_node_index node;
+    sxml_name_identifier name;
+    sxml_xpath_lowering_block *block;
+} output_uri_value;
+
+static sxml_status bind_output_uri_value(sxml_xpath_lowerer *state, output_uri_value request,
+                                         sxml_ir_atom *value) {
+    sxml_function_entry entry = {0};
+    sxml_status status =
+        find_function(state, (function_lookup){.function_name = request.name, .arity = 0}, &entry);
+    sxml_ir_expression call = {0};
+    if (status == SXML_STATUS_OK && entry.entry_kind == SXML_FUNCTION_ENTRY_KIND_NONE) {
+        status = SXML_STATUS_INVALID_ARGUMENT;
+    }
+    if (status == SXML_STATUS_OK) {
+        status = make_entry_call(
+            state,
+            &(entry_call){.entry = &entry,
+                          .arguments = {0},
+                          .module_number = state->static_context->ir_module_number},
+            &call);
+    }
+    sxml_ir_expression_index call_index = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_add_expression(
+            state, (sxml_xpath_lowering_expression_to_add){.node = request.node, .expression = call},
+            &call_index);
+    }
+    sxml_ir_atom mark = {.atom_kind = SXML_IR_ATOM_KIND_NONE};
+    if (status == SXML_STATUS_OK) {
+        status = bind_received_output_uri_mark(state, request.block, &mark);
+    }
+    sxml_ir_expression_index empty = {0};
+    if (status == SXML_STATUS_OK && mark.atom_kind != SXML_IR_ATOM_KIND_NONE) {
+        status = sxml_xpath_lowerer_add_empty_sequence(state, request.node, &empty);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xpath_lowerer_add_expression(
+                state,
+                (sxml_xpath_lowering_expression_to_add){
+                    .node = request.node,
+                    .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_CONDITIONAL,
+                                   .conditional = {.condition = mark,
+                                                   .then_branch = empty,
+                                                   .else_branch = call_index}}},
+                &call_index);
+        }
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_xpath_lowerer_bind_expression(
+        state,
+        (sxml_xpath_lowering_expression_in_block){.block = request.block, .expression = call_index},
+        value);
+}
+
 static sxml_status lower_output_uri_reference(sxml_xpath_lowerer *state,
                                               output_uri_reference reference,
                                               sxml_ir_expression_index *expression) {
-    const bool is_cleared = is_output_uri_cleared(state);
+    const bool is_cleared = sxml_xpath_lowerer_is_output_uri_cleared(state);
     sxml_xpath_lowering_block block = {.first = {0}, .open_let = {0}};
     sxml_ir_atom value = {0};
     sxml_status status = SXML_STATUS_OK;
     if (!is_cleared) {
-        sxml_function_entry entry = {0};
-        status = find_function(state, (function_lookup){.function_name = reference.name, .arity = 0},
-                               &entry);
-        sxml_ir_expression call = {0};
-        if (status == SXML_STATUS_OK && entry.entry_kind == SXML_FUNCTION_ENTRY_KIND_NONE) {
-            status = SXML_STATUS_INVALID_ARGUMENT;
-        }
-        if (status == SXML_STATUS_OK) {
-            status = make_entry_call(state,
-                                     &(entry_call){.entry = &entry,
-                                                   .arguments = {0},
-                                                   .module_number = state->static_context->ir_module_number},
-                                     &call);
-        }
-        sxml_ir_expression_index call_index = {0};
-        if (status == SXML_STATUS_OK) {
-            status = sxml_xpath_lowerer_add_expression(
-                state,
-                (sxml_xpath_lowering_expression_to_add){.node = reference.node, .expression = call},
-                &call_index);
-        }
-        if (status == SXML_STATUS_OK) {
-            status = sxml_xpath_lowerer_bind_expression(
-                state,
-                (sxml_xpath_lowering_expression_in_block){.block = &block, .expression = call_index},
-                &value);
-        }
+        status = bind_output_uri_value(
+            state,
+            (output_uri_value){.node = reference.node, .name = reference.name, .block = &block},
+            &value);
     }
     sxml_type_identifier signature = {0};
     if (status == SXML_STATUS_OK) {
@@ -6979,13 +7069,41 @@ static sxml_status begin_function_call(sxml_xpath_lowering_machine *machine,
         return sxml_xpath_lowering_finish_frame(machine, frame, value);
     }
     if (arity == 0 && is_current_output_uri(state, child_of(state, call_node, SXML_AST_FIELD_NAME)) &&
-        is_output_uri_cleared(state)) {
+        sxml_xpath_lowerer_is_output_uri_cleared(state)) {
         sxml_ir_expression_index empty = {0};
         status = sxml_xpath_lowerer_add_empty_sequence(state, frame->node, &empty);
         if (status != SXML_STATUS_OK) {
             return status;
         }
         return sxml_xpath_lowering_finish_frame(machine, frame, empty);
+    }
+    if (arity == 0 && is_current_output_uri(state, child_of(state, call_node, SXML_AST_FIELD_NAME))) {
+        sxml_xpath_lowering_block block = {.first = {0}, .open_let = {0}};
+        sxml_ir_atom value = {0};
+        status = bind_output_uri_value(state,
+                                       (output_uri_value){.node = call_node,
+                                                          .name = name,
+                                                          .block = &block},
+                                       &value);
+        sxml_ir_expression_index result = {0};
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xpath_lowerer_add_expression(
+                state,
+                (sxml_xpath_lowering_expression_to_add){
+                    .node = call_node,
+                    .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_ATOM,
+                                   .atom = value}},
+                &result);
+        }
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xpath_lowerer_finish_block(
+                state, (sxml_xpath_lowering_block_result){.block = block, .result = result},
+                &result);
+        }
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        return sxml_xpath_lowering_finish_frame(machine, frame, result);
     }
     sxml_function_entry entry = {0};
     sxml_ir_atom merge_sources = {0};
