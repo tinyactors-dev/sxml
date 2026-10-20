@@ -4,6 +4,20 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 2.23 done (D258): an XPath/XQuery sweep by root-cause clusters. JNodes
+  in `{ E }` map constructors; the item axis's JNode with G as its parent
+  (D113's deviation gone); fn:xsd-validator compiles its schema,
+  schema-location and target-namespace options per call through the
+  builtin-schemas feature; fn:function-lookup gives a declared function's
+  `$a := .` its caller's focus; "||" over sequences; partial-application
+  names and the dynamic arity check; deep-equal ignores declared
+  functions' names; pure unions without facets; XQTY0086; pattern facets
+  by XSD's canonical doubles; fn:resolve-uri's FORG0002. Release whole
+  runs: XP40 32,689 to 32,716 passed (82 to 55 failed, wrong errors 34 to
+  32), XQ40 45,969 to 46,017 (239 to 191, 55 to 53), none lost;
+  CONFORMANCE.md's XP40 and XQ40 sections regenerated at 7849df6. Next:
+  D258's "Not done" (QUEUE).
+
 - book-1 done (D257): the sxml book in `docs/book/`, an mdBook of 35
   pages: Getting Started, XPath, XQuery and XSLT in full (five, four and
   four sections), XSD, other formats, text, files, C (five programs),

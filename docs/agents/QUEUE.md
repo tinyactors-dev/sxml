@@ -73,12 +73,20 @@ Swift (6.7/6.8 done, D241, D248): 55 tests on Linux; the bundled DUCET is a
 copy of third_party/unicode-collation/allkeys.txt that must be updated with
 it.
 
-XPath and XQuery (after 2.22, D226):
+XPath and XQuery (after 2.23, D258; XP40 32,716, XQ40 46,017 passed):
 - XSLT's own expressions have no Full Text (they use grammars/xpath; D235).
-- `{ E }` map constructors over JNodes (MapConstructor-500..511).
-- NCName vs `Q{}N` name tests (sxml_name_test is frozen); the item axis's
-  JNode parent (D113); a declared function's `$a := .` via function-lookup.
-- fn:xsd-validator's schema, schema-location, target-namespace options.
+- NCName vs `Q{}N` name tests (sxml_name_test is frozen).
+- A library module's context value type checked against the context value
+  (XQuery 4.0, 5.17; contextDecl-050/051/064/066).
+- fn:string-length and fn:normalize-space: an explicit argument is atomized,
+  the default is fn:string(.) (string-length-23, normalize-space-24).
+- Casts to xs:QName with an enclosing direct constructor's namespaces (CAST
+  uses the unit's static namespaces, D84; 4 cases); `$e:code` with xmlns:e
+  on the same element (try-catch-err-code-variable-13).
+- is-id of list and union ID types (fn-element-with-id-4/5); fn:xsd-
+  validator's use-xsi-schema-location (FODC0009).
+- The suite's `recordTypeDecl/` module paths (the directory is
+  `RecordTypeDecl/`; 11 cases, a suite error to report upstream).
 - fn:serialize canonical-JSON cases (27) need `bin:unpack-double` (7.8).
 - A processor keeps every imported schema until it is destroyed (D174).
 

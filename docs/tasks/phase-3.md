@@ -370,3 +370,21 @@ deep-equal typed values, doc-available options, schema-type, signatures,
 XPath namespace declarations, decimal array keys; XP40 +56, XQ40 +98
 cases. Open: D226's
 "Not done".
+
+### 2.23 XPath and XQuery conformance sweep (implementation)
+After 2.22. From fresh whole runs (XP40 82 failed, 34 wrong-error passes;
+XQ40 239 and 55), cluster the failures and the wrong-error passes by root
+cause and fix the largest clusters with general mechanisms, with the
+"XPath and XQuery" leftovers of `docs/agents/QUEUE.md`: `{ E }` map
+constructors over JNodes, the item axis's JNode parent (D113),
+fn:xsd-validator's schema options, a declared function's `$a := .`
+through fn:function-lookup. Files: the evaluator, the XPath and XQuery
+lowering, the function library parts the fixes touch, the QT4 driver's
+resource table. Verification as D181 says; the XP40 and XQ40 sections of
+`docs/CONFORMANCE.md` regenerated from whole runs of the final code.
+**Done** 2026-10-20 (D258): the four leftovers, "||" over sequences,
+partial-application names and arity, deep-equal of declared functions,
+pure union types, XQTY0086, pattern facets by XSD's canonical mapping,
+fn:resolve-uri's FORG0002; XP40 32,689 to 32,716 passed (82 to 55
+failed), XQ40 45,969 to 46,017 (239 to 191), none lost. Open: D258's
+"Not done".

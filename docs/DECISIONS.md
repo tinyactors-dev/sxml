@@ -11598,6 +11598,99 @@ internal process in it (no phases, packets or decision numbers).
   `build/book/`, which is ignored; `mise run book:serve` serves it.
   mdbook is not a pinned mise tool; any 0.4 release works (0.4.40 here).
 
+### D258. XPath and XQuery conformance sweep (packet 2.23)
+Recorded 2026-10-20, after D113, D143, D174, D190, D226. Takes the
+"XPath and XQuery" leftovers of `docs/agents/QUEUE.md` and the largest
+clusters of fresh whole runs. No public header changed; no IR expression
+kind added.
+- **Clusters at the start** (release driver, whole runs at ee7f101; XP40
+  82 failed and 34 wrong-error passes, XQ40 239 and 55), by root cause:
+  `{ E }` over JNodes (12 cases and 4 wrong errors); the item axis's
+  JNode parent (D113, 12); fn:xsd-validator's schema options (12,
+  FODC0009); "||" over sequences (8); pure union types (5, XPST0051);
+  deep-equal of declared functions' items (4); partial-application names
+  (6); pattern facets of casts from non-string types (4); XQTY0086 (3);
+  dynamic partial-application arity (4); fn:resolve-uri's FORG0002 (5);
+  function-lookup with `$a := .` (1); assert-xml whitespace (about 25,
+  kept: D205's strict canonical comparison); EXPath Binary's 4.0 types
+  (46 wrong errors, D198, kept); the suite's `recordTypeDecl/` paths
+  (11, a suite error: the directory is `RecordTypeDecl/`); small groups
+  and singletons (below).
+- **Map constructors** (XPath 4.0, 4.15.1.1, PR 2541): an item of a
+  `{ E }` entry that is a JNode with a jkey is the single-entry map of
+  its jkey and jvalue, any other JNode its jvalue's maps; then merged as
+  before (XQDY0137 for duplicates).
+- **The item axis** (4.7.5.1; replaces D113's deviation): for an origin
+  G whose jvalue is one item, J has jkey 1, jvalue jvalue(G) and parent
+  G, and is no child of G. `sxml_json_node_make_item_node`
+  (`src/xdm_internal.h`) makes it, through the internal row fn:item-node
+  (`sxml_item_node_function`, in no table), and a self step applies the
+  node test. J's child_index is G's child count: J is the same node each
+  time it is made, sorts directly after G (before G's children) in
+  document order, and has no siblings (the sibling axes, fn:siblings);
+  the preceding axis ends at the first node not before its origin.
+- **"||"** is fn:concat (4.10.1): every item of each operand.
+- **Partial applications** (4.6.4): the closure of a static partial
+  application has the function's name when every parameter is a
+  placeholder; a dynamic one with another number of arguments than the
+  function item's arity is XPTY0004 (fn:function-arity compared in the
+  MAP body; fn:partial-apply does not check it).
+- **deep-equal of function items** (F&O 4.0, 1.9.5, names ignored): a
+  top-level IR function's (a declared function's) name does not count;
+  a native row's (D143: fn:last#0 and fn:position#0 share one body) and
+  a lowering closure's do (`implementation_name_of`).
+- **Pure union types** (XPath 4.0, 3.2.3): a union with facets, its own
+  or a union base's, is not one (XPST0051).
+- **XQTY0086** (XQuery 4.0, 4.12.1.3) under construction preserve: a
+  copied attribute without its element, or with copy-namespaces
+  no-preserve a copied element subtree, whose typed value has an
+  xs:QName or xs:NOTATION item. XSLT's rules do not apply it.
+- **Pattern facets of a cast from a non-string type** (F&O 4.0,
+  23.3.5) match XSD 1.1's canonical mapping: xs:float and xs:double
+  always in the exponent form (`sxml_canonical_text_request.
+  uses_schema_mapping`).
+- **fn:function-lookup and a declared function's defaults** (13.1.1,
+  PR 2941): a declared function's shorter arity has its focus in the
+  three slots after its parameters; fn:function-lookup's search of the
+  unit (`sxml_unit_function_query.caller_focus`) captures its caller's
+  focus there. Made otherwise (a reference without a focus, the
+  functions of fn:load-xquery-module) the slots stay absent: XPDY0002 as
+  before.
+- **fn:xsd-validator's schema options** (17.2.5; replaces D174's
+  FODC0009 for schema, schema-location and target-namespace): V compiles,
+  per call, one schema from the schema nodes, the schema-location URIs
+  (against the static base URI of the call of fn:xsd-validator) and the
+  target namespaces (by namespace alone), validates with it and, under
+  use-imported-schema, the caller's in-scope schemas, then destroys it
+  (validated trees stay valid; nothing joins the static context).
+  FODC0015 when it cannot be assembled. The compiler is reached through
+  the builtin-schemas feature (new create_schema, destroy_schema; D225),
+  FODC0009 without it; use-xsi-schema-location stays FODC0009. The QT4
+  driver serves SCHEMA_DOCUMENT requests for an environment source's URI
+  with its file.
+- **fn:resolve-uri**: FORG0002 for an $href or $base that is no IRI
+  reference (a "%" without two hex digits, a ":" before the first "/"
+  ending no scheme).
+- **Measured** (release driver, whole runs, ee7f101 against 7849df6):
+  XP40 32,689 passed (34 wrong errors), 82 failed to 32,716 (32), 55
+  failed; XQ40 45,969 (55), 239 failed to 46,017 (53), 191 failed; 0
+  errors; no case lost, case by case. CONFORMANCE.md's XP40 and XQ40
+  sections are regenerated from the runs at 7849df6.
+- **Not done** (for later sweeps; QUEUE): a library module's context
+  value type checked against the context value (XQuery 4.0, 5.17;
+  contextDecl-050/051/064/066); fn:string-length and fn:normalize-space
+  atomize an explicit argument (`:= fn:string(.)` defaults;
+  string-length-23, normalize-space-24); casts to xs:QName with the
+  namespaces of an enclosing direct constructor (the IR's CAST uses the
+  unit's static namespaces, D84; K2-NamespaceURIFromQNameFunc-1/3/4,
+  K2-SeqExprCast-479) and `$e:code` with xmlns:e on the same element
+  (try-catch-err-code-variable-13); is-id of list and union ID types
+  (fn-element-with-id-4/5); use-xsi-schema-location; NCName vs `Q{}N`
+  name tests (frozen sxml_name_test); xpath-1.0-compatibility format-
+  number (D208); the deep-equal of partial-apply against static partial
+  applications and of closures with folded constants
+  (deep-equal-40-function-items-092/106/119/120).
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): tagging and
