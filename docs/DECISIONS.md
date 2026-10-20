@@ -12959,6 +12959,33 @@ remote functions.
   files match; `mdbook build` succeeds; the generated TypeScript
   type-checks with `tsc --strict`.
 
+### D283. Fast Invisible XML: Earley with lookahead sets and Leo items (packet 7.21)
+Recorded 2026-10-20, after D12, D53, D71, D189, D215, D224, D272. In
+progress; completed when the packet ends. The owner: a high-performance
+Invisible XML, book first, then the tests, then the implementation.
+- **Book** (ec3fd42): the part "Parsing Text with Invisible XML", five
+  chapters; the errors and performance chapters are drafts whose
+  examples are the acceptance test. **Tests** (4818dd3):
+  `tests/bench/run-ixml-bench.py`, whose `--check` holds the book's
+  numbers.
+- **Choice**: keep the one Earley parser of D215 and make it fast with
+  (1) items in arrays of 16 bytes over numbered dotted rules, (2) one
+  character of lookahead from the grammar's FIRST and FOLLOW sets, so an
+  item is made only when the next character can continue it (Earley,
+  1970, used lookahead; global FOLLOW sets need no per-item lookahead),
+  (3) Leo's items (Leo, "A general context-free parsing algorithm
+  running in linear time on every LR(k) grammar without using
+  lookahead", TCS 82, 1991) for right recursion, and (4) compiled
+  codepoint classes: each codepoint is looked up once in a table of the
+  grammar's distinct terminals. Rejected: an LR/LALR front end with a
+  GLR fallback (Markup Blitz): grammars are run-time data, so the
+  tables would be built per fn:invisible-xml call and could be large,
+  and GLR needs a graph-structured stack and a packed forest beside the
+  Earley sets, a second parser against D215; the LR(0) automaton of
+  Aycock and Horspool ("Practical Earley Parsing", 2002) merges items
+  into states but makes the first derivation, which sxml reads the tree
+  from, harder to keep.
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): tagging and
