@@ -311,6 +311,9 @@ static sxml_status describe(const file_access *access, sxml_byte_view path,
                                            .byte_count = 0,
                                            .modified_seconds = 0,
                                            .modified_nanoseconds = 0};
+    if (access->file_system.operations == NULL) {
+        return report(access->call, &no_file_system_error);
+    }
     return host_result(access, access->file_system.operations->describe(
                                    access->file_system.state, path, description));
 }
@@ -414,9 +417,17 @@ typedef struct segment_source {
     size_t root_byte_count;
 } segment_source;
 
+/* The text the segments go to, and the length of its root. */
+typedef struct segment_target {
+    sxml_library_text *output;
+    size_t root_byte_count;
+} segment_target;
+
 static sxml_status append_segments(file_conventions conventions, segment_source source,
-                                   sxml_library_text *output, size_t root_byte_count) {
+                                   segment_target target) {
     const sxml_byte_view path = source.path;
+    sxml_library_text *output = target.output;
+    const size_t root_byte_count = target.root_byte_count;
     size_t position = source.root_byte_count;
     sxml_status status = SXML_STATUS_OK;
     while (status == SXML_STATUS_OK && position < path.byte_count) {
@@ -515,7 +526,7 @@ static sxml_status make_absolute(const file_access *access, sxml_byte_view input
         if (status == SXML_STATUS_OK) {
             status = append_segments(
                 conventions, (segment_source){.path = current, .root_byte_count = current_root},
-                output, current_root);
+                (segment_target){.output = output, .root_byte_count = current_root});
         }
         root = 0;
     } else if (status == SXML_STATUS_OK) {
@@ -527,7 +538,8 @@ static sxml_status make_absolute(const file_access *access, sxml_byte_view input
                                                  : root;
         status = append_segments(conventions,
                                  (segment_source){.path = plain.path, .root_byte_count = root},
-                                 output, root_byte_count);
+                                 (segment_target){.output = output,
+                                                  .root_byte_count = root_byte_count});
     }
     sxml_function_library_text_release(&plain.decoded);
     return status;
@@ -747,6 +759,9 @@ static sxml_status list_directory(const file_access *access, sxml_byte_view path
                                   entry_list *list) {
     list->names.text.byte_count = 0;
     list->names.paths.element_count = 0;
+    if (access->file_system.operations == NULL) {
+        return report(access->call, &no_file_system_error);
+    }
     return host_result(
         access, access->file_system.operations->list(
                     access->file_system.state,
@@ -1033,14 +1048,16 @@ static sxml_status create_directories(const file_access *access, sxml_byte_view 
     const size_t root = root_length(access->conventions, path);
     sxml_status status = SXML_STATUS_OK;
     sxml_library_text prefix = text_empty(access->call->item_heap);
-    for (size_t end = root; status == SXML_STATUS_OK && end <= path.byte_count; end += 1) {
-        if (end < path.byte_count && !is_separator(access->conventions, path.bytes[end])) {
+    for (size_t end_offset = root; status == SXML_STATUS_OK && end_offset <= path.byte_count;
+         end_offset += 1) {
+        if (end_offset < path.byte_count &&
+            !is_separator(access->conventions, path.bytes[end_offset])) {
             continue;
         }
-        if (end == root) {
+        if (end_offset == root) {
             continue;
         }
-        status = copy_text(view_span(path, (byte_span){.start = 0, .end = end}), &prefix);
+        status = copy_text(view_span(path, (byte_span){.start = 0, .end = end_offset}), &prefix);
         sxml_file_description description;
         if (status == SXML_STATUS_OK) {
             status = describe(access, text_view(&prefix), &description);
@@ -2732,10 +2749,20 @@ static sxml_status take_entry(const file_access *access, descendants_state *walk
     return status;
 }
 
+/* One step of the walk: the file access, the walk and the step to fill. */
+typedef struct descendants_step {
+    const file_access *access;
+    descendants_state *walk;
+    sxml_native_step *step;
+} descendants_step;
+
 /* Asks the evaluator to call the option's predicate with the current
    entry's reported path. */
-static sxml_status request_predicate(const file_access *access, descendants_state *walk,
-                                     size_t option_index, sxml_native_step *step) {
+static sxml_status request_predicate(const descendants_step *current_step,
+                                     size_t option_index) {
+    const file_access *access = current_step->access;
+    descendants_state *walk = current_step->walk;
+    sxml_native_step *step = current_step->step;
     sxml_sequence_release(walk->call_argument);
     walk->call_argument = sxml_sequence_empty();
     sxml_status status =
@@ -2787,8 +2814,8 @@ static sxml_status read_truth(const sxml_native_step_request *request, bool *is_
 
 /* Keeps the current entry when it passed the filter, then decides whether
    to descend: asks the recurse predicate, or descends by the depth. */
-static sxml_status after_filter(const file_access *access, descendants_state *walk,
-                                bool is_kept, sxml_native_step *step) {
+static sxml_status after_filter(const descendants_step *current_step, bool is_kept) {
+    descendants_state *walk = current_step->walk;
     sxml_status status = SXML_STATUS_OK;
     if (is_kept) {
         status = path_store_add(&walk->results, text_view(&walk->entry_reported),
@@ -2801,7 +2828,7 @@ static sxml_status after_filter(const file_access *access, descendants_state *wa
     }
     if (walk->has_recurse) {
         walk->phase = SXML_DESCENDANTS_PHASE_RECURSED;
-        return request_predicate(access, walk, SXML_FILE_DESCENDANTS_OPTION_RECURSE, step);
+        return request_predicate(current_step, SXML_FILE_DESCENDANTS_OPTION_RECURSE);
     }
     status = path_store_add(&walk->directories, text_view(&walk->entry_path),
                             (stored_path){.span = {.start = 0, .end = 0},
@@ -2847,6 +2874,7 @@ static sxml_status step_descendants(const sxml_native_step_request *request,
                                     sxml_native_step *step) {
     descendants_state *walk = request->state;
     const file_access access = access_of(request->call);
+    const descendants_step current_step = {.access = &access, .walk = walk, .step = step};
     sxml_status status = SXML_STATUS_OK;
     if (!walk->is_started) {
         status = start_descendants(&access, walk);
@@ -2855,7 +2883,7 @@ static sxml_status step_descendants(const sxml_native_step_request *request,
         status = read_truth(request, &is_kept);
         if (status == SXML_STATUS_OK) {
             step->step_kind = SXML_NATIVE_STEP_KIND_FINISH;
-            status = after_filter(&access, walk, is_kept, step);
+            status = after_filter(&current_step, is_kept);
             if (status == SXML_STATUS_OK && walk->phase == SXML_DESCENDANTS_PHASE_RECURSED) {
                 return SXML_STATUS_OK;
             }
@@ -2896,10 +2924,10 @@ static sxml_status step_descendants(const sxml_native_step_request *request,
         }
         if (walk->has_filter) {
             walk->phase = SXML_DESCENDANTS_PHASE_FILTERED;
-            return request_predicate(&access, walk, SXML_FILE_DESCENDANTS_OPTION_FILTER, step);
+            return request_predicate(&current_step, SXML_FILE_DESCENDANTS_OPTION_FILTER);
         }
         step->step_kind = SXML_NATIVE_STEP_KIND_FINISH;
-        status = after_filter(&access, walk, true, step);
+        status = after_filter(&current_step, true);
         if (status == SXML_STATUS_OK && walk->phase == SXML_DESCENDANTS_PHASE_RECURSED) {
             return SXML_STATUS_OK;
         }
