@@ -486,6 +486,6 @@ sxml_status make_processor(sxml_allocator allocator, sxml_byte_view rust_highlig
 ```
 
 The languages, their grammars and the query texts must outlive the
-processor. The JavaScript package cannot load languages yet: tree-sitter's
-WebAssembly language files (`tree-sitter-rust.wasm`) need a module that
-links them at run time, which `sxml.wasm` is not.
+processor. In JavaScript, the package loads tree-sitter's WebAssembly
+language files (`tree-sitter-rust.wasm`, from `tree-sitter build
+--wasm`): see [sxml in JavaScript](javascript.md).
