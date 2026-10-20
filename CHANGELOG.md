@@ -165,6 +165,9 @@ not tagged yet, or into the next minor release.
   module's file, as a static error does (D271).
 - `sxml xpath`, `sxml xquery` and `sxml transform` write fn:trace and
   fn:message output to standard error (D271); it was dropped.
+- The document of `--context-item` (and the input of `sxml transform`
+  and `sxml serialize`) has its file URI as document URI and base URI
+  (D271).
 
 ## [0.2.0] - unreleased
 

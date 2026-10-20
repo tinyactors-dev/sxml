@@ -303,6 +303,8 @@ adaptive output method writes the result, one item on each line.
   be named, as `'w;o(%spellout-ordinal-feminine)'`). Other languages are
   English, dates after `[Language: en]`; other calendars are AD after
   `[Calendar: AD]`.
+- The `--context-item` document's document URI and base URI are the
+  file URI of FILE (none for standard input).
 - `fn:collection` and `fn:uri-collection` raise `err:FODC0002`: the
   program has no collections.
 - `fn:trace` and `fn:message` write to standard error, one line for each
@@ -417,6 +419,8 @@ serialization. The default method is xml.
   `QUERY-FILE:LINE:COLUMN: err:CODE: description`, or with `expression`
   in place of QUERY-FILE for `--expression`. An error in a library
   module, static or dynamic, names the file of that module.
+- `fn:trace`, `fn:message`, `fn:collection` and the `--context-item`
+  document behave as for [sxml xpath](#sxml-xpath).
 
 Exit status: as for [sxml xpath](#sxml-xpath).
 

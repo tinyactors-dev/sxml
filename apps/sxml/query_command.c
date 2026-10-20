@@ -727,6 +727,19 @@ sxml_cli_exit_code sxml_query_run_parse_document(sxml_query_run *run, sxml_byte_
         return status == SXML_STATUS_INPUT_OUTPUT_FAILED ? SXML_CLI_EXIT_INPUT_OUTPUT_ERROR
                                                          : SXML_CLI_EXIT_INTERNAL_ERROR;
     }
+    /* The document URI and base URI of the document node (XDM 4.0, 7.3.2,
+       7.3.3): the file's absolute URI, so fn:document-uri and fn:base-uri
+       answer as for fn:doc; standard input has none, nor a relative name
+       when the working directory is unknown (the URI would be relative). */
+    sxml_byte_view uri = {.bytes = NULL, .byte_count = 0};
+    const bool has_uri = !sxml_byte_view_equals(file, SXML_TEXT("-")) &&
+                         (invocation->working_directory.byte_count > 0 ||
+                          sxml_query_starts_with(file, SXML_TEXT("/")));
+    if (has_uri &&
+        sxml_query_make_file_uri(invocation, file, &uri) != SXML_STATUS_OK) {
+        sxml_allocator_release(invocation->allocator, (void *)contents.bytes);
+        return SXML_CLI_EXIT_INTERNAL_ERROR;
+    }
     sxml_diagnostic diagnostic = {.description = {.bytes = NULL, .byte_count = 0},
                                   .location = {.source_name = file,
                                                .line_number = 0,
@@ -736,12 +749,13 @@ sxml_cli_exit_code sxml_query_run_parse_document(sxml_query_run *run, sxml_byte_
         run->processor,
         &(sxml_xml_parse_request){.input = contents,
                                   .source_name = file,
-                                  .document_uri = {.bytes = NULL, .byte_count = 0},
-                                  .base_uri = {.bytes = NULL, .byte_count = 0},
+                                  .document_uri = uri,
+                                  .base_uri = uri,
                                   .encoding_name = {.bytes = NULL, .byte_count = 0},
                                   .diagnostic = &diagnostic},
         document);
     sxml_allocator_release(invocation->allocator, (void *)contents.bytes);
+    sxml_allocator_release(invocation->allocator, (void *)uri.bytes);
     if (status == SXML_STATUS_OK) {
         return SXML_CLI_EXIT_SUCCESS;
     }

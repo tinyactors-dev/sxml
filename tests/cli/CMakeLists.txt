@@ -224,6 +224,8 @@ sxml_add_cli_test(xpath_uri_collection_relative EXIT_CODE 1 ARGUMENTS xpath "uri
 # fn:trace and fn:message write to standard error (D271).
 sxml_add_cli_test(xquery_trace EXIT_CODE 0 ARGUMENTS xquery "--expression=trace(1 + 1, 'sum'), message(('a', 'b'))")
 sxml_add_cli_test(xpath_trace EXIT_CODE 0 ARGUMENTS xpath "trace(//book/@id/string(), 'ids')" --context-item=books.xml)
+# The --context-item document's document-uri and base-uri are the file's URI (D271).
+sxml_add_cli_test(xpath_context_item_document_uri EXIT_CODE 0 ARGUMENTS xpath --context-item=books.xml "document-uri(/) = resolve-uri('books.xml'), base-uri(/) = document-uri(/), ends-with(document-uri(/), '/books.xml')")
 sxml_add_cli_test(xquery_both_texts EXIT_CODE 2 ARGUMENTS xquery --expression=1 titles.xq)
 sxml_add_cli_test(xquery_no_text EXIT_CODE 2 ARGUMENTS xquery)
 sxml_add_cli_test(xquery_help EXIT_CODE 0 ARGUMENTS xquery --help)
