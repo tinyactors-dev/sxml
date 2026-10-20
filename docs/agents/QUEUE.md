@@ -29,8 +29,6 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 
 
 - 2.23: XPath/XQuery sweep on the largest remaining failure clusters.
-- 6.3: wrapping up for the pause; writes bindings/kotlin/DESIGN.md.
-- Swift pause document (bindings/swift/DESIGN.md).
 - 4.23: XSLT sweep on the largest failure clusters.
 - dist-1: `mise run dist`, the CLI for every supported platform.
 - book-1: the sxml book in docs/book/.
@@ -60,7 +58,11 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
   `libtool -static`), a `binaryTarget` for `CSxmlHost`, `swift test
   --sanitize=address --disable-xctest` on macOS, `xcodebuild test` on an iOS
   simulator and a device, and `Bundle.module` finding `allkeys.txt` (D248).
-- Android emulator and device runs (6.6, D238).
+- Android emulator and device runs (6.6, D238): `tools/fetch-binding-toolchains.sh
+  ndk`, `tools/build-android.sh`, then connectedAndroidTest on x86_64 API 24
+  and 35 and one arm64 device (D251). Owner choices: which host libraries
+  sxml-jvm ships (proposed linux-x86_64 and macOS arm64); keep the 32-bit
+  ABIs or not.
 
 ## Leftovers no packet owns yet
 
