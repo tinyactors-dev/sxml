@@ -1471,15 +1471,18 @@ static sxml_status find_free_variables(sxml_xpath_lowerer *state,
             continue;
         }
         /* A constant needs no capture: the function reads it directly.
-           Nor does an XQuery global: the function's unit reads its own
-           global table at call time (D154), so a variable whose value is
-           a closure that reads the variable itself is no cycle (XQuery
-           4.0, 5.16; D135 (c)). Other languages capture globals, so their
-           function items read them after the evaluation too (D55). */
+           Nor does an XQuery or XSLT global: the function's unit reads its
+           own global table at call time (D154), so a variable whose value
+           is a closure that reads the variable itself is no cycle (XQuery
+           4.0, 5.16; D135 (c); XSLT 4.0, 9.7: a global variable is in
+           scope in its own declaration, D275). XPath's globals, the
+           host's external variables, are captured, so its function items
+           read them after the evaluation too (D55). */
         const bool is_constant =
             lookup.atom.atom_kind == SXML_IR_ATOM_KIND_CONSTANT ||
             (lookup.atom.atom_kind == SXML_IR_ATOM_KIND_GLOBAL_VARIABLE &&
-             state->language == SXML_LANGUAGE_XQUERY);
+             (state->language == SXML_LANGUAGE_XQUERY ||
+              state->language == SXML_LANGUAGE_XSLT));
         status = add_free_variable(
             state, variables,
             (sxml_xpath_lowering_capture_entry){
@@ -6022,6 +6025,54 @@ static sxml_status continue_axis_step(sxml_xpath_lowering_machine *machine,
     return sxml_xpath_lowering_finish_frame(machine, frame, locals->result);
 }
 
+/* A chain, lowered in a loop over its spine: its first operand, then one
+   link frame per operator up through the parent links. */
+typedef struct chain_locals {
+    sxml_ir_atom left;
+    /* The link being lowered. */
+    sxml_ast_node_index link;
+    sxml_ir_expression_index result;
+    /* A relative path after "//" (push_path_after_descendants): its first
+       step, mapped over start_input instead of lowered as an operand. */
+    sxml_ast_node_index start_operand;
+    sxml_ir_atom start_input;
+} chain_locals;
+
+/* The relative path after "//" (XPath 4.0, section 4.6.3): "//E1/E2" is
+   ((//E1)/E2), so its first step E1 is mapped over the descendants and
+   each later "/" or "//" applies to the value before it, as in any
+   relative path; E2 does not run once per descendant (E2 may give atomic
+   items, which no document order merges). A path of one step is that
+   step's path MAP. The chain frame lowers the links. */
+static sxml_status push_path_after_descendants(sxml_xpath_lowering_machine *machine,
+                                               path_map_request request,
+                                               sxml_ir_expression_index *expression) {
+    sxml_xpath_lowerer *state = machine->state;
+    sxml_ast_node_index first = request.right;
+    while (node_of(state, first)->kind == SXML_AST_KIND_RELATIVE_PATH_EXPRESSION &&
+           find_override(state, first) == NULL) {
+        first = child_of(state, first, SXML_AST_FIELD_LEFT);
+    }
+    if (first.value == request.right.value) {
+        return push_path_map(machine, request, expression);
+    }
+    sxml_xpath_lowering_frame *frame = NULL;
+    const sxml_status status = push_part_frame(
+        machine,
+        (part_frame_request){.procedure = SXML_LOWERING_PROCEDURE_CHAIN,
+                             .node = request.right,
+                             .block = request.block,
+                             .destination = {.expression = expression},
+                             .step = 0},
+        &frame);
+    if (status == SXML_STATUS_OK) {
+        chain_locals *locals = frame->locals;
+        locals->start_operand = first;
+        locals->start_input = request.input;
+    }
+    return status;
+}
+
 /* "/" at the start of a path (XPath 4.0, section 4.6.2):
    fn:root(self::node()) treat as document-node(). */
 typedef struct absolute_path_locals {
@@ -6142,6 +6193,12 @@ static sxml_status begin_absolute_path(sxml_xpath_lowering_machine *machine,
     }
     if (status != SXML_STATUS_OK) {
         return status;
+    }
+    if (node_of(state, node)->detail.operator == SXML_AST_OPERATOR_DOUBLE_SLASH) {
+        return push_path_after_descendants(
+            machine,
+            (path_map_request){.node = node, .block = block, .input = input, .right = path},
+            &locals->result);
     }
     return push_path_map(machine,
                          (path_map_request){.node = node,
@@ -6911,14 +6968,6 @@ static sxml_status continue_method_call_link(sxml_xpath_lowering_machine *machin
     return sxml_xpath_lowering_finish_frame(machine, frame, result);
 }
 
-/* A chain, lowered in a loop over its spine: its first operand, then one
-   link frame per operator up through the parent links. */
-typedef struct chain_locals {
-    sxml_ir_atom left;
-    /* The link being lowered. */
-    sxml_ast_node_index link;
-    sxml_ir_expression_index result;
-} chain_locals;
 
 /* Pushes the frame of a link whose locals start with link_locals. */
 typedef struct link_frame_request {
@@ -7095,6 +7144,18 @@ static sxml_status continue_chain(sxml_xpath_lowering_machine *machine,
     chain_locals *locals = frame->locals;
     switch (frame->step) {
     case 0: {
+        if (locals->start_operand.value != 0) {
+            /* The first step over the descendants (begin_absolute_path),
+               then the links above it. */
+            frame->step = 3;
+            locals->link = node_of(state, locals->start_operand)->parent;
+            return push_path_map(machine,
+                                 (path_map_request){.node = locals->start_operand,
+                                                    .block = frame->block,
+                                                    .input = locals->start_input,
+                                                    .right = locals->start_operand},
+                                 &locals->result);
+        }
         sxml_ast_node_index bottom = frame->node;
         sxml_ast_field field = chain_field(node_of(state, bottom)->kind);
         while (field != SXML_AST_FIELD_NONE) {
@@ -7114,6 +7175,13 @@ static sxml_status continue_chain(sxml_xpath_lowering_machine *machine,
     case 1:
         frame->step = 2;
         return begin_chain_link(machine, frame);
+    case 3:
+        frame->step = 1;
+        return sxml_xpath_lowerer_bind_expression(
+            state,
+            (sxml_xpath_lowering_expression_in_block){.block = frame->block,
+                                  .expression = locals->result},
+            &locals->left);
     default:
         if (locals->link.value == frame->node.value) {
             return sxml_xpath_lowering_finish_frame(machine, frame, locals->result);

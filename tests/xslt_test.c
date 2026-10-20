@@ -412,6 +412,13 @@ static const transformation_case transformation_cases[] = {
           STYLESHEET("<xsl:mode name='m' typed='~xs:nothing'/><xsl:template match='.' "
                      "mode='m'/>"),
           "", SXML_XSLT_INVOCATION_KIND_CALL_TEMPLATE, "XPST0051"),
+    /* A global variable is in scope in its own declaration (XSLT 4.0,
+       9.7): an inline function reads it when called (D275). */
+    CALL("global-read-by-own-function",
+         STYLESHEET("<xsl:output method='text'/><xsl:variable name='v' select='function($x) "
+                    "{ if ($x le 0) then 0 else $v($x - 1) + $x }'/><xsl:template "
+                    "name='xsl:initial-template'><xsl:value-of select='$v(5)'/></xsl:template>"),
+         "", "15"),
     APPLY("priority", STYLESHEET(OMIT "<xsl:template match='/'><xsl:apply-templates "
                                       "select='//b'/></xsl:template><xsl:template match='b'>"
                                       "<low/></xsl:template><xsl:template match='b[. = 3]'>"

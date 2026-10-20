@@ -1622,6 +1622,12 @@ static void test_paths_in_document_order(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, path_evaluates_to("count((//hours)[3]/following::node())",
                                               "9"));
     SXML_TEST_EXPECT(state, path_evaluates_to("count(//employee/.. | /works)", "1"));
+    /* "//E1/E2" is ((//E1)/E2) (XPath 4.0, 4.6.3): E2 runs once over the
+       distinct E1 nodes, not once per descendant (D275). */
+    SXML_TEST_EXPECT(state, path_evaluates_to("//hours/../../count(*)", "4"));
+    SXML_TEST_EXPECT(state, path_evaluates_to("//hours/ancestor::*/count(*)", "4 2 2 1 2"));
+    SXML_TEST_EXPECT(state, path_evaluates_to("count(//hours/../..)", "1"));
+    SXML_TEST_EXPECT(state, path_evaluates_to("//hours[1]/(. + 0)", "40 30 12 80"));
     SXML_TEST_EXPECT(state, path_evaluates_to("count(/works/employee | //employee)",
                                               "4"));
     SXML_TEST_EXPECT(state, path_evaluates_to("count(//employee intersect "
