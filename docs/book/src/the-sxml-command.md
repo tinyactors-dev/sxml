@@ -6,8 +6,8 @@
 all work the same way: options start with `--`, results go to standard
 output, and errors go to standard error with the file, line and column
 where they happened. Let's take a quick tour, using the same
-`books.xml` as before. Each of these commands has a chapter of its own
-later in the book.
+`books.xml` as before. The commands for queries, stylesheets and schemas
+each have a chapter of their own later in the book.
 
 ## Checking documents
 
