@@ -34,6 +34,9 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 
 - 7.25: tree-sitter .wasm language files in the JavaScript package (a JS
   dynamic linker; sxml.wasm shares memory and table; owner, 2026-10-20).
+- book-4: the codegen chapter rebuilt around a TypeScript tree and an XSLT
+  printer (owner, 2026-10-20).
+- js-2: streaming output (and input) in the JavaScript API (owner).
 - 4.31: XSLT namespace undeclarations in the tree, per-package items,
   copy-4308 (D289).
 - 7.24: Invisible XML: DFAs for regular nonterminals, a shared packed
