@@ -32,7 +32,8 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 
 - 4.29: XSLT sweep (D276's open list).
 - 2.26: XPath/XQuery sweep (D275's open list).
-- 5.13 sweep 3: XSD sweep (the 32 XSD 1.1 failures, D270/D271's validation leftovers).
+- 5.16: schema location hints (xsi:schemaLocation in the library, fn:xsd-validator
+  and `sxml validate`); xlink.xsd vendored for the 92 introspection tests.
 
 ## Next
 
@@ -189,11 +190,13 @@ tree without them), a prefixed XHTML root, XHTML that needs an external DTD.
 XML 1.1 (after 7.13, D195; D275): query text by XML 1.1 rules is a
 processor option; XT40 namespace-2606/-6202 still fail in `src/xslt*`.
 
-XSD:
-- is-id for union and list elements (needs the element's flags after its
-  content; tree.h is frozen, D180).
-- 35 failures: XSD 1.0-only rules, `xs:NOTATION` as a union member,
-  XML 1.1 instances, wildcard consistency with type tables.
+XSD (5.13 sweep 3, D277): in scope 41,486 -> 41,507 of 41,518. The 11
+left: XSD 1.0 rules (3), circular attribute groups the 1.1 Rec allows (1),
+xs:NOTATION used directly (3, w3c/xsdtests issue 12), instance tests of
+indeterminate schemas (4). Validation continues after a rejected element
+(content recovery). Not run: 92 introspection tests (all pass with
+xlink.xsd), 57 "queried", 50 version 1.0. The library does not follow
+schema location hints (5.16).
 
 Duplicates merged in 7.20 (D249): one decoder with an error rule, Full Text
 on the shared feature-data path, sxml_allocator_reserve_array, and D182's
