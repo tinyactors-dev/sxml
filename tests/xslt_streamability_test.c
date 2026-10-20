@@ -213,6 +213,11 @@ static const streamability_case streamability_cases[] = {
                 "<xsl:merge-action><xsl:sequence select='current-merge-key()'/>"
                 "</xsl:merge-action></xsl:merge></xsl:template>"),
      true},
+    /* XSLT Streaming 4.0, 12.9: fn:filter(N, I) navigates its sequence,
+       whatever the function (sf-filter-001). */
+    {"filter-navigates",
+     SOURCE_DOCUMENT("<xsl:value-of select='filter(*/item, fn($i as xs:string) { true() })'/>"),
+     true},
     /* A dynamic call without a signature sxml can see: uncertain, never
        rejected (19.8.8.11). */
     {"dynamic-call-uncertain",
@@ -260,6 +265,19 @@ static void test_error_location(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
 }
 
+/* XSLT Streaming 4.0, 8: XTSE3155 for a function without parameters
+   whose category is not unclassified. */
+static void test_category_without_parameters(sxml_test_state *state) {
+    fixture test_fixture;
+    SXML_TEST_REQUIRE(state, fixture_create(0, &test_fixture) == SXML_STATUS_OK);
+    compilation run = {.stylesheet_text = TEXT(
+                           STYLESHEET("<xsl:function name='f:g' streamability='filter'>"
+                                      "<xsl:sequence select='23'/></xsl:function>"))};
+    SXML_TEST_EXPECT(state, compile(&test_fixture, &run) == SXML_STATUS_STATIC_ERROR);
+    SXML_TEST_EXPECT(state, sxml_byte_view_equals(run.error_record.code.local_name, TEXT("XTSE3155")));
+    SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
+}
+
 /* Every allocation that fails gives OUT_OF_MEMORY or the error, and
    leaks nothing (D23). */
 static void test_allocation_failures(sxml_test_state *state) {
@@ -293,6 +311,7 @@ static void test_allocation_failures(sxml_test_state *state) {
 static const sxml_test_case xslt_streamability_test_cases[] = {
     {.name = "streamability_cases", .function = test_streamability_cases},
     {.name = "error_location", .function = test_error_location},
+    {.name = "category_without_parameters", .function = test_category_without_parameters},
     {.name = "allocation_failures", .function = test_allocation_failures},
 };
 

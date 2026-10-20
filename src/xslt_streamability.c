@@ -3262,9 +3262,9 @@ static bool assess_focus_function(machine *state, focus_call call, assessment *r
     return false;
 }
 
-/* The usages of fn:for-each, fn:filter, fn:fold-left and
-   fn:for-each-pair refined by the function argument's signature
-   (19.8.9.8, 19.8.9.10, 19.8.9.11): the sequence arguments'
+/* The usages of fn:for-each, fn:fold-left and fn:for-each-pair refined
+   by the function argument's signature (XSLT Streaming 4.0, 12.9.10,
+   12.9.13, 12.9.14): the sequence arguments'
    type-determined usages when the function is an inline function with
    declared parameter types; else navigation, which sxml cannot refine,
    so such an argument is uncertain unless grounded. */
@@ -3301,10 +3301,6 @@ static sxml_status add_higher_order_call_operands(machine *state, uint32_t frame
             if (!type.is_declared) {
                 flags = SXML_STREAM_OPERAND_FLAG_UNCERTAIN_UNLESS_GROUNDED;
             }
-            if (is_fn_function(name, "filter") && argument_usage == SXML_STREAM_USAGE_NAVIGATION) {
-                /* 19.8.9 table: fn:filter(N, I). */
-                argument_usage = SXML_STREAM_USAGE_NAVIGATION;
-            }
         }
         operand value = plain_operand(
             xpath_construct(ast, argument, current->construct.static_context), argument_usage);
@@ -3318,7 +3314,9 @@ static sxml_status add_higher_order_call_operands(machine *state, uint32_t frame
 }
 
 static bool is_higher_order_built_in(resolved_name name, uint32_t arity) {
-    return (arity == 2U && (is_fn_function(name, "for-each") || is_fn_function(name, "filter"))) ||
+    /* fn:filter is not refined: the table of XSLT Streaming 4.0, 12.9,
+       gives it filter(N, I) and no rule of its own (sf-filter-001). */
+    return (arity == 2U && is_fn_function(name, "for-each")) ||
            (arity == 3U && (is_fn_function(name, "fold-left") || is_fn_function(name, "for-each-pair")));
 }
 
@@ -5460,10 +5458,12 @@ typedef struct verdict {
     bool is_guaranteed;
     bool is_uncertain;
     const char *reason;
+    /* The error code's local name; NULL for XTSE3430. */
+    const char *code;
 } verdict;
 
 static verdict guaranteed(void) {
-    return (verdict){.is_guaranteed = true, .is_uncertain = false, .reason = NULL};
+    return (verdict){.is_guaranteed = true, .is_uncertain = false, .reason = NULL, .code = NULL};
 }
 
 /* Records a failed condition (the first one counts). */
@@ -5641,7 +5641,16 @@ static condition function_body_condition(sxml_xslt_ast_keyword category, assessm
 static sxml_status check_function(machine *state, sxml_xslt_ast_node_index node, verdict *outcome) {
     const sxml_xslt_ast *ast = state->ast;
     const sxml_xslt_ast_keyword category = function_category(ast, node);
-    if (category == SXML_XSLT_AST_KEYWORD_UNCLASSIFIED || parameter_count(ast, node) == 0U) {
+    if (category == SXML_XSLT_AST_KEYWORD_UNCLASSIFIED) {
+        return SXML_STATUS_OK;
+    }
+    if (parameter_count(ast, node) == 0U) {
+        /* XSLT Streaming 4.0, section 8: XTSE3155, a category other than
+           unclassified for a function without parameters. */
+        require(outcome, (condition){.holds = false,
+                                     .is_uncertain = false,
+                                     .reason = "xsl:function without xsl:param has a streamability other than unclassified (XSLT Streaming 4.0, 8)"});
+        outcome->code = "XTSE3155";
         return SXML_STATUS_OK;
     }
     if (category != SXML_XSLT_AST_KEYWORD_ABSORBING) {
@@ -5809,13 +5818,14 @@ static sxml_status report_not_streamable(const sxml_xslt_streamability_request *
     if (request->error_record == NULL) {
         return SXML_STATUS_STATIC_ERROR;
     }
+    const char *code = report->outcome.code != NULL ? report->outcome.code : "XTSE3430";
     const char *reason = report->outcome.reason != NULL
                              ? report->outcome.reason
                              : "a construct declared streamable is not guaranteed-streamable "
                                "(XSLT 4.0, 19.10)";
     *request->error_record = (sxml_error_record){
         .code = {.namespace_uri = SXML_BYTE_VIEW_FROM_LITERAL(SXML_ERROR_NAMESPACE_URI),
-                 .local_name = SXML_BYTE_VIEW_FROM_LITERAL("XTSE3430"),
+                 .local_name = {.bytes = (const uint8_t *)code, .byte_count = strlen(code)},
                  .namespace_prefix = SXML_BYTE_VIEW_FROM_LITERAL("err")},
         .value = NULL,
         .diagnostic = {.description = {.bytes = (const uint8_t *)reason, .byte_count = strlen(reason)},
