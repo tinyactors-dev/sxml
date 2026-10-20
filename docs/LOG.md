@@ -4,6 +4,18 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 7.24 done (D290): Invisible XML for large inputs. Regular
+  nonterminals whose XML is their text are compiled once into automata
+  that count paths (ambiguity kept) and read in one step, every end a
+  completion; item sets only where items are, origins set numbers,
+  positions UTF-8 byte offsets (no codepoint array); the parse tree
+  without hidden nodes, with text runs. Log 1 MB 0.20 s / 90 MB ->
+  0.06 s / 21 MB (84 -> 10 MB per further MB); 10 MB 2.0 s / 831 MB ->
+  0.6 s / 124 MB; 100 MB 6.2 s / 1.17 GB within the step limit; csv,
+  calc, markdown, right recursion 1.9 to 3.4 times less memory. iXML
+  suite 886/907, QT4 fn-invisible-xml 16/16 unchanged; fuzz 600 s clean.
+  The ambiguous sum misses D283's 2 s here before and after (3.7, 3.1 s).
+
 - report-1 done: docs/CONFORMANCE.md regenerated from whole runs at
   e74d4ad (release, GCC). XP40 32,815 of 32,841 run, XQ40 46,158 of
   46,232 (74 failed), XT40 12,268 of 12,518 (250 failed), XSD11 41,599

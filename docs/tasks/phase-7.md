@@ -1252,6 +1252,23 @@ languages; locals and injections; the registration API and
 15,500,000 / 2,900,000. Delayed: .wasm language files in the JavaScript
 package, the native wasm store, the host shim.
 
+### 7.24 Invisible XML for large inputs (book, tests, implementation)
+After D283 (7.21: about 3 to 6 MB/s and linear, but 80 to 200 bytes of
+memory for each input character). The owner: usable on tens to hundreds
+of MB; the book, the tests, then the implementation; one parser (D215).
+- **Owns**: 7.21's files and `src/ixml_tokens.c`.
+- **Done when**: the book's performance chapter states the targets and
+  passes (`run-ixml-bench.py --check`, with the 100 MB log under
+  `--large`, and its examples); regular nonterminals compiled once into
+  automata, ambiguity kept; memory bounded; no iXML suite or QT4 iXML
+  case lost; D71, allocator memory, honest steps, no header change.
+**Done** 2026-10-20 (D290): regular tokens with path-counting automata,
+sparse item sets over UTF-8 byte positions, a parse tree without hidden
+nodes and with text runs. Log 1 MB 0.20 s / 90 MB to 0.06 s / 21 MB
+(84 to 10 MB per further MB); 10 MB 2.0 s / 831 MB to 0.6 s / 124 MB;
+100 MB 6.2 s / 1.17 GB within the default step limit; suite 886/907 and
+QT4 fn-invisible-xml 16/16 unchanged.
+
 ## Proposed for the owner
 
 No phase covers these four features yet (D183 Proposed). The owner has

@@ -16,6 +16,14 @@ not tagged yet, or into the next minor release.
 
 ### Added (Phase 7)
 
+- **Invisible XML for large inputs** (D290): regular rules whose XML is
+  their text are compiled with the grammar into automata and read in
+  one step, item sets are made only where items are, the input is read
+  as UTF-8 in place, and the parse tree keeps only what the XML shows:
+  a 100 MB log parses in about 6 s and 1.2 GB (the log needs about
+  10 MB of memory for each MB, most of it the XML tree), within the
+  default step limit.
+
 - **Fast Invisible XML** (D283): the Earley parser of `fn:invisible-xml`
   uses one character of lookahead, Leo items for right recursion and
   compiled codepoint classes, and simplifies grammars when compiling, so
