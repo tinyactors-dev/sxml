@@ -4,6 +4,18 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- dist-1 done (D256): `mise run dist` builds the `sxml` command as
+  seven archives (`build/dist/`, SHA256SUMS): x86_64/aarch64 Linux
+  (static musl), macOS 11 and Windows (MinGW-w64, UCRT), cross-compiled
+  with `zig cc` (`cmake/toolchains/zig.cmake`), and wasm32-wasi. All
+  build with `-Werror` unchanged. Program sizes: x86_64-linux 9,820,840,
+  aarch64-linux 9,326,752, x86_64-macos 9,710,431, aarch64-macos
+  9,393,656, x86_64-windows 9,855,488, aarch64-windows 9,228,800,
+  sxml.wasm 9,224,585; archives 1.96 to 2.54 MB. `mise run dist:verify`
+  ran x86_64-linux, aarch64-linux (qemu-user), x86_64-windows (wine)
+  and wasm32-wasi (Node.js). Owner: run the macOS and Windows-on-ARM
+  programs, signing and notarization, publishing. README "Install".
+
 - 6.3 paused (D251, D255): the Android build. `src/allocator.c` uses
   `posix_memalign` below API 28 and `src/processor.c` uses `clock_gettime`
   below API 29. There are four NDK presets (android-24, MinSizeRel),

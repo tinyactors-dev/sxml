@@ -14,6 +14,7 @@ $ sxml xpath --context-item=books.xml '//book[@year < 1980]/title/string()'
 
 - [What it does](#what-it-does)
 - [Where it runs](#where-it-runs)
+- [Install](#install)
 - [Quick start](#quick-start)
 - [Examples](#examples): [streaming](#stream-large-documents),
   [HTML](#read-html), [Invisible XML](#parse-text-with-invisible-xml),
@@ -49,7 +50,7 @@ model (XDM 4.0) and one evaluator.
 | Target | What you get |
 | --- | --- |
 | Linux | The C library, static or shared, and the `sxml` command. Built and tested with Clang and GCC. |
-| macOS, Windows | The same C17 code, with an MSVC build preset. Neither platform has been built yet. |
+| macOS, Windows | The `sxml` command, cross-compiled from Linux for x86_64 and AArch64 ([Install](#install)); the same C17 code, with an MSVC build preset. The x86_64 Windows program runs under wine; neither platform has been run natively yet. |
 | Browsers and Node.js | The `@tinyactors/sxml` package: a TypeScript wrapper over two WebAssembly modules (below). |
 | WASI | The `sxml` command as a WebAssembly program. |
 | Kotlin on the JVM | The `dev.tinyactors.sxml` Kotlin binding over the native library (below). |
@@ -63,6 +64,54 @@ The WebAssembly modules, at commit `9c5b1ba`:
 | `sxml.wasm` (core) | XML, XPath 4.0, serialization | 2,090,746 bytes | 730,902 bytes |
 | `sxml-full.wasm` (full) | The core, plus XQuery 4.0, XSLT 4.0, XSD 1.1 and every optional feature except EXPath File | 7,637,162 bytes | 1,690,683 bytes |
 | `sxml` (WASI command) | Everything the native `sxml` command has | 9,231,791 bytes | 1,973,839 bytes |
+
+## Install
+
+Each release of the `sxml` command comes as one archive per platform,
+named `sxml-<version>-<target>`:
+
+| Target | Archive | Program |
+| --- | --- | --- |
+| `x86_64-linux`, `aarch64-linux` | `.tar.gz` | `sxml`, a static executable that runs on any Linux distribution |
+| `x86_64-macos`, `aarch64-macos` | `.tar.gz` | `sxml`, for macOS 11 and later |
+| `x86_64-windows`, `aarch64-windows` | `.zip` | `sxml.exe`, for Windows 10 and later |
+| `wasm32-wasi` | `.tar.gz` | `sxml.wasm`, for any WASI preview 1 runtime |
+
+Each archive holds one directory with the program, `LICENSE`, this
+`README.md` and `USAGE.md`, the command's manual. Check the archive
+against `SHA256SUMS`, unpack it and put the program on your `PATH`:
+
+```sh
+sha256sum --check --ignore-missing SHA256SUMS
+tar -xzf sxml-0.2.0-x86_64-linux.tar.gz
+install -m 755 sxml-0.2.0-x86_64-linux/sxml ~/.local/bin/sxml
+sxml --version
+```
+
+On macOS, a downloaded program that is not notarized is quarantined;
+`xattr -d com.apple.quarantine sxml` lets it run. Run the WASI module
+with a WASI runtime that gives it the directories it reads, for example
+`wasmtime --dir=. sxml.wasm xpath '1 + 1'`.
+
+### Build the archives
+
+The archives are built on Linux (or macOS) with [mise](https://mise.jdx.dev),
+which fetches the pinned tools of `mise.toml`: CMake, Ninja, Zig, Node.js
+and the WASI SDK. Zig cross-compiles every native target
+(`cmake/toolchains/zig.cmake`), so no other SDK or sysroot is needed.
+
+```sh
+mise install                 # the tools, once
+mise run dist                # every archive and SHA256SUMS, in build/dist/
+mise run dist:aarch64-linux  # one target (mise tasks lists them)
+mise run dist:verify         # run what this machine can: natively, qemu-user, wine, Node.js
+mise run install             # build for this machine, install into ~/.local
+mise run install -- /usr/local
+```
+
+`mise run install` puts the program in `PREFIX/bin` and the documents in
+`PREFIX/share/doc/sxml`. Without mise, `tools/dist.sh` does the same with
+the tools on your `PATH` (`tools/dist.sh build x86_64-linux`).
 
 ## Quick start
 

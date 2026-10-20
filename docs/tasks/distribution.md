@@ -27,3 +27,8 @@ After D255.
   Windows one under wine and the WASI module under Node.js run a
   `sxml xpath` smoke test; `file` names the macOS formats; README.md
   documents the build and the install.
+**Done** 2026-10-20 (D256): seven archives, built with `-Werror` and no
+portability fix. Run here: x86_64-linux natively, aarch64-linux under
+qemu-user, x86_64-windows under wine, wasm32-wasi under Node.js (and
+wasmtime); `file` checks the macOS and aarch64-windows programs. Running
+those, macOS signing and notarization, and publishing are the owner's.

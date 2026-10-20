@@ -30,8 +30,11 @@ The design rules that every command follows are in
 
 ## Install
 
-Build `sxml` from the repository with CMake 3.24 or later, Ninja and a C17
-compiler:
+`sxml` comes as an archive for Linux, macOS and Windows on x86_64 and
+AArch64, and as a WASI module; the "Install" section of the repository's
+README.md says how to install one and how `mise run dist` builds them.
+Or build `sxml` from the repository with CMake 3.24 or later, Ninja and
+a C17 compiler:
 
 ```sh
 cmake --preset release
