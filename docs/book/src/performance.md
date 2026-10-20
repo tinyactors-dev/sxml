@@ -38,7 +38,19 @@ $ sxml xpath 'count(1 to 1000000000)'
 
 Both return at once. Sequences that come from functions, filters and
 paths are computed when they are needed too, and released as soon as
-nothing refers to them.
+nothing refers to them. When only the first items of a sequence matter,
+sxml stops making it once it has them: `exists`, `empty`, `head`,
+`boolean`, a predicate `[1]`, `some` and `every` read as far as the
+first item that decides, and no further:
+
+```console
+$ sxml xpath 'exists((1 to 1000000000)[. = 999])'
+true()
+$ sxml xpath 'some $n in (1 to 1000000000)[. mod 7 = 0] satisfies $n > 50'
+true()
+```
+
+An error in an item that is never read is not raised, as XPath allows.
 
 ## Look up instead of searching
 
@@ -51,7 +63,7 @@ query finds, for each order, the order with the next id:
 {{#include ../examples/performance/slow-join.xq}}
 ```
 
-For each of *n* orders, `//order[@id = ...]` looks at all *n* orders, so
+For each of *n* orders, `//order[...]` looks at all *n* orders, so
 the query does *n*² comparisons. Building an index once, here a map from
 id to order, turns each search into one lookup:
 
@@ -71,10 +83,18 @@ $ sxml xquery --context-item=orders.xml --method=adaptive fast-join.xq
 143
 ```
 
-With 2,000 orders, the first query takes 12 seconds and the second 0.03
+With 2,000 orders, the first query takes 5 seconds and the second 0.04
 seconds. With 20,000 orders, the first one would take hours, and stops
-at the evaluation step limit after a minute or so; the second takes 0.3
-seconds. In XSLT, `xsl:key` does the same job (Chapter 4).
+at the evaluation step limit after about 15 seconds; the second takes
+0.3 seconds. In XSLT, `xsl:key` does the same job (Chapter 4).
+
+sxml builds such an index itself when a condition compares something of
+the item alone with something that does not depend on it. Written as
+`//order[@id = $order/@id + 1]`, the first query takes 0.03 seconds
+too: the left side depends only on the order looked at, the right side
+only on `$order`, so sxml sorts the orders by `@id` once and looks each
+`$order/@id + 1` up. In `@id - $order/@id = 1` the two are mixed, and
+sxml has to search.
 
 ## Memory
 
@@ -95,9 +115,9 @@ the machine down with it.
 
 ## The step limit
 
-Every evaluation counts its steps, and stops after a billion by default.
-A query that would run for hours stops, after a minute or so, with an
-error that says so, instead of hanging:
+Every evaluation counts its steps, and stops after a hundred million by
+default, a few seconds of work. A query that would run for hours stops,
+after about ten seconds, with an error that says so, instead of hanging:
 
 ```console
 $ sxml xpath 'some $n in 1 to 100000000000 satisfies $n = 0'

@@ -533,8 +533,15 @@ static sxml_status traversal_take_value(sxml_traversal_state *state,
     case SXML_TRAVERSAL_OPERATION_FOR_EACH:
     case SXML_TRAVERSAL_OPERATION_FOR_EACH_PAIR:
     case SXML_TRAVERSAL_OPERATION_MAP_FOR_EACH:
-        status = sxml_sequence_builder_append_sequence(state->builder, value,
-                                                       call->error_record);
+        if (state->item_demand != 0) {
+            uint64_t value_count = 0;
+            status = sxml_sequence_count(value, call->error_record, &value_count);
+            state->item_count += value_count;
+        }
+        if (status == SXML_STATUS_OK) {
+            status = sxml_sequence_builder_append_sequence(state->builder, value,
+                                                           call->error_record);
+        }
         sxml_sequence_release(value);
         break;
     case SXML_TRAVERSAL_OPERATION_ARRAY_BUILD:
@@ -564,6 +571,7 @@ static sxml_status traversal_take_value(sxml_traversal_state *state,
     case SXML_TRAVERSAL_OPERATION_FILTER:
         if (is_true) {
             status = sxml_sequence_builder_append_item(state->builder, state->current_item);
+            state->item_count += 1;
         }
         break;
     case SXML_TRAVERSAL_OPERATION_INDEX_WHERE:
@@ -571,11 +579,13 @@ static sxml_status traversal_take_value(sxml_traversal_state *state,
         if (is_true) {
             status = sxml_sequence_builder_append_item(
                 state->builder, sxml_atomic_item_from_integer((int64_t)state->position));
+            state->item_count += 1;
         }
         break;
     case SXML_TRAVERSAL_OPERATION_TAKE_WHILE:
         if (is_true) {
             status = sxml_sequence_builder_append_item(state->builder, state->current_item);
+            state->item_count += 1;
         } else {
             state->is_finished = true;
         }
@@ -620,6 +630,13 @@ static sxml_status traversal_take_value(sxml_traversal_state *state,
         break;
     }
     release_call_arguments(state->call_arguments, 3);
+    /* The items the caller reads are made (an item demand, D259): the
+       value is the same for them. fn:drop-while copies the rest at once. */
+    if (status == SXML_STATUS_OK && state->item_demand != 0 &&
+        state->item_count >= state->item_demand && traversal_uses_builder(state->operation) &&
+        state->operation != SXML_TRAVERSAL_OPERATION_DROP_WHILE) {
+        state->is_finished = true;
+    }
     return status;
 }
 
@@ -751,6 +768,8 @@ sxml_status sxml_traversal_step(const sxml_native_step_request *request,
     sxml_status status = SXML_STATUS_OK;
     if (request->step_number == 0) {
         status = traversal_start(state, call, operation);
+        state->item_demand = request->item_demand;
+        state->item_count = 0;
     } else if (operation == SXML_TRAVERSAL_OPERATION_DROP_WHILE &&
                sxml_sequence_get_representation(call_argument(call, 0)) ==
                    SXML_SEQUENCE_REPRESENTATION_INTEGER_RANGE) {

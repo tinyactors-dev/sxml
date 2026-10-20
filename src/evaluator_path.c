@@ -458,6 +458,8 @@ typedef struct sxml_step_output {
     const sxml_step_test *test;
     sxml_item_list *list;
     sxml_error_record *error_record;
+    /* sxml_step_request.maximum_node_count. */
+    uint64_t maximum_node_count;
 } sxml_step_output;
 
 /* Appends the XNode if it matches; the item made is owned by the list.
@@ -621,7 +623,18 @@ static sxml_status sxml_step_xml_node(const sxml_step_output *output,
     sxml_axis_walk walk;
     sxml_status status =
         sxml_axis_walk_start((sxml_axis_request){.origin = origin, .axis = axis}, &walk);
-    while (status == SXML_STATUS_OK) {
+    /* An item demand (D259): a forward axis walks the origin's nodes in
+       document order, so its first nodes are the ones read. */
+    const size_t first_item = output->list->item_count;
+    const bool is_forward =
+        axis == SXML_AXIS_SELF || axis == SXML_AXIS_CHILD || axis == SXML_AXIS_DESCENDANT ||
+        axis == SXML_AXIS_DESCENDANT_OR_SELF || axis == SXML_AXIS_ATTRIBUTE ||
+        axis == SXML_AXIS_FOLLOWING_SIBLING || axis == SXML_AXIS_FOLLOWING_SIBLING_OR_SELF ||
+        axis == SXML_AXIS_FOLLOWING || axis == SXML_AXIS_FOLLOWING_OR_SELF;
+    const uint64_t maximum_node_count = is_forward ? output->maximum_node_count : 0;
+    while (status == SXML_STATUS_OK &&
+           (maximum_node_count == 0 ||
+            (uint64_t)(output->list->item_count - first_item) < maximum_node_count)) {
         sxml_described_node node;
         status = sxml_axis_walk_next(&walk, &node);
         if (status != SXML_STATUS_OK || !node.has_node) {
@@ -1050,7 +1063,8 @@ sxml_status sxml_evaluator_make_step_value(sxml_dynamic_context *dynamic_context
     const sxml_step_output output = {.dynamic_context = dynamic_context,
                                      .test = &test,
                                      .list = &list,
-                                     .error_record = request->error_record};
+                                     .error_record = request->error_record,
+                                     .maximum_node_count = request->maximum_node_count};
     sxml_sequence_iterator iterator =
         sxml_sequence_iterator_start(request->origin);
     uint64_t origin_count = 0;

@@ -1187,6 +1187,12 @@ typedef struct sxml_ir_merge {
 typedef struct sxml_ir_expression {
     sxml_ir_expression_kind expression_kind;
     sxml_ir_source_span source_span;
+    /* The item demand (glossary `item_demand`, D259): its value is read
+       for its first item_demand items only, so a MAP, FILTER or traversal
+       that makes it may stop once it has made that many; 0 when every item
+       is read. Set by the demand pass (src/ir_loop_passes.c); not shown in
+       the text form. */
+    uint32_t item_demand;
     union {
         sxml_ir_atom atom;
         sxml_ir_let let;

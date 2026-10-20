@@ -58,7 +58,7 @@ sxml can pass its own functions to a query as function items.
 
 Every evaluation runs under limits on the work it does, the depth of its
 calls and the memory it uses, which a program sets in the processor's
-configuration. The defaults are generous (a billion evaluation steps,
+configuration. The defaults are generous (a hundred million evaluation steps,
 a million nested calls), and they keep an accidental infinite loop
 from running forever. sxml never uses the C stack for deep nesting, so
 deeply nested documents and deeply recursive functions are bounded only

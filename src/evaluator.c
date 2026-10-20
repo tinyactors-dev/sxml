@@ -1401,6 +1401,17 @@ static sxml_status sxml_machine_start_native_steps(sxml_dynamic_context *context
     record->row = row;
     record->state = body->state_byte_count == 0 ? NULL : (uint8_t *)memory + state_offset;
     record->step_number = 0;
+    /* A static call (no function item) has its expression's item demand
+       (D259), unless it delivers into a construction (D166). */
+    record->item_demand = 0;
+    if (task->details.call.function_item.representation == 0 && task->function != NULL &&
+        task->expression.value != 0 && !task->delivers_content) {
+        const sxml_ir_expression *expression =
+            sxml_ir_unit_get_expression(task->function->unit, task->expression);
+        if (expression->expression_kind == SXML_IR_EXPRESSION_KIND_STATIC_CALL) {
+            record->item_demand = expression->item_demand;
+        }
+    }
     record->call = (sxml_function_call){
         .function_item = task->details.call.function_item,
         .arguments = {.sequences = record->arguments, .sequence_count = argument_count},
@@ -1623,7 +1634,8 @@ static sxml_status sxml_machine_step_native(sxml_dynamic_context *context) {
         &(sxml_native_step_request){.call = &record->call,
                                     .state = record->state,
                                     .step_number = record->step_number,
-                                    .call_result = call_result},
+                                    .call_result = call_result,
+                                    .item_demand = record->item_demand},
         &step);
     record->step_number += 1;
     if (status != SXML_STATUS_OK) {
@@ -3100,6 +3112,8 @@ static sxml_status sxml_loop_start(sxml_dynamic_context *context,
     loop->iterator = sxml_sequence_iterator_start(loop->input);
     loop->position = 0;
     loop->size = 0;
+    loop->item_demand = 0;
+    loop->item_count = 0;
     if (needs_size) {
         status = sxml_sequence_count(loop->input, context->error_record, &loop->size);
     }
@@ -3111,7 +3125,13 @@ static sxml_status sxml_loop_start(sxml_dynamic_context *context,
 static sxml_status sxml_loop_append(sxml_dynamic_context *context,
                                     sxml_loop_state *loop, sxml_sequence value) {
     sxml_status status = SXML_STATUS_OK;
-    if (sxml_sequence_get_representation(value) != SXML_SEQUENCE_REPRESENTATION_EMPTY) {
+    if (loop->item_demand != 0) {
+        uint64_t value_count = 0;
+        status = sxml_sequence_count(value, context->error_record, &value_count);
+        loop->item_count += value_count;
+    }
+    if (status == SXML_STATUS_OK &&
+        sxml_sequence_get_representation(value) != SXML_SEQUENCE_REPRESENTATION_EMPTY) {
         if (loop->builder == NULL) {
             status = sxml_sequence_builder_create(
                 context->allocator,
@@ -3125,6 +3145,39 @@ static sxml_status sxml_loop_append(sxml_dynamic_context *context,
     }
     sxml_sequence_release(value);
     return status;
+}
+
+/* True when a loop whose value is read for its first items only (an
+   item demand, glossary `item_demand`, D259) has made them: the rest of
+   the value is never read, so the loop stops. The items it skips are not
+   evaluated, nor are their errors raised (XPath 4.0, 2.6.4). */
+static bool sxml_loop_has_enough(const sxml_loop_state *loop) {
+    return loop->item_demand != 0 && loop->item_count >= loop->item_demand;
+}
+
+/* Takes the item demand of the loop's expression, unless the task
+   delivers its value into a construction (D166), which reads every item.
+   A path's MAP takes it only over one origin: over several, its first
+   items are not the first in document order. map is NULL for a FILTER. */
+static sxml_status sxml_loop_take_demand(sxml_dynamic_context *context,
+                                         const sxml_ir_map *map) {
+    const bool is_path = map != NULL && (map->flags & SXML_IR_MAP_REQUIRES_NODES) != 0;
+    sxml_evaluator_task *task = sxml_machine_top(context);
+    const sxml_ir_expression *expression =
+        sxml_ir_unit_get_expression(task->function->unit, task->expression);
+    if (expression->item_demand == 0 || task->delivers_content) {
+        return SXML_STATUS_OK;
+    }
+    if (is_path) {
+        uint64_t origin_count = 0;
+        const sxml_status status =
+            sxml_sequence_count(task->details.loop.input, context->error_record, &origin_count);
+        if (status != SXML_STATUS_OK || origin_count != 1) {
+            return status;
+        }
+    }
+    task->details.loop.item_demand = expression->item_demand;
+    return SXML_STATUS_OK;
 }
 
 /* Finishes the loop on top with what its builder collected. */
@@ -3556,8 +3609,10 @@ typedef struct sxml_map_at_once {
  * not change (D89, D224). A JNode or another item goes the usual way,
  * which raises the path's errors.
  */
-static sxml_status sxml_map_step_at_once(sxml_dynamic_context *context, const sxml_ir_step *step,
+static sxml_status sxml_map_step_at_once(sxml_dynamic_context *context,
+                                         const sxml_ir_expression *body,
                                          sxml_map_at_once *outcome) {
+    const sxml_ir_step *step = &body->step;
     const sxml_sequence input = sxml_machine_top(context)->details.loop.input;
     outcome->is_handled = false;
     uint64_t item_count = 0;
@@ -3586,7 +3641,8 @@ static sxml_status sxml_map_step_at_once(sxml_dynamic_context *context, const sx
             &(sxml_step_request){.origin = input,
                                  .axis = step->axis,
                                  .node_test = step->node_test,
-                                 .error_record = context->error_record},
+                                 .error_record = context->error_record,
+                                 .maximum_node_count = body->item_demand},
             &value);
     }
     if (status != SXML_STATUS_OK) {
@@ -3613,6 +3669,11 @@ static sxml_status sxml_machine_step_map(sxml_dynamic_context *context,
                 return status;
             }
         }
+        status = sxml_loop_take_demand(context, map);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        task = sxml_machine_top(context);
         if ((map->flags & SXML_IR_MAP_ALLOWING_EMPTY) != 0 &&
             sxml_sequence_get_representation(task->details.loop.input) ==
                 SXML_SEQUENCE_REPRESENTATION_EMPTY) {
@@ -3637,7 +3698,7 @@ static sxml_status sxml_machine_step_map(sxml_dynamic_context *context,
             body->step.origin.atom_kind == SXML_IR_ATOM_KIND_SLOT &&
             body->step.origin.slot.value == map->focus.context_value.value) {
             sxml_map_at_once at_once = {.is_handled = false};
-            status = sxml_map_step_at_once(context, &body->step, &at_once);
+            status = sxml_map_step_at_once(context, body, &at_once);
             if (status != SXML_STATUS_OK || at_once.is_handled) {
                 return status;
             }
@@ -3661,6 +3722,9 @@ static sxml_status sxml_machine_step_map(sxml_dynamic_context *context,
         status = sxml_loop_append(context, &task->details.loop, value);
         if (status != SXML_STATUS_OK) {
             return status;
+        }
+        if (sxml_loop_has_enough(&task->details.loop)) {
+            return sxml_loop_finish(context);
         }
     }
     sxml_loop_progress progress = {.is_done = false};
@@ -4070,6 +4134,9 @@ static sxml_status sxml_filter_select_inline(sxml_dynamic_context *context,
         sxml_item_retain(loop->current_item);
         status = sxml_loop_append(context, loop, sxml_sequence_from_item(loop->current_item));
     }
+    if (status == SXML_STATUS_OK && sxml_loop_has_enough(loop)) {
+        return sxml_loop_finish(context);
+    }
     return status;
 }
 
@@ -4256,9 +4323,13 @@ static sxml_status sxml_machine_step_filter(sxml_dynamic_context *context,
         status = sxml_loop_start(
             context, (sxml_loop_input){.input = filter->input,
                                        .needs_size = filter->focus.context_size.value != 0});
+        if (status == SXML_STATUS_OK) {
+            status = sxml_loop_take_demand(context, NULL);
+        }
         if (status != SXML_STATUS_OK) {
             return status;
         }
+        task = sxml_machine_top(context);
         if (predicate->expression_kind == SXML_IR_EXPRESSION_KIND_INSTANCE_OF &&
             predicate->type_test.value.atom_kind == SXML_IR_ATOM_KIND_SLOT &&
             predicate->type_test.value.slot.value == filter->focus.context_value.value &&
@@ -4317,6 +4388,9 @@ static sxml_status sxml_machine_step_filter(sxml_dynamic_context *context,
         }
         if (status != SXML_STATUS_OK) {
             return status;
+        }
+        if (sxml_loop_has_enough(&task->details.loop)) {
+            return sxml_loop_finish(context);
         }
     }
     return sxml_filter_advance(context, filter);

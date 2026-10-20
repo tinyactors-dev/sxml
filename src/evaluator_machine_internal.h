@@ -120,6 +120,9 @@ typedef struct sxml_native_call_record {
     size_t argument_count;
     void *state;
     uint64_t step_number;
+    /* The static call's item demand (D259): the body may stop once it has
+       made that many items; 0 for every item. */
+    uint64_t item_demand;
 } sxml_native_call_record;
 
 /* The state of a SORT expression: its items, borrowed from input, and the
@@ -144,6 +147,12 @@ typedef struct sxml_loop_state {
     /* Owned; made on first need. */
     sxml_sequence_builder *builder;
     sxml_sort_state *sort_state;
+    /* A MAP or FILTER whose value is read for its first item_demand items
+       only (glossary `item_demand`, D259) stops once its builder has
+       item_count >= item_demand; 0 when it makes every item, and then
+       item_count is not kept. */
+    uint64_t item_demand;
+    uint64_t item_count;
 } sxml_loop_state;
 
 /* Calls: CALL, NATIVE_STEP. */

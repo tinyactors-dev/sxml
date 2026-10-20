@@ -2233,6 +2233,742 @@ static sxml_status shorten_descendant_path(loop_pass *pass, const slot_census *c
     return status;
 }
 
+/* ---------------------------------------------------- Item demands */
+
+/* Where an expression sits in its parent, for the demand pass. */
+typedef enum demand_role {
+    /* The function's body, or a place whose value is read whole. */
+    SXML_DEMAND_ROLE_OTHER = 0,
+    SXML_DEMAND_ROLE_LET_BOUND,
+    SXML_DEMAND_ROLE_LET_BODY,
+    /* A branch of a CONDITIONAL. */
+    SXML_DEMAND_ROLE_BRANCH,
+    SXML_DEMAND_ROLE_MAP_BODY,
+    /* A FILTER's predicate whose value is no number: its effective
+       boolean value is read. */
+    SXML_DEMAND_ROLE_BOOLEAN_PREDICATE,
+    /* A QUANTIFIED's condition: its effective boolean value is read. */
+    SXML_DEMAND_ROLE_CONDITION,
+} demand_role;
+
+/* An expression of the function being looked at, its parent and its
+   item demand so far. */
+typedef struct demand_member {
+    sxml_ir_expression_index index;
+    /* The member number of the parent; the parent comes first. */
+    size_t parent;
+    demand_role role;
+    uint32_t demand;
+} demand_member;
+
+/* What the demand pass keeps for one function. */
+typedef struct demand_state {
+    const slot_census *census;
+    /* demand_member, in an order that puts every parent before its
+       children. */
+    pass_array members;
+    /* Per slot of the function: the reads that read a known number of
+       leading items, the largest such number, and the slot's demand. */
+    uint32_t *known_read_counts;
+    uint32_t *read_demands;
+    uint32_t *slot_demands;
+} demand_state;
+
+/* The effective boolean value reads two items at most: the first, and
+   whether there is a second when the first is no node (XPath 4.0,
+   2.5.4.1, FORG0006). */
+#define DEMAND_OF_BOOLEAN 2U
+
+static demand_member *member_at(const demand_state *state, size_t member_number) {
+    return &((demand_member *)state->members.elements)[member_number];
+}
+
+/* The item demand a native function's argument has: fn:exists, fn:empty
+   and fn:head read one item, fn:boolean, fn:not, fn:zero-or-one and
+   fn:exactly-one two (F&O 4.0, 14.1.3 to 14.1.6, 7.3.1, 7.3.2, 14.2.1,
+   14.2.2); 0 for every other. */
+static uint32_t native_argument_demand(const sxml_native_function *row) {
+    if (row == NULL || row->function_namespace != SXML_NAMESPACE_FUNCTIONS) {
+        return 0;
+    }
+    const char *one_item[] = {"exists", "empty", "head"};
+    const char *two_items[] = {"boolean", "not", "zero-or-one", "exactly-one"};
+    for (size_t name_index = 0; name_index < sizeof(one_item) / sizeof(one_item[0]);
+         name_index += 1) {
+        if (sxml_byte_view_equals(row->local_name,
+                                  (sxml_byte_view){.bytes = (const uint8_t *)one_item[name_index],
+                                                   .byte_count = strlen(one_item[name_index])})) {
+            return 1;
+        }
+    }
+    for (size_t name_index = 0; name_index < sizeof(two_items) / sizeof(two_items[0]);
+         name_index += 1) {
+        if (sxml_byte_view_equals(
+                row->local_name,
+                (sxml_byte_view){.bytes = (const uint8_t *)two_items[name_index],
+                                 .byte_count = strlen(two_items[name_index])})) {
+            return DEMAND_OF_BOOLEAN;
+        }
+    }
+    return 0;
+}
+
+/* True for an axis that gives one origin's nodes in document order. */
+static bool axis_is_forward(sxml_axis axis) {
+    return axis == SXML_AXIS_SELF || axis == SXML_AXIS_CHILD || axis == SXML_AXIS_DESCENDANT ||
+           axis == SXML_AXIS_DESCENDANT_OR_SELF || axis == SXML_AXIS_ATTRIBUTE ||
+           axis == SXML_AXIS_FOLLOWING_SIBLING || axis == SXML_AXIS_FOLLOWING_SIBLING_OR_SELF ||
+           axis == SXML_AXIS_FOLLOWING || axis == SXML_AXIS_FOLLOWING_OR_SELF;
+}
+
+/* A path's MAP of a function. */
+typedef struct path_map_question {
+    const slot_census *census;
+    const sxml_ir_map *map;
+} path_map_question;
+
+/*
+ * True for a path's MAP (no other flag) whose body gives the nodes of one
+ * origin in document order: a forward axis step from the focus, the
+ * document order of a path, or filters of such a value, through LETs.
+ * Then the first n nodes of several origins in document order are among
+ * the first n of each origin, and the first n of one origin are the
+ * MAP's first n.
+ */
+static bool path_map_is_ordered(const loop_pass *pass, path_map_question question) {
+    const sxml_ir_map *map = question.map;
+    if (map->flags != (uint32_t)SXML_IR_MAP_REQUIRES_NODES || map->focus.context_value.value == 0) {
+        return false;
+    }
+    sxml_ir_expression_index index = map->body;
+    for (size_t visited = 0; visited < pass->unit->expression_count; visited += 1) {
+        const sxml_ir_expression expression = expression_at(pass, index);
+        sxml_ir_atom followed = {.atom_kind = SXML_IR_ATOM_KIND_NONE};
+        if (expression.expression_kind == SXML_IR_EXPRESSION_KIND_LET) {
+            index = expression.let.body;
+            continue;
+        }
+        if (expression.expression_kind == SXML_IR_EXPRESSION_KIND_STEP) {
+            return axis_is_forward(expression.step.axis) &&
+                   expression.step.origin.atom_kind == SXML_IR_ATOM_KIND_SLOT &&
+                   expression.step.origin.slot.value == map->focus.context_value.value;
+        }
+        if (expression.expression_kind == SXML_IR_EXPRESSION_KIND_DOCUMENT_ORDER) {
+            return true;
+        }
+        if (expression.expression_kind == SXML_IR_EXPRESSION_KIND_FILTER) {
+            followed = expression.filter.input;
+        } else if (expression.expression_kind == SXML_IR_EXPRESSION_KIND_ATOM) {
+            followed = expression.atom;
+        }
+        const sxml_ir_expression_index let = single_let_of(question.census, followed);
+        if (let.value == 0) {
+            return false;
+        }
+        index = expression_at(pass, let).let.bound_expression;
+    }
+    return false;
+}
+
+/* A constant positive integer k that a FILTER's predicate is, reading no
+   focus: the FILTER reads k items of its input; 0 otherwise. */
+static uint32_t constant_position_of(const loop_pass *pass, const sxml_ir_filter *filter) {
+    if (filter->focus.context_value.value != 0 || filter->focus.context_position.value != 0 ||
+        filter->focus.context_size.value != 0) {
+        return 0;
+    }
+    const sxml_ir_expression predicate = expression_at(pass, filter->predicate);
+    if (predicate.expression_kind != SXML_IR_EXPRESSION_KIND_ATOM ||
+        predicate.atom.atom_kind != SXML_IR_ATOM_KIND_CONSTANT) {
+        return 0;
+    }
+    const sxml_sequence value = sxml_ir_unit_get_constant(pass->unit, predicate.atom.constant);
+    if (sxml_sequence_get_representation(value) != SXML_SEQUENCE_REPRESENTATION_SINGLE_ITEM ||
+        sxml_item_get_representation(value.content) != SXML_ITEM_REPRESENTATION_INTEGER ||
+        value.content.payload.integer < 1 || value.content.payload.integer > INT32_MAX) {
+        return 0;
+    }
+    return (uint32_t)value.content.payload.integer;
+}
+
+/* Notes a read of atom that reads its first demand items (0: every
+   item, which is not noted: the slot's reads are then not all known). */
+static void note_known_read(demand_state *state, sxml_ir_atom atom, uint32_t demand) {
+    if (demand == 0 || atom.atom_kind != SXML_IR_ATOM_KIND_SLOT || atom.slot.value == 0 ||
+        atom.slot.value >= state->census->use_count) {
+        return;
+    }
+    state->known_read_counts[atom.slot.value] += 1;
+    if (demand > state->read_demands[atom.slot.value]) {
+        state->read_demands[atom.slot.value] = demand;
+    }
+}
+
+/* Notes the reads of a member that read a known number of items. */
+static void note_member_reads(const loop_pass *pass, demand_state *state,
+                              const demand_member *member) {
+    const sxml_ir_expression expression = expression_at(pass, member->index);
+    const sxml_ir_expression_kind kind = expression.expression_kind;
+    if (kind == SXML_IR_EXPRESSION_KIND_STATIC_CALL &&
+        expression.static_call.target.target_kind == SXML_IR_FUNCTION_TARGET_KIND_NATIVE &&
+        expression.static_call.arguments.atom_count == 1) {
+        const sxml_ir_atom_view arguments =
+            sxml_ir_unit_get_atoms(pass->unit, expression.static_call.arguments);
+        if (arguments.atom_count != 1 || arguments.atoms == NULL) {
+            return;
+        }
+        note_known_read(state, arguments.atoms[0],
+                        native_argument_demand(expression.static_call.target.native_function));
+    } else if (kind == SXML_IR_EXPRESSION_KIND_CONDITIONAL) {
+        note_known_read(state, expression.conditional.condition, DEMAND_OF_BOOLEAN);
+    } else if (kind == SXML_IR_EXPRESSION_KIND_FILTER) {
+        note_known_read(state, expression.filter.input,
+                        constant_position_of(pass, &expression.filter));
+    } else if (kind == SXML_IR_EXPRESSION_KIND_DOCUMENT_ORDER && member->demand != 0) {
+        /* The first n nodes of a path in document order are the first n
+           the path's MAP makes, when its body is ordered. */
+        const sxml_ir_expression_index let =
+            single_let_of(state->census, expression.document_order.input);
+        if (let.value != 0) {
+            const sxml_ir_expression bound =
+                expression_at(pass, expression_at(pass, let).let.bound_expression);
+            if (bound.expression_kind == SXML_IR_EXPRESSION_KIND_MAP &&
+                path_map_is_ordered(pass,
+                                    (path_map_question){.census = state->census, .map = &bound.map})) {
+                note_known_read(state, expression.document_order.input, member->demand);
+            }
+        }
+    }
+}
+
+/* The demand of a member from its parent's and the slots' demands. */
+static uint32_t member_demand(const loop_pass *pass, const demand_state *state,
+                              const demand_member *member) {
+    if (member->role == SXML_DEMAND_ROLE_OTHER) {
+        return 0;
+    }
+    if (member->role == SXML_DEMAND_ROLE_BOOLEAN_PREDICATE ||
+        member->role == SXML_DEMAND_ROLE_CONDITION) {
+        return DEMAND_OF_BOOLEAN;
+    }
+    const demand_member *parent = member_at(state, member->parent);
+    const sxml_ir_expression parent_expression = expression_at(pass, parent->index);
+    if (member->role == SXML_DEMAND_ROLE_LET_BOUND) {
+        const sxml_ir_let *let = &parent_expression.let;
+        if (let->is_content || let->variable.value >= state->census->use_count ||
+            single_let_of(state->census, sxml_ir_slot_atom(let->variable)).value !=
+                parent->index.value) {
+            return 0;
+        }
+        return state->slot_demands[let->variable.value];
+    }
+    if (member->role == SXML_DEMAND_ROLE_MAP_BODY) {
+        const sxml_ir_map *map = &parent_expression.map;
+        const bool is_plain = map->flags == 0;
+        if (!is_plain &&
+            !path_map_is_ordered(pass, (path_map_question){.census = state->census, .map = map})) {
+            return 0;
+        }
+    }
+    return parent->demand;
+}
+
+/* An expression to add as a member, with its parent and role. */
+typedef struct demand_child {
+    sxml_ir_expression_index index;
+    size_t parent;
+    demand_role role;
+} demand_child;
+
+static sxml_status push_demand_child(loop_pass *pass, pass_array *stack, demand_child child) {
+    if (child.index.value == 0) {
+        return SXML_STATUS_OK;
+    }
+    return pass_array_append(pass->allocator, stack, &child);
+}
+
+/* A member whose children go on a stack of demand_child. */
+typedef struct member_children {
+    pass_array *stack;
+    size_t member_number;
+} member_children;
+
+/* Pushes the children of a member: those whose demand follows from it
+   with their roles, every other one read whole. Uses pass->walk. */
+static sxml_status push_member_children(loop_pass *pass, const demand_state *state,
+                                        member_children request) {
+    pass_array *stack = request.stack;
+    const size_t member_number = request.member_number;
+    const sxml_ir_expression_index index = member_at(state, member_number)->index;
+    const sxml_ir_expression expression = expression_at(pass, index);
+    const sxml_ir_expression_kind kind = expression.expression_kind;
+    const demand_child none = {
+        .index = {.value = 0}, .parent = member_number, .role = SXML_DEMAND_ROLE_OTHER};
+    demand_child children[2] = {none, none};
+    sxml_status status = SXML_STATUS_OK;
+    if (kind == SXML_IR_EXPRESSION_KIND_LET) {
+        children[0].index = expression.let.bound_expression;
+        children[0].role = SXML_DEMAND_ROLE_LET_BOUND;
+        children[1].index = expression.let.body;
+        children[1].role = SXML_DEMAND_ROLE_LET_BODY;
+    } else if (kind == SXML_IR_EXPRESSION_KIND_CONDITIONAL) {
+        children[0].index = expression.conditional.then_branch;
+        children[0].role = SXML_DEMAND_ROLE_BRANCH;
+        children[1].index = expression.conditional.else_branch;
+        children[1].role = SXML_DEMAND_ROLE_BRANCH;
+    } else if (kind == SXML_IR_EXPRESSION_KIND_MAP) {
+        children[0].index = expression.map.body;
+        children[0].role = SXML_DEMAND_ROLE_MAP_BODY;
+    } else if (kind == SXML_IR_EXPRESSION_KIND_QUANTIFIED) {
+        children[0].index = expression.quantified.condition;
+        children[0].role = SXML_DEMAND_ROLE_CONDITION;
+    } else if (kind == SXML_IR_EXPRESSION_KIND_FILTER) {
+        pass_answer is_boolean = {.is_true = false};
+        status = filter_is_by_item(
+            pass, (filter_question){.census = state->census, .filter = &expression.filter},
+            &is_boolean);
+        children[0].index = expression.filter.predicate;
+        children[0].role =
+            is_boolean.is_true ? SXML_DEMAND_ROLE_BOOLEAN_PREDICATE : SXML_DEMAND_ROLE_OTHER;
+        /* The index's key and probe are read whole. */
+        children[1].index = expression.filter.index.key;
+        if (status == SXML_STATUS_OK) {
+            status = push_demand_child(pass, stack,
+                                       (demand_child){.index = expression.filter.index.probe,
+                                                      .parent = member_number,
+                                                      .role = SXML_DEMAND_ROLE_OTHER});
+        }
+    } else {
+        pass->walk.element_count = 0;
+        status = push_every_child(pass, index);
+        for (size_t other = 0; status == SXML_STATUS_OK && other < pass->walk.element_count;
+             other += 1) {
+            demand_child child = none;
+            child.index = ((const sxml_ir_expression_index *)pass->walk.elements)[other];
+            status = push_demand_child(pass, stack, child);
+        }
+    }
+    for (size_t child_index = 0; status == SXML_STATUS_OK && child_index < 2; child_index += 1) {
+        status = push_demand_child(pass, stack, children[child_index]);
+    }
+    return status;
+}
+
+/* Collects the members of the function's body, parents first. */
+static sxml_status collect_demand_members(loop_pass *pass, demand_state *state,
+                                          sxml_ir_expression_index body) {
+    pass_array stack = pass_array_start(sizeof(demand_child), alignof(demand_child));
+    sxml_status status = push_demand_child(
+        pass, &stack, (demand_child){.index = body, .parent = 0, .role = SXML_DEMAND_ROLE_OTHER});
+    while (status == SXML_STATUS_OK && stack.element_count > 0) {
+        stack.element_count -= 1;
+        const demand_child child = ((const demand_child *)stack.elements)[stack.element_count];
+        if (child.index.value >= pass->unit->expression_count) {
+            continue;
+        }
+        const size_t member_number = state->members.element_count;
+        const demand_member member = {
+            .index = child.index, .parent = child.parent, .role = child.role, .demand = 0};
+        status = pass_array_append(pass->allocator, &state->members, &member);
+        if (status == SXML_STATUS_OK) {
+            status = push_member_children(
+                pass, state,
+                (member_children){.stack = &stack, .member_number = member_number});
+        }
+    }
+    pass_array_finalize(pass->allocator, &stack);
+    return status;
+}
+
+/* Computes the demands of the members until nothing changes: a slot's
+   demand is the largest of its reads' when every read reads a known
+   number of leading items. */
+static void settle_demands(const loop_pass *pass, demand_state *state) {
+    const size_t slot_count = state->census->use_count;
+    bool is_changed = true;
+    for (size_t round = 0; is_changed && round <= state->members.element_count + 1; round += 1) {
+        is_changed = false;
+        for (size_t member_number = 0; member_number < state->members.element_count;
+             member_number += 1) {
+            demand_member *member = member_at(state, member_number);
+            const uint32_t demand = member_demand(pass, state, member);
+            if (demand != member->demand) {
+                member->demand = demand;
+                is_changed = true;
+            }
+        }
+        memset(state->known_read_counts, 0, slot_count * sizeof(uint32_t));
+        memset(state->read_demands, 0, slot_count * sizeof(uint32_t));
+        for (size_t member_number = 0; member_number < state->members.element_count;
+             member_number += 1) {
+            note_member_reads(pass, state, member_at(state, member_number));
+        }
+        for (size_t slot_number = 1; slot_number < slot_count; slot_number += 1) {
+            const uint32_t read_count = state->census->uses[slot_number].read_count;
+            const uint32_t demand =
+                read_count > 0 && state->known_read_counts[slot_number] == read_count
+                    ? state->read_demands[slot_number]
+                    : 0;
+            if (demand != state->slot_demands[slot_number]) {
+                state->slot_demands[slot_number] = demand;
+                is_changed = true;
+            }
+        }
+    }
+}
+
+/* Sets the item demands of the body of the function at function_number. */
+static sxml_status set_function_demands(loop_pass *pass, uint32_t function_number) {
+    slot_census census = {.uses = NULL, .use_count = 0};
+    sxml_status status = make_slot_census(pass, function_number, &census);
+    demand_state state = {.census = &census,
+                          .members = pass_array_start(sizeof(demand_member), alignof(demand_member)),
+                          .known_read_counts = NULL,
+                          .read_demands = NULL,
+                          .slot_demands = NULL};
+    void *memory = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_allocator_allocate_array(
+            pass->allocator,
+            (sxml_array_allocation_request){.element_count = 3 * census.use_count,
+                                            .element_size = sizeof(uint32_t),
+                                            .element_alignment = alignof(uint32_t)},
+            &memory);
+    }
+    if (status == SXML_STATUS_OK) {
+        memset(memory, 0, 3 * census.use_count * sizeof(uint32_t));
+        state.known_read_counts = memory;
+        state.read_demands = state.known_read_counts + census.use_count;
+        state.slot_demands = state.read_demands + census.use_count;
+        const sxml_ir_function *function = sxml_ir_unit_get_function(
+            pass->unit, (sxml_ir_function_index){.value = function_number});
+        status = collect_demand_members(pass, &state, function->body);
+    }
+    if (status == SXML_STATUS_OK) {
+        settle_demands(pass, &state);
+    }
+    for (size_t member_number = 0; status == SXML_STATUS_OK &&
+                                   member_number < state.members.element_count;
+         member_number += 1) {
+        const demand_member *member = member_at(&state, member_number);
+        sxml_ir_expression expression = expression_at(pass, member->index);
+        if (expression.item_demand == member->demand || is_left_alone(pass, member->index)) {
+            continue;
+        }
+        expression.item_demand = member->demand;
+        status = sxml_ir_unit_replace_expression(
+            pass->unit,
+            &(sxml_ir_expression_replacement){.index = member->index, .expression = expression});
+    }
+    if (memory != NULL) {
+        sxml_allocator_release(pass->allocator, memory);
+    }
+    pass_array_finalize(pass->allocator, &state.members);
+    slot_census_finalize(pass, &census);
+    return status;
+}
+
+/* -------------------------------------------- Quantified producers */
+
+/*
+ * The fusion pass (glossary `quantified_fusion`). "some $x in E[P]
+ * satisfies C" and "some $x in (for $y in E return B) satisfies C" first
+ * made the whole input, then stopped at the first item that decides
+ * (XPath 4.0, 4.15). When the input is a slot read once, by the
+ * QUANTIFIED alone, bound in the same evaluation (the LET's body reaches
+ * the QUANTIFIED through LETs and conditional branches only, so the
+ * input is made once either way) to
+ * - a FILTER that selects by the item alone and has no filter index: the
+ *   QUANTIFIED runs over E with the FILTER's focus as its variable and
+ *   the condition LET(p, P, CONDITIONAL(p, LET(x, focus, C), k)), k
+ *   false() for some and true() for every: "some/every $y in E satisfies
+ *   (if (P) then C else k)";
+ * - a MAP without flags that reads neither the position nor the size:
+ *   it runs over E with the MAP's focus as its variable and the condition
+ *   LET(t, B, QUANTIFIED(t, x, C)), the same quantifier;
+ * so items are made as the QUANTIFIED reads them, and none after the one
+ * that decides. The LET of the input is replaced by its body. The
+ * predicate and the body run for the same items up to the deciding one
+ * (their errors after it are not raised, XPath 4.0, 2.6.4).
+ */
+
+/* The members of one function and, per expression of the unit, its
+   member number + 1 (0 for none). */
+typedef struct fusion_state {
+    slot_census census;
+    demand_state demand;
+    uint32_t *member_numbers;
+    size_t member_number_count;
+} fusion_state;
+
+/* True when the member at member_number is evaluated once each time the
+   LET at let_index is, after its bound expression: reached from the
+   LET's body through LETs and conditional branches only. */
+typedef struct once_question {
+    size_t member_number;
+    sxml_ir_expression_index let_index;
+} once_question;
+
+static bool is_once_per_let(const loop_pass *pass, const fusion_state *state,
+                            once_question question) {
+    size_t member_number = question.member_number;
+    bool came_from_body = false;
+    for (size_t climbed = 0; climbed <= state->demand.members.element_count; climbed += 1) {
+        const demand_member *member = member_at(&state->demand, member_number);
+        if (member->index.value == question.let_index.value) {
+            return came_from_body;
+        }
+        if (member_number == 0) {
+            return false;
+        }
+        const demand_member *parent = member_at(&state->demand, member->parent);
+        const sxml_ir_expression_kind parent_kind = expression_at(pass, parent->index).expression_kind;
+        if (member->role == SXML_DEMAND_ROLE_LET_BODY) {
+            came_from_body = parent->index.value == question.let_index.value;
+        } else if (member->role != SXML_DEMAND_ROLE_LET_BOUND &&
+                   !(member->role == SXML_DEMAND_ROLE_BRANCH &&
+                     parent_kind == SXML_IR_EXPRESSION_KIND_CONDITIONAL)) {
+            return false;
+        }
+        member_number = member->parent;
+    }
+    return false;
+}
+
+/* Adds an expression to the unit and writes its index. */
+static sxml_status add_pass_expression(loop_pass *pass, const sxml_ir_expression *expression,
+                                       sxml_ir_expression_index *index) {
+    return sxml_ir_unit_add_expression(pass->unit, expression, index);
+}
+
+/* The quantified expression to fuse, its producer and a new slot. */
+typedef struct fusion_parts {
+    sxml_ir_expression quantified;
+    sxml_ir_expression producer;
+    sxml_ir_slot new_slot;
+} fusion_parts;
+
+/* The condition of the fused QUANTIFIED over a FILTER's input. */
+static sxml_status fuse_filter_condition(loop_pass *pass, const fusion_parts *parts,
+                                         sxml_ir_expression_index *condition) {
+    const sxml_ir_quantified *quantified = &parts->quantified.quantified;
+    const sxml_ir_filter *filter = &parts->producer.filter;
+    const sxml_ir_source_span span = parts->quantified.source_span;
+    sxml_ir_constant_index decided = {.value = 0};
+    sxml_status status =
+        boolean_constant(pass, quantified->quantifier == SXML_IR_QUANTIFIER_EVERY, &decided);
+    sxml_ir_expression_index otherwise = {.value = 0};
+    if (status == SXML_STATUS_OK) {
+        status = add_constant_atom(pass, decided, &otherwise);
+    }
+    sxml_ir_expression_index focus = {.value = 0};
+    if (status == SXML_STATUS_OK) {
+        status = add_pass_expression(
+            pass,
+            &(sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_ATOM,
+                                  .source_span = span,
+                                  .atom = sxml_ir_slot_atom(filter->focus.context_value)},
+            &focus);
+    }
+    sxml_ir_expression_index bound_variable = {.value = 0};
+    if (status == SXML_STATUS_OK) {
+        status = add_pass_expression(
+            pass,
+            &(sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_LET,
+                                  .source_span = span,
+                                  .let = {.variable = quantified->variable,
+                                          .bound_expression = focus,
+                                          .body = quantified->condition,
+                                          .is_content = false}},
+            &bound_variable);
+    }
+    sxml_ir_expression_index chosen = {.value = 0};
+    if (status == SXML_STATUS_OK) {
+        status = add_pass_expression(
+            pass,
+            &(sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_CONDITIONAL,
+                                  .source_span = span,
+                                  .conditional = {.condition = sxml_ir_slot_atom(parts->new_slot),
+                                                  .then_branch = bound_variable,
+                                                  .else_branch = otherwise}},
+            &chosen);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return add_pass_expression(
+        pass,
+        &(sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_LET,
+                              .source_span = span,
+                              .let = {.variable = parts->new_slot,
+                                      .bound_expression = filter->predicate,
+                                      .body = chosen,
+                                      .is_content = false}},
+        condition);
+}
+
+/* The condition of the fused QUANTIFIED over a MAP's input. */
+static sxml_status fuse_map_condition(loop_pass *pass, const fusion_parts *parts,
+                                      sxml_ir_expression_index *condition) {
+    sxml_ir_expression inner = parts->quantified;
+    inner.quantified.input = sxml_ir_slot_atom(parts->new_slot);
+    inner.item_demand = 0;
+    sxml_ir_expression_index inner_index = {.value = 0};
+    const sxml_status status = add_pass_expression(pass, &inner, &inner_index);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return add_pass_expression(
+        pass,
+        &(sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_LET,
+                              .source_span = parts->quantified.source_span,
+                              .let = {.variable = parts->new_slot,
+                                      .bound_expression = parts->producer.map.body,
+                                      .body = inner_index,
+                                      .is_content = false}},
+        condition);
+}
+
+/* What fuse_quantified did. */
+typedef struct fusion_outcome {
+    bool is_fused;
+} fusion_outcome;
+
+/* A QUANTIFIED member of the function being fused. */
+typedef struct fusion_request {
+    const fusion_state *state;
+    uint32_t function_number;
+    size_t member_number;
+} fusion_request;
+
+/* Fuses the QUANTIFIED at the member with the producer of its input,
+   when it may (see above). */
+static sxml_status fuse_quantified(loop_pass *pass, fusion_request request,
+                                   fusion_outcome *outcome) {
+    const fusion_state *state = request.state;
+    outcome->is_fused = false;
+    const sxml_ir_expression_index index = member_at(&state->demand, request.member_number)->index;
+    fusion_parts parts = {.quantified = expression_at(pass, index)};
+    const sxml_ir_quantified *quantified = &parts.quantified.quantified;
+    const sxml_ir_atom input = quantified->input;
+    const sxml_ir_expression_index let_index = single_let_of(&state->census, input);
+    if (is_left_alone(pass, index) || let_index.value == 0 || is_left_alone(pass, let_index) ||
+        read_count_of(&state->census, input.slot) != 1) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_ir_expression let = expression_at(pass, let_index);
+    if (let.let.is_content ||
+        !is_once_per_let(pass, state,
+                         (once_question){.member_number = request.member_number,
+                                         .let_index = let_index})) {
+        return SXML_STATUS_OK;
+    }
+    parts.producer = expression_at(pass, let.let.bound_expression);
+    sxml_ir_slot variable = {.value = 0};
+    if (parts.producer.expression_kind == SXML_IR_EXPRESSION_KIND_FILTER) {
+        pass_answer is_by_item = {.is_true = false};
+        const sxml_status status = filter_is_by_item(
+            pass, (filter_question){.census = &state->census, .filter = &parts.producer.filter},
+            &is_by_item);
+        if (status != SXML_STATUS_OK || !is_by_item.is_true) {
+            return status;
+        }
+        variable = parts.producer.filter.focus.context_value;
+    } else if (parts.producer.expression_kind == SXML_IR_EXPRESSION_KIND_MAP) {
+        const sxml_ir_map *map = &parts.producer.map;
+        if (map->flags != 0 || map->focus.context_position.value != 0 ||
+            map->focus.context_size.value != 0) {
+            return SXML_STATUS_OK;
+        }
+        variable = map->focus.context_value;
+    }
+    if (variable.value == 0) {
+        return SXML_STATUS_OK;
+    }
+    sxml_ir_function function = *sxml_ir_unit_get_function(
+        pass->unit, (sxml_ir_function_index){.value = request.function_number});
+    if (function.slot_count == UINT32_MAX) {
+        return SXML_STATUS_OK;
+    }
+    function.slot_count += 1;
+    parts.new_slot = (sxml_ir_slot){.value = function.slot_count};
+    sxml_ir_expression_index condition = {.value = 0};
+    sxml_status status = parts.producer.expression_kind == SXML_IR_EXPRESSION_KIND_FILTER
+                             ? fuse_filter_condition(pass, &parts, &condition)
+                             : fuse_map_condition(pass, &parts, &condition);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_ir_unit_replace_function(
+            pass->unit, &(sxml_ir_function_replacement){
+                            .index = {.value = request.function_number}, .function = function});
+    }
+    sxml_ir_expression fused = parts.quantified;
+    fused.quantified.input = parts.producer.expression_kind == SXML_IR_EXPRESSION_KIND_FILTER
+                                 ? parts.producer.filter.input
+                                 : parts.producer.map.input;
+    fused.quantified.variable = variable;
+    fused.quantified.condition = condition;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_ir_unit_replace_expression(
+            pass->unit, &(sxml_ir_expression_replacement){.index = index, .expression = fused});
+    }
+    /* The LET of the input becomes its body. */
+    if (status == SXML_STATUS_OK) {
+        status = sxml_ir_unit_replace_expression(
+            pass->unit, &(sxml_ir_expression_replacement){
+                            .index = let_index, .expression = expression_at(pass, let.let.body)});
+    }
+    outcome->is_fused = status == SXML_STATUS_OK;
+    return status;
+}
+
+static void fusion_state_finalize(loop_pass *pass, fusion_state *state) {
+    pass_array_finalize(pass->allocator, &state->demand.members);
+    slot_census_finalize(pass, &state->census);
+    if (state->member_numbers != NULL) {
+        sxml_allocator_release(pass->allocator, state->member_numbers);
+    }
+    state->member_numbers = NULL;
+}
+
+/* Fuses one QUANTIFIED of the function, if any may be, and writes
+   whether it did. */
+static sxml_status fuse_one_quantified(loop_pass *pass, uint32_t function_number,
+                                       fusion_outcome *outcome) {
+    outcome->is_fused = false;
+    fusion_state state = {
+        .census = {.uses = NULL, .use_count = 0},
+        .demand = {.census = NULL,
+                   .members = pass_array_start(sizeof(demand_member), alignof(demand_member)),
+                   .known_read_counts = NULL,
+                   .read_demands = NULL,
+                   .slot_demands = NULL},
+        .member_numbers = NULL,
+        .member_number_count = 0};
+    state.demand.census = &state.census;
+    sxml_status status = make_slot_census(pass, function_number, &state.census);
+    if (status == SXML_STATUS_OK) {
+        const sxml_ir_function *function = sxml_ir_unit_get_function(
+            pass->unit, (sxml_ir_function_index){.value = function_number});
+        status = collect_demand_members(pass, &state.demand, function->body);
+    }
+    for (size_t member_number = 0;
+         status == SXML_STATUS_OK && !outcome->is_fused &&
+         member_number < state.demand.members.element_count;
+         member_number += 1) {
+        if (expression_at(pass, member_at(&state.demand, member_number)->index).expression_kind !=
+            SXML_IR_EXPRESSION_KIND_QUANTIFIED) {
+            continue;
+        }
+        status = fuse_quantified(pass,
+                                 (fusion_request){.state = &state,
+                                                  .function_number = function_number,
+                                                  .member_number = member_number},
+                                 outcome);
+    }
+    fusion_state_finalize(pass, &state);
+    return status;
+}
+
 static void loop_pass_finalize(loop_pass *pass) {
     pass_array *arrays[] = {&pass->lets,       &pass->necessary, &pass->comparisons,
                             &pass->read_slots, &pass->walk,      &pass->subtree,
@@ -2366,4 +3102,35 @@ sxml_status sxml_ir_shorten_descendant_paths(const sxml_ir_pass_request *request
     }
     loop_pass_finalize(&pass);
     return status;
+}
+
+sxml_status sxml_ir_set_item_demands(const sxml_ir_pass_request *request) {
+    loop_pass pass = loop_pass_start(request);
+    sxml_status status = make_owners(&pass, request->unit->expression_count);
+    for (uint32_t function_number = 1;
+         status == SXML_STATUS_OK && function_number < request->unit->function_count;
+         function_number += 1) {
+        status = set_function_demands(&pass, function_number);
+    }
+    loop_pass_finalize(&pass);
+    return status;
+}
+
+sxml_status sxml_ir_fuse_quantified_inputs(const sxml_ir_pass_request *request) {
+    loop_pass pass = loop_pass_start(request);
+    sxml_status status = make_owners(&pass, request->unit->expression_count);
+    for (uint32_t function_number = 1;
+         status == SXML_STATUS_OK && function_number < request->unit->function_count;
+         function_number += 1) {
+        /* One at a time: a fused QUANTIFIED may fuse again with the
+           producer of its new input. */
+        fusion_outcome outcome = {.is_fused = true};
+        for (size_t round = 0; status == SXML_STATUS_OK && outcome.is_fused &&
+                               round < request->unit->expression_count;
+             round += 1) {
+            status = fuse_one_quantified(&pass, function_number, &outcome);
+        }
+    }
+    loop_pass_finalize(&pass);
+    return status == SXML_STATUS_LIMIT_EXCEEDED ? SXML_STATUS_OK : status;
 }

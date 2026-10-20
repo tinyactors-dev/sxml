@@ -499,6 +499,34 @@ static const value_case value_cases[] = {
      "return (string-join($d//a[@k = 1]/b/@n, ','), count($d/r//a//b), "
      "string-join($d//a[1]/b/@n, ','))",
      "\"1,2\" 2 \"1,2\""},
+    /* Item demands (D259): a billion items are never made (the default
+       step bound is 10^8). */
+    {"exists((1 to 1000000000)[. = 999])", "true()"},
+    {"empty((1 to 1000000000)[. = 999])", "false()"},
+    {"head(filter(1 to 1000000000, function($x) { $x = 7 }))", "7"},
+    {"head(for-each(1 to 1000000000, function($x) { $x * 3 }))", "3"},
+    {"(1 to 1000000000)[. > 5][2]", "7"},
+    {"(for $y in 1 to 1000000000 return ($y, -$y))[4]", "-2"},
+    {"let $d := document { <r>{(1 to 50) ! <a n='{.}'><b/></a>}</r> } "
+     "return (string(($d//a)[3]/@n), string(head($d//a[@n > 10])/@n), boolean($d//b))",
+     "\"3\" \"11\" true()"},
+    /* The items after the ones read are not evaluated: their errors are
+       not raised (XPath 4.0, 2.6.4); a cardinality is still checked. */
+    {"exists((1 to 10) ! (if (. = 3) then error() else .))", "true()"},
+    {"zero-or-one((1 to 1000000000)[. > 5])", "error:FORG0003"},
+    {"boolean((1 to 10)[. > 5])", "error:FORG0006"},
+    /* Quantified expressions over filters and loops (D259). */
+    {"some $x in (1 to 1000000000)[. mod 7 = 0] satisfies $x > 50", "true()"},
+    {"every $x in (for $y in 1 to 1000000000 return $y * 2) satisfies $x < 10", "false()"},
+    {"some $x in (1 to 10)[. > 3][. < 6] satisfies $x = 5", "true()"},
+    {"every $x in (1 to 10)[. > 2] satisfies "
+     "(if ($x = 5) then false() else if ($x = 6) then error() else true())",
+     "false()"},
+    {"for $i in 1 to 3 return some $x in (1 to 10)[. mod $i = 0] satisfies $x = 9",
+     "true() false() true()"},
+    {"some $x in (1, 2, 'a')[. instance of xs:integer] satisfies $x = 2", "true()"},
+    {"let $s := (1 to 5)[. > 2] return (some $x in $s satisfies $x = 4, count($s))",
+     "true() 3"},
     /* Numeric keys and probes (D229): integers, decimals and doubles. */
     {"let $s := (1 to 40) ! <e n='{. mod 7}'/> "
      "return for $i in (0, 3, 3.0, 3e0, 9) return count($s[xs:integer(@n) = $i])",

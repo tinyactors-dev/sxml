@@ -582,8 +582,8 @@ static void test_verifier_accepts_the_example_unit(sxml_test_state *state) {
                                 .passes = sxml_ir_standard_passes,
                                 .verifies_after_each_pass = true}) ==
                                 SXML_STATUS_OK);
-    static const char *const pass_names[] = {"verify", "descendant", "filter-index", "hoist",
-                                             "global-read"};
+    static const char *const pass_names[] = {"verify", "descendant", "filter-index", "fusion",
+                                             "hoist",  "demand",     "global-read"};
     SXML_TEST_EXPECT(state, sxml_ir_standard_passes.pass_count == SXML_TEST_COUNT(pass_names));
     for (size_t pass_index = 0; pass_index < SXML_TEST_COUNT(pass_names) &&
                                 pass_index < sxml_ir_standard_passes.pass_count;

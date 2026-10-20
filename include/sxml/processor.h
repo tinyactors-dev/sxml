@@ -803,7 +803,7 @@ typedef struct sxml_processor_limits {
        pairs). Bounds the time of an evaluation that allocates little, such
        as "some $x in 1 to 100000000000 satisfies $x = 0"; beyond it the
        evaluation stops with SXML_STATUS_LIMIT_EXCEEDED. 0 means sxml's
-       default, 1,000,000,000 steps (D89). */
+       default, 100,000,000 steps, a few seconds of work (D89, D259). */
     uint64_t maximum_evaluation_step_count;
 } sxml_processor_limits;
 

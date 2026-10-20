@@ -184,10 +184,10 @@ which makes it easy to check that nothing leaks:
 ```console
 $ ./build/memory
 333333833333500000
-allocations: 178, still live: 0
+allocations: 195, still live: 0
 ```
 
-A million squares took 178 allocations, because sequences such as
+A million squares took 195 allocations, because sequences such as
 `1 to 1000000` are computed as they are read, not stored.
 
 Every object type in sxml can also be placed in memory you provide,

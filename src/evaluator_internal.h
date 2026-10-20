@@ -231,9 +231,12 @@ typedef struct sxml_evaluator_configuration {
     uint64_t maximum_evaluation_step_count;
 } sxml_evaluator_configuration;
 
-/* The step bound the processor uses when its limits give 0: about a
-   minute of work, far beyond any QT4 test (D89). */
-#define SXML_EVALUATOR_DEFAULT_MAXIMUM_EVALUATION_STEP_COUNT 1000000000U
+/* The step bound the processor uses when its limits give 0: 10^8 steps,
+   5 to 15 seconds of work at the 7 to 20 million steps a second measured
+   in D259 (XMark-All takes 12 million), so a query that would run for
+   hours stops in seconds (D89, D259). The test drivers set their own
+   bounds (D166, D178). */
+#define SXML_EVALUATOR_DEFAULT_MAXIMUM_EVALUATION_STEP_COUNT 100000000U
 
 /* The depth limit when the configuration gives 0. Each level costs some
    hundred bytes of allocator memory, not C stack. */
@@ -779,6 +782,10 @@ typedef struct sxml_step_request {
     /* A registered item type (sxml_ir_step). */
     sxml_type_identifier node_test;
     sxml_error_record *error_record;
+    /* For a forward axis from an XNode: at most this many nodes of each
+       origin, its first in document order (an item demand, D259); 0 for
+       all of them. */
+    uint64_t maximum_node_count;
 } sxml_step_request;
 
 /*

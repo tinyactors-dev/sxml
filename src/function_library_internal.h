@@ -120,6 +120,11 @@ typedef struct sxml_function_parameter {
     /* For SXML_PARAMETER_DEFAULT_EXPRESSION: the IR function, of the
        unit being lowered, that computes the default; 0 otherwise. */
     uint32_t default_function_number;
+    /* For SXML_PARAMETER_DEFAULT_CONTEXT_VALUE: the code (a local name in
+       the err namespace) a static call raises when the focus is absent,
+       where the function's specification names one (XSLT 4.0, 20.2.2:
+       XTDE1270); empty for XPDY0002. */
+    sxml_byte_view absent_focus_error_code;
 } sxml_function_parameter;
 
 typedef struct sxml_function_parameter_view {
@@ -279,6 +284,11 @@ typedef struct sxml_native_step_request {
        asked for, owned: the step takes it over (keeps or releases it).
        Empty in the first step. */
     sxml_sequence call_result;
+    /* The item demand of the call (glossary `item_demand`, D259): its
+       value is read for its first item_demand items only, so a body that
+       makes items one by one may finish once it has made that many; 0
+       when every item is read. */
+    uint64_t item_demand;
 } sxml_native_step_request;
 
 /*

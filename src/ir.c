@@ -3240,7 +3240,9 @@ static const sxml_ir_pass standard_passes[] = {
     {.pass_name = SXML_BYTE_VIEW_INITIALIZER("descendant"),
      .run = sxml_ir_shorten_descendant_paths},
     {.pass_name = SXML_BYTE_VIEW_INITIALIZER("filter-index"), .run = sxml_ir_index_filters},
+    {.pass_name = SXML_BYTE_VIEW_INITIALIZER("fusion"), .run = sxml_ir_fuse_quantified_inputs},
     {.pass_name = SXML_BYTE_VIEW_INITIALIZER("hoist"), .run = sxml_ir_hoist_invariant_lets},
+    {.pass_name = SXML_BYTE_VIEW_INITIALIZER("demand"), .run = sxml_ir_set_item_demands},
     {.pass_name = SXML_BYTE_VIEW_INITIALIZER("global-read"), .run = sxml_ir_read_globals_lazily},
 };
 

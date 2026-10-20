@@ -134,6 +134,31 @@ SXML_NODISCARD sxml_status sxml_ir_index_filters(const sxml_ir_pass_request *req
 SXML_NODISCARD sxml_status sxml_ir_shorten_descendant_paths(const sxml_ir_pass_request *request);
 
 /*
+ * The fusion pass (src/ir_loop_passes.c, glossary `quantified_fusion`):
+ * a QUANTIFIED whose input is a slot read once, by it alone, bound in the
+ * same evaluation to a FILTER that selects by the item alone and has no
+ * filter index, or to a MAP without flags that reads neither the
+ * position nor the size, runs over that FILTER's or MAP's input instead,
+ * the predicate or body in its condition, so the input's items are made
+ * as it reads them and none after the one that decides. Returns the
+ * allocator's failures.
+ */
+SXML_NODISCARD sxml_status sxml_ir_fuse_quantified_inputs(const sxml_ir_pass_request *request);
+
+/*
+ * The demand pass (src/ir_loop_passes.c, glossary `item_demand`): sets
+ * the item demand of every expression whose value is read for a known
+ * number of leading items only: the bound expression of a LET whose
+ * variable fn:exists, fn:empty, fn:head (one item), fn:boolean, fn:not,
+ * fn:zero-or-one, fn:exactly-one or a conditional (two) or a FILTER by a
+ * constant position k (k) read, and the path a document order reads for
+ * such a demand; a predicate whose value is no number and a quantified
+ * condition (two); from there LET bodies, conditional branches and MAP
+ * bodies. Returns the allocator's failures.
+ */
+SXML_NODISCARD sxml_status sxml_ir_set_item_demands(const sxml_ir_pass_request *request);
+
+/*
  * The global-read pass (src/ir_global_read.c, D234): puts a GLOBAL_READ of
  * each global with an initializer that an expression reads as one of its
  * own atoms in the expression's place, the expression moved into its
@@ -145,8 +170,10 @@ SXML_NODISCARD sxml_status sxml_ir_read_globals_lazily(const sxml_ir_pass_reques
 /*
  * The passes compile runs, in order (src/ir.c, packet 1.12):
  * {"verify", sxml_ir_verify}, {"descendant", sxml_ir_shorten_descendant_paths},
- * {"filter-index", sxml_ir_index_filters},
- * {"hoist", sxml_ir_hoist_invariant_lets} (D224), {"global-read",
+ * {"filter-index", sxml_ir_index_filters}, {"fusion",
+ * sxml_ir_fuse_quantified_inputs} (D259),
+ * {"hoist", sxml_ir_hoist_invariant_lets} (D224), {"demand",
+ * sxml_ir_set_item_demands} (D259), {"global-read",
  * sxml_ir_read_globals_lazily} (D234): filter indexes first, while index
  * keys still read globals and not the slots hoisting binds; global reads
  * last, so the loop passes see globals as atoms.

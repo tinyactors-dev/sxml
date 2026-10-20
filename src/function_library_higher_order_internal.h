@@ -107,6 +107,11 @@ typedef struct sxml_traversal_state {
     sxml_map_entry_list map_entries;
     /* Owned while a call runs. */
     sxml_sequence call_arguments[3];
+    /* The call's item demand (D259) and, when it is not 0, the items the
+       builder has: a traversal that builds its value item by item
+       finishes once it has made that many. */
+    uint64_t item_demand;
+    uint64_t item_count;
 } sxml_traversal_state;
 
 /* The traversal step for operation; rows wrap it (see above). */
