@@ -1551,10 +1551,20 @@ static sxml_status sxml_serializer_write(sxml_serializer *serializer, sxml_byte_
     return sxml_serializer_write_markup(serializer, bytes);
 }
 
-/* Writes text with every byte equal to quote written twice (the
-   doubling of quotes in a string literal). */
+/* Text with every byte equal to quote written twice (the doubling of
+   quotes in a string literal), in a character context: MARKUP as the
+   method's own text, RAW_TEXT for a string's literal, which "is
+   serialized using the Text output method" (Serialization 4.0, section
+   11), so character maps apply to it (section 12). */
+typedef struct sxml_doubled_text {
+    sxml_byte_view text;
+    uint8_t quote;
+    sxml_character_context character_context;
+} sxml_doubled_text;
+
 static sxml_status sxml_serializer_write_doubling(sxml_serializer *serializer,
-                                                  sxml_byte_view text, uint8_t quote) {
+                                                  const sxml_doubled_text *doubled) {
+    const sxml_byte_view text = doubled->text;
     if (text.byte_count == 0) {
         return SXML_STATUS_OK;
     }
@@ -1562,17 +1572,21 @@ static sxml_status sxml_serializer_write_doubling(sxml_serializer *serializer,
     sxml_status status = SXML_STATUS_OK;
     for (size_t offset = 0; status == SXML_STATUS_OK && offset < text.byte_count;
          offset += 1) {
-        if (text.bytes[offset] == quote) {
-            status = sxml_serializer_write(
-                serializer, (sxml_byte_view){.bytes = text.bytes + run_start,
-                                             .byte_count = offset + 1 - run_start});
+        if (text.bytes[offset] == doubled->quote) {
+            status = sxml_serializer_write_character_data(
+                serializer,
+                &(sxml_character_data){.text = {.bytes = text.bytes + run_start,
+                                                .byte_count = offset + 1 - run_start},
+                                       .character_context = doubled->character_context});
             run_start = offset;
         }
     }
     if (status == SXML_STATUS_OK) {
-        status = sxml_serializer_write(
-            serializer, (sxml_byte_view){.bytes = text.bytes + run_start,
-                                         .byte_count = text.byte_count - run_start});
+        status = sxml_serializer_write_character_data(
+            serializer,
+            &(sxml_character_data){.text = {.bytes = text.bytes + run_start,
+                                            .byte_count = text.byte_count - run_start},
+                                   .character_context = doubled->character_context});
     }
     return status;
 }
@@ -1746,14 +1760,26 @@ static sxml_status sxml_serializer_write_atomic(sxml_serializer *serializer, sxm
     case SXML_TYPE_XS_UNTYPED_ATOMIC:
     case SXML_TYPE_XS_ANY_URI:
         /* A quotation mark is the quote character; quotes in the value are
-           doubled. */
-        status = sxml_serializer_write(serializer, SXML_BYTE_VIEW_FROM_LITERAL("\""));
+           doubled; the literal is the Text method's, with character maps
+           (section 11). */
+        status = sxml_serializer_write_doubling(
+            serializer, &(sxml_doubled_text){.text = SXML_BYTE_VIEW_FROM_LITERAL("\""),
+                                             .quote = 0,
+                                             .character_context = SXML_CHARACTER_CONTEXT_RAW_TEXT});
         if (status == SXML_STATUS_OK) {
-            status = sxml_serializer_write_doubling(serializer, datum.datum_details.string.utf8,
-                                                    '"');
+            status = sxml_serializer_write_doubling(
+                serializer,
+                &(sxml_doubled_text){.text = datum.datum_details.string.utf8,
+                                     .quote = '"',
+                                     .character_context = SXML_CHARACTER_CONTEXT_RAW_TEXT});
         }
-        return status == SXML_STATUS_OK ? sxml_serializer_write(serializer, SXML_BYTE_VIEW_FROM_LITERAL("\""))
-                                        : status;
+        return status == SXML_STATUS_OK
+                   ? sxml_serializer_write_doubling(
+                         serializer,
+                         &(sxml_doubled_text){.text = SXML_BYTE_VIEW_FROM_LITERAL("\""),
+                                              .quote = 0,
+                                              .character_context = SXML_CHARACTER_CONTEXT_RAW_TEXT})
+                   : status;
     case SXML_TYPE_XS_QNAME:
         status = sxml_serializer_write(serializer, SXML_BYTE_VIEW_FROM_LITERAL("#"));
         return status == SXML_STATUS_OK
@@ -1815,7 +1841,10 @@ static sxml_status sxml_serializer_write_atomic(sxml_serializer *serializer, sxm
         status = sxml_serializer_write(serializer, SXML_BYTE_VIEW_FROM_LITERAL("(\""));
     }
     if (status == SXML_STATUS_OK) {
-        status = sxml_serializer_write_doubling(serializer, canonical.text, '"');
+        status = sxml_serializer_write_doubling(
+            serializer, &(sxml_doubled_text){.text = canonical.text,
+                                             .quote = '"',
+                                             .character_context = SXML_CHARACTER_CONTEXT_MARKUP});
     }
     if (status == SXML_STATUS_OK) {
         status = sxml_serializer_write(serializer, SXML_BYTE_VIEW_FROM_LITERAL("\")"));
@@ -2159,10 +2188,10 @@ static void sxml_serializer_resolve_pipeline(sxml_serializer *serializer) {
         serializer->normalization_form = SXML_UNICODE_NORMALIZATION_FORM_NFKD;
         break;
     }
-    /* Section 12: character maps apply to every method but adaptive, and
-       not to the canonical forms. */
-    serializer->applies_character_maps = method != SXML_SERIALIZATION_METHOD_ADAPTIVE &&
-                                         !is_canonical && !serializer->is_canonical_json;
+    /* Section 12: character maps apply to every method, the adaptive one
+       to its strings and the nodes it writes by the XML method (11.1.2),
+       and not to the canonical forms. */
+    serializer->applies_character_maps = !is_canonical && !serializer->is_canonical_json;
 }
 
 /* Writes the byte order mark when byte-order-mark is yes (Serialization

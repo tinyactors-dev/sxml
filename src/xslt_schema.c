@@ -8,6 +8,7 @@
 #include "processor_internal.h"
 #include "schema_scope_internal.h"
 #include "xdm_internal.h"
+#include "xslt_package_internal.h"
 
 #include "sxml/schema.h"
 
@@ -436,6 +437,53 @@ static sxml_status set_in_scope_schemas(const import_work *work, const sxml_sche
     return status;
 }
 
+/* 3.13.1, XTSE4045: every [xsl:]schema-role names the role of an
+   xsl:import-schema of its package. (Only the check: the roles' schemas
+   are not kept apart yet, every import is in every static context.) */
+static sxml_status check_schema_roles(const import_work *work) {
+    const sxml_xslt_ast *ast = work->request->ast;
+    for (uint32_t node_index = 1; node_index < ast->node_count; node_index += 1) {
+        const sxml_xslt_ast_node_index node = {.value = node_index};
+        const attribute_text role = read_attribute_text(
+            ast, (sxml_xslt_ast_attribute_query){.node = node,
+                                                 .kind = SXML_XSLT_AST_ATTRIBUTE_SCHEMA_ROLE});
+        if (!role.is_present) {
+            continue;
+        }
+        const sxml_xslt_ast_module_index package = sxml_xslt_package_top_module(ast, node);
+        bool is_declared = false;
+        for (size_t import_index = 0; !is_declared && import_index < work->import_count;
+             import_index += 1) {
+            const sxml_xslt_ast_node_index import = work->imports[import_index].node;
+            /* role is an NCName, read as a name in no namespace. */
+            const sxml_xslt_ast_attribute *declared = sxml_xslt_ast_get_attribute(
+                ast, sxml_xslt_ast_find_attribute(
+                         ast, (sxml_xslt_ast_attribute_query){
+                                  .node = import, .kind = SXML_XSLT_AST_ATTRIBUTE_ROLE}));
+            sxml_name_parts parts = {.local_name = no_text};
+            if (declared->value.kind == SXML_XSLT_AST_VALUE_KIND_NAME) {
+                const sxml_status status = sxml_name_pool_get_name_parts(
+                    work->request->processor->name_pool, declared->value.payload.name, &parts);
+                if (status != SXML_STATUS_OK) {
+                    return status;
+                }
+            }
+            is_declared = declared->value.kind == SXML_XSLT_AST_VALUE_KIND_NAME &&
+                          sxml_byte_view_equals(parts.local_name, role.text) &&
+                          sxml_xslt_package_top_module(ast, import).value == package.value;
+        }
+        if (!is_declared) {
+            return raise_import_error(
+                work, (import_error){.node = node,
+                                     .error_code = "XTSE4045",
+                                     .description = "a schema-role names no role of an "
+                                                    "xsl:import-schema of the package (XSLT "
+                                                    "4.0, 3.13.1)"});
+        }
+    }
+    return SXML_STATUS_OK;
+}
+
 sxml_status sxml_xslt_import_schemas(const sxml_xslt_schema_request *request) {
     if (request == NULL || request->ast == NULL || request->processor == NULL) {
         return SXML_STATUS_INVALID_ARGUMENT;
@@ -473,6 +521,9 @@ sxml_status sxml_xslt_import_schemas(const sxml_xslt_schema_request *request) {
                                   .location_memory = NULL};
         work.import_count += 1;
         status = read_import(&work, import);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = check_schema_roles(&work);
     }
     if (status == SXML_STATUS_OK) {
         status = skip_imports(&work);

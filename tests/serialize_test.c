@@ -437,6 +437,35 @@ static void test_atomic_items(sxml_test_state *state) {
                                           sxml_sequence_from_item(
                                               make_qname(current, text_view("http://e.com/"), "x")),
                                           "#Q{http://e.com/}x"));
+    /* Section 11: a string's literal is the Text method's, so character
+       maps apply to it (section 12); the method's own text and numbers
+       are not mapped. */
+    const sxml_character_mapping mappings[] = {
+        {.codepoint = '\'', .replacement_text = text_view("&apos;")},
+        {.codepoint = '1', .replacement_text = text_view("one")},
+    };
+    const sxml_item mapped_items[2] = {make_string(current, "a'b"),
+                                       sxml_atomic_item_from_integer(12)};
+    sxml_sequence mapped_value = sxml_sequence_empty();
+    SXML_TEST_REQUIRE(state, sxml_sequence_make_vector(
+                                 current->item_heap,
+                                 (sxml_item_view){.items = mapped_items, .item_count = 2},
+                                 &mapped_value) == SXML_STATUS_OK);
+    sxml_item_release(mapped_items[0]);
+    sxml_output_buffer_clear(current->output_buffer);
+    SXML_TEST_EXPECT(
+        state,
+        sxml_serialize_sequence(
+            current->item_heap,
+            &(sxml_serialization_request){
+                .value = mapped_value,
+                .serialization_parameters =
+                    {.serialization_method = SXML_SERIALIZATION_METHOD_ADAPTIVE,
+                     .use_character_maps = {.character_mappings = mappings,
+                                            .character_mapping_count = 2}}},
+            sxml_output_buffer_as_output_stream(current->output_buffer)) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, buffer_holds(current, "\"a&apos;b\"\n12"));
+    sxml_sequence_release(mapped_value);
     SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
 }
 

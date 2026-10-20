@@ -197,6 +197,11 @@ static const transformation_case transformation_cases[] = {
     {"<xsl:import-schema><xs:schema><xs:element name='a' type='no-type'/></xs:schema>"
      "</xsl:import-schema>" MAIN("<x/>"),
      NULL, "XTSE0220"},
+    /* 3.13.1: a schema-role names the role of an import, else XTSE4045. */
+    {"<xsl:import-schema role='r' namespace='urn:s' schema-location='s.xsd'/>" MAIN(
+         "<x xsl:schema-role='r'>a</x>"),
+     "a", NULL},
+    {IMPORT MAIN("<x xsl:schema-role='r'/>"), NULL, "XTSE4045"},
     /* A location the resolver does not deliver is no error (3.13). */
     {"<xsl:import-schema namespace='urn:v' schema-location='none.xsd'/>" MAIN("<x/>"), "", NULL},
     /* Validation of constructed nodes (25.1). */
