@@ -23,7 +23,6 @@ transform-004 needs a suspendable compiler (D71), transform-401 waits on
 
 ## Running
 
-- 4.22: XSLT moves to the newest draft and the newest xslt40-test (D245).
 - 2.23: XPath/XQuery sweep on the largest remaining failure clusters.
 - 6.3: the Android build (NDK, four ABIs, minSdk 24 fallbacks).
 
@@ -79,7 +78,11 @@ validation 51/68, namespace 217/224, normalize-unicode 18/18. Left:
 XTDE3490; merge-097 (Saxon collection URI); xml-version-007 (value-template
 grammar rejects XML 1.1 controls); namespace-2606/-6202; docbook-004;
 fn-transform-27/82e/94; xsl:copy of JNodes (needs an xdm.h addition);
-XTDE0430/0440; priority 6/40 under D29; D245 now targets the newest draft (4.22). 4.21 (D234): indexed FILTERs
+XTDE0430/0440; 4.22 (D252): the newest drafts (13 Oct 2026, qtspecs 72f2229) and
+xslt40-test (91328fb) are what sxml already had; 57 suite cases contradict
+the draft (53 "~T" type patterns that PR 2911 removed, 4 priorities,
+match-080/239) and the draft wins (D245). typed="~T" on xsl:mode added.
+Refresh both together when qtspecs or the suite move. 4.21 (D234): indexed FILTERs
 are not hoisted from; current-merge-group(()) per 15.5.1; globals computed
 on first read (GLOBAL_READ); typed modes and XTSE3105; XT40 11,943 at its
 last run. Left: document-4066 (fn:document's schema validation does not
