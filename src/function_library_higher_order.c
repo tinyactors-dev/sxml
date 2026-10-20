@@ -3422,6 +3422,14 @@ static sxml_status apply_comparison(const sxml_function_call *call, operator_cod
     int16_t timezone = 0;
     sxml_status status =
         sxml_dynamic_context_read_implicit_timezone(call->dynamic_context, &timezone);
+    /* Strings compare under the default collation, as the operator's do
+       (XPath 4.0, sections 4.11.1 and 4.11.2; fn-op-vc-006): an empty URI
+       asks for the running code's. */
+    sxml_collation collation = sxml_collation_codepoint();
+    if (status == SXML_STATUS_OK) {
+        status = sxml_function_library_find_collation(
+            call, (sxml_byte_view){.bytes = NULL, .byte_count = 0}, &collation);
+    }
     if (status == SXML_STATUS_OK) {
         status = atomize_operands(call, &operands);
     }
@@ -3434,7 +3442,8 @@ static sxml_status apply_comparison(const sxml_function_call *call, operator_cod
         .right_operand = operands.right_operand,
         .implicit_timezone_offset_minutes = timezone,
         .namespace_bindings = {.namespace_bindings = NULL, .namespace_binding_count = 0},
-        .error_record = call->error_record};
+        .error_record = call->error_record,
+        .collation = sxml_collation_is_codepoint_order(&collation) ? NULL : &collation};
     if (is_general) {
         sxml_item truth = {.representation = 0};
         status = sxml_operator_make_general_comparison(call->item_heap, &request, &truth);
