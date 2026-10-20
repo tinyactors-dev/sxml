@@ -13178,6 +13178,12 @@ runs with the release drivers, case by case.
   does not allow); XSLT's fn:document still strips before it validates
   (4.30's file); the kept groups of D280.
 
+### D288. More source code languages, a registration API and run-time languages (packet 7.23)
+Recorded 2026-10-20, after D285; in progress. The owner's answer to
+D285's proposal: TypeScript, TSX and Markdown built in; a public API to
+register tree-sitter languages; languages loaded at run time from files
+by the host.
+
 ## Proposed
 
 - **More source code languages and a registration API** (D285, for the
