@@ -18,6 +18,7 @@
 #include "function_library_parts_internal.h"
 #include "memory_internal.h"
 #include "schema_scope_internal.h"
+#include "source_code_internal.h"
 #include "sxml/tree.h"
 #include "sxml/xml.h"
 #include "xdm_internal.h"
@@ -274,7 +275,8 @@ static sxml_status sxml_processor_make_library_part_list(
 static bool sxml_processor_configuration_is_valid(
     const sxml_processor_configuration *configuration) {
     return configuration != NULL && !sxml_allocator_is_null(configuration->allocator) &&
-           sxml_optional_feature_view_is_valid(configuration->optional_features);
+           sxml_optional_feature_view_is_valid(configuration->optional_features) &&
+           sxml_source_code_language_view_is_valid(configuration->source_code_languages);
 }
 
 static sxml_name_pool_configuration sxml_processor_name_pool_configuration(
@@ -509,7 +511,8 @@ sxml_status sxml_processor_initialize(sxml_memory_view memory,
         .optional_features =
             sxml_optional_feature_slots_from_view(configuration->optional_features),
         .file_system = configuration->file_system,
-        .reads_query_text_as_xml_1_1 = configuration->reads_query_text_as_xml_1_1};
+        .reads_query_text_as_xml_1_1 = configuration->reads_query_text_as_xml_1_1,
+        .source_code_languages = configuration->source_code_languages};
     status = sxml_processor_place_members(new_processor, &layout, memory);
     if (status != SXML_STATUS_OK) {
         return status;

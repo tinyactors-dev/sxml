@@ -1,6 +1,6 @@
 sxml transform - Transform a document with an XSLT 4.0 stylesheet
 
-Usage: sxml transform [--initial-mode=NAME] [--initial-template=NAME] [--method=METHOD] [--param=NAME=VALUE]... [--result-directory=DIR] [--output=FILE] [--force] STYLESHEET [INPUT]
+Usage: sxml transform [--initial-mode=NAME] [--initial-template=NAME] [--method=METHOD] [--param=NAME=VALUE]... [--result-directory=DIR] [--code-language=LIBRARY]... [--output=FILE] [--force] STYLESHEET [INPUT]
 
 Compiles the XSLT 4.0 stylesheet STYLESHEET and runs it.
 
@@ -46,6 +46,7 @@ Options:
       --method=METHOD          Serialization method of the result, replacing the stylesheet's (one of: adaptive, xml, xhtml, html, text, json, csv)
       --param=NAME=VALUE       Bind stylesheet parameter $NAME to xs:untypedAtomic(VALUE) (repeatable)
       --result-directory=DIR   Write result documents with an href into the existing directory DIR
+      --code-language=LIBRARY  Load a tree-sitter language for sxml:parse-code from a shared library (repeatable)
   -o, --output=FILE            Write the result to FILE instead of standard output
       --force                  Replace files that exist instead of refusing
 

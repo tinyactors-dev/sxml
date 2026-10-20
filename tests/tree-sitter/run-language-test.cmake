@@ -38,7 +38,7 @@ function(run_case name expected_exit expected_output)
 endfunction()
 
 run_case("loaded" 0
-    "true\n<document xmlns:sxml=\"urn:sxml\"><array>[<number highlight=\"number\">1</number>, <true highlight=\"constant.builtin\">true</true>]</array></document>"
+    "true<document xmlns:sxml=\"urn:sxml\"><array>[<number highlight=\"number\">1</number>, <true highlight=\"constant.builtin\">true</true>]</array></document>"
     xpath "--code-language=good/${library_name}" --method=xml
     "sxml:code-languages() = 'testjson', sxml:parse-code('[1, true]', 'testjson')")
 run_case("without queries" 0

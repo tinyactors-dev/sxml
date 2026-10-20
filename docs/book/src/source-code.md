@@ -1,7 +1,6 @@
 # Source Code as XML
 
 <!-- examples: source-code -->
-<!-- status: draft -->
 
 Program source code has a grammar too, and for many languages the
 grammar is already written: [tree-sitter](https://tree-sitter.github.io)
@@ -30,7 +29,7 @@ language, and returns a document:
 $ sxml xpath --method=xml 'sxml:parse-code(unparsed-text("greet.js"), "javascript")'
 <program xmlns:sxml="urn:sxml"><comment highlight="comment">// Says hello.</comment>
 <function_declaration><sxml:token highlight="keyword">function</sxml:token> <identifier field="name" highlight="function">greet</identifier><formal_parameters field="parameters"><sxml:token highlight="punctuation.bracket">(</sxml:token><identifier highlight="variable.parameter">name</identifier><sxml:token highlight="punctuation.bracket">)</sxml:token></formal_parameters> <statement_block field="body"><sxml:token highlight="punctuation.bracket">{</sxml:token>
-  <return_statement><sxml:token highlight="keyword">return</sxml:token> <binary_expression><string field="left" highlight="string">"<string_fragment>Hello, </string_fragment>"</string> <sxml:token field="operator" highlight="operator">+</sxml:token> <identifier field="right" highlight="variable">name</identifier></binary_expression><sxml:token highlight="punctuation.delimiter">;</sxml:token></return_statement>
+  <return_statement><sxml:token highlight="keyword">return</sxml:token> <binary_expression><string field="left" highlight="string">"<string_fragment>Hello, </string_fragment>"</string> <sxml:token field="operator" highlight="operator">+</sxml:token> <identifier field="right" highlight="variable.parameter">name</identifier></binary_expression><sxml:token highlight="punctuation.delimiter">;</sxml:token></return_statement>
 <sxml:token highlight="punctuation.bracket">}</sxml:token></statement_block></function_declaration>
 </program>
 ```
@@ -234,7 +233,7 @@ The signature of each exported function, with the types written as in
 the source:
 
 ```console
-$ sxml xpath 'sxml:parse-code(unparsed-text("shapes.ts"), "typescript")//export_statement/function_declaration ! `{identifier}({string-join(formal_parameters/* ! string(), ", ")}){return_type}`'
+$ sxml xpath 'sxml:parse-code(unparsed-text("shapes.ts"), "typescript")//export_statement/function_declaration ! `{identifier}({string-join(formal_parameters/(required_parameter | optional_parameter), ", ")}){*[@field = "return_type"]}`'
 "area(shape: Shape): number"
 "describe(shape: Shape, digits?: number): string"
 ```
@@ -298,7 +297,7 @@ names its language in a `language` attribute:
 
 ```console
 $ sxml xpath --method=xml 'sxml:parse-code("Some *text*.", "markdown")'
-<document xmlns:sxml="urn:sxml"><section><paragraph><inline><inline language="markdown_inline">Some <emphasis><emphasis_delimiter>*</emphasis_delimiter>text<emphasis_delimiter>*</emphasis_delimiter></emphasis>.</inline></inline></paragraph></section></document>
+<document xmlns:sxml="urn:sxml"><section><paragraph><inline><inline language="markdown_inline">Some <emphasis highlight="text.emphasis"><emphasis_delimiter highlight="punctuation.delimiter">*</emphasis_delimiter>text<emphasis_delimiter highlight="punctuation.delimiter">*</emphasis_delimiter></emphasis>.</inline></inline></paragraph></section></document>
 ```
 
 So the Python function in the release notes is a `function_definition`
@@ -307,7 +306,7 @@ like any other:
 ```console
 $ sxml xpath 'sxml:parse-code(unparsed-text("notes.md"), "markdown")//*[@language = "python"]//function_definition/identifier ! string()'
 "greet"
-$ sxml xpath 'sxml:parse-code(unparsed-text("notes.md"), "markdown")//fenced_code_block ! `{info_string}: {*[@language]/name()}`'
+$ sxml xpath 'sxml:parse-code(unparsed-text("notes.md"), "markdown")//fenced_code_block ! `{info_string}: {code_fence_content/*[@language]/name()}`'
 "python: module"
 "javascript: program"
 ```
@@ -321,8 +320,8 @@ highlighted as such. `page.html`:
 
 ```console
 $ sxml xpath 'sxml:parse-code(unparsed-text("page.html"), "html")//*[@language] ! `{@language}: {count(.//*[@highlight])} highlighted`'
-"css: 6 highlighted"
-"javascript: 21 highlighted"
+"css: 7 highlighted"
+"javascript: 33 highlighted"
 $ sxml xpath 'sxml:parse-code(unparsed-text("page.html"), "html")//*[@language = "javascript"]//*[@highlight = "function.method"] ! string()'
 "getElementById"
 "reduce"
@@ -349,7 +348,7 @@ the highlight, and the built-in rules copy the text of everything else.
 $ sxml transform --param=file=greet.js highlight.xsl
 <pre class="code"><span class="comment">// Says hello.</span>
 <span class="keyword">function</span> <span class="function">greet</span><span class="punctuation bracket">(</span><span class="variable parameter">name</span><span class="punctuation bracket">)</span> <span class="punctuation bracket">{</span>
-  <span class="keyword">return</span> <span class="string">"Hello, "</span> <span class="operator">+</span> <span class="variable">name</span><span class="punctuation delimiter">;</span>
+  <span class="keyword">return</span> <span class="string">"Hello, "</span> <span class="operator">+</span> <span class="variable parameter">name</span><span class="punctuation delimiter">;</span>
 <span class="punctuation bracket">}</span>
 </pre>
 ```
@@ -440,11 +439,12 @@ $ sxml xpath --code-language=json.so --method=xml 'sxml:parse-code("[1, true]", 
 <document xmlns:sxml="urn:sxml"><array>[<number highlight="number.json">1</number>, <true highlight="boolean">true</true>]</array></document>
 ```
 
-A file that is not a tree-sitter language is an error:
+A library that cannot be loaded is an error, and so are a grammar of
+another ABI and a query that does not fit the grammar:
 
 ```console
-$ sxml xpath --code-language=queries/highlights.scm 'sxml:code-languages()'
-sxml xpath: --code-language=queries/highlights.scm: cannot load the library: queries/highlights.scm: invalid ELF header
+$ sxml xpath --code-language=missing.so 'sxml:code-languages()'
+sxml xpath: --code-language=missing.so: cannot load the library: ./missing.so: cannot open shared object file: No such file or directory
 ```
 
 A program that uses sxml's C API registers a language the same way: it
@@ -459,14 +459,30 @@ before the processor is made:
 
 const struct TSLanguage *tree_sitter_rust(void);
 
-static const sxml_source_code_language languages[] = {
-    {.language_name = SXML_BYTE_VIEW_INITIALIZER("rust"),
-     .grammar = NULL, /* set at run time: tree_sitter_rust() */
-     .highlights_query = SXML_BYTE_VIEW_INITIALIZER("(function_item name: (identifier) @function)"),
-     .locals_query = SXML_BYTE_VIEW_INITIALIZER(""),
-     .injections_query = SXML_BYTE_VIEW_INITIALIZER(""),
-     .injection_regex = SXML_BYTE_VIEW_INITIALIZER("^rust$")},
-};
+/* rust_highlights: the text of queries/highlights.scm, read by the program. */
+sxml_status make_processor(sxml_allocator allocator, sxml_byte_view rust_highlights,
+                           sxml_processor **processor) {
+    static sxml_source_code_language rust;
+    rust = (sxml_source_code_language){
+        .language_name = SXML_BYTE_VIEW_INITIALIZER("rust"),
+        .grammar = tree_sitter_rust(),
+        .highlights_query = rust_highlights,
+        .locals_query = {.bytes = NULL, .byte_count = 0},
+        .injections_query = {.bytes = NULL, .byte_count = 0},
+        .injection_regex = SXML_BYTE_VIEW_INITIALIZER("^(rs|rust)$")};
+    sxml_source_code_language_report report;
+    if (sxml_source_code_check_language(&rust, &report) != SXML_STATUS_OK) {
+        return SXML_STATUS_INVALID_ARGUMENT; /* report.problem says why */
+    }
+    const sxml_optional_feature_view features = sxml_all_optional_features();
+    return sxml_processor_create(
+        allocator,
+        &(sxml_processor_configuration){
+            .allocator = allocator,
+            .optional_features = features,
+            .source_code_languages = {.languages = &rust, .language_count = 1}},
+        processor);
+}
 ```
 
 The languages, their grammars and the query texts must outlive the

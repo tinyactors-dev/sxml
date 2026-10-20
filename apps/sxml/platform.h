@@ -117,3 +117,22 @@ typedef struct sxml_platform_file_writer_state {
  * Windows).
  */
 sxml_cli_file_writer sxml_platform_file_writer(sxml_platform_file_writer_state *state);
+
+/* --------------------------------------------------------- Library loader */
+
+/* The state of the platform's library loader (platform_library_loader.c),
+   in caller memory: the NUL-terminated names of one call and the text of
+   a failure. Fields are private. */
+typedef struct sxml_platform_library_loader_state {
+    sxml_platform_path path;
+    char function_name[256];
+    char reason[256];
+} sxml_platform_library_loader_state;
+
+/*
+ * The library loader over the platform's shared libraries (cli_command.h,
+ * sxml_cli_library_loader; D288), with *state, which must outlive it:
+ * dlopen and dlsym, or LoadLibraryW and GetProcAddress on Windows; no
+ * operations under WASI, which has no shared libraries.
+ */
+sxml_cli_library_loader sxml_platform_library_loader(sxml_platform_library_loader_state *state);

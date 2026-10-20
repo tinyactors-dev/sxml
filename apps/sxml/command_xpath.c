@@ -68,6 +68,7 @@ static const sxml_cli_option sxml_xpath_options[] = {
         .summary = SXML_BYTE_VIEW_INITIALIZER("Serialization method of the result"),
     },
     SXML_QUERY_FILE_ACCESS_OPTION,
+    SXML_CODE_LANGUAGE_OPTION,
     SXML_QUERY_OUTPUT_OPTION,
     SXML_QUERY_FORCE_OPTION,
 };

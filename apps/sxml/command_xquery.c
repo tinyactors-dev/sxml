@@ -99,6 +99,7 @@ static const sxml_cli_option sxml_xquery_options[] = {
         .summary = SXML_BYTE_VIEW_INITIALIZER(
             "Let fn:put write the documents it stores to local files"),
     },
+    SXML_CODE_LANGUAGE_OPTION,
     SXML_QUERY_OUTPUT_OPTION,
     SXML_QUERY_FORCE_OPTION,
 };

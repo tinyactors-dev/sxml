@@ -41,6 +41,9 @@ typedef struct sxml_cli_run_request {
        --allow-file-access, the QT4 driver's sandpits; D200); the null
        file system when the platform has none. */
     sxml_file_system file_system;
+    /* Passed to commands that load shared libraries (sxml
+       --code-language, D288); may have no operations. */
+    sxml_cli_library_loader library_loader;
 } sxml_cli_run_request;
 
 /*

@@ -1,7 +1,8 @@
 /*
- * Tests for source code as XML (src/source_code_internal.h; packet 7.22,
- * D285): sxml:parse-code and sxml:code-languages through a processor with
- * and without the feature, the shape of the document (elements of named
+ * Tests for source code as XML (src/source_code_internal.h; packets 7.22
+ * and 7.23, D285, D288): sxml:parse-code and sxml:code-languages through a
+ * processor with and without the feature, registered languages and their
+ * checks, locals and injections, the shape of the document (elements of named
  * nodes, fields, tokens as text or sxml:token, ERROR and missing nodes,
  * the string value is the source), highlights and their predicates,
  * positions in characters, deep nesting (no recursion, D71), and an
@@ -47,6 +48,8 @@ typedef struct source_code_fixture {
 typedef struct source_code_fixture_options {
     bool has_feature;
     uint64_t failing_number;
+    /* Registered languages (D288); the empty view for none. */
+    sxml_source_code_language_view languages;
 } source_code_fixture_options;
 
 static sxml_status source_code_fixture_create(source_code_fixture *fixture, source_code_fixture_options options) {
@@ -63,7 +66,8 @@ static sxml_status source_code_fixture_create(source_code_fixture *fixture, sour
         &(sxml_processor_configuration){
             .allocator = allocator,
             .optional_features = {.optional_features = &feature,
-                                  .optional_feature_count = options.has_feature ? 1U : 0U}},
+                                  .optional_feature_count = options.has_feature ? 1U : 0U},
+            .source_code_languages = options.languages},
         &fixture->processor);
     if (status == SXML_STATUS_OK) {
         status = sxml_output_buffer_create(
@@ -184,37 +188,165 @@ static const expression_case expression_cases[] = {
     EXPRESSION_ERROR("Q{urn:sxml}parse-code('x', 'cobol')", "unknown-language"),
     EXPRESSION_ERROR("Q{urn:sxml}parse-code('x', 'json', {'positions': 'yes'})", "XPTY0004"),
     EXPRESSION_VALUE("Q{urn:sxml}code-languages()",
-                     "\"c\" \"css\" \"go\" \"html\" \"javascript\" \"json\" \"python\""),
+                     "\"c\" \"css\" \"go\" \"html\" \"javascript\" \"json\" \"markdown\" "
+                     "\"markdown_inline\" \"python\" \"tsx\" \"typescript\""),
+    /* Locals: a reference takes its definition's highlight (D288). */
+    EXPRESSION_VALUE("Q{urn:sxml}parse-code('function f(a) { return a; }', 'javascript')"
+                     "//return_statement/identifier/@highlight/string()",
+                     "\"variable.parameter\""),
+    /* Injections: Markdown's inline grammar, HTML's script; the text stays. */
+    EXPRESSION_VALUE("Q{urn:sxml}parse-code('Some *text*.', 'markdown', {'highlights': false()})",
+                     "<document xmlns:sxml=\"urn:sxml\"><section><paragraph><inline><inline "
+                     "language=\"markdown_inline\">Some <emphasis><emphasis_delimiter>*"
+                     "</emphasis_delimiter>text<emphasis_delimiter>*</emphasis_delimiter>"
+                     "</emphasis>.</inline></inline></paragraph></section></document>"),
+    EXPRESSION_VALUE("Q{urn:sxml}parse-code('<script>f(1)</script>', 'html', "
+                     "{'highlights': false()})//program/@language/string()",
+                     "\"javascript\""),
+    EXPRESSION_VALUE("let $code := '> a *b*\n> c' return "
+                     "string(Q{urn:sxml}parse-code($code, 'markdown')) = $code",
+                     "true()"),
+    EXPRESSION_VALUE("count(Q{urn:sxml}parse-code('Some *text*.', 'markdown', "
+                     "{'injections': false()})//emphasis)",
+                     "0"),
     /* Deep nesting costs heap, not C stack (D71). */
     EXPRESSION_VALUE("count(Q{urn:sxml}parse-code(string-join((1 to 10000) ! '[') || "
                      "string-join((1 to 10000) ! ']'), 'json')//array)",
                      "10000"),
 };
 
-/* Every language has a grammar the runtime accepts and a query that
-   compiles against it. */
+/* Every built-in language has a grammar the runtime accepts and queries
+   that compile against it. */
 static void test_languages_have_grammars_and_queries(sxml_test_state *state) {
-    for (size_t language_index = 0; language_index < sxml_source_code_languages.language_count;
+    const sxml_source_code_language_set no_registered = {
+        .registered_languages = {.languages = NULL, .language_count = 0}};
+    for (size_t language_index = 0;
+         language_index < sxml_source_code_builtin_languages.language_count;
          language_index += 1) {
-        const sxml_source_code_language *language =
-            &sxml_source_code_languages.languages[language_index];
-        SXML_TEST_EXPECT(state, sxml_source_code_find_language(language->language_name) ==
-                                    language);
-        const TSLanguage *grammar = language->get_grammar();
-        TSParser *parser = ts_parser_new();
-        SXML_TEST_EXPECT(state, ts_parser_set_language(parser, grammar));
-        ts_parser_delete(parser);
-        uint32_t error_offset = 0;
-        TSQueryError error_type = TSQueryErrorNone;
-        TSQuery *query = ts_query_new(grammar, (const char *)language->highlights_query.bytes,
-                                      (uint32_t)language->highlights_query.byte_count,
-                                      &error_offset, &error_type);
-        SXML_TEST_EXPECT(state, query != NULL && error_type == TSQueryErrorNone);
-        if (query != NULL) {
-            ts_query_delete(query);
-        }
+        const sxml_source_code_language language =
+            sxml_source_code_builtin_language_at(language_index);
+        sxml_source_code_language found;
+        SXML_TEST_EXPECT(state, sxml_source_code_find_language(
+                                    &no_registered, language.language_name, &found) &&
+                                    found.grammar == language.grammar);
+        sxml_source_code_language_report report;
+        SXML_TEST_EXPECT(state,
+                         sxml_source_code_check_language(&language, &report) == SXML_STATUS_OK);
+        SXML_TEST_EXPECT(state, report.problem == SXML_SOURCE_CODE_LANGUAGE_PROBLEM_NONE);
     }
-    SXML_TEST_EXPECT(state, sxml_source_code_find_language(TEXT("cobol")) == NULL);
+    sxml_source_code_language found;
+    SXML_TEST_EXPECT(state,
+                     !sxml_source_code_find_language(&no_registered, TEXT("cobol"), &found));
+}
+
+/* The built-in JSON grammar, as a host would register one. */
+static sxml_source_code_language json_language(sxml_byte_view name, sxml_byte_view highlights) {
+    const sxml_source_code_language_set no_registered = {
+        .registered_languages = {.languages = NULL, .language_count = 0}};
+    sxml_source_code_language json;
+    memset(&json, 0, sizeof(json));
+    (void)sxml_source_code_find_language(&no_registered, TEXT("json"), &json);
+    return (sxml_source_code_language){.language_name = name,
+                                       .grammar = json.grammar,
+                                       .highlights_query = highlights,
+                                       .locals_query = TEXT(""),
+                                       .injections_query = TEXT(""),
+                                       .injection_regex = TEXT("^(mine|my-json)$")};
+}
+
+/* sxml_source_code_check_language reports names, ABIs and queries. */
+static void test_check_reports_problems(sxml_test_state *state) {
+    sxml_source_code_language_report report;
+    sxml_source_code_language language = json_language(TEXT("mine"), TEXT("(number) @number"));
+    SXML_TEST_EXPECT(state, sxml_source_code_check_language(&language, &report) == SXML_STATUS_OK);
+    language.language_name = TEXT("no spaces");
+    SXML_TEST_EXPECT(state, sxml_source_code_check_language(&language, &report) ==
+                                SXML_STATUS_INVALID_ARGUMENT);
+    SXML_TEST_EXPECT(state, report.problem == SXML_SOURCE_CODE_LANGUAGE_PROBLEM_NAME);
+    language = json_language(TEXT("mine"), TEXT("(number) @number\n(no_such_node) @x"));
+    SXML_TEST_EXPECT(state, sxml_source_code_check_language(&language, &report) ==
+                                SXML_STATUS_INVALID_ARGUMENT);
+    SXML_TEST_EXPECT(state, report.problem == SXML_SOURCE_CODE_LANGUAGE_PROBLEM_HIGHLIGHTS_QUERY &&
+                                report.byte_offset == 18);
+    language = json_language(TEXT("mine"), TEXT(""));
+    language.injections_query = TEXT("(((");
+    SXML_TEST_EXPECT(state, sxml_source_code_check_language(&language, &report) ==
+                                SXML_STATUS_INVALID_ARGUMENT);
+    SXML_TEST_EXPECT(state, report.problem == SXML_SOURCE_CODE_LANGUAGE_PROBLEM_INJECTIONS_QUERY);
+    language.grammar = NULL;
+    SXML_TEST_EXPECT(state, sxml_source_code_check_language(&language, &report) ==
+                                SXML_STATUS_INVALID_ARGUMENT);
+    SXML_TEST_EXPECT(state, report.problem == SXML_SOURCE_CODE_LANGUAGE_PROBLEM_ABI &&
+                                report.abi_version == 0);
+}
+
+/* Registered languages: listed, parsed with their queries, replacing a
+   built-in one of the same name; bad configurations are refused; a query
+   that does not compile is sxml:invalid-query (D288). */
+static void test_registered_languages(sxml_test_state *state) {
+    const sxml_source_code_language languages[] = {
+        json_language(TEXT("mine"), TEXT("(number) @mine.number")),
+        json_language(TEXT("json"), TEXT("(true) @mine.true")),
+        json_language(TEXT("broken"), TEXT("(no_such_node) @x")),
+    };
+    source_code_fixture fixture;
+    SXML_TEST_REQUIRE(state,
+                      source_code_fixture_create(
+                          &fixture, (source_code_fixture_options){
+                                        .has_feature = true,
+                                        .failing_number = 0,
+                                        .languages = {.languages = languages,
+                                                      .language_count = 3}}) == SXML_STATUS_OK);
+    const struct {
+        sxml_byte_view expression_text;
+        sxml_byte_view output;
+    } cases[] = {
+        {TEXT("Q{urn:sxml}code-languages()[. = ('broken', 'json', 'mine')]"),
+         TEXT("\"broken\" \"json\" \"mine\"")},
+        {TEXT("Q{urn:sxml}parse-code('[1, true]', 'mine')//@highlight/string()"),
+         TEXT("\"mine.number\"")},
+        {TEXT("Q{urn:sxml}parse-code('[1, true]', 'json')//@highlight/string()"),
+         TEXT("\"mine.true\"")},
+        {TEXT("Q{urn:sxml}parse-code('[1, true]', 'broken', {'highlights': false()})//number/string()"),
+         TEXT("\"1\"")},
+        /* An injection names a language by its injection regex. */
+        {TEXT("Q{urn:sxml}parse-code('```my-json\n[2]\n```\n', 'markdown')"
+              "//*[@language]/(@language, .//@highlight)/string()"),
+         TEXT("\"mine\" \"mine.number\"")},
+    };
+    for (size_t case_index = 0; case_index < SXML_TEST_COUNT(cases); case_index += 1) {
+        SXML_TEST_EXPECT(state, run_expression(&fixture, cases[case_index].expression_text) ==
+                                    SXML_STATUS_OK);
+        SXML_TEST_EXPECT(state,
+                         sxml_byte_view_equals(sxml_output_buffer_get_bytes(fixture.output_buffer),
+                                               cases[case_index].output));
+    }
+    SXML_TEST_EXPECT(state, run_expression(&fixture, TEXT("Q{urn:sxml}parse-code('1', 'broken')")) !=
+                                SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, sxml_byte_view_equals(fixture.error_record.code.local_name,
+                                                  TEXT("invalid-query")));
+    SXML_TEST_EXPECT(state, source_code_fixture_destroy(&fixture));
+    /* Two languages of one name, a bad name, no grammar, no array. */
+    const sxml_source_code_language twice[] = {languages[0], languages[0]};
+    sxml_source_code_language unnamed = languages[0];
+    unnamed.language_name = TEXT("");
+    sxml_source_code_language without_grammar = languages[0];
+    without_grammar.grammar = NULL;
+    const sxml_source_code_language_view invalid_views[] = {
+        {.languages = twice, .language_count = 2},
+        {.languages = &unnamed, .language_count = 1},
+        {.languages = &without_grammar, .language_count = 1},
+        {.languages = NULL, .language_count = 1},
+    };
+    for (size_t view_index = 0; view_index < SXML_TEST_COUNT(invalid_views); view_index += 1) {
+        SXML_TEST_EXPECT(state, source_code_fixture_create(
+                                    &fixture, (source_code_fixture_options){
+                                                  .has_feature = true,
+                                                  .failing_number = 0,
+                                                  .languages = invalid_views[view_index]}) ==
+                                    SXML_STATUS_INVALID_ARGUMENT);
+        SXML_TEST_EXPECT(state, source_code_fixture_destroy(&fixture));
+    }
 }
 
 static void test_function_parses(sxml_test_state *state) {
@@ -284,6 +416,8 @@ static const sxml_test_case source_code_test_cases[] = {
      .function = test_function_is_absent_without_the_feature},
     {.name = "languages_have_grammars_and_queries",
      .function = test_languages_have_grammars_and_queries},
+    {.name = "check_reports_problems", .function = test_check_reports_problems},
+    {.name = "registered_languages", .function = test_registered_languages},
     {.name = "function_survives_every_allocation_failure",
      .function = test_function_survives_every_allocation_failure},
 };

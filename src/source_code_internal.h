@@ -8,10 +8,13 @@
  * (src/function_library_source_code.c), the optional feature
  * sxml_source_code_feature().
  *
- * A language is a tree-sitter grammar vendored under
- * third_party/tree-sitter-grammars (its generated parser, linked in) and
- * its highlights query (glossary `highlights_query`), compiled in by
- * tools/generate-source-code-languages.py (src/source_code_languages.c).
+ * A language is a tree-sitter grammar and its highlights, locals and
+ * injections queries (glossary `highlights_query`, `locals_query`,
+ * `injections_query`): one vendored under third_party/tree-sitter-grammars
+ * (its generated parser, linked in), compiled in by
+ * tools/generate-source-code-languages.py (src/source_code_languages.c),
+ * or one the host registered (include/sxml/processor.h,
+ * sxml_source_code_language; D288).
  *
  * The document (D285):
  * - one element per named syntax node, named by its kind (glossary
@@ -41,6 +44,7 @@
  * Thread safety: the caller's thread; the language table is static const.
  */
 #include "sxml/memory.h"
+#include "sxml/processor.h"
 #include "sxml/name.h"
 #include "sxml/status.h"
 #include "sxml/tree.h"
@@ -51,26 +55,53 @@
 #include <stdint.h>
 #include <tree_sitter/api.h>
 
-/* One language sxml:parse-code knows. */
-typedef struct sxml_source_code_language {
+/* One built-in language (src/source_code_languages.c): a vendored
+   grammar, whose TSLanguage its entry point returns, and its queries. */
+typedef struct sxml_source_code_builtin_language {
     /* ASCII, static: the name in the $language argument ("javascript"). */
     sxml_byte_view language_name;
     /* The grammar's generated entry point. */
     const TSLanguage *(*get_grammar)(void);
-    /* The highlights query text (tree-sitter query syntax), static. */
+    /* The query texts (tree-sitter query syntax), static; empty for
+       none. */
     sxml_byte_view highlights_query;
-} sxml_source_code_language;
+    sxml_byte_view locals_query;
+    sxml_byte_view injections_query;
+    /* tree-sitter.json's injection-regex, static; empty for none. */
+    sxml_byte_view injection_regex;
+} sxml_source_code_builtin_language;
 
-typedef struct sxml_source_code_language_view {
-    const sxml_source_code_language *languages;
+typedef struct sxml_source_code_builtin_language_view {
+    const sxml_source_code_builtin_language *languages;
     size_t language_count;
-} sxml_source_code_language_view;
+} sxml_source_code_builtin_language_view;
 
-/* Every language, in name order (src/source_code_languages.c). */
-extern const sxml_source_code_language_view sxml_source_code_languages;
+/* Every built-in language, in name order (src/source_code_languages.c). */
+extern const sxml_source_code_builtin_language_view sxml_source_code_builtin_languages;
 
-/* The language named name, or NULL when there is none. */
-const sxml_source_code_language *sxml_source_code_find_language(sxml_byte_view name);
+/* The built-in language at language_index as a language (its grammar from
+   its entry point). */
+sxml_source_code_language sxml_source_code_builtin_language_at(size_t language_index);
+
+/* The languages of one processor: the registered ones, then the built-in
+   ones they do not replace (glossary `registered_language`, D288). */
+typedef struct sxml_source_code_language_set {
+    sxml_source_code_language_view registered_languages;
+} sxml_source_code_language_set;
+
+/* Writes the language named name to *language; false when there is none.
+   A registered language comes before a built-in one. */
+bool sxml_source_code_find_language(const sxml_source_code_language_set *set,
+                                    sxml_byte_view name, sxml_source_code_language *language);
+
+/* Whether a registered language's name is good: not empty, ASCII
+   letters, digits, '_', '-', '+', '.' (src/source_code_check.c). */
+bool sxml_source_code_language_name_is_valid(sxml_byte_view name);
+
+/* Whether a configuration's view of registered languages is good: an
+   array for a count, valid names, grammars of a supported ABI, no name
+   twice (sxml_processor_initialize; src/source_code_check.c). */
+bool sxml_source_code_language_view_is_valid(sxml_source_code_language_view view);
 
 /* Charges steps to the work's budget: SXML_STATUS_LIMIT_EXCEEDED past it
    (the evaluation's step limit, D89, D91). */
@@ -85,13 +116,19 @@ typedef struct sxml_source_code_step_meter {
 
 /* What to parse, and how to write it. */
 typedef struct sxml_source_code_request {
-    const sxml_source_code_language *language;
+    /* The language of the text. */
+    sxml_source_code_language language;
+    /* Where the languages of injections are found (D288). */
+    sxml_source_code_language_set language_set;
     /* Well-formed UTF-8, borrowed for the call; below 4 GiB. */
     sxml_byte_view source_text;
     /* Run the highlights query and write highlight attributes. */
     bool has_highlights;
     /* Write line, column, end-line and end-column attributes. */
     bool has_positions;
+    /* Parse the nodes the injections query names with their languages
+       (glossary `injection`, D288). */
+    bool has_injections;
     /* Receives the document: start_document to end_document. */
     sxml_tree_builder builder;
     sxml_name_pool *name_pool;
@@ -107,8 +144,11 @@ typedef struct sxml_source_code_request {
  * Returns SXML_STATUS_LIMIT_EXCEEDED for a text of 4 GiB or more and when
  * the step meter refuses a charge (the parse or query is cancelled),
  * SXML_STATUS_OUT_OF_MEMORY when tree-sitter cannot allocate,
- * SXML_STATUS_INVALID_ARGUMENT when the grammar's ABI or query does not
- * fit the runtime (a build error), and the failures of the builder, the
+ * SXML_STATUS_INVALID_ARGUMENT when the grammar's ABI does not fit the
+ * runtime, SXML_STATUS_MALFORMED_INPUT when one of the language's
+ * queries does not compile for its grammar (sxml:invalid-query; an
+ * injected language's bad query only leaves its highlights out), and the
+ * failures of the builder, the
  * name pool and the allocator. The builder may have received part of the
  * document on failure.
  */

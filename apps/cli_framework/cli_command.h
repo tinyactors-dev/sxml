@@ -309,6 +309,50 @@ typedef struct sxml_cli_file_writer {
     const sxml_cli_file_writer_operations *operations;
 } sxml_cli_file_writer;
 
+/* --------------------------------------------------------- Library loader */
+
+/* A function a shared library exports, of no particular type: the caller
+   converts it to the type the library's documentation gives. */
+typedef void (*sxml_cli_library_function)(void);
+
+/* A function to find in a shared library. Borrowed for the call. */
+typedef struct sxml_cli_library_function_request {
+    /* The library's file, as the command line names it. */
+    sxml_byte_view library_path;
+    /* The function's name, ASCII. */
+    sxml_byte_view function_name;
+} sxml_cli_library_function_request;
+
+/* What find_function found: the function, or why there is none. */
+typedef struct sxml_cli_library_function_lookup {
+    sxml_cli_library_function function;
+    /* The platform's reason for a failure (dlerror), owned by the loader
+       and valid until its next call; empty when it gives none. */
+    sxml_byte_view reason;
+} sxml_cli_library_function_lookup;
+
+/*
+ * The interface through which commands load shared libraries (glossary
+ * `language_library`: the sxml command's --code-language, D288; D44:
+ * only the platform layer touches the operating system). The default
+ * implementation is the platform layer's (apps/sxml/platform.h).
+ */
+typedef struct sxml_cli_library_loader_operations {
+    /* Loads the library, which stays loaded until the program ends, and
+       finds the function in it. Returns SXML_STATUS_INPUT_OUTPUT_FAILED
+       with lookup->reason when the library cannot be loaded or has no
+       such function. */
+    sxml_status (*find_function)(void *state, const sxml_cli_library_function_request *request,
+                                 sxml_cli_library_function_lookup *lookup);
+} sxml_cli_library_loader_operations;
+
+/* Passed by value; operations NULL means the platform loads no
+   libraries. */
+typedef struct sxml_cli_library_loader {
+    void *state;
+    const sxml_cli_library_loader_operations *operations;
+} sxml_cli_library_loader;
+
 /* ----------------------------------------------------------- Invocation */
 
 typedef struct sxml_cli_arguments sxml_cli_arguments;
@@ -338,7 +382,9 @@ struct sxml_cli_invocation {
     sxml_byte_view working_directory;
     /* The platform's files, for commands that give EXPath File access
        (D200); the null file system when there is none. */
-    sxml_file_system file_system;
+    sxml_file_system file_system;    /* Loads shared libraries, for --code-language (D288); no operations
+       when the platform loads none. */
+    sxml_cli_library_loader library_loader;
 };
 
 /*

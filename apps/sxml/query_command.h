@@ -1,6 +1,7 @@
 #pragma once
 
 #include "cli_command.h"
+#include "code_languages.h"
 #include "sxml/processor.h"
 #include "sxml/serialize.h"
 #include "sxml/status.h"
@@ -161,6 +162,9 @@ typedef struct sxml_query_run {
     sxml_query_file *files;
     size_t file_count;
     size_t file_capacity;
+    /* The languages --code-language loaded (D288), which the processor
+       uses; released after it. */
+    sxml_code_language_list code_languages;
 } sxml_query_run;
 
 /* Makes the processor, reads --output and --force (and begins writing

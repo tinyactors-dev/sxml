@@ -1,7 +1,7 @@
 id: input-output-outside-platform-layer
 language: c
 severity: error
-message: "'$FUNCTION' touches the process environment: only the platform layer (apps/sxml/platform_stdio.c, platform_file_system.c, platform_file_writer.c) may call it; write through an sxml_cli_output_stream instead."
+message: "'$FUNCTION' touches the process environment: only the platform layer (apps/sxml/platform_stdio.c, platform_file_system.c, platform_file_writer.c, platform_library_loader.c) may call it; write through an sxml_cli_output_stream instead."
 note: >
   docs/CLI.md, "Implementation map"; docs/DECISIONS.md, D44. The CLI
   framework and the sxml commands never print, open files, read the
@@ -13,9 +13,10 @@ ignores:
   - "**/apps/sxml/platform_stdio.c"
   - "**/apps/sxml/platform_file_system.c"
   - "**/apps/sxml/platform_file_writer.c"
+  - "**/apps/sxml/platform_library_loader.c"
 rule:
   kind: call_expression
   has:
     field: function
     pattern: $FUNCTION
-    regex: '^(abort|exit|_Exit|quick_exit|atexit|system|getenv|printf|fprintf|vprintf|vfprintf|puts|fputs|putchar|putc|fputc|perror|fwrite|fread|fopen|freopen|fclose|fflush|fgets|fgetc|getc|getchar|scanf|fscanf|setvbuf|remove|rename|tmpfile|ferror|_setmode|_fileno)$'
+    regex: '^(abort|exit|_Exit|quick_exit|atexit|system|getenv|printf|fprintf|vprintf|vfprintf|puts|fputs|putchar|putc|fputc|perror|fwrite|fread|fopen|freopen|fclose|fflush|fgets|fgetc|getc|getchar|scanf|fscanf|setvbuf|remove|rename|tmpfile|ferror|_setmode|_fileno|dlopen|dlsym|LoadLibraryW|GetProcAddress)$'

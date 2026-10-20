@@ -241,7 +241,7 @@ year: digit, digit, digit, digit.
 Evaluate an XPath 4.0 expression.
 
 ```
-sxml xpath [--context-item=FILE] [--param=NAME=VALUE]... [--method=METHOD] [--allow-file-access] [--output=FILE] [--force] EXPRESSION
+sxml xpath [--context-item=FILE] [--param=NAME=VALUE]... [--method=METHOD] [--allow-file-access] [--code-language=LIBRARY]... [--output=FILE] [--force] EXPRESSION
 ```
 
 `sxml xpath` evaluates EXPRESSION as XPath 4.0, with the F&O 4.0 function
@@ -254,6 +254,7 @@ adaptive output method writes the result, one item on each line.
 | `--param=NAME=VALUE` | Bind `$NAME` to `xs:untypedAtomic(VALUE)`. Repeatable. |
 | `--method=METHOD` | Serialization method: `adaptive` (default), `xml`, `xhtml`, `html`, `text`, `json` or `csv`, each with its default parameters |
 | `--allow-file-access` | Let the expression read and write files with the EXPath File functions (`file:`). Without this option, they do not exist. |
+| `--code-language=LIBRARY` | Load a tree-sitter grammar for `sxml:parse-code` from the shared library LIBRARY, with the queries in the directory `queries` beside it (or `../queries/NAME`). The language is named after the file: `libtree-sitter-rust.so` and `rust.so` are `rust`. Repeatable. See the book's chapter [Source Code as XML](../../docs/book/src/source-code.md#supplying-your-own-language). |
 | `--output=FILE`, `-o FILE` | Write the result to FILE instead of standard output: the same bytes, written only when the expression succeeds |
 | `--force` | Let `--output` replace a file that exists. Without it, an existing FILE is an error (exit 3) and stays as it is. |
 
@@ -273,10 +274,13 @@ adaptive output method writes the result, one item on each line.
   stop word lists and thesauri by URI are read as local files.
 - `sxml:parse-code(SOURCE, LANGUAGE, OPTIONS)` parses source code with a
   tree-sitter grammar (`c`, `css`, `go`, `html`, `javascript`, `json`,
-  `python`; `sxml:code-languages()` lists them) into a document: one
-  element per named node of the syntax tree, named by its kind, with
-  `field` and `highlight` attributes, and the code's text, so that
-  `string()` of the document is the source. The option `positions` adds
+  `markdown`, `markdown_inline`, `python`, `tsx`, `typescript`, and those
+  `--code-language` loads; `sxml:code-languages()` lists them) into a
+  document: one element per named node of the syntax tree, named by its
+  kind, with `field` and `highlight` attributes, and the code's text, so
+  that `string()` of the document is the source. Code inside code (a
+  Markdown code block, an HTML `script`) is parsed with its own language
+  unless the option `injections` is false. The option `positions` adds
   `line` and `column` attributes. The prefix `sxml` is bound to `urn:sxml`.
 - `fn:invisible-xml` compiles an Invisible XML grammar (ixml notation,
   or its XML form as an `ixml` element) and returns a function that
@@ -380,7 +384,7 @@ sxml xpath: 'titles.txt' exists; give --force to replace it
 Run an XQuery 4.0 query.
 
 ```
-sxml xquery [--context-item=FILE] [--expression=TEXT] [--param=NAME=VALUE]... [--method=METHOD] [--allow-file-access] [--allow-put] [--output=FILE] [--force] [QUERY-FILE]
+sxml xquery [--context-item=FILE] [--expression=TEXT] [--param=NAME=VALUE]... [--method=METHOD] [--allow-file-access] [--allow-put] [--code-language=LIBRARY]... [--output=FILE] [--force] [QUERY-FILE]
 ```
 
 `sxml xquery` runs the XQuery 4.0 main module in QUERY-FILE, or the query
@@ -396,6 +400,7 @@ serialization. The default method is xml.
 | `--method=METHOD` | Replace the serialization method of the query: `adaptive`, `xml`, `xhtml`, `html`, `text`, `json` or `csv` |
 | `--allow-file-access` | Let the query read and write files with the EXPath File functions, as for [sxml xpath](#sxml-xpath) |
 | `--allow-put` | Let `fn:put` write the documents it stores to local files |
+| `--code-language=LIBRARY` | Load a tree-sitter grammar for `sxml:parse-code`, as for [sxml xpath](#sxml-xpath). Repeatable. |
 | `--output=FILE`, `-o FILE` | Write the result to FILE instead of standard output |
 | `--force` | Let `--output` and `fn:put` replace files that exist |
 
@@ -466,7 +471,7 @@ expression: err:FOUP0002: fn:put has no location to store at: the host's update 
 Transform a document with an XSLT 4.0 stylesheet.
 
 ```
-sxml transform [--initial-mode=NAME] [--initial-template=NAME] [--method=METHOD] [--param=NAME=VALUE]... [--result-directory=DIR] [--output=FILE] [--force] STYLESHEET [INPUT]
+sxml transform [--initial-mode=NAME] [--initial-template=NAME] [--method=METHOD] [--param=NAME=VALUE]... [--result-directory=DIR] [--code-language=LIBRARY]... [--output=FILE] [--force] STYLESHEET [INPUT]
 ```
 
 `sxml transform` compiles the XSLT 4.0 stylesheet STYLESHEET and runs one
@@ -525,6 +530,7 @@ XTDE1425 only when called.
 | `--method=METHOD` | Replace the serialization method of the stylesheet: `adaptive`, `xml`, `xhtml`, `html`, `text`, `json` or `csv` |
 | `--param=NAME=VALUE` | Bind the stylesheet parameter or static parameter `$NAME` to `xs:untypedAtomic(VALUE)`. Repeatable. |
 | `--result-directory=DIR` | Write the result documents with an `href` into DIR, which must exist |
+| `--code-language=LIBRARY` | Load a tree-sitter grammar for `sxml:parse-code`, as for [sxml xpath](#sxml-xpath). Repeatable. |
 | `--output=FILE`, `-o FILE` | Write the principal result to FILE instead of standard output |
 | `--force` | Let `--output` and `--result-directory` replace files that exist |
 
@@ -898,7 +904,7 @@ Usage: sxml [--version] COMMAND [ARGUMENT...]
 Try 'sxml --help'.
 $ sxml xpath --contxt-item=books.xml 1
 sxml xpath: unknown option '--contxt-item'; did you mean '--context-item'?
-Usage: sxml xpath [--context-item=FILE] [--param=NAME=VALUE]... [--method=METHOD] [--allow-file-access] [--output=FILE] [--force] EXPRESSION
+Usage: sxml xpath [--context-item=FILE] [--param=NAME=VALUE]... [--method=METHOD] [--allow-file-access] [--code-language=LIBRARY]... [--output=FILE] [--force] EXPRESSION
 Try 'sxml xpath --help'.
 ```
 
@@ -907,7 +913,7 @@ An option of another command is named as such:
 ```console
 $ sxml xpath --expression=1
 sxml xpath: unknown option '--expression'; it is an option of 'sxml xquery'
-Usage: sxml xpath [--context-item=FILE] [--param=NAME=VALUE]... [--method=METHOD] [--allow-file-access] [--output=FILE] [--force] EXPRESSION
+Usage: sxml xpath [--context-item=FILE] [--param=NAME=VALUE]... [--method=METHOD] [--allow-file-access] [--code-language=LIBRARY]... [--output=FILE] [--force] EXPRESSION
 Try 'sxml xpath --help'.
 ```
 

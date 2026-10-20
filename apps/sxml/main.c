@@ -69,6 +69,8 @@ int main(int argument_count, char **arguments) {
     }
     /* The files --output, --result-directory and --allow-put name. */
     static sxml_platform_file_writer_state file_writer_state;
+    /* The libraries --code-language names (D288). */
+    static sxml_platform_library_loader_state library_loader_state;
     sxml_cli_exit_code exit_code = sxml_cli_run(
         sxml_program(),
         &(sxml_cli_run_request){
@@ -82,6 +84,7 @@ int main(int argument_count, char **arguments) {
             .file_writer = sxml_platform_file_writer(&file_writer_state),
             .working_directory = working_directory,
             .file_system = file_system,
+            .library_loader = sxml_platform_library_loader(&library_loader_state),
         });
     sxml_allocator_release(allocator, argument_views);
     if (sxml_platform_flush_streams() != SXML_STATUS_OK &&

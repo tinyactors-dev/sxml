@@ -756,11 +756,14 @@ SXML_EXPORT sxml_optional_feature sxml_invisible_xml_feature(void);
  * Source code as XML (packet 7.22, D285): sxml:parse-code($source,
  * $language, $options) in the namespace urn:sxml, which parses source
  * code with a tree-sitter grammar compiled into sxml (JSON, JavaScript
- * with JSX, Python, C, CSS, HTML and Go) into a document whose elements
- * are the named nodes of the syntax tree, annotated with the captures of
- * the grammar's highlights query; and sxml:code-languages(), which lists
- * the languages. Without it both functions are absent (XPST0017). Its
- * name is "source-code". Added after the freeze (D99).
+ * with JSX, TypeScript, TSX, Python, C, CSS, HTML, Go, Markdown and its
+ * inline grammar; D288) or registered by the host
+ * (sxml_processor_configuration.source_code_languages, below) into a
+ * document whose elements are the named nodes of the syntax tree,
+ * annotated with the captures of the grammar's highlights query; and
+ * sxml:code-languages(), which lists the languages. Without it both
+ * functions are absent (XPST0017). Its name is "source-code". Added
+ * after the freeze (D99).
  */
 SXML_EXPORT sxml_optional_feature sxml_source_code_feature(void);
 
@@ -776,6 +779,95 @@ SXML_EXPORT sxml_optional_feature_view sxml_all_optional_features(void);
 /* The name of feature, in ASCII, static ("test"). The empty view when its
    definition is NULL. */
 SXML_EXPORT sxml_byte_view sxml_optional_feature_get_name(sxml_optional_feature feature);
+
+/* ------------------------------------------------- Source code languages */
+
+/*
+ * A tree-sitter language a host registers for sxml:parse-code (glossary
+ * `registered_language`; packet 7.23, D288): a grammar sxml does not
+ * include, a newer version of one it does (a registered language replaces
+ * a built-in one of the same name), or one the host loaded at run time
+ * (the sxml command's --code-language loads a grammar's shared library,
+ * glossary `language_library`). sxml itself never loads files or
+ * libraries.
+ *
+ * tree-sitter's language ABI is part of this contract: sxml's runtime
+ * (tree-sitter 0.27) reads grammars generated for ABI
+ * SXML_SOURCE_CODE_MINIMUM_LANGUAGE_ABI to
+ * SXML_SOURCE_CODE_MAXIMUM_LANGUAGE_ABI (tree-sitter 0.20 and later;
+ * ts_language_abi_version). The queries are tree-sitter query text, as
+ * in a grammar's queries/NAME.scm files; their captures and predicates
+ * are read as for the built-in languages (D285, D288). A language is used on the
+ * processor's thread only, as tree-sitter's languages are immutable.
+ */
+#define SXML_SOURCE_CODE_MINIMUM_LANGUAGE_ABI 13U
+#define SXML_SOURCE_CODE_MAXIMUM_LANGUAGE_ABI 15U
+
+/* tree-sitter's language (tree_sitter/api.h, TSLanguage): what a
+   grammar's tree_sitter_NAME() returns. */
+struct TSLanguage; // NOLINT(readability-identifier-naming)
+
+typedef struct sxml_source_code_language {
+    /* The name in sxml:parse-code's $language argument: ASCII letters,
+       digits, '_', '-', '+' and '.', not empty ("rust"). */
+    sxml_byte_view language_name;
+    /* Not NULL. */
+    const struct TSLanguage *grammar;
+    /* queries/highlights.scm (glossary `highlights_query`); empty for
+       none: no highlight attributes. */
+    sxml_byte_view highlights_query;
+    /* queries/locals.scm (glossary `locals_query`); empty for none. */
+    sxml_byte_view locals_query;
+    /* queries/injections.scm (glossary `injections_query`); empty for
+       none. */
+    sxml_byte_view injections_query;
+    /* tree-sitter.json's injection-regex (glossary `injection_regex`), an
+       XPath regex without flags, which the language names of other
+       languages' injections match to mean this language; empty: only
+       its name means it. A regex that does not compile matches nothing. */
+    sxml_byte_view injection_regex;
+} sxml_source_code_language;
+
+typedef struct sxml_source_code_language_view {
+    const sxml_source_code_language *languages;
+    size_t language_count;
+} sxml_source_code_language_view;
+
+/* What sxml_source_code_check_language found wrong. */
+typedef enum sxml_source_code_language_problem {
+    SXML_SOURCE_CODE_LANGUAGE_PROBLEM_NONE,
+    /* The name is empty or has another character. */
+    SXML_SOURCE_CODE_LANGUAGE_PROBLEM_NAME,
+    /* The grammar is NULL, or its ABI (abi_version) is outside the range
+       above. */
+    SXML_SOURCE_CODE_LANGUAGE_PROBLEM_ABI,
+    /* A query does not compile for the grammar (byte_offset). */
+    SXML_SOURCE_CODE_LANGUAGE_PROBLEM_HIGHLIGHTS_QUERY,
+    SXML_SOURCE_CODE_LANGUAGE_PROBLEM_LOCALS_QUERY,
+    SXML_SOURCE_CODE_LANGUAGE_PROBLEM_INJECTIONS_QUERY,
+} sxml_source_code_language_problem;
+
+typedef struct sxml_source_code_language_report {
+    sxml_source_code_language_problem problem;
+    /* The grammar's ABI version; 0 when the grammar is NULL. */
+    uint32_t abi_version;
+    /* For a query problem, where in the query text tree-sitter stopped. */
+    size_t byte_offset;
+} sxml_source_code_language_report;
+
+/*
+ * Checks a language before a host registers it: its name, its grammar's
+ * ABI, and that each query compiles for the grammar (tree-sitter's
+ * ts_query_new, which allocates with malloc, D12). Writes what it found
+ * to *report. Returns SXML_STATUS_OK for a good language,
+ * SXML_STATUS_INVALID_ARGUMENT for a problem (the report says which) and
+ * for NULL arguments, SXML_STATUS_OUT_OF_MEMORY when tree-sitter cannot
+ * allocate. sxml_processor_initialize checks only the name and the ABI;
+ * a query that does not compile makes sxml:parse-code raise
+ * sxml:invalid-query when the language is used.
+ */
+SXML_NODISCARD SXML_EXPORT sxml_status sxml_source_code_check_language(
+    const sxml_source_code_language *language, sxml_source_code_language_report *report);
 
 /* ------------------------------------------------------------- Processor */
 
@@ -857,6 +949,15 @@ typedef struct sxml_processor_configuration {
        a query that declares no output:version is serialized with version
        1.1 (D195, D237, D275). XPath and XSLT are not affected. */
     bool reads_query_text_as_xml_1_1;
+    /* Languages for sxml:parse-code besides the built-in ones (above,
+       D288); the empty view names none. The array, the grammars and the
+       query texts must outlive the processor. A view with a count but no
+       array, a language whose name or ABI
+       sxml_source_code_check_language rejects, or two languages of one
+       name make the configuration invalid. Ignored when
+       sxml_source_code_feature() is not named. Added after the freeze
+       (D99). */
+    sxml_source_code_language_view source_code_languages;
 } sxml_processor_configuration;
 
 /*

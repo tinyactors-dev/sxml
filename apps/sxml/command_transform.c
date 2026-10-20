@@ -113,6 +113,7 @@ static const sxml_cli_option sxml_transform_options[] = {
         .summary = SXML_BYTE_VIEW_INITIALIZER(
             "Write result documents with an href into the existing directory DIR"),
     },
+    SXML_CODE_LANGUAGE_OPTION,
     SXML_QUERY_OUTPUT_OPTION,
     SXML_QUERY_FORCE_OPTION,
 };

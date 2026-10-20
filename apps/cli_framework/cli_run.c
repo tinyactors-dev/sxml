@@ -267,6 +267,7 @@ static sxml_cli_exit_code sxml_cli_run_command(
                 .file_writer = session->request->file_writer,
                 .working_directory = session->request->working_directory,
                 .file_system = session->request->file_system,
+                .library_loader = session->request->library_loader,
             };
             exit_code = command->run(&invocation);
             break;

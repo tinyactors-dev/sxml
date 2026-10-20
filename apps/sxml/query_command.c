@@ -1093,6 +1093,17 @@ sxml_cli_exit_code sxml_query_run_start(sxml_query_run *run) {
         features[feature_count] = sxml_expath_file_feature();
         feature_count += 1;
     }
+    /* The languages of --code-language (D288), before the processor
+       that registers them. */
+    if (sxml_query_command_declares(invocation, SXML_TEXT("code-language"))) {
+        const sxml_cli_exit_code language_exit_code = sxml_code_languages_load(
+            &(sxml_code_language_context){.invocation = invocation,
+                                          .command_name = run->command_name},
+            &run->code_languages);
+        if (language_exit_code != SXML_CLI_EXIT_SUCCESS) {
+            return language_exit_code;
+        }
+    }
     /* F&O 4.0, fn:trace and fn:message: the output goes where the
        implementation decides; like other processors, to standard error. */
     run->trace_stream = (sxml_output_stream){.state = invocation->standard_error,
@@ -1112,7 +1123,9 @@ sxml_cli_exit_code sxml_query_run_start(sxml_query_run *run) {
                                   .optional_feature_count = feature_count},
             .file_system = allows_file_access
                                ? invocation->file_system
-                               : (sxml_file_system){.state = NULL, .operations = NULL}},
+                               : (sxml_file_system){.state = NULL, .operations = NULL},
+            .source_code_languages = {.languages = run->code_languages.languages,
+                                      .language_count = run->code_languages.language_count}},
         &run->processor);
     if (status != SXML_STATUS_OK) {
         return SXML_CLI_EXIT_INTERNAL_ERROR;
@@ -1155,7 +1168,9 @@ sxml_cli_exit_code sxml_query_run_finish(sxml_query_run *run, sxml_cli_exit_code
     if (run->processor != NULL) {
         sxml_item_heap_clear_raised_error(sxml_processor_get_item_heap(run->processor));
         sxml_processor_destroy(run->processor);
+        run->processor = NULL;
     }
+    sxml_code_languages_release(allocator, &run->code_languages);
     return exit_code;
 }
 
