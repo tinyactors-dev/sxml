@@ -18,7 +18,8 @@ xquery version "4.0";
  : nodes): sxml:token elements are tokens, an element with missing="true"
  : is (MISSING kind), an sxml:node element is named by its kind attribute.
  : Both sides are normalized as tree-sitter does: comment lines (";")
- : dropped, runs of whitespace made one space, no space before ")".
+ : dropped, runs of whitespace made one space, no space before ")", and
+ : field names dropped from the document's when the expected tree has none.
  : A test with ":error" passes when the document has an ERROR element or
  : a missing element. Tests marked ":skip", ":cst" (it compares anonymous
  : nodes too) or ":language(...)" naming a language sxml does not have are
@@ -27,9 +28,9 @@ xquery version "4.0";
  : $kind "highlight": a file of test/highlight, whose comments assert the
  : highlights (tree-sitter's documentation, "Syntax Highlighting",
  : "Unit Testing"): in a comment, "<-" names the comment's own column and
- : each "^" one column; the capture name after it (with "!" for "not")
- : applies to that column on the nearest line above that holds no
- : assertion. An assertion passes when the capture name is the highlight
+ : a "^" (the first of a run) one column; the capture name after it (with
+ : "!" for "not") applies to that column on the nearest line above that
+ : holds no assertion. An assertion passes when the capture name is the highlight
  : attribute of an element that covers that line and column (an element
  : and its ancestors may all have one: the stack of nested highlights),
  : and for "!" when none has it. The file is parsed with the option
@@ -153,7 +154,11 @@ declare function local:run-corpus-test($test as map(*)) as map(*) {
             else map { "outcome": "fail", "why": "no ERROR or MISSING node: " || local:sexp($root) }
           else
             let $expected := local:normalize($test?expected)
+            (: Field names are compared only when the expected tree has
+               some (tree-sitter's test command does the same). :)
             let $actual := local:normalize(local:sexp($root))
+              => (if (matches($expected, "[A-Za-z0-9_\-]+:\s*\(")) then identity#1
+                  else replace(?, "[A-Za-z0-9_\-]+: ", ""))()
             return
               if ($expected eq $actual) then map { "outcome": "pass" }
               else map { "outcome": "fail",
@@ -182,12 +187,14 @@ declare function local:assertions($comment as element()) as map(*)* {
     then string-length(replace(substring($text, $arrow), "^(\^+).*$", "$1", "s"))
     else 1
   let $rest := substring($text, $arrow + $caret-count)
+  (: A run of carets marks a span, of which the first column is checked:
+     the grammars' tests run a caret over "onclick=" for an attribute. :)
   let $match := analyze-string($rest, "^\s*(!?)\s*([\w\-.]+)")//fn:match
   where exists($match)
   return map {
     "line": xs:integer($comment/@line),
     "columns": if ($is-caret)
-               then (0 to $caret-count - 1) ! (xs:integer($comment/@column) + $arrow - 1 + .)
+               then xs:integer($comment/@column) + $arrow - 1
                else xs:integer($comment/@column),
     "negated": string($match/fn:group[@nr = 1]) = "!",
     "name": string($match/fn:group[@nr = 2])

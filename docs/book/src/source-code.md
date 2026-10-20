@@ -1,7 +1,6 @@
 # Source Code as XML
 
 <!-- examples: source-code -->
-<!-- status: draft -->
 
 Program source code has a grammar too, and for many languages the
 grammar is already written: [tree-sitter](https://tree-sitter.github.io)
@@ -27,9 +26,9 @@ language, and returns a document:
 ```console
 $ sxml xpath --method=xml 'sxml:parse-code(unparsed-text("greet.js"), "javascript")'
 <program xmlns:sxml="urn:sxml"><comment highlight="comment">// Says hello.</comment>
-<function_declaration><sxml:token highlight="keyword">function</sxml:token> <identifier field="name" highlight="function">greet</identifier><formal_parameters field="parameters">(<identifier highlight="variable.parameter">name</identifier>)</formal_parameters> <statement_block field="body">{
-  <return_statement><sxml:token highlight="keyword">return</sxml:token> <binary_expression><string field="left" highlight="string">"<string_fragment>Hello, </string_fragment>"</string> <sxml:token field="operator" highlight="operator">+</sxml:token> <identifier field="right" highlight="variable">name</identifier></binary_expression>;</return_statement>
-}</statement_block></function_declaration>
+<function_declaration><sxml:token highlight="keyword">function</sxml:token> <identifier field="name" highlight="function">greet</identifier><formal_parameters field="parameters"><sxml:token highlight="punctuation.bracket">(</sxml:token><identifier highlight="variable.parameter">name</identifier><sxml:token highlight="punctuation.bracket">)</sxml:token></formal_parameters> <statement_block field="body"><sxml:token highlight="punctuation.bracket">{</sxml:token>
+  <return_statement><sxml:token highlight="keyword">return</sxml:token> <binary_expression><string field="left" highlight="string">"<string_fragment>Hello, </string_fragment>"</string> <sxml:token field="operator" highlight="operator">+</sxml:token> <identifier field="right" highlight="variable">name</identifier></binary_expression><sxml:token highlight="punctuation.delimiter">;</sxml:token></return_statement>
+<sxml:token highlight="punctuation.bracket">}</sxml:token></statement_block></function_declaration>
 </program>
 ```
 
@@ -41,9 +40,9 @@ The document follows the grammar's syntax tree:
   grammar's `node-types.json` list them.
 - When the grammar gives a node a field name, as in `name`, `parameters`
   and `body`, the element has a `field` attribute.
-- Punctuation and keywords are text, and so are the spaces and line
-  breaks between nodes, so the string value of the document is the
-  source code, exactly:
+- Tokens, the keywords and punctuation, are text, and so are the spaces
+  and line breaks between nodes, so the string value of the document is
+  the source code, exactly:
 
 ```console
 $ sxml xpath 'string(sxml:parse-code(unparsed-text("greet.js"), "javascript")) = unparsed-text("greet.js")'
@@ -54,7 +53,8 @@ true()
   (the `queries/highlights.scm` of its grammar) says about the node:
   `keyword`, `function`, `string`, `comment`, `variable.parameter` and so
   on. A token that has a highlight or a field becomes an `sxml:token`
-  element, so that it can carry the attribute.
+  element, so that it can carry the attribute; with the option
+  `{ "highlights": false() }` most tokens stay plain text.
 
 The prefix `sxml` is bound to the namespace `urn:sxml` in the `sxml`
 command's XPath and XQuery; a stylesheet declares it. The elements of
@@ -103,7 +103,7 @@ The same with the functions that are not exported, and how many
 parameters each has:
 
 ```console
-$ sxml xpath 'sxml:parse-code(unparsed-text("cart.js"), "javascript")/program/function_declaration ! `{identifier} takes {count(formal_parameters/*)}`'
+$ sxml xpath 'sxml:parse-code(unparsed-text("cart.js"), "javascript")/program/function_declaration ! `{identifier} takes {count(formal_parameters/identifier)}`'
 "describe takes 1"
 ```
 
@@ -132,7 +132,7 @@ $ sxml xpath 'sxml:parse-code(unparsed-text("report.py"), "python", { "positions
 A function whose body does not start with a string has no docstring:
 
 ```console
-$ sxml xpath 'sxml:parse-code(unparsed-text("report.py"), "python")//function_definition[not(block/*[1]/string)]/identifier[@field = "name"] ! string()'
+$ sxml xpath 'sxml:parse-code(unparsed-text("report.py"), "python")//function_definition[not(block/*[1][self::string])]/identifier[@field = "name"] ! string()'
 "total"
 "__init__"
 "render"
@@ -150,9 +150,9 @@ at most three parameters, and names are spelled out. `buffer.c`:
 ```console
 $ sxml xpath 'sxml:parse-code(unparsed-text("buffer.c"), "c", { "positions": true() })//function_declarator[count(parameter_list/parameter_declaration) > 3] ! `{@line}: {*[@field = "declarator"]} has {count(parameter_list/parameter_declaration)} parameters`'
 "5: buffer_append has 4 parameters"
-$ sxml xpath 'sxml:parse-code(unparsed-text("buffer.c"), "c", { "positions": true() })//parameter_declaration//identifier[. = ("buf", "len", "ptr", "tmp")] ! `{@line}:{@column}: "{.}" is not spelled out`'
-"14:58: "len" is not spelled out"
-"19:25: "buf" is not spelled out"
+$ sxml xpath 'sxml:parse-code(unparsed-text("buffer.c"), "c", { "positions": true() })//parameter_declaration//identifier[. = ("buf", "len", "ptr", "tmp")] ! `{@line}:{@column}: {.} is not spelled out`'
+"14:61: len is not spelled out"
+"19:25: buf is not spelled out"
 ```
 
 ## Counting JSX elements
@@ -216,10 +216,10 @@ the highlight, and the built-in rules copy the text of everything else.
 
 ```console
 $ sxml transform --param=file=greet.js highlight.xsl
-<!DOCTYPE html><pre class="code"><span class="comment">// Says hello.</span>
-<span class="keyword">function</span> <span class="function">greet</span>(<span class="variable parameter">name</span>) {
-  <span class="keyword">return</span> <span class="string">"Hello, "</span> <span class="operator">+</span> <span class="variable">name</span>;
-}
+<pre class="code"><span class="comment">// Says hello.</span>
+<span class="keyword">function</span> <span class="function">greet</span><span class="punctuation bracket">(</span><span class="variable parameter">name</span><span class="punctuation bracket">)</span> <span class="punctuation bracket">{</span>
+  <span class="keyword">return</span> <span class="string">"Hello, "</span> <span class="operator">+</span> <span class="variable">name</span><span class="punctuation delimiter">;</span>
+<span class="punctuation bracket">}</span>
 </pre>
 ```
 
@@ -243,7 +243,9 @@ $ sxml xpath --method=xml 'sxml:parse-code("[1, 2", "json")'
 So a query can report problems instead of failing:
 
 ```console
-$ sxml xpath 'sxml:parse-code("{ \"a\": 1 \"b\": 2 }", "json")//(ERROR | *[@missing]) => count()'
+$ cat broken.json
+{ "a": 1 "b": 2 }
+$ sxml xpath 'sxml:parse-code(unparsed-text("broken.json"), "json")//(ERROR | *[@missing]) => count()'
 1
 ```
 

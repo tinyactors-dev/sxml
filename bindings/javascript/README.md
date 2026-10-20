@@ -70,6 +70,7 @@ not exist (`err:XPST0017`), or the specification's fallback applies.
 | `full-text` | XQuery and XPath Full Text 3.0: `contains text` and score variables in XPath and XQuery, with stemming, stop words and thesauri |
 | `dtd-validation` | The `dtd-validation` option of `fn:doc` and `fn:parse-xml` |
 | `builtin-schemas` | The schemas that `fn:json-to-xml` with `validate`, the typed results of `fn:analyze-string`, and lax validation without an in-scope schema use |
+| `source-code` | `sxml:parse-code` and `sxml:code-languages` (namespace `urn:sxml`): source code in JSON, JavaScript, Python, C, CSS, HTML or Go as a document of its syntax tree, with highlights |
 | `uca-collation` | UCA collation URIs (Unicode Collation Algorithm 16.0) over the DUCET, which the package ships; the CLDR root collation and the CLDR tailorings by language when the resolver gives their files (resource kind `'collation-data'`) |
 | `timezone-database` | IANA time zone names in `fn:civil-timezone` and in the `$place` argument of `fn:format-dateTime` (resource kind `'timezone-data'`) |
 | `localization` | Month and day names, calendars and number words in other languages in `fn:format-date`, `fn:format-integer` and `xsl:number` (resource kind `'locale-data'`) |

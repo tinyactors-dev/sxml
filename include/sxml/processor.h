@@ -753,6 +753,18 @@ SXML_EXPORT sxml_optional_feature sxml_localization_feature(void);
 SXML_EXPORT sxml_optional_feature sxml_invisible_xml_feature(void);
 
 /*
+ * Source code as XML (packet 7.22, D285): sxml:parse-code($source,
+ * $language, $options) in the namespace urn:sxml, which parses source
+ * code with a tree-sitter grammar compiled into sxml (JSON, JavaScript
+ * with JSX, Python, C, CSS, HTML and Go) into a document whose elements
+ * are the named nodes of the syntax tree, annotated with the captures of
+ * the grammar's highlights query; and sxml:code-languages(), which lists
+ * the languages. Without it both functions are absent (XPST0017). Its
+ * name is "source-code". Added after the freeze (D99).
+ */
+SXML_EXPORT sxml_optional_feature sxml_source_code_feature(void);
+
+/*
  * Every optional feature sxml has, as static data, for hosts that want
  * them all: the sxml command, the test drivers and the JavaScript
  * package's full module. A program that calls this links every feature.

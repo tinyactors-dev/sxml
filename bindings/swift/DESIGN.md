@@ -292,7 +292,7 @@ ctest runs, from the repository root:
 
 ```sh
 SXML_HOST_LIBRARY_PATH=$PWD/build/debug/bindings/swift/lib \
-SXML_HOST_FEATURES=test,expath-binary,html,xslt-transform,timezone-database,dtd-validation,uca-collation,full-text,invisible-xml,localization,builtin-schemas \
+SXML_HOST_FEATURES=test,expath-binary,html,xslt-transform,timezone-database,dtd-validation,uca-collation,full-text,invisible-xml,localization,builtin-schemas,source-code \
 swift test --package-path . --scratch-path build/debug/bindings/swift/swiftpm \
   --disable-xctest -Xswiftc -warnings-as-errors --sanitize=address
 ```

@@ -105,6 +105,11 @@ typedef enum sxml_optional_feature_kind {
        health-3, D225); operations sxml_builtin_schemas_feature_operations
        (src/processor_internal.h). */
     SXML_OPTIONAL_FEATURE_KIND_BUILTIN_SCHEMAS,
+    /* sxml_source_code_feature: sxml:parse-code and sxml:code-languages
+       as library_functions (src/source_code.c,
+       src/function_library_source_code.c, packet 7.22, D285); operations
+       is that view. */
+    SXML_OPTIONAL_FEATURE_KIND_SOURCE_CODE,
     SXML_OPTIONAL_FEATURE_KIND_COUNT,
 } sxml_optional_feature_kind;
 
@@ -275,3 +280,5 @@ extern const sxml_optional_feature_definition sxml_invisible_xml_feature_definit
 extern const sxml_optional_feature_definition sxml_localization_feature_definition;
 /* The built-in schemas (src/processor_builtin_schemas.c). */
 extern const sxml_optional_feature_definition sxml_builtin_schemas_feature_definition;
+/* Source code as XML (src/function_library_source_code.c). */
+extern const sxml_optional_feature_definition sxml_source_code_feature_definition;

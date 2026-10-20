@@ -1001,5 +1001,5 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `node_kind` | The grammar's name for the type of a syntax node (tree-sitter's "type"), such as `function_declaration`; the local name of its element |
 | `field_name` | The name a grammar gives a child of a syntax node by its role, such as `name` or `body`; the `field` attribute of its element |
 | `highlights_query` | A tree-sitter query (the grammar's `queries/highlights.scm`) whose captures name what each node is for highlighting, such as `keyword` or `function.method` |
-| `capture` | A node that a pattern of a tree-sitter query names with `@name`; the first highlights pattern that captures a node gives its `highlight` attribute |
+| `capture` | A node that a pattern of a tree-sitter query names with `@name`; the last highlights pattern that captures a node gives its `highlight` attribute |
 | `token_element` | An `sxml:token` element: an anonymous syntax node that has a highlight, a field name or is missing, so it can carry attributes (D285) |

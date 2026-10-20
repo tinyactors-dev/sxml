@@ -149,6 +149,10 @@ sxml_add_cli_test(xpath_parse_html_error EXIT_CODE 1 ARGUMENTS xpath "parse-html
 sxml_add_cli_test(xpath_invisible_xml EXIT_CODE 0 ARGUMENTS xpath "invisible-xml(\"date: year, -'-', month. year: ['0'-'9']+. @month: ['0'-'9']+.\")('2026-10')")
 sxml_add_cli_test(xquery_invisible_xml_failed EXIT_CODE 0 ARGUMENTS xquery "--expression=invisible-xml(\"s: 'a', 'b'.\")('ac')")
 sxml_add_cli_test(xpath_invisible_xml_error EXIT_CODE 1 ARGUMENTS xpath "invisible-xml(\"s: 'a'.\", {'fail-on-error': true()})('b')")
+# sxml:parse-code: source code as XML, the sxml prefix bound (packet 7.22, D285).
+sxml_add_cli_test(xpath_parse_code EXIT_CODE 0 ARGUMENTS xpath "sxml:parse-code('let x = 1 // TODO', 'javascript', {'positions': true()})")
+sxml_add_cli_test(xquery_parse_code_languages EXIT_CODE 0 ARGUMENTS xquery "--expression=string-join(sxml:code-languages(), ' ')")
+sxml_add_cli_test(xpath_parse_code_unknown_language EXIT_CODE 1 ARGUMENTS xpath "sxml:parse-code('x', 'cobol')")
 # Full Text: stemming, and stop word lists and thesauri read as local files
 # (packet 7.12c, D214).
 sxml_add_cli_test(xquery_full_text EXIT_CODE 0 ARGUMENTS xquery "--expression=('Improving usability' contains text 'improve' using stemming, 'propagating the errors' contains text 'propagating of errors' using stop words at 'full-text/stop-words.txt', 'the software' contains text 'program' using thesaurus at 'full-text/thesaurus.xml')")

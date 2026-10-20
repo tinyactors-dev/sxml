@@ -106,4 +106,4 @@ add_test(NAME swift/linux
 set_tests_properties(swift/linux PROPERTIES
     LABELS bindings
     TIMEOUT 1800
-    ENVIRONMENT "SXML_HOST_LIBRARY_PATH=${sxml_swift_library_directory};SXML_HOST_FEATURES=test,expath-binary,html,xslt-transform,timezone-database,dtd-validation,uca-collation,full-text,invisible-xml,localization,builtin-schemas")
+    ENVIRONMENT "SXML_HOST_LIBRARY_PATH=${sxml_swift_library_directory};SXML_HOST_FEATURES=test,expath-binary,html,xslt-transform,timezone-database,dtd-validation,uca-collation,full-text,invisible-xml,localization,builtin-schemas,source-code")

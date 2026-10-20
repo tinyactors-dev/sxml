@@ -42,7 +42,7 @@ let repositoryRoot = URL(fileURLWithPath: #filePath)
 /// SXML_HOST_FEATURES lists them, comma-separated (the ctest sets it); by
 /// default those of the native link.
 let expectedFeatures: [String] = (ProcessInfo.processInfo.environment["SXML_HOST_FEATURES"]
-    ?? "test,expath-binary,html,xslt-transform,timezone-database,dtd-validation,uca-collation,full-text,invisible-xml,localization,builtin-schemas")
+    ?? "test,expath-binary,html,xslt-transform,timezone-database,dtd-validation,uca-collation,full-text,invisible-xml,localization,builtin-schemas,source-code")
     .split(separator: ",").map(String.init)
 
 @Suite("the module")

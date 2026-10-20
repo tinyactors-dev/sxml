@@ -64,7 +64,7 @@ endif()
 # The features sxml_all_optional_features() names, as
 # javascript/package lists them for sxml.wasm.
 set(sxml_kotlin_features
-    "test,expath-binary,html,xslt-transform,timezone-database,dtd-validation,uca-collation,full-text,invisible-xml,localization,builtin-schemas")
+    "test,expath-binary,html,xslt-transform,timezone-database,dtd-validation,uca-collation,full-text,invisible-xml,localization,builtin-schemas,source-code")
 
 if(sxml_kotlin_has_jni)
     set(sxml_kotlin_library "$<TARGET_FILE:sxml_kotlin>")

@@ -265,6 +265,7 @@ static const sxml_optional_feature sxml_every_optional_feature[] = {
     {.definition = &sxml_invisible_xml_feature_definition},
     {.definition = &sxml_localization_feature_definition},
     {.definition = &sxml_builtin_schemas_feature_definition},
+    {.definition = &sxml_source_code_feature_definition},
 };
 
 sxml_optional_feature_view sxml_all_optional_features(void) {

@@ -54,7 +54,8 @@ characters are not changed on the way.
 ```kotlin
 Sxml.features
 // [test, expath-binary, html, xslt-transform, timezone-database, dtd-validation,
-//  uca-collation, full-text, invisible-xml, localization, builtin-schemas]
+//  uca-collation, full-text, invisible-xml, localization, builtin-schemas,
+//  source-code]
 ```
 
 `Processor(features = setOf(...))` picks some of them (`null`, the

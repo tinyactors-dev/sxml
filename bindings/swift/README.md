@@ -59,7 +59,7 @@ lists its optional features:
 
 ```swift
 print(Sxml.features)
-// ["test", "expath-binary", "html", "xslt-transform", "timezone-database", "dtd-validation", "uca-collation", "full-text", "invisible-xml", "localization", "builtin-schemas"]
+// ["test", "expath-binary", "html", "xslt-transform", "timezone-database", "dtd-validation", "uca-collation", "full-text", "invisible-xml", "localization", "builtin-schemas", "source-code"]
 ```
 
 `Processor(features:)` takes a set of these names. `nil`, the default,

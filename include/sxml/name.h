@@ -102,8 +102,12 @@ typedef enum sxml_well_known_namespace {
        exsl:node-set and exsl:object-type, which XSLT 1.0 stylesheets
        call (D206). */
     SXML_NAMESPACE_EXSLT_COMMON = 15,
+    /* urn:sxml, "sxml": sxml's own functions and their errors, and the
+       sxml:token and sxml:node elements of sxml:parse-code's documents
+       (packet 7.22, D285). Added after the freeze (D99). */
+    SXML_NAMESPACE_SXML = 16,
     /* One more than the largest well-known namespace. */
-    SXML_NAMESPACE_WELL_KNOWN_COUNT = 16,
+    SXML_NAMESPACE_WELL_KNOWN_COUNT = 17,
 } sxml_well_known_namespace;
 
 /*

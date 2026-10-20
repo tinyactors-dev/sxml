@@ -271,6 +271,13 @@ adaptive output method writes the result, one item on each line.
   in [sxml xquery](#sxml-xquery): `contains text`, and score variables
   in for bindings (`for $b score $s in //book[. contains text "web"]`);
   stop word lists and thesauri by URI are read as local files.
+- `sxml:parse-code(SOURCE, LANGUAGE, OPTIONS)` parses source code with a
+  tree-sitter grammar (`c`, `css`, `go`, `html`, `javascript`, `json`,
+  `python`; `sxml:code-languages()` lists them) into a document: one
+  element per named node of the syntax tree, named by its kind, with
+  `field` and `highlight` attributes, and the code's text, so that
+  `string()` of the document is the source. The option `positions` adds
+  `line` and `column` attributes. The prefix `sxml` is bound to `urn:sxml`.
 - `fn:invisible-xml` compiles an Invisible XML grammar (ixml notation,
   or its XML form as an `ixml` element) and returns a function that
   parses strings with it into documents; a string the grammar does not

@@ -18,6 +18,20 @@ foreach(parser_path IN LISTS SXML_GRAMMAR_PARSERS)
     sxml_add_grammar(${language})
     list(APPEND SXML_GRAMMAR_LIBRARIES sxml_grammar_${language})
 endforeach()
+# The vendored grammars of sxml:parse-code (third_party/tree-sitter-grammars,
+# packet 7.22, D285) join the same list as sxml_source_grammar_<language>;
+# src/source_code_languages.c (tools/generate-source-code-languages.py)
+# names their entry points.
+file(GLOB SXML_SOURCE_GRAMMAR_PARSERS CONFIGURE_DEPENDS
+    "${PROJECT_SOURCE_DIR}/third_party/tree-sitter-grammars/*/src/parser.c")
+list(SORT SXML_SOURCE_GRAMMAR_PARSERS)
+foreach(parser_path IN LISTS SXML_SOURCE_GRAMMAR_PARSERS)
+    get_filename_component(source_directory "${parser_path}" DIRECTORY)
+    get_filename_component(grammar_directory "${source_directory}" DIRECTORY)
+    get_filename_component(language "${grammar_directory}" NAME)
+    sxml_add_grammar(${language} "${grammar_directory}" sxml_source_grammar_${language})
+    list(APPEND SXML_GRAMMAR_LIBRARIES sxml_source_grammar_${language})
+endforeach()
 set_property(GLOBAL PROPERTY SXML_GRAMMAR_LIBRARIES ${SXML_GRAMMAR_LIBRARIES})
 
 # The root CMakeLists.txt defines sxml after this directory, so the link is

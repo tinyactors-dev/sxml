@@ -1,6 +1,7 @@
 <xsl:stylesheet version="4.0"
     xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
-    xmlns:sxml="urn:sxml">
+    xmlns:sxml="urn:sxml"
+    exclude-result-prefixes="sxml">
   <xsl:param name="file" required="yes"/>
   <xsl:param name="language" select="'javascript'"/>
   <xsl:output method="html" html-version="5"/>

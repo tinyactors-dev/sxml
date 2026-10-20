@@ -142,7 +142,7 @@ typedef struct sxml_query_run {
     sxml_item context_item;
     /* The prefixes of the optional features' functions, in scope for
        every query: bin and file (D198, D200). */
-    sxml_namespace_binding feature_namespaces[2];
+    sxml_namespace_binding feature_namespaces[3];
     size_t feature_namespace_count;
     /* The working directory's file URI, file:///DIRECTORY/, owned; empty
        when the working directory is unknown (packet 7.10b). */
