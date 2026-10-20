@@ -138,3 +138,7 @@ The rest of the chapter teaches XSD step by step:
 - [Typed Data and Schema-Aware Queries](xsd-typed-data.md): using the
   types in XQuery and XSLT.
 
+A schema is also a good source for code: Chapter 12, [Project:
+Generating Code from a Schema](codegen.md), turns one into TypeScript
+types and runtime checks.
+

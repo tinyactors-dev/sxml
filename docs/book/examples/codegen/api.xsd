@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The language of API descriptions such as api.xml. -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:api="https://example.org/api"
+           targetNamespace="https://example.org/api"
+           elementFormDefault="qualified">
+
+  <xs:element name="api">
+    <xs:complexType>
+      <xs:choice maxOccurs="unbounded">
+        <xs:element name="query" type="api:function"/>
+        <xs:element name="command" type="api:function"/>
+      </xs:choice>
+      <xs:attribute name="name" type="api:identifier" use="required"/>
+      <xs:attribute name="types" type="xs:anyURI" use="required"/>
+    </xs:complexType>
+    <xs:unique name="function-name">
+      <xs:selector xpath="*"/>
+      <xs:field xpath="@name"/>
+    </xs:unique>
+  </xs:element>
+
+  <xs:complexType name="function" mixed="true">
+    <xs:attribute name="name" type="api:identifier" use="required"/>
+    <xs:attribute name="input" type="api:identifier" use="required"/>
+    <xs:attribute name="output" type="api:identifier" use="required"/>
+  </xs:complexType>
+
+  <!-- A name that is a valid identifier in TypeScript and in URLs. -->
+  <xs:simpleType name="identifier">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[A-Za-z][A-Za-z0-9]*"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+</xs:schema>

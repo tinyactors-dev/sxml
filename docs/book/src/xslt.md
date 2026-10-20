@@ -94,3 +94,7 @@ most:
   files, and organizing larger stylesheets;
 - [Streaming Large Files](xslt-streaming.md): transforming documents
   larger than memory.
+
+Chapter 12 writes an OpenAPI document from an XSD schema with template
+rules, in [A Pipeline, a Second Target and a Changing
+Schema](codegen-pipeline.md).

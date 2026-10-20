@@ -1,0 +1,241 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "library",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/getBook": {
+      "get": {
+        "operationId": "getBook",
+        "summary": "Finds one book by its id.",
+        "responses": {
+          "200": {
+            "description": "The output",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Book"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The input is not valid"
+          }
+        },
+        "parameters": [
+          {
+            "name": "input",
+            "in": "query",
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookRequest"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "/api/searchBooks": {
+      "get": {
+        "operationId": "searchBooks",
+        "summary": "Lists the books of a genre, or all books.",
+        "responses": {
+          "200": {
+            "description": "The output",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The input is not valid"
+          }
+        },
+        "parameters": [
+          {
+            "name": "input",
+            "in": "query",
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookSearch"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "/api/borrowBook": {
+      "post": {
+        "operationId": "borrowBook",
+        "summary": "Lends a book to a member for some days.",
+        "responses": {
+          "200": {
+            "description": "The output",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Loan"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The input is not valid"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoanRequest"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "BookId": {
+        "type": "string",
+        "pattern": "^(?:[a-z][a-z0-9-]*)$",
+        "maxLength": 40
+      },
+      "MemberId": {
+        "type": "string",
+        "pattern": "^(?:m[0-9]{4})$"
+      },
+      "Genre": {
+        "type": "string",
+        "enum": [
+          "fiction",
+          "science",
+          "history"
+        ]
+      },
+      "LoanDays": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 28
+      },
+      "Book": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/BookId"
+          },
+          "title": {
+            "type": "string"
+          },
+          "genre": {
+            "$ref": "#/components/schemas/Genre"
+          },
+          "available": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "genre",
+          "available"
+        ],
+        "additionalProperties": false
+      },
+      "BookRequest": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/BookId"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "additionalProperties": false
+      },
+      "BookSearch": {
+        "type": "object",
+        "properties": {
+          "genre": {
+            "$ref": "#/components/schemas/Genre"
+          },
+          "availableOnly": {
+            "type": "boolean"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "BookList": {
+        "type": "object",
+        "properties": {
+          "books": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Book"
+            }
+          }
+        },
+        "required": [
+          "books"
+        ],
+        "additionalProperties": false
+      },
+      "LoanRequest": {
+        "type": "object",
+        "properties": {
+          "book": {
+            "$ref": "#/components/schemas/BookId"
+          },
+          "member": {
+            "$ref": "#/components/schemas/MemberId"
+          },
+          "days": {
+            "$ref": "#/components/schemas/LoanDays"
+          }
+        },
+        "required": [
+          "book",
+          "member",
+          "days"
+        ],
+        "additionalProperties": false
+      },
+      "Loan": {
+        "type": "object",
+        "properties": {
+          "book": {
+            "$ref": "#/components/schemas/BookId"
+          },
+          "member": {
+            "$ref": "#/components/schemas/MemberId"
+          },
+          "due": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "book",
+          "member",
+          "due"
+        ],
+        "additionalProperties": false
+      }
+    }
+  }
+}

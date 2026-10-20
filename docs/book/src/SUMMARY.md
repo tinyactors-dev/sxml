@@ -45,6 +45,10 @@
 - [Embedding sxml in C](c.md)
 - [sxml in JavaScript](javascript.md)
 - [Performance and Memory](performance.md)
+- [Project: Generating Code from a Schema](codegen.md)
+    - [Generating TypeScript with XQuery](codegen-typescript.md)
+    - [Running the Generated Code](codegen-running.md)
+    - [A Pipeline, a Second Target and a Changing Schema](codegen-pipeline.md)
 
 ---
 

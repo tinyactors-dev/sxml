@@ -33,7 +33,8 @@ runs a first expression. The next three teach the three languages in the
 order they build on each other: XPath, then XQuery, which contains
 XPath, then XSLT, which uses XPath inside its templates. Later chapters
 cover validation, other data formats, text, files, and using sxml from
-your own programs. The appendices are for reference.
+your own programs, and a last project generates code from a schema. The
+appendices are for reference.
 
 Code examples come in two kinds. Files you create look like this:
 

@@ -94,6 +94,10 @@ expression, which keeps the items for which it is true.
 **Processor.** In the sxml library, the object that owns the names,
 types and values of everything compiled and evaluated with it.
 
+**Remote function.** A function that runs on a server and that a
+client, such as a browser page, calls as if it were local. In this
+book's project, a *query* reads data and a *command* changes it.
+
 **Resolver.** The function that a program gives the sxml library to
 answer requests for resources: documents, text, modules, schemas. sxml
 reads nothing else.
@@ -120,6 +124,11 @@ when a value has the wrong type.
 
 **Streaming.** Processing a document as it is parsed, without building
 its tree, so memory doesn't grow with its size.
+
+**String constructor.** In XQuery, a string written between
+``` ``[ ``` and ``` ]`` ```, with expressions between `` `{ `` and
+`` }` ``; everything else, braces and quotes included, is literal text.
+Made for generating code.
 
 **Substitution group.** In XSD, the global elements that may appear
 wherever their head element is allowed.

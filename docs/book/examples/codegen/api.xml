@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<api xmlns="https://example.org/api" name="library" types="library.xsd">
+  <query name="getBook" input="BookRequest" output="Book">
+    Finds one book by its id.
+  </query>
+  <query name="searchBooks" input="BookSearch" output="BookList">
+    Lists the books of a genre, or all books.
+  </query>
+  <command name="borrowBook" input="LoanRequest" output="Loan">
+    Lends a book to a member for some days.
+  </command>
+</api>

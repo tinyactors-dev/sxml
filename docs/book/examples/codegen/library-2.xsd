@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The values the library's remote functions take and return. -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+
+  <xs:simpleType name="BookId">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[a-z][a-z0-9-]*"/>
+      <xs:maxLength value="40"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="MemberId">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="m[0-9]{4}"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="Genre">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="fiction"/>
+      <xs:enumeration value="science"/>
+      <xs:enumeration value="history"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="LoanDays">
+    <xs:restriction base="xs:integer">
+      <xs:minInclusive value="1"/>
+      <xs:maxInclusive value="21"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="Rating">
+    <xs:restriction base="xs:integer">
+      <xs:minInclusive value="1"/>
+      <xs:maxInclusive value="5"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="Book">
+    <xs:sequence>
+      <xs:element name="id" type="BookId"/>
+      <xs:element name="title" type="xs:string"/>
+      <xs:element name="genre" type="Genre"/>
+      <xs:element name="available" type="xs:boolean"/>
+      <xs:element name="rating" type="Rating" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="BookRequest">
+    <xs:sequence>
+      <xs:element name="id" type="BookId"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="BookSearch">
+    <xs:sequence>
+      <xs:element name="genre" type="Genre" minOccurs="0"/>
+      <xs:element name="availableOnly" type="xs:boolean" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="BookList">
+    <xs:sequence>
+      <xs:element name="books" type="Book" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="LoanRequest">
+    <xs:sequence>
+      <xs:element name="book" type="BookId"/>
+      <xs:element name="member" type="MemberId"/>
+      <xs:element name="days" type="LoanDays"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="Loan">
+    <xs:sequence>
+      <xs:element name="book" type="BookId"/>
+      <xs:element name="member" type="MemberId"/>
+      <xs:element name="due" type="xs:date"/>
+    </xs:sequence>
+  </xs:complexType>
+
+</xs:schema>
