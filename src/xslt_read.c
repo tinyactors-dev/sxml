@@ -3094,6 +3094,20 @@ static sxml_status resolve_eqname(stylesheet_reader *reader, const eqname_reques
             &namespace_uri);
         local_name = (sxml_byte_view){.bytes = text.bytes + close_index + 1,
                                       .byte_count = text.byte_count - close_index - 1};
+        /* XPath 4.0, A.3: URIQualifiedName ::= BracedURILiteral
+           (NCName ":")? NCName; the prefix names nothing here. */
+        for (size_t colon_index = 0; colon_index < local_name.byte_count; colon_index += 1) {
+            if (local_name.bytes[colon_index] == ':') {
+                if (!sxml_xml_text_is_ncname(
+                        (sxml_byte_view){.bytes = local_name.bytes, .byte_count = colon_index})) {
+                    result->is_malformed = true;
+                    return SXML_STATUS_OK;
+                }
+                local_name = (sxml_byte_view){.bytes = local_name.bytes + colon_index + 1,
+                                              .byte_count = local_name.byte_count - colon_index - 1};
+                break;
+            }
+        }
     } else {
         size_t colon_index = 0;
         while (colon_index < text.byte_count && text.bytes[colon_index] != ':') {

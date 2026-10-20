@@ -161,7 +161,7 @@ static void test_stylesheet_with_text_value_templates(sxml_test_state *state) {
                 "    <li class='{@code}'>{f:label(.)}</li>\n"
                 "  </xsl:template>\n"
                 "  <xsl:function name='f:label' as='xs:string'>\n"
-                "    <xsl:param name='item'/>\n"
+                "    <xsl:param name='Q{}p:item'/>\n"
                 "    <xsl:sequence select='string($item)'/>\n"
                 "  </xsl:function>\n"
                 "</xsl:stylesheet>"};
