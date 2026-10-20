@@ -11313,6 +11313,90 @@ before (6e1a371) and after, case by case.
     with their own minimums or index tables), which can move to
     `sxml_allocator_reserve_array` one at a time.
 
+### D250. The Kotlin full surface: XQuery, XSLT, XSD, the DUCET resource, U+0000 (packet 6.5)
+Recorded 2026-10-20, after D23, D213, D216, D238, D240, D247, D248.
+Packet 6.5 added the rest of the task file's Kotlin API to
+`dev.tinyactors.sxml`, over the host shim's full-module entry points.
+- **API** (defaults under D208):
+  - `compileQuery(query, namespaces, baseUri)` gives an `XQuery` with
+    `evaluate(context, variables, updates, messages)`, `serialize(value)`,
+    `run(...)` and `isUpdating`.
+  - `UpdateSink(updatedTree, putDocument)` is a class of two optional
+    functions, as Swift's struct (D248): "without a `putDocument`" is a
+    null argument. `UpdatedTree` and `PutDocument` are `AutoCloseable`;
+    `PutDocument.serialize()` uses method xml without parameters.
+  - `compileStylesheet(stylesheet, baseUri, staticParameters)` (a
+    `String` or a `ByteArray`) gives a `Stylesheet`. `transform(...)`
+    takes JavaScript's options as named arguments, `args` included, and
+    returns an `AutoCloseable` `TransformResult` (`output`, `value`,
+    `resultDocuments`). `InitialMode` is `Named(name)` or `Unnamed`.
+  - `ResultDelivery` carries `sxml_xslt_result_delivery`'s numbers;
+    `ValidationMode` and `Validity` are in the C enums' order.
+  - `compileSchema` takes a list of `SchemaDocument` (`Text(text or
+    bytes, uri)`, `Resolved(uri)`), one document, or a text.
+    `Schema.validate` has three overloads: a `Value` (no `uri`), a
+    `String` and a `ByteArray`. `ValidationResult` is `AutoCloseable`.
+  - **Deviation from Swift (D248):** `SchemaException` is a subclass of
+    `SxmlException`, as JavaScript's `SchemaError` is of `SxmlError`, so
+    `catch (error: SxmlException)` also catches a schema that does not
+    compile. Swift's `SchemaError` is a separate struct. 6.12 compares.
+  - Callbacks (messages, the sink) run after the call and outside the
+    processor's lock, with the failure read first, so they may use the
+    processor. A callback that throws leaves the values it was not given
+    to the cleaner or to the processor's close.
+- **Glue**: seven entry points (`queryCompile`, `queryEvaluate`,
+  `querySerialize`, `stylesheetCompile`, `transform`, `schemaCompile`,
+  `schemaValidate`), 17 in all, each `(JNIEnv *, jclass, jobject)`.
+  - Side results come back flat in `NativeSideResults` (per side result:
+    a kind, three texts, two value handles, three numbers), the field of
+    the base class `SideResultRequest`, so one field ID serves every
+    request. Kotlin adopts the values under the lock. With a JVM
+    exception pending, the glue releases them and the result in C.
+  - Bindings are `NativeBindings` (names in pairs, one handle each).
+    `CompileRequest` serves XPath and XQuery (a query writes
+    `isUpdating`); `QuerySerializeRequest` extends `SerializeRequest`.
+  - `HandleKind` gains `QUERY`, `STYLESHEET`, `SCHEMA`. One internal
+    `NativeHandle` holds a handle, its tracking and its cleaner
+    registration for all five object kinds.
+- **DUCET**: CMake copies `third_party/unicode-collation/allkeys.txt` to
+  `resources/dev/tinyactors/sxml/allkeys.txt` in the build tree (also
+  under Android, for 6.6). The test puts that directory on the class path
+  (`SXML_KOTLIN_RESOURCES`).
+- **Host shim** (6d2a997): `sxml_host_string` checks UTF-8 with
+  `sxml_string_from_utf8` (INVALID_UTF8) and refuses U+0000, U+FFFE and
+  U+FFFF (INVALID_ARGUMENT), the XML 1.1 Char rule that
+  `fn:codepoints-to-string` uses, as `sxml_host.h` says. It passed both
+  before (found by D247). All three bindings see the change. Test:
+  `host_shim` `string_refuses_characters_xml_does_not_allow`.
+- **Leaks under the sanitizers**: the debug preset's `ASAN_OPTIONS`
+  (`halt_on_error=1`) replaced the script's `detect_leaks=0`, so
+  LeakSanitizer failed `kotlin/jvm` on the JVM's own allocations at
+  exit. Replaces D247's `detect_leaks=0`: the script appends its options,
+  and LeakSanitizer stays on with `bindings/kotlin/lsan-jvm.supp`. That
+  file suppresses only the JVM's allocator, launcher and zlib frames, so a
+  leak of the glue, the shim or the library is still reported.
+- **Tests**: ctest `kotlin/jvm` (debug, ASan, `-Xcheck:jni`) passes 65
+  with 0 leaks (was 36). The run takes 77 s.
+  - `FullTest.kt` has the 25 cases of `full.test.ts` by name: 10 XQuery,
+    8 XSLT, 5 XSD, the processor-close case and the full
+    allocation-failure loop. The core-module refusal has no counterpart:
+    the library has every language.
+  - Binding cases: time zone and locale data through the resolver (from
+    `third_party/tzdata/zoneinfo` and `third_party/cldr/common`), the
+    bundled DUCET, never-closed queries, stylesheets and schemas
+    collected, and results, trees and documents closed by `use {}`.
+  - The task file's examples (Kotlin and Swift) now serialize by the
+    text method ("XPath 2027"). The JSON method raised SERE0023 on two
+    items.
+- **For 6.6**: run `allSuites` (`packageSuites`, `fullSuites`,
+  `bindingSuites`) from the instrumented test. Pack
+  `resources/dev/tinyactors/sxml/allkeys.txt` (or the vendored file) as
+  a Java resource of the AAR. The resource-data cases read
+  `third_party/` through `sxml.sourceDirectory`; on a device, skip them
+  or ship the files as test assets. Keep the request classes,
+  `NativeSideResults`, `NativeBindings` and their fields in the consumer
+  ProGuard rules: the glue looks them up by name.
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): the license (there is

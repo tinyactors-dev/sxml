@@ -126,7 +126,7 @@ processor.use {
     val expression = processor.compile("//title/string(), xs:integer(//year) + \$n", variables = listOf("n"))
     expression.evaluate(context = book, variables = mapOf("n" to 1)).use { result ->
         result.toString()                          // adaptive method: "\"XPath\"\n2.027e3"
-        result.serialize(mapOf("method" to "json"))
+        result.serialize(mapOf("method" to "text")) // "XPath 2027"
     }
 }
 ```
@@ -200,7 +200,7 @@ let book = try processor.parse("<book><title>XPath</title><year>2026</year></boo
 let expression = try processor.compile("//title/string(), xs:integer(//year) + $n", variables: ["n"])
 let result = try expression.evaluate(context: book, variables: ["n": 1])
 print(result)                                  // adaptive method, CustomStringConvertible
-try result.serialize(["method": "json"])
+try result.serialize(["method": "text"])         // "XPath 2027"
 ```
 
 - `Sxml.version`, `Sxml.features`.
@@ -382,6 +382,12 @@ Golden: `bindings/javascript/src/index.ts` for the shape and the host
 shim for the C.
 
 ### 6.5 Kotlin: XQuery, XSLT, XSD and resource data (implementation, here)
+**Done** 2026-10-20 (D250): `compileQuery`, `compileStylesheet`,
+`compileSchema` over the side results, seven JNI entry points, the DUCET
+class path resource, `bindings/kotlin/README.md`; `kotlin/jvm` 65 tests
+(25 of `full.test.ts`), 0 leaks with LeakSanitizer on; the host shim
+refuses U+0000. The examples above serialize by the text method (the
+JSON method raised SERE0023 on two items).
 After 6.4. Owns the Kotlin and glue files for `compileQuery`,
 `compileStylesheet` and `compileSchema`: side results, `UpdateSink`,
 `Message`, `TransformResult` and `ValidationResult`. It also adds the

@@ -4,6 +4,19 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 6.5 done (D250): the Kotlin full surface. `dev.tinyactors.sxml` gains
+  `compileQuery` (`XQuery`, `UpdateSink`, `UpdatedTree`, `PutDocument`,
+  `Message`), `compileStylesheet` (`Stylesheet.transform`, `InitialMode`,
+  `ResultDelivery`, `TransformResult`) and `compileSchema`
+  (`Schema.validate`, `ValidationResult`, `SchemaException`), over seven
+  new JNI entry points and the host shim's side results. The DUCET is a
+  class path resource copied by the build. The host shim refuses U+0000,
+  U+FFFE and U+FFFF and checks UTF-8 in `sxml_host_string`. ctest
+  `kotlin/jvm` (debug, ASan, -Xcheck:jni) passes 65 tests with 0 leaks
+  (was 36), with LeakSanitizer now on (JVM frames suppressed); 25 by the
+  names of `full.test.ts`. `bindings/kotlin/README.md` and the README's
+  Kotlin section. Next: 6.6 (the AAR).
+
 - 7.20 done (D249): a sweep of 7.11's open cases and the larger
   duplicates. XT40 11,945 to 11,951 passed (transform-009 and five
   result-document cases: the driver now checks assert-serialization
