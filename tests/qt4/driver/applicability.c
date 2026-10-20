@@ -186,6 +186,9 @@ static const sxml_byte_view sxml_qt4_schema_aware_features[] = {
 
 /* Supported only when the run targets XQuery. */
 static const sxml_qt4_supported_dependency sxml_qt4_xquery_dependencies[] = {
+    /* Library modules (XQuery 4.0, 5.12, the Module Feature; D148). */
+    {SXML_BYTE_VIEW_INITIALIZER("feature"),
+     SXML_BYTE_VIEW_INITIALIZER("moduleImport")},
     /* The XQuery Update Facility 3.0 (packet 7.7a, D187), with
        every revalidation mode (packet 7.7c, D205). */
     {SXML_BYTE_VIEW_INITIALIZER("feature"),
