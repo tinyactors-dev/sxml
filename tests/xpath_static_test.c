@@ -245,6 +245,7 @@ static const sxml_native_function test_rows[] = {
     ROW(FN, "subsequence", subsequence_parameters, "item()*", 0),
     ROW(FN, "QName", qname_parameters, "xs:QName", 0),
     ROW(FN, "function-name", function_parameters, "xs:QName?", 0),
+    ROW(FN, "function-arity", function_parameters, "xs:integer", 0),
     ROW(FN, "op", operator_parameters, "fn(item()*, item()*) as item()*", 0),
     ROW(FN, "jtree", jtree_parameters, "jnode()?", 0),
     ROW(MAP, "size", map_parameters, "xs:integer", 0),
@@ -902,12 +903,18 @@ static const golden_case golden_cases[] = {
      "  (static-call fn:concat#2 \"$\" $1))\n"},
     {"hof-920",
      "let $m := map { 'a': 1 } return $m(?) instance of map(*)",
-     "(function 1 main (parameters 0) (captures) (slots 4)\n"
+     "(function 1 main (parameters 0) (captures) (slots 7)\n"
      "  (let $1 (map-constructor (\"a\" 1))\n"
      "    (let $3 (map-constructor)\n"
-     "      (let $4 (map $1 (focus $2 _ _)\n"
-     "                (static-call fn:partial-apply#2 $2 $3))\n"
-     "        (instance-of $4 map(*))))))\n"},
+     "      (let $7 (map $1 (focus $2 _ _)\n"
+     "                (let $4 (coerce $2 function(*) function-argument)\n"
+     "                  (let $5 (static-call fn:function-arity#1 $4)\n"
+     "                    (let $6 (binary value-equal $5 1)\n"
+     "                      (conditional $6\n"
+     "                        (static-call fn:partial-apply#2 $2 $3)\n"
+     "                        (raise #err:XPTY0004 \"a dynamic partial application has "
+     "another number of arguments than the function item's arity (XPath 4.0, 4.6.4)\"))))))\n"
+     "        (instance-of $7 map(*))))))\n"},
     {"filter-001",
      "filter((\"apple\", \"pear\", \"apricot\", \"advocado\", \"orange\"),starts-with(?, \"a\"))",
      "(function 1 main (parameters 0) (captures) (slots 3)\n"

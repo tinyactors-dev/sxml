@@ -2907,6 +2907,20 @@ sxml_status sxml_evaluator_find_unit_function(sxml_dynamic_context *dynamic_cont
             function->captured_variables.atom_count != 0) {
             continue;
         }
+        /* A function whose focus is the three slots after its parameters
+           takes the caller's focus as captured values (slots are filled
+           with the captured values after the arguments). */
+        if (query.caller_focus != NULL &&
+            function->focus.context_value.value == function->parameter_count + 1U &&
+            function->focus.context_position.value == function->parameter_count + 2U &&
+            function->focus.context_size.value == function->parameter_count + 3U) {
+            return sxml_evaluator_make_function_definition(
+                dynamic_context,
+                &(sxml_function_definition_request){
+                    .function = function,
+                    .captured_values = {.sequences = query.caller_focus, .sequence_count = 3}},
+                item);
+        }
         const sxml_ir_function_reference reference = {
             .target = {.target_kind = SXML_IR_FUNCTION_TARGET_KIND_IR_FUNCTION,
                        .function = {.value = function_number}},

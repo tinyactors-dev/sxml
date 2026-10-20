@@ -7302,6 +7302,68 @@ static sxml_status finish_dynamic_call(sxml_xpath_lowering_machine *machine,
                                            .coerces_arguments = false},
                            &result);
     }
+    /* The arguments must be as many as the function item's arity, as for
+       a dynamic call without placeholders (XPath 4.0, 4.6.4: supplied
+       arguments are converted "using the rules for dynamic function
+       calls"; 4.6.2: XPTY0004 otherwise), which fn:partial-apply, taking
+       any positions, does not check. */
+    sxml_xpath_lowering_block body_block = {{0}, {0}};
+    const sxml_ir_atom function_atom = sxml_ir_slot_atom(function_slot);
+    sxml_ir_atom arity = {0};
+    if (status == SXML_STATUS_OK) {
+        status = bind_builtin_call(
+            state,
+            &(builtin_call_request){
+                .function = {.node = frame->node,
+                             .local_name = SXML_BYTE_VIEW_FROM_LITERAL("function-arity"),
+                             .arity = 1},
+                .block = &body_block,
+                .arguments = {.atoms = &function_atom, .atom_count = 1}},
+            &arity);
+    }
+    sxml_ir_atom argument_count = {0};
+    if (status == SXML_STATUS_OK) {
+        status = add_integer_atom(state, (int64_t)locals->argument_count, &argument_count);
+    }
+    sxml_ir_atom has_arity = {0};
+    if (status == SXML_STATUS_OK) {
+        status = bind_new_expression(
+            state,
+            (expression_in_block){
+                .block = &body_block,
+                .node = frame->node,
+                .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_BINARY,
+                               .binary = {.operator = SXML_IR_BINARY_OPERATOR_VALUE_EQUAL,
+                                          .left_operand = arity,
+                                          .right_operand = argument_count}}},
+            &has_arity);
+    }
+    sxml_ir_expression_index wrong_arity = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_add_raise(
+            state,
+            (sxml_xpath_lowering_raise_request){
+                .node = frame->node,
+                .error_status = SXML_STATUS_TYPE_ERROR,
+                .code_local_name = SXML_BYTE_VIEW_FROM_LITERAL("XPTY0004"),
+                .description = SXML_BYTE_VIEW_FROM_LITERAL(
+                    "a dynamic partial application has another number of arguments than "
+                    "the function item's arity (XPath 4.0, 4.6.4)")},
+            &wrong_arity);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = add_conditional(state,
+                                 (conditional_request){.node = frame->node,
+                                                       .condition = has_arity,
+                                                       .then_branch = result,
+                                                       .else_branch = wrong_arity},
+                                 &result);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_finish_block(
+            state, (sxml_xpath_lowering_block_result){.block = body_block, .result = result},
+            &result);
+    }
     if (status == SXML_STATUS_OK) {
         const sxml_ir_expression_index body = result;
         status = sxml_xpath_lowerer_add_expression(

@@ -874,13 +874,21 @@ SXML_NODISCARD sxml_status sxml_evaluator_make_function_reference(
 typedef struct sxml_unit_function_query {
     sxml_name_identifier function_name;
     size_t arity;
+    /* The caller's focus (context value, position, size; borrowed), which
+       a function that takes it captures (an XQuery declared function's
+       shorter arity, whose focus slots follow its parameters); NULL when
+       the caller has none, and the function then reads an absent focus
+       (XPDY0002). */
+    const sxml_sequence *caller_focus;
 } sxml_unit_function_query;
 
 /* fn:function-lookup's search of the unit of the task that calls it (F&O
    4.0, 13.1.1: the "named function definitions" of the dynamic context):
    a top-level IR function of the name and arity, such as an XQuery
    declared function or an XSLT stylesheet function, made a function item
-   as a named function reference makes it, in *item; item->representation
+   as a named function reference makes it (capturing query.caller_focus
+   when the function's focus is the three slots after its parameters,
+   XQuery 4.0, 5.18.3; F&O 4.0, 13.1.1, PR 2941), in *item; item->representation
    stays 0 when there is none. Returns the heap's failures. */
 SXML_NODISCARD sxml_status sxml_evaluator_find_unit_function(
     sxml_dynamic_context *dynamic_context, sxml_unit_function_query query, sxml_item *item);

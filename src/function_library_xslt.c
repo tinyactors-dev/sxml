@@ -427,7 +427,9 @@ static sxml_status call_function_available(const sxml_function_call *call, sxml_
         if (!is_available) {
             status = sxml_evaluator_find_unit_function(
                 call->dynamic_context,
-                (sxml_unit_function_query){.function_name = name, .arity = arity}, &found);
+                (sxml_unit_function_query){
+                    .function_name = name, .arity = arity, .caller_focus = NULL},
+                &found);
         }
         if (status != SXML_STATUS_OK) {
             return status;

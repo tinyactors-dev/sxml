@@ -2944,12 +2944,19 @@ static sxml_status call_function_lookup(const sxml_function_call *call,
     }
     const sxml_function_query query = {
         .function_name = name.datum_details.qname.expanded_name, .arity = (size_t)arity};
+    /* The caller's focus, when a static call passed it. */
+    caller_focus focus = {.has_focus = call->arguments.sequence_count == 5};
+    for (size_t part_index = 0; focus.has_focus && part_index < 3; part_index += 1) {
+        focus.parts[part_index] = call_argument(call, 2 + part_index);
+    }
     /* The calling unit's own functions first: XQuery's declared
        functions, XSLT's stylesheet functions. */
     sxml_item found = {.representation = 0};
     status = sxml_evaluator_find_unit_function(
         call->dynamic_context,
-        (sxml_unit_function_query){.function_name = query.function_name, .arity = query.arity},
+        (sxml_unit_function_query){.function_name = query.function_name,
+                                   .arity = query.arity,
+                                   .caller_focus = focus.has_focus ? focus.parts : NULL},
         &found);
     if (status != SXML_STATUS_OK || found.representation != 0) {
         if (status == SXML_STATUS_OK) {
@@ -2980,11 +2987,6 @@ static sxml_status call_function_lookup(const sxml_function_call *call,
         return SXML_STATUS_OK;
     case SXML_FUNCTION_ENTRY_KIND_NATIVE:
     case SXML_FUNCTION_ENTRY_KIND_CONSTRUCTOR: {
-        /* The caller's focus, when a static call passed it. */
-        caller_focus focus = {.has_focus = call->arguments.sequence_count == 5};
-        for (size_t part_index = 0; focus.has_focus && part_index < 3; part_index += 1) {
-            focus.parts[part_index] = call_argument(call, 2 + part_index);
-        }
         return make_entry_function(
             call, (found_function){.query = &query, .entry = &entry, .focus = &focus}, result);
     }

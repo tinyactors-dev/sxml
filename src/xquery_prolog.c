@@ -320,9 +320,13 @@ static sxml_status lower_body(module_lowering *module, const body_request *reque
 /* The IR function of a shorter arity (5.18.3): the defaults of the
    parameters from arity on, each coerced to its parameter's type, and a
    call of the full arity. Defaults see no parameters; a declared
-   function's are calls of its default functions with this function's
-   absent focus (a static call or a reference that needs the focus calls
-   them itself, with its own), a record constructor's are lowered here. */
+   function's are calls of its default functions, a record constructor's
+   are lowered here. The function's focus is the three slots after its
+   parameters, which fn:function-lookup fills with its caller's focus
+   (F&O 4.0, 13.1.1, PR 2941; sxml_evaluator_find_unit_function); a
+   function item made otherwise leaves them absent, so a default that
+   reads the focus raises XPDY0002 (a static call or a reference that
+   needs the focus calls the defaults itself, with its own). */
 typedef struct default_request {
     const sxml_xquery_declared_function *function;
     uint32_t arity;
@@ -346,13 +350,16 @@ static sxml_status lower_defaults(module_lowering *module, default_request reque
     if (status != SXML_STATUS_OK) {
         return status;
     }
+    const sxml_ir_focus caller_focus = {.context_value = {.value = request.arity + 1U},
+                                        .context_position = {.value = request.arity + 2U},
+                                        .context_size = {.value = request.arity + 3U}};
     sxml_xpath_lowering_function_frame frame = {
         .function = {.function_index = index,
                      .function_level = 0,
-                     .slot_count = request.arity,
+                     .slot_count = request.arity + 3U,
                      .captures = NULL,
                      .capture_count = 0},
-        .focus = {.kind = SXML_XPATH_LOWERING_FOCUS_KIND_ABSENT},
+        .focus = {.kind = SXML_XPATH_LOWERING_FOCUS_KIND_SLOTS, .slots = caller_focus},
     };
     sxml_xpath_lowerer_enter_function(state, &frame);
     sxml_xpath_lowering_block block = {0};
@@ -371,8 +378,7 @@ static sxml_status lower_defaults(module_lowering *module, default_request reque
         const sxml_function_parameter *declared =
             &module->context->function_parameters[function->first_parameter + parameter_number - 1];
         if (declared->parameter_default == SXML_PARAMETER_DEFAULT_EXPRESSION) {
-            /* The default function, with this function's absent focus: a
-               function item of the shorter arity made without one. */
+            /* The default function, with this function's focus. */
             status = sxml_xpath_lowerer_call_default_function(
                 state,
                 (sxml_xpath_lowering_default_call){
@@ -442,6 +448,7 @@ static sxml_status lower_defaults(module_lowering *module, default_request reque
         .index = index, .function = *sxml_ir_unit_get_function(module->unit, index)};
     replacement.function.body = body;
     replacement.function.slot_count = frame.function.slot_count;
+    replacement.function.focus = caller_focus;
     return sxml_ir_unit_replace_function(module->unit, &replacement);
 }
 
