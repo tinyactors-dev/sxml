@@ -1846,6 +1846,14 @@ static void import_item_types(const static_reader *reader, sxml_xquery_static_co
             }
         }
     }
+    /* Those of imported modules not read yet, from the set's item type
+       round (an import cycle, D287). */
+    const sxml_xpath_named_item_type_view seeded = reader->request->seeded_item_types;
+    for (size_t type_index = 0; type_index < seeded.named_item_type_count; type_index += 1) {
+        context->named_item_types[context->named_item_type_count] =
+            seeded.named_item_types[type_index];
+        context->named_item_type_count += 1;
+    }
     context->imported_item_type_count = context->named_item_type_count;
     context->xpath.named_item_types = (sxml_xpath_named_item_type_view){
         .named_item_types = context->named_item_types,
@@ -1954,6 +1962,7 @@ static sxml_status read_item_types(const static_reader *reader, const prolog_sur
             public_item_types_of(imports.static_contexts[import_index]);
         imported_count += types.end - types.first;
     }
+    imported_count += reader->request->seeded_item_types.named_item_type_count;
     const size_t declaration_count = survey->item_type_declaration_count;
     if (declaration_count + imported_count == 0) {
         return SXML_STATUS_OK;
@@ -2058,6 +2067,10 @@ static sxml_status read_item_types(const static_reader *reader, const prolog_sur
             }
         }
         pending_count = kept_count;
+    }
+    if (reader->request->reads_item_types_only) {
+        /* The set's round: those left wait for the next one (D287). */
+        pending_count = 0;
     }
     if (status == SXML_STATUS_OK && pending_count > 0) {
         status = check_type_cycle(reader, (pending_types){.declarations = pending,
@@ -3453,6 +3466,18 @@ sxml_status sxml_xquery_read_static_context(const sxml_xquery_static_request *re
     sxml_status status = survey_prolog(&reader, &survey);
     if (status == SXML_STATUS_OK) {
         status = read_namespaces(&reader, &survey, &built);
+    }
+    if (status == SXML_STATUS_OK && request->reads_item_types_only) {
+        /* The module set's item type round (glossary `item_type_round`,
+           D287): no schema imports or records, so a type that needs one
+           waits for the module's own reading. */
+        status = read_item_types(&reader, &survey, &built);
+        if (status != SXML_STATUS_OK) {
+            sxml_xquery_release_static_context(&built);
+            return status;
+        }
+        *context = built;
+        return SXML_STATUS_OK;
     }
     if (status == SXML_STATUS_OK) {
         status = read_base_uri_and_collation(&reader, &survey, &built);

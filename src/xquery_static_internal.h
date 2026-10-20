@@ -160,6 +160,15 @@ typedef struct sxml_xquery_static_request {
        read already or not yet (an import cycle): the public item types of
        those read are in scope. Borrowed for the context's life. */
     sxml_xquery_static_context_view imported_modules;
+    /* The public named item types of imported modules not read yet (an
+       import cycle), as the module set's item type round found them
+       (glossary `item_type_round`, D287): in scope as imported ones.
+       Borrowed for the call. */
+    sxml_xpath_named_item_type_view seeded_item_types;
+    /* For that round: read only the namespaces and the named item types,
+       keeping those that resolve and dropping the others without an
+       error; nothing is added to unit. */
+    bool reads_item_types_only;
 } sxml_xquery_static_request;
 
 /*

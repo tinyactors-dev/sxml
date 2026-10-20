@@ -131,6 +131,11 @@ typedef struct sxml_function_parameter {
        the caller passes the string value of the context value, so an
        explicit argument is atomized and the default is not (D263). */
     bool defaults_to_string_value;
+    /* For SXML_PARAMETER_DEFAULT_CONTEXT_VALUE: a call where the focus is
+       absent passes the empty sequence instead of raising (the caller
+       then reads "the context node, if any"; XSLT 4.0, fn:map-for-key's
+       $top; D287). */
+    bool is_empty_without_focus;
 } sxml_function_parameter;
 
 typedef struct sxml_function_parameter_view {

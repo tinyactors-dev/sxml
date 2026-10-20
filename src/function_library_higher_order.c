@@ -3140,8 +3140,28 @@ static sxml_status call_function_lookup(const sxml_function_call *call,
         return SXML_STATUS_OK;
     case SXML_FUNCTION_ENTRY_KIND_NATIVE:
     case SXML_FUNCTION_ENTRY_KIND_CONSTRUCTOR: {
-        return make_entry_function(
+        status = make_entry_function(
             call, (found_function){.query = &query, .entry = &entry, .focus = &focus}, result);
+        if (status != SXML_STATUS_OK || entry.entry_kind != SXML_FUNCTION_ENTRY_KIND_NATIVE ||
+            (entry.native_function->properties & SXML_NATIVE_FUNCTION_USES_DYNAMIC_CONTEXT) ==
+                0) {
+            return status;
+        }
+        /* A context-dependent function keeps the static context (and, when
+           it takes it, the focus) of the fn:function-lookup call (F&O 4.0,
+           13.1.1): its run-time closure at the place of this call
+           (glossary `run_time_closure`, D287). */
+        sxml_item closure = {.representation = 0};
+        status = sxml_evaluator_make_run_time_closure(
+            call->dynamic_context,
+            &(sxml_run_time_closure_request){.function_item = result->content,
+                                             .caller_focus =
+                                                 focus.has_focus ? focus.parts : NULL},
+            &closure);
+        sxml_sequence_release(*result);
+        *result = status == SXML_STATUS_OK ? sxml_sequence_from_item(closure)
+                                           : sxml_sequence_empty();
+        return status;
     }
     case SXML_FUNCTION_ENTRY_KIND_IR_FUNCTION:
         /* Declared functions arrive with XQuery (Phase 3). */

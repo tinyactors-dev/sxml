@@ -1474,6 +1474,161 @@ static sxml_status lower_library_modules(module_lowering *module,
 
 /* Lowers everything into module->unit, whose function 1 is the main
    function (see the file comment). */
+/* --------------------------------------------------- Fixed defaults */
+
+/*
+ * A default value that reads no part of the focus is computed once
+ * (XQuery 4.0, 5.18.3: the default is "evaluated in the same way as the
+ * initializing expression of a variable declaration", but with the
+ * caller's focus; PR 2941, function-decl-40-060): its default function
+ * (glossary `default_function`) becomes the initializer, through a
+ * function of arity 0 that calls it with three empty sequences, of a
+ * hidden global (glossary `default_global`) named Q{urn:sxml:default}N,
+ * N the default function's number, and every call of the default
+ * function is replaced by a read of that global, computed on first read
+ * (D234). D287.
+ */
+typedef struct default_global {
+    sxml_ir_function_index default_function;
+    uint32_t global_number;
+} default_global;
+
+static sxml_status add_default_global(module_lowering *module, default_global *global) {
+    sxml_ir_unit *unit = module->unit;
+    const sxml_ir_function *defaults = sxml_ir_unit_get_function(unit, global->default_function);
+    const sxml_ir_function *main_function =
+        sxml_ir_unit_get_function(unit, (sxml_ir_function_index){.value = 1});
+    sxml_ir_constant_index empty = {0};
+    sxml_status status = sxml_ir_unit_add_constant(unit, sxml_sequence_empty(), &empty);
+    const sxml_ir_atom empty_atom = {.atom_kind = SXML_IR_ATOM_KIND_CONSTANT, .constant = empty};
+    const sxml_ir_atom atoms[3] = {empty_atom, empty_atom, empty_atom};
+    sxml_ir_atom_list arguments = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_ir_unit_add_atoms(unit, (sxml_ir_atom_view){.atoms = atoms, .atom_count = 3},
+                                        &arguments);
+    }
+    sxml_ir_expression_index call = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_ir_unit_add_expression(
+            unit,
+            &(sxml_ir_expression){
+                .expression_kind = SXML_IR_EXPRESSION_KIND_STATIC_CALL,
+                .static_call = {.target = {.target_kind = SXML_IR_FUNCTION_TARGET_KIND_IR_FUNCTION,
+                                           .function = global->default_function},
+                                .arguments = arguments}},
+            &call);
+    }
+    sxml_ir_function_index initializer = {0};
+    if (status == SXML_STATUS_OK) {
+        /* Of the main function's signature: no parameters, item()*. */
+        status = sxml_ir_unit_add_function(
+            unit,
+            &(sxml_ir_function){.signature = main_function->signature,
+                                .body = call,
+                                .source_span = defaults->source_span,
+                                .module_number = defaults->module_number},
+            &initializer);
+    }
+    char local_name[24];
+    size_t length = 0;
+    char digits[16];
+    size_t digit_count = 0;
+    for (uint32_t number = global->default_function.value; digit_count == 0 || number != 0;
+         number /= 10U) {
+        digits[digit_count] = (char)('0' + (number % 10U));
+        digit_count += 1;
+    }
+    local_name[length] = 'd';
+    length += 1;
+    while (digit_count > 0) {
+        digit_count -= 1;
+        local_name[length] = digits[digit_count];
+        length += 1;
+    }
+    sxml_namespace_uri_identifier namespace_uri = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_name_pool_intern_namespace_uri(
+            module->lowerer->name_pool, SXML_BYTE_VIEW_FROM_LITERAL("urn:sxml:default"),
+            &namespace_uri);
+    }
+    sxml_name_identifier name = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_name_pool_intern_name(
+            module->lowerer->name_pool,
+            &(sxml_name_request){
+                .namespace_uri = namespace_uri,
+                .local_name = {.bytes = (const uint8_t *)local_name, .byte_count = length}},
+            &name);
+    }
+    sxml_ir_global_index index = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_ir_unit_add_global_variable(
+            unit,
+            &(sxml_ir_global_variable){
+                .variable_name = name,
+                .declared_type = {.item_type = sxml_builtin_type_identifier(SXML_TYPE_ITEM),
+                                  .occurrence = SXML_OCCURRENCE_ZERO_OR_MORE},
+                .initializer = initializer,
+                .is_external = false},
+            &index);
+    }
+    global->global_number = index.value;
+    return status;
+}
+
+/* Replaces each call of a focus-free default function of the module set
+   (every one but the initializers' own) by a read of its global. */
+static sxml_status share_fixed_defaults(module_lowering *module) {
+    sxml_ir_unit *unit = module->unit;
+    sxml_status status = SXML_STATUS_OK;
+    const uint32_t expression_count = unit->expression_count;
+    for (size_t module_index = 0; module_index < module->set->module_count; module_index += 1) {
+        const sxml_xquery_static_context *context = &module->contexts[module_index];
+        for (size_t function_index = 0;
+             status == SXML_STATUS_OK && function_index < context->declared_function_count;
+             function_index += 1) {
+            const sxml_xquery_declared_function *declared = &context->declared_functions[function_index];
+            for (uint32_t parameter_index = 0;
+                 status == SXML_STATUS_OK && parameter_index < declared->parameter_count;
+                 parameter_index += 1) {
+                const uint32_t number =
+                    context->function_parameters[declared->first_parameter + parameter_index]
+                        .default_function_number;
+                if (number == 0) {
+                    continue;
+                }
+                const sxml_ir_function *defaults =
+                    sxml_ir_unit_get_function(unit, (sxml_ir_function_index){.value = number});
+                if (defaults->body.value == 0 || defaults->focus.context_value.value != 0 ||
+                    defaults->focus.context_position.value != 0 ||
+                    defaults->focus.context_size.value != 0) {
+                    continue;
+                }
+                default_global global = {.default_function = {.value = number}};
+                status = add_default_global(module, &global);
+                for (uint32_t expression_index = 1;
+                     status == SXML_STATUS_OK && expression_index < expression_count;
+                     expression_index += 1) {
+                    const sxml_ir_expression *expression = sxml_ir_unit_get_expression(
+                        unit, (sxml_ir_expression_index){.value = expression_index});
+                    if (expression->expression_kind != SXML_IR_EXPRESSION_KIND_STATIC_CALL ||
+                        expression->static_call.target.target_kind !=
+                            SXML_IR_FUNCTION_TARGET_KIND_IR_FUNCTION ||
+                        expression->static_call.target.function.value != number) {
+                        continue;
+                    }
+                    status = sxml_ir_unit_replace_expression(
+                        unit, &(sxml_ir_expression_replacement){
+                                  .index = {.value = expression_index},
+                                  .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_ATOM,
+                                                 .atom = global_atom(global.global_number)}});
+                }
+            }
+        }
+    }
+    return status;
+}
+
 /* ------------------------------------------------ Type constructors */
 
 /*
@@ -1608,6 +1763,9 @@ static sxml_status lower_module(module_lowering *module,
     }
     if (status == SXML_STATUS_OK) {
         status = add_globals(module);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = share_fixed_defaults(module);
     }
     if (status == SXML_STATUS_OK) {
         status = add_type_constructors(module);
@@ -1774,6 +1932,263 @@ typedef struct context_reading {
     sxml_ir_unit *unit;
 } context_reading;
 
+/* The host static context module_index of the set starts from: the
+   host's for the main module; for a library module XQuery's default (no
+   host namespaces, variables or named item types; its module URI as
+   static base URI). */
+typedef struct module_of_set {
+    const sxml_xpath_static_context *host;
+    const sxml_xquery_module_set *set;
+    size_t module_index;
+} module_of_set;
+
+static void module_host_of(module_of_set module, sxml_xpath_static_context *module_host) {
+    const sxml_xquery_module_set *set = module.set;
+    const size_t module_index = module.module_index;
+    *module_host = *module.host;
+    if (module_index == 0) {
+        return;
+    }
+    module_host->namespace_bindings =
+        (sxml_namespace_binding_view){.namespace_bindings = NULL, .namespace_binding_count = 0};
+    module_host->variable_declarations = (sxml_variable_declaration_view){
+        .variable_declarations = NULL, .variable_declaration_count = 0};
+    module_host->global_numbers = NULL;
+    module_host->static_base_uri = set->modules[module_index].module_uri;
+    module_host->named_item_types =
+        (sxml_xpath_named_item_type_view){.named_item_types = NULL, .named_item_type_count = 0};
+}
+
+/*
+ * The item type round (glossary `item_type_round`, D287): with an import
+ * cycle, a module read before one it imports could not see that one's
+ * named item types (XQuery 4.0, 5.12.4 resolves cycles; 5.19; qt4 issue
+ * 1520, modules-43). The round reads only every module's namespaces and
+ * named item types, again and again, each time with the public types the
+ * last time found in the modules it imports, until no more are found;
+ * a module's own reading then has those of its imports not read yet.
+ */
+typedef struct item_type_round {
+    /* Per module: the public named item types it declares, found so
+       far; allocated with the host's allocator. */
+    sxml_xpath_named_item_type **found;
+    size_t *found_counts;
+} item_type_round;
+
+static void release_item_type_round(const sxml_xpath_static_context *host,
+                                    const sxml_xquery_module_set *set, item_type_round *round) {
+    for (size_t module_index = 0; round->found != NULL && module_index < set->module_count;
+         module_index += 1) {
+        if (round->found[module_index] != NULL) {
+            sxml_allocator_release(host->allocator, round->found[module_index]);
+        }
+    }
+    if (round->found != NULL) {
+        sxml_allocator_release(host->allocator, (void *)round->found);
+    }
+    if (round->found_counts != NULL) {
+        sxml_allocator_release(host->allocator, round->found_counts);
+    }
+    *round = (item_type_round){.found = NULL, .found_counts = NULL};
+}
+
+/* Whether some module imports one read after it. */
+static bool has_import_cycle(const sxml_xquery_module_set *set) {
+    for (size_t order_index = 0; order_index < set->module_count; order_index += 1) {
+        const sxml_xquery_module *module = &set->modules[set->reading_order[order_index]];
+        for (size_t import_index = 0; import_index < module->imported_module_count;
+             import_index += 1) {
+            const size_t imported = set->imported_modules[module->first_imported_module + import_index];
+            for (size_t later_index = order_index; later_index < set->module_count;
+                 later_index += 1) {
+                if (set->reading_order[later_index] == imported) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+/* The seeds of a module: the found types of its imports that is_read
+   says are not read yet (all of them when is_read is NULL), in a new
+   array (none when there are none). */
+typedef struct seed_request {
+    const sxml_xquery_module_set *set;
+    const item_type_round *round;
+    size_t module_index;
+    const bool *is_read;
+} seed_request;
+
+/* Whether the seeds of request take the found types of imported. */
+static bool takes_seeds_of(seed_request request, size_t imported) {
+    return request.is_read == NULL || !request.is_read[imported];
+}
+
+static sxml_status collect_seeds(const sxml_xpath_static_context *host, seed_request request,
+                                 sxml_xpath_named_item_type_view *seeds) {
+    const sxml_xquery_module *module = &request.set->modules[request.module_index];
+    const size_t *imports = &request.set->imported_modules[module->first_imported_module];
+    size_t seed_count = 0;
+    for (size_t import_index = 0; import_index < module->imported_module_count;
+         import_index += 1) {
+        if (takes_seeds_of(request, imports[import_index])) {
+            seed_count += request.round->found_counts[imports[import_index]];
+        }
+    }
+    *seeds = (sxml_xpath_named_item_type_view){.named_item_types = NULL, .named_item_type_count = 0};
+    if (seed_count == 0) {
+        return SXML_STATUS_OK;
+    }
+    void *memory = NULL;
+    const sxml_status status = allocate_context_array(
+        host,
+        (context_array){.element_count = seed_count,
+                        .element_size = sizeof(sxml_xpath_named_item_type),
+                        .element_alignment = alignof(sxml_xpath_named_item_type)},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_xpath_named_item_type *types = memory;
+    size_t kept = 0;
+    for (size_t import_index = 0; import_index < module->imported_module_count;
+         import_index += 1) {
+        const size_t imported = imports[import_index];
+        for (size_t type_index = 0;
+             takes_seeds_of(request, imported) && type_index < request.round->found_counts[imported];
+             type_index += 1) {
+            types[kept] = request.round->found[imported][type_index];
+            kept += 1;
+        }
+    }
+    *seeds = (sxml_xpath_named_item_type_view){.named_item_types = types,
+                                               .named_item_type_count = seed_count};
+    return SXML_STATUS_OK;
+}
+
+static void release_seeds(const sxml_xpath_static_context *host,
+                          sxml_xpath_named_item_type_view *seeds) {
+    if (seeds->named_item_types != NULL) {
+        sxml_allocator_release(host->allocator, (void *)seeds->named_item_types);
+    }
+    *seeds = (sxml_xpath_named_item_type_view){.named_item_types = NULL, .named_item_type_count = 0};
+}
+
+/* One module's turn of the round: reads its item types with the seeds of
+   all its imports and keeps the public ones it found; *found_more is set
+   when it found more than before. A static error leaves the module as it
+   was: its own reading reports it. */
+typedef struct round_turn {
+    const context_reading *reading;
+    item_type_round *round;
+    size_t module_index;
+} round_turn;
+
+static sxml_status take_round_turn(round_turn turn, bool *found_more) {
+    const sxml_xpath_static_context *host = turn.reading->request->static_context;
+    const sxml_xquery_module_set *set = turn.reading->set;
+    sxml_xpath_named_item_type_view seeds = {.named_item_types = NULL, .named_item_type_count = 0};
+    sxml_status status = collect_seeds(
+        host,
+        (seed_request){.set = set, .round = turn.round, .module_index = turn.module_index,
+                       .is_read = NULL},
+        &seeds);
+    sxml_xpath_static_context module_host;
+    module_host_of((module_of_set){.host = host, .set = set, .module_index = turn.module_index},
+                   &module_host);
+    const sxml_xquery_module *module = &set->modules[turn.module_index];
+    sxml_xquery_static_context read = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xquery_read_static_context(
+            &(sxml_xquery_static_request){
+                .ast = module->ast,
+                .host_static_context = &module_host,
+                .unit = turn.reading->unit,
+                .error_record = NULL,
+                .target_namespace = module->target_namespace,
+                .global_number_base = 0,
+                .imported_modules = {.static_contexts = NULL, .static_context_count = 0},
+                .seeded_item_types = seeds,
+                .reads_item_types_only = true},
+            &read);
+        if (status == SXML_STATUS_STATIC_ERROR) {
+            release_seeds(host, &seeds);
+            return SXML_STATUS_OK;
+        }
+    }
+    size_t public_count = 0;
+    for (size_t type_index = read.imported_item_type_count;
+         status == SXML_STATUS_OK && type_index < read.named_item_type_count; type_index += 1) {
+        public_count += read.private_item_types[type_index] ? 0U : 1U;
+    }
+    void *memory = NULL;
+    if (status == SXML_STATUS_OK && public_count > turn.round->found_counts[turn.module_index]) {
+        status = allocate_context_array(
+            host,
+            (context_array){.element_count = public_count,
+                            .element_size = sizeof(sxml_xpath_named_item_type),
+                            .element_alignment = alignof(sxml_xpath_named_item_type)},
+            &memory);
+        if (status == SXML_STATUS_OK) {
+            sxml_xpath_named_item_type *types = memory;
+            size_t kept = 0;
+            for (size_t type_index = read.imported_item_type_count;
+                 type_index < read.named_item_type_count; type_index += 1) {
+                if (!read.private_item_types[type_index]) {
+                    types[kept] = read.named_item_types[type_index];
+                    kept += 1;
+                }
+            }
+            if (turn.round->found[turn.module_index] != NULL) {
+                sxml_allocator_release(host->allocator, turn.round->found[turn.module_index]);
+            }
+            turn.round->found[turn.module_index] = types;
+            turn.round->found_counts[turn.module_index] = public_count;
+            *found_more = true;
+        }
+    }
+    if (read.ast != NULL) {
+        sxml_xquery_release_static_context(&read);
+    }
+    release_seeds(host, &seeds);
+    return status;
+}
+
+static sxml_status run_item_type_round(const context_reading *reading, item_type_round *round) {
+    const sxml_xpath_static_context *host = reading->request->static_context;
+    const sxml_xquery_module_set *set = reading->set;
+    sxml_status status = allocate_context_array(
+        host,
+        (context_array){.element_count = set->module_count,
+                        .element_size = sizeof(sxml_xpath_named_item_type *),
+                        .element_alignment = alignof(sxml_xpath_named_item_type *)},
+        (void **)&round->found);
+    if (status == SXML_STATUS_OK) {
+        status = allocate_context_array(
+            host,
+            (context_array){.element_count = set->module_count,
+                            .element_size = sizeof(size_t),
+                            .element_alignment = alignof(size_t)},
+            (void **)&round->found_counts);
+    }
+    /* Each pass finds at least one more type or ends: bounded by their
+       number. */
+    bool found_more = true;
+    while (status == SXML_STATUS_OK && found_more) {
+        found_more = false;
+        for (size_t order_index = 0; status == SXML_STATUS_OK && order_index < set->module_count;
+             order_index += 1) {
+            status = take_round_turn(
+                (round_turn){.reading = reading,
+                             .round = round,
+                             .module_index = set->reading_order[order_index]},
+                &found_more);
+        }
+    }
+    return status;
+}
+
 /*
  * Reads every module's static context in the reading order, numbering
  * the prolog variables after the host's in that order, then links each
@@ -1821,25 +2236,30 @@ static sxml_status read_module_contexts(const context_reading *reading,
     for (size_t import_index = 0; import_index < set->imported_module_count; import_index += 1) {
         contexts->imports[import_index] = &contexts->contexts[set->imported_modules[import_index]];
     }
+    item_type_round round = {.found = NULL, .found_counts = NULL};
+    if (has_import_cycle(set)) {
+        status = run_item_type_round(reading, &round);
+    }
     uint32_t global_number_base = (uint32_t)host->variable_declarations.variable_declaration_count;
     for (size_t order_index = 0; status == SXML_STATUS_OK && order_index < set->module_count;
          order_index += 1) {
         const size_t module_index = set->reading_order[order_index];
         const sxml_xquery_module *module = &set->modules[module_index];
         sxml_xpath_static_context *module_host = &contexts->hosts[module_index];
-        *module_host = *host;
-        if (module_index != 0) {
-            module_host->namespace_bindings =
-                (sxml_namespace_binding_view){.namespace_bindings = NULL,
-                                              .namespace_binding_count = 0};
-            module_host->variable_declarations =
-                (sxml_variable_declaration_view){.variable_declarations = NULL,
-                                                 .variable_declaration_count = 0};
-            module_host->global_numbers = NULL;
-            module_host->static_base_uri = module->module_uri;
-            module_host->named_item_types =
-                (sxml_xpath_named_item_type_view){.named_item_types = NULL,
-                                                  .named_item_type_count = 0};
+        module_host_of((module_of_set){.host = host, .set = set, .module_index = module_index},
+                       module_host);
+        sxml_xpath_named_item_type_view seeds = {.named_item_types = NULL,
+                                                 .named_item_type_count = 0};
+        if (round.found != NULL) {
+            status = collect_seeds(host,
+                                   (seed_request){.set = set,
+                                                  .round = &round,
+                                                  .module_index = module_index,
+                                                  .is_read = contexts->is_read},
+                                   &seeds);
+        }
+        if (status != SXML_STATUS_OK) {
+            break;
         }
         status = sxml_xquery_read_static_context(
             &(sxml_xquery_static_request){
@@ -1851,8 +2271,11 @@ static sxml_status read_module_contexts(const context_reading *reading,
                 .global_number_base = global_number_base,
                 .imported_modules = {.static_contexts =
                                          &contexts->imports[module->first_imported_module],
-                                     .static_context_count = module->imported_module_count}},
+                                     .static_context_count = module->imported_module_count},
+                .seeded_item_types = seeds,
+                .reads_item_types_only = false},
             &contexts->contexts[module_index]);
+        release_seeds(host, &seeds);
         if (status == SXML_STATUS_OK) {
             contexts->is_read[module_index] = true;
             global_number_base += (uint32_t)contexts->contexts[module_index].prolog_variable_count;
@@ -1868,6 +2291,7 @@ static sxml_status read_module_contexts(const context_reading *reading,
                 .error_record = reading->request->error_record},
             &contexts->contexts[module_index]);
     }
+    release_item_type_round(host, set, &round);
     return status;
 }
 

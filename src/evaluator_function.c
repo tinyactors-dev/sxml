@@ -22,6 +22,7 @@
 #include "cast_internal.h"
 #include "evaluator_internal.h"
 #include "evaluator_machine_internal.h"
+#include "function_library_core_internal.h"
 #include "operator_internal.h"
 #include "xdm_internal.h"
 
@@ -3034,6 +3035,52 @@ const sxml_function_body_operations sxml_native_function_body_operations = {
     .retain = NULL,
     .release = NULL,
 };
+
+/* Run-time closures keep the unit of their place alive (D287). */
+const sxml_function_body_operations sxml_evaluator_run_time_closure_body_operations = {
+    .call = sxml_machine_body_call,
+    .retain = sxml_ir_body_retain,
+    .release = sxml_ir_body_release,
+};
+
+/* sxml:run-time-closure($function), with the caller's focus after it when
+   the static call passes one (glossary `run_time_closure`, D287). */
+static sxml_status sxml_run_time_closure_call(const sxml_function_call *call,
+                                              sxml_sequence *result) {
+    if (call->dynamic_context == NULL ||
+        (call->arguments.sequence_count != 1 && call->arguments.sequence_count != 4) ||
+        sxml_sequence_get_representation(call->arguments.sequences[0]) !=
+            SXML_SEQUENCE_REPRESENTATION_SINGLE_ITEM) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    sxml_item item = {.representation = 0};
+    const sxml_status status = sxml_evaluator_make_run_time_closure(
+        call->dynamic_context,
+        &(sxml_run_time_closure_request){
+            .function_item = call->arguments.sequences[0].content,
+            .caller_focus =
+                call->arguments.sequence_count == 4 ? &call->arguments.sequences[1] : NULL},
+        &item);
+    if (status == SXML_STATUS_OK) {
+        *result = sxml_sequence_from_item(item);
+    }
+    return status;
+}
+
+static const sxml_function_parameter sxml_run_time_closure_parameters[] = {
+    SXML_REQUIRED_PARAMETER("function", "fn(*)"),
+};
+
+const sxml_native_function sxml_evaluator_run_time_closure_function = {
+    .function_namespace = SXML_NAMESPACE_NONE,
+    /* Its value depends on its place and focus: never moved or shared. */
+    .properties = (uint32_t)SXML_NATIVE_FUNCTION_USES_DYNAMIC_CONTEXT |
+                  (uint32_t)SXML_NATIVE_FUNCTION_TAKES_CALLER_FOCUS,
+    .local_name = SXML_BYTE_VIEW_INITIALIZER("run-time-closure"),
+    .parameters = {sxml_run_time_closure_parameters, 1},
+    .result_type = SXML_BYTE_VIEW_INITIALIZER("fn(*)"),
+    .call = sxml_run_time_closure_call,
+    .resumable_body = NULL};
 
 /* xs:T#1: a cast that allows the empty sequence (XPath 4.0, section
    4.5.1.3); the argument was coerced to xs:anyAtomicType? by the call. */

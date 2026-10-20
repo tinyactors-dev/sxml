@@ -345,7 +345,78 @@ static const value_case value_cases[] = {
      "0 true() false()"},
     {{"declare record local:p(x as xs:integer); local:p('a')", false, 0}, "error:XPTY0004"},
     {{"declare function local:f() { . }; local:f()", true, 4}, "error:XPDY0002"},
+    /* A default that reads no focus is computed once (XQuery 4.0,
+       5.18.3; PR 2941; D287); one that reads it, once per call. */
+    {{"declare function local:f($x := <a/>) { $x }; local:f() is local:f()", false, 0},
+     "true()"},
+    {{"declare function local:f($x := <a/>) { $x }; local:f#0() is local:f()", false, 0},
+     "true()"},
+    {{"declare function local:f($x := <a>{.}</a>) { $x }; local:f() is local:f()", true, 4},
+     "false()"},
 };
+
+/* --------------------------------------------- Calls after evaluation */
+
+/* A function item made by an evaluation and called after it ended reads
+   the globals of its unit, computed again for the call (D154, D287). */
+static void test_function_item_reads_globals_after_evaluation(sxml_test_state *state) {
+    static fixture test_fixture;
+    static query_outcome outcome;
+    SXML_TEST_REQUIRE(state, fixture_create(0, &test_fixture) == SXML_STATUS_OK);
+    SXML_TEST_REQUIRE(state,
+                      compile_query(&test_fixture,
+                                    "declare variable $g := 6 * 7; "
+                                    "declare function local:f($x) { $x + $g }; local:f#1",
+                                    &outcome) == SXML_STATUS_OK);
+    sxml_dynamic_context *dynamic_context = NULL;
+    SXML_TEST_REQUIRE(
+        state,
+        sxml_dynamic_context_create(
+            fixture_allocator(&test_fixture),
+            &(sxml_evaluator_configuration){
+                .item_heap = test_fixture.processor->item_heap,
+                .allocator = fixture_allocator(&test_fixture),
+                .function_table = sxml_processor_get_function_table(test_fixture.processor)},
+            &dynamic_context) == SXML_STATUS_OK);
+    static sxml_evaluator_slot absent_globals[8];
+    for (size_t slot_index = 0; slot_index < SXML_TEST_COUNT(absent_globals); slot_index += 1) {
+        absent_globals[slot_index] = (sxml_evaluator_slot){
+            .value = sxml_sequence_empty(), .slot_state = SXML_EVALUATOR_SLOT_STATE_ABSENT};
+    }
+    sxml_ir_unit *unit = outcome.unit;
+    sxml_sequence function_value = sxml_sequence_empty();
+    SXML_TEST_EXPECT(
+        state, sxml_evaluator_evaluate(
+                   dynamic_context,
+                   &(sxml_evaluation_request){
+                       .unit = unit,
+                       .global_values = {.slots = absent_globals,
+                                         .slot_count = unit->global_variable_count > 1
+                                                           ? unit->global_variable_count - 1
+                                                           : 0},
+                       .error_record = &outcome.error_record},
+                   &function_value) == SXML_STATUS_OK);
+    /* The function item keeps the unit alive (D38). */
+    sxml_ir_unit_release(unit);
+    const sxml_sequence argument = sxml_sequence_from_item(sxml_atomic_item_from_integer(1));
+    sxml_sequence result = sxml_sequence_empty();
+    SXML_TEST_EXPECT(state, sxml_evaluator_call_function_item(
+                                &(sxml_function_call){
+                                    .function_item = function_value.content,
+                                    .arguments = {.sequences = &argument, .sequence_count = 1},
+                                    .dynamic_context = dynamic_context,
+                                    .item_heap = test_fixture.processor->item_heap,
+                                    .error_record = &outcome.error_record},
+                                &result) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, sxml_sequence_get_representation(result) ==
+                                    SXML_SEQUENCE_REPRESENTATION_SINGLE_ITEM &&
+                                result.content.payload.integer == 43);
+    sxml_sequence_release(result);
+    sxml_sequence_release(function_value);
+    sxml_dynamic_context_destroy(dynamic_context);
+    SXML_TEST_EXPECT(state, fixture_released_everything(&test_fixture));
+    fixture_destroy(&test_fixture);
+}
 
 static void test_queries_give_values(sxml_test_state *state) {
     for (size_t case_index = 0; case_index < SXML_TEST_COUNT(value_cases); case_index += 1) {
@@ -502,6 +573,8 @@ static void test_queries_survive_every_allocation_failure(sxml_test_state *state
 static const sxml_test_case xquery_prolog_test_cases[] = {
     {.name = "queries_match_golden_text", .function = test_queries_match_golden_text},
     {.name = "queries_give_values", .function = test_queries_give_values},
+    {.name = "function_item_reads_globals_after_evaluation",
+     .function = test_function_item_reads_globals_after_evaluation},
     {.name = "static_errors_have_codes", .function = test_static_errors_have_codes},
     {.name = "queries_survive_every_allocation_failure",
      .function = test_queries_survive_every_allocation_failure},

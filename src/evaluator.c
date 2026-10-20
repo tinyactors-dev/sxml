@@ -700,6 +700,56 @@ static sxml_lexical_context sxml_find_lexical_context(
     return (sxml_lexical_context){.is_found = false, .unit = dynamic_context->unit, .module = NULL};
 }
 
+sxml_status sxml_evaluator_make_run_time_closure(sxml_dynamic_context *dynamic_context,
+                                                 const sxml_run_time_closure_request *request,
+                                                 sxml_item *item) {
+    /* The place: the innermost task that runs IR, as
+       sxml_find_lexical_context finds it (glossary `run_time_closure`). */
+    const sxml_evaluator_task *place = NULL;
+    const sxml_evaluator_task_stack *stack = &dynamic_context->task_stack;
+    for (size_t task_count = stack->task_count; task_count > 0 && place == NULL;
+         task_count -= 1) {
+        const sxml_evaluator_task *task = &stack->tasks[task_count - 1];
+        if (task->function != NULL && task->function->unit != NULL) {
+            place = task;
+        }
+    }
+    sxml_function_item_description description;
+    sxml_status status = sxml_function_item_describe(request->function_item, &description);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (place == NULL) {
+        sxml_item_retain(request->function_item);
+        *item = request->function_item;
+        return SXML_STATUS_OK;
+    }
+    /* The focus is kept only for a row that takes it (glossary
+       `caller_focus`). */
+    const bool keeps_focus =
+        request->caller_focus != NULL &&
+        description.body.operations == &sxml_native_function_body_operations &&
+        (((const sxml_native_function *)description.body.state)->properties &
+         SXML_NATIVE_FUNCTION_TAKES_CALLER_FOCUS) != 0;
+    sxml_sequence captured[5] = {
+        sxml_sequence_from_item(request->function_item),
+        sxml_sequence_from_item(sxml_atomic_item_from_integer((int64_t)place->expression.value)),
+        sxml_sequence_empty(), sxml_sequence_empty(), sxml_sequence_empty()};
+    for (size_t part_index = 0; keeps_focus && part_index < 3; part_index += 1) {
+        captured[2 + part_index] = request->caller_focus[part_index];
+    }
+    return sxml_function_item_make(
+        dynamic_context->item_heap,
+        &(sxml_function_item_request){
+            .function_name = description.function_name,
+            .signature = description.signature,
+            .function_annotations = description.function_annotations,
+            .captured_values = {.sequences = captured, .sequence_count = keeps_focus ? 5U : 2U},
+            .body = {.state = (void *)place->function,
+                     .operations = &sxml_evaluator_run_time_closure_body_operations}},
+        item);
+}
+
 sxml_byte_view sxml_dynamic_context_get_static_base_uri(
     const sxml_dynamic_context *dynamic_context) {
     const sxml_lexical_context lexical = sxml_find_lexical_context(dynamic_context);
@@ -1287,6 +1337,9 @@ static void sxml_machine_fill_frame(sxml_dynamic_context *context,
     call->argument_count = 0;
 }
 
+static sxml_status sxml_add_unbound_global_table(sxml_dynamic_context *context,
+                                                 sxml_ir_unit *unit, size_t *table_index);
+
 /*
  * Replaces the CALL task on top with the call of an IR function: a tail
  * call when the task below is the RETURN of the CALL's own frame (the
@@ -1302,6 +1355,20 @@ static sxml_status sxml_machine_enter_ir_function(sxml_dynamic_context *context,
     if (call->argument_count != parameter_count ||
         callee->slot_count < parameter_count + call->captured_values.sequence_count) {
         return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    if (callee->unit->global_variable_count > 1 &&
+        sxml_evaluator_find_global_table(context, callee->unit) == NULL) {
+        /* A function item of a unit this run has no table for (one made
+           by an evaluation that has ended, D154): its unit's globals are
+           computed again in this run, on first read (D234); external
+           variables and the context value are absent (XPDY0002). D287. */
+        size_t table_index = 0;
+        const sxml_status table_status =
+            sxml_add_unbound_global_table(context, callee->unit, &table_index);
+        if (table_status != SXML_STATUS_OK) {
+            return table_status;
+        }
+        task = sxml_machine_top(context);
     }
     const size_t task_count = context->task_stack.task_count;
     sxml_evaluator_task *below =
@@ -1508,6 +1575,84 @@ static sxml_status sxml_machine_coerce_arguments(sxml_dynamic_context *context) 
     return status;
 }
 
+/*
+ * Calls the function item a run-time closure wraps (glossary
+ * `run_time_closure`, D287) from the CALL task on top, whose arguments are
+ * coerced: the task becomes a call of the wrapped item at the closure's
+ * place (its IR function and expression), so the callee reads the static
+ * context of that place's module (sxml_find_lexical_context); the focus
+ * the closure kept follows the arguments, as a static call passes the
+ * caller's focus. A native row is called now; any other item is called by
+ * the task's next turn.
+ */
+static sxml_status sxml_machine_call_at_place(sxml_dynamic_context *context,
+                                              const sxml_function_item_description *closure) {
+    const sxml_sequence_view captured = closure->captured_values;
+    if ((captured.sequence_count != 2 && captured.sequence_count != 5) ||
+        sxml_sequence_get_representation(captured.sequences[1]) !=
+            SXML_SEQUENCE_REPRESENTATION_SINGLE_ITEM) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    const sxml_ir_function *place = closure->body.state;
+    const sxml_item inner = captured.sequences[0].content;
+    const int64_t expression_number = captured.sequences[1].content.payload.integer;
+    sxml_function_item_description inner_description;
+    sxml_status status = sxml_function_item_describe(inner, &inner_description);
+    if (status != SXML_STATUS_OK || expression_number <= 0 ||
+        expression_number >= (int64_t)place->unit->expression_count) {
+        return status != SXML_STATUS_OK ? status : SXML_STATUS_INVALID_ARGUMENT;
+    }
+    const bool is_native = inner_description.body.operations == &sxml_native_function_body_operations;
+    sxml_evaluator_task *task = sxml_machine_top(context);
+    if (captured.sequence_count == 5) {
+        /* The kept focus after the arguments (glossary `caller_focus`). */
+        if (!is_native) {
+            return SXML_STATUS_INVALID_ARGUMENT;
+        }
+        const size_t argument_count = task->details.call.argument_count;
+        void *memory = NULL;
+        status = sxml_allocator_allocate(
+            context->allocator,
+            (sxml_allocation_request){.byte_count = (argument_count + 3U) * sizeof(sxml_sequence),
+                                      .alignment = alignof(sxml_sequence)},
+            &memory);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        sxml_sequence *arguments = memory;
+        for (size_t argument_index = 0; argument_index < argument_count; argument_index += 1) {
+            arguments[argument_index] = task->details.call.arguments[argument_index];
+        }
+        for (size_t part_index = 0; part_index < 3; part_index += 1) {
+            arguments[argument_count + part_index] = captured.sequences[2 + part_index];
+            sxml_sequence_retain(captured.sequences[2 + part_index]);
+        }
+        if (task->details.call.arguments != NULL) {
+            sxml_allocator_release(context->allocator, task->details.call.arguments);
+        }
+        task->details.call.arguments = arguments;
+        task->details.call.argument_count = argument_count + 3U;
+    }
+    sxml_item_retain(inner);
+    const sxml_item closure_item = task->details.call.function_item;
+    task->details.call.function_item = inner;
+    task->function = place;
+    task->expression = (sxml_ir_expression_index){.value = (uint32_t)expression_number};
+    /* Released last: it keeps the place and the wrapped item alive. */
+    sxml_item_release(closure_item);
+    if (!is_native) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_native_function *row = inner_description.body.state;
+    if (row->call != NULL) {
+        return sxml_machine_call_leaf(context, row);
+    }
+    if (row->resumable_body == NULL) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    return sxml_machine_start_native_steps(context, row);
+}
+
 /* Runs the CALL task on top: checks and coerces, then dispatches on the
    body (see "Reentry" in the header). */
 static sxml_status sxml_machine_step_call(sxml_dynamic_context *context) {
@@ -1557,6 +1702,9 @@ static sxml_status sxml_machine_step_call(sxml_dynamic_context *context) {
             return SXML_STATUS_INVALID_ARGUMENT;
         }
         return sxml_machine_start_native_steps(context, row);
+    }
+    if (operations == &sxml_evaluator_run_time_closure_body_operations) {
+        return sxml_machine_call_at_place(context, &description);
     }
     if (operations == &sxml_evaluator_coerced_function_body_operations) {
         /* XPath 4.0, section 3.4.4: call the wrapped function with the
@@ -6036,18 +6184,12 @@ static sxml_status sxml_reserve_global_table(sxml_dynamic_context *context) {
     return SXML_STATUS_OK;
 }
 
-/* Adds the global table of request->unit, filled from the request:
-   external values coerced to their declared types (XPTY0004), the others
-   ABSENT; writes its index. */
-static sxml_status sxml_add_global_table(sxml_dynamic_context *context,
-                                         const sxml_evaluation_request *request,
-                                         size_t *table_index) {
-    sxml_ir_unit *unit = request->unit;
+/* Adds a global table of unit with every slot ABSENT; writes its
+   index. */
+static sxml_status sxml_add_unbound_global_table(sxml_dynamic_context *context,
+                                                 sxml_ir_unit *unit, size_t *table_index) {
     const size_t global_count =
         unit->global_variable_count > 1 ? unit->global_variable_count - 1 : 0;
-    if (global_count != 0 && request->global_values.slot_count != global_count) {
-        return SXML_STATUS_INVALID_ARGUMENT;
-    }
     sxml_status status = sxml_reserve_global_table(context);
     void *memory = NULL;
     if (status == SXML_STATUS_OK && global_count > 0) {
@@ -6075,6 +6217,26 @@ static sxml_status sxml_add_global_table(sxml_dynamic_context *context,
             .value = sxml_sequence_empty(),
             .slot_state = SXML_EVALUATOR_SLOT_STATE_ABSENT};
     }
+    return SXML_STATUS_OK;
+}
+
+/* Adds the global table of request->unit, filled from the request:
+   external values coerced to their declared types (XPTY0004), the others
+   ABSENT; writes its index. */
+static sxml_status sxml_add_global_table(sxml_dynamic_context *context,
+                                         const sxml_evaluation_request *request,
+                                         size_t *table_index) {
+    sxml_ir_unit *unit = request->unit;
+    const size_t global_count =
+        unit->global_variable_count > 1 ? unit->global_variable_count - 1 : 0;
+    if (global_count != 0 && request->global_values.slot_count != global_count) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    sxml_status status = sxml_add_unbound_global_table(context, unit, table_index);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_evaluator_global_table *table = &context->global_tables[*table_index];
     for (size_t slot_index = 0; status == SXML_STATUS_OK && slot_index < global_count;
          slot_index += 1) {
         const sxml_ir_global_variable *variable = sxml_ir_unit_get_global_variable(

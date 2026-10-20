@@ -645,6 +645,52 @@ extern const sxml_function_body_operations
 extern const sxml_function_body_operations
     sxml_evaluator_constructor_body_operations;
 
+/*
+ * The body of a run-time closure (glossary `run_time_closure`, D287): a
+ * function item that calls the function item it wraps at the place where
+ * it was made, so a context-dependent function (XPath 4.0, 4.5.4; F&O
+ * 4.0, 1.7) keeps that place's static context (its module, D275) and, when
+ * it takes the caller's focus, that place's focus. The state is the IR
+ * function of the place (retain and release retain and release its unit);
+ * the captured values are the wrapped item, the place's expression index
+ * as an xs:integer and, for a row that takes the caller's focus and was
+ * made with one, the three parts of that focus. The machine calls the
+ * wrapped item in a CALL task of the place (src/evaluator.c), so
+ * sxml_dynamic_context_get_static_context and its kin read the place's
+ * module; call follows the rules of sxml_evaluator_function_body_operations.
+ */
+extern const sxml_function_body_operations
+    sxml_evaluator_run_time_closure_body_operations;
+
+/* A run-time closure to make. */
+typedef struct sxml_run_time_closure_request {
+    /* The function item to wrap; borrowed. */
+    sxml_item function_item;
+    /* The caller's focus (context value, position, size; borrowed) for a
+       native row that takes it, or NULL. */
+    const sxml_sequence *caller_focus;
+} sxml_run_time_closure_request;
+
+/*
+ * Writes, owned, to *item the run-time closure of request->function_item
+ * at the place of the innermost task that runs IR (as
+ * sxml_dynamic_context_get_static_context finds it), or the function item
+ * itself, retained, when no task runs IR. Returns the heap's failures.
+ * Defined in src/evaluator.c.
+ */
+SXML_NODISCARD sxml_status sxml_evaluator_make_run_time_closure(
+    sxml_dynamic_context *dynamic_context, const sxml_run_time_closure_request *request,
+    sxml_item *item);
+
+/*
+ * sxml:run-time-closure($function) with the caller's focus (glossary
+ * `caller_focus`): the run-time closure of $function at the place of the
+ * static call. Lowering calls it for a named reference to a context-
+ * dependent native function (XPath 4.0, 4.5.4); no library lists it.
+ * Defined in src/evaluator_function.c.
+ */
+extern const sxml_native_function sxml_evaluator_run_time_closure_function;
+
 /* ------------------------------------------- Services for native bodies */
 
 /* Why a value is coerced; see sxml_ir_coercion_role. */
