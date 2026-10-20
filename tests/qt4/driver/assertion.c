@@ -326,14 +326,16 @@ static const sxml_qt4_value_assertion sxml_qt4_value_assertions[] = {
        xs:untypedAtomic to the other operand's type (XPath 4.0, section
        4.8.2); deep-equal adds NaN = NaN. "eq" atomizes its operands, so
        a single node equals its typed value (QT4 string-constructor-027,
-       switch-019 expect it; D135 (f)). */
+       switch-019 expect it; D135 (f)), and an array of one atomic item
+       equals that item ([42] eq [42], array-sort-with-021). */
     {.name = SXML_BYTE_VIEW_INITIALIZER("assert-eq"),
      .expected_form = SXML_QT4_EXPECTED_EXPRESSION,
      .check_text = SXML_BYTE_VIEW_INITIALIZER(
          "count($result) eq 1 and ($result instance of xs:anyAtomicType "
-         "or $result instance of node()) "
+         "or $result instance of node() or $result instance of array(*)) "
+         "and (not($result instance of array(*)) or count(data($result)) eq 1) "
          "and count($expected) eq 1 "
-         "and (data($result) = $expected or deep-equal(data($result), $expected))"),
+         "and (data($result) = $expected or deep-equal(data($result), data($expected)))"),
      .shows_expected = true},
     {.name = SXML_BYTE_VIEW_INITIALIZER("assert-deep-eq"),
      .expected_form = SXML_QT4_EXPECTED_EXPRESSION,
