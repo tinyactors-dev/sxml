@@ -104,7 +104,9 @@ static bool resolve_prefix(prefix_request request, sxml_namespace_uri_identifier
         }
         if (sxml_byte_view_equals(bound_prefix, request.namespace_prefix)) {
             *namespace_uri = binding->namespace_uri;
-            return true;
+            /* A prefix bound to no namespace is undeclared (D262). */
+            return binding->namespace_prefix.index == 0 ||
+                   binding->namespace_uri.index != SXML_NAMESPACE_NONE;
         }
     }
     if (request.namespace_prefix.byte_count == 0) {
@@ -173,7 +175,8 @@ static sxml_status read_name_argument(name_argument_request request, sxml_name_i
         if (has_prefix || request.role == SXML_NAME_ARGUMENT_ROLE_ELEMENT_OR_TYPE) {
             const sxml_byte_view prefix = {.bytes = text.bytes,
                                            .byte_count = has_prefix ? colon_index : 0};
-            if (!resolve_prefix((prefix_request){.call = call, .namespace_prefix = prefix},
+            if ((has_prefix && !sxml_xml_text_is_ncname(prefix)) ||
+                !resolve_prefix((prefix_request){.call = call, .namespace_prefix = prefix},
                                 &namespace_uri)) {
                 return sxml_function_library_report(call, request.error);
             }
@@ -181,14 +184,10 @@ static sxml_status read_name_argument(name_argument_request request, sxml_name_i
             namespace_uri = (sxml_namespace_uri_identifier){.index = SXML_NAMESPACE_FUNCTIONS};
         }
     }
-    if (local_name.byte_count == 0) {
+    /* An EQName's local part is an NCName (XPath 4.0, A.1, EQName;
+       XTDE1390, XTDE1400, XTDE1440, XTDE1428 otherwise). */
+    if (!sxml_xml_text_is_ncname(local_name)) {
         return sxml_function_library_report(call, request.error);
-    }
-    for (size_t byte_index = 0; byte_index < local_name.byte_count; byte_index += 1) {
-        const uint8_t byte = local_name.bytes[byte_index];
-        if (byte == ':' || byte == '{' || byte == '}' || sxml_xml_byte_is_whitespace(byte)) {
-            return sxml_function_library_report(call, request.error);
-        }
     }
     return sxml_name_pool_intern_name(
         name_pool, &(sxml_name_request){.namespace_uri = namespace_uri, .local_name = local_name},

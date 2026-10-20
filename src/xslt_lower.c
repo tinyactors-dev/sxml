@@ -598,6 +598,67 @@ sxml_xslt_boolean_text sxml_xslt_lowering_read_boolean_text(sxml_byte_view text)
     return (sxml_xslt_boolean_text){.is_valid = is_yes || is_no, .is_yes = is_yes};
 }
 
+/* Binds in block normalized = (word1, word2, word3). */
+typedef struct word_comparison {
+    sxml_xpath_lowering_block *block;
+    sxml_ir_atom normalized;
+    const sxml_byte_view *words;
+} word_comparison;
+
+static sxml_status bind_word_comparison(sxml_xpath_lowerer *lowerer, word_comparison comparison,
+                                        sxml_ir_atom *atom) {
+    sxml_ir_atom word_atoms[3] = {{0}, {0}, {0}};
+    sxml_status status = SXML_STATUS_OK;
+    for (size_t word_index = 0; status == SXML_STATUS_OK && word_index < 3; word_index += 1) {
+        status = sxml_xpath_lowerer_add_string_constant(lowerer, comparison.words[word_index],
+                                                        &word_atoms[word_index]);
+    }
+    sxml_ir_atom_list word_list = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_ir_unit_add_atoms(
+            lowerer->unit, (sxml_ir_atom_view){.atoms = word_atoms, .atom_count = 3}, &word_list);
+    }
+    sxml_ir_atom words = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xslt_lowering_bind_expression(
+            lowerer,
+            &(sxml_xslt_expression_to_bind){
+                .block = comparison.block,
+                .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_SEQUENCE,
+                               .sequence = word_list}},
+            &words);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_xslt_lowering_bind_expression(
+        lowerer,
+        &(sxml_xslt_expression_to_bind){
+            .block = comparison.block,
+            .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_BINARY,
+                           .binary = {.operator= SXML_IR_BINARY_OPERATOR_GENERAL_EQUAL,
+                                      .left_operand = comparison.normalized,
+                                      .right_operand = words}}},
+        atom);
+}
+
+/* An ATOM expression of a boolean constant. */
+static sxml_status add_boolean_expression(sxml_xpath_lowerer *lowerer, bool value,
+                                          sxml_ir_expression_index *expression) {
+    sxml_ir_atom constant = {0};
+    const sxml_status status = sxml_xpath_lowerer_add_item_constant(
+        lowerer, value ? sxml_atomic_item_true() : sxml_atomic_item_false(), &constant);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_xpath_lowerer_add_expression(
+        lowerer,
+        (sxml_xpath_lowering_expression_to_add){
+            .node = {.value = 0},
+            .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_ATOM, .atom = constant}},
+        expression);
+}
+
 sxml_status sxml_xslt_lowering_bind_boolean_value(sxml_xpath_lowerer *lowerer,
                                                   sxml_xslt_boolean_value request,
                                                   sxml_ir_atom *atom) {
@@ -609,28 +670,59 @@ sxml_status sxml_xslt_lowering_bind_boolean_value(sxml_xpath_lowerer *lowerer,
                                   .local_name = SXML_BYTE_VIEW_FROM_LITERAL("normalize-space"),
                                   .arguments = {.atoms = &request.value, .atom_count = 1}},
         &normalized);
-    static const sxml_byte_view words[3] = {SXML_BYTE_VIEW_INITIALIZER("yes"),
-                                            SXML_BYTE_VIEW_INITIALIZER("true"),
-                                            SXML_BYTE_VIEW_INITIALIZER("1")};
-    sxml_ir_atom word_atoms[3] = {{0}, {0}, {0}};
-    for (size_t word_index = 0; status == SXML_STATUS_OK && word_index < 3; word_index += 1) {
-        status =
-            sxml_xpath_lowerer_add_string_constant(lowerer, words[word_index], &word_atoms[word_index]);
-    }
-    sxml_ir_atom_list word_list = {0};
+    static const sxml_byte_view yes_words[3] = {SXML_BYTE_VIEW_INITIALIZER("yes"),
+                                                SXML_BYTE_VIEW_INITIALIZER("true"),
+                                                SXML_BYTE_VIEW_INITIALIZER("1")};
+    static const sxml_byte_view no_words[3] = {SXML_BYTE_VIEW_INITIALIZER("no"),
+                                               SXML_BYTE_VIEW_INITIALIZER("false"),
+                                               SXML_BYTE_VIEW_INITIALIZER("0")};
+    sxml_ir_atom is_yes = {0};
+    sxml_ir_atom is_no = {0};
     if (status == SXML_STATUS_OK) {
-        status = sxml_ir_unit_add_atoms(
-            lowerer->unit, (sxml_ir_atom_view){.atoms = word_atoms, .atom_count = 3}, &word_list);
-    }
-    sxml_ir_atom yes_words = {0};
-    if (status == SXML_STATUS_OK) {
-        status = sxml_xslt_lowering_bind_expression(
+        status = bind_word_comparison(
             lowerer,
-            &(sxml_xslt_expression_to_bind){
-                .block = request.block,
-                .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_SEQUENCE,
-                               .sequence = word_list}},
-            &yes_words);
+            (word_comparison){.block = request.block, .normalized = normalized, .words = yes_words},
+            &is_yes);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = bind_word_comparison(
+            lowerer,
+            (word_comparison){.block = request.block, .normalized = normalized, .words = no_words},
+            &is_no);
+    }
+    /* XTDE0030 (XSLT 4.0, 2.3): a value the
+       attribute does not permit. */
+    sxml_ir_expression_index true_value = {0};
+    sxml_ir_expression_index false_value = {0};
+    sxml_ir_expression_index raise = {0};
+    if (status == SXML_STATUS_OK) {
+        status = add_boolean_expression(lowerer, true, &true_value);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = add_boolean_expression(lowerer, false, &false_value);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_add_raise(
+            lowerer, (sxml_xpath_lowering_raise_request){
+                         .node = {.value = 0},
+                         .error_status = SXML_STATUS_DYNAMIC_ERROR,
+                         .code_local_name = SXML_BYTE_VIEW_FROM_LITERAL("XTDE0030"),
+                         .description = SXML_BYTE_VIEW_FROM_LITERAL(
+                             "a boolean attribute value template is not yes, true, 1, no, false "
+                             "or 0 (XSLT 4.0, 2.3)")},
+            &raise);
+    }
+    sxml_ir_expression_index otherwise = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_add_expression(
+            lowerer,
+            (sxml_xpath_lowering_expression_to_add){
+                .node = {.value = 0},
+                .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_CONDITIONAL,
+                               .conditional = {.condition = is_no,
+                                               .then_branch = false_value,
+                                               .else_branch = raise}}},
+            &otherwise);
     }
     if (status != SXML_STATUS_OK) {
         return status;
@@ -639,10 +731,10 @@ sxml_status sxml_xslt_lowering_bind_boolean_value(sxml_xpath_lowerer *lowerer,
         lowerer,
         &(sxml_xslt_expression_to_bind){
             .block = request.block,
-            .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_BINARY,
-                           .binary = {.operator= SXML_IR_BINARY_OPERATOR_GENERAL_EQUAL,
-                                      .left_operand = normalized,
-                                      .right_operand = yes_words}}},
+            .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_CONDITIONAL,
+                           .conditional = {.condition = is_yes,
+                                           .then_branch = true_value,
+                                           .else_branch = otherwise}}},
         atom);
 }
 

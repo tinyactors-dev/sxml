@@ -484,6 +484,27 @@ static const sxml_function_table_operations component_table_operations = {.find_
 
 /* ------------------------------------------------- Reading xsl:function */
 
+/* Whether node of ast is the call current() (unprefixed, no argument). */
+static bool is_current_call(const sxml_ast *ast, sxml_ast_node_index node) {
+    if (sxml_ast_get_node(ast, node)->kind != SXML_AST_KIND_FUNCTION_CALL) {
+        return false;
+    }
+    const sxml_ast_node_index name = sxml_ast_find_child(
+        ast, (sxml_ast_child_query){.parent = node, .field = SXML_AST_FIELD_NAME});
+    const sxml_ast_node_index arguments = sxml_ast_find_child(
+        ast, (sxml_ast_child_query){.parent = node, .field = SXML_AST_FIELD_ARGUMENTS});
+    if (name.value == 0 || sxml_ast_get_node(ast, name)->kind != SXML_AST_KIND_NCNAME ||
+        (arguments.value != 0 &&
+         sxml_ast_find_child(ast, (sxml_ast_child_query){.parent = arguments,
+                                                          .field = SXML_AST_FIELD_ARGUMENT})
+                 .value != 0)) {
+        return false;
+    }
+    return sxml_byte_view_equals(
+        sxml_ast_get_text(ast, sxml_ast_get_node(ast, name)->payload.name.local_name),
+        SXML_BYTE_VIEW_FROM_LITERAL("current"));
+}
+
 /* The parameters of an xsl:function (10.3.2): names, types, defaults;
    XTSE0080, XTSE0580, XTSE0760, XTSE0761. */
 static sxml_status read_parameters(const sxml_xslt_lowering *lowering,
@@ -556,8 +577,12 @@ static sxml_status read_parameters(const sxml_xslt_lowering *lowering,
                                 : sxml_ast_find_child(ast, (sxml_ast_child_query){
                                                                .parent = ast->root,
                                                                .field = SXML_AST_FIELD_BODY});
-                if (body.value != 0 && sxml_ast_get_node(ast, body)->kind ==
-                                           SXML_AST_KIND_CONTEXT_VALUE_REFERENCE) {
+                if (body.value != 0 && (sxml_ast_get_node(ast, body)->kind ==
+                                            SXML_AST_KIND_CONTEXT_VALUE_REFERENCE ||
+                                        is_current_call(ast, body))) {
+                    /* current() too: the current item of the default's
+                       own evaluation, which starts with the caller's
+                       focus (20.3.1). */
                     parameter_default = SXML_PARAMETER_DEFAULT_CONTEXT_VALUE;
                 }
             }
