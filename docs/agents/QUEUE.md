@@ -32,7 +32,7 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 
 - 4.28: XSLT sweep (D274's open list).
 - 2.26: XPath/XQuery sweep (D275's open list).
-- 5.15: XSD sweep (the 32 XSD 1.1 failures, D270/D271's validation leftovers).
+- 5.13 sweep 3: XSD sweep (the 32 XSD 1.1 failures, D270/D271's validation leftovers).
 
 ## Next
 
