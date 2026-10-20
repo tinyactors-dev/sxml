@@ -31,8 +31,7 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 
 - 4.25: XSLT sweep (D260's open list, the run-time QName cast).
 - 2.24: XPath/XQuery sweep (D258's open list; a static-typing estimate).
-- book-2: the book's XQuery and XSD parts to the depth of XPath and XSLT
-  (owner, 2026-10-20).
+- cli-2: the CLI bugs book-2 found (D270).
 
 ## Next
 
@@ -180,6 +179,17 @@ and quantifier fusion (10^7 items: seconds -> 4 ms); default step bound
 10^8 (about 8 s). Left: two filters in a row index only the first;
 FILTER/MAP over MAP not fused; demands do not enter function bodies;
 if/boolean read one extra item.
+
+book-2 (D270): XQuery part 5 -> 11 sections, XSD part 2 -> 9; 387
+examples checked. CLI bugs found (cli-2 takes them): a relative
+collection("x.xml") exits 4 with SXML_STATUS_INVALID_ARGUMENT instead of
+FODC0002; a library module's dynamic error is reported with the main
+module's file name; xsi:type="xs:string" with an undeclared prefix is
+accepted (cvc-elt.4.1); no trace sink, so fn:trace and fn:message print
+nothing. Smaller: content after a cvc-complex-type.2.4 rejection is not
+checked; the --context-item document has no document-uri; XTTE errors
+have no line number; the CLI has no fn:collection and ignores
+xsi:schemaLocation.
 
 Platform and tooling:
 - macOS, Windows and MSVC have never been built; `_getcwd` is untested.
