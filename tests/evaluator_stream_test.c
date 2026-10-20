@@ -113,9 +113,11 @@ static const sxml_allocator_operations limited_operations = {.allocate = limited
 
 /* ------------------------------------------------------------- Resolver */
 
-/* What the resolver serves at http://example.com/x/in.xml. */
+/* What the resolver serves at http://example.com/x/in.xml, and at
+   in2.xml beside it (a second merge input, packet 7.6g). */
 typedef struct served_document {
     sxml_byte_view content;
+    sxml_byte_view second_content;
     /* Deliver the document as a node the host parsed, not as bytes. */
     bool is_node;
     sxml_item node;
@@ -124,6 +126,13 @@ typedef struct served_document {
 static sxml_status resolve_input(void *state, const sxml_resource_request *request,
                                  sxml_resource *resource) {
     served_document *served = state;
+    if (request->resource_kind == SXML_RESOURCE_KIND_XML_DOCUMENT &&
+        sxml_byte_view_equals(request->absolute_uri, TEXT("http://example.com/x/in2.xml"))) {
+        resource->resource_form = SXML_RESOURCE_FORM_BYTES;
+        resource->content = served->second_content;
+        resource->resource_uri = request->absolute_uri;
+        return SXML_STATUS_OK;
+    }
     if (request->resource_kind != SXML_RESOURCE_KIND_XML_DOCUMENT ||
         !sxml_byte_view_equals(request->absolute_uri, TEXT("http://example.com/x/in.xml"))) {
         return SXML_STATUS_OK;
@@ -163,8 +172,10 @@ static sxml_allocator fixture_allocator(fixture *test_fixture) {
 static sxml_status fixture_create(fixture *test_fixture, sxml_byte_view content) {
     memset(test_fixture, 0, sizeof(*test_fixture));
     test_fixture->memory.backing = sxml_default_allocator();
-    test_fixture->served =
-        (served_document){.content = content, .is_node = false, .node = {.representation = 0}};
+    test_fixture->served = (served_document){.content = content,
+                                             .second_content = {.bytes = NULL, .byte_count = 0},
+                                             .is_node = false,
+                                             .node = {.representation = 0}};
     const sxml_allocator allocator = fixture_allocator(test_fixture);
     sxml_status status =
         sxml_processor_create(allocator,
@@ -446,6 +457,37 @@ static const stream_case stream_cases[] = {
                      "<xsl:for-each select='shop/book'>"
                      "<xsl:value-of select='accumulator-before(\"a\")'/>;</xsl:for-each>",
                      books, DECLARATION "<out>10;20;30;</out>"),
+    /* 19.9: end rules with capture="yes" read the node's subtree, captured
+       as its events pass (packet 7.6g): skipped elements, nested ones,
+       a selected one in its full window, an empty one. */
+    ACCUMULATOR_CASE("captured-end-rules",
+                     "<xsl:accumulator name='titles' initial-value='()' streamable='yes'>"
+                     "<xsl:accumulator-rule match='book' phase='end' capture='yes' "
+                     "select='($value, string(t))'/></xsl:accumulator>",
+                     "#all",
+                     "<xsl:for-each select='shop/empty'>"
+                     "<xsl:value-of select='accumulator-before(\"titles\")' separator=','/>"
+                     "</xsl:for-each>",
+                     books, DECLARATION "<out>A,B,D,C</out>"),
+    ACCUMULATOR_CASE("captured-end-rules-of-selected-nodes",
+                     "<xsl:accumulator name='titles' initial-value='()' streamable='yes'>"
+                     "<xsl:accumulator-rule match='book' phase='end' capture='yes' "
+                     "select='($value, string(t))'/></xsl:accumulator>",
+                     "#all",
+                     "<xsl:for-each select='shop/book'>"
+                     "<xsl:value-of select='accumulator-after(\"titles\")' separator=','/>;"
+                     "</xsl:for-each>",
+                     books, DECLARATION "<out>A;A,B;A,B,D,C;</out>"),
+    ACCUMULATOR_CASE("captured-empty-elements",
+                     "<xsl:accumulator name='names' initial-value='\"\"' streamable='yes'>"
+                     "<xsl:accumulator-rule match='e' phase='end' capture='yes' "
+                     "select='$value || name(.) || count(node())'/>"
+                     "<xsl:accumulator-rule match='f' phase='start' select='$value || \"+\"'/>"
+                     "</xsl:accumulator>",
+                     "#all",
+                     "<xsl:for-each select='r/f'>"
+                     "<xsl:value-of select='accumulator-before(\"names\")'/></xsl:for-each>",
+                     "<r><e/><e>x<g/></e><f/></r>", DECLARATION "<out>e0e2+</out>"),
     /* xsl:fork: each prong a pass of its own over the document (D231). */
     STREAM_CASE("fork-prongs-in-passes", "",
                 "<xsl:fork><xsl:sequence><a><xsl:value-of select='count(shop/book)'/></a>"
@@ -565,6 +607,165 @@ static void test_fallback_option_processes_unstreamed(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
 }
 
+/* ------------------------------------------------------------- xsl:merge */
+
+/* A stylesheet whose template main merges in.xml and in2.xml (packet
+   7.6g): its merge sources, streamable or not, and its action. */
+#define MERGED(sources, action)                                                                    \
+    "<xsl:stylesheet version='3.0' " XSL_NAMESPACE                                                 \
+    " xmlns:xs='http://www.w3.org/2001/XMLSchema' exclude-result-prefixes='#all'>"                 \
+    "<xsl:template name='main'><out><xsl:merge>" sources "<xsl:merge-action>" action               \
+    "</xsl:merge-action></xsl:merge></out></xsl:template></xsl:stylesheet>"
+
+/* A merge source over the documents for-each-source names. */
+#define MERGE_SOURCE(name, documents, streamable, select, key)                                     \
+    "<xsl:merge-source name='" name "' for-each-source=\"" documents "\" streamable='" streamable  \
+    "' select='" select "'><xsl:merge-key select='" key "'/></xsl:merge-source>"
+
+#define GROUP_ACTION                                                                               \
+    "<g k='{current-merge-key()}' p='{position()}'><xsl:copy-of select='current-merge-group()'/>"  \
+    "</g>"
+
+typedef struct merge_case {
+    const char *case_name;
+    const char *streamed_text;
+    const char *unstreamed_text;
+    const char *document_text;
+    const char *second_document_text;
+    /* The output, or NULL for the error expected_error names. */
+    const char *expected_output;
+    const char *expected_error;
+} merge_case;
+
+#define TWO_SOURCE_CASE(name, select_a, select_b, key, action, first, second, expected)            \
+    {                                                                                              \
+        .case_name = (name),                                                                       \
+        .streamed_text = MERGED(MERGE_SOURCE("a", "'in.xml'", "yes", select_a, key)                \
+                                    MERGE_SOURCE("b", "'in2.xml'", "yes", select_b, key),          \
+                                action),                                                           \
+        .unstreamed_text = MERGED(MERGE_SOURCE("a", "'in.xml'", "no", select_a, key)               \
+                                      MERGE_SOURCE("b", "'in2.xml'", "no", select_b, key),         \
+                                  action),                                                         \
+        .document_text = (first), .second_document_text = (second), .expected_output = (expected), \
+        .expected_error = NULL                                                                     \
+    }
+
+static const char merge_first[] = "<r><x k='1'/><x k='3'/><x k='3' n='2'/><x k='5'/></r>";
+static const char merge_second[] = "<r><w/><y k='2'/><y k='3'/><y k='4'/></r>";
+
+static const merge_case merge_cases[] = {
+    TWO_SOURCE_CASE("two-streams", "r/x", "r/y", "xs:integer(@k)", GROUP_ACTION, merge_first,
+                    merge_second,
+                    DECLARATION "<out><g k=\"1\" p=\"1\"><x k=\"1\"/></g><g k=\"2\" p=\"2\">"
+                                "<y k=\"2\"/></g><g k=\"3\" p=\"3\"><x k=\"3\"/><x k=\"3\" "
+                                "n=\"2\"/><y k=\"3\"/></g><g k=\"4\" p=\"4\"><y k=\"4\"/></g>"
+                                "<g k=\"5\" p=\"5\"><x k=\"5\"/></g></out>"),
+    TWO_SOURCE_CASE("named-groups", "r/x", "/r/*", "xs:integer(@k)",
+                    "<g k='{current-merge-key()}' a='{count(current-merge-group(\"a\"))}' "
+                    "b='{count(current-merge-group(\"b\"))}'/>",
+                    merge_first, merge_second,
+                    DECLARATION "<out><g k=\"\" a=\"0\" b=\"1\"/><g k=\"1\" a=\"1\" b=\"0\"/>"
+                                "<g k=\"2\" a=\"0\" b=\"1\"/><g k=\"3\" a=\"2\" b=\"1\"/>"
+                                "<g k=\"4\" a=\"0\" b=\"1\"/><g k=\"5\" a=\"1\" b=\"0\"/></out>"),
+    {.case_name = "descending-anchors",
+     .streamed_text = MERGED(MERGE_SOURCE("a", "('in2.xml', 'in.xml')", "yes", "r/*",
+                                          "xs:integer(@k)")
+                                 "<xsl:merge-source select='()'><xsl:merge-key "
+                                 "select='xs:integer(@k)'/></xsl:merge-source>",
+                             "<g k='{current-merge-key()}' n='{current-merge-group() ! name()}'/>"),
+     .unstreamed_text = MERGED(MERGE_SOURCE("a", "('in2.xml', 'in.xml')", "no", "r/*",
+                                            "xs:integer(@k)")
+                                   "<xsl:merge-source select='()'><xsl:merge-key "
+                                   "select='xs:integer(@k)'/></xsl:merge-source>",
+                               "<g k='{current-merge-key()}' n='{current-merge-group() ! name()}'/>"),
+     .document_text = "<r><x k='5'/><x k='3'/></r>",
+     .second_document_text = "<r><y k='4'/><y k='3'/></r>",
+     .expected_output = NULL,
+     .expected_error = "XTDE2220"},
+    {.case_name = "grounded-and-streamed",
+     .streamed_text = MERGED(MERGE_SOURCE("a", "'in.xml'", "yes", "r/x", "xs:integer(@k)")
+                                 "<xsl:merge-source name='b' select='doc(\"in2.xml\")/r/y'>"
+                                 "<xsl:merge-key select='xs:integer(@k)'/></xsl:merge-source>",
+                             GROUP_ACTION),
+     .unstreamed_text = MERGED(MERGE_SOURCE("a", "'in.xml'", "no", "r/x", "xs:integer(@k)")
+                                   "<xsl:merge-source name='b' select='doc(\"in2.xml\")/r/y'>"
+                                   "<xsl:merge-key select='xs:integer(@k)'/></xsl:merge-source>",
+                               GROUP_ACTION),
+     .document_text = merge_first,
+     .second_document_text = merge_second,
+     .expected_output =
+         DECLARATION "<out><g k=\"1\" p=\"1\"><x k=\"1\"/></g><g k=\"2\" p=\"2\"><y k=\"2\"/></g>"
+                     "<g k=\"3\" p=\"3\"><x k=\"3\"/><x k=\"3\" n=\"2\"/><y k=\"3\"/></g>"
+                     "<g k=\"4\" p=\"4\"><y k=\"4\"/></g><g k=\"5\" p=\"5\"><x k=\"5\"/></g></out>",
+     .expected_error = NULL},
+    /* An input out of order is an error once it is read (15.4). */
+    {.case_name = "input-out-of-order",
+     .streamed_text = MERGED(MERGE_SOURCE("a", "'in.xml'", "yes", "r/x", "xs:integer(@k)"),
+                             GROUP_ACTION),
+     .unstreamed_text = MERGED(MERGE_SOURCE("a", "'in.xml'", "no", "r/x", "xs:integer(@k)"),
+                               GROUP_ACTION),
+     .document_text = "<r><x k='1'/><x k='3'/><x k='2'/></r>",
+     .second_document_text = merge_second,
+     .expected_output = NULL,
+     .expected_error = "XTDE2220"},
+    TWO_SOURCE_CASE("descending-keys", "r/x", "r/y", "xs:integer(@k)' order='descending",
+                    "<xsl:value-of select='current-merge-key()'/>,",
+                    "<r><x k='5'/><x k='1'/></r>", "<r><y k='4'/><y k='2'/></r>",
+                    DECLARATION "<out>5,4,2,1,</out>"),
+};
+
+/* Runs text over the case's documents into the output; the status. */
+static sxml_status run_merge(fixture *test_fixture, const char *text) {
+    return run_main(test_fixture,
+                    (sxml_byte_view){.bytes = (const uint8_t *)text, .byte_count = strlen(text)});
+}
+
+/* Whether the run ended as the case expects: its output, or its error. */
+static bool merge_ended_as_expected(const fixture *test_fixture, const merge_case *test_case,
+                                    sxml_status status) {
+    if (test_case->expected_error != NULL) {
+        return status != SXML_STATUS_OK &&
+               sxml_byte_view_equals(test_fixture->error_record.code.local_name,
+                                     sxml_byte_view_from_c_string(test_case->expected_error));
+    }
+    return status == SXML_STATUS_OK &&
+           sxml_byte_view_equals(sxml_output_buffer_get_bytes(test_fixture->output_buffer),
+                                 sxml_byte_view_from_c_string(test_case->expected_output));
+}
+
+/* Streamed merge sources (MERGE, packet 7.6g) give what the grounded
+   merge gives (19.10): groups in key order, their items in source,
+   anchor and input order, named groups, a grounded source among
+   streamed ones, descending keys, and XTDE2220. */
+static void test_streamed_merges_are_unstreamed_merges(sxml_test_state *state) {
+    for (size_t case_index = 0; case_index < SXML_TEST_COUNT(merge_cases); case_index += 1) {
+        const merge_case *test_case = &merge_cases[case_index];
+        fixture test_fixture;
+        sxml_status status =
+            fixture_create(&test_fixture, sxml_byte_view_from_c_string(test_case->document_text));
+        test_fixture.served.second_content =
+            sxml_byte_view_from_c_string(test_case->second_document_text);
+        const char *texts[2] = {test_case->streamed_text, test_case->unstreamed_text};
+        for (size_t text_index = 0; status == SXML_STATUS_OK && text_index < 2; text_index += 1) {
+            const sxml_status run = run_merge(&test_fixture, texts[text_index]);
+            const bool is_expected = merge_ended_as_expected(&test_fixture, test_case, run);
+            if (!is_expected) {
+                const sxml_byte_view got = sxml_output_buffer_get_bytes(test_fixture.output_buffer);
+                printf("  %s (%s): status %d %.*s %.*s, got %.*s\n", test_case->case_name,
+                       text_index == 0 ? "streamed" : "unstreamed", (int)run,
+                       (int)test_fixture.error_record.code.local_name.byte_count,
+                       (const char *)test_fixture.error_record.code.local_name.bytes,
+                       (int)test_fixture.error_record.diagnostic.description.byte_count,
+                       (const char *)test_fixture.error_record.diagnostic.description.bytes,
+                       (int)got.byte_count, (const char *)got.bytes);
+            }
+            SXML_TEST_EXPECT(state, is_expected);
+        }
+        SXML_TEST_EXPECT(state, status == SXML_STATUS_OK);
+        SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
+    }
+}
+
 /* --------------------------------------------------------- Bounded memory */
 
 /* Records of a generated document: about 80 bytes each (2.4 MB). */
@@ -649,6 +850,90 @@ static void test_large_document_streams_in_bounded_memory(sxml_test_state *state
     SXML_TEST_EXPECT(state, unstreamed != SXML_STATUS_OK);
     SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
     sxml_allocator_release(sxml_default_allocator(), memory);
+}
+
+/* Two generated documents of LARGE_RECORD_COUNT records each, ids even
+   and odd, merged by id (packet 7.6g): streamed, the cursors hold a
+   window each, under the limit the grounded merge exceeds. */
+typedef struct records_request {
+    uint32_t first_id;
+    uint32_t id_step;
+} records_request;
+
+static sxml_status make_records_document(records_request request, sxml_byte_view *document,
+                                         void **memory) {
+    const size_t capacity = (size_t)LARGE_RECORD_COUNT * 64U + 64U;
+    sxml_status status = sxml_allocator_allocate(
+        sxml_default_allocator(), (sxml_allocation_request){.byte_count = capacity, .alignment = 1},
+        memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    char *text = *memory;
+    size_t length = 0;
+    length += (size_t)snprintf(text + length, capacity - length, "<records>\n");
+    for (uint32_t record = 0; record < LARGE_RECORD_COUNT; record += 1) {
+        length += (size_t)snprintf(text + length, capacity - length,
+                                   "  <record id='%u'><v>%u</v></record>\n",
+                                   request.first_id + record * request.id_step, record % 7U);
+    }
+    length += (size_t)snprintf(text + length, capacity - length, "</records>\n");
+    *document = (sxml_byte_view){.bytes = (const uint8_t *)text, .byte_count = length};
+    return SXML_STATUS_OK;
+}
+
+#define LARGE_MERGE(streamable)                                                                    \
+    MERGED(MERGE_SOURCE("a", "'in.xml'", streamable, "records/record", "xs:integer(@id)")          \
+               MERGE_SOURCE("b", "'in2.xml'", streamable, "records/record", "xs:integer(@id)"),    \
+           "<xsl:if test='current-merge-key() mod 20000 = 0'><r k='{current-merge-key()}' "        \
+           "v='{current-merge-group()/v}'/></xsl:if>")
+
+static void test_large_merge_streams_in_bounded_memory(sxml_test_state *state) {
+    sxml_byte_view documents[2] = {{.bytes = NULL, .byte_count = 0},
+                                   {.bytes = NULL, .byte_count = 0}};
+    void *memory[2] = {NULL, NULL};
+    sxml_status status = make_records_document(
+        (records_request){.first_id = 2, .id_step = 2}, &documents[0], &memory[0]);
+    if (status == SXML_STATUS_OK) {
+        status = make_records_document((records_request){.first_id = 1, .id_step = 2},
+                                       &documents[1], &memory[1]);
+    }
+    fixture test_fixture;
+    if (status == SXML_STATUS_OK) {
+        status = fixture_create(&test_fixture, documents[0]);
+        test_fixture.served.second_content = documents[1];
+        test_fixture.memory.limit_byte_count = STREAM_LIMIT_BYTE_COUNT;
+    }
+    if (status == SXML_STATUS_OK) {
+        status = run_main(&test_fixture, TEXT(LARGE_MERGE("yes")));
+        if (status != SXML_STATUS_OK) {
+            printf("  streamed merge: status %d, %.*s: %.*s\n", (int)status,
+                   (int)test_fixture.error_record.code.local_name.byte_count,
+                   (const char *)test_fixture.error_record.code.local_name.bytes,
+                   (int)test_fixture.error_record.diagnostic.description.byte_count,
+                   (const char *)test_fixture.error_record.diagnostic.description.bytes);
+        }
+        printf("  documents %zu and %zu bytes; streamed merge peak %zu bytes under a limit of "
+               "%zu\n",
+               documents[0].byte_count, documents[1].byte_count,
+               test_fixture.memory.peak_byte_count, (size_t)STREAM_LIMIT_BYTE_COUNT);
+        SXML_TEST_EXPECT(state, status == SXML_STATUS_OK);
+        SXML_TEST_EXPECT(state, sxml_byte_view_equals(
+                                    sxml_output_buffer_get_bytes(test_fixture.output_buffer),
+                                    TEXT(DECLARATION "<out><r k=\"20000\" v=\"3\"/>"
+                                                     "<r k=\"40000\" v=\"0\"/>"
+                                                     "<r k=\"60000\" v=\"4\"/></out>")));
+        sxml_status unstreamed = SXML_STATUS_OK;
+        if (status == SXML_STATUS_OK) {
+            unstreamed = run_main(&test_fixture, TEXT(LARGE_MERGE("no")));
+        }
+        SXML_TEST_EXPECT(state, unstreamed != SXML_STATUS_OK);
+        SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
+    }
+    SXML_TEST_EXPECT(state, status == SXML_STATUS_OK);
+    for (size_t document_index = 0; document_index < 2; document_index += 1) {
+        sxml_allocator_release(sxml_default_allocator(), memory[document_index]);
+    }
 }
 
 /* Streamed paths over the large document: counted, atomized and
@@ -967,6 +1252,10 @@ static const sxml_test_case evaluator_stream_test_cases[] = {
     {.name = "malformed_document_is_an_error", .function = test_malformed_document_is_an_error},
     {.name = "fallback_option_processes_unstreamed",
      .function = test_fallback_option_processes_unstreamed},
+    {.name = "streamed_merges_are_unstreamed_merges",
+     .function = test_streamed_merges_are_unstreamed_merges},
+    {.name = "large_merge_streams_in_bounded_memory",
+     .function = test_large_merge_streams_in_bounded_memory},
     {.name = "large_document_streams_in_bounded_memory",
      .function = test_large_document_streams_in_bounded_memory},
     {.name = "large_document_paths_stream_in_bounded_memory",

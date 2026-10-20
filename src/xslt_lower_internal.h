@@ -586,10 +586,10 @@ typedef struct sxml_xslt_accumulator_reading {
 
 /* Writes true to *reads when the stylesheet declares accumulators, an
    expression calls fn:accumulator-before or fn:accumulator-after, and a
-   streamed document could not compute them as its events pass (an end
-   rule that captures, or one declared streamable that is not
-   guaranteed-streamable, D231): then nothing is streamed that they could
-   read (D223, D228). Returns the allocator's failures. */
+   streamed document could not compute them as its events pass (one
+   declared streamable that is not guaranteed-streamable, D231; end rules
+   that capture are computed from captured subtrees, packet 7.6g): then
+   nothing is streamed that they could read (D223, D228). Returns the allocator's failures. */
 SXML_NODISCARD sxml_status sxml_xslt_reads_accumulators(
     const sxml_xslt_accumulator_reading *reading, bool *reads);
 
@@ -619,6 +619,49 @@ bool sxml_xslt_is_streamed_fork(const sxml_xslt_lowering *lowering,
    call->href is not read (the document's is used). */
 SXML_NODISCARD sxml_status sxml_xslt_lowering_call_streamed_fork(
     sxml_xpath_lowering_machine *machine, const sxml_xslt_stream_call *call);
+
+/* The most streamed merge sources of one xsl:merge (packet 7.6g); a
+   merge with more is lowered unstreamed. */
+#define SXML_XSLT_MERGE_MAXIMUM_STREAM_COUNT 16U
+
+/* True when the xsl:merge-source source is read as streamed documents,
+   one cursor per anchor (MERGE, src/ir_internal.h; XSLT 4.0, 15.4): it is
+   streamable, has for-each-source and no for-each-item, does not sort
+   before merging, validates nothing and names no accumulators, its
+   select is a path of child steps without predicates from the document
+   node whose last step selects elements, and nothing in it reads a
+   function a stream window cannot answer (fn:last, fn:path,
+   fn:has-children). Other sources are grounded first, as before, which
+   gives the same results (19.10). */
+bool sxml_xslt_streams_merge_source(const sxml_xslt_lowering *lowering,
+                                    sxml_xslt_ast_node_index source);
+
+/* True when the xsl:merge node becomes MERGE: one to
+   SXML_XSLT_MERGE_MAXIMUM_STREAM_COUNT of its sources are streamed and
+   its merge action reads no such function (the number of groups is not
+   known while streaming). */
+bool sxml_xslt_streams_merge(const sxml_xslt_lowering *lowering, sxml_xslt_ast_node_index merge);
+
+/* The chain of a streamed merge source (sxml_ir_merge_stream.stream). */
+typedef struct sxml_xslt_merge_chain_request {
+    const sxml_xslt_lowering *lowering;
+    sxml_xslt_ast_node_index source;
+    /* The slot bound to each anchor's URI, and the focus of its document
+       node (the anchor's position). */
+    sxml_ir_slot uri;
+    sxml_ir_focus document_focus;
+    /* The focus of each selected node, and the tuple made in it. */
+    sxml_ir_focus item_focus;
+    sxml_ir_expression_index body;
+} sxml_xslt_merge_chain_request;
+
+/* Adds the STREAM with OPENS_DOCUMENT over request->uri whose body is the
+   chain of request->source's select (one STREAM per step, shallow
+   windows but for the last) with request->body last, and writes its index
+   to *stream. Returns the lowerer's failures. */
+SXML_NODISCARD sxml_status sxml_xslt_lowering_add_merge_chain(
+    sxml_xpath_lowerer *lowerer, const sxml_xslt_merge_chain_request *request,
+    sxml_ir_expression_index *stream);
 
 /* From a step: pushes the frame lowering a stream point (xsl:for-each or
    xsl:apply-templates) to its chain of STREAMs, in the current focus. */

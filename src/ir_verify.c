@@ -597,6 +597,11 @@ static sxml_status check_stream(verifier *checker, const sxml_ir_stream *stream)
                                    "out of range, or not of a document");
         }
     }
+    if (accumulators->capture.value >= checker->unit->function_count ||
+        (accumulators->capture.value != 0 && !has_accumulators)) {
+        return report(checker, "a stream has a capture function out of range or without "
+                               "accumulators");
+    }
     sxml_status status = check_required_atom(checker, stream->origin);
     if (status == SXML_STATUS_OK) {
         status = check_focus_slots(checker, stream->focus);
@@ -608,6 +613,63 @@ static sxml_status check_stream(verifier *checker, const sxml_ir_stream *stream)
     if (status == SXML_STATUS_OK && stream->predicate.value != 0) {
         status = push_scoped_visit(
             checker, (scoped_visit){.expression = stream->predicate, .focus = stream->focus});
+    }
+    return status;
+}
+
+/* MERGE (packet 7.6g): its tuples, heads and focus, each merge stream a
+   STREAM with OPENS_DOCUMENT whose origin MERGE binds, order with heads
+   bound and body with the focus bound. */
+static sxml_status check_merge(verifier *checker, const sxml_ir_merge *merge) {
+    const sxml_ir_merge_stream_view streams =
+        sxml_ir_unit_get_merge_streams(checker->unit, merge->streams);
+    if (streams.merge_stream_count == 0 || streams.merge_stream_count != merge->streams.merge_stream_count ||
+        merge->heads.value == 0 || merge->heads.value > current_function(checker)->slot_count ||
+        merge->order.value == 0 || merge->body.value == 0 ||
+        merge->focus.context_size.value != 0) {
+        return report(checker, "a merge has no streams, heads, order or body, or has a size");
+    }
+    sxml_status status = check_required_atom(checker, merge->tuples);
+    if (status == SXML_STATUS_OK) {
+        status = check_focus_slots(checker, merge->focus);
+    }
+    for (size_t stream_index = 0;
+         status == SXML_STATUS_OK && stream_index < streams.merge_stream_count;
+         stream_index += 1) {
+        const sxml_ir_merge_stream *stream = &streams.merge_streams[stream_index];
+        status = check_required_atom(checker, stream->anchors);
+        const sxml_ir_expression_index index = stream->stream;
+        if (status == SXML_STATUS_OK &&
+            (index.value == 0 || index.value >= checker->unit->expression_count)) {
+            status = report(checker, "a merge stream's expression index is out of range");
+        }
+        const sxml_ir_expression *expression =
+            status == SXML_STATUS_OK ? sxml_ir_unit_get_expression(checker->unit, index) : NULL;
+        if (status == SXML_STATUS_OK &&
+            (expression->expression_kind != SXML_IR_EXPRESSION_KIND_STREAM ||
+             (expression->stream.flags & (uint32_t)SXML_IR_STREAM_OPENS_DOCUMENT) == 0 ||
+             expression->stream.origin.atom_kind != SXML_IR_ATOM_KIND_SLOT)) {
+            status = report(checker, "a merge stream is not a STREAM that opens a document from "
+                                     "a slot");
+        }
+        if (status == SXML_STATUS_OK) {
+            status = push_scoped_visit(
+                checker, (scoped_visit){.expression = index,
+                                        .focus = {.context_value = expression->stream.origin.slot,
+                                                  .context_position = {0},
+                                                  .context_size = {0}}});
+        }
+    }
+    if (status == SXML_STATUS_OK) {
+        status = push_scoped_visit(
+            checker, (scoped_visit){.expression = merge->order,
+                                    .focus = {.context_value = merge->heads,
+                                              .context_position = {0},
+                                              .context_size = {0}}});
+    }
+    if (status == SXML_STATUS_OK) {
+        status = push_scoped_visit(checker,
+                                   (scoped_visit){.expression = merge->body, .focus = merge->focus});
     }
     return status;
 }
@@ -908,6 +970,8 @@ static sxml_status visit_expression(verifier *checker,
         return check_apply_templates(checker, &expression->apply_templates);
     case SXML_IR_EXPRESSION_KIND_STREAM:
         return check_stream(checker, &expression->stream);
+    case SXML_IR_EXPRESSION_KIND_MERGE:
+        return check_merge(checker, &expression->merge);
     case SXML_IR_EXPRESSION_KIND_GLOBAL_READ:
         /* D234: a global of the unit, then the body. */
         status = check_required_atom(

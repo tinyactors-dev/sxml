@@ -171,6 +171,7 @@ static bool kind_is_plain(sxml_ir_expression_kind kind) {
     case SXML_IR_EXPRESSION_KIND_APPLY_TEMPLATES:
     case SXML_IR_EXPRESSION_KIND_STREAM:
     case SXML_IR_EXPRESSION_KIND_GLOBAL_READ:
+    case SXML_IR_EXPRESSION_KIND_MERGE:
     case SXML_IR_EXPRESSION_KIND_COUNT:
         return false;
     }
@@ -1076,6 +1077,17 @@ static sxml_status push_every_child(loop_pass *pass, sxml_ir_expression_index in
     } else if (kind == SXML_IR_EXPRESSION_KIND_STREAM) {
         extra[0] = expression.stream.predicate;
         extra[1] = expression.stream.body;
+    } else if (kind == SXML_IR_EXPRESSION_KIND_MERGE) {
+        extra[0] = expression.merge.order;
+        extra[1] = expression.merge.body;
+        const sxml_ir_merge_stream_view streams =
+            sxml_ir_unit_get_merge_streams(pass->unit, expression.merge.streams);
+        for (size_t stream_index = 0;
+             status == SXML_STATUS_OK && stream_index < streams.merge_stream_count;
+             stream_index += 1) {
+            status = pass_array_append(pass->allocator, &pass->walk,
+                                       &streams.merge_streams[stream_index].stream);
+        }
     }
     for (size_t extra_index = 0; status == SXML_STATUS_OK && extra_index < 2; extra_index += 1) {
         if (extra[extra_index].value != 0) {
@@ -1139,7 +1151,8 @@ static sxml_status make_owners(loop_pass *pass, uint32_t expression_count) {
             status = push_every_child(pass, index);
             const bool marks_children =
                 pass->is_in_stream[index.value] ||
-                expression_at(pass, index).expression_kind == SXML_IR_EXPRESSION_KIND_STREAM;
+                expression_at(pass, index).expression_kind == SXML_IR_EXPRESSION_KIND_STREAM ||
+                expression_at(pass, index).expression_kind == SXML_IR_EXPRESSION_KIND_MERGE;
             for (size_t child = first_child; marks_children && child < pass->walk.element_count;
                  child += 1) {
                 const sxml_ir_expression_index child_index =

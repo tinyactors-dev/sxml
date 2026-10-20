@@ -987,6 +987,10 @@ static void scan_expression(edge_sink *sink, const sxml_ir_expression *expressio
     case SXML_IR_EXPRESSION_KIND_STREAM:
         add_edge(sink, node_of_atom(module, expression->stream.origin));
         return;
+    case SXML_IR_EXPRESSION_KIND_MERGE:
+        /* XSLT only (packet 7.6g): no XQuery global reads its streams. */
+        add_edge(sink, node_of_atom(module, expression->merge.tuples));
+        return;
     case SXML_IR_EXPRESSION_KIND_GLOBAL_READ:
         /* Added by the global-read pass, after this scan (D234). */
         add_edge(sink, node_of_atom(module, (sxml_ir_atom){

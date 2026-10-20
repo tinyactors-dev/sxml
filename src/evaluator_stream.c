@@ -2,7 +2,8 @@
  * Evaluator part: streamed evaluation (src/evaluator_machine_internal.h,
  * D101, D166, D219). Evaluates STREAM (src/ir_internal.h): the stream
  * points of xsl:source-document with streamable="yes" and of the bodies it
- * streams (XSLT 4.0, 18.1 and 19).
+ * streams (XSLT 4.0, 18.1 and 19); and MERGE, xsl:merge over streamed
+ * documents read in step (15.4; packet 7.6g, at the end of the file).
  *
  * A streamed document (glossary `streamed_document`) is read by an
  * incremental parse (src/xml_internal.h, glossary `incremental_parse`)
@@ -47,6 +48,11 @@
  * values). A rule's error is kept and raised by the reads of the values it
  * left out (19.5); a rule that reads another accumulator's value of the
  * same node waits until that one is computed.
+ * An end rule with capture="yes" (19.9; packet 7.6g) reads the node's
+ * subtree: at each element's start the capture function names the
+ * accumulators whose such rules match it, and the builder then also sends
+ * the element's events to a full window of its own (a tee; nested tees
+ * are a stack), which those accumulators' end calls get as the node.
  *
  * The parser never calls the evaluator: a STREAM task resumes the parse,
  * which returns after a few events, and pushes the predicate and body
@@ -64,6 +70,7 @@
  */
 #include "evaluator_machine_internal.h"
 
+#include "memory_internal.h"
 #include "processor_internal.h"
 #include "sxml/name.h"
 #include "sxml/tree.h"
@@ -72,6 +79,7 @@
 #include "xml_internal.h"
 
 #include <stdalign.h>
+#include <stddef.h>
 #include <string.h>
 
 /* ------------------------------------------------------------ Errors */
@@ -188,9 +196,24 @@ typedef struct sxml_stream_accumulated {
     sxml_item after;
     sxml_item full_window;
     sxml_item descended;
+    /* An element some end rule with capture="yes" matches (19.9): the
+       numbers of those accumulators (xs:integer items) and, once its end
+       was read, the element in a full window of its own, which their end
+       calls get (packet 7.6g). */
+    sxml_sequence captures;
+    sxml_item captured;
     /* The serial number of the event that started the node. */
     uint64_t serial;
 } sxml_stream_accumulated;
+
+/* An element whose events are also sent to a window of its own as they
+   pass (capture="yes", 19.9; packet 7.6g): the window being built, the
+   element's depth and its index in the window. */
+typedef struct sxml_stream_tee {
+    sxml_stream_window_build build;
+    size_t depth;
+    uint32_t node_index;
+} sxml_stream_tee;
 
 /* A streamed document (glossary `streamed_document`). */
 typedef struct sxml_stream_document {
@@ -255,6 +278,11 @@ typedef struct sxml_stream_document {
     const sxml_ir_function *accumulator_start;
     const sxml_ir_function *accumulator_end;
     const sxml_ir_function *accumulator_descend;
+    /* NULL when no end rule captures (packet 7.6g). */
+    const sxml_ir_function *accumulator_capture;
+    /* The elements being captured for their end rules, outermost first
+       (sxml_stream_tee). */
+    sxml_xml_array tees;
     sxml_item accumulator_values;
     sxml_xml_array accumulated;
     sxml_stream_accumulated accumulated_leaf;
@@ -315,11 +343,15 @@ static void sxml_stream_clear_accumulated(sxml_stream_accumulated *entry) {
     sxml_item_release(entry->after);
     sxml_item_release(entry->full_window);
     sxml_item_release(entry->descended);
+    sxml_sequence_release(entry->captures);
+    sxml_item_release(entry->captured);
     *entry = (sxml_stream_accumulated){.window = {.representation = 0},
                                        .before = {.representation = 0},
                                        .after = {.representation = 0},
                                        .full_window = {.representation = 0},
                                        .descended = {.representation = 0},
+                                       .captures = sxml_sequence_empty(),
+                                       .captured = {.representation = 0},
                                        .serial = 0};
 }
 
@@ -338,6 +370,8 @@ static sxml_stream_accumulated *sxml_stream_accumulated_at(sxml_stream_document 
         entry->after = (sxml_item){.representation = 0};
         entry->full_window = (sxml_item){.representation = 0};
         entry->descended = (sxml_item){.representation = 0};
+        entry->captures = sxml_sequence_empty();
+        entry->captured = (sxml_item){.representation = 0};
         entry->serial = 0;
     }
     return sxml_xml_array_at(&document->accumulated, depth);
@@ -514,6 +548,37 @@ static sxml_stream_document *sxml_stream_document_from_state(void *state) {
     return state;
 }
 
+/* The builder of the tee at tee_index (packet 7.6g). */
+static sxml_tree_builder sxml_stream_tee_builder(const sxml_stream_document *document,
+                                                 size_t tee_index) {
+    const sxml_stream_tee *tee = sxml_xml_array_at(&document->tees, tee_index);
+    return tee->build.builder;
+}
+
+/* Ends the window of the tee on top (its element's end was sent to it)
+   and keeps its element as the captured node of its depth's entry. */
+static sxml_status sxml_stream_finish_tee(sxml_stream_document *document) {
+    sxml_stream_tee *tee = sxml_xml_array_at(&document->tees, document->tees.element_count - 1U);
+    sxml_stream_window_build build = tee->build;
+    const size_t depth = tee->depth;
+    const uint32_t node_index = tee->node_index;
+    document->tees.element_count -= 1U;
+    sxml_item captured = {.representation = 0};
+    sxml_status status = sxml_stream_end_window(
+        document,
+        (sxml_stream_window_end){.build = &build, .open_count = depth - 1U, .node_index = node_index},
+        &captured);
+    sxml_stream_accumulated *entry =
+        status == SXML_STATUS_OK ? sxml_stream_accumulated_at(document, depth) : NULL;
+    if (entry == NULL) {
+        sxml_item_release(captured);
+        return status == SXML_STATUS_OK ? SXML_STATUS_OUT_OF_MEMORY : status;
+    }
+    sxml_item_release(entry->captured);
+    entry->captured = captured;
+    return SXML_STATUS_OK;
+}
+
 static sxml_status sxml_stream_queue(sxml_stream_document *document, sxml_stream_event event) {
     if (document->queue_count == STREAM_QUEUE_CAPACITY) {
         return SXML_STATUS_CAPACITY_EXCEEDED;
@@ -600,6 +665,11 @@ static sxml_status sxml_stream_on_start_element(void *state,
     element->attribute_count = 0;
     status = sxml_stream_keep(&document->ancestor_text, event->entity_base_uri,
                               &element->entity_base_uri);
+    for (size_t tee_index = 0;
+         status == SXML_STATUS_OK && tee_index < document->tees.element_count; tee_index += 1) {
+        const sxml_tree_builder tee = sxml_stream_tee_builder(document, tee_index);
+        status = tee.operations->start_element(tee.state, event);
+    }
     if (status != SXML_STATUS_OK) {
         return status;
     }
@@ -625,6 +695,14 @@ static sxml_status sxml_stream_on_namespace_binding(void *state,
     }
     *(sxml_namespace_binding *)memory = *binding;
     sxml_stream_element_at(document, sxml_stream_depth(document) - 1)->binding_count += 1;
+    for (size_t tee_index = 0;
+         status == SXML_STATUS_OK && tee_index < document->tees.element_count; tee_index += 1) {
+        const sxml_tree_builder tee = sxml_stream_tee_builder(document, tee_index);
+        status = tee.operations->add_namespace_binding(tee.state, binding);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
     if (document->mode == SXML_STREAM_MODE_CAPTURE) {
         return document->capture.builder.operations->add_namespace_binding(
             document->capture.builder.state, binding);
@@ -647,6 +725,14 @@ static sxml_status sxml_stream_on_attribute(void *state, const sxml_attribute_ev
         return status;
     }
     sxml_stream_element_at(document, sxml_stream_depth(document) - 1)->attribute_count += 1;
+    for (size_t tee_index = 0;
+         status == SXML_STATUS_OK && tee_index < document->tees.element_count; tee_index += 1) {
+        const sxml_tree_builder tee = sxml_stream_tee_builder(document, tee_index);
+        status = tee.operations->add_attribute(tee.state, event);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
     if (document->mode == SXML_STREAM_MODE_CAPTURE) {
         return document->capture.builder.operations->add_attribute(document->capture.builder.state,
                                                                    event);
@@ -667,6 +753,17 @@ static void sxml_stream_pop_element(sxml_stream_document *document) {
 static sxml_status sxml_stream_on_end_element(void *state) {
     sxml_stream_document *document = sxml_stream_document_from_state(state);
     sxml_status status = sxml_stream_flush_text(document);
+    for (size_t tee_index = 0;
+         status == SXML_STATUS_OK && tee_index < document->tees.element_count; tee_index += 1) {
+        const sxml_tree_builder tee = sxml_stream_tee_builder(document, tee_index);
+        status = tee.operations->end_element(tee.state);
+    }
+    if (status == SXML_STATUS_OK && document->tees.element_count > 0 &&
+        ((const sxml_stream_tee *)sxml_xml_array_at(&document->tees,
+                                                    document->tees.element_count - 1U))
+                ->depth == sxml_stream_depth(document)) {
+        status = sxml_stream_finish_tee(document);
+    }
     if (status != SXML_STATUS_OK) {
         return status;
     }
@@ -699,6 +796,13 @@ static sxml_status sxml_stream_on_end_element(void *state) {
 
 static sxml_status sxml_stream_on_text(void *state, const sxml_text_event *event) {
     sxml_stream_document *document = sxml_stream_document_from_state(state);
+    for (size_t tee_index = 0; tee_index < document->tees.element_count; tee_index += 1) {
+        const sxml_tree_builder tee = sxml_stream_tee_builder(document, tee_index);
+        const sxml_status status = tee.operations->add_text(tee.state, event);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+    }
     if (document->mode == SXML_STREAM_MODE_CAPTURE) {
         return document->capture.builder.operations->add_text(document->capture.builder.state,
                                                               event);
@@ -723,6 +827,11 @@ static sxml_status sxml_stream_on_text(void *state, const sxml_text_event *event
 static sxml_status sxml_stream_on_comment(void *state, const sxml_comment_event *event) {
     sxml_stream_document *document = sxml_stream_document_from_state(state);
     sxml_status status = sxml_stream_flush_text(document);
+    for (size_t tee_index = 0;
+         status == SXML_STATUS_OK && tee_index < document->tees.element_count; tee_index += 1) {
+        const sxml_tree_builder tee = sxml_stream_tee_builder(document, tee_index);
+        status = tee.operations->add_comment(tee.state, event);
+    }
     if (status != SXML_STATUS_OK) {
         return status;
     }
@@ -743,6 +852,11 @@ static sxml_status
 sxml_stream_on_processing_instruction(void *state, const sxml_processing_instruction_event *event) {
     sxml_stream_document *document = sxml_stream_document_from_state(state);
     sxml_status status = sxml_stream_flush_text(document);
+    for (size_t tee_index = 0;
+         status == SXML_STATUS_OK && tee_index < document->tees.element_count; tee_index += 1) {
+        const sxml_tree_builder tee = sxml_stream_tee_builder(document, tee_index);
+        status = tee.operations->add_processing_instruction(tee.state, event);
+    }
     if (status != SXML_STATUS_OK) {
         return status;
     }
@@ -1025,6 +1139,11 @@ static void sxml_stream_document_destroy(sxml_stream_document *document) {
     if (document->capture.arena_tree != NULL) {
         sxml_arena_tree_destroy(document->capture.arena_tree);
     }
+    for (size_t tee_index = 0; tee_index < document->tees.element_count; tee_index += 1) {
+        const sxml_stream_tee *tee = sxml_xml_array_at(&document->tees, tee_index);
+        sxml_arena_tree_destroy(tee->build.arena_tree);
+    }
+    sxml_xml_array_release(&document->tees);
     if (document->loader != NULL) {
         sxml_processor_document_loader_close_streamed(document->loader, &document->source);
     }
@@ -1096,6 +1215,7 @@ static sxml_status sxml_stream_document_open(sxml_dynamic_context *dynamic_conte
     new_document->bindings = sxml_stream_array(allocator, sizeof(sxml_namespace_binding));
     new_document->attributes = sxml_stream_array(allocator, sizeof(sxml_stream_attribute));
     new_document->accumulated = sxml_stream_array(allocator, sizeof(sxml_stream_accumulated));
+    new_document->tees = sxml_stream_array(allocator, sizeof(sxml_stream_tee));
     new_document->accumulator_values = (sxml_item){.representation = 0};
     new_document->value_key = (sxml_item){.representation = 0};
     new_document->failure_text = sxml_xml_buffer_empty(allocator);
@@ -1308,6 +1428,9 @@ typedef enum sxml_stream_accumulation_kind {
     SXML_STREAM_ACCUMULATION_END,
     /* The values of a subtree in a full window, and after its end. */
     SXML_STREAM_ACCUMULATION_DESCEND,
+    /* The accumulators an element's end event reads the subtree for
+       (capture="yes", 19.9; packet 7.6g): its events are then captured. */
+    SXML_STREAM_ACCUMULATION_CAPTURE,
 } sxml_stream_accumulation_kind;
 
 /* One call of an accumulator function: its node (owned) and whose values
@@ -1438,6 +1561,8 @@ static const sxml_ir_function *sxml_stream_accumulation_function(
         return document->accumulator_end;
     case SXML_STREAM_ACCUMULATION_DESCEND:
         return document->accumulator_descend;
+    case SXML_STREAM_ACCUMULATION_CAPTURE:
+        return document->accumulator_capture;
     }
     return NULL;
 }
@@ -1456,6 +1581,57 @@ static sxml_sequence sxml_stream_number_value(const sxml_stream_document *docume
     return sxml_sequence_empty();
 }
 
+/* Whether call computes what it computes for every accumulator at once:
+   INITIAL and CAPTURE take the node only. */
+static bool sxml_stream_is_whole_call(const sxml_stream_accumulation *call) {
+    return call->accumulation_kind == SXML_STREAM_ACCUMULATION_INITIAL ||
+           call->accumulation_kind == SXML_STREAM_ACCUMULATION_CAPTURE;
+}
+
+/* Whether integer is among the xs:integer items of numbers. */
+typedef struct sxml_stream_number_question {
+    sxml_sequence numbers;
+    sxml_item number;
+} sxml_stream_number_question;
+
+static bool sxml_stream_has_number(sxml_stream_number_question question) {
+    if (sxml_item_get_representation(question.number) != SXML_ITEM_REPRESENTATION_INTEGER) {
+        return false;
+    }
+    sxml_sequence_iterator iterator = sxml_sequence_iterator_start(question.numbers);
+    for (;;) {
+        sxml_iteration_step step = {.has_item = false};
+        if (sxml_sequence_iterator_next(&iterator, NULL, &step) != SXML_STATUS_OK ||
+            !step.has_item) {
+            return false;
+        }
+        if (sxml_item_get_representation(step.item) == SXML_ITEM_REPRESENTATION_INTEGER &&
+            step.item.payload.integer == question.number.payload.integer) {
+            return true;
+        }
+    }
+}
+
+/* The node call passes: the element in the full window its events were
+   captured into for an end call of an accumulator whose end rule with
+   capture="yes" matched it (19.9; packet 7.6g), else the call's node. */
+static sxml_item sxml_stream_call_node(const sxml_stream_document *document,
+                                       const sxml_stream_accumulation *call) {
+    if (call->accumulation_kind != SXML_STREAM_ACCUMULATION_END || call->is_leaf ||
+        call->depth >= document->accumulated.element_count ||
+        document->number_cursor >= document->number_count) {
+        return call->node;
+    }
+    const sxml_stream_accumulated *entry = sxml_xml_array_at(&document->accumulated, call->depth);
+    if (entry->captured.representation == 0 ||
+        !sxml_stream_has_number((sxml_stream_number_question){
+            .numbers = entry->captures,
+            .number = document->accumulator_numbers[document->number_cursor]})) {
+        return call->node;
+    }
+    return entry->captured;
+}
+
 /* Pushes a CALL of the call at state->call_next above the task, as
    src/evaluator_template.c pushes a template's: INITIAL of its node; the
    others of its node, the value of the accumulator at number_cursor and
@@ -1466,7 +1642,8 @@ static sxml_status sxml_stream_push_accumulation(sxml_dynamic_context *dynamic_c
     sxml_stream_document *document = state->document;
     const sxml_ir_function *function =
         sxml_stream_accumulation_function(document, call->accumulation_kind);
-    const bool is_initial = call->accumulation_kind == SXML_STREAM_ACCUMULATION_INITIAL;
+    /* INITIAL and CAPTURE give what they give for every accumulator. */
+    const bool is_initial = sxml_stream_is_whole_call(call);
     if (function == NULL || function->parameter_count != (is_initial ? 1U : 3U) ||
         (!is_initial && document->number_cursor >= document->number_count)) {
         return SXML_STATUS_INVALID_ARGUMENT;
@@ -1482,8 +1659,9 @@ static sxml_status sxml_stream_push_accumulation(sxml_dynamic_context *dynamic_c
         return status;
     }
     sxml_sequence *arguments = memory;
-    sxml_item_retain(call->node);
-    arguments[0] = sxml_sequence_from_item(call->node);
+    const sxml_item node = sxml_stream_call_node(document, call);
+    sxml_item_retain(node);
+    arguments[0] = sxml_sequence_from_item(node);
     if (!is_initial) {
         arguments[1] = sxml_stream_number_value(document, document->number_cursor);
         sxml_sequence_retain(arguments[1]);
@@ -1539,7 +1717,7 @@ static sxml_status sxml_stream_begin_call(sxml_dynamic_context *dynamic_context,
         sxml_item_release(entry->descended);
         entry->descended = (sxml_item){.representation = 0};
     }
-    if (call->accumulation_kind != SXML_STREAM_ACCUMULATION_INITIAL) {
+    if (!sxml_stream_is_whole_call(call)) {
         for (size_t number_index = 0; number_index < document->number_count; number_index += 1) {
             document->is_number_done[number_index] = false;
         }
@@ -1632,6 +1810,16 @@ static sxml_status sxml_stream_plan_event(sxml_dynamic_context *dynamic_context,
         sxml_stream_clear_accumulated(entry);
         entry->window = window;
         entry->serial = document->event_serial;
+        if (document->accumulator_capture != NULL) {
+            /* 19.9: whether its end rules read its subtree, before its
+               content is read. */
+            sxml_item_retain(window);
+            sxml_stream_add_call(state, (sxml_stream_call_request){
+                                            .accumulation_kind = SXML_STREAM_ACCUMULATION_CAPTURE,
+                                            .node = window,
+                                            .depth = depth,
+                                            .is_leaf = false});
+        }
         sxml_item_retain(window);
         sxml_stream_add_call(state, (sxml_stream_call_request){
                                         .accumulation_kind = SXML_STREAM_ACCUMULATION_START,
@@ -1914,6 +2102,48 @@ static sxml_status sxml_stream_apply_number(sxml_stream_state *state, sxml_seque
     document->is_number_done[document->number_cursor] = true;
     document->has_round_progressed = true;
     sxml_sequence_release(value);
+    return status;
+}
+
+/* CAPTURE ended with the numbers (owned) of the accumulators whose end
+   rules capture the call's element (19.9; packet 7.6g): none, or its
+   events are captured from now on into a full window of its own (begun
+   with its ancestors and itself, which are open), ended with its end:
+   at once when its end came with its start (an empty element). */
+static sxml_status sxml_stream_apply_capture(sxml_stream_state *state, sxml_sequence value) {
+    sxml_stream_document *document = state->document;
+    const sxml_stream_accumulation *call = &state->calls[state->call_next];
+    if (sxml_sequence_get_representation(value) == SXML_SEQUENCE_REPRESENTATION_EMPTY) {
+        return SXML_STATUS_OK;
+    }
+    sxml_stream_accumulated *entry = sxml_stream_accumulated_at(document, call->depth);
+    if (entry == NULL || call->depth == 0 || call->depth != sxml_stream_depth(document)) {
+        sxml_sequence_release(value);
+        return entry == NULL ? SXML_STATUS_OUT_OF_MEMORY : SXML_STATUS_INVALID_ARGUMENT;
+    }
+    sxml_sequence_release(entry->captures);
+    entry->captures = value;
+    void *memory = NULL;
+    sxml_status status = sxml_xml_array_push(&document->tees, &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_stream_tee *tee = memory;
+    tee->depth = call->depth;
+    status = sxml_stream_begin_window(document, call->depth, &tee->build);
+    if (status != SXML_STATUS_OK) {
+        document->tees.element_count -= 1U;
+        return status;
+    }
+    tee->node_index = tee->build.last_element_index;
+    if (document->queue_count > 0 &&
+        document->queue[document->queue_start].event_kind == SXML_STREAM_EVENT_END_ELEMENT) {
+        /* The element is empty: its end is queued, sent to no tee. */
+        status = tee->build.builder.operations->end_element(tee->build.builder.state);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_stream_finish_tee(document);
+        }
+    }
     return status;
 }
 
@@ -2419,6 +2649,9 @@ static sxml_status sxml_stream_start_accumulators(sxml_dynamic_context *dynamic_
     document->accumulator_start = sxml_ir_unit_get_function(unit, functions->start);
     document->accumulator_end = sxml_ir_unit_get_function(unit, functions->end);
     document->accumulator_descend = sxml_ir_unit_get_function(unit, functions->descend);
+    document->accumulator_capture = functions->capture.value != 0
+                                        ? sxml_ir_unit_get_function(unit, functions->capture)
+                                        : NULL;
     sxml_status status = sxml_atomic_item_make(
         document->processor->item_heap,
         &(sxml_atomic_item_request){
@@ -2715,8 +2948,8 @@ static sxml_status sxml_stream_take_accumulation(sxml_dynamic_context *dynamic_c
     sxml_evaluator_machine_top(dynamic_context)->catches_errors = false;
     sxml_stream_document *document = state->document;
     const sxml_status caught = sxml_evaluator_machine_take_caught_status(dynamic_context);
-    const bool is_initial =
-        state->calls[state->call_next].accumulation_kind == SXML_STREAM_ACCUMULATION_INITIAL;
+    const sxml_stream_accumulation_kind kind = state->calls[state->call_next].accumulation_kind;
+    const bool is_initial = sxml_stream_is_whole_call(&state->calls[state->call_next]);
     const bool was_waiting = document->is_waiting;
     document->is_waiting = false;
     sxml_status status = SXML_STATUS_OK;
@@ -2733,8 +2966,10 @@ static sxml_status sxml_stream_take_accumulation(sxml_dynamic_context *dynamic_c
             state->calls[call_index].node = (sxml_item){.representation = 0};
         }
         state->call_count = state->call_next + 1U;
-    } else if (is_initial) {
+    } else if (kind == SXML_STREAM_ACCUMULATION_INITIAL) {
         status = sxml_stream_apply_initial(document, sxml_evaluator_machine_take_value(dynamic_context));
+    } else if (kind == SXML_STREAM_ACCUMULATION_CAPTURE) {
+        status = sxml_stream_apply_capture(state, sxml_evaluator_machine_take_value(dynamic_context));
     } else {
         status = sxml_stream_apply_number(state, sxml_evaluator_machine_take_value(dynamic_context));
         if (status == SXML_STATUS_OK && sxml_stream_next_number(document)) {
@@ -2804,8 +3039,927 @@ static sxml_status sxml_stream_step(sxml_dynamic_context *dynamic_context,
     return SXML_STATUS_INVALID_ARGUMENT;
 }
 
+/* ------------------------------------------------------------- MERGE */
+
+/*
+ * MERGE (src/ir_internal.h; XSLT 4.0, 15.3 to 15.6; packet 7.6g): the
+ * cursors of a merge read in step. A cursor of a merge stream is the
+ * stream builder of one streamed document (as an OPENS_DOCUMENT STREAM
+ * opens it) read by the task itself, one selected node at a time: the
+ * select's child steps are matched against the open elements, content
+ * no step can select is skipped, and a selected element is grounded in a
+ * full window (19.4) before its tuple is computed. A document the
+ * resolver gives as a tree is walked instead. So a merge of streamed
+ * documents holds, per cursor, the open elements and one window.
+ */
+
+static const sxml_static_error sxml_merge_order_error = {
+    .error_status = SXML_STATUS_DYNAMIC_ERROR,
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XTDE2220"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(
+        "The input of a merge source is not in merge-key order (XSLT 4.0, 15.4)"),
+};
+
+/* The most steps of a streamed merge source's select. */
+#define MERGE_MAXIMUM_STEP_COUNT 16U
+
+/* One merge stream, read from its IR: the OPENS_DOCUMENT STREAM and the
+   chain of steps under it. */
+typedef struct sxml_merge_source {
+    const sxml_ir_stream *document_stream;
+    const sxml_ir_stream *steps[MERGE_MAXIMUM_STEP_COUNT];
+    sxml_stream_test tests[MERGE_MAXIMUM_STEP_COUNT];
+    size_t step_count;
+} sxml_merge_source;
+
+/* One cursor: of the grounded tuples, or of one anchor document. */
+typedef struct sxml_merge_cursor {
+    bool is_grounded;
+    size_t source_index;
+    uint64_t anchor_position;
+    /* Owned: the streamed document, NULL once read to its end or when
+       the document is a tree; its document node (a window, or the tree's). */
+    sxml_stream_document *document;
+    sxml_item document_node;
+    /* Streamed: how many steps the open elements match. */
+    size_t matched_depth;
+    /* A tree: the child iterators of the nodes matched, by step. */
+    sxml_axis_iterator iterators[MERGE_MAXIMUM_STEP_COUNT];
+    size_t iterator_count;
+    uint64_t selected_count;
+    /* Owned: the current tuple; none once the cursor has ended. */
+    sxml_item head;
+    bool has_ended;
+} sxml_merge_cursor;
+
+/* A tuple of the open group, with the order 15.6 gives it a place by. */
+typedef struct sxml_merge_member {
+    sxml_item tuple;
+    int64_t source_number;
+    int64_t anchor_position;
+} sxml_merge_member;
+
+typedef enum sxml_merge_phase {
+    SXML_MERGE_PHASE_START = 0,
+    /* Moves the cursors waiting on; then the order. */
+    SXML_MERGE_PHASE_ADVANCE,
+    /* The tuple of a cursor's selected node ended. */
+    SXML_MERGE_PHASE_TUPLE,
+    /* The order of the heads ended. */
+    SXML_MERGE_PHASE_ORDERED,
+    /* A group's body ended. */
+    SXML_MERGE_PHASE_BODY,
+} sxml_merge_phase;
+
+typedef struct sxml_merge_state {
+    const sxml_ir_merge *merge;
+    sxml_merge_source *sources;
+    size_t source_count;
+    sxml_merge_cursor *cursors;
+    size_t cursor_count;
+    /* The grounded tuples (owned) and where the grounded cursor is. */
+    sxml_sequence grounded;
+    sxml_sequence_iterator grounded_iterator;
+    /* The cursors to move on, in order: pending[pending_next] first. */
+    size_t *pending;
+    size_t pending_count;
+    size_t pending_next;
+    /* The open group: its tuples (owned) and key (owned). */
+    sxml_merge_member *members;
+    size_t member_count;
+    size_t member_capacity;
+    sxml_sequence group_key;
+    bool has_group;
+    uint64_t group_count;
+    /* Owned; made on the first value. */
+    sxml_sequence_builder *builder;
+} sxml_merge_state;
+
+static void sxml_merge_clear_members(sxml_merge_state *state) {
+    for (size_t member_index = 0; member_index < state->member_count; member_index += 1) {
+        sxml_item_release(state->members[member_index].tuple);
+    }
+    state->member_count = 0;
+    sxml_sequence_release(state->group_key);
+    state->group_key = sxml_sequence_empty();
+    state->has_group = false;
+}
+
+static void sxml_merge_close_cursor(sxml_merge_cursor *cursor) {
+    sxml_stream_document_destroy(cursor->document);
+    cursor->document = NULL;
+    sxml_item_release(cursor->document_node);
+    cursor->document_node = (sxml_item){.representation = 0};
+    cursor->iterator_count = 0;
+}
+
+static void sxml_merge_release_state(sxml_dynamic_context *dynamic_context, void *state) {
+    sxml_merge_state *merge_state = state;
+    const sxml_allocator allocator = dynamic_context->allocator;
+    for (size_t cursor_index = 0; cursor_index < merge_state->cursor_count; cursor_index += 1) {
+        sxml_merge_cursor *cursor = &merge_state->cursors[cursor_index];
+        sxml_merge_close_cursor(cursor);
+        sxml_item_release(cursor->head);
+    }
+    sxml_merge_clear_members(merge_state);
+    sxml_sequence_release(merge_state->grounded);
+    sxml_sequence_builder_destroy(merge_state->builder);
+    sxml_allocator_release(allocator, merge_state->sources);
+    sxml_allocator_release(allocator, merge_state->cursors);
+    sxml_allocator_release(allocator, merge_state->pending);
+    sxml_allocator_release(allocator, merge_state->members);
+    sxml_allocator_release(allocator, merge_state);
+}
+
+/* Allocator memory for count elements of size bytes (at least one),
+   zeroed. */
+typedef struct sxml_merge_array_request {
+    size_t element_count;
+    size_t element_size;
+} sxml_merge_array_request;
+
+static sxml_status sxml_merge_allocate(const sxml_dynamic_context *dynamic_context,
+                                       sxml_merge_array_request request, void **memory) {
+    *memory = NULL;
+    const size_t count = request.element_count == 0 ? 1 : request.element_count;
+    const sxml_status status = sxml_allocator_allocate_array(
+        dynamic_context->allocator,
+        (sxml_array_allocation_request){.element_count = count,
+                                        .element_size = request.element_size,
+                                        .element_alignment = alignof(max_align_t)},
+        memory);
+    if (status == SXML_STATUS_OK) {
+        memset(*memory, 0, count * request.element_size);
+    }
+    return status;
+}
+
+/* Reads the merge stream's chain into source (src/ir_internal.h,
+   sxml_ir_merge_stream). */
+typedef struct sxml_merge_source_reading {
+    const sxml_ir_unit *unit;
+    sxml_ir_expression_index stream;
+} sxml_merge_source_reading;
+
+static sxml_status sxml_merge_read_source(const sxml_dynamic_context *dynamic_context,
+                                          sxml_merge_source_reading reading,
+                                          sxml_merge_source *source) {
+    const sxml_ir_expression *document = sxml_ir_unit_get_expression(reading.unit, reading.stream);
+    if (document->expression_kind != SXML_IR_EXPRESSION_KIND_STREAM ||
+        (document->stream.flags & (uint32_t)SXML_IR_STREAM_OPENS_DOCUMENT) == 0) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    source->document_stream = &document->stream;
+    source->step_count = 0;
+    sxml_ir_expression_index next = document->stream.body;
+    for (;;) {
+        const sxml_ir_expression *step = sxml_ir_unit_get_expression(reading.unit, next);
+        if (step->expression_kind != SXML_IR_EXPRESSION_KIND_STREAM) {
+            break;
+        }
+        if (source->step_count == MERGE_MAXIMUM_STEP_COUNT || step->stream.axis != SXML_AXIS_CHILD ||
+            step->stream.predicate.value != 0) {
+            return SXML_STATUS_INVALID_ARGUMENT;
+        }
+        const sxml_status status = sxml_stream_resolve_test(
+            dynamic_context, step->stream.node_test, &source->tests[source->step_count]);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        source->steps[source->step_count] = &step->stream;
+        source->step_count += 1;
+        if ((step->stream.flags & (uint32_t)SXML_IR_STREAM_SHALLOW_WINDOWS) == 0) {
+            /* The last step's body is the tuple. */
+            break;
+        }
+        next = step->stream.body;
+    }
+    return source->step_count == 0 ? SXML_STATUS_INVALID_ARGUMENT : SXML_STATUS_OK;
+}
+
+/* Opens the cursor's document from uri (an xs:string item), bound to the
+   origin of its source's document STREAM first. */
+typedef struct sxml_merge_opening {
+    sxml_merge_cursor *cursor;
+    const sxml_merge_source *source;
+    sxml_item uri;
+} sxml_merge_opening;
+
+static sxml_status sxml_merge_open(sxml_dynamic_context *dynamic_context,
+                                   sxml_merge_opening opening) {
+    sxml_merge_cursor *cursor = opening.cursor;
+    sxml_atomic_datum datum;
+    memset(&datum, 0, sizeof(datum));
+    if (sxml_atomic_item_get_datum(opening.uri, &datum) != SXML_STATUS_OK ||
+        datum.datum_kind != SXML_DATUM_KIND_STRING) {
+        return sxml_evaluator_machine_raise(dynamic_context, &sxml_stream_no_document_uri_error);
+    }
+    sxml_item_retain(opening.uri);
+    sxml_evaluator_machine_bind_slot(dynamic_context, opening.source->document_stream->origin.slot,
+                                     sxml_sequence_from_item(opening.uri));
+    const sxml_byte_view uri_reference = datum.datum_details.string.utf8;
+    sxml_status status =
+        sxml_stream_document_open(dynamic_context, uri_reference, &cursor->document);
+    if (status == SXML_STATUS_OK && cursor->document == NULL) {
+        /* No processor's loader: fn:doc's tree. */
+        if (dynamic_context->document_loader.operations == NULL ||
+            dynamic_context->document_loader.operations->load_document == NULL) {
+            return sxml_evaluator_machine_raise(dynamic_context,
+                                                &sxml_stream_no_document_uri_error);
+        }
+        status = dynamic_context->document_loader.operations->load_document(
+            dynamic_context->document_loader.state,
+            &(sxml_document_request){.uri_reference = uri_reference,
+                                     .base_uri =
+                                         sxml_dynamic_context_get_static_base_uri(dynamic_context),
+                                     .error_record = dynamic_context->error_record,
+                                     .blocks_external_resources = false,
+                                     .validates_dtd = false},
+            &cursor->document_node);
+    } else if (status == SXML_STATUS_OK && !cursor->document->source.is_streamed) {
+        cursor->document_node = cursor->document->source.document_node;
+        sxml_item_retain(cursor->document_node);
+        sxml_stream_document_destroy(cursor->document);
+        cursor->document = NULL;
+    } else if (status == SXML_STATUS_OK) {
+        sxml_stream_window_build build;
+        status = sxml_stream_begin_window(cursor->document, 0, &build);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_stream_end_window(
+                cursor->document,
+                (sxml_stream_window_end){.build = &build, .open_count = 0, .node_index = 0},
+                &cursor->document_node);
+        }
+        return status;
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    /* A tree: the children of its document node first. */
+    sxml_node_reference node;
+    status = sxml_item_get_node(cursor->document_node, &node);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_axis_iterator_start(
+            (sxml_axis_request){.origin = node, .axis = SXML_AXIS_CHILD}, &cursor->iterators[0]);
+    }
+    cursor->iterator_count = status == SXML_STATUS_OK ? 1U : 0U;
+    return status;
+}
+
+/* Whether the element on top of the open elements matches test. */
+typedef struct sxml_merge_element_question {
+    sxml_stream_document *document;
+    const sxml_stream_test *test;
+} sxml_merge_element_question;
+
+static sxml_status sxml_merge_element_matches(sxml_dynamic_context *dynamic_context,
+                                              sxml_merge_element_question question,
+                                              bool *matches) {
+    sxml_stream_document *document = question.document;
+    if (question.test->is_simple) {
+        const sxml_stream_element *element =
+            sxml_stream_element_at(document, sxml_stream_depth(document) - 1U);
+        return sxml_stream_test_matches(
+            dynamic_context,
+            (sxml_stream_candidate_kind){.test = question.test,
+                                         .node_kind = SXML_NODE_KIND_ELEMENT,
+                                         .node_name = element->event.element_name},
+            matches);
+    }
+    sxml_item window = {.representation = 0};
+    sxml_status status = sxml_stream_element_window(
+        dynamic_context, (sxml_stream_element_request){.document = document, .is_full = false},
+        &window);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_stream_node_matches(
+            dynamic_context,
+            (sxml_stream_node_question){.test = question.test, .node_item = window}, matches);
+    }
+    sxml_item_release(window);
+    return status;
+}
+
+/* The cursor's next selected node of a streamed document, owned in its
+   full window, or none at the document's end. */
+typedef struct sxml_merge_reading {
+    const sxml_merge_source *source;
+    sxml_merge_cursor *cursor;
+} sxml_merge_reading;
+
+static sxml_status sxml_merge_next_event_node(sxml_dynamic_context *dynamic_context,
+                                              sxml_merge_reading reading, sxml_item *node) {
+    const sxml_merge_source *source = reading.source;
+    sxml_merge_cursor *cursor = reading.cursor;
+    sxml_stream_document *document = cursor->document;
+    *node = (sxml_item){.representation = 0};
+    for (;;) {
+        sxml_stream_event event;
+        sxml_status status = sxml_stream_next_event(dynamic_context, document, &event);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        const size_t depth = sxml_stream_depth(document);
+        if (event.event_kind == SXML_STREAM_EVENT_END_DOCUMENT) {
+            return SXML_STATUS_OK;
+        }
+        if (event.event_kind == SXML_STREAM_EVENT_END_ELEMENT) {
+            cursor->matched_depth = cursor->matched_depth > depth ? depth : cursor->matched_depth;
+            continue;
+        }
+        if (event.event_kind != SXML_STREAM_EVENT_START_ELEMENT) {
+            continue;
+        }
+        bool matches = false;
+        if (depth == cursor->matched_depth + 1U && depth <= source->step_count) {
+            status = sxml_merge_element_matches(
+                dynamic_context,
+                (sxml_merge_element_question){.document = document,
+                                              .test = &source->tests[depth - 1U]},
+                &matches);
+        }
+        if (status == SXML_STATUS_OK && !matches) {
+            /* No step selects anything inside it. */
+            status = sxml_stream_skip_events(dynamic_context, document, depth);
+        }
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        if (!matches) {
+            continue;
+        }
+        if (depth < source->step_count) {
+            cursor->matched_depth = depth;
+            continue;
+        }
+        return sxml_stream_element_window(
+            dynamic_context, (sxml_stream_element_request){.document = document, .is_full = true},
+            node);
+    }
+}
+
+/* The cursor's next selected node of a tree, or none at its end: the
+   child iterators of the nodes the steps matched, deepest last. */
+static sxml_status sxml_merge_next_tree_node(sxml_dynamic_context *dynamic_context,
+                                             sxml_merge_reading reading, sxml_item *node) {
+    const sxml_merge_source *source = reading.source;
+    sxml_merge_cursor *cursor = reading.cursor;
+    *node = (sxml_item){.representation = 0};
+    while (cursor->iterator_count > 0) {
+        const size_t step_index = cursor->iterator_count - 1U;
+        sxml_node_iteration_step step = {.has_node = false};
+        sxml_status status = sxml_axis_iterator_next(&cursor->iterators[step_index], &step);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        if (!step.has_node) {
+            cursor->iterator_count -= 1U;
+            continue;
+        }
+        sxml_item item = sxml_node_item_make(step.node);
+        bool matches = false;
+        status = sxml_stream_node_matches(
+            dynamic_context,
+            (sxml_stream_node_question){.test = &source->tests[step_index], .node_item = item},
+            &matches);
+        if (status != SXML_STATUS_OK || !matches) {
+            sxml_item_release(item);
+            if (status != SXML_STATUS_OK) {
+                return status;
+            }
+            continue;
+        }
+        if (step_index + 1U == source->step_count) {
+            *node = item;
+            return SXML_STATUS_OK;
+        }
+        status = sxml_axis_iterator_start(
+            (sxml_axis_request){.origin = step.node, .axis = SXML_AXIS_CHILD},
+            &cursor->iterators[step_index + 1U]);
+        sxml_item_release(item);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        cursor->iterator_count += 1U;
+    }
+    return SXML_STATUS_OK;
+}
+
+/* Pushes the tuple of the cursor's node (owned): its source's last body,
+   with the focus of the node and of its document bound. */
+typedef struct sxml_merge_tuple_request {
+    const sxml_merge_source *source;
+    sxml_merge_cursor *cursor;
+    sxml_item node;
+} sxml_merge_tuple_request;
+
+static sxml_status sxml_merge_push_tuple(sxml_dynamic_context *dynamic_context,
+                                         sxml_merge_tuple_request request) {
+    const sxml_merge_source *source = request.source;
+    sxml_merge_cursor *cursor = request.cursor;
+    const sxml_ir_focus document_focus = source->document_stream->focus;
+    const sxml_ir_stream *last = source->steps[source->step_count - 1U];
+    cursor->selected_count += 1;
+    if (document_focus.context_value.value != 0) {
+        sxml_item_retain(cursor->document_node);
+        sxml_evaluator_machine_bind_slot(dynamic_context, document_focus.context_value,
+                                         sxml_sequence_from_item(cursor->document_node));
+    }
+    if (document_focus.context_position.value != 0) {
+        sxml_evaluator_machine_bind_slot(
+            dynamic_context, document_focus.context_position,
+            sxml_sequence_from_item(
+                sxml_atomic_item_from_integer((int64_t)cursor->anchor_position)));
+    }
+    if (last->focus.context_position.value != 0) {
+        sxml_evaluator_machine_bind_slot(
+            dynamic_context, last->focus.context_position,
+            sxml_sequence_from_item(
+                sxml_atomic_item_from_integer((int64_t)cursor->selected_count)));
+    }
+    sxml_evaluator_machine_bind_slot(dynamic_context, last->focus.context_value,
+                                     sxml_sequence_from_item(request.node));
+    sxml_evaluator_machine_top(dynamic_context)->phase = (uint32_t)SXML_MERGE_PHASE_TUPLE;
+    return sxml_evaluator_machine_push_expression(dynamic_context, last->body);
+}
+
+static sxml_status sxml_merge_order(sxml_dynamic_context *dynamic_context,
+                                    sxml_merge_state *state);
+
+/* Moves the cursors waiting on: a grounded one to its next tuple, a
+   streamed one to its next node, whose tuple is pushed (the task goes on
+   in phase TUPLE); the order once none waits. */
+static sxml_status sxml_merge_advance(sxml_dynamic_context *dynamic_context,
+                                      sxml_merge_state *state) {
+    while (state->pending_next < state->pending_count) {
+        sxml_merge_cursor *cursor = &state->cursors[state->pending[state->pending_next]];
+        sxml_item_release(cursor->head);
+        cursor->head = (sxml_item){.representation = 0};
+        if (cursor->is_grounded) {
+            sxml_iteration_step step = {.has_item = false};
+            const sxml_status status = sxml_sequence_iterator_next(
+                &state->grounded_iterator, dynamic_context->error_record, &step);
+            if (status != SXML_STATUS_OK) {
+                return status;
+            }
+            if (step.has_item) {
+                sxml_item_retain(step.item);
+                cursor->head = step.item;
+            } else {
+                cursor->has_ended = true;
+            }
+            state->pending_next += 1;
+            continue;
+        }
+        const sxml_merge_source *source = &state->sources[cursor->source_index];
+        sxml_item node = {.representation = 0};
+        const sxml_merge_reading reading = {.source = source, .cursor = cursor};
+        const sxml_status status =
+            cursor->document != NULL
+                ? sxml_merge_next_event_node(dynamic_context, reading, &node)
+                : sxml_merge_next_tree_node(dynamic_context, reading, &node);
+        if (status != SXML_STATUS_OK) {
+            sxml_item_release(node);
+            return status;
+        }
+        if (node.representation == 0) {
+            /* Read to its end (it was well-formed): its memory goes. */
+            cursor->has_ended = true;
+            sxml_merge_close_cursor(cursor);
+            state->pending_next += 1;
+            continue;
+        }
+        return sxml_merge_push_tuple(
+            dynamic_context,
+            (sxml_merge_tuple_request){.source = source, .cursor = cursor, .node = node});
+    }
+    state->pending_count = 0;
+    state->pending_next = 0;
+    return sxml_merge_order(dynamic_context, state);
+}
+
+/* The tuple of a cursor's node ended: its head, then the next cursor. */
+static sxml_status sxml_merge_take_tuple(sxml_dynamic_context *dynamic_context,
+                                         sxml_merge_state *state) {
+    const sxml_sequence value = sxml_evaluator_machine_take_value(dynamic_context);
+    sxml_merge_cursor *cursor = &state->cursors[state->pending[state->pending_next]];
+    if (sxml_sequence_get_representation(value) != SXML_SEQUENCE_REPRESENTATION_SINGLE_ITEM) {
+        sxml_sequence_release(value);
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    cursor->head = value.content;
+    state->pending_next += 1;
+    sxml_evaluator_machine_top(dynamic_context)->phase = (uint32_t)SXML_MERGE_PHASE_ADVANCE;
+    return sxml_merge_advance(dynamic_context, state);
+}
+
+/* The order of the heads: the open group's first tuple, then each
+   cursor's; the task finishes when there is none. */
+static sxml_status sxml_merge_order(sxml_dynamic_context *dynamic_context,
+                                    sxml_merge_state *state) {
+    sxml_status status = SXML_STATUS_OK;
+    sxml_sequence_builder *heads = NULL;
+    size_t head_count = 0;
+    status = sxml_sequence_builder_create(
+        dynamic_context->allocator,
+        &(sxml_sequence_builder_configuration){.item_heap = dynamic_context->item_heap}, &heads);
+    if (status == SXML_STATUS_OK && state->has_group) {
+        status = sxml_sequence_builder_append_item(heads, state->members[0].tuple);
+        head_count += 1;
+    }
+    for (size_t cursor_index = 0; status == SXML_STATUS_OK && cursor_index < state->cursor_count;
+         cursor_index += 1) {
+        const sxml_merge_cursor *cursor = &state->cursors[cursor_index];
+        if (cursor->head.representation != 0) {
+            status = sxml_sequence_builder_append_item(heads, cursor->head);
+            head_count += 1;
+        }
+    }
+    sxml_sequence value = sxml_sequence_empty();
+    if (status == SXML_STATUS_OK) {
+        status = sxml_sequence_builder_finish(heads, &value);
+    }
+    sxml_sequence_builder_destroy(heads);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (head_count == 0) {
+        sxml_sequence_release(value);
+        sxml_sequence result = sxml_sequence_empty();
+        if (state->builder != NULL) {
+            status = sxml_sequence_builder_finish(state->builder, &result);
+        }
+        return status == SXML_STATUS_OK ? sxml_evaluator_machine_finish(dynamic_context, result)
+                                        : status;
+    }
+    sxml_evaluator_machine_bind_slot(dynamic_context, state->merge->heads, value);
+    sxml_evaluator_machine_top(dynamic_context)->phase = (uint32_t)SXML_MERGE_PHASE_ORDERED;
+    return sxml_evaluator_machine_push_expression(dynamic_context, state->merge->order);
+}
+
+/* The integer member at member_index of tuple; 0 when it is none. */
+typedef struct sxml_merge_member_read {
+    sxml_item tuple;
+    size_t member_index;
+} sxml_merge_member_read;
+
+static int64_t sxml_merge_integer_member(sxml_merge_member_read read) {
+    sxml_sequence member = sxml_sequence_empty();
+    if (sxml_array_get_member(read.tuple, read.member_index, &member) != SXML_STATUS_OK ||
+        sxml_sequence_get_representation(member) != SXML_SEQUENCE_REPRESENTATION_SINGLE_ITEM ||
+        sxml_item_get_representation(member.content) != SXML_ITEM_REPRESENTATION_INTEGER) {
+        return 0;
+    }
+    return member.content.payload.integer;
+}
+
+/* Whether two tuples (arrays, so cells) are one item: the order passes
+   the heads on, it does not copy them. */
+typedef struct sxml_merge_tuple_pair {
+    sxml_item first;
+    sxml_item second;
+} sxml_merge_tuple_pair;
+
+static bool sxml_merge_is_same_tuple(sxml_merge_tuple_pair pair) {
+    return pair.first.representation != 0 &&
+           pair.first.representation == pair.second.representation &&
+           pair.first.payload.cell == pair.second.payload.cell;
+}
+
+/* Adds tuple (borrowed) to the open group and has the cursor whose head
+   it is move on. */
+static sxml_status sxml_merge_take_head(sxml_dynamic_context *dynamic_context,
+                                        sxml_merge_state *state, sxml_item tuple) {
+    size_t cursor_index = 0;
+    while (cursor_index < state->cursor_count &&
+           !sxml_merge_is_same_tuple((sxml_merge_tuple_pair){
+               .first = state->cursors[cursor_index].head, .second = tuple})) {
+        cursor_index += 1;
+    }
+    if (cursor_index == state->cursor_count) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    if (state->member_count == state->member_capacity) {
+        const size_t capacity = state->member_capacity == 0 ? 8 : state->member_capacity * 2;
+        void *memory = NULL;
+        const sxml_status status = sxml_merge_allocate(
+            dynamic_context, (sxml_merge_array_request){.element_count = capacity,
+                                                        .element_size = sizeof(sxml_merge_member)},
+            &memory);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        if (state->member_count > 0) {
+            memcpy(memory, state->members, state->member_count * sizeof(sxml_merge_member));
+        }
+        sxml_allocator_release(dynamic_context->allocator, state->members);
+        state->members = memory;
+        state->member_capacity = capacity;
+    }
+    size_t member_count = 0;
+    if (sxml_array_get_size(tuple, &member_count) != SXML_STATUS_OK || member_count < 2) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    sxml_item_retain(tuple);
+    state->members[state->member_count] = (sxml_merge_member){
+        .tuple = tuple,
+        .source_number =
+            sxml_merge_integer_member((sxml_merge_member_read){.tuple = tuple, .member_index = 0}),
+        .anchor_position = sxml_merge_integer_member(
+            (sxml_merge_member_read){.tuple = tuple, .member_index = member_count - 2U})};
+    state->member_count += 1;
+    state->pending[state->pending_count] = cursor_index;
+    state->pending_count += 1;
+    return SXML_STATUS_OK;
+}
+
+/* Closes the open group: its tuples in source, anchor and input order
+   (15.6: a stable sort, each cursor's tuples taken in order), then the
+   body with the group array [tuples, key] and its number. */
+static sxml_status sxml_merge_push_body(sxml_dynamic_context *dynamic_context,
+                                        sxml_merge_state *state) {
+    for (size_t member_index = 1; member_index < state->member_count; member_index += 1) {
+        const sxml_merge_member moved = state->members[member_index];
+        size_t place = member_index;
+        while (place > 0 &&
+               (state->members[place - 1U].source_number > moved.source_number ||
+                (state->members[place - 1U].source_number == moved.source_number &&
+                 state->members[place - 1U].anchor_position > moved.anchor_position))) {
+            state->members[place] = state->members[place - 1U];
+            place -= 1U;
+        }
+        state->members[place] = moved;
+    }
+    void *memory = NULL;
+    sxml_status status = sxml_merge_allocate(
+        dynamic_context, (sxml_merge_array_request){.element_count = state->member_count,
+                                                    .element_size = sizeof(sxml_item)},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_item *items = memory;
+    for (size_t member_index = 0; member_index < state->member_count; member_index += 1) {
+        items[member_index] = state->members[member_index].tuple;
+    }
+    sxml_sequence members[2] = {sxml_sequence_empty(), state->group_key};
+    status = sxml_sequence_make_vector(
+        dynamic_context->item_heap,
+        (sxml_item_view){.items = items, .item_count = state->member_count}, &members[0]);
+    sxml_allocator_release(dynamic_context->allocator, items);
+    sxml_item group = {.representation = 0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_array_make(dynamic_context->item_heap,
+                                 (sxml_sequence_view){.sequences = members, .sequence_count = 2},
+                                 &group);
+    }
+    sxml_sequence_release(members[0]);
+    sxml_merge_clear_members(state);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    const sxml_ir_focus focus = state->merge->focus;
+    state->group_count += 1;
+    sxml_evaluator_machine_bind_slot(dynamic_context, focus.context_value,
+                                     sxml_sequence_from_item(group));
+    if (focus.context_position.value != 0) {
+        sxml_evaluator_machine_bind_slot(
+            dynamic_context, focus.context_position,
+            sxml_sequence_from_item(sxml_atomic_item_from_integer((int64_t)state->group_count)));
+    }
+    sxml_evaluator_task *task = sxml_evaluator_machine_top(dynamic_context);
+    task->phase = (uint32_t)SXML_MERGE_PHASE_BODY;
+    if (task->delivers_content) {
+        return sxml_evaluator_machine_push_content(dynamic_context, state->merge->body);
+    }
+    return sxml_evaluator_machine_push_expression(dynamic_context, state->merge->body);
+}
+
+/* The order ended with the first group of the heads, [tuples, key]: it
+   opens a group, adds to the open one, or closes it (src/ir_internal.h,
+   MERGE). */
+static sxml_status sxml_merge_take_order(sxml_dynamic_context *dynamic_context,
+                                         sxml_merge_state *state) {
+    const sxml_sequence value = sxml_evaluator_machine_take_value(dynamic_context);
+    sxml_status status = SXML_STATUS_OK;
+    sxml_sequence tuples = sxml_sequence_empty();
+    sxml_sequence key = sxml_sequence_empty();
+    if (sxml_sequence_get_representation(value) != SXML_SEQUENCE_REPRESENTATION_SINGLE_ITEM ||
+        sxml_array_get_member(value.content, 0, &tuples) != SXML_STATUS_OK ||
+        sxml_array_get_member(value.content, 1, &key) != SXML_STATUS_OK) {
+        status = SXML_STATUS_INVALID_ARGUMENT;
+    }
+    uint64_t tuple_count = 0;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_sequence_count(tuples, dynamic_context->error_record, &tuple_count);
+    }
+    sxml_item first = {.representation = 0};
+    if (status == SXML_STATUS_OK && tuple_count > 0) {
+        status = sxml_sequence_get_item(
+            tuples, (sxml_item_request){.item_index = 0, .error_record = NULL}, &first);
+    }
+    if (status != SXML_STATUS_OK || tuple_count == 0) {
+        sxml_sequence_release(value);
+        return status == SXML_STATUS_OK ? SXML_STATUS_INVALID_ARGUMENT : status;
+    }
+    uint64_t taken_from = 0;
+    if (state->has_group) {
+        if (!sxml_merge_is_same_tuple(
+                (sxml_merge_tuple_pair){.first = first, .second = state->members[0].tuple})) {
+            /* A cursor's tuple sorts before the one it had: 15.4. */
+            sxml_sequence_release(value);
+            return sxml_evaluator_machine_raise(dynamic_context, &sxml_merge_order_error);
+        }
+        if (tuple_count == 1) {
+            sxml_sequence_release(value);
+            return sxml_merge_push_body(dynamic_context, state);
+        }
+        taken_from = 1;
+    } else {
+        sxml_sequence_retain(key);
+        state->group_key = key;
+        state->has_group = true;
+    }
+    for (uint64_t tuple_index = taken_from; status == SXML_STATUS_OK && tuple_index < tuple_count;
+         tuple_index += 1) {
+        sxml_item tuple = {.representation = 0};
+        status = sxml_sequence_get_item(
+            tuples, (sxml_item_request){.item_index = tuple_index, .error_record = NULL}, &tuple);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_merge_take_head(dynamic_context, state, tuple);
+        }
+    }
+    sxml_sequence_release(value);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_evaluator_machine_top(dynamic_context)->phase = (uint32_t)SXML_MERGE_PHASE_ADVANCE;
+    return sxml_merge_advance(dynamic_context, state);
+}
+
+/* A group's body ended: its value, then the next order. */
+static sxml_status sxml_merge_take_body(sxml_dynamic_context *dynamic_context,
+                                        sxml_merge_state *state) {
+    const sxml_sequence value = sxml_evaluator_machine_take_value(dynamic_context);
+    sxml_status status = SXML_STATUS_OK;
+    if (sxml_evaluator_machine_top(dynamic_context)->delivers_content) {
+        status = sxml_evaluator_machine_deliver(dynamic_context, value);
+    } else {
+        if (state->builder == NULL) {
+            status = sxml_sequence_builder_create(
+                dynamic_context->allocator,
+                &(sxml_sequence_builder_configuration){.item_heap = dynamic_context->item_heap},
+                &state->builder);
+        }
+        if (status == SXML_STATUS_OK) {
+            status = sxml_sequence_builder_append_sequence(state->builder, value,
+                                                           dynamic_context->error_record);
+        }
+        sxml_sequence_release(value);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_merge_order(dynamic_context, state);
+}
+
+/* Reads the grounded tuples and the anchors of each merge stream, opens
+   one cursor per anchor and has every cursor move to its first tuple. */
+static sxml_status sxml_merge_start(sxml_dynamic_context *dynamic_context,
+                                    sxml_evaluator_task *task) {
+    const sxml_ir_unit *unit = task->function->unit;
+    const sxml_ir_merge *merge = &sxml_ir_unit_get_expression(unit, task->expression)->merge;
+    const sxml_ir_merge_stream_view streams = sxml_ir_unit_get_merge_streams(unit, merge->streams);
+    void *memory = NULL;
+    sxml_status status = sxml_merge_allocate(
+        dynamic_context,
+        (sxml_merge_array_request){.element_count = 1, .element_size = sizeof(sxml_merge_state)},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_merge_state *state = memory;
+    state->merge = merge;
+    state->grounded = sxml_sequence_empty();
+    state->group_key = sxml_sequence_empty();
+    task->details.part.state = state;
+    task->details.part.release_state = sxml_merge_release_state;
+    sxml_sequence grounded = sxml_sequence_empty();
+    status = sxml_evaluator_machine_read_atom(dynamic_context, merge->tuples, &grounded);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_sequence_retain(grounded);
+    state->grounded = grounded;
+    state->grounded_iterator = sxml_sequence_iterator_start(state->grounded);
+    /* One cursor per anchor, after the grounded one. */
+    size_t cursor_count = 1;
+    for (size_t stream_index = 0; status == SXML_STATUS_OK && stream_index < streams.merge_stream_count;
+         stream_index += 1) {
+        sxml_sequence anchors = sxml_sequence_empty();
+        uint64_t anchor_count = 0;
+        status = sxml_evaluator_machine_read_atom(
+            dynamic_context, streams.merge_streams[stream_index].anchors, &anchors);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_sequence_count(anchors, dynamic_context->error_record, &anchor_count);
+        }
+        cursor_count += (size_t)anchor_count;
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_merge_allocate(
+            dynamic_context,
+            (sxml_merge_array_request){.element_count = streams.merge_stream_count,
+                                       .element_size = sizeof(sxml_merge_source)},
+            &memory);
+        state->sources = memory;
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_merge_allocate(dynamic_context,
+                                     (sxml_merge_array_request){.element_count = cursor_count,
+                                                                .element_size =
+                                                                    sizeof(sxml_merge_cursor)},
+                                     &memory);
+        state->cursors = memory;
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_merge_allocate(
+            dynamic_context,
+            (sxml_merge_array_request){.element_count = cursor_count, .element_size = sizeof(size_t)},
+            &memory);
+        state->pending = memory;
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    state->cursors[0] = (sxml_merge_cursor){.is_grounded = true};
+    state->cursor_count = 1;
+    for (size_t stream_index = 0; status == SXML_STATUS_OK && stream_index < streams.merge_stream_count;
+         stream_index += 1) {
+        sxml_merge_source *source = &state->sources[stream_index];
+        status = sxml_merge_read_source(
+            dynamic_context,
+            (sxml_merge_source_reading){.unit = unit,
+                                        .stream = streams.merge_streams[stream_index].stream},
+            source);
+        state->source_count = stream_index + 1U;
+        sxml_sequence anchors = sxml_sequence_empty();
+        if (status == SXML_STATUS_OK) {
+            status = sxml_evaluator_machine_read_atom(
+                dynamic_context, streams.merge_streams[stream_index].anchors, &anchors);
+        }
+        sxml_sequence_iterator iterator = sxml_sequence_iterator_start(anchors);
+        uint64_t anchor_position = 0;
+        while (status == SXML_STATUS_OK && state->cursor_count < cursor_count) {
+            sxml_iteration_step step = {.has_item = false};
+            status = sxml_sequence_iterator_next(&iterator, dynamic_context->error_record, &step);
+            if (status != SXML_STATUS_OK || !step.has_item) {
+                break;
+            }
+            anchor_position += 1;
+            sxml_merge_cursor *cursor = &state->cursors[state->cursor_count];
+            *cursor = (sxml_merge_cursor){.is_grounded = false,
+                                          .source_index = stream_index,
+                                          .anchor_position = anchor_position};
+            state->cursor_count += 1;
+            /* 15.3: the documents are read in anchor order. */
+            status = sxml_merge_open(
+                dynamic_context,
+                (sxml_merge_opening){.cursor = cursor, .source = source, .uri = step.item});
+        }
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    for (size_t cursor_index = 0; cursor_index < state->cursor_count; cursor_index += 1) {
+        state->pending[cursor_index] = cursor_index;
+    }
+    state->pending_count = state->cursor_count;
+    state->pending_next = 0;
+    task->phase = (uint32_t)SXML_MERGE_PHASE_ADVANCE;
+    return sxml_merge_advance(dynamic_context, state);
+}
+
+/* The step function of MERGE. */
+static sxml_status sxml_merge_step(sxml_dynamic_context *dynamic_context,
+                                   sxml_evaluator_task *task) {
+    sxml_merge_state *state = task->details.part.state;
+    switch ((sxml_merge_phase)task->phase) {
+    case SXML_MERGE_PHASE_START:
+        return sxml_merge_start(dynamic_context, task);
+    case SXML_MERGE_PHASE_ADVANCE:
+        return sxml_merge_advance(dynamic_context, state);
+    case SXML_MERGE_PHASE_TUPLE:
+        return sxml_merge_take_tuple(dynamic_context, state);
+    case SXML_MERGE_PHASE_ORDERED:
+        return sxml_merge_take_order(dynamic_context, state);
+    case SXML_MERGE_PHASE_BODY:
+        return sxml_merge_take_body(dynamic_context, state);
+    }
+    return SXML_STATUS_INVALID_ARGUMENT;
+}
+
 static const sxml_evaluator_kind_handler sxml_stream_kind_handlers[] = {
     {.expression_kind = SXML_IR_EXPRESSION_KIND_STREAM, .step = sxml_stream_step},
+    {.expression_kind = SXML_IR_EXPRESSION_KIND_MERGE, .step = sxml_merge_step},
 };
 
 const sxml_evaluator_part sxml_evaluator_part_stream = {

@@ -18,7 +18,9 @@
  *         if (match-3($node)) then rule-3($node, $value)
  *         else if (match-1($node)) then rule-1($node, $value) else $value
  *     end-K($node, $value): the same over the end rules (capture="yes":
- *         an element is passed as snapshot($node), 19.9)
+ *         an element is passed as snapshot($node), 19.9); a streamed
+ *         document passes such an element in a window of its subtree,
+ *         captured as its events passed (stream-capture-0, packet 7.6g)
  *     close-K($state, $nodes): the end events of $nodes, innermost first:
  *         fold-left($nodes, $state, fn($inner, $done) {
  *           let $value := end-K($done, $inner?v)
@@ -136,6 +138,10 @@ static const sxml_function_parameter root_parameters[] = {
     SXML_FUNCTION_PARAMETER("root", "node()", SXML_PARAMETER_DEFAULT_REQUIRED),
 };
 
+static const sxml_function_parameter node_parameters[] = {
+    SXML_FUNCTION_PARAMETER("node", "node()", SXML_PARAMETER_DEFAULT_REQUIRED),
+};
+
 static const sxml_function_parameter node_value_parameters[] = {
     SXML_FUNCTION_PARAMETER("node", "node()", SXML_PARAMETER_DEFAULT_REQUIRED),
     SXML_FUNCTION_PARAMETER("value", "item()*", SXML_PARAMETER_DEFAULT_REQUIRED),
@@ -245,6 +251,9 @@ struct sxml_xslt_accumulator_table {
     table_function stream_start;
     table_function stream_end;
     table_function stream_descend;
+    /* stream-capture-0($node) (packet 7.6g): declared when an accumulator
+       declared streamable has an end rule with capture="yes" (19.9). */
+    table_function stream_capture;
     stream_initial *stream_initials;
     size_t stream_initial_count;
     size_t stream_initial_capacity;
@@ -856,6 +865,10 @@ static sxml_status prepare_stream_functions(sxml_xslt_accumulator_table *table) 
          .parameters = {node_value_number_parameters, 3},
          .result_type = SXML_BYTE_VIEW_INITIALIZER("item()*"),
          .function = &table->stream_descend},
+        {.prefix = "stream-capture-",
+         .parameters = {node_parameters, 1},
+         .result_type = SXML_BYTE_VIEW_INITIALIZER("xs:integer*"),
+         .function = &table->stream_capture},
     };
     sxml_status status = SXML_STATUS_OK;
     for (size_t shape_index = 0;
@@ -1499,6 +1512,52 @@ static void write_stream_text(const sxml_xslt_accumulator_table *table,
     }
 }
 
+/* Whether the accumulator at accumulator_index is declared streamable and
+   has an end rule with capture="yes" (19.9). */
+static bool captures_streamed(const sxml_xslt_accumulator_table *table, size_t accumulator_index) {
+    if (!is_true_attribute(table->lowering, table->accumulators[accumulator_index].node,
+                           SXML_XSLT_AST_ATTRIBUTE_STREAMABLE)) {
+        return false;
+    }
+    for (size_t rule_index = 0; rule_index < table->rule_count; rule_index += 1) {
+        if (table->rules[rule_index].accumulator_index == accumulator_index &&
+            table->rules[rule_index].captures) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/* The text of stream-capture-0($node) (19.9, packet 7.6g): the numbers of
+   the accumulators declared streamable one of whose end rules with
+   capture="yes" matches $node, whose end event then reads the node's
+   subtree (the stream builder captures it as its events pass,
+   src/evaluator_stream.c). */
+static void write_capture_text(const sxml_xslt_accumulator_table *table,
+                               sxml_xslt_snippet_text *text) {
+    SXML_XSLT_SNIPPET_APPEND(text, "(");
+    for (size_t accumulator_index = 0; accumulator_index < table->accumulator_count;
+         accumulator_index += 1) {
+        if (!captures_streamed(table, accumulator_index)) {
+            continue;
+        }
+        SXML_XSLT_SNIPPET_APPEND(text, "(if (false()");
+        for (size_t rule_index = 0; rule_index < table->rule_count; rule_index += 1) {
+            const accumulator_rule *rule = &table->rules[rule_index];
+            if (rule->accumulator_index != accumulator_index || !rule->captures) {
+                continue;
+            }
+            SXML_XSLT_SNIPPET_APPEND(text, " or ");
+            append_private_call(text, (private_call){.prefix = "match-", .number = rule_index + 1});
+            SXML_XSLT_SNIPPET_APPEND(text, "$node)");
+        }
+        SXML_XSLT_SNIPPET_APPEND(text, ") then ");
+        sxml_xslt_snippet_text_append_number(text, accumulator_index + 1);
+        SXML_XSLT_SNIPPET_APPEND(text, " else ()), ");
+    }
+    SXML_XSLT_SNIPPET_APPEND(text, "())");
+}
+
 /* A text function of one accumulator. */
 typedef struct accumulator_text {
     const table_function *function;
@@ -1784,6 +1843,15 @@ static sxml_status lower_stream_functions(sxml_xslt_accumulator_table *table) {
         status = lower_text(table, (accumulator_text){.function = phases[phase_index].function,
                                                       .text = &text,
                                                       .parameters = {node_value_number, 3}});
+    }
+    if (status == SXML_STATUS_OK && table->stream_capture.function.value != 0 &&
+        !has_body(table, &table->stream_capture)) {
+        static const snippet_variable node[] = {SXML_SNIPPET_VARIABLE_NODE};
+        sxml_xslt_snippet_text text = {.allocator = table->allocator, .status = SXML_STATUS_OK};
+        write_capture_text(table, &text);
+        status = lower_text(table, (accumulator_text){.function = &table->stream_capture,
+                                                      .text = &text,
+                                                      .parameters = {node, 1}});
     }
     for (size_t initial_index = 0;
          status == SXML_STATUS_OK && initial_index < table->stream_initial_count;
@@ -2145,7 +2213,7 @@ static sxml_xslt_ast_name_token_view scope_tokens(const sxml_xslt_accumulator_ta
 sxml_status sxml_xslt_prepare_streamed_accumulators(
     const sxml_xslt_streamed_accumulator_request *request, sxml_ir_stream_accumulators *functions) {
     *functions = (sxml_ir_stream_accumulators){
-        .initial = {0}, .start = {0}, .end = {0}, .descend = {0}};
+        .initial = {0}, .start = {0}, .end = {0}, .descend = {0}, .capture = {0}};
     const sxml_xslt_lowering *lowering = request->lowering;
     sxml_xslt_accumulator_table *table = lowering->accumulators;
     if (table == NULL || table->accumulator_count == 0) {
@@ -2207,52 +2275,25 @@ sxml_status sxml_xslt_prepare_streamed_accumulators(
          function_index += 1) {
         status = declare_function(table, called[function_index]);
     }
+    bool captures = false;
+    for (size_t accumulator_index = 0;
+         !captures && accumulator_index < table->accumulator_count; accumulator_index += 1) {
+        captures = captures_streamed(table, accumulator_index);
+    }
+    if (status == SXML_STATUS_OK && captures) {
+        status = declare_function(table, &table->stream_capture);
+    }
     if (status != SXML_STATUS_OK) {
         return status;
     }
     table->streams = true;
-    *functions = (sxml_ir_stream_accumulators){.initial = initial->function.function,
-                                               .start = table->stream_start.function,
-                                               .end = table->stream_end.function,
-                                               .descend = table->stream_descend.function};
+    *functions = (sxml_ir_stream_accumulators){
+        .initial = initial->function.function,
+        .start = table->stream_start.function,
+        .end = table->stream_end.function,
+        .descend = table->stream_descend.function,
+        .capture = captures ? table->stream_capture.function : (sxml_ir_function_index){0}};
     return SXML_STATUS_OK;
-}
-
-/* Whether node's attribute of kind is the boolean true. */
-typedef struct ast_attribute_query {
-    sxml_xslt_ast_node_index node;
-    sxml_xslt_ast_attribute_kind kind;
-} ast_attribute_query;
-
-static bool ast_attribute_is_true(const sxml_xslt_ast *ast, ast_attribute_query query) {
-    const sxml_xslt_ast_attribute *attribute = sxml_xslt_ast_get_attribute(
-        ast, sxml_xslt_ast_find_attribute(
-                 ast, (sxml_xslt_ast_attribute_query){.node = query.node, .kind = query.kind}));
-    return attribute->value.kind == SXML_XSLT_AST_VALUE_KIND_BOOLEAN &&
-           attribute->value.payload.is_true;
-}
-
-bool sxml_xslt_accumulators_stream(const sxml_xslt_ast *ast) {
-    for (uint32_t order = 1; sxml_xslt_ast_get_declaration(ast, order).value != 0; order += 1U) {
-        const sxml_xslt_ast_node_index node = sxml_xslt_ast_get_declaration(ast, order);
-        if (sxml_xslt_ast_get_node(ast, node)->kind != SXML_XSLT_AST_KIND_ACCUMULATOR ||
-            !ast_attribute_is_true(
-                ast, (ast_attribute_query){.node = node, .kind = SXML_XSLT_AST_ATTRIBUTE_STREAMABLE})) {
-            continue;
-        }
-        for (sxml_xslt_ast_node_index child = sxml_xslt_ast_get_node(ast, node)->first_child;
-             child.value != 0; child = sxml_xslt_ast_get_node(ast, child)->next_sibling) {
-            /* 19.9: an end rule with capture="yes" reads the node's
-               subtree, which a streamed node's end event does not hold. */
-            if (sxml_xslt_ast_get_node(ast, child)->kind == SXML_XSLT_AST_KIND_ACCUMULATOR_RULE &&
-                ast_attribute_is_true(ast, (ast_attribute_query){
-                                               .node = child,
-                                               .kind = SXML_XSLT_AST_ATTRIBUTE_CAPTURE})) {
-                return false;
-            }
-        }
-    }
-    return true;
 }
 
 /* ------------------------------------------------- xsl:source-document */

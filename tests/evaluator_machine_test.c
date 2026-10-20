@@ -37,6 +37,7 @@ static const sxml_ir_expression_kind reserved_kinds[] = {
     SXML_IR_EXPRESSION_KIND_SHALLOW_COPY,
     SXML_IR_EXPRESSION_KIND_APPLY_TEMPLATES,
     SXML_IR_EXPRESSION_KIND_STREAM,
+    SXML_IR_EXPRESSION_KIND_MERGE,
 };
 
 /* The reserved kinds whose part is filled: TRY_CATCH (packet 3.6), the
@@ -55,6 +56,7 @@ static const sxml_ir_expression_kind evaluated_kinds[] = {
     SXML_IR_EXPRESSION_KIND_SHALLOW_COPY,
     SXML_IR_EXPRESSION_KIND_APPLY_TEMPLATES,
     SXML_IR_EXPRESSION_KIND_STREAM,
+    SXML_IR_EXPRESSION_KIND_MERGE,
 };
 
 static bool is_evaluated_kind(sxml_ir_expression_kind kind) {
@@ -112,7 +114,8 @@ static void test_each_reserved_kind_has_one_part(sxml_test_state *state) {
          kind_value += 1) {
         const sxml_ir_expression_kind kind = (sxml_ir_expression_kind)kind_value;
         const bool is_xslt_only = kind == SXML_IR_EXPRESSION_KIND_APPLY_TEMPLATES ||
-                                  kind == SXML_IR_EXPRESSION_KIND_STREAM;
+                                  kind == SXML_IR_EXPRESSION_KIND_STREAM ||
+                                  kind == SXML_IR_EXPRESSION_KIND_MERGE;
         SXML_TEST_EXPECT(state, (sxml_evaluator_find_kind_handler(sxml_evaluator_xslt_parts(),
                                                                   kind) != NULL) ==
                                     is_reserved_kind(kind));

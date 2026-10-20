@@ -3891,6 +3891,7 @@ static bool sxml_expression_kind_is_leaf(sxml_ir_expression_kind kind) {
     case SXML_IR_EXPRESSION_KIND_APPLY_TEMPLATES:
     case SXML_IR_EXPRESSION_KIND_STREAM:
     case SXML_IR_EXPRESSION_KIND_GLOBAL_READ:
+    case SXML_IR_EXPRESSION_KIND_MERGE:
     case SXML_IR_EXPRESSION_KIND_COUNT:
         break;
     }
@@ -5364,6 +5365,7 @@ static sxml_status sxml_make_leaf_value(sxml_dynamic_context *context,
     case SXML_IR_EXPRESSION_KIND_APPLY_TEMPLATES:
     case SXML_IR_EXPRESSION_KIND_STREAM:
     case SXML_IR_EXPRESSION_KIND_GLOBAL_READ:
+    case SXML_IR_EXPRESSION_KIND_MERGE:
     case SXML_IR_EXPRESSION_KIND_COUNT:
         break;
     }
@@ -5512,6 +5514,7 @@ static sxml_status sxml_machine_step_expression(sxml_dynamic_context *context) {
     case SXML_IR_EXPRESSION_KIND_SHALLOW_COPY:
     case SXML_IR_EXPRESSION_KIND_APPLY_TEMPLATES:
     case SXML_IR_EXPRESSION_KIND_STREAM:
+    case SXML_IR_EXPRESSION_KIND_MERGE:
         /* Evaluated by evaluator parts (XQuery and XSLT, D101). */
         return sxml_machine_start_part_kind(context, expression->expression_kind);
     case SXML_IR_EXPRESSION_KIND_NONE:

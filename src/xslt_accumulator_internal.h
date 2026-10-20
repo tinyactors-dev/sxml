@@ -158,11 +158,6 @@ SXML_NODISCARD sxml_status sxml_xslt_prepare_streamed_accumulators(
 SXML_NODISCARD sxml_status sxml_xslt_stream_accumulators(
     const sxml_xslt_streamed_accumulator_request *request, sxml_ir_stream_accumulators *functions);
 
-/* Whether a streamed document can compute the accumulators of ast that may
-   apply to it: no xsl:accumulator-rule of one declared streamable has
-   capture="yes" (19.9: its end event would read the node's subtree). */
-bool sxml_xslt_accumulators_stream(const sxml_xslt_ast *ast);
-
 /* Releases the table; NULL is allowed. The static contexts must not be
    used for lowering afterwards. */
 void sxml_xslt_release_accumulators(sxml_xslt_accumulator_table *table);

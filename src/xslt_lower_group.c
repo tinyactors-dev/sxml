@@ -1766,6 +1766,10 @@ static const char merge_sources_text[] =
 /* 15.3: the documents for-each-source names, relative to the base URI. */
 static const char merge_documents_text[] =
     GROUP_VARIABLE "uris ! doc(resolve-uri(., " GROUP_VARIABLE "base))";
+/* The same URIs for a streamed source (packet 7.6g), whose cursors open
+   the documents themselves. */
+static const char merge_uris_text[] =
+    GROUP_VARIABLE "uris ! string(resolve-uri(., " GROUP_VARIABLE "base))";
 
 typedef enum merge_phase {
     SXML_XSLT_MERGE_PHASE_START,
@@ -1781,6 +1785,9 @@ typedef enum merge_phase {
     SXML_XSLT_MERGE_PHASE_SORT,
     SXML_XSLT_MERGE_PHASE_ORDER_CHECK,
     SXML_XSLT_MERGE_PHASE_GROUPS,
+    /* MERGE (packet 7.6g): the heads sorted, then their first group. */
+    SXML_XSLT_MERGE_PHASE_HEADS_SORT,
+    SXML_XSLT_MERGE_PHASE_HEADS_GROUP,
     SXML_XSLT_MERGE_PHASE_ITEMS,
     SXML_XSLT_MERGE_PHASE_KEY_ARRAY,
     SXML_XSLT_MERGE_PHASE_SOURCES,
@@ -1861,6 +1868,18 @@ typedef struct merge_locals {
     sxml_ir_atom body;
     size_t scope_mark;
     merge_attribute_check attribute_check;
+    /* MERGE (packet 7.6g): some sources are streamed; the source being
+       lowered is, with the slot of its anchors' URIs; the merge streams so
+       far; the heads, their sort and the first group (the order). */
+    bool streams;
+    bool is_streamed_source;
+    sxml_ir_slot uri;
+    sxml_ir_merge_stream merge_streams[SXML_XSLT_MERGE_MAXIMUM_STREAM_COUNT];
+    size_t merge_stream_count;
+    sxml_ir_slot heads;
+    sxml_xpath_lowering_block order_block;
+    sxml_ir_atom sorted_heads;
+    sxml_ir_expression_index order;
 } merge_locals;
 
 /* 15.3, 15.4: XTSE2200, XTSE3195, XTSE3190; the counts. */
@@ -2327,6 +2346,34 @@ static sxml_status bind_source_tuples(sxml_xpath_lowerer *lowerer, sxml_xpath_lo
         status = finish_branch(lowerer, (branch_result){.block = &locals->item_block, .value = tuple},
                                &item_body);
     }
+    if (locals->is_streamed_source) {
+        /* Its cursors select the nodes (MERGE, packet 7.6g): no tuples of
+           its own among the grounded ones. */
+        sxml_ir_expression_index stream = {0};
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xslt_lowering_add_merge_chain(
+                lowerer,
+                &(sxml_xslt_merge_chain_request){.lowering = locals->head.lowering,
+                                                 .source = locals->source,
+                                                 .uri = locals->uri,
+                                                 .document_focus = locals->anchor_focus.slots,
+                                                 .item_focus = locals->item_focus.slots,
+                                                 .body = item_body},
+                &stream);
+        }
+        if (status == SXML_STATUS_OK &&
+            locals->merge_stream_count == SXML_XSLT_MERGE_MAXIMUM_STREAM_COUNT) {
+            status = SXML_STATUS_INVALID_ARGUMENT;
+        }
+        if (status == SXML_STATUS_OK) {
+            locals->merge_streams[locals->merge_stream_count] =
+                (sxml_ir_merge_stream){.anchors = locals->anchors, .stream = stream};
+            locals->merge_stream_count += 1;
+        }
+        locals->source_tuples[locals->source_index] =
+            (sxml_ir_atom){.atom_kind = SXML_IR_ATOM_KIND_NONE};
+        return status;
+    }
     sxml_ir_atom tuples = {0};
     if (status == SXML_STATUS_OK) {
         status = bind(lowerer,
@@ -2357,8 +2404,16 @@ static sxml_status bind_source_tuples(sxml_xpath_lowerer *lowerer, sxml_xpath_lo
     return status;
 }
 
-/* All tuples, merged: sorted by the keys, then runs of equal keys. */
-static sxml_status bind_merge_groups(sxml_xpath_lowerer *lowerer, sxml_xpath_lowering_frame *frame) {
+/* The tuples of input (sorted by the keys) as runs of equal keys, bound
+   in block to *groups. */
+typedef struct merge_grouping {
+    sxml_xpath_lowering_block *block;
+    sxml_ir_atom input;
+    sxml_ir_atom *groups;
+} merge_grouping;
+
+static sxml_status bind_merge_groups(sxml_xpath_lowerer *lowerer, sxml_xpath_lowering_frame *frame,
+                                     merge_grouping grouping) {
     merge_locals *locals = frame->locals;
     sxml_xpath_lowering_focus tuple_focus = {.kind = SXML_XPATH_LOWERING_FOCUS_KIND_SLOTS};
     sxml_xpath_lowering_block pair_block = {.first = {0}, .open_let = {0}};
@@ -2412,9 +2467,9 @@ static sxml_status bind_merge_groups(sxml_xpath_lowerer *lowerer, sxml_xpath_low
     sxml_ir_atom pairs = {0};
     if (status == SXML_STATUS_OK) {
         status = bind(lowerer,
-                      (binding){.block = frame->block,
+                      (binding){.block = grouping.block,
                                 .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_MAP,
-                                               .map = {.input = locals->sorted,
+                                               .map = {.input = grouping.input,
                                                        .focus = tuple_focus.slots,
                                                        .body = pair_body,
                                                        .flags = 0}}},
@@ -2436,14 +2491,39 @@ static sxml_status bind_merge_groups(sxml_xpath_lowerer *lowerer, sxml_xpath_low
         return status;
     }
     return bind(lowerer,
-                (binding){.block = frame->block,
+                (binding){.block = grouping.block,
                           .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_STATIC_CALL,
                                          .static_call = {.target = {.target_kind =
                                                                         SXML_IR_FUNCTION_TARGET_KIND_NATIVE,
                                                                     .native_function =
                                                                         &sxml_xslt_for_each_group_function},
                                                          .arguments = argument_list}}},
-                &locals->groups);
+                grouping.groups);
+}
+
+/* The merge action's block, reading the tuples and the key of the group
+   array in its focus (15.5). */
+static sxml_status start_group_body(sxml_xpath_lowerer *lowerer, merge_locals *locals) {
+    sxml_status status = add_focus_slots(lowerer, &locals->group_slots);
+    if (locals->streams) {
+        /* MERGE binds no size (src/ir_internal.h). */
+        locals->group_slots.context_size = (sxml_ir_slot){0};
+    }
+    locals->body_block = (sxml_xpath_lowering_block){.first = {0}, .open_let = {0}};
+    const sxml_ir_atom group_array = sxml_ir_slot_atom(locals->group_slots.context_value);
+    if (status == SXML_STATUS_OK) {
+        status = bind_member(
+            lowerer,
+            (member_read){.block = &locals->body_block, .array = group_array, .member_number = 1},
+            &locals->tuples);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = bind_member(
+            lowerer,
+            (member_read){.block = &locals->body_block, .array = group_array, .member_number = 2},
+            &locals->merge_key);
+    }
+    return status;
 }
 
 /* One step of xsl:merge; outcome->is_pushed when it asked for a part. */
@@ -2478,6 +2558,7 @@ static sxml_status step_merge(sxml_xpath_lowering_machine *machine,
         }
         locals->phase = SXML_XSLT_MERGE_PHASE_ATTRIBUTE_CHECK;
         status = start_merge(machine, frame);
+        locals->streams = sxml_xslt_streams_merge(lowering, locals->head.node);
         locals->key = first_child_of(
             lowering, (child_query){.node = locals->source, .kind = SXML_XSLT_AST_KIND_MERGE_KEY});
         locals->key_index = 0;
@@ -2504,6 +2585,8 @@ static sxml_status step_merge(sxml_xpath_lowering_machine *machine,
         const sxml_xslt_ast_attribute *anchors =
             item->value.kind == SXML_XSLT_AST_VALUE_KIND_EXPRESSION ? item : source;
         locals->has_anchors = anchors->value.kind == SXML_XSLT_AST_VALUE_KIND_EXPRESSION;
+        locals->is_streamed_source =
+            locals->streams && sxml_xslt_streams_merge_source(lowering, locals->source);
         if (!locals->has_anchors) {
             return SXML_STATUS_OK;
         }
@@ -2533,7 +2616,9 @@ static sxml_status step_merge(sxml_xpath_lowering_machine *machine,
         if (status == SXML_STATUS_OK) {
             outcome->is_pushed = true;
             status = call_text(machine, &(text_call){.lowering = lowering,
-                                                     .text = merge_documents_text,
+                                                     .text = locals->is_streamed_source
+                                                                 ? merge_uris_text
+                                                                 : merge_documents_text,
                                                      .variables = variables,
                                                      .variable_count = 2,
                                                      .block = frame->block,
@@ -2562,6 +2647,23 @@ static sxml_status step_merge(sxml_xpath_lowering_machine *machine,
         locals->anchor_focus =
             (sxml_xpath_lowering_focus){.kind = SXML_XPATH_LOWERING_FOCUS_KIND_SLOTS};
         locals->anchor_block = (sxml_xpath_lowering_block){.first = {0}, .open_let = {0}};
+        if (locals->is_streamed_source) {
+            /* The cursors bind the document's and each node's focus
+               (MERGE, packet 7.6g): the select is their chain. */
+            locals->item_focus =
+                (sxml_xpath_lowering_focus){.kind = SXML_XPATH_LOWERING_FOCUS_KIND_SLOTS};
+            sxml_ir_slot *const slots[] = {&locals->uri,
+                                           &locals->anchor_focus.slots.context_value,
+                                           &locals->anchor_focus.slots.context_position,
+                                           &locals->item_focus.slots.context_value,
+                                           &locals->item_focus.slots.context_position};
+            for (size_t slot_index = 0;
+                 status == SXML_STATUS_OK && slot_index < sizeof(slots) / sizeof(slots[0]);
+                 slot_index += 1) {
+                status = sxml_xpath_lowerer_add_slot(lowerer, slots[slot_index]);
+            }
+            return status;
+        }
         const sxml_xslt_ast_attribute *select =
             find_attribute(lowering, locals->source, SXML_XSLT_AST_ATTRIBUTE_SELECT);
         outcome->is_pushed = true;
@@ -2575,9 +2677,12 @@ static sxml_status step_merge(sxml_xpath_lowering_machine *machine,
     }
     case SXML_XSLT_MERGE_PHASE_KEY:
         if (locals->key_index == 0) {
-            /* The item MAP's body: the item as a singleton focus (15.4). */
-            locals->item_focus =
-                (sxml_xpath_lowering_focus){.kind = SXML_XPATH_LOWERING_FOCUS_KIND_SLOTS};
+            /* The item MAP's body: the item as a singleton focus (15.4); a
+               streamed source's slots are its chain's. */
+            if (!locals->is_streamed_source) {
+                locals->item_focus =
+                    (sxml_xpath_lowering_focus){.kind = SXML_XPATH_LOWERING_FOCUS_KIND_SLOTS};
+            }
             locals->item_block = (sxml_xpath_lowering_block){.first = {0}, .open_let = {0}};
             sxml_ir_atom item = {0};
             status = read_focus_value(
@@ -2616,11 +2721,19 @@ static sxml_status step_merge(sxml_xpath_lowering_machine *machine,
         return status;
     case SXML_XSLT_MERGE_PHASE_SORT: {
         locals->phase = SXML_XSLT_MERGE_PHASE_ORDER_CHECK;
+        /* The grounded sources' tuples (a streamed source has none). */
+        size_t grounded_count = 0;
+        for (size_t source_index = 0; source_index < locals->source_count; source_index += 1) {
+            if (locals->source_tuples[source_index].atom_kind != SXML_IR_ATOM_KIND_NONE) {
+                locals->source_tuples[grounded_count] = locals->source_tuples[source_index];
+                grounded_count += 1;
+            }
+        }
         sxml_ir_expression all = {0};
         sxml_ir_atom_list list = {0};
         status = sxml_ir_unit_add_atoms(
             lowerer->unit,
-            (sxml_ir_atom_view){.atoms = locals->source_tuples, .atom_count = locals->source_count},
+            (sxml_ir_atom_view){.atoms = locals->source_tuples, .atom_count = grounded_count},
             &list);
         all = (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_SEQUENCE,
                                    .sequence = list};
@@ -2692,25 +2805,65 @@ static sxml_status step_merge(sxml_xpath_lowering_machine *machine,
             status = sxml_xpath_lowerer_add_string_constant(
                 lowerer, (sxml_byte_view){.bytes = NULL, .byte_count = 0}, &locals->collation);
         }
-        if (status == SXML_STATUS_OK) {
-            status = bind_merge_groups(lowerer, frame);
+        if (status == SXML_STATUS_OK && locals->streams) {
+            /* MERGE (packet 7.6g): the order of the heads first. */
+            locals->phase = SXML_XSLT_MERGE_PHASE_HEADS_SORT;
+            return SXML_STATUS_OK;
         }
         if (status == SXML_STATUS_OK) {
-            status = add_focus_slots(lowerer, &locals->group_slots);
+            status = bind_merge_groups(lowerer, frame,
+                                       (merge_grouping){.block = frame->block,
+                                                        .input = locals->sorted,
+                                                        .groups = &locals->groups});
         }
-        locals->body_block = (sxml_xpath_lowering_block){.first = {0}, .open_let = {0}};
-        const sxml_ir_atom group_array = sxml_ir_slot_atom(locals->group_slots.context_value);
         if (status == SXML_STATUS_OK) {
-            status = bind_member(
+            status = start_group_body(lowerer, locals);
+        }
+        return status;
+    }
+    case SXML_XSLT_MERGE_PHASE_HEADS_SORT:
+        /* The heads (MERGE's slot) in merge-key order, as the grounded
+           tuples are sorted (15.6). */
+        locals->phase = SXML_XSLT_MERGE_PHASE_HEADS_GROUP;
+        locals->order_block = (sxml_xpath_lowering_block){.first = {0}, .open_let = {0}};
+        status = sxml_xpath_lowerer_add_slot(lowerer, &locals->heads);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        outcome->is_pushed = true;
+        return sxml_xslt_lowering_call_sort(
+            machine, &(sxml_xslt_sort_call){.lowering = lowering,
+                                            .node = locals->first_source,
+                                            .input = sxml_ir_slot_atom(locals->heads),
+                                            .sorts_groups = false,
+                                            .tuple_key_offset = MERGE_TUPLE_KEY_OFFSET,
+                                            .block = &locals->order_block,
+                                            .atom = &locals->sorted_heads});
+    case SXML_XSLT_MERGE_PHASE_HEADS_GROUP: {
+        /* The order: the first run of equal keys of the sorted heads. */
+        locals->phase = SXML_XSLT_MERGE_PHASE_ITEMS;
+        sxml_ir_atom groups = {0};
+        status = bind_merge_groups(lowerer, frame,
+                                   (merge_grouping){.block = &locals->order_block,
+                                                    .input = locals->sorted_heads,
+                                                    .groups = &groups});
+        sxml_ir_atom first = {0};
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xslt_lowering_bind_library_call(
                 lowerer,
-                (member_read){.block = &locals->body_block, .array = group_array, .member_number = 1},
-                &locals->tuples);
+                &(sxml_xslt_library_call){.block = &locals->order_block,
+                                          .function_namespace = SXML_NAMESPACE_FUNCTIONS,
+                                          .local_name = SXML_BYTE_VIEW_FROM_LITERAL("head"),
+                                          .arguments = {.atoms = &groups, .atom_count = 1}},
+                &first);
         }
         if (status == SXML_STATUS_OK) {
-            status = bind_member(
-                lowerer,
-                (member_read){.block = &locals->body_block, .array = group_array, .member_number = 2},
-                &locals->merge_key);
+            status = finish_branch(
+                lowerer, (branch_result){.block = &locals->order_block, .value = first},
+                &locals->order);
+        }
+        if (status == SXML_STATUS_OK) {
+            status = start_group_body(lowerer, locals);
         }
         return status;
     }
@@ -2828,7 +2981,27 @@ static sxml_status step_merge(sxml_xpath_lowering_machine *machine,
         status = finish_branch(
             lowerer, (branch_result){.block = &locals->body_block, .value = locals->body}, &body);
         sxml_ir_expression_index map = {0};
-        if (status == SXML_STATUS_OK) {
+        sxml_ir_merge_stream_list streams = {0};
+        if (status == SXML_STATUS_OK && locals->streams) {
+            /* MERGE (packet 7.6g): the groups made as the cursors are read. */
+            status = sxml_ir_unit_add_merge_streams(
+                lowerer->unit,
+                (sxml_ir_merge_stream_view){.merge_streams = locals->merge_streams,
+                                            .merge_stream_count = locals->merge_stream_count},
+                &streams);
+            if (status == SXML_STATUS_OK) {
+                status = sxml_xslt_lowering_add_expression(
+                    lowerer,
+                    (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_MERGE,
+                                         .merge = {.tuples = locals->sorted,
+                                                   .streams = streams,
+                                                   .heads = locals->heads,
+                                                   .order = locals->order,
+                                                   .focus = locals->group_slots,
+                                                   .body = body}},
+                    &map);
+            }
+        } else if (status == SXML_STATUS_OK) {
             status = sxml_xslt_lowering_add_expression(lowerer,
                                     (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_MAP,
                                                          .map = {.input = locals->groups,

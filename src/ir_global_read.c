@@ -192,6 +192,10 @@ static own_atoms own_atoms_of(const sxml_ir_unit *unit, const sxml_ir_expression
     case SXML_IR_EXPRESSION_KIND_STREAM:
         first = expression->stream.origin;
         break;
+    case SXML_IR_EXPRESSION_KIND_MERGE:
+        /* Its merge streams' anchors: collect_reads. */
+        first = expression->merge.tuples;
+        break;
     case SXML_IR_EXPRESSION_KIND_NONE:
     case SXML_IR_EXPRESSION_KIND_LET:
     case SXML_IR_EXPRESSION_KIND_FUNCTION_REFERENCE:
@@ -235,6 +239,15 @@ static sxml_status collect_reads(const sxml_ir_unit *unit, const sxml_ir_express
             if (status == SXML_STATUS_OK) {
                 status = add_read(unit, reads, entries.map_entries[entry_index].value);
             }
+        }
+    }
+    if (status == SXML_STATUS_OK && expression->expression_kind == SXML_IR_EXPRESSION_KIND_MERGE) {
+        const sxml_ir_merge_stream_view streams =
+            sxml_ir_unit_get_merge_streams(unit, expression->merge.streams);
+        for (size_t stream_index = 0;
+             status == SXML_STATUS_OK && stream_index < streams.merge_stream_count;
+             stream_index += 1) {
+            status = add_read(unit, reads, streams.merge_streams[stream_index].anchors);
         }
     }
     if (status == SXML_STATUS_OK && expression->expression_kind == SXML_IR_EXPRESSION_KIND_SORT) {

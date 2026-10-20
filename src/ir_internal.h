@@ -517,6 +517,10 @@ typedef enum sxml_ir_expression_kind {
     /* A read of a global computed on first read (glossary `global_read`,
        D234): the global, then the body. */
     SXML_IR_EXPRESSION_KIND_GLOBAL_READ,
+    /* xsl:merge over streamed inputs (XSLT 4.0, 15.4 and 18; packet
+       7.6g): one cursor per anchor document of each streamed source, read
+       in step in merge-key order, each group's action as it is made. */
+    SXML_IR_EXPRESSION_KIND_MERGE,
 
     /* One more than the largest kind. */
     SXML_IR_EXPRESSION_KIND_COUNT,
@@ -1076,6 +1080,13 @@ typedef struct sxml_ir_stream_accumulators {
        event, "b" and "a" maps of the values before and after each node of
        the subtree by fn:generate-id. */
     sxml_ir_function_index descend;
+    /* ($node as node()) as xs:integer*: the numbers of the accumulators
+       whose end event of $node reads its subtree (an end rule with
+       capture="yes" matches it, XSLT 4.0, 19.9; packet 7.6g), asked at the
+       start event of each element; the element's events are then also
+       captured into a full stream window, which those accumulators' end
+       calls get as $node. 0 when no end rule captures. */
+    sxml_ir_function_index capture;
 } sxml_ir_stream_accumulators;
 
 typedef struct sxml_ir_stream {
@@ -1110,6 +1121,66 @@ typedef struct sxml_ir_global_read {
     sxml_ir_global_index global;
     sxml_ir_expression_index body;
 } sxml_ir_global_read;
+
+/* One streamed merge source of MERGE (XSLT 4.0, 15.3, 15.4). */
+typedef struct sxml_ir_merge_stream {
+    /* The absolute URIs of its anchor documents (xs:string items): one
+       cursor each, in order. */
+    sxml_ir_atom anchors;
+    /* A STREAM with OPENS_DOCUMENT whose origin is a slot MERGE binds to
+       each URI and whose focus MERGE binds to the document node and the
+       anchor's position; its body is a chain of STREAMs, one per child
+       step of the source's select, without predicates (each the body of
+       the one before, D219), whose last body is the source's tuple of the
+       node it selects (src/xslt_lower_group.c). MERGE reads the chain as a
+       description of its cursors, pulling one selected node at a time,
+       and evaluates the last body only. */
+    sxml_ir_expression_index stream;
+} sxml_ir_merge_stream;
+
+typedef struct sxml_ir_merge_stream_view {
+    const sxml_ir_merge_stream *merge_streams;
+    size_t merge_stream_count;
+} sxml_ir_merge_stream_view;
+
+typedef struct sxml_ir_merge_stream_list {
+    uint32_t first_merge_stream_index;
+    uint32_t merge_stream_count;
+} sxml_ir_merge_stream_list;
+
+/*
+ * MERGE (XSLT 4.0, 15.3 to 15.6; packet 7.6g): xsl:merge with streamed
+ * merge sources. The cursors are the tuples of the unstreamed sources
+ * (one cursor, its tuples already in merge-key order) and one per anchor
+ * document of each merge stream, which selects its nodes as the
+ * document's events pass, each in a full stream window (D219). A tuple
+ * is the array [source number, item, keys..., anchor position, item
+ * position] of the grounded merge (src/xslt_lower_group.c).
+ *
+ * Each step binds heads to the current tuple of every cursor that has
+ * one, after the open group's first tuple when a group is open, and
+ * evaluates order: the first group of heads in merge-key order, the
+ * array [tuples, key] of the grouping (a stable sort, so the group's
+ * first tuple stays first among equal keys), or () when heads is empty.
+ * Without an open group its tuples open one; with one, a first group
+ * that holds the group's first tuple and others adds them to it, one
+ * that holds it alone closes the group, and one without it means a
+ * cursor's tuple is smaller than the one before it: XTDE2220 (15.4). The
+ * cursors whose tuples are taken move on. A closed group's tuples are
+ * put in source, anchor and input order (15.6), and body runs with
+ * focus.context_value bound to the array [tuples, key] and
+ * focus.context_position to the group's number; focus.context_size is
+ * 0 (the number of groups is not known while streaming). The values are
+ * concatenated (delivered when MERGE delivers, D166).
+ */
+typedef struct sxml_ir_merge {
+    sxml_ir_atom tuples;
+    sxml_ir_merge_stream_list streams;
+    sxml_ir_slot heads;
+    sxml_ir_expression_index order;
+    sxml_ir_focus focus;
+    sxml_ir_expression_index body;
+} sxml_ir_merge;
 
 /* One expression: its kind, where it comes from, and the payload its kind
    names. */
@@ -1148,6 +1219,7 @@ typedef struct sxml_ir_expression {
         sxml_ir_apply_templates apply_templates;
         sxml_ir_stream stream;
         sxml_ir_global_read global_read;
+        sxml_ir_merge merge;
     };
 } sxml_ir_expression;
 
@@ -1413,6 +1485,9 @@ struct sxml_ir_unit {
     sxml_ir_catch_clause *catch_clauses;
     uint32_t catch_clause_count;
     uint32_t catch_clause_capacity;
+    sxml_ir_merge_stream *merge_streams;
+    uint32_t merge_stream_count;
+    uint32_t merge_stream_capacity;
     /* Also holds the static namespaces below (D84). */
     sxml_namespace_binding *namespace_bindings;
     uint32_t namespace_binding_count;
@@ -1529,6 +1604,11 @@ SXML_NODISCARD sxml_status sxml_ir_unit_add_name_tests(
 SXML_NODISCARD sxml_status sxml_ir_unit_add_catch_clauses(
     sxml_ir_unit *unit, sxml_ir_catch_clause_view catch_clauses,
     sxml_ir_catch_clause_list *list);
+
+/* Copies merge_streams into the unit (MERGE, packet 7.6g). */
+SXML_NODISCARD sxml_status sxml_ir_unit_add_merge_streams(
+    sxml_ir_unit *unit, sxml_ir_merge_stream_view merge_streams,
+    sxml_ir_merge_stream_list *list);
 
 /* Copies bindings into the unit as a run for namespace_bindings or
    name_namespaces of a constructor. */
@@ -1725,6 +1805,20 @@ static inline sxml_ir_name_test_view sxml_ir_unit_get_name_tests(
     return (sxml_ir_name_test_view){
         .name_tests = unit->name_tests + list.first_name_test_index,
         .name_test_count = list.name_test_count};
+}
+
+/* The merge streams of list, borrowed; empty when out of range. */
+static inline sxml_ir_merge_stream_view sxml_ir_unit_get_merge_streams(
+    const sxml_ir_unit *unit, sxml_ir_merge_stream_list list) {
+    if (list.merge_stream_count == 0 ||
+        list.first_merge_stream_index > unit->merge_stream_count ||
+        list.merge_stream_count >
+            unit->merge_stream_count - list.first_merge_stream_index) {
+        return (sxml_ir_merge_stream_view){.merge_streams = NULL, .merge_stream_count = 0};
+    }
+    return (sxml_ir_merge_stream_view){
+        .merge_streams = unit->merge_streams + list.first_merge_stream_index,
+        .merge_stream_count = list.merge_stream_count};
 }
 
 /* The catch clauses of list, borrowed; empty when out of range. */

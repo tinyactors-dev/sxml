@@ -154,6 +154,7 @@ void sxml_ir_unit_finalize(sxml_ir_unit *unit) {
     sxml_allocator_release(allocator, unit->global_variables);
     sxml_allocator_release(allocator, unit->name_tests);
     sxml_allocator_release(allocator, unit->catch_clauses);
+    sxml_allocator_release(allocator, unit->merge_streams);
     sxml_allocator_release(allocator, unit->namespace_bindings);
     sxml_allocator_release(allocator, unit->modes);
     sxml_allocator_release(allocator, unit->template_rules);
@@ -626,6 +627,44 @@ sxml_status sxml_ir_unit_add_catch_clauses(sxml_ir_unit *unit,
     *list = (sxml_ir_catch_clause_list){
         .first_catch_clause_index = room.element_count,
         .catch_clause_count = (uint32_t)catch_clauses.catch_clause_count};
+    return SXML_STATUS_OK;
+}
+
+sxml_status sxml_ir_unit_add_merge_streams(sxml_ir_unit *unit,
+                                           sxml_ir_merge_stream_view merge_streams,
+                                           sxml_ir_merge_stream_list *list) {
+    if (unit->is_sealed) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    if (merge_streams.merge_stream_count == 0) {
+        *list = (sxml_ir_merge_stream_list){.first_merge_stream_index = 0,
+                                            .merge_stream_count = 0};
+        return SXML_STATUS_OK;
+    }
+    if (merge_streams.merge_stream_count > UNIT_ARRAY_MAXIMUM_COUNT) {
+        return SXML_STATUS_LIMIT_EXCEEDED;
+    }
+    array_room room = {0};
+    const sxml_status status = make_array_room(
+        unit,
+        &(array_room_request){.elements = unit->merge_streams,
+                              .element_count = unit->merge_stream_count,
+                              .element_capacity = unit->merge_stream_capacity,
+                              .element_size = sizeof(sxml_ir_merge_stream),
+                              .element_alignment = alignof(sxml_ir_merge_stream),
+                              .added_count = (uint32_t)merge_streams.merge_stream_count},
+        &room);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    unit->merge_streams = room.elements;
+    unit->merge_stream_capacity = room.element_capacity;
+    memcpy(unit->merge_streams + room.element_count, merge_streams.merge_streams,
+           merge_streams.merge_stream_count * sizeof(sxml_ir_merge_stream));
+    unit->merge_stream_count = room.element_count + (uint32_t)merge_streams.merge_stream_count;
+    *list = (sxml_ir_merge_stream_list){
+        .first_merge_stream_index = room.element_count,
+        .merge_stream_count = (uint32_t)merge_streams.merge_stream_count};
     return SXML_STATUS_OK;
 }
 
@@ -2113,6 +2152,7 @@ static const char *const expression_kind_names[] = {
     [SXML_IR_EXPRESSION_KIND_APPLY_TEMPLATES] = "apply-templates",
     [SXML_IR_EXPRESSION_KIND_STREAM] = "stream",
     [SXML_IR_EXPRESSION_KIND_GLOBAL_READ] = "global-read",
+    [SXML_IR_EXPRESSION_KIND_MERGE] = "merge",
 };
 
 static const char *binary_operator_name(sxml_ir_binary_operator operator) {
@@ -2746,11 +2786,48 @@ static sxml_status print_expression(text_writer *writer, print_stack *stack,
                 write_unsigned(writer, functions[function_index].value);
             }
         }
+        if (stream->accumulators.capture.value != 0) {
+            /* " capture function:C" (packet 7.6g). */
+            write_text(writer, " capture function:");
+            write_unsigned(writer, stream->accumulators.capture.value);
+        }
         status = push_nested_operand(
             stack, (nested_operand){.expression = stream->body, .indent = indent});
         if (status == SXML_STATUS_OK && stream->predicate.value != 0) {
             status = push_nested_operand(
                 stack, (nested_operand){.expression = stream->predicate, .indent = indent});
+        }
+        return status;
+    }
+    case SXML_IR_EXPRESSION_KIND_MERGE: {
+        /* "(merge TUPLES heads $h FOCUS [anchors ATOM]... STREAM... ORDER
+           BODY)" (packet 7.6g). */
+        const sxml_ir_merge *merge = &expression->merge;
+        write_text(writer, " ");
+        write_atom(writer, merge->tuples);
+        write_text(writer, " heads ");
+        write_slot(writer, merge->heads);
+        write_text(writer, " ");
+        write_focus(writer, merge->focus);
+        const sxml_ir_merge_stream_view streams =
+            sxml_ir_unit_get_merge_streams(writer->unit, merge->streams);
+        for (size_t stream_index = 0; stream_index < streams.merge_stream_count;
+             stream_index += 1) {
+            write_text(writer, " anchors ");
+            write_atom(writer, streams.merge_streams[stream_index].anchors);
+        }
+        status = push_nested_operand(
+            stack, (nested_operand){.expression = merge->body, .indent = indent});
+        if (status == SXML_STATUS_OK) {
+            status = push_nested_operand(
+                stack, (nested_operand){.expression = merge->order, .indent = indent});
+        }
+        for (size_t stream_number = streams.merge_stream_count;
+             status == SXML_STATUS_OK && stream_number > 0; stream_number -= 1) {
+            status = push_nested_operand(
+                stack, (nested_operand){
+                           .expression = streams.merge_streams[stream_number - 1U].stream,
+                           .indent = indent});
         }
         return status;
     }

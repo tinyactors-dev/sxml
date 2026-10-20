@@ -53,12 +53,16 @@
  * xsl:source-document becomes STREAM with OPENS_DOCUMENT over its href.
  * Everything else is lowered as before, unstreamed: an xsl:source-document
  * whose body has another shape reads the whole document (fn:doc), which
- * gives the same results (19.10). Not streamed yet: accumulators whose
- * end rules capture (19.9) when any is read (other accumulators are
- * computed as the document's events pass, D231), validation and type on xsl:source-document, xsl:fork,
- * xsl:merge, a streamed principal source, and bodies that
- * read fn:has-children, fn:path or fn:last (motionless by 19.8.9, but
- * they need what a window lacks).
+ * gives the same results (19.10). Accumulators are computed as the
+ * document's events pass (D231; end rules with capture="yes" read
+ * captured subtrees, packet 7.6g). An xsl:merge some of whose sources are
+ * streamable becomes MERGE (src/ir_internal.h, packet 7.6g): each such
+ * source's select, a path of child steps, is a chain of STREAMs its
+ * cursors read (sxml_xslt_lowering_add_merge_chain). Not streamed yet:
+ * validation and type on xsl:source-document and xsl:merge-source, merge
+ * sources with accumulators or predicates, and bodies that read
+ * fn:has-children, fn:path or fn:last (motionless by 19.8.9, but they
+ * need what a window lacks).
  *
  * Golden file: src/xslt_lower_control.c (xsl:for-each as a procedure of
  * the lowering machine; xsl:iterate's closure built in steps).
@@ -1800,9 +1804,6 @@ sxml_status sxml_xslt_reads_accumulators(const sxml_xslt_accumulator_reading *re
         return SXML_STATUS_OK;
     }
     *reads = true;
-    if (!sxml_xslt_accumulators_stream(reading->ast)) {
-        return SXML_STATUS_OK;
-    }
     bool is_guaranteed = false;
     const sxml_status status = sxml_xslt_assess_accumulators(
         &(sxml_xslt_accumulator_query){.ast = reading->ast,
@@ -1816,7 +1817,7 @@ sxml_status sxml_xslt_reads_accumulators(const sxml_xslt_accumulator_reading *re
 sxml_status sxml_xslt_stream_accumulators(const sxml_xslt_streamed_accumulator_request *request,
                                           sxml_ir_stream_accumulators *functions) {
     *functions = (sxml_ir_stream_accumulators){
-        .initial = {0}, .start = {0}, .end = {0}, .descend = {0}};
+        .initial = {0}, .start = {0}, .end = {0}, .descend = {0}, .capture = {0}};
     if (!calls_accumulator_functions(request->lowering->ast)) {
         /* Nothing reads the values: they need not be computed. */
         return SXML_STATUS_OK;
@@ -2727,4 +2728,161 @@ sxml_status sxml_xslt_lowering_call_streamed_fork(sxml_xpath_lowering_machine *m
                             .focused = NULL},
             .initial_locals = {.bytes = (const uint8_t *)&initial, .byte_count = sizeof(initial)}},
         &frame);
+}
+
+/* --------------------------------------------- Streamed merge sources */
+
+/* The step test kinds that select elements only (the last step of a
+   streamed merge source: its cursor reads elements, packet 7.6g). */
+static bool selects_elements(const sxml_ast *ast, sxml_ast_node_index step) {
+    const sxml_ast_node_index test = sxml_ast_find_child(
+        ast, (sxml_ast_child_query){.parent = step, .field = SXML_AST_FIELD_TEST});
+    if (test.value == 0) {
+        return false;
+    }
+    const sxml_ast_kind kind = sxml_ast_get_node(ast, test)->kind;
+    return kind == SXML_AST_KIND_NCNAME || kind == SXML_AST_KIND_PREFIXED_NAME ||
+           kind == SXML_AST_KIND_URI_QUALIFIED_NAME || kind == SXML_AST_KIND_WILDCARD ||
+           kind == SXML_AST_KIND_ELEMENT_NODE_TYPE;
+}
+
+/* The steps of a streamed merge source's select, or false. */
+static bool read_merge_path(const sxml_xslt_ast_expression *select, stream_path *path) {
+    if (select == NULL ||
+        !read_path((path_reading){.ast = select->ast,
+                                  .node = no_ast_node,
+                                  .is_document_focus = true,
+                                  .allows_attribute = false},
+                   path) ||
+        path->step_count == 0) {
+        return false;
+    }
+    for (uint32_t index = 0; index < path->step_count; index += 1U) {
+        if (path->steps[index].axis != SXML_AXIS_CHILD || path->steps[index].predicate.value != 0) {
+            return false;
+        }
+    }
+    return selects_elements(select->ast, path->steps[path->step_count - 1U].step);
+}
+
+bool sxml_xslt_streams_merge_source(const sxml_xslt_lowering *lowering,
+                                    sxml_xslt_ast_node_index source) {
+    const sxml_xslt_ast_attribute *streamable =
+        attribute_of(lowering, source, SXML_XSLT_AST_ATTRIBUTE_STREAMABLE);
+    const sxml_xslt_ast_attribute *sorts =
+        attribute_of(lowering, source, SXML_XSLT_AST_ATTRIBUTE_SORT_BEFORE_MERGE);
+    if (streamable->value.kind != SXML_XSLT_AST_VALUE_KIND_BOOLEAN ||
+        !streamable->value.payload.is_true ||
+        !has_attribute(lowering, source, SXML_XSLT_AST_ATTRIBUTE_FOR_EACH_SOURCE) ||
+        has_attribute(lowering, source, SXML_XSLT_AST_ATTRIBUTE_FOR_EACH_ITEM) ||
+        (sorts->value.kind == SXML_XSLT_AST_VALUE_KIND_BOOLEAN && sorts->value.payload.is_true) ||
+        has_attribute(lowering, source, SXML_XSLT_AST_ATTRIBUTE_USE_ACCUMULATORS) ||
+        has_attribute(lowering, source, SXML_XSLT_AST_ATTRIBUTE_TYPE) ||
+        sxml_xslt_lowering_validates(
+            (sxml_xslt_validation_query){.lowering = lowering, .node = source})) {
+        return false;
+    }
+    stream_path path;
+    if (!read_merge_path(select_of(lowering, source), &path)) {
+        return false;
+    }
+    bool calls = false;
+    return subtree_calls_window_function(lowering, source, &calls) == SXML_STATUS_OK && !calls;
+}
+
+bool sxml_xslt_streams_merge(const sxml_xslt_lowering *lowering, sxml_xslt_ast_node_index merge) {
+    size_t streamed_count = 0;
+    sxml_xslt_ast_node_index action = {0};
+    for (sxml_xslt_ast_node_index child = node_of(lowering, merge)->first_child; child.value != 0;
+         child = node_of(lowering, child)->next_sibling) {
+        const sxml_xslt_ast_kind kind = node_of(lowering, child)->kind;
+        if (kind == SXML_XSLT_AST_KIND_MERGE_SOURCE &&
+            sxml_xslt_streams_merge_source(lowering, child)) {
+            streamed_count += 1;
+        } else if (kind == SXML_XSLT_AST_KIND_MERGE_ACTION) {
+            action = child;
+        }
+    }
+    if (streamed_count == 0 || streamed_count > SXML_XSLT_MERGE_MAXIMUM_STREAM_COUNT ||
+        action.value == 0) {
+        return false;
+    }
+    bool calls = false;
+    return subtree_calls_window_function(lowering, action, &calls) == SXML_STATUS_OK && !calls;
+}
+
+sxml_status sxml_xslt_lowering_add_merge_chain(sxml_xpath_lowerer *lowerer,
+                                               const sxml_xslt_merge_chain_request *request,
+                                               sxml_ir_expression_index *stream) {
+    const sxml_xslt_lowering *lowering = request->lowering;
+    const sxml_xslt_ast_expression *select = select_of(lowering, request->source);
+    stream_path path;
+    if (!read_merge_path(select, &path)) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    const sxml_xpath_static_context *static_context =
+        &lowering->static_contexts[select->static_context.value];
+    /* Each step's node test, and the focus of the nodes it selects: the
+       last step's is the item focus, the others' new slots. */
+    step_lowering steps[STREAM_MAXIMUM_STEP_COUNT];
+    sxml_status status = SXML_STATUS_OK;
+    for (uint32_t index = 0; status == SXML_STATUS_OK && index < path.step_count; index += 1U) {
+        step_lowering *step = &steps[index];
+        *step = (step_lowering){.value = {0}, .position = {0}, .predicate = {0}};
+        status = sxml_xpath_lowerer_resolve_step_test(
+            lowerer,
+            &(sxml_xpath_step_test_request){
+                .ast = select->ast,
+                .static_context = static_context,
+                .test = sxml_ast_find_child(select->ast,
+                                            (sxml_ast_child_query){.parent = path.steps[index].step,
+                                                                   .field = SXML_AST_FIELD_TEST}),
+                .axis = SXML_AXIS_CHILD},
+            &step->node_test);
+        if (status == SXML_STATUS_OK && index + 1U == path.step_count) {
+            step->value = request->item_focus.context_value;
+            step->position = request->item_focus.context_position;
+        } else if (status == SXML_STATUS_OK) {
+            status = sxml_xpath_lowerer_add_slot(lowerer, &step->value);
+        }
+    }
+    sxml_ir_expression_index body = request->body;
+    for (uint32_t index = path.step_count; status == SXML_STATUS_OK && index > 0; index -= 1U) {
+        const step_lowering *step = &steps[index - 1U];
+        const bool is_last = index == path.step_count;
+        status = sxml_xslt_lowering_add_expression(
+            lowerer,
+            (sxml_ir_expression){
+                .expression_kind = SXML_IR_EXPRESSION_KIND_STREAM,
+                .stream = {.origin = sxml_ir_slot_atom(
+                               index == 1U ? request->document_focus.context_value
+                                           : steps[index - 2U].value),
+                           .axis = SXML_AXIS_CHILD,
+                           .node_test = step->node_test,
+                           .predicate = {0},
+                           .focus = {.context_value = step->value,
+                                     .context_position = step->position,
+                                     .context_size = {0}},
+                           .position_counter = {0},
+                           .body = body,
+                           .flags = is_last ? 0U : (uint32_t)SXML_IR_STREAM_SHALLOW_WINDOWS,
+                           .fold = {0}}},
+            &body);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_xslt_lowering_add_expression(
+        lowerer,
+        (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_STREAM,
+                             .stream = {.origin = sxml_ir_slot_atom(request->uri),
+                                        .axis = SXML_AXIS_CHILD,
+                                        .node_test = {0},
+                                        .predicate = {0},
+                                        .focus = request->document_focus,
+                                        .position_counter = {0},
+                                        .body = body,
+                                        .flags = (uint32_t)SXML_IR_STREAM_OPENS_DOCUMENT,
+                                        .fold = {0}}},
+        stream);
 }
