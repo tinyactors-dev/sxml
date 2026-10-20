@@ -168,8 +168,10 @@ static sxml_allocator fixture_allocator(fixture *test_fixture) {
     return (sxml_allocator){.state = &test_fixture->memory, .operations = &limited_operations};
 }
 
-/* Makes the processor; limit_byte_count 0 is no limit. */
-static sxml_status fixture_create(fixture *test_fixture, sxml_byte_view content) {
+/* Makes the processor with maximum_evaluation_step_count (0: sxml's
+   default); limit_byte_count 0 is no limit. */
+static sxml_status fixture_create_with_step_limit(fixture *test_fixture, sxml_byte_view content,
+                                                  uint64_t maximum_evaluation_step_count) {
     memset(test_fixture, 0, sizeof(*test_fixture));
     test_fixture->memory.backing = sxml_default_allocator();
     test_fixture->served = (served_document){.content = content,
@@ -181,6 +183,8 @@ static sxml_status fixture_create(fixture *test_fixture, sxml_byte_view content)
         sxml_processor_create(allocator,
                               &(sxml_processor_configuration){
                                   .allocator = allocator,
+                                  .limits = {.maximum_evaluation_step_count =
+                                                 maximum_evaluation_step_count},
                                   .resource_resolver = {.state = &test_fixture->served,
                                                         .operations = &input_resolver_operations}},
                               &test_fixture->processor);
@@ -192,6 +196,10 @@ static sxml_status fixture_create(fixture *test_fixture, sxml_byte_view content)
             &test_fixture->output_buffer);
     }
     return status;
+}
+
+static sxml_status fixture_create(fixture *test_fixture, sxml_byte_view content) {
+    return fixture_create_with_step_limit(test_fixture, content, 0);
 }
 
 /* Destroys the fixture; true when nothing leaked. */
@@ -1222,6 +1230,49 @@ static void test_principal_source_streams_in_bounded_memory(sxml_test_state *sta
     sxml_allocator_release(sxml_default_allocator(), memory);
 }
 
+/* The steps a streamed document grants (D295): the identity of the
+   30,000 records takes more steps than a bound of 10^6, which holds the
+   tree's identity, but each element read grants its steps; a loop that
+   reads nothing stops at the bound. */
+#define GRANT_STEP_LIMIT 1000000U
+
+static void test_streamed_elements_grant_steps(sxml_test_state *state) {
+    sxml_byte_view document = {.bytes = NULL, .byte_count = 0};
+    void *memory = NULL;
+    sxml_status status = make_large_document(&document, &memory);
+    SXML_TEST_EXPECT(state, status == SXML_STATUS_OK);
+    if (status != SXML_STATUS_OK) {
+        return;
+    }
+    fixture test_fixture;
+    status = fixture_create_with_step_limit(&test_fixture, document, GRANT_STEP_LIMIT);
+    if (status == SXML_STATUS_OK) {
+        status = run_principal(&test_fixture, TEXT(PRINCIPAL("yes", "shallow-copy", "")));
+    }
+    SXML_TEST_EXPECT(state, status == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, sxml_output_buffer_get_bytes(test_fixture.output_buffer).byte_count >
+                                document.byte_count);
+    sxml_status unstreamed = SXML_STATUS_OK;
+    if (status == SXML_STATUS_OK) {
+        unstreamed = run_principal(&test_fixture, TEXT(PRINCIPAL("no", "shallow-copy", "")));
+    }
+    SXML_TEST_EXPECT(state, unstreamed == SXML_STATUS_LIMIT_EXCEEDED);
+    sxml_status looping = SXML_STATUS_OK;
+    if (status == SXML_STATUS_OK) {
+        looping = run_principal(
+            &test_fixture,
+            TEXT(PRINCIPAL("yes", "shallow-skip",
+                           "<xsl:template match='record[@id = \"2\"]'><xsl:value-of "
+                           "select='some $n in 1 to 100000000000 satisfies $n = 0'/>"
+                           "</xsl:template>")));
+    }
+    printf("  identity streamed: status %d; unstreamed %d; a loop after two records %d\n",
+           (int)status, (int)unstreamed, (int)looping);
+    SXML_TEST_EXPECT(state, looping == SXML_STATUS_LIMIT_EXCEEDED);
+    SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
+    sxml_allocator_release(sxml_default_allocator(), memory);
+}
+
 /* The library tells whether a request's initial mode streams (D228). */
 static void test_streams_source_reads_the_initial_mode(sxml_test_state *state) {
     fixture test_fixture;
@@ -1278,6 +1329,7 @@ static const sxml_test_case evaluator_stream_test_cases[] = {
      .function = test_large_document_paths_stream_in_bounded_memory},
     {.name = "principal_source_streams_in_bounded_memory",
      .function = test_principal_source_streams_in_bounded_memory},
+    {.name = "streamed_elements_grant_steps", .function = test_streamed_elements_grant_steps},
     {.name = "streams_source_reads_the_initial_mode",
      .function = test_streams_source_reads_the_initial_mode},
 };

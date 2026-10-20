@@ -88,7 +88,8 @@ public final class Processor {
             feature_mask: featureMask,
             resolver: sxml_host_resolver(
                 state: Unmanaged.passUnretained(state).toOpaque(), resolve: resolveResource),
-            source_code_languages: sxml_source_code_language_view(languages: nil, language_count: 0))
+            source_code_languages: sxml_source_code_language_view(languages: nil, language_count: 0),
+            maximum_evaluation_step_count: 0)
         guard let handle = sxml_host_processor_create(&configuration) else {
             throw SxmlError.outOfMemory
         }

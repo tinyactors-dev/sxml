@@ -430,6 +430,21 @@ try {
 }
 ```
 
+## The step limit
+
+An evaluation stops with an error after a hundred million evaluation
+steps, a few seconds of work, so a query or stylesheet that would loop
+for hours does not hang the page or the server. Set
+`createProcessor({ maximumEvaluationStepCount })` to a whole number to
+raise or lower it (the C processor limit of the same name; 0 is the
+default). A streamed document grants 500 steps more for each element it
+reads, so a streamed transformation of a long input runs within the
+default bound, while a loop that reads no more input still stops (D295).
+
+```js
+const processor = sxml.createProcessor({ maximumEvaluationStepCount: 1_000_000_000 });
+```
+
 ## Memory
 
 Processors, expressions, queries, stylesheets, schemas and values own
@@ -445,7 +460,7 @@ documents) are yours to dispose.
 | --- | --- |
 | `load({ wasm, collationData })` | Loads a module; returns an `Sxml` |
 | `Sxml.version`, `Sxml.features` | The library version and the module's optional features |
-| `Sxml.createProcessor({ resolver, features, codeLanguages, outputChunkByteCount })` | A new `Processor` |
+| `Sxml.createProcessor({ resolver, features, codeLanguages, outputChunkByteCount, maximumEvaluationStepCount })` | A new `Processor` |
 | `Sxml.loadCodeLanguage({ wasm, name, highlights, locals, injections, injectionRegex })` | A `CodeLanguage` (`name`, `abiVersion`) from a tree-sitter WebAssembly language file |
 | `Processor.parse(xml, { uri })` | A document node |
 | `Processor.compile(expression, options)` | An `XPathExpression`, with `evaluate(options)` and `variables` |

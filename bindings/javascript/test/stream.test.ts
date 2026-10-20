@@ -1,7 +1,7 @@
 // Tests of streamed output and input in the JavaScript package (D294):
-// output sinks, the adapters, chunk sources, and memory bounds on large
-// outputs (ctest javascript/streams, wasm preset). SXML_WASM_PATH names
-// the sxml.wasm to load.
+// output sinks, the adapters, chunk sources, memory bounds on large
+// outputs, and the step limit (D295; ctest javascript/streams, wasm
+// preset). SXML_WASM_PATH names the sxml.wasm to load.
 import assert from 'node:assert/strict';
 import { env } from 'node:process';
 import { Writable } from 'node:stream';
@@ -457,5 +457,47 @@ describe('memory bounds', () => {
     compiled.dispose();
     processor.dispose();
     assert.equal(processor.liveAllocationCount(), 0);
+  });
+});
+
+describe('the step limit', () => {
+  test('maximumEvaluationStepCount bounds an evaluation', () => {
+    const query = 'count((1 to 1000000)[. mod 7 = 0])';
+    withProcessor((processor) => {
+      const value = processor.evaluate(query);
+      assert.equal(value.toString(), '142857');
+      value.dispose();
+    });
+    withProcessor(
+      (processor) => {
+        assert.throws(() => processor.evaluate(query), /maximum_evaluation_step_count/);
+      },
+      { maximumEvaluationStepCount: 10_000 },
+    );
+    for (const maximumEvaluationStepCount of [-1, 1.5, 2 ** 53]) {
+      assert.throws(() => sxml.createProcessor({ maximumEvaluationStepCount }), RangeError);
+    }
+  });
+
+  test('each element of a streamed source grants steps (D295)', () => {
+    const recordCount = 3000;
+    withProcessor(
+      (processor) => {
+        // The streamed identity takes some 50 steps an element, more than
+        // the bound of 20,000; each element read grants 500.
+        const compiled = processor.compileStylesheet(`<xsl:stylesheet version="3.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
+          <xsl:mode streamable="yes" on-no-match="shallow-copy"/>
+          <xsl:output omit-xml-declaration="yes"/>
+        </xsl:stylesheet>`);
+        const output = collector();
+        compiled.transform({ streamedSource: 'urn:records', output: output.sink });
+        assert.ok(output.text().endsWith(`<record id="${recordCount - 1}">é</record></records>`));
+        compiled.dispose();
+      },
+      {
+        maximumEvaluationStepCount: 20_000,
+        resolver: (request) => (request.absoluteUri === 'urn:records' ? records(recordCount) : undefined),
+      },
+    );
   });
 });

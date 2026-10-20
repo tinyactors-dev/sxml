@@ -649,6 +649,16 @@ sxml_status sxml_dynamic_context_charge_steps(sxml_dynamic_context *dynamic_cont
     return SXML_STATUS_OK;
 }
 
+void sxml_dynamic_context_grant_steps(sxml_dynamic_context *dynamic_context,
+                                      uint64_t step_count) {
+    /* The steps taken so far, less the grant, never below none: the
+       bound then holds for the steps beyond what the input granted. */
+    dynamic_context->evaluation_step_count =
+        step_count > dynamic_context->evaluation_step_count
+            ? 0
+            : dynamic_context->evaluation_step_count - step_count;
+}
+
 /* The module the expression of task names (a STATIC_CALL's or a node
    constructor's module_number), else its function's; 0 for none. */
 static uint32_t sxml_task_module_number(const sxml_evaluator_task *task) {

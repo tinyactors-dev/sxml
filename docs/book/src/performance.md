@@ -125,7 +125,14 @@ expression: the evaluation took more steps than maximum_evaluation_step_count al
 ```
 
 A program sets the limit in its processor configuration, higher or
-lower, to fit the work it expects.
+lower, to fit the work it expects; in JavaScript, it is
+`createProcessor({ maximumEvaluationStepCount })`.
+
+A streamed document is counted differently. Each element it reads
+grants 500 more steps, so the bound grows with the input. The streamed
+identity of a 93 MB file of 2.7 million elements takes about 50 steps an
+element and runs to the end; a loop inside a template that reads
+nothing more still stops.
 
 ## Habits that help
 

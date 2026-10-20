@@ -42,12 +42,22 @@ sxml_host_resolver sxml_javascript_resolver(void);
 uint32_t sxml_javascript_feature_count(void);
 const uint8_t *sxml_javascript_feature_name_bytes(uint32_t feature_index);
 uint32_t sxml_javascript_feature_name_byte_count(uint32_t feature_index);
-/* sxml_host_processor_create with sxml_javascript_resolver() and the
-   languages of *code_languages (NULL for none), which the package's
-   module linker loaded (src/linker.ts, D293). */
-sxml_host_processor *sxml_javascript_processor_create(
-    uint32_t failing_allocation_number, uint32_t feature_mask,
-    const sxml_source_code_language_view *code_languages);
+/* What src/index.ts asks of a processor, written into the module's
+   memory (wasm32 offsets 0, 4, 8 and 16; D295). */
+typedef struct sxml_javascript_processor_request {
+    uint32_t failing_allocation_number;
+    uint32_t feature_mask;
+    /* The languages the package's module linker loaded (src/linker.ts,
+       D293); NULL for none. */
+    const sxml_source_code_language_view *code_languages;
+    /* 0 for sxml's default. */
+    uint64_t maximum_evaluation_step_count;
+} sxml_javascript_processor_request;
+
+/* sxml_host_processor_create with sxml_javascript_resolver() and what
+   *request says. */
+sxml_host_processor *
+sxml_javascript_processor_create(const sxml_javascript_processor_request *request);
 /* sxml_source_code_check_language, as a status number. */
 uint32_t sxml_javascript_check_code_language(const sxml_source_code_language *language,
                                              sxml_source_code_language_report *report);

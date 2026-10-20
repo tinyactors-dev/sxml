@@ -98,6 +98,9 @@ typedef struct sxml_host_processor_configuration {
        `registered_language`); zero for none. The array, grammars and
        query texts outlive the processor (D288, D293). */
     sxml_source_code_language_view source_code_languages;
+    /* sxml_processor_limits.maximum_evaluation_step_count: 0 for sxml's
+       default (D295). */
+    uint64_t maximum_evaluation_step_count;
 } sxml_host_processor_configuration;
 typedef struct sxml_host_value sxml_host_value;
 typedef struct sxml_host_expression sxml_host_expression;

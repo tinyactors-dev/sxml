@@ -232,7 +232,9 @@ sxml_host_processor *sxml_host_processor_create(
                 .allocator = processor->allocator,
                 .limits = {.xml_limits = {.maximum_depth = 0,
                                           .maximum_entity_expansion_byte_count =
-                                              SXML_HOST_MAXIMUM_EXPANSION_BYTE_COUNT}},
+                                              SXML_HOST_MAXIMUM_EXPANSION_BYTE_COUNT},
+                           .maximum_evaluation_step_count =
+                               configuration->maximum_evaluation_step_count},
                 .resource_resolver = {.state = processor,
                                       .operations = &sxml_host_resolver_operations},
                 .clock = sxml_system_clock(),

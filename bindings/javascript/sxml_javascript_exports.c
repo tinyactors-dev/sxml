@@ -39,21 +39,26 @@ _Static_assert(sizeof(sxml_source_code_language) == 44, "language words in src/i
 _Static_assert(offsetof(sxml_source_code_language, grammar) == 8, "language words");
 _Static_assert(offsetof(sxml_source_code_language, injection_regex) == 36, "language words");
 _Static_assert(sizeof(sxml_source_code_language_view) == 8, "view words");
+_Static_assert(offsetof(sxml_javascript_processor_request, code_languages) == 8,
+               "processor request words in src/index.ts");
+_Static_assert(offsetof(sxml_javascript_processor_request, maximum_evaluation_step_count) == 16,
+               "processor request words");
+_Static_assert(sizeof(sxml_javascript_processor_request) == 24, "processor request words");
 _Static_assert(sizeof(sxml_source_code_language_report) == 12, "report words");
 #endif
 
 SXML_JAVASCRIPT_EXPORT("sxml_javascript_processor_create")
-sxml_host_processor *sxml_javascript_processor_create(
-    uint32_t failing_allocation_number, uint32_t feature_mask,
-    const sxml_source_code_language_view *code_languages) {
+sxml_host_processor *
+sxml_javascript_processor_create(const sxml_javascript_processor_request *request) {
     return sxml_host_processor_create(&(sxml_host_processor_configuration){
-        .failing_allocation_number = failing_allocation_number,
-        .feature_mask = feature_mask,
+        .failing_allocation_number = request->failing_allocation_number,
+        .feature_mask = request->feature_mask,
         .resolver = sxml_javascript_resolver(),
         .source_code_languages =
-            code_languages == NULL
+            request->code_languages == NULL
                 ? (sxml_source_code_language_view){.languages = NULL, .language_count = 0}
-                : *code_languages});
+                : *request->code_languages,
+        .maximum_evaluation_step_count = request->maximum_evaluation_step_count});
 }
 
 SXML_JAVASCRIPT_EXPORT("sxml_javascript_check_code_language")

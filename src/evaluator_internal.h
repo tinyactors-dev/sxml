@@ -247,6 +247,15 @@ typedef struct sxml_evaluator_configuration {
    bounds (D166, D178). */
 #define SXML_EVALUATOR_DEFAULT_MAXIMUM_EVALUATION_STEP_COUNT 100000000U
 
+/* The steps each element of a streamed document grants the evaluation
+   that reads it (sxml_dynamic_context_grant_steps, D295): ten times what
+   the streamed identity takes (about 50 an element, its attributes and
+   text), so a stream of any length that does a few times the identity's
+   work per element runs within the default bound, and a loop that reads
+   no more input stops at most 500 steps per element read after the bound.
+   Evaluations of trees are unchanged. */
+#define SXML_EVALUATOR_STREAMED_ELEMENT_STEP_COUNT 500U
+
 /* The depth limit when the configuration gives 0. Each level costs some
    hundred bytes of allocator memory, not C stack. */
 #define SXML_EVALUATOR_DEFAULT_MAXIMUM_EVALUATION_DEPTH 1000000U
@@ -465,6 +474,17 @@ void sxml_dynamic_context_drop_unit_extension(
  */
 SXML_NODISCARD sxml_status sxml_dynamic_context_charge_steps(
     sxml_dynamic_context *dynamic_context, uint64_t step_count);
+
+/*
+ * Gives the evaluation running step_count more steps before
+ * maximum_evaluation_step_count stops it (D295): a streamed document
+ * grants SXML_EVALUATOR_STREAMED_ELEMENT_STEP_COUNT for each element its
+ * parse reads, so the bound of a streamed evaluation grows with its input
+ * while a loop that reads nothing stops as before. Does nothing without a
+ * bound.
+ */
+void sxml_dynamic_context_grant_steps(sxml_dynamic_context *dynamic_context,
+                                      uint64_t step_count);
 
 /*
  * The evaluation memo (glossary `evaluation_memo`, D148): values that a

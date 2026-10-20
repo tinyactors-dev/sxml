@@ -268,6 +268,10 @@ typedef struct sxml_stream_document {
     bool has_accumulation_failed;
     /* Events taken from the queue, counted (the serial of the last). */
     uint64_t event_serial;
+    /* Elements the parse has read, and those whose steps were granted
+       (sxml_stream_resume, D295). */
+    uint64_t read_element_count;
+    uint64_t granted_element_count;
     /* Accumulators computed as the events pass, when accumulates:
        the functions of the OPENS_DOCUMENT STREAM's accumulators, the
        values after the last event taken (owned), the nodes by depth
@@ -649,6 +653,7 @@ static sxml_status sxml_stream_on_end_document(void *state) {
 static sxml_status sxml_stream_on_start_element(void *state,
                                                 const sxml_element_start_event *event) {
     sxml_stream_document *document = sxml_stream_document_from_state(state);
+    document->read_element_count += 1;
     sxml_status status = sxml_stream_flush_text(document);
     void *memory = NULL;
     if (status == SXML_STATUS_OK) {
@@ -902,6 +907,12 @@ static sxml_status sxml_stream_resume(sxml_dynamic_context *dynamic_context,
     }
     const sxml_status status =
         sxml_xml_incremental_parse_resume(document->parse, &document->is_finished);
+    /* Each element read grants its steps (D295): the step bound of a
+       streamed evaluation grows with the input it reads. */
+    sxml_dynamic_context_grant_steps(
+        dynamic_context, (document->read_element_count - document->granted_element_count) *
+                             SXML_EVALUATOR_STREAMED_ELEMENT_STEP_COUNT);
+    document->granted_element_count = document->read_element_count;
     if (status == SXML_STATUS_MALFORMED_INPUT || status == SXML_STATUS_INVALID_UTF8 ||
         status == SXML_STATUS_UNSUPPORTED_FEATURE ||
         status == SXML_STATUS_INPUT_OUTPUT_FAILED) {

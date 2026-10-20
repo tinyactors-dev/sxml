@@ -127,6 +127,12 @@ export interface ProcessorOptions {
   /** The size of the chunks an OutputSink receives, in bytes; default
    *  65,536 (D294). */
   outputChunkByteCount?: number;
+  /** The most evaluation steps one evaluation may take before it stops
+   *  with an error (the C processor limit maximum_evaluation_step_count):
+   *  a whole number up to 2^53; default, and 0, sxml's 100,000,000, a few
+   *  seconds of work. A streamed document grants 500 steps more for each
+   *  element it reads, so long streams run within it (D295). */
+  maximumEvaluationStepCount?: number;
   /** For tests: fail this allocation (counted from 1) with out of memory. */
   failingAllocationNumber?: number;
 }
@@ -461,7 +467,7 @@ export class SchemaError extends SxmlError {
 interface Exports {
   memory: WebAssembly.Memory;
   _initialize(): void;
-  sxml_javascript_processor_create(failingAllocationNumber: number, featureMask: number, codeLanguages: number): number;
+  sxml_javascript_processor_create(request: number): number;
   sxml_javascript_check_code_language(language: number, report: number): number;
   // For language modules (src/linker.ts, D293): the function table, the
   // stack pointer and the C library functions of external scanners.
@@ -840,12 +846,26 @@ export class Sxml {
       }
       featureMask |= 1 << index;
     }
+    const stepCount = options.maximumEvaluationStepCount ?? 0;
+    if (!Number.isSafeInteger(stepCount) || stepCount < 0) {
+      throw new RangeError('sxml: maximumEvaluationStepCount must be a whole number from 0 to 2^53 - 1');
+    }
     const codeLanguageView = this.codeLanguageView(options.codeLanguages ?? []);
-    const address = this.exports.sxml_javascript_processor_create(
-      options.failingAllocationNumber ?? 0,
-      featureMask >>> 0,
-      codeLanguageView,
+    // sxml_javascript_processor_request (sxml_javascript.h): four words
+    // and the step count's two, low first.
+    const request = this.exports.malloc(processor_request_byte_count);
+    if (request === 0) {
+      if (codeLanguageView !== 0) {
+        this.exports.free(codeLanguageView);
+      }
+      throw outOfMemory();
+    }
+    this.words().set(
+      [options.failingAllocationNumber ?? 0, featureMask >>> 0, codeLanguageView, 0, stepCount % 2 ** 32, Math.floor(stepCount / 2 ** 32)],
+      request / 4,
     );
+    const address = this.exports.sxml_javascript_processor_create(request);
+    this.exports.free(request);
     if (address === 0) {
       if (codeLanguageView !== 0) {
         this.exports.free(codeLanguageView);
@@ -1110,6 +1130,8 @@ const resource_form_byte_reader = 4;
 /** The size of sxml_source_code_language in sxml.wasm (checked by the
  *  shim, sxml_javascript_exports.c). */
 const code_language_byte_count = 44;
+/** sizeof(sxml_javascript_processor_request) on wasm32 (D295). */
+const processor_request_byte_count = 24;
 
 /** sxml_source_code_language_problem, as the sxml command words it
  *  (apps/sxml/code_languages.c). */
