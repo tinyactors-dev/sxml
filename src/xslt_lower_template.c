@@ -496,6 +496,36 @@ static mode_reference declared_mode(const sxml_xslt_lowering *lowering,
                             .package = sxml_xslt_package_of_node(lowering, declaration)};
 }
 
+/* The xsl:mode whose child xsl:template node is in (an enclosing mode,
+   6.9.6), or 0. Template rules do not nest, so the nearest xsl:template
+   decides. */
+static sxml_xslt_ast_node_index enclosing_mode_of(const sxml_xslt_lowering *lowering,
+                                                  sxml_xslt_ast_node_index node) {
+    for (sxml_xslt_ast_node_index ancestor = node; ancestor.value != 0;
+         ancestor = node_of(lowering, ancestor)->parent) {
+        if (node_of(lowering, ancestor)->kind == SXML_XSLT_AST_KIND_TEMPLATE) {
+            const sxml_xslt_ast_node_index parent = node_of(lowering, ancestor)->parent;
+            return parent.value != 0 && node_of(lowering, parent)->kind == SXML_XSLT_AST_KIND_MODE
+                       ? parent
+                       : (sxml_xslt_ast_node_index){.value = 0};
+        }
+    }
+    return (sxml_xslt_ast_node_index){.value = 0};
+}
+
+/* The default mode of node's static context (3.6.3). */
+static sxml_xslt_ast_name_token context_default_mode(const sxml_xslt_lowering *lowering,
+                                                     sxml_xslt_ast_node_index node) {
+    return sxml_xslt_ast_get_static_context(lowering->ast, node_of(lowering, node)->static_context)
+        ->default_mode;
+}
+
+static bool is_same_mode_token(sxml_xslt_ast_name_token first, sxml_xslt_ast_name_token second) {
+    return first.kind == second.kind &&
+           (first.kind != SXML_XSLT_AST_NAME_TOKEN_KIND_NAME ||
+            first.name.index == second.name.index);
+}
+
 static mode_reference reference_of(const sxml_xslt_lowering *lowering,
                                    sxml_xslt_ast_node_index node, sxml_xslt_ast_name_token token) {
     mode_reference reference = named_mode(lowering, node, (sxml_name_identifier){.index = 0});
@@ -510,10 +540,17 @@ static mode_reference reference_of(const sxml_xslt_lowering *lowering,
         reference.is_all = true;
         break;
     case SXML_XSLT_AST_NAME_TOKEN_KIND_DEFAULT: {
-        const sxml_xslt_ast_static_context *context =
-            sxml_xslt_ast_get_static_context(lowering->ast, node_of(lowering, node)->static_context);
-        if (context->default_mode.kind == SXML_XSLT_AST_NAME_TOKEN_KIND_NAME) {
-            reference = named_mode(lowering, node, context->default_mode.name);
+        const sxml_xslt_ast_name_token default_mode = context_default_mode(lowering, node);
+        /* 6.9.6: an enclosing mode "effectively has a default-mode
+           attribute whose value is the mode's name", for its template
+           rules and what they contain, unless an element within sets
+           another default mode. */
+        const sxml_xslt_ast_node_index enclosing = enclosing_mode_of(lowering, node);
+        if (enclosing.value != 0 &&
+            is_same_mode_token(default_mode, context_default_mode(lowering, enclosing))) {
+            reference = named_mode(lowering, node, name_of(lowering, enclosing));
+        } else if (default_mode.kind == SXML_XSLT_AST_NAME_TOKEN_KIND_NAME) {
+            reference = named_mode(lowering, node, default_mode.name);
         }
         break;
     }
@@ -2377,6 +2414,95 @@ static uint32_t built_in_rule_of(sxml_xslt_ast_keyword keyword) {
     }
 }
 
+/* The number of xsl:template children of an xsl:mode declaration: not
+   0 for an enclosing mode (6.9.6). */
+static size_t template_child_count(const sxml_xslt_lowering *lowering,
+                                   sxml_xslt_ast_node_index declaration) {
+    size_t template_count = 0;
+    for (sxml_xslt_ast_node_index child = node_of(lowering, declaration)->first_child;
+         child.value != 0; child = node_of(lowering, child)->next_sibling) {
+        template_count += node_of(lowering, child)->kind == SXML_XSLT_AST_KIND_TEMPLATE ? 1U : 0U;
+    }
+    return template_count;
+}
+
+/* True when node's own default-mode attribute (3.6.3) gives a default
+   mode other than mode_name: its static context's default mode differs
+   from its parent's and from mode_name. (An attribute that repeats the
+   inherited value is not told apart from none.) */
+typedef struct default_mode_query {
+    sxml_xslt_ast_node_index node;
+    sxml_name_identifier mode_name;
+} default_mode_query;
+
+static bool sets_other_default_mode(const sxml_xslt_lowering *lowering, default_mode_query query) {
+    const sxml_xslt_ast_node_index parent = node_of(lowering, query.node)->parent;
+    const sxml_xslt_ast_name_token own = context_default_mode(lowering, query.node);
+    const sxml_xslt_ast_name_token named = {.kind = SXML_XSLT_AST_NAME_TOKEN_KIND_NAME,
+                                            .name = query.mode_name,
+                                            .namespace_uri = {.index = 0},
+                                            .has_arity = false,
+                                            .arity = 0};
+    return parent.value != 0 && !is_same_mode_token(own, context_default_mode(lowering, parent)) &&
+           !is_same_mode_token(own, named);
+}
+
+/* XTSE4015 (6.9.6): neither an enclosing mode nor its template rules
+   set a default mode other than the mode's name. */
+static sxml_status check_enclosing_default_modes(const sxml_xslt_lowering *lowering,
+                                                 sxml_xslt_ast_node_index declaration) {
+    const sxml_name_identifier mode_name = name_of(lowering, declaration);
+    bool is_conflicting =
+        sets_other_default_mode(lowering, (default_mode_query){.node = declaration,
+                                                               .mode_name = mode_name});
+    for (sxml_xslt_ast_node_index child = node_of(lowering, declaration)->first_child;
+         !is_conflicting && child.value != 0; child = node_of(lowering, child)->next_sibling) {
+        is_conflicting = node_of(lowering, child)->kind == SXML_XSLT_AST_KIND_TEMPLATE &&
+                         sets_other_default_mode(lowering, (default_mode_query){
+                                                               .node = child,
+                                                               .mode_name = mode_name});
+    }
+    if (!is_conflicting) {
+        return SXML_STATUS_OK;
+    }
+    return report_static_error(lowering, declaration,
+                               SXML_BYTE_VIEW_FROM_LITERAL(
+                                   "XTSE4015 an enclosing mode or one of its template rules has "
+                                   "a default-mode other than the mode's name (XSLT 4.0, 6.9.6)"));
+}
+
+/* XTSE4025 (6.9.6): no other xsl:mode of an enclosing mode's name and
+   import precedence in its package. */
+static sxml_status check_enclosing_mode_declarations(const sxml_xslt_lowering *lowering) {
+    for (uint32_t order = 1; sxml_xslt_ast_get_declaration(lowering->ast, order).value != 0;
+         order += 1) {
+        const sxml_xslt_ast_node_index enclosing = sxml_xslt_ast_get_declaration(lowering->ast, order);
+        if (node_of(lowering, enclosing)->kind != SXML_XSLT_AST_KIND_MODE ||
+            template_child_count(lowering, enclosing) == 0) {
+            continue;
+        }
+        const mode_reference mode = declared_mode(lowering, enclosing);
+        for (uint32_t other_order = 1;
+             sxml_xslt_ast_get_declaration(lowering->ast, other_order).value != 0;
+             other_order += 1) {
+            const sxml_xslt_ast_node_index other =
+                sxml_xslt_ast_get_declaration(lowering->ast, other_order);
+            const mode_reference other_mode = declared_mode(lowering, other);
+            if (other_order != order && node_of(lowering, other)->kind == SXML_XSLT_AST_KIND_MODE &&
+                other_mode.mode_name.index == mode.mode_name.index &&
+                other_mode.package == mode.package &&
+                precedence_of(lowering, other) == precedence_of(lowering, enclosing)) {
+                return report_static_error(
+                    lowering, other,
+                    SXML_BYTE_VIEW_FROM_LITERAL(
+                        "XTSE4025 an enclosing mode has another xsl:mode declaration of its "
+                        "name and import precedence (XSLT 4.0, 6.9.6)"));
+            }
+        }
+    }
+    return SXML_STATUS_OK;
+}
+
 /* One xsl:mode declaration (6.9.1, 6.9.6). */
 static sxml_status read_mode_declaration(const sxml_xslt_lowering *lowering,
                                          sxml_xslt_ast_node_index declaration) {
@@ -2392,11 +2518,8 @@ static sxml_status read_mode_declaration(const sxml_xslt_lowering *lowering,
     mode_entry *mode = &lowering->templates->modes[position];
     mode->is_declared = true;
     const uint32_t precedence = (uint32_t)precedence_of(lowering, declaration);
-    for (sxml_xslt_ast_node_index child = node_of(lowering, declaration)->first_child;
-         child.value != 0; child = node_of(lowering, child)->next_sibling) {
-        if (node_of(lowering, child)->kind == SXML_XSLT_AST_KIND_TEMPLATE) {
-            mode->is_enclosing = true;
-        }
+    if (template_child_count(lowering, declaration) != 0) {
+        mode->is_enclosing = true;
     }
     const sxml_xslt_ast_attribute *visibility =
         find_attribute(lowering, declaration, SXML_XSLT_AST_ATTRIBUTE_VISIBILITY);
@@ -2410,6 +2533,12 @@ static sxml_status read_mode_declaration(const sxml_xslt_lowering *lowering,
     if (mode->is_enclosing && mode->mode_name.index == 0) {
         return report_static_error(lowering, declaration, SXML_BYTE_VIEW_FROM_LITERAL("XTSE4005 an xsl:mode with xsl:template children has no name "
                                    "(XSLT 4.0, 6.9.6)"));
+    }
+    if (mode->is_enclosing) {
+        status = check_enclosing_default_modes(lowering, declaration);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
     }
     if (find_attribute(lowering, declaration, SXML_XSLT_AST_ATTRIBUTE_AS)->kind !=
             SXML_XSLT_AST_ATTRIBUTE_NONE &&
@@ -2582,26 +2711,120 @@ static const sxml_xslt_ast_attribute_kind mode_property_kinds[] = {
     SXML_XSLT_AST_ATTRIBUTE_VISIBILITY,
 };
 
-/* True when two attribute values differ (the kinds whose payload is a
-   plain value; expressions and name lists compare equal). */
-static bool values_differ(const sxml_xslt_lowering *lowering, const sxml_xslt_ast_value *first,
-                          const sxml_xslt_ast_value *second) {
-    if (first->kind != second->kind) {
-        return true;
+/* True when every name of first's list is in second's (the order and
+   prefixes of the names do not matter). */
+typedef struct name_list_pair {
+    sxml_xslt_ast_name_token_view first;
+    sxml_xslt_ast_name_token_view second;
+} name_list_pair;
+
+static bool is_name_subset(name_list_pair pair) {
+    for (size_t first_index = 0; first_index < pair.first.name_token_count; first_index += 1) {
+        bool is_found = false;
+        for (size_t second_index = 0; !is_found && second_index < pair.second.name_token_count;
+             second_index += 1) {
+            is_found = is_same_mode_token(pair.first.name_tokens[first_index],
+                                          pair.second.name_tokens[second_index]);
+        }
+        if (!is_found) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/* The sequence type of an as or typed attribute's value. */
+static sxml_status resolve_value_type(const sxml_xslt_lowering *lowering,
+                                      const sxml_xslt_ast_value *value,
+                                      sxml_sequence_type *sequence_type) {
+    const sxml_xslt_ast_expression *expression =
+        sxml_xslt_ast_get_expression(lowering->ast, value->payload.expression);
+    const sxml_xpath_static_context *context =
+        sxml_xslt_lowering_expression_context(lowering, value->payload.expression);
+    if (expression->ast == NULL || context == NULL) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    return sxml_xpath_resolve_sequence_type(
+        &(sxml_xpath_type_request){.ast = expression->ast,
+                                   .type_node = expression->ast->root,
+                                   .static_context = context,
+                                   .error_record = lowering->error_record},
+        sequence_type);
+}
+
+/* Two attribute values to compare. */
+typedef struct value_pair {
+    const sxml_xslt_ast_value *first;
+    const sxml_xslt_ast_value *second;
+} value_pair;
+
+/* Whether two types are not identical: each a subtype of the other
+   (as 3.4.5.3 compares types). */
+static sxml_status compare_value_types(const sxml_xslt_lowering *lowering, value_pair pair,
+                                       bool *is_different) {
+    sxml_sequence_type first_type = {.item_type = {0}, .occurrence = SXML_OCCURRENCE_EXACTLY_ONE};
+    sxml_sequence_type second_type = first_type;
+    sxml_status status = resolve_value_type(lowering, pair.first, &first_type);
+    if (status == SXML_STATUS_OK) {
+        status = resolve_value_type(lowering, pair.second, &second_type);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    const sxml_type_registry *registry = lowering->lowerer->type_registry;
+    *is_different =
+        !sxml_type_registry_is_sequence_subtype(
+            registry,
+            (sxml_sequence_type_pair){.derived_type = first_type, .base_type = second_type}) ||
+        !sxml_type_registry_is_sequence_subtype(
+            registry,
+            (sxml_sequence_type_pair){.derived_type = second_type, .base_type = first_type});
+    return SXML_STATUS_OK;
+}
+
+/* Whether two attribute values differ: plain values by value, name lists
+   (use-accumulators) as sets of expanded names, types (as, typed) unless
+   identical; expressions compare equal. */
+static sxml_status compare_values(const sxml_xslt_lowering *lowering, value_pair pair,
+                                  bool *is_different) {
+    const sxml_xslt_ast_value *first = pair.first;
+    const sxml_xslt_ast_value *second = pair.second;
+    *is_different = first->kind != second->kind;
+    if (*is_different) {
+        return SXML_STATUS_OK;
     }
     switch ((uint32_t)first->kind) {
     case SXML_XSLT_AST_VALUE_KIND_BOOLEAN:
-        return first->payload.is_true != second->payload.is_true;
+        *is_different = first->payload.is_true != second->payload.is_true;
+        break;
     case SXML_XSLT_AST_VALUE_KIND_KEYWORD:
-        return first->payload.keyword != second->payload.keyword;
+        *is_different = first->payload.keyword != second->payload.keyword;
+        break;
     case SXML_XSLT_AST_VALUE_KIND_NAME:
-        return first->payload.name.index != second->payload.name.index;
+        *is_different = first->payload.name.index != second->payload.name.index;
+        break;
     case SXML_XSLT_AST_VALUE_KIND_TEXT:
-        return !sxml_byte_view_equals(sxml_xslt_ast_get_text(lowering->ast, first->payload.text),
-                                      sxml_xslt_ast_get_text(lowering->ast, second->payload.text));
-    default:
-        return false;
+        *is_different =
+            !sxml_byte_view_equals(sxml_xslt_ast_get_text(lowering->ast, first->payload.text),
+                                   sxml_xslt_ast_get_text(lowering->ast, second->payload.text));
+        break;
+    case SXML_XSLT_AST_VALUE_KIND_NAME_LIST: {
+        const sxml_xslt_ast_name_token_view first_names =
+            sxml_xslt_ast_get_name_tokens(lowering->ast, first->payload.name_tokens);
+        const sxml_xslt_ast_name_token_view second_names =
+            sxml_xslt_ast_get_name_tokens(lowering->ast, second->payload.name_tokens);
+        *is_different =
+            !is_name_subset((name_list_pair){.first = first_names, .second = second_names}) ||
+            !is_name_subset((name_list_pair){.first = second_names, .second = first_names});
+        break;
     }
+    case SXML_XSLT_AST_VALUE_KIND_SEQUENCE_TYPE:
+    case SXML_XSLT_AST_VALUE_KIND_ITEM_TYPE:
+        return compare_value_types(lowering, pair, is_different);
+    default:
+        break;
+    }
+    return SXML_STATUS_OK;
 }
 
 /* True when a declaration of mode name of a precedence above precedence
@@ -2656,8 +2879,18 @@ static sxml_status check_mode_conflicts(const sxml_xslt_lowering *lowering) {
                 const sxml_xslt_ast_attribute *second_value =
                     find_attribute(lowering, second, mode_property_kinds[kind_index]);
                 if (first_value->kind == SXML_XSLT_AST_ATTRIBUTE_NONE ||
-                    second_value->kind == SXML_XSLT_AST_ATTRIBUTE_NONE ||
-                    !values_differ(lowering, &first_value->value, &second_value->value) ||
+                    second_value->kind == SXML_XSLT_AST_ATTRIBUTE_NONE) {
+                    continue;
+                }
+                bool is_different = false;
+                const sxml_status status = compare_values(
+                    lowering,
+                    (value_pair){.first = &first_value->value, .second = &second_value->value},
+                    &is_different);
+                if (status != SXML_STATUS_OK) {
+                    return status;
+                }
+                if (!is_different ||
                     is_overridden(lowering,
                                   (mode_attribute_query){
                                       .mode_name = name_of(lowering, first),
@@ -2728,6 +2961,32 @@ static sxml_xslt_ast_module_index level_of(const sxml_xslt_ast *ast,
         module = entry->parent_module;
     }
     return module;
+}
+
+/* True when a template rule declared outside any xsl:mode names an
+   enclosing mode of its own package in its mode attribute, or by its
+   default mode (6.9.6: no other template rule may be applicable to an
+   enclosing mode). */
+static bool refers_to_enclosing_mode(const sxml_xslt_lowering *lowering,
+                                     sxml_xslt_ast_node_index node) {
+    const sxml_xslt_template_lowering *templates = lowering->templates;
+    const sxml_xslt_ast_name_token_view tokens = mode_tokens_of(lowering, node);
+    const size_t token_count = tokens.name_token_count == 0 ? 1 : tokens.name_token_count;
+    const uint32_t package = sxml_xslt_package_of_node(lowering, node);
+    for (size_t token_index = 0; token_index < token_count; token_index += 1) {
+        const mode_reference reference =
+            tokens.name_token_count == 0
+                ? default_mode_of(lowering, node)
+                : reference_of(lowering, node, tokens.name_tokens[token_index]);
+        const sxml_ir_mode_index mode =
+            reference.is_all || reference.is_current ? (sxml_ir_mode_index){.value = 0}
+                                                     : find_mode(templates, reference);
+        if (mode.value != 0 && templates->modes[mode.value - 1U].is_enclosing &&
+            templates->modes[mode.value - 1U].package == package) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /* Every xsl:template: declarations and the children of enclosing
@@ -2803,6 +3062,15 @@ static sxml_status collect_templates(const sxml_xslt_lowering *lowering) {
                 status = report_static_error(lowering, node, SXML_BYTE_VIEW_FROM_LITERAL("XTSE4010 an xsl:template in an xsl:mode has a name "
                                              "or mode attribute, or no match attribute (XSLT "
                                              "4.0, 6.9.6)"));
+                break;
+            }
+            if (entry->enclosing_mode.value == 0 && entry->pattern.value != 0 &&
+                refers_to_enclosing_mode(lowering, node)) {
+                status = report_static_error(
+                    lowering, node,
+                    SXML_BYTE_VIEW_FROM_LITERAL(
+                        "XTSE4020 a template rule outside an enclosing mode names it in its "
+                        "mode attribute (XSLT 4.0, 6.9.6)"));
                 break;
             }
             /* The template's module: a dynamic error in it names its
@@ -4086,6 +4354,9 @@ sxml_status sxml_xslt_lower_templates(sxml_xslt_lowering *lowering) {
         }
     }
     if (status == SXML_STATUS_OK) {
+        status = check_enclosing_mode_declarations(lowering);
+    }
+    if (status == SXML_STATUS_OK) {
         status = check_mode_conflicts(lowering);
     }
     if (status == SXML_STATUS_OK) {
@@ -4231,6 +4502,81 @@ static sxml_ir_atom atom_or_default(sxml_ir_atom atom, sxml_ir_atom default_atom
 static sxml_status lower_initial_call(sxml_xpath_lowerer *lowerer, initial_call call,
                                       sxml_ir_expression_index *expression);
 
+/* Whether a declaration of mode name in the top-level package gives it
+   a visibility other than public or final by its visibility attribute. */
+static bool is_declared_hidden(const sxml_xslt_lowering *lowering, sxml_name_identifier name) {
+    for (uint32_t order = 1; sxml_xslt_ast_get_declaration(lowering->ast, order).value != 0;
+         order += 1) {
+        const sxml_xslt_ast_node_index declaration =
+            sxml_xslt_ast_get_declaration(lowering->ast, order);
+        if (node_of(lowering, declaration)->kind != SXML_XSLT_AST_KIND_MODE ||
+            name_of(lowering, declaration).index != name.index ||
+            sxml_xslt_package_of_node(lowering, declaration) != 1) {
+            continue;
+        }
+        const sxml_xslt_ast_attribute *visibility =
+            find_attribute(lowering, declaration, SXML_XSLT_AST_ATTRIBUTE_VISIBILITY);
+        if (visibility->value.kind == SXML_XSLT_AST_VALUE_KIND_KEYWORD &&
+            visibility->value.payload.keyword != SXML_XSLT_AST_KEYWORD_PUBLIC &&
+            visibility->value.payload.keyword != SXML_XSLT_AST_KEYWORD_FINAL) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/* Whether a template rule of the top-level package names mode name in
+   its mode attribute. */
+static bool is_named_by_template_rule(const sxml_xslt_lowering *lowering,
+                                      sxml_name_identifier name) {
+    const sxml_xslt_template_lowering *templates = lowering->templates;
+    for (size_t entry_index = 0; entry_index < templates->template_count; entry_index += 1) {
+        const template_entry *entry = &templates->templates[entry_index];
+        if (entry->pattern.value == 0 || sxml_xslt_package_of_node(lowering, entry->node) != 1) {
+            continue;
+        }
+        const sxml_xslt_ast_name_token_view tokens = mode_tokens_of(lowering, entry->node);
+        for (size_t token_index = 0; token_index < tokens.name_token_count; token_index += 1) {
+            if (tokens.name_tokens[token_index].kind == SXML_XSLT_AST_NAME_TOKEN_KIND_NAME &&
+                tokens.name_tokens[token_index].name.index == name.index) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+/* Whether the named mode is eligible as an initial mode (2.4.3), P being
+   the top-level package: named by P's default-mode; public or final in P
+   (by its visibility, xsl:expose or xsl:accept; an xsl:stylesheet is a
+   package that exposes every mode as public, 3.5); or, where P does not
+   require declared modes, named in the mode attribute of a template rule
+   of P. */
+static bool is_eligible_initial_mode(const sxml_xslt_lowering *lowering,
+                                     sxml_name_identifier name) {
+    const sxml_xslt_ast_node_index root =
+        sxml_xslt_ast_get_module(lowering->ast, (sxml_xslt_ast_module_index){.value = 1})->root;
+    const sxml_xslt_ast_name_token default_mode = context_default_mode(lowering, root);
+    if (default_mode.kind == SXML_XSLT_AST_NAME_TOKEN_KIND_NAME &&
+        default_mode.name.index == name.index) {
+        return true;
+    }
+    const sxml_xslt_visibility visibility = sxml_xslt_package_get_reference_visibility(
+        lowering, &(sxml_xslt_component_reference){.component_kind = SXML_XSLT_COMPONENT_KIND_MODE,
+                                                   .component_name = name,
+                                                   .arity = 0,
+                                                   .package = 1});
+    if (visibility == SXML_XSLT_VISIBILITY_PUBLIC || visibility == SXML_XSLT_VISIBILITY_FINAL) {
+        return true;
+    }
+    const sxml_ir_mode_index mode = find_mode(lowering->templates, named_mode(lowering, root, name));
+    const bool is_package = node_of(lowering, root)->kind == SXML_XSLT_AST_KIND_PACKAGE;
+    if (mode.value != 0 && lowering->templates->modes[mode.value - 1U].is_declared) {
+        return !is_package && !is_declared_hidden(lowering, name);
+    }
+    return !requires_declared_modes(lowering, root) && is_named_by_template_rule(lowering, name);
+}
+
 /* The initial mode (2.4.3): the requested one, else the default mode of
    the principal module. */
 static sxml_ir_mode_index initial_mode_of(const sxml_xslt_lowering *lowering,
@@ -4242,17 +4588,8 @@ static sxml_ir_mode_index initial_mode_of(const sxml_xslt_lowering *lowering,
                                                                              .index = 0}));
     }
     if (invocation->initial_mode.index != 0) {
-        /* 2.4.3: a named initial mode an xsl:package declares is public
-           or final there; an implicitly declared one is eligible. */
-        const sxml_xslt_visibility visibility = sxml_xslt_package_get_reference_visibility(
-            lowering,
-            &(sxml_xslt_component_reference){.component_kind = SXML_XSLT_COMPONENT_KIND_MODE,
-                                             .component_name = invocation->initial_mode,
-                                             .arity = 0,
-                                             .package = 1});
-        if (node_of(lowering, root)->kind == SXML_XSLT_AST_KIND_PACKAGE &&
-            visibility != SXML_XSLT_VISIBILITY_NONE && visibility != SXML_XSLT_VISIBILITY_PUBLIC &&
-            visibility != SXML_XSLT_VISIBILITY_FINAL) {
+        /* 2.4.3, XTDE0045: the mode must be eligible. */
+        if (!is_eligible_initial_mode(lowering, invocation->initial_mode)) {
             return (sxml_ir_mode_index){.value = 0};
         }
         return find_mode(lowering->templates, named_mode(lowering, root, invocation->initial_mode));

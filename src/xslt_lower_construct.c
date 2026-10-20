@@ -1320,6 +1320,8 @@ typedef struct resolved_name {
     sxml_name_identifier expanded_name;
     sxml_namespace_prefix_identifier namespace_prefix;
     const char *error_code;
+    /* The error is XTDE0835 or XTDE0865: the namespace is xmlns's. */
+    bool is_xmlns_namespace;
 } resolved_name;
 
 static sxml_status resolve_fixed_name(sxml_xpath_lowerer *lowerer, const name_resolution *request,
@@ -1336,7 +1338,10 @@ static sxml_status resolve_fixed_name(sxml_xpath_lowerer *lowerer, const name_re
         local = (sxml_byte_view){.bytes = colon + 1,
                                  .byte_count = lexical.byte_count - prefix.byte_count - 1};
     }
-    *name = (resolved_name){.expanded_name = {0}, .namespace_prefix = {0}, .error_code = NULL};
+    *name = (resolved_name){.expanded_name = {0},
+                            .namespace_prefix = {0},
+                            .error_code = NULL,
+                            .is_xmlns_namespace = false};
     if (!sxml_xml_text_is_ncname(local) || (colon != NULL && !sxml_xml_text_is_ncname(prefix))) {
         name->error_code = invalid_code;
         return SXML_STATUS_OK;
@@ -1346,6 +1351,12 @@ static sxml_status resolve_fixed_name(sxml_xpath_lowerer *lowerer, const name_re
     if (request->has_namespace) {
         status = sxml_name_pool_intern_namespace_uri(
             lowerer->name_pool, sxml_xml_text_trim_whitespace(request->namespace_text), &uri);
+        if (uri.index == SXML_NAMESPACE_XMLNS) {
+            /* 11.2.2, 11.3. */
+            name->error_code = request->is_attribute ? "XTDE0865" : "XTDE0835";
+            name->is_xmlns_namespace = true;
+            return status;
+        }
         if (uri.index == SXML_NAMESPACE_NONE) {
             /* A zero-length namespace: no namespace, the prefix dropped. */
             prefix = (sxml_byte_view){.bytes = NULL, .byte_count = 0};
@@ -1409,7 +1420,10 @@ typedef struct fixed_name_request {
 
 static sxml_status bind_fixed_name(sxml_xpath_lowerer *lowerer, const fixed_name_request *request,
                                    sxml_ir_atom *atom) {
-    resolved_name name = {.expanded_name = {0}, .namespace_prefix = {0}, .error_code = NULL};
+    resolved_name name = {.expanded_name = {0},
+                          .namespace_prefix = {0},
+                          .error_code = NULL,
+                          .is_xmlns_namespace = false};
     sxml_status status = resolve_fixed_name(lowerer, &request->resolution, &name);
     if (status != SXML_STATUS_OK) {
         return status;
@@ -1419,10 +1433,16 @@ static sxml_status bind_fixed_name(sxml_xpath_lowerer *lowerer, const fixed_name
             lowerer,
             (raise_request){.block = request->block,
                             .code = {.bytes = (const uint8_t *)name.error_code, .byte_count = 8},
-                            .description = SXML_BYTE_VIEW_FROM_LITERAL(
-                                "the name of xsl:element or xsl:attribute is not "
-                                "a lexical QName with a declared prefix (XSLT 4.0, "
-                                "11.2, 11.3)")},
+                            .description =
+                                name.is_xmlns_namespace
+                                    ? SXML_BYTE_VIEW_FROM_LITERAL(
+                                          "the namespace of xsl:element or xsl:attribute is "
+                                          "http://www.w3.org/2000/xmlns/ (XSLT 4.0, 11.2.2, "
+                                          "11.3)")
+                                    : SXML_BYTE_VIEW_FROM_LITERAL(
+                                          "the name of xsl:element or xsl:attribute is not "
+                                          "a lexical QName with a declared prefix (XSLT 4.0, "
+                                          "11.2, 11.3)")},
             atom);
     }
     sxml_item item = {.representation = 0};
@@ -1848,6 +1868,23 @@ static sxml_status bind_checked_prefix(sxml_xpath_lowerer *lowerer,
                 &locals->name);
 }
 
+/* The error of a namespace attribute whose value is the xmlns namespace
+   (XSLT 4.0, 11.2.2 for xsl:element, 11.3 for xsl:attribute). */
+static sxml_byte_view xmlns_namespace_code(const named_constructor_locals *locals) {
+    return is_attribute_instruction(locals) ? SXML_BYTE_VIEW_FROM_LITERAL("XTDE0865")
+                                            : SXML_BYTE_VIEW_FROM_LITERAL("XTDE0835");
+}
+
+static sxml_byte_view xmlns_namespace_description(const named_constructor_locals *locals) {
+    return is_attribute_instruction(locals)
+               ? SXML_BYTE_VIEW_FROM_LITERAL(
+                     "the namespace of xsl:attribute is http://www.w3.org/2000/xmlns/ (XSLT 4.0, "
+                     "11.3)")
+               : SXML_BYTE_VIEW_FROM_LITERAL(
+                     "the namespace of xsl:element is http://www.w3.org/2000/xmlns/ (XSLT 4.0, "
+                     "11.2.2)");
+}
+
 /* The computed name: an xs:string resolved by the evaluator, or with a
    namespace, fn:QName($namespace, $name). */
 static sxml_status bind_computed_name(sxml_xpath_lowering_machine *machine,
@@ -1868,7 +1905,25 @@ static sxml_status bind_computed_name(sxml_xpath_lowering_machine *machine,
                                       .is_attribute = is_attribute_instruction(locals)},
             &locals->name_namespaces);
     }
-    const sxml_status status = bind_name_for_namespace(machine->state, frame->block, locals);
+    /* 11.2.2, 11.3: XTDE0835 and XTDE0865 for the xmlns namespace. */
+    sxml_ir_atom is_xmlns = {0};
+    sxml_status status = bind_equals_text(
+        machine->state,
+        &(text_comparison){.block = frame->block,
+                           .value = locals->namespace_uri,
+                           .text = SXML_BYTE_VIEW_FROM_LITERAL("http://www.w3.org/2000/xmlns/")},
+        &is_xmlns);
+    if (status == SXML_STATUS_OK) {
+        status = bind_guarded(machine->state,
+                              &(operand_guard){.block = frame->block,
+                                               .condition = is_xmlns,
+                                               .code = xmlns_namespace_code(locals),
+                                               .description = xmlns_namespace_description(locals)},
+                              &locals->namespace_uri);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = bind_name_for_namespace(machine->state, frame->block, locals);
+    }
     if (status != SXML_STATUS_OK) {
         return status;
     }
