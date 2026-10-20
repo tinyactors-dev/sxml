@@ -86,16 +86,11 @@ static bool has_content(const sxml_xslt_lowering *lowering, sxml_xslt_ast_node_i
     return false;
 }
 
-/* An attribute value template's text when it has no enclosed expression:
-   is_fixed and the text (empty for ""); is_fixed false otherwise. */
-typedef struct fixed_text {
-    bool is_fixed;
-    sxml_byte_view text;
-} fixed_text;
-
-static fixed_text read_fixed_text(const sxml_xslt_lowering *lowering,
-                                  const sxml_xslt_ast_attribute *attribute) {
-    const fixed_text computed = {.is_fixed = false, .text = {.bytes = NULL, .byte_count = 0}};
+/* See src/xslt_lower_internal.h. */
+sxml_xslt_fixed_text sxml_xslt_lowering_read_fixed_text(const sxml_xslt_lowering *lowering,
+                                                        const sxml_xslt_ast_attribute *attribute) {
+    const sxml_xslt_fixed_text computed = {.is_fixed = false,
+                                           .text = {.bytes = NULL, .byte_count = 0}};
     if (attribute->value.kind != SXML_XSLT_AST_VALUE_KIND_VALUE_TEMPLATE) {
         return computed;
     }
@@ -109,14 +104,15 @@ static fixed_text read_fixed_text(const sxml_xslt_lowering *lowering,
     const sxml_ast_node_index part = sxml_ast_find_child(
         ast, (sxml_ast_child_query){.parent = body, .field = SXML_AST_FIELD_PART});
     if (part.value == 0) {
-        return (fixed_text){.is_fixed = true, .text = {.bytes = NULL, .byte_count = 0}};
+        return (sxml_xslt_fixed_text){.is_fixed = true, .text = {.bytes = NULL, .byte_count = 0}};
     }
     const sxml_ast_node *part_node = sxml_ast_get_node(ast, part);
     if (part_node->kind != SXML_AST_KIND_STRING_TEMPLATE_FIXED_PART ||
         sxml_ast_find_next_with_same_field(ast, part).value != 0) {
         return computed;
     }
-    return (fixed_text){.is_fixed = true, .text = sxml_ast_get_text(ast, part_node->payload.text)};
+    return (sxml_xslt_fixed_text){.is_fixed = true,
+                                  .text = sxml_ast_get_text(ast, part_node->payload.text)};
 }
 
 /* ---------------------------------------------------------- IR pieces */
@@ -633,7 +629,7 @@ static sxml_status start_template_or_default(sxml_xpath_lowering_machine *machin
     if (attribute->value.kind != SXML_XSLT_AST_VALUE_KIND_VALUE_TEMPLATE) {
         return add_string(machine->state, request.default_text, request.atom);
     }
-    const fixed_text fixed = read_fixed_text(lowering, attribute);
+    const sxml_xslt_fixed_text fixed = sxml_xslt_lowering_read_fixed_text(lowering, attribute);
     if (fixed.is_fixed) {
         return add_string(machine->state, fixed.text, request.atom);
     }
@@ -1167,7 +1163,7 @@ static sxml_status start_cdata(sxml_xpath_lowering_machine *machine,
     if (attribute->value.kind != SXML_XSLT_AST_VALUE_KIND_VALUE_TEMPLATE) {
         return SXML_STATUS_OK;
     }
-    const fixed_text fixed = read_fixed_text(lowering, attribute);
+    const sxml_xslt_fixed_text fixed = sxml_xslt_lowering_read_fixed_text(lowering, attribute);
     if (fixed.is_fixed) {
         const sxml_xslt_boolean_text answer = sxml_xslt_lowering_read_boolean_text(fixed.text);
         if (!answer.is_valid) {
@@ -1637,9 +1633,10 @@ static sxml_status start_name(sxml_xpath_lowering_machine *machine,
     const sxml_xslt_ast_attribute *namespace_attribute =
         find_attribute(lowering, (attribute_lookup){.node = locals->head.node,
                                                     .kind = SXML_XSLT_AST_ATTRIBUTE_NAMESPACE});
-    const fixed_text fixed_name = read_fixed_text(lowering, name);
+    const sxml_xslt_fixed_text fixed_name = sxml_xslt_lowering_read_fixed_text(lowering, name);
     const bool has_namespace = namespace_attribute->kind != SXML_XSLT_AST_ATTRIBUTE_NONE;
-    const fixed_text fixed_namespace = read_fixed_text(lowering, namespace_attribute);
+    const sxml_xslt_fixed_text fixed_namespace =
+        sxml_xslt_lowering_read_fixed_text(lowering, namespace_attribute);
     call->has_called = false;
     if (fixed_name.is_fixed && (!has_namespace || fixed_namespace.is_fixed)) {
         locals->is_name_fixed = true;

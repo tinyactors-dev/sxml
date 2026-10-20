@@ -289,7 +289,9 @@ static void test_number_value(sxml_test_state *state) {
         {STYLESHEET("<xsl:number value='1' grouping-size='x' grouping-separator=','/>"),
          "error:XTDE0030"},
         {STYLESHEET("<xsl:number value='1' letter-value='odd'/>"), "error:XTDE0030"},
-        {STYLESHEET("<xsl:number value='1' start-at='1..2'/>"), "error:XTDE0030"},
+        {STYLESHEET("<xsl:number value='1' start-at='1..2'/>"), "error:XTSE0020"},
+        {STYLESHEET("<xsl:number value='1' start-at='{\"1..2\"}'/>"), "error:XTDE0030"},
+        {STYLESHEET("<n><xsl:number value='1, 1' start-at=' 3  -1 '/></n>"), "<n>3.-1</n>"},
         {STYLESHEET("<xsl:number value='1' level='any'/>"), "error:XTSE0975"},
     };
     check_cases(state, (case_list){.cases = cases, .case_count = SXML_TEST_COUNT(cases)});

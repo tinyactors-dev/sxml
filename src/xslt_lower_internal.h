@@ -403,6 +403,19 @@ typedef struct sxml_xslt_boolean_text {
 
 sxml_xslt_boolean_text sxml_xslt_lowering_read_boolean_text(sxml_byte_view text);
 
+/* An attribute value template's text when it has no enclosed expression:
+   is_fixed and the text (empty for ""); is_fixed false otherwise. Such a
+   value that is not permitted is XTSE0020 (XSLT 4.0, 5.6.1: only an
+   attribute written with curly brackets escapes the static check).
+   Defined in src/xslt_lower_construct.c. */
+typedef struct sxml_xslt_fixed_text {
+    bool is_fixed;
+    sxml_byte_view text;
+} sxml_xslt_fixed_text;
+
+sxml_xslt_fixed_text sxml_xslt_lowering_read_fixed_text(const sxml_xslt_lowering *lowering,
+                                                        const sxml_xslt_ast_attribute *attribute);
+
 /* A boolean attribute value template computed at run time: binds in block
    whether normalize-space(value) is yes, true or 1 (xsl:message
    terminate, the cdata attribute). */

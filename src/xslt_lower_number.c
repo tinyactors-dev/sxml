@@ -39,6 +39,7 @@
 #include "sxml/name.h"
 #include "sxml/types.h"
 #include "sxml/xdm.h"
+#include "xml_internal.h"
 #include "xslt_number_internal.h"
 #include "xslt_pattern_internal.h"
 
@@ -697,9 +698,49 @@ typedef struct number_locals {
     sxml_ir_atom formatted;
 } number_locals;
 
+/* 12.1: whether text, trimmed (5.6.1), matches -?[0-9]+(\s+-?[0-9]+)*. */
+static bool is_integer_list(sxml_byte_view text) {
+    const sxml_byte_view trimmed = sxml_xml_text_trim_whitespace(text);
+    size_t byte_index = 0;
+    while (byte_index < trimmed.byte_count) {
+        if (trimmed.bytes[byte_index] == '-') {
+            byte_index += 1;
+        }
+        const size_t digits_start = byte_index;
+        while (byte_index < trimmed.byte_count && trimmed.bytes[byte_index] >= '0' &&
+               trimmed.bytes[byte_index] <= '9') {
+            byte_index += 1;
+        }
+        if (byte_index == digits_start) {
+            return false;
+        }
+        const size_t separator_start = byte_index;
+        while (byte_index < trimmed.byte_count &&
+               sxml_xml_byte_is_whitespace(trimmed.bytes[byte_index])) {
+            byte_index += 1;
+        }
+        if (byte_index == separator_start && byte_index < trimmed.byte_count) {
+            return false;
+        }
+    }
+    return trimmed.byte_count > 0;
+}
 
-/* 12, XTSE0975: value excludes select, level, count and from. */
+/* 12, XTSE0975: value excludes select, level, count and from. A start-at
+   value template without an enclosed expression that is not a list of
+   integers (12.1) is XTSE0020 (5.6.1: only a value written with curly
+   brackets escapes the static check). */
 static sxml_status check_number(const sxml_xslt_lowering *lowering, sxml_xslt_ast_node_index node) {
+    const sxml_xslt_fixed_text start_at = sxml_xslt_lowering_read_fixed_text(
+        lowering, find_attribute(lowering, node, SXML_XSLT_AST_ATTRIBUTE_START_AT));
+    if (start_at.is_fixed && !is_integer_list(start_at.text)) {
+        return sxml_xslt_lowering_report_static_error(
+            lowering, (sxml_xslt_static_error){
+                          .node = node,
+                          .code_and_description = SXML_BYTE_VIEW_FROM_LITERAL(
+                              "XTSE0020 the start-at attribute of xsl:number is not a list of "
+                              "integers (XSLT 4.0, 12.1)")});
+    }
     if (has_attribute(lowering, node, SXML_XSLT_AST_ATTRIBUTE_VALUE) &&
         (has_attribute(lowering, node, SXML_XSLT_AST_ATTRIBUTE_SELECT) ||
          has_attribute(lowering, node, SXML_XSLT_AST_ATTRIBUTE_LEVEL) ||

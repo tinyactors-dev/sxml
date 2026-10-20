@@ -117,39 +117,6 @@ bool sxml_xslt_lowering_has_sort(const sxml_xslt_lowering *lowering,
                .value != 0;
 }
 
-/* An attribute value template's text when it has no enclosed expression:
-   is_fixed and the text (empty for ""); is_fixed false otherwise. */
-typedef struct fixed_text {
-    bool is_fixed;
-    sxml_byte_view text;
-} fixed_text;
-
-static fixed_text read_fixed_text(const sxml_xslt_lowering *lowering,
-                                  const sxml_xslt_ast_attribute *attribute) {
-    const fixed_text computed = {.is_fixed = false, .text = {.bytes = NULL, .byte_count = 0}};
-    if (attribute->value.kind != SXML_XSLT_AST_VALUE_KIND_VALUE_TEMPLATE) {
-        return computed;
-    }
-    const sxml_ast *ast =
-        sxml_xslt_ast_get_expression(lowering->ast, attribute->value.payload.expression)->ast;
-    if (ast == NULL) {
-        return computed;
-    }
-    const sxml_ast_node_index body = sxml_ast_find_child(
-        ast, (sxml_ast_child_query){.parent = ast->root, .field = SXML_AST_FIELD_BODY});
-    const sxml_ast_node_index part = sxml_ast_find_child(
-        ast, (sxml_ast_child_query){.parent = body, .field = SXML_AST_FIELD_PART});
-    if (part.value == 0) {
-        return (fixed_text){.is_fixed = true, .text = {.bytes = NULL, .byte_count = 0}};
-    }
-    const sxml_ast_node *part_node = sxml_ast_get_node(ast, part);
-    if (part_node->kind != SXML_AST_KIND_STRING_TEMPLATE_FIXED_PART ||
-        sxml_ast_find_next_with_same_field(ast, part).value != 0) {
-        return computed;
-    }
-    return (fixed_text){.is_fixed = true, .text = sxml_ast_get_text(ast, part_node->payload.text)};
-}
-
 static bool text_equals(sxml_byte_view text, sxml_byte_view literal) {
     return sxml_byte_view_equals(sxml_xml_text_trim_whitespace(text), literal);
 }
@@ -741,14 +708,15 @@ static sxml_status check_sorts(const sxml_xslt_lowering *lowering, sxml_xslt_ast
                                        "XTSE1015 an xsl:sort with a select attribute has content "
                                        "(XSLT 4.0, 13.1)")});
         }
-        const fixed_text stable_text = read_fixed_text(lowering, stable);
-        const fixed_text order =
-            read_fixed_text(lowering, find_attribute(lowering, sort_node, SXML_XSLT_AST_ATTRIBUTE_ORDER));
-        const fixed_text lang =
-            read_fixed_text(lowering, find_attribute(lowering, sort_node, SXML_XSLT_AST_ATTRIBUTE_LANG));
-        const fixed_text case_order = read_fixed_text(
+        const sxml_xslt_fixed_text stable_text =
+            sxml_xslt_lowering_read_fixed_text(lowering, stable);
+        const sxml_xslt_fixed_text order = sxml_xslt_lowering_read_fixed_text(
+            lowering, find_attribute(lowering, sort_node, SXML_XSLT_AST_ATTRIBUTE_ORDER));
+        const sxml_xslt_fixed_text lang = sxml_xslt_lowering_read_fixed_text(
+            lowering, find_attribute(lowering, sort_node, SXML_XSLT_AST_ATTRIBUTE_LANG));
+        const sxml_xslt_fixed_text case_order = sxml_xslt_lowering_read_fixed_text(
             lowering, find_attribute(lowering, sort_node, SXML_XSLT_AST_ATTRIBUTE_CASE_ORDER));
-        const fixed_text data_type = read_fixed_text(
+        const sxml_xslt_fixed_text data_type = sxml_xslt_lowering_read_fixed_text(
             lowering, find_attribute(lowering, sort_node, SXML_XSLT_AST_ATTRIBUTE_DATA_TYPE));
         const bool is_invalid =
             (stable_text.is_fixed && !is_boolean_text(stable_text.text)) ||
@@ -842,9 +810,9 @@ static sxml_status lower_next_sort_attribute(sxml_xpath_lowering_machine *machin
 /* Reads the fixed attributes: direction and conversion. */
 static void read_fixed_sort_attributes(sort_locals *locals) {
     const sxml_xslt_lowering *lowering = locals->head.lowering;
-    const fixed_text order =
-        read_fixed_text(lowering, find_attribute(lowering, locals->sort, SXML_XSLT_AST_ATTRIBUTE_ORDER));
-    const fixed_text data_type = read_fixed_text(
+    const sxml_xslt_fixed_text order = sxml_xslt_lowering_read_fixed_text(
+        lowering, find_attribute(lowering, locals->sort, SXML_XSLT_AST_ATTRIBUTE_ORDER));
+    const sxml_xslt_fixed_text data_type = sxml_xslt_lowering_read_fixed_text(
         lowering, find_attribute(lowering, locals->sort, SXML_XSLT_AST_ATTRIBUTE_DATA_TYPE));
     locals->direction = order.is_fixed && TEXT_IS(order.text, "descending")
                             ? SXML_IR_SORT_DIRECTION_DESCENDING
@@ -882,9 +850,9 @@ static void append_text(collation_uri_text *text, sxml_byte_view part) {
 static sxml_status add_fixed_collation(const sort_locals *locals, collation_fixing *fixing,
                                        sxml_ir_atom *atom) {
     const sxml_xslt_lowering *lowering = locals->head.lowering;
-    const fixed_text lang =
-        read_fixed_text(lowering, find_attribute(lowering, locals->sort, SXML_XSLT_AST_ATTRIBUTE_LANG));
-    const fixed_text case_order = read_fixed_text(
+    const sxml_xslt_fixed_text lang = sxml_xslt_lowering_read_fixed_text(
+        lowering, find_attribute(lowering, locals->sort, SXML_XSLT_AST_ATTRIBUTE_LANG));
+    const sxml_xslt_fixed_text case_order = sxml_xslt_lowering_read_fixed_text(
         lowering, find_attribute(lowering, locals->sort, SXML_XSLT_AST_ATTRIBUTE_CASE_ORDER));
     fixing->is_fixed =
         (!locals->has_attributes[SXML_XSLT_SORT_ATTRIBUTE_LANG] || lang.is_fixed) &&
@@ -1126,7 +1094,7 @@ static sxml_status continue_sort(sxml_xpath_lowering_machine *machine,
             break;
         case SXML_XSLT_SORT_PHASE_ORDER: {
             locals->phase = SXML_XSLT_SORT_PHASE_COLLATION;
-            const fixed_text order = read_fixed_text(
+            const sxml_xslt_fixed_text order = sxml_xslt_lowering_read_fixed_text(
                 lowering, find_attribute(lowering, locals->sort, SXML_XSLT_AST_ATTRIBUTE_ORDER));
             if (locals->has_attributes[SXML_XSLT_SORT_ATTRIBUTE_ORDER] && !order.is_fixed) {
                 const text_variable variable = {
@@ -1980,13 +1948,14 @@ static bool has_inconsistent_merge_keys(const sxml_xslt_lowering *lowering,
                     find_attribute(lowering, key, merge_compared_attributes[attribute_index]);
                 const sxml_byte_view fallback =
                     sxml_byte_view_from_c_string(merge_compared_defaults[attribute_index]);
-                const fixed_text first_text =
+                const sxml_xslt_fixed_text first_text =
                     first_attribute->kind == SXML_XSLT_AST_ATTRIBUTE_NONE
-                        ? (fixed_text){.is_fixed = true, .text = fallback}
-                        : read_fixed_text(lowering, first_attribute);
-                const fixed_text text = attribute->kind == SXML_XSLT_AST_ATTRIBUTE_NONE
-                                            ? (fixed_text){.is_fixed = true, .text = fallback}
-                                            : read_fixed_text(lowering, attribute);
+                        ? (sxml_xslt_fixed_text){.is_fixed = true, .text = fallback}
+                        : sxml_xslt_lowering_read_fixed_text(lowering, first_attribute);
+                const sxml_xslt_fixed_text text =
+                    attribute->kind == SXML_XSLT_AST_ATTRIBUTE_NONE
+                        ? (sxml_xslt_fixed_text){.is_fixed = true, .text = fallback}
+                        : sxml_xslt_lowering_read_fixed_text(lowering, attribute);
                 if (first_text.is_fixed && text.is_fixed &&
                     !sxml_byte_view_equals(sxml_xml_text_trim_whitespace(first_text.text),
                                            sxml_xml_text_trim_whitespace(text.text))) {
@@ -2015,7 +1984,7 @@ static bool is_computed_attribute(const sxml_xslt_lowering *lowering,
                                   const sxml_xslt_ast_attribute *attribute) {
     return attribute->kind != SXML_XSLT_AST_ATTRIBUTE_NONE &&
            attribute->value.kind == SXML_XSLT_AST_VALUE_KIND_VALUE_TEMPLATE &&
-           !read_fixed_text(lowering, attribute).is_fixed;
+           !sxml_xslt_lowering_read_fixed_text(lowering, attribute).is_fixed;
 }
 
 /* True when a source computes the attribute of the check's key. */
@@ -2108,7 +2077,7 @@ static sxml_status step_attribute_check(sxml_xpath_lowering_machine *machine,
             const sxml_byte_view text =
                 attribute->kind == SXML_XSLT_AST_ATTRIBUTE_NONE
                     ? sxml_byte_view_from_c_string(merge_compared_defaults[check->attribute_index])
-                    : read_fixed_text(lowering, attribute).text;
+                    : sxml_xslt_lowering_read_fixed_text(lowering, attribute).text;
             status = sxml_xpath_lowerer_add_string_constant(lowerer, text,
                                                             &locals->source_tuples[source_index]);
             continue;
@@ -2276,7 +2245,7 @@ static sxml_status convert_merge_key(sxml_xpath_lowering_machine *machine,
                                      sxml_xpath_lowering_frame *frame) {
     merge_locals *locals = frame->locals;
     const sxml_xslt_lowering *lowering = locals->head.lowering;
-    const fixed_text data_type = read_fixed_text(
+    const sxml_xslt_fixed_text data_type = sxml_xslt_lowering_read_fixed_text(
         lowering, find_attribute(lowering, locals->key, SXML_XSLT_AST_ATTRIBUTE_DATA_TYPE));
     const bool has_data_type =
         locals->data_types[locals->key_index].atom_kind != SXML_IR_ATOM_KIND_NONE;

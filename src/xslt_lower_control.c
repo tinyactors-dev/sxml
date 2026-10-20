@@ -116,39 +116,6 @@ static sxml_name_identifier binding_name_of(const sxml_xslt_lowering *lowering,
                                                              : (sxml_name_identifier){.index = 0};
 }
 
-/* An attribute value template's text when it has no enclosed expression:
-   is_fixed and the text (empty for ""); is_fixed false otherwise. */
-typedef struct fixed_text {
-    bool is_fixed;
-    sxml_byte_view text;
-} fixed_text;
-
-static fixed_text read_fixed_text(const sxml_xslt_lowering *lowering,
-                                  const sxml_xslt_ast_attribute *attribute) {
-    const fixed_text computed = {.is_fixed = false, .text = {.bytes = NULL, .byte_count = 0}};
-    if (attribute->value.kind != SXML_XSLT_AST_VALUE_KIND_VALUE_TEMPLATE) {
-        return computed;
-    }
-    const sxml_ast *ast =
-        sxml_xslt_ast_get_expression(lowering->ast, attribute->value.payload.expression)->ast;
-    if (ast == NULL) {
-        return computed;
-    }
-    const sxml_ast_node_index body = sxml_ast_find_child(
-        ast, (sxml_ast_child_query){.parent = ast->root, .field = SXML_AST_FIELD_BODY});
-    const sxml_ast_node_index part = sxml_ast_find_child(
-        ast, (sxml_ast_child_query){.parent = body, .field = SXML_AST_FIELD_PART});
-    if (part.value == 0) {
-        return (fixed_text){.is_fixed = true, .text = {.bytes = NULL, .byte_count = 0}};
-    }
-    const sxml_ast_node *part_node = sxml_ast_get_node(ast, part);
-    if (part_node->kind != SXML_AST_KIND_STRING_TEMPLATE_FIXED_PART ||
-        sxml_ast_find_next_with_same_field(ast, part).value != 0) {
-        return computed;
-    }
-    return (fixed_text){.is_fixed = true, .text = sxml_ast_get_text(ast, part_node->payload.text)};
-}
-
 static bool text_equals(sxml_byte_view text, sxml_byte_view literal) {
     return text.byte_count == literal.byte_count &&
            (literal.byte_count == 0 || memcmp(text.bytes, literal.bytes, literal.byte_count) == 0);
@@ -2935,7 +2902,7 @@ static sxml_status start_error_code(sxml_xpath_lowering_machine *machine,
     const sxml_xslt_ast_attribute *error_code =
         find_attribute(lowering, (attribute_lookup){.node = locals->head.node,
                                                     .kind = SXML_XSLT_AST_ATTRIBUTE_ERROR_CODE});
-    const fixed_text fixed = read_fixed_text(lowering, error_code);
+    const sxml_xslt_fixed_text fixed = sxml_xslt_lowering_read_fixed_text(lowering, error_code);
     if (error_code->kind != SXML_XSLT_AST_ATTRIBUTE_NONE && !fixed.is_fixed) {
         outcome->is_pushed = true;
         locals->is_computed_code = true;
@@ -3001,7 +2968,7 @@ static sxml_status start_terminate(sxml_xpath_lowering_machine *machine,
         find_attribute(lowering, (attribute_lookup){.node = locals->head.node,
                                                     .kind = SXML_XSLT_AST_ATTRIBUTE_TERMINATE});
     const bool is_absent = terminate->kind == SXML_XSLT_AST_ATTRIBUTE_NONE;
-    const fixed_text fixed = read_fixed_text(lowering, terminate);
+    const sxml_xslt_fixed_text fixed = sxml_xslt_lowering_read_fixed_text(lowering, terminate);
     if (!is_absent && !fixed.is_fixed) {
         outcome->is_pushed = true;
         return sxml_xslt_lowering_call_value_template(
@@ -3547,7 +3514,7 @@ static sxml_status start_evaluate_part(sxml_xpath_lowering_machine *machine,
         return SXML_STATUS_OK;
     }
     locals->is_present[part->argument_index] = true;
-    const fixed_text fixed = read_fixed_text(lowering, attribute);
+    const sxml_xslt_fixed_text fixed = sxml_xslt_lowering_read_fixed_text(lowering, attribute);
     if (!fixed.is_fixed) {
         outcome->is_pushed = true;
         return sxml_xslt_lowering_call_value_template(
