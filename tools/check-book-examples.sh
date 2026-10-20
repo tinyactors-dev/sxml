@@ -3,9 +3,9 @@
 # with the output the book shows, so the book stays true.
 #
 # The book shows commands in ```console blocks: a line that starts with "$ "
-# is a command (a line that ends with "\" continues on the next line), and
-# the lines up to the next command or the end of the block are its output,
-# standard output and standard error together.
+# is a command, which continues on the next line after a final "\" or while
+# a quotation is open; the lines up to the next command or the end of the
+# block are its output, standard output and standard error together.
 #
 # Each chapter file names its example directory with a comment
 #   <!-- examples: NAME -->
@@ -28,6 +28,7 @@ set -eu
 repository_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 exec python3 -I - "$repository_root" "$@" <<'PYTHON'
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -66,6 +67,18 @@ environment["LC_ALL"] = "C.UTF-8"
 environment["TZ"] = "UTC"
 
 
+def is_continued(command):
+    """A command continues on the next line after a final backslash, or
+    while a quotation in it is still open."""
+    if command.endswith("\\"):
+        return True
+    try:
+        shlex.split(command)
+    except ValueError:
+        return True
+    return False
+
+
 def parse_examples(lines):
     """Yields (first line index, last line index + 1, command, expected
     output lines) for each command in the ```console blocks."""
@@ -85,7 +98,7 @@ def parse_examples(lines):
             continue
         if current is not None and current["continued"]:
             current["command"] += "\n" + stripped
-            current["continued"] = stripped.endswith("\\")
+            current["continued"] = is_continued(current["command"])
             current["output_start"] = line_index + 1
             continue
         if stripped.startswith("$ "):
@@ -94,7 +107,7 @@ def parse_examples(lines):
             current = {
                 "line": line_index,
                 "command": stripped[2:],
-                "continued": stripped.endswith("\\"),
+                "continued": is_continued(stripped[2:]),
                 "output_start": line_index + 1,
                 "output": [],
             }

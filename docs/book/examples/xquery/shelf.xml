@@ -1,0 +1,4 @@
+<shelf name="Fiction">
+  <book id="dune" year="1965"><title>Dune</title><price>9.99</price></book>
+  <book id="lhod" year="1969"><title>The Left Hand of Darkness</title><price>11.50</price></book>
+</shelf>
