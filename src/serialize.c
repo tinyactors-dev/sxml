@@ -282,7 +282,8 @@ sxml_byte_view sxml_serializer_get_encoding_name(const sxml_serializer *serializ
 
 /* ------------------------------------------------------------ Encoding */
 
-sxml_status sxml_serializer_flush(sxml_serializer *serializer) {
+/* Writes the staged bytes to the output stream. */
+static sxml_status sxml_serializer_write_staged(sxml_serializer *serializer) {
     const sxml_byte_view staged = {.bytes = serializer->staged_bytes,
                                    .byte_count = serializer->staged_byte_count};
     serializer->staged_byte_count = 0;
@@ -293,7 +294,7 @@ sxml_status sxml_serializer_flush(sxml_serializer *serializer) {
 static sxml_status sxml_serializer_put_bytes(sxml_serializer *serializer, sxml_byte_view bytes) {
     sxml_status status = SXML_STATUS_OK;
     if (serializer->staged_byte_count + bytes.byte_count > SXML_SERIALIZER_STAGING_BYTE_COUNT) {
-        status = sxml_serializer_flush(serializer);
+        status = sxml_serializer_write_staged(serializer);
     }
     if (status != SXML_STATUS_OK) {
         return status;
@@ -411,6 +412,21 @@ static sxml_status sxml_serializer_put_ascii(sxml_serializer *serializer, sxml_b
     return status;
 }
 
+/* Closes the CDATA section write_cdata_sections left open, if any. */
+static sxml_status sxml_serializer_close_cdata_section(sxml_serializer *serializer) {
+    if (!serializer->is_cdata_section_open) {
+        return SXML_STATUS_OK;
+    }
+    serializer->is_cdata_section_open = false;
+    serializer->cdata_bracket_count = 0;
+    return sxml_serializer_put_ascii(serializer, SXML_BYTE_VIEW_FROM_LITERAL("]]>"));
+}
+
+sxml_status sxml_serializer_flush(sxml_serializer *serializer) {
+    const sxml_status status = sxml_serializer_close_cdata_section(serializer);
+    return status == SXML_STATUS_OK ? sxml_serializer_write_staged(serializer) : status;
+}
+
 /* Encodes a codepoint of the serialized text: U+000A becomes the line
    ending (Serialization 4.0, 5.1.7). */
 static sxml_status sxml_serializer_put_text_codepoint(sxml_serializer *serializer,
@@ -442,6 +458,10 @@ static sxml_status sxml_serializer_put_character_reference(sxml_serializer *seri
 }
 
 sxml_status sxml_serializer_write_markup(sxml_serializer *serializer, sxml_byte_view markup) {
+    const sxml_status closed = sxml_serializer_close_cdata_section(serializer);
+    if (closed != SXML_STATUS_OK) {
+        return closed;
+    }
     if (serializer->character_encoding == SXML_CHARACTER_ENCODING_UTF_8 &&
         serializer->line_ending_text.byte_count == 1 &&
         serializer->line_ending_text.bytes[0] == '\n') {
@@ -704,8 +724,9 @@ static sxml_status sxml_serializer_write_cdata_sections(sxml_serializer *seriali
                                                         sxml_byte_view text) {
     static const sxml_byte_view open = SXML_BYTE_VIEW_INITIALIZER("<![CDATA[");
     static const sxml_byte_view close = SXML_BYTE_VIEW_INITIALIZER("]]>");
-    bool is_open = false;
-    size_t bracket_count = 0;
+    /* The section an adjacent text node left open continues (D274). */
+    bool is_open = serializer->is_cdata_section_open;
+    size_t bracket_count = serializer->cdata_bracket_count;
     sxml_status status = SXML_STATUS_OK;
     size_t offset = 0;
     while (status == SXML_STATUS_OK && offset < text.byte_count) {
@@ -736,9 +757,10 @@ static sxml_status sxml_serializer_write_cdata_sections(sxml_serializer *seriali
             status = sxml_serializer_put_text_codepoint(serializer, codepoint);
         }
     }
-    if (status == SXML_STATUS_OK && is_open) {
-        status = sxml_serializer_put_ascii(serializer, close);
-    }
+    /* Left open: the next output closes it (sxml_serializer_close_cdata_
+       section) unless it is CDATA sections too. */
+    serializer->is_cdata_section_open = is_open;
+    serializer->cdata_bracket_count = bracket_count;
     return status;
 }
 
@@ -829,6 +851,12 @@ sxml_status sxml_serializer_write_character_data(sxml_serializer *serializer,
                                                  const sxml_character_data *character_data) {
     const sxml_byte_view text = character_data->text;
     const sxml_character_context character_context = character_data->character_context;
+    if (character_context != SXML_CHARACTER_CONTEXT_CDATA_SECTION) {
+        const sxml_status closed = sxml_serializer_close_cdata_section(serializer);
+        if (closed != SXML_STATUS_OK) {
+            return closed;
+        }
+    }
     switch (character_context) {
     case SXML_CHARACTER_CONTEXT_MARKUP:
         return sxml_serializer_write_markup(serializer, text);

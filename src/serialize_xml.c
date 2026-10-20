@@ -2581,9 +2581,15 @@ static sxml_status sxml_streamed_on_text(void *state, const sxml_text_event *eve
         return SXML_STATUS_OK;
     }
     sxml_status status = SXML_STATUS_OK;
+    /* D188: they are two text nodes. So are text events that differ in
+       asking for CDATA sections (XSLT 4.0, 11.4.3), unless the parent's
+       text is CDATA sections anyway (cdata-section-elements): only the
+       requested text is written as CDATA (D274). */
+    const sxml_xml_open_element *parent = sxml_xml_writer_top(&serialization->writer);
+    const bool is_cdata_parent = parent != NULL && parent->is_cdata_parent;
     if (serialization->text.byte_count > 0 &&
-        serialization->is_text_unescaped != event->disables_output_escaping) {
-        /* D188: they are two text nodes. */
+        (serialization->is_text_unescaped != event->disables_output_escaping ||
+         (!is_cdata_parent && serialization->is_text_cdata_section != event->is_cdata_section))) {
         status = sxml_streamed_flush_text(serialization);
     }
     if (status == SXML_STATUS_OK) {
@@ -2594,7 +2600,7 @@ static sxml_status sxml_streamed_on_text(void *state, const sxml_text_event *eve
         return status;
     }
     serialization->is_text_cdata_section =
-        serialization->is_text_cdata_section || event->is_cdata_section;
+        (is_cdata_parent && serialization->is_text_cdata_section) || event->is_cdata_section;
     serialization->is_text_unescaped = event->disables_output_escaping;
     return sxml_xml_buffer_append(&serialization->text, event->text);
 }

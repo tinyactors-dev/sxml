@@ -153,6 +153,12 @@ typedef struct sxml_serializer {
     size_t mapping_count;
     uint8_t staged_bytes[SXML_SERIALIZER_STAGING_BYTE_COUNT];
     size_t staged_byte_count;
+    /* A CDATA section written last and not closed yet, so the CDATA
+       sections of adjacent text nodes join (D274), and the "]" it ends
+       with (up to 2). Closed by any other output and by
+       sxml_serializer_flush. */
+    bool is_cdata_section_open;
+    size_t cdata_bracket_count;
     /* ---- The adaptive method. */
     sxml_byte_view item_separator;
     sxml_serialization_frame *frames;

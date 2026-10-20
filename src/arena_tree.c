@@ -183,7 +183,7 @@ struct sxml_arena_tree {
     size_t attribute_slot_capacity;
     size_t active_attribute_slot_count;
     bool has_attribute_index;
-    /* Some event of the pending text asked for CDATA sections (D163). */
+    /* The pending text's events ask for CDATA sections (D163, D274). */
     bool pending_text_is_cdata_section;
     /* The pending text's events disable output escaping (D188). */
     bool pending_text_disables_output_escaping;
@@ -1954,10 +1954,14 @@ static sxml_status sxml_arena_tree_add_text(void *state,
     }
     /* Inside a parent, text that differs in disables_output_escaping
        starts a node of its own: the property belongs to each character
-       (XSLT 4.0, section 26.1.8; D188). Parentless text keeps one node. */
+       (XSLT 4.0, section 26.1.8; D188). So does text that differs in
+       asking for CDATA sections, which XSLT asks only in final output
+       state (11.4.3 leaves the effect implementation-defined; D274).
+       Parentless text keeps one node. */
     if (sxml_arena_tree_has_pending_text(arena_tree) &&
         arena_tree->phase != SXML_ARENA_TREE_PHASE_TOP_TEXT &&
-        event->disables_output_escaping != arena_tree->pending_text_disables_output_escaping) {
+        (event->disables_output_escaping != arena_tree->pending_text_disables_output_escaping ||
+         event->is_cdata_section != arena_tree->pending_text_is_cdata_section)) {
         status = sxml_arena_tree_flush_text(arena_tree);
         if (status != SXML_STATUS_OK) {
             return status;

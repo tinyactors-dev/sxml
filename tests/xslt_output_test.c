@@ -491,6 +491,30 @@ static void test_disabled_output_escaping(sxml_test_state *state) {
     CHECK(state, cases);
 }
 
+/* 11.4.3: the cdata attribute asks for CDATA sections for its own text
+   only, in final output state; in a cdata-section-elements parent all
+   text is one section (D274). */
+static void test_cdata_requests(sxml_test_state *state) {
+#define NO_DECLARATION "<xsl:output omit-xml-declaration='yes'/>"
+    static const transform_case cases[] = {
+        {STYLESHEET(NO_DECLARATION,
+                    "<a>(<xsl:text cdata='yes'>&lt;</xsl:text>)<xsl:value-of select=\"'1]'\" "
+                    "cdata='{true()}'/><xsl:text cdata='yes'>]&gt;</xsl:text></a>"),
+         "<a>(<![CDATA[<]]>)<![CDATA[1]]]]><![CDATA[>]]></a>"},
+        {STYLESHEET("<xsl:output omit-xml-declaration='yes' cdata-section-elements='a'/>",
+                    "<a>(<xsl:text cdata='yes'>&lt;</xsl:text>)</a>"),
+         "<a><![CDATA[(<)]]></a>"},
+        /* A variable's tree keeps one text node and no request. */
+        {STYLESHEET(NO_DECLARATION,
+                    "<xsl:variable name='v'><a>(<xsl:text cdata='yes'>&lt;</xsl:text>)</a>"
+                    "</xsl:variable><xsl:copy-of select='$v'/>"
+                    "<b><xsl:value-of select='count($v/a/text())'/></b>"),
+         "<a>(&lt;)</a><b>1</b>"},
+    };
+#undef NO_DECLARATION
+    CHECK(state, cases);
+}
+
 /* 26.3: fn:current-output-uri. */
 static void test_current_output_uri(sxml_test_state *state) {
     static const transform_case cases[] = {
@@ -515,6 +539,7 @@ static const sxml_test_case xslt_output_test_cases[] = {
     {.name = "character_maps", .function = test_character_maps},
     {.name = "result_documents", .function = test_result_documents},
     {.name = "disabled_output_escaping", .function = test_disabled_output_escaping},
+    {.name = "cdata_requests", .function = test_cdata_requests},
     {.name = "current_output_uri", .function = test_current_output_uri},
 };
 

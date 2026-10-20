@@ -602,8 +602,9 @@ static void test_parentless_nodes_are_roots(sxml_test_state *state) {
 
 /* A parentless root takes the configured base URI (D98); a document keeps
    the one of its start event. */
-/* A text node made of events of which one asks for CDATA sections keeps
-   the request (glossary cdata_section; D163); others do not have it. */
+/* Text that asks for CDATA sections keeps the request (glossary
+   cdata_section; D163) and is a text node of its own inside a parent
+   (D274); other text nodes do not have it. */
 static void test_text_keeps_cdata_requests(sxml_test_state *state) {
     tree_fixture fixture;
     SXML_TEST_REQUIRE(state, tree_fixture_create(&fixture) == SXML_STATUS_OK);
@@ -626,9 +627,9 @@ static void test_text_keeps_cdata_requests(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, writer.status == SXML_STATUS_OK);
     SXML_TEST_REQUIRE(state,
                       sxml_arena_tree_finish(built.arena_tree, &built.tree) == SXML_STATUS_OK);
-    /* a, its text, b, b's text. */
-    const bool expected[4] = {false, true, false, false};
-    for (uint32_t node_index = 0; node_index < 4; node_index += 1) {
+    /* a, its two texts, b, b's text. */
+    const bool expected[5] = {false, false, true, false, false};
+    for (uint32_t node_index = 0; node_index < 5; node_index += 1) {
         sxml_node_description description;
         const sxml_node_reference node = {
             .tree = built.tree, .node_index = {.index = node_index}, .namespace_number = 0};
