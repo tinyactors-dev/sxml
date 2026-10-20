@@ -5,13 +5,12 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 
 ## State (2026-10-19)
 
-- Phases 0–4 closed by agent review (D11, D151, D161, D169).
-- Phase 5 (XSD 1.1, schema awareness) closed by agent review (D182); four
-  gate boxes wait for full runs and fuzzing on the owner's machine (D181).
-  All public headers are stable.
-- Passes (release, whole suites at e4ea880, counting wrong error codes as
-  docs/CONFORMANCE.md does): XP40 32,689, XQ40 45,969, XT40 12,053, XSD in
-  scope 41,486 of 41,518. Zero error outcomes in every suite.
+- Phases 0–5 and 7 closed by agent review (D11, D151, D161, D169, D182,
+  D237); fuzzing at length and the full lint wait for the owner's machine
+  (D181). 7.11's gate (all 12 XT40 transform cases) is open: 9 pass.
+- Passes (release, whole suites at 9c5b1ba): XP40 32,689 (99.5 %), XQ40
+  45,969 (99.5 %), XT40 12,075 (94.8 %), XSD in scope 41,486 of 41,518.
+  Zero error outcomes in every suite.
 - Optional features (D189). Budgets (D202, D207, D208): core `sxml.wasm`
   2,200,000 / 770,000 (2,077,439 / 725,473 after size-2, D227: each module
   links only its languages' parts), `sxml-full.wasm` 8,000,000 /
@@ -22,7 +21,8 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 
 ## Running
 
-- 7.19: the Phase 7 review and gate.
+- 6.1: Phase 6 plan (Swift and Kotlin bindings, iOS and Android builds).
+- 7.20: sweep (7.11's transform-004/401/009, the larger duplicates of D237).
 
 ## Next
 
@@ -80,7 +80,9 @@ XSD:
 - 35 failures: XSD 1.0-only rules, `xs:NOTATION` as a union member,
   XML 1.1 instances, wildcard consistency with type tables.
 
-Larger duplicates (D182): the schema reader's own boolean and integer
+Larger duplicates (D237): three UTF-8/UTF-16 decoders with different
+error rules; Full Text reads stop words and thesauri through the resolver
+itself; private growable arrays in four files. (D182): the schema reader's own boolean and integer
 parsers, Gregorian day arithmetic in four places, three ways of building
 compile-report text, four text writers, three private heapsorts in
 serialization.
