@@ -40,8 +40,6 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
   skips them unless --drafts.)
 - 2.27: XPath/XQuery sweep (D280's open list; XInclude for fn:doc, CJK
   numerals in format-integer).
-- 5.16: schema location hints (xsi:schemaLocation in the library, fn:xsd-validator
-  and `sxml validate`); xlink.xsd vendored for the 92 introspection tests.
 
 ## Next
 
@@ -223,6 +221,12 @@ indeterminate schemas (4). Validation continues after a rejected element
 (content recovery). Not run: 92 introspection tests (all pass with
 xlink.xsd), 57 "queried", 50 version 1.0. The library does not follow
 schema location hints (5.16).
+5.16 (D278): schema location hints in the library
+(schema_location_hint_node, additive in schema.h), fn:xsd-validator and
+fn:doc/parse-xml/document's use-xsi-schema-location, `sxml validate
+--use-schema-location`; xlink.xsd vendored (third_party/w3c-xlink): XSD
+41,507 -> 41,599 passed, 92 of 92 introspection tests. XQuery validate and
+XSLT validation attributes still ignore hints (their specs allow it).
 
 Duplicates merged in 7.20 (D249): one decoder with an error rule, Full Text
 on the shared feature-data path, sxml_allocator_reserve_array, and D182's
