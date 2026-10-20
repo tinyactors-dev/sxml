@@ -4,6 +4,15 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- book-4 done (D292): the codegen chapter on trees. XQuery builds a
+  tree of the TypeScript program in a small vocabulary of our own
+  (generated/program.xml), an XSLT printer (print.xsl) writes the
+  files, one template rule per element and the layout in one place;
+  braces.xsl prints the same tree in a second style; check.xq parses
+  the printed code with sxml:parse-code and checks client, server and
+  runtime against each other. New section codegen-printer.md. 46
+  examples match; tsc --strict passes. No library bug found.
+
 - 7.25 done (D293): tree-sitter's WebAssembly language files in the
   JavaScript package. Sxml.loadCodeLanguage links a file as `tree-sitter
   build --wasm` writes it (a dylink.0 side module) into the running

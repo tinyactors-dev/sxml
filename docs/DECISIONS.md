@@ -13576,7 +13576,62 @@ the tests (ef46866), then the implementation (fdff1ee); one parser
 Recorded 2026-10-20, after D99, D245, D289; in progress.
 
 ### D292. The codegen chapter builds a tree of the TypeScript program and prints it with XSLT (packet book-4)
-Recorded 2026-10-20, after D257, D282, D285, D288; in progress.
+Recorded 2026-10-20, after D257, D282, D285, D288. The owner: for the
+codegen examples, a tree of the TypeScript code translated with XSLT
+is easier to follow in the book than endless string concatenation.
+- **Pipeline.** api.xml and library.xsd go through `program.xq`
+  (XQuery, the library module `typescript.xqm`) to a *program tree*,
+  `generated/program.xml`, then through `print.xsl` (XSLT) to
+  types.ts, client.ts and server.ts, one `xsl:result-document` per
+  `module`; `openapi.xsl` is unchanged. `generate.xq` (fn:put of
+  string-constructor text) is gone; `generate.sh` runs validate, the
+  query with `--output`, the printer with `--result-directory`, and
+  the OpenAPI stylesheet.
+- **Vocabulary: our own, not tree-sitter's.** sxml:parse-code's tree is
+  concrete (every token and space; its string value is the source),
+  so writing one means writing the text anyway. The generator writes
+  an abstract tree in no namespace, named after TypeScript's words:
+  module, comment, doc, import, type-alias, interface, property,
+  method, function, parameter, returns, body, type, array-type, union,
+  predicate, statement, const, return, if/then/else, for-of, name,
+  string, number, boolean, regex, call (function or method of the
+  first child), member, not, binary (named operators, n-ary), await,
+  array, object/entry, arrow. Names are attributes, parts children; a
+  string holds its text, not a literal. tree-sitter's names are used
+  where code is read: the round-trip check.
+- **Printer.** One template rule per element; layout in one place: an
+  indentation function counting enclosing blocks, a priority-1 rule for
+  every line that wraps xsl:next-match, a priority-2 rule for empty
+  lines, a `print:braces` function (one-statement `then` without
+  else stays on the if's line). No parentheses rules: the generator
+  never nests binary expressions (said in the text). An unknown element
+  is an error. `braces.xsl` imports it and overrides `$indent` and
+  `print:braces`: the same tree in a second style.
+- **Imports are computed from the tree** (ts:module): names the types
+  module declares come from ./types.ts (type-only for types), called
+  functions declared nowhere from ../runtime.ts. The unused
+  checkDecimal import is gone as a result.
+- **Round trip.** `check.xq` parses the printed files with
+  sxml:parse-code (typescript) and raises local:mismatch when a client
+  function lacks an Implementation method or a createHandler route, a
+  runtime import is not exported by runtime.ts, or the client lacks a
+  function of the tree.
+- **String constructors** stay only as the one-line contrast at the
+  start of the section, where the text says they are the simplest tool
+  for a line or two; the book's glossary entry says the same, and gains
+  "Printer" and "Syntax tree".
+- **Sections.** codegen-typescript.md ("Building a Tree of the Program
+  with XQuery"), new codegen-printer.md ("Printing the Tree with
+  XSLT"), codegen-running.md unchanged, codegen-pipeline.md gains
+  "Checking the generated code". The generated TypeScript changed only
+  in its header comment, the dropped import, brace-less one-statement
+  ifs and one folded concatenation.
+- **Verified**: check-book-examples.sh on a release build of a HEAD
+  snapshot: the five codegen files, 46 examples, all match (the Node
+  section with SXML_JAVASCRIPT set to an empty directory, since it
+  imports no package; the package was not built); tsc --strict (6.0.2,
+  @types/node) on demo.ts and the generated files, in both styles and
+  for library-2.xsd; mdbook build. No library bug found.
 
 ### D293. tree-sitter's WebAssembly language files in the JavaScript package (packet 7.25)
 Recorded 2026-10-20, after D138, D189, D225, D272, D285, D288. Carries
