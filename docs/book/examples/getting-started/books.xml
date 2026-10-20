@@ -1,0 +1,18 @@
+<books>
+  <book year="1979">
+    <title>Godel, Escher, Bach</title>
+    <author>Douglas Hofstadter</author>
+    <price>22.50</price>
+  </book>
+  <book year="1968">
+    <title>The Art of Computer Programming</title>
+    <author>Donald Knuth</author>
+    <price>180.00</price>
+  </book>
+  <book year="1986">
+    <title>Structure and Interpretation of Computer Programs</title>
+    <author>Harold Abelson</author>
+    <author>Gerald Jay Sussman</author>
+    <price>55.00</price>
+  </book>
+</books>

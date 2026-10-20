@@ -1,0 +1,15 @@
+[book]
+title = "The sxml Book"
+description = "Learn XPath 4.0, XQuery 4.0, XSLT 4.0 and XSD 1.1 with sxml, the small XML toolchain in portable C."
+authors = ["The sxml contributors"]
+language = "en"
+src = "src"
+
+[build]
+# The rendered book goes below the repository's ignored build/ directory.
+build-dir = "../../build/book"
+create-missing = false
+
+[output.html]
+git-repository-url = "https://github.com/dhamidi/sxml"
+edit-url-template = "https://github.com/dhamidi/sxml/edit/main/docs/book/{path}"
