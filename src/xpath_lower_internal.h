@@ -412,6 +412,12 @@ SXML_NODISCARD sxml_status sxml_xpath_lowerer_add_raise(
 SXML_NODISCARD sxml_status sxml_xpath_lowerer_push_variable(
     sxml_xpath_lowerer *lowerer, sxml_xpath_lowering_scope_entry entry);
 
+/* XSLT (26.3.1): clears the current output URI in the function being
+   lowered, for the rest of it: fn:current-output-uri() there is the
+   empty sequence, and current-output-uri#0 returns it. For stylesheet
+   functions, global variables and parameters, and patterns. */
+SXML_NODISCARD sxml_status sxml_xpath_lowerer_clear_output_uri(sxml_xpath_lowerer *lowerer);
+
 /* Takes the entries pushed after the first entry_count out of scope. */
 void sxml_xpath_lowerer_pop_variables(sxml_xpath_lowerer *lowerer,
                                       size_t entry_count);

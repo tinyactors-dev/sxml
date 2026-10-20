@@ -4258,13 +4258,16 @@ sxml_status sxml_xslt_pattern_lower_match_function(
     sxml_ir_expression_index body = {0};
     if (status == SXML_STATUS_OK) {
         sxml_xpath_lowerer_enter_function(lowerer, &frame);
-        status = sxml_xpath_lowerer_lower_embedded(
-            lowerer,
-            &(sxml_xpath_lowering_embedding){.ast = match_expression,
-                                             .node = {0},
-                                             .static_context = request->static_context,
-                                             .focus = NULL},
-            &body);
+        status = sxml_xpath_lowerer_clear_output_uri(lowerer);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xpath_lowerer_lower_embedded(
+                lowerer,
+                &(sxml_xpath_lowering_embedding){.ast = match_expression,
+                                                 .node = {0},
+                                                 .static_context = request->static_context,
+                                                 .focus = NULL},
+                &body);
+        }
         sxml_xpath_lowerer_leave_function(lowerer, &frame);
     }
     sxml_ast_destroy(match_expression);

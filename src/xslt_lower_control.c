@@ -912,9 +912,12 @@ static sxml_status continue_if(sxml_xpath_lowering_machine *machine,
         if (has_attribute(lowering, (attribute_lookup){.node = locals->head.node,
                                                        .kind = SXML_XSLT_AST_ATTRIBUTE_THEN}) &&
             has_content(lowering, locals->head.node)) {
+            /* 8.1 makes them exclusive without a code of its own (xsl:if
+               is not among XTSE3185's elements): XTSE0010, content the
+               element does not allow. */
             return report_static(lowering, locals->head.node,
                                  SXML_BYTE_VIEW_FROM_LITERAL(
-                                     "XTSE3185 xsl:if has both a then attribute and content (XSLT "
+                                     "XTSE0010 xsl:if has both a then attribute and content (XSLT "
                                      "4.0, 8.1)"));
         }
         return sxml_xslt_lowering_call_expression(
@@ -5393,6 +5396,12 @@ static sxml_status lower_initializer(initializer_request request,
             (sxml_xpath_lowering_focus){.kind = SXML_XPATH_LOWERING_FOCUS_KIND_ABSENT};
     }
     sxml_xpath_lowerer_enter_function(lowerer, &function_frame);
+    /* 26.3.1: no current output URI in a global's initializer. */
+    status = sxml_xpath_lowerer_clear_output_uri(lowerer);
+    if (status != SXML_STATUS_OK) {
+        sxml_xpath_lowerer_leave_function(lowerer, &function_frame);
+        return status;
+    }
     sxml_xpath_lowering_block block = {.first = {0}, .open_let = {0}};
     sxml_ir_atom value = {0};
     const bool is_parameter = kind_of(lowering, node) == SXML_XSLT_AST_KIND_PARAM;

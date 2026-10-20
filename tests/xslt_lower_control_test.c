@@ -229,7 +229,7 @@ static void test_conditionals(sxml_test_state *state) {
         {STYLESHEET("<xsl:if test='1 = 1' then='\"a\"' else='\"b\"'/>"
                     "<xsl:if test='1 = 2' then='\"a\"' else='\"b\"'/>"),
          "\"a\" \"b\""},
-        {STYLESHEET("<xsl:if test='1' then='2'>x</xsl:if>"), "error:XTSE3185"},
+        {STYLESHEET("<xsl:if test='1' then='2'>x</xsl:if>"), "error:XTSE0010"},
         {STYLESHEET("<xsl:if test='(1, 2)'>x</xsl:if>"), "error:FORG0006"},
         {STYLESHEET("<xsl:choose><xsl:when test='false()'>a</xsl:when>"
                     "<xsl:when test='true()' select='\"b\"'/>"

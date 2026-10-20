@@ -350,11 +350,18 @@ static sxml_status sxml_xslt_test_resolve(void *state,
             sxml_package_identity *identity = &identity_storage;
             memset(identity, 0, sizeof(*identity));
             identity->package_name = is_named ? request->uri_reference : sxml_xslt_test_empty_text;
-            identity->package_version = module->package_version;
+            /* The version the package's own xsl:package declares wins
+               over the catalog's package-version= (override-f-024 says
+               1.0.0 for a package of version 0.0.1); the catalog's
+               serves a file that declares none. */
+            identity->package_version = sxml_xslt_test_empty_text;
             const sxml_status read_status =
                 sxml_xslt_test_read_package_identity(context, module, identity);
             if (read_status != SXML_STATUS_OK) {
                 return read_status;
+            }
+            if (identity->package_version.byte_count == 0) {
+                identity->package_version = module->package_version;
             }
             if (!is_named &&
                 !sxml_byte_view_equals(identity->package_name, request->uri_reference)) {
@@ -1364,10 +1371,19 @@ static sxml_status sxml_xslt_test_compile(sxml_xslt_test_context *context,
 }
 
 /* The base output URI: output file=, else a directory of the test case's
-   own under the test set's. */
+   own under the test set's; absent (empty) for file="#absent", the
+   catalog's token for a transformation started without one. */
 static sxml_status sxml_xslt_test_base_output_uri(sxml_xslt_test_context *context,
                                                   sxml_byte_view *uri) {
     const sxml_xslt_test_case *test_case = context->test_case;
+    const sxml_byte_view absent_token = SXML_TEXT("#absent");
+    const sxml_byte_view file_path = test_case->output.file_path;
+    if (file_path.byte_count >= absent_token.byte_count &&
+        memcmp(file_path.bytes + file_path.byte_count - absent_token.byte_count,
+               absent_token.bytes, absent_token.byte_count) == 0) {
+        *uri = sxml_xslt_test_empty_text;
+        return SXML_STATUS_OK;
+    }
     if (test_case->output.file_path.byte_count != 0) {
         return sxml_xslt_test_suite_uri(context, test_case->output.file_path, uri);
     }

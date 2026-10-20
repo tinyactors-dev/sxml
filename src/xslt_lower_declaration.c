@@ -2084,7 +2084,13 @@ static sxml_status lower_component_function(const sxml_xslt_lowering *lowering,
         return status == SXML_STATUS_OK ? sxml_ir_unit_replace_function(lowerer->unit, &replacement)
                                         : status;
     }
-    sxml_status status = sxml_xpath_lowerer_run_procedure(
+    sxml_status status = SXML_STATUS_OK;
+    if (request->procedure == &function_body_procedure) {
+        /* 26.3.1: no current output URI in a stylesheet function. */
+        status = sxml_xpath_lowerer_clear_output_uri(lowerer);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_run_procedure(
         lowerer, &(sxml_xpath_lowering_procedure_call){
                      .procedure = request->procedure,
                      .node = no_ast_node,
@@ -2095,6 +2101,7 @@ static sxml_status lower_component_function(const sxml_xslt_lowering *lowering,
                                      .atom_block = NULL,
                                      .focused = NULL},
                      .initial_locals = request->initial_locals});
+    }
     if (status == SXML_STATUS_OK) {
         status = sxml_xpath_lowerer_finish_block(
             lowerer, (sxml_xpath_lowering_block_result){.block = block, .result = body}, &body);

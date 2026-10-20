@@ -1038,6 +1038,52 @@ static const sxml_function_parameter regex_group_parameters[] = {
      .parameter_default = SXML_PARAMETER_DEFAULT_CONTEXT_VARIABLE},
 };
 
+/* fn:stream-available($uri as xs:string?) as xs:boolean (XSLT 4.0,
+   18.2): true only when the document at $uri can be retrieved and read
+   as XML, which here means as fn:doc reads it, the whole of it (the
+   function "determines, as far as possible": a true result must promise
+   a well-formed prolog and first start tag, which a well-formed document
+   has; a document well-formed only that far gives false). A relative
+   URI is resolved against the static base URI; () gives false. */
+static sxml_status call_stream_available(const sxml_function_call *call, sxml_sequence *result) {
+    sxml_optional_item uri;
+    sxml_status status = sxml_function_library_read_optional_item(call, 0, &uri);
+    bool is_available = false;
+    if (status == SXML_STATUS_OK && uri.has_item && call->dynamic_context != NULL) {
+        sxml_string uri_reference;
+        status = sxml_function_library_read_string_argument(call, 0, &uri_reference);
+        sxml_item document_node = {.representation = 0};
+        if (status == SXML_STATUS_OK) {
+            status = sxml_dynamic_context_load_document(
+                call->dynamic_context,
+                &(sxml_document_request){
+                    .uri_reference = uri_reference.utf8,
+                    .base_uri = sxml_dynamic_context_get_static_base_uri(call->dynamic_context),
+                    .error_record = NULL},
+                &document_node);
+        }
+        if (status == SXML_STATUS_OK) {
+            is_available = true;
+            sxml_item_release(document_node);
+        } else if (status == SXML_STATUS_DYNAMIC_ERROR) {
+            /* What fn:doc would raise is the answer false. */
+            sxml_item_heap_clear_raised_error(call->item_heap);
+            status = SXML_STATUS_OK;
+        }
+    }
+    if (status == SXML_STATUS_OK) {
+        *result = sxml_function_library_make_boolean(
+            (sxml_boolean_result){.is_true = is_available});
+    }
+    return status;
+}
+
+static const sxml_function_parameter stream_available_parameters[] = {
+    {.parameter_name = SXML_BYTE_VIEW_INITIALIZER("uri"),
+     .parameter_type = SXML_BYTE_VIEW_INITIALIZER("xs:string?"),
+     .parameter_default = SXML_PARAMETER_DEFAULT_REQUIRED},
+};
+
 static const sxml_function_parameter current_parameters[] = {
     {.parameter_name = SXML_BYTE_VIEW_INITIALIZER("current-item"),
      .parameter_type = SXML_BYTE_VIEW_INITIALIZER("item()"),
@@ -1143,6 +1189,14 @@ static const sxml_native_function xslt_functions[] = {
      .parameters = {unparsed_entity_parameters, 2},
      .result_type = SXML_BYTE_VIEW_INITIALIZER("xs:string"),
      .call = call_unparsed_entity_public_id,
+     .resumable_body = NULL},
+    {.function_namespace = SXML_NAMESPACE_FUNCTIONS,
+     .properties = (uint32_t)SXML_NATIVE_FUNCTION_USES_DYNAMIC_CONTEXT |
+                   (uint32_t)SXML_NATIVE_FUNCTION_IS_NONDETERMINISTIC,
+     .local_name = SXML_BYTE_VIEW_INITIALIZER("stream-available"),
+     .parameters = {stream_available_parameters, 1},
+     .result_type = SXML_BYTE_VIEW_INITIALIZER("xs:boolean"),
+     .call = call_stream_available,
      .resumable_body = NULL},
     /* Context functions (glossary `context_function`): their values come
        from the variable xsl:analyze-string puts in scope (D153). */

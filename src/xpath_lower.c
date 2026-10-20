@@ -2851,6 +2851,153 @@ static sxml_status lower_context_function(sxml_xpath_lowerer *state, context_cal
         expression);
 }
 
+/*
+ * fn:current-output-uri in XSLT (XSLT 4.0, 26.3.1): "The current output
+ * URI is cleared (set to absent) while evaluating stylesheet functions,
+ * ... global variables, stylesheet parameters, and patterns": the XSLT
+ * lowering puts Q{XSLT}current-output-uri in scope, bound to NONE, in
+ * those functions (sxml_xpath_lowerer_clear_output_uri), where a call is
+ * the empty sequence. current-output-uri#0 "retains the value of the
+ * current output URI within its captured context" (4.0): a closure of
+ * the value the call gives where the reference is evaluated.
+ */
+static bool is_current_output_uri(sxml_xpath_lowerer *state, sxml_ast_node_index name_node) {
+    sxml_xpath_resolved_name resolved = {0};
+    return state->language == SXML_LANGUAGE_XSLT &&
+           sxml_xpath_resolve_name(
+               &(sxml_xpath_name_request){.ast = state->ast,
+                                          .name_node = name_node,
+                                          .name_role = SXML_XPATH_NAME_ROLE_FUNCTION,
+                                          .static_context = state->static_context,
+                                          .error_record = state->error_record},
+               &resolved) == SXML_STATUS_OK &&
+           resolved.namespace_uri.index == SXML_NAMESPACE_FUNCTIONS &&
+           sxml_byte_view_equals(resolved.local_name,
+                                 SXML_BYTE_VIEW_FROM_LITERAL("current-output-uri"));
+}
+
+sxml_status sxml_xpath_lowerer_clear_output_uri(sxml_xpath_lowerer *lowerer) {
+    sxml_name_identifier name = {0};
+    const sxml_status status = sxml_name_pool_intern_name(
+        lowerer->name_pool,
+        &(sxml_name_request){.namespace_uri = {.index = SXML_NAMESPACE_XSLT},
+                             .local_name = SXML_BYTE_VIEW_FROM_LITERAL("current-output-uri")},
+        &name);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_xpath_lowerer_push_variable(
+        lowerer, (sxml_xpath_lowering_scope_entry){.variable_name = name,
+                                                   .function_level = lowerer->function->function_level,
+                                                   .atom = {.atom_kind = SXML_IR_ATOM_KIND_NONE}});
+}
+
+/* Whether the current output URI is cleared where the lowerer is. */
+static bool is_output_uri_cleared(const sxml_xpath_lowerer *state) {
+    sxml_name_identifier variable_name = {0};
+    if (!sxml_name_pool_find_name(
+            state->name_pool,
+            &(sxml_name_request){.namespace_uri = {.index = SXML_NAMESPACE_XSLT},
+                                 .local_name = SXML_BYTE_VIEW_FROM_LITERAL("current-output-uri")},
+            &variable_name)) {
+        return false;
+    }
+    for (size_t entry_number = state->scope_entry_count; entry_number > 0; entry_number -= 1) {
+        if (state->scope_entries[entry_number - 1].variable_name.index == variable_name.index) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/* current-output-uri#0: in a block, the call's value, then the closure
+   that returns it; where the URI is cleared, a closure of (). */
+typedef struct output_uri_reference {
+    sxml_ast_node_index node;
+    sxml_name_identifier name;
+} output_uri_reference;
+
+static sxml_status lower_output_uri_reference(sxml_xpath_lowerer *state,
+                                              output_uri_reference reference,
+                                              sxml_ir_expression_index *expression) {
+    const bool is_cleared = is_output_uri_cleared(state);
+    sxml_xpath_lowering_block block = {.first = {0}, .open_let = {0}};
+    sxml_ir_atom value = {0};
+    sxml_status status = SXML_STATUS_OK;
+    if (!is_cleared) {
+        sxml_function_entry entry = {0};
+        status = find_function(state, (function_lookup){.function_name = reference.name, .arity = 0},
+                               &entry);
+        sxml_ir_expression call = {0};
+        if (status == SXML_STATUS_OK && entry.entry_kind == SXML_FUNCTION_ENTRY_KIND_NONE) {
+            status = SXML_STATUS_INVALID_ARGUMENT;
+        }
+        if (status == SXML_STATUS_OK) {
+            status = make_entry_call(state,
+                                     &(entry_call){.entry = &entry,
+                                                   .arguments = {0},
+                                                   .module_number = state->static_context->ir_module_number},
+                                     &call);
+        }
+        sxml_ir_expression_index call_index = {0};
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xpath_lowerer_add_expression(
+                state,
+                (sxml_xpath_lowering_expression_to_add){.node = reference.node, .expression = call},
+                &call_index);
+        }
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xpath_lowerer_bind_expression(
+                state,
+                (sxml_xpath_lowering_expression_in_block){.block = &block, .expression = call_index},
+                &value);
+        }
+    }
+    sxml_type_identifier signature = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_register_signature(
+            state,
+            (sxml_xpath_lowering_signature_request){
+                .parameter_types = {.sequence_types = NULL, .sequence_type_count = 0},
+                .result_type = {.item_type = sxml_builtin_type_identifier(SXML_TYPE_XS_ANY_URI),
+                                .occurrence = SXML_OCCURRENCE_ZERO_OR_ONE}},
+            &signature);
+    }
+    sxml_ir_function_index function = {0};
+    if (status == SXML_STATUS_OK) {
+        status = add_closure_function(
+            state,
+            (closure_request){.node = reference.node,
+                              .function_name = reference.name,
+                              .signature = signature,
+                              .parameter_count = 0,
+                              .captured_atoms = {.atoms = &value,
+                                                 .atom_count = is_cleared ? 0U : 1U}},
+            &function);
+    }
+    sxml_ir_expression_index closure = {0};
+    if (status == SXML_STATUS_OK) {
+        status = finish_closure(
+            state,
+            (closure_body){
+                .function = function,
+                .body = is_cleared
+                            ? (sxml_ir_expression){.expression_kind =
+                                                       SXML_IR_EXPRESSION_KIND_SEQUENCE,
+                                                   .sequence = {0}}
+                            : (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_ATOM,
+                                                   .atom = sxml_ir_slot_atom(
+                                                       (sxml_ir_slot){.value = 1})},
+                .node = reference.node},
+            &closure);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_xpath_lowerer_finish_block(
+        state, (sxml_xpath_lowering_block_result){.block = block, .result = closure}, expression);
+}
+
 /* A reference to a context function: a closure of arity 0 that returns
    the value captured when the reference is evaluated (XSLT 4.0, 14.2.1:
    current-group#0 retains the current group), or raises its error. */
@@ -3151,6 +3298,10 @@ lower_named_function_reference(sxml_xpath_lowerer *state,
         return lower_context_function_reference(
             state, (context_reference){.node = node, .function = context, .name = name},
             expression);
+    }
+    if (arity == 0 && is_current_output_uri(state, child_of(state, node, SXML_AST_FIELD_NAME))) {
+        return lower_output_uri_reference(state, (output_uri_reference){.node = node, .name = name},
+                                          expression);
     }
     sxml_function_entry entry = {0};
     if (arity <= UINT32_MAX) {
@@ -6723,6 +6874,15 @@ static sxml_status begin_function_call(sxml_xpath_lowering_machine *machine,
             return status;
         }
         return sxml_xpath_lowering_finish_frame(machine, frame, value);
+    }
+    if (arity == 0 && is_current_output_uri(state, child_of(state, call_node, SXML_AST_FIELD_NAME)) &&
+        is_output_uri_cleared(state)) {
+        sxml_ir_expression_index empty = {0};
+        status = sxml_xpath_lowerer_add_empty_sequence(state, frame->node, &empty);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        return sxml_xpath_lowering_finish_frame(machine, frame, empty);
     }
     sxml_function_entry entry = {0};
     sxml_ir_atom merge_sources = {0};
