@@ -11053,6 +11053,22 @@ Recorded 2026-10-20, after D23, D35, D71, D138, D213, D238, D240. Packet
   `libtool -static`, not `ar -M`. Check `swift test --sanitize=address
   --disable-xctest` there; it has not been run on macOS.
 
+### D245. XSLT targets the newest draft (owner)
+Recorded 2026-10-20 on the owner's word: "We want to target the newest
+draft for the XSLT tests." Amends D29, which pinned the grammars to the
+drafts of 13 October 2026 and let those drafts win over the test suite.
+- sxml's XSLT 4.0 follows the newest editor's draft published by the QT4
+  Community Group (qt4cg.org), and the xslt40-test suite is kept at its
+  newest commit (D13's update script). Both are refreshed together, with
+  the draft's date and the suite's commit recorded.
+- Where the newest draft and the suite agree, sxml follows them, also
+  where that changes behaviour an older draft decided (the `priority` set
+  and its "~T" patterns, 4.19/D185). Where they still disagree, the newest
+  draft wins and the case is recorded with the draft section, as D29 did.
+- The XPath 4.0, XQuery 4.0 and F&O 4.0 drafts the XSLT draft depends on
+  are refreshed at the same time where XSLT needs it; the rest of QT4
+  follows the same rule when its suite is next refreshed.
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): the license (there is
