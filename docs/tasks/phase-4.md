@@ -443,3 +443,17 @@ the release driver).
   priorities, 2 patterns the draft allows). New from the draft: typed="~T"
   on xsl:mode (6.9.4, XTTE3100). XT40 11,945 to 11,951 passed (+130
   wrong error), 0 errors, no case lost; the six from 7.20.
+- [x] **4.23 XSLT conformance sweep** (implementation, D255). Owns the
+  XSLT files a cluster's root cause is in, the XSLT and QT4 drivers'
+  comparison, the XT40 section of `docs/CONFORMANCE.md` and README's
+  XT40 row, their unit tests, and single insertions in the ledgers. From
+  a fresh XT40 run, the failures and wrong-error passes outside D252's
+  newest-draft cases, clustered by root cause, the largest fixed with
+  general mechanisms, starting with the `error` set and the XSLT
+  leftovers of `docs/agents/QUEUE.md`.
+  **Done** 2026-10-20 (D260): XT40 12,081 to 12,156 passed (130 to 120
+  wrong error), 437 to 362 failed, 0 errors, no case lost; gate rate
+  95.7 %. Left (causes in D260): captured groups through templates,
+  current-output-uri in templates called from functions,
+  fn:apply-templates, absent-focus codes, Sequence JNode copies, XSLT
+  without XPath's predeclared prefixes (a decision), and D230's.

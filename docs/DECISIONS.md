@@ -11751,6 +11751,84 @@ milestone against its base commit built the same way.
   the first only, and the second tests the first's candidates (1.4 s for
   2,000 x 2,000).
 
+### D260. XSLT conformance sweep by root-cause clusters (packet 4.23)
+Recorded 2026-10-20, after D153, D156, D185, D230, D234, D252, D255,
+D257, D258. Verified as D181 asks: the debug and debug-gcc presets, the
+touched unit tests (xslt, construct, xdm, jnode, the drivers, cli),
+clang-tidy, the call-cycle check, the book examples (D257), and the whole
+XT40 suite with the release driver after each change, case by case.
+**XT40 12,081 to 12,156 passed (130 to 120 wrong error), 437 to 362
+failed, 0 errors, no case lost** (74 failures and 11 wrong errors to
+passes, function-1018 from failure to wrong error); gate rate 94.9 % to
+95.7 %. QT4: the 2,939 assert-xml cases, fn-jkey, fn-jtree, fn-jvalue
+and prod-MapConstructor give the same outcomes in XP40 and XQ40.
+- **Clusters at the start** (whole run at 72119c1; 437 failures and 130
+  wrong errors, of which D252's 57 newest-draft cases are left as they
+  are), by root cause: assert-xml with whitespace around the result
+  (17); enclosing modes (8); xsl:copy of JNodes (12); fn:current-output-uri
+  (9); XSLT codes of constructor errors, XTDE0430/0440/0835/0865 (11);
+  static variables (XTSE3450, 5) and attributes 9.2 and 9.6 forbid
+  (XTSE0020, 3); initial-mode eligibility (XTDE0045, 5); XTSE0545 for
+  name lists and types (2); xsl:sequence and xsl:select as= and
+  xsl:select's content (8); fn:stream-available (6); the driver's
+  #absent and package versions (4); and a long tail of singletons.
+- **Fixes**, one mechanism each: assert-xml drops whitespace around a
+  result that is one document's worth of XML, as it did for the expected
+  text (the catalog canonicalizes; XML 1.0 [27] Misc); enclosing modes
+  (6.9.6) as the default mode of their rules, XTSE4015, XTSE4020,
+  XTSE4025; XTSE0545 compares use-accumulators as sets of names and
+  as/typed as types (identical: each a subtype of the other, as 3.4.5.3);
+  XTDE0045 by 2.4.3's eligibility (an xsl:stylesheet exposes its modes,
+  3.5); xsl:copy of an Array or Map JNode (11.9.1.2) evaluates its content
+  and builds the array or map (as xsl:array, xsl:map duplicates use-last),
+  J1 a parentless JNode with J0's jkey (internal
+  `sxml_json_node_make_keyed_root`, `src/xdm_internal.h`; xdm.h is not
+  changed); fn:jkey and D258's `{ E }` rule test the key, not the parent;
+  xsl:array-member replaces JNodes by their jvalues (22.1, one level);
+  XSLT element construction raises XTDE0440 for a default namespace node
+  on an element in no namespace and XTDE0430 for XQDY0102 (5.7.1), and
+  xsl:element/xsl:attribute XTDE0835/XTDE0865 for the xmlns namespace
+  (11.2.2, 11.3); static variables are checked for consistency with an
+  earlier one of lower precedence (9.6, XTSE3450) and the higher one
+  stays in scope; fn:current-output-uri is cleared in stylesheet
+  functions, globals and patterns by a scope entry
+  (`sxml_xpath_lowerer_clear_output_uri`, D153's mechanism) and
+  current-output-uri#0 captures its value (26.3.1, PR 2274);
+  fn:stream-available answers as fn:doc-available (18.2 constrains only a
+  true result); xsl:sequence/xsl:select as= coerce (10.4.1, 10.4.2);
+  XTSE0010 for xsl:if then= with content (8.1 gives no code) and for an
+  element other than xsl:fallback in xsl:select; the XSLT driver reads
+  output file="#absent" as no base output URI and prefers a package
+  file's own package-version to the catalog's.
+- **The draft wins** (D245; recorded, not changed): beside D252's 57,
+  XTSE3185 for xsl:when, xsl:otherwise and xsl:map-entry with select and
+  content (choose-4502/-4503, maps-008, error-3280a: the suite says
+  XTSE0010/XTSE3280); XPTY0004 for XPTY0019/XPTY0020 (5); exact numeric
+  comparison of xs:double and xs:decimal (F&O 4.0, op:numeric-equal;
+  sx-gc-eq-016/-020/-021/-116/-120/-121); xsl:sequence as= (function-1018).
+- **Suite errors**: package-location-001 to -005 name files the suite
+  does not have and assert @q where the stylesheet writes @p.
+- **Tried and not kept**: XSLT without XPath's predeclared prefixes (xs,
+  fn, map, array, math, err, xsi; 3.6.1 and 5.3.1 give only the
+  applicable static namespaces and xml) passes namespace-6202 and loses
+  nothing in XT40, but four unit-test files, the README's examples and
+  the book's page.xsl rely on xs: and map: undeclared; a change of user
+  behaviour for one case, left as a deviation for a later decision.
+- **Left, with causes**: a template applied from a stylesheet function
+  still sees the current output URI (current-output-uri-008: the clearing
+  is lexical); fn:stream-available on documents well-formed only to the
+  first start tag (-004, -005); captured groups through called templates
+  (analyze-string-078 to -081, D153: lexical; an implicit tunnel
+  parameter would carry them); the per-item copies of a Sequence JNode
+  (copy-5405, -5501, -5502); fn:apply-templates (5, a re-entrant call
+  from a function, D71); XSLT codes for absent-focus errors in
+  fn:key/unparsed-entity-* (XTDE1270/1370/1380) and casting failures in
+  coercions (FORG0001 for XTTE0570/0590/0505); XPath prolog declarations
+  in xsl:select (seqtor-143/-144, XPath 4.0); assert-xml expected texts
+  with indentation (sf-snapshot, 9); xml-version-007,
+  namespace-2606, docbook-004, document-4066, fn-transform-27/-82e/
+  -94 (causes as D230 and D234 give them).
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): tagging and

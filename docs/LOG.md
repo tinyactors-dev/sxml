@@ -4,6 +4,18 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 4.23 done (D260): an XSLT sweep by root-cause clusters. assert-xml
+  ignores whitespace around a result document; enclosing modes (6.9.6);
+  XTSE0545 for name lists and types; initial-mode eligibility; xsl:copy
+  of JNodes (11.9.1.2) with keyed parentless roots; XTDE0430/0440/0835/
+  0865; static variables' consistency (XTSE3450); fn:current-output-uri
+  cleared in functions, globals and patterns, current-output-uri#0
+  captured; fn:stream-available; xsl:sequence/xsl:select as=. XT40
+  12,081 to 12,156 passed (+75, 120 wrong error), 362 failed, 0 errors,
+  no case lost; CONFORMANCE XT40 section and README regenerated. Next:
+  captured groups through templates, absent-focus codes, XSLT without
+  XPath's predeclared prefixes (a decision).
+
 - 2.23 done (D258): an XPath/XQuery sweep by root-cause clusters. JNodes
   in `{ E }` map constructors; the item axis's JNode with G as its parent
   (D113's deviation gone); fn:xsd-validator compiles its schema,
