@@ -1186,6 +1186,12 @@ default step limit takes about 75 s to trigger.
 - **Done when**: each change measured before and after, in a D-record
   and the commit messages; no QT4 XQ40 or XT40 outcome changes, case by
   case; the book's chapter true (D257).
+**Done** 2026-10-20 (D259): descendant paths, the number view and
+non-constant probes first (the book's join 12.9 to 0.045 s); item
+demands and quantified fusion (`exists`, `head(filter(...))`, `[1]`,
+some/every over 10^7 items 2 to 6 s to 0.004 s); the default step bound
+10^8 (8 s instead of 75 s; the drivers' bounds unchanged); xmark-all +1 %
+instructions; QT4 XQ40 and XT40 unchanged case by case.
 
 ## Proposed for the owner
 

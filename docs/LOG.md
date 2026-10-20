@@ -4,6 +4,19 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- perf-4 done (D259): the three things the book found. The book's join
+  (2,000 orders) 12.9 to 0.045 s: "E//T[P]" becomes descendant::T[P]
+  (the descendant pass), untyped keys answer numeric probes (the number
+  view), probes that are no constant are indexed first. Early exits:
+  item demands (the demand pass) stop MAPs, FILTERs, axis steps and
+  traversals after the items exists, empty, head, boolean, `[k]` read;
+  some/every run over the input of a filter or loop they read (the
+  fusion pass); 10^7 items 2 to 6 s to 0.004 s. The default step bound
+  is 10^8 (8 s, was 75 s; 7 to 21 million steps a second); drivers keep
+  their bounds. xmark-all +1 % instructions; XQ40 45,964 and XT40 12,036
+  passed, 0 outcomes changed. Book: performance, C (195 allocations),
+  limits appendix.
+
 - 4.24 done (D261): XSLT stylesheets no longer see XPath's predeclared
   prefixes; as XSLT 4.0 5.3.1 says, a stylesheet knows its applicable
   static namespaces (native or fixed-namespaces) and xml. A behaviour
