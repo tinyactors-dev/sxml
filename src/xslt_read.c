@@ -5011,15 +5011,21 @@ static sxml_status read_static_declaration(stylesheet_reader *reader, const decl
         !static_attribute->value.payload.is_true) {
         return SXML_STATUS_OK;
     }
-    const reader_error misplaced = {.error_code = "XTSE0010",
-                                    .description = "A static variable or parameter is not "
-                                                   "top-level, has content or lacks select "
-                                                   "(XSLT 4.0, 9.6)",
-                                    .module = input->parent->module,
-                                    .source_span = input->facts->source_span};
+    const reader_error lacks_select = {.error_code = "XTSE0010",
+                                       .description = "A static variable lacks select "
+                                                      "(XSLT 4.0, 9.6)",
+                                       .module = input->parent->module,
+                                       .source_span = input->facts->source_span};
     sxml_status status = SXML_STATUS_OK;
     if (input->parent->child_context != SXML_CHILD_CONTEXT_DECLARATIONS) {
-        return raise_error(reader, misplaced);
+        /* 9.2's table and 9.6: static="yes" is not a permitted value
+           below the top level (XTSE0020, 5.6.1). */
+        return raise_error(reader, (reader_error){.error_code = "XTSE0020",
+                                                  .description = "static=\"yes\" is on a "
+                                                                 "variable or parameter that is "
+                                                                 "not top-level (XSLT 4.0, 9.6)",
+                                                  .module = input->parent->module,
+                                                  .source_span = input->facts->source_span});
     }
     const sxml_xslt_ast_attribute *visibility_attribute = sxml_xslt_ast_get_attribute(
         ast, sxml_xslt_ast_find_attribute(ast, (sxml_xslt_ast_attribute_query){
@@ -5078,7 +5084,7 @@ static sxml_status read_static_declaration(stylesheet_reader *reader, const decl
                                                                .source_span = select->source_span},
                                          &value);
         } else if (!is_parameter) {
-            return raise_error(reader, misplaced);
+            return raise_error(reader, lacks_select);
         } else if (find_unprefixed(reader, SXML_BYTE_VIEW_FROM_LITERAL("as")) == NULL) {
             /* 9.3: no select and no content is the zero-length string. */
             status = sxml_function_library_make_string(
@@ -6243,13 +6249,21 @@ static sxml_status end_frame(stylesheet_reader *reader, size_t frame_index) {
     const open_element *frame = frame_at(reader, frame_index);
     if (frame->requires_no_children &&
         sxml_xslt_ast_get_node(reader->ast, frame->node)->first_child.value != 0) {
-        return raise_error(reader, (reader_error){.error_code = "XTSE0010",
-                                                  .description = "A static variable or "
-                                                                 "parameter has content (XSLT "
-                                                                 "4.0, 9.6)",
-                                                  .module = frame->module,
-                                                  .source_span = location_of(frame->tree,
-                                                                             frame->element)});
+        /* 9.3: content beside a select attribute is XTSE0620. */
+        const bool has_select =
+            sxml_xslt_ast_get_attribute(
+                reader->ast, sxml_xslt_ast_find_attribute(
+                                 reader->ast,
+                                 (sxml_xslt_ast_attribute_query){
+                                     .node = frame->node, .kind = SXML_XSLT_AST_ATTRIBUTE_SELECT}))
+                ->kind != SXML_XSLT_AST_ATTRIBUTE_NONE;
+        return raise_error(reader,
+                           (reader_error){.error_code = has_select ? "XTSE0620" : "XTSE0010",
+                                          .description = "A static variable or "
+                                                         "parameter has content (XSLT "
+                                                         "4.0, 9.6)",
+                                          .module = frame->module,
+                                          .source_span = location_of(frame->tree, frame->element)});
     }
     if (frame->rule != NULL && frame->child_context == SXML_CHILD_CONTEXT_RULE &&
         frame->rule->required_child_kind != SXML_XSLT_AST_KIND_NONE &&

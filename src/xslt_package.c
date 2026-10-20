@@ -830,25 +830,43 @@ typedef struct test_check {
     uint32_t instance_count;
 } test_check;
 
-static sxml_status check_tests(const sxml_xslt_lowering *lowering, test_check check) {
-    const sxml_xslt_package_table *table = lowering->packages;
-    const bool is_expose = node_of(lowering, check.element)->kind == SXML_XSLT_AST_KIND_EXPOSE;
-    const sxml_xslt_ast_keyword kind =
-        keyword_of(lowering, check.element, SXML_XSLT_AST_ATTRIBUTE_COMPONENT);
-    const sxml_xslt_ast_name_token_view tokens = tokens_of(lowering, check.element);
+/* XTSE3022/XTSE3032 for element, an xsl:expose or xsl:accept. */
+static sxml_status check_any_component(const sxml_xslt_lowering *lowering,
+                                       sxml_xslt_ast_node_index element) {
+    const bool is_expose = node_of(lowering, element)->kind == SXML_XSLT_AST_KIND_EXPOSE;
+    if (keyword_of(lowering, element, SXML_XSLT_AST_ATTRIBUTE_COMPONENT) !=
+        SXML_XSLT_AST_KEYWORD_ANY_COMPONENT) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_xslt_ast_name_token_view tokens = tokens_of(lowering, element);
     for (size_t token_index = 0; token_index < tokens.name_token_count; token_index += 1) {
-        const sxml_xslt_ast_name_token *token = &tokens.name_tokens[token_index];
-        if (token->kind != SXML_XSLT_AST_NAME_TOKEN_KIND_NAME) {
-            continue;
-        }
-        if (kind == SXML_XSLT_AST_KEYWORD_ANY_COMPONENT) {
-            return report(lowering, check.element,
+        if (tokens.name_tokens[token_index].kind == SXML_XSLT_AST_NAME_TOKEN_KIND_NAME) {
+            return report(lowering, element,
                           is_expose ? SXML_BYTE_VIEW_FROM_LITERAL(
                                           "XTSE3022 xsl:expose with component=\"*\" names a "
                                           "component that is no wildcard (XSLT 4.0, 3.4.5.1)")
                                     : SXML_BYTE_VIEW_FROM_LITERAL(
                                           "XTSE3032 xsl:accept with component=\"*\" names a "
                                           "component that is no wildcard (XSLT 4.0, 3.4.5.2)"));
+        }
+    }
+    return SXML_STATUS_OK;
+}
+
+static sxml_status check_tests(const sxml_xslt_lowering *lowering, test_check check) {
+    const sxml_xslt_package_table *table = lowering->packages;
+    const bool is_expose = node_of(lowering, check.element)->kind == SXML_XSLT_AST_KIND_EXPOSE;
+    const sxml_xslt_ast_keyword kind =
+        keyword_of(lowering, check.element, SXML_XSLT_AST_ATTRIBUTE_COMPONENT);
+    const sxml_status status = check_any_component(lowering, check.element);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    const sxml_xslt_ast_name_token_view tokens = tokens_of(lowering, check.element);
+    for (size_t token_index = 0; token_index < tokens.name_token_count; token_index += 1) {
+        const sxml_xslt_ast_name_token *token = &tokens.name_tokens[token_index];
+        if (token->kind != SXML_XSLT_AST_NAME_TOKEN_KIND_NAME) {
+            continue;
         }
         bool is_matched = false;
         for (uint32_t offset = 0; offset < check.instance_count && !is_matched; offset += 1) {
@@ -946,11 +964,20 @@ static sxml_status add_own_instances(const sxml_xslt_lowering *lowering, uint32_
                                   &index);
         }
     }
+    /* An xsl:expose that is invalid in itself (XTSE3022) is reported
+       before the visibilities it would give (XTSE3010, XTSE3025). */
+    const sxml_xslt_ast_node_index root = table->packages[package].root;
+    for (sxml_xslt_ast_node_index child = node_of(lowering, root)->first_child;
+         status == SXML_STATUS_OK && child.value != 0;
+         child = node_of(lowering, child)->next_sibling) {
+        if (node_of(lowering, child)->kind == SXML_XSLT_AST_KIND_EXPOSE) {
+            status = check_any_component(lowering, child);
+        }
+    }
     const uint32_t end = table->instance_count == 0 ? 1U : table->instance_count;
     for (uint32_t index = first; status == SXML_STATUS_OK && index < end; index += 1) {
         status = decide_visibility(lowering, &table->instances[index]);
     }
-    const sxml_xslt_ast_node_index root = table->packages[package].root;
     for (sxml_xslt_ast_node_index child = node_of(lowering, root)->first_child;
          status == SXML_STATUS_OK && child.value != 0;
          child = node_of(lowering, child)->next_sibling) {
