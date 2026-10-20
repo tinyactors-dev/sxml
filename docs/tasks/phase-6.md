@@ -411,6 +411,9 @@ Owner: `connectedAndroidTest` on an x86_64 emulator at API 24 and 35 and
 on one arm64 device.
 
 ### 6.7 Swift core (implementation, here)
+**Done** 2026-10-20 (D241): `Package.swift`, `bindings/swift/` (module
+map, `Sources/Sxml`, 27 tests), ctest `swift/linux` over a merged
+`libsxml_host.a`; Swift 6.2 on Linux, 0 leaks.
 After 6.2 and 6.3. Owns:
 - `Package.swift` at the repository root (SwiftPM needs it there);
 - `bindings/swift/Sources/CSxmlHost/` (`module.modulemap` over

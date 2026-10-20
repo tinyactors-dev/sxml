@@ -10992,6 +10992,67 @@ header `bindings/host/sxml_host.h`) and kept the JavaScript export names.
 
   Both are within the packet's 1 KB, and no budget changes.
 
+### D241. The Swift core: module Sxml, the merged archive, ARC and the test hooks (packet 6.7)
+Recorded 2026-10-20, after D23, D35, D71, D138, D213, D238, D240. Packet
+6.7 added `Package.swift` at the root and `bindings/swift/` (module
+`Sxml`; the API of `docs/tasks/phase-6.md`, XPath half).
+- **Linking**: `CSxmlHost` is a system module whose module map is
+  `bindings/host/sxml_host.h` itself, with `link "sxml_host"`. No
+  Swift-specific C.
+  - On Linux, `bindings/swift/CMakeLists.txt` merges every static library
+    `sxml_host` links (the shim, `sxml`, tree-sitter, the grammars,
+    libmpdec) into one `lib/libsxml_host.a` with an `ar -M` script. The
+    manifest then names one library, whatever `sxml` links.
+  - The grammars are found through the global property
+    `SXML_GRAMMAR_LIBRARIES`, because their link to `sxml` is deferred to
+    the end of the root directory.
+  - The manifest's include path (`-Xcc -I include`) and `-L` are unsafe
+    flags, set only when `SXML_HOST_LIBRARY_PATH` is. A root package may
+    use them. A package that depends on this one cannot, so it needs the
+    XCFramework of 6.9.
+- **ctest `swift/linux`** runs `swift test --disable-xctest
+  -Xswiftc -warnings-as-errors` with a scratch path in the build tree.
+  - Under the sanitizer presets it adds `--sanitize=address`. swiftc has
+    no `-sanitize=undefined` on Linux, but the ASan runtime has UBSan's
+    handlers, so the `-fno-sanitize-recover` C code links and traps.
+  - `--disable-xctest`: XCTest's empty run leaks objects of its own,
+    which LeakSanitizer reports. The tests use Swift Testing.
+  - Skipped with code 77 and a message when no `swift` is found
+    (`SXML_SWIFT`, else `PATH`). Registered on Linux hosts only.
+  - gold prints "Cannot export local symbol '__asan_...'" warnings at the
+    ASan link. They are harmless.
+- **API choices** (defaults under D208):
+  - `SxmlError.description` is sxml's description, as the task file lists
+    it, and so also the `CustomStringConvertible` text. `message` adds the
+    code and location ("1:3: err:XPST0003: ..."), as the JavaScript
+    `message` does.
+  - `Processor(... failingAllocationNumber: Int = 0)` is public, as
+    `failingAllocationNumber` is in the JavaScript options.
+  - `CollationData.bundled` serves nothing until 6.8 adds the DUCET as a
+    SwiftPM resource. It is then the one place to change.
+  - Map keys of `[String: XdmInput?]` reach `fn:parse-json` in code point
+    order: a Swift dictionary has no order of its own.
+  - A `Value` inside an array or map is refused
+    (`SxmlUsageError.unsupportedInput`). JSON-shaped data cannot hold it.
+  - `ResourceKind` cases are camelCase with the JavaScript names as raw
+    values. `Status` cases are camelCase with `sxml_status`'s names as raw
+    values.
+- **Leak checks**: a processor's `deinit` reports the allocations left to
+  an internal `leakObserver`, which the tests set through `@testable
+  import`. With ARC there is no dispose to call before the check.
+- **Tests**: 27 in Swift Testing. 24 have the names of
+  `test/package.test.ts`. The two disposal tests are replaced by three ARC
+  tests: "a value keeps its processor alive", "an expression keeps its
+  processor alive", and "values that are released return their memory".
+- **Toolchain**: Swift 6.2 (`swift-6.2-RELEASE`, the Ubuntu 24.04 x86_64
+  tarball from download.swift.org), Swift Testing 6.2, tools version 6.0,
+  Swift 6 language mode.
+- **For 6.9 (Apple)**: there, `CSxmlHost` becomes a `binaryTarget`
+  (`Sxml.xcframework`, whose static library is also `libsxml_host.a`).
+  The headers and the module map go into the XCFramework. Merge with
+  `libtool -static`, not `ar -M`. Check `swift test --sanitize=address
+  --disable-xctest` there; it has not been run on macOS.
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): the license (there is

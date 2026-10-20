@@ -4,6 +4,17 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 6.7 done (D241): the Swift core. `Package.swift` at the root and
+  `bindings/swift/` (module `Sxml`) import the host shim through the module
+  map `CSxmlHost`, with no Swift-specific C. Processor, parse, compile,
+  evaluate, value, serialize, the resolver and errors; ARC, and no type
+  is Sendable. ctest `swift/linux` (merged `libsxml_host.a`, `swift test`,
+  ASan under debug; skipped without swift) passes 27 Swift Testing tests
+  with 0 leaks: 24 by the names of `package.test.ts`, 3 ARC tests and the
+  allocation-failure loop among them. Swift 6.2 (swift-6.2-RELEASE) on
+  Ubuntu 24.04. Next: 6.8 (XQuery, XSLT, XSD, the DUCET resource); 6.9 on
+  the owner's Mac.
+
 - 6.2 done (D240): the JavaScript shim is the host shim in
   `bindings/host/` (`sxml_host_*`, target `sxml_host`). The resolver is a
   state and a function, and the request names its processor. The
