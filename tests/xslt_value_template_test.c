@@ -138,6 +138,16 @@ static void test_fixed_parts_are_expanded(sxml_test_state *state) {
                                 SXML_BYTE_VIEW_FROM_LITERAL("{")));
     SXML_TEST_EXPECT(state, third->next_sibling.value == 0);
     sxml_ast_destroy(built);
+    /* XML 1.1 [2] Char: an XML 1.1 stylesheet's C0 controls are text. */
+    const sxml_ast_build_request controls = request_of("\x08\x1f{1}", NULL);
+    SXML_TEST_REQUIRE(state, sxml_xslt_build_value_template_ast(&controls, &built) ==
+                                 SXML_STATUS_OK);
+    body = sxml_ast_get_node(built, sxml_ast_get_node(built, built->root)->first_child);
+    first = sxml_ast_get_node(built, body->first_child);
+    SXML_TEST_EXPECT(state, first->kind == SXML_AST_KIND_STRING_TEMPLATE_FIXED_PART &&
+                                sxml_byte_view_equals(sxml_ast_get_text(built, first->payload.text),
+                                                      SXML_BYTE_VIEW_FROM_LITERAL("\x08\x1f")));
+    sxml_ast_destroy(built);
 }
 
 /* A template that must fail, the code and where. */

@@ -12,6 +12,20 @@ enum value_template_token_kind {
 };
 
 /*
+ * A character of a fixed part: XML 1.1 [2] Char, a superset of XML 1.0's.
+ * A fixed part is the text of an attribute or text node, which the XML
+ * parser has already checked against the document's own XML version, so
+ * an XML 1.1 stylesheet may hold the C0 controls it allows (written as
+ * references) there.
+ */
+static bool value_template_is_character(int32_t character)
+{
+    return (character >= 0x01 && character <= 0xD7FF)
+        || (character >= 0xE000 && character <= 0xFFFD)
+        || (character >= 0x10000 && character <= 0x10FFFF);
+}
+
+/*
  * A fixed part (XSLT 4.0 5.6): any characters, a left curly bracket written
  * as "{{" and a right one as "}}". A single "{" starts a variable part; a
  * single "}" is no token, so the parse fails there (XTSE0370).
@@ -27,7 +41,7 @@ static bool value_template_scan_fixed_part(TSLexer *lexer)
                 break;
             }
             query_scanner_advance(lexer);
-        } else if (!query_scanner_is_character(character)) {
+        } else if (!value_template_is_character(character)) {
             break;
         } else {
             query_scanner_advance(lexer);
