@@ -648,6 +648,18 @@ static sxml_status start_template_or_default(sxml_xpath_lowering_machine *machin
 
 /* ------------------------------------------------------ xsl:sequence */
 
+/* Finishes xsl:sequence or xsl:select with its value, coerced to the type
+   of its as attribute when it has one (XSLT 4.0, 10.4.1, 10.4.2: "the
+   coercion rules", XPTY0004). */
+typedef struct typed_value {
+    const sxml_xslt_instruction_locals *head;
+    sxml_ir_atom value;
+} typed_value;
+
+static sxml_status finish_with_typed_value(sxml_xpath_lowering_machine *machine,
+                                           sxml_xpath_lowering_frame *frame, typed_value typed);
+
+
 /* xsl:sequence (10.4.1): its select expression or sequence constructor. */
 typedef struct sequence_locals {
     sxml_xslt_instruction_locals head;
@@ -669,7 +681,33 @@ static sxml_status continue_sequence(sxml_xpath_lowering_machine *machine,
                                                "and content (XSLT 4.0, 10.4.1)"},
                            &source);
     }
-    return finish_with_atom(machine, frame, locals->value);
+    return finish_with_typed_value(machine, frame,
+                                   (typed_value){.head = &locals->head, .value = locals->value});
+}
+
+static sxml_status finish_with_typed_value(sxml_xpath_lowering_machine *machine,
+                                           sxml_xpath_lowering_frame *frame, typed_value typed) {
+    const sxml_xslt_instruction_locals *head = typed.head;
+    const sxml_ir_atom value = typed.value;
+    sxml_xslt_declared_type type = {.has_type = false};
+    sxml_status status =
+        sxml_xslt_lowering_resolve_declared_type(head->lowering, head->node, &type);
+    if (status != SXML_STATUS_OK || !type.has_type) {
+        return status != SXML_STATUS_OK ? status : finish_with_atom(machine, frame, value);
+    }
+    sxml_ir_atom coerced = {0};
+    status = bind(machine->state,
+                  (sxml_xslt_expression_to_bind){
+                      .block = frame->block,
+                      .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_COERCE,
+                                     .coercion = {.value = value,
+                                                  .sequence_type = type.sequence_type,
+                                                  .role = SXML_IR_COERCION_ROLE_VARIABLE}}},
+                  &coerced);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return finish_with_atom(machine, frame, coerced);
 }
 
 static const sxml_xpath_lowering_procedure sequence_procedure = {
@@ -693,7 +731,8 @@ static sxml_status continue_select(sxml_xpath_lowering_machine *machine,
                 .atom = &locals->value,
                 .focus = NULL});
     }
-    return finish_with_atom(machine, frame, locals->value);
+    return finish_with_typed_value(machine, frame,
+                                   (typed_value){.head = &locals->head, .value = locals->value});
 }
 
 static const sxml_xpath_lowering_procedure select_procedure = {

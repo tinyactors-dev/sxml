@@ -4540,6 +4540,12 @@ static role_decision decide_role(const stylesheet_reader *reader, const role_req
             return (role_decision){.role = SXML_ELEMENT_ROLE_XSLT, .error_code = NULL,
                                    .description = NULL};
         }
+        /* xsl:select's content is xsl:fallback and text (10.4.2): any
+           other element is XTSE0010. */
+        if (parent->rule != NULL && parent->rule->kind == SXML_XSLT_AST_KIND_SELECT &&
+            !is_forwards_compatible) {
+            return misplaced;
+        }
         return ignored;
     case SXML_CHILD_CONTEXT_SKIPPED:
         return ignored;
