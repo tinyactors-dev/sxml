@@ -1,0 +1,3 @@
+temperature: number, unit.
+number: ["0"-"9"]+.
+unit: -"C", +"celsius"; -"F", +"fahrenheit".

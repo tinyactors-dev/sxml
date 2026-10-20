@@ -174,3 +174,7 @@ $ sxml xpath --method=xml 'invisible-xml(unparsed-text("log.ixml"))("2026-10-20 
 
 The hour has one digit where the grammar wants two. With the option
 `{ "fail-on-error": true() }`, the parser raises an error instead.
+
+Invisible XML has a part of its own, [Parsing Text with Invisible
+XML](ixml.md): how to write grammars, more tasks, failures and grammar
+errors, and performance.

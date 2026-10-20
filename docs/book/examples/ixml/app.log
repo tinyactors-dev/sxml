@@ -1,0 +1,6 @@
+2026-10-20 09:15:02 INFO server started
+2026-10-20 09:17:45 WARN disk 91% full
+2026-10-20 09:21:13 ERROR disk full
+2026-10-20 09:21:14 INFO cleanup started
+2026-10-20 09:24:50 INFO cleanup done
+2026-10-20 10:02:31 ERROR connection refused

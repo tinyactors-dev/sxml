@@ -1,0 +1,4 @@
+greeting: hello, -", ", name, -"!".
+hello: "Hello"; "Hi".
+name: letter+.
+-letter: ["A"-"Z"; "a"-"z"].

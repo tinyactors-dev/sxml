@@ -1,0 +1,4 @@
+item;price;note
+Coffee;3.50;"hot; large"
+Tea;2.10;
+"Juice ""fresh""";4.20;cold

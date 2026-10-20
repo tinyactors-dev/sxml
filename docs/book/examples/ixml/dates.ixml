@@ -1,0 +1,16 @@
+ixml version "1.1".
+{Dates in three forms, one per line, all made into year, month and day.}
+dates: (date, -#a)+.
+date: iso; written; american.
+-iso: year, -"-", month, -"-", day.
+-written: day, -" ", month-name, -" ", year.
+-american: month, -"/", day, -"/", year.
+year: digit, digit, digit, digit.
+month: digit, digit; +"0", digit.
+day: digit, digit; +"0", digit.
+month-name>month:
+    -"January", +"01"; -"February", +"02"; -"March", +"03";
+    -"April", +"04"; -"May", +"05"; -"June", +"06";
+    -"July", +"07"; -"August", +"08"; -"September", +"09";
+    -"October", +"10"; -"November", +"11"; -"December", +"12".
+-digit: ["0"-"9"].

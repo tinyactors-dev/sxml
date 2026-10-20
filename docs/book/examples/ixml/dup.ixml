@@ -1,0 +1,6 @@
+date: year, -"-", month, -"-", day.
+year: digit, digit, digit, digit.
+month: digit, digit.
+day: digit, digit.
+date: day, -".", month, -".", year.
+-digit: ["0"-"9"].
