@@ -1167,8 +1167,17 @@ static sxml_status lower_template_function(sxml_xslt_lowering *lowering,
     if (first.value != 0 && node_of(lowering, first)->kind == SXML_XSLT_AST_KIND_CONTEXT_ITEM) {
         const sxml_xslt_ast_attribute *use =
             find_attribute(lowering, first, SXML_XSLT_AST_ATTRIBUTE_USE);
-        is_focus_absent = is_focus_absent || (use->value.kind == SXML_XSLT_AST_VALUE_KIND_KEYWORD &&
-                          use->value.payload.keyword == SXML_XSLT_AST_KEYWORD_ABSENT);
+        const bool is_absent_use = use->value.kind == SXML_XSLT_AST_VALUE_KIND_KEYWORD &&
+                                   use->value.payload.keyword == SXML_XSLT_AST_KEYWORD_ABSENT;
+        if (is_absent_use &&
+            find_attribute(lowering, first, SXML_XSLT_AST_ATTRIBUTE_AS)->kind !=
+                SXML_XSLT_AST_ATTRIBUTE_NONE) {
+            return report_static_error(
+                lowering, first,
+                SXML_BYTE_VIEW_FROM_LITERAL("XTSE3088 xsl:context-item has an as attribute and "
+                                            "use=\"absent\" (XSLT 4.0, 10.1.4)"));
+        }
+        is_focus_absent = is_focus_absent || is_absent_use;
     }
     const sxml_ir_focus focus_slots = {
         .context_value = item_slot, .context_position = position_slot, .context_size = size_slot};

@@ -549,6 +549,11 @@ static void test_attribute_sets(sxml_test_state *state) {
                     "<xsl:template name='t'><xsl:context-item use='absent'/><xsl:next-match/>"
                     "</xsl:template>"),
          "error:XTDE0560"},
+        /* 10.1.4: XTSE3088 for as with use="absent". */
+        {STYLESHEET("<xsl:template match='/'><xsl:call-template name='t'/></xsl:template>"
+                    "<xsl:template name='t'><xsl:context-item as='node()' use='absent'/>"
+                    "</xsl:template>"),
+         "error:XTSE3088"},
     };
     CHECK(state, cases);
 }

@@ -349,6 +349,18 @@ static void test_static_errors(sxml_test_state *state) {
         {"<xsl:stylesheet version='3.0' " XSL_NAMESPACE "><xsl:template mode='m'/>"
          "</xsl:stylesheet>",
          "XTSE0500"},
+        {"<xsl:stylesheet version='3.0' " XSL_NAMESPACE "><xsl:template match='/' "
+         "visibility='private'/></xsl:stylesheet>",
+         "XTSE0500"},
+        /* 24: extension-element-prefixes may not name a reserved
+           namespace. */
+        {"<xsl:stylesheet version='3.0' " XSL_NAMESPACE
+         " xmlns:xs='http://www.w3.org/2001/XMLSchema' extension-element-prefixes='xs'/>",
+         "XTSE0085"},
+        /* 10.4.2: xsl:fallback in xsl:select follows whitespace only. */
+        {"<xsl:stylesheet version='4.0' " XSL_NAMESPACE "><xsl:template match='/'>"
+         "<xsl:select>1<xsl:fallback/></xsl:select></xsl:template></xsl:stylesheet>",
+         "XTSE0010"},
         {"<xsl:stylesheet version='3.0' " XSL_NAMESPACE "><xsl:mode name='m'><xsl:template/>"
          "</xsl:mode></xsl:stylesheet>",
          "XTSE4010"},

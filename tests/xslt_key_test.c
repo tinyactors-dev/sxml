@@ -329,6 +329,9 @@ static void test_keys(sxml_test_state *state) {
                     "<xsl:template match='/'><xsl:sequence select='key(\"d\", 1)'/>"
                     "</xsl:template>"),
          "error:XTSE1222"},
+        {STYLESHEET("<xsl:key name='u' match='city' use='@n' collation='http://unknown/'/>"
+                    "<xsl:template match='/'><xsl:sequence select='1'/></xsl:template>"),
+         "error:XTSE1210"},
         /* Errors: an undeclared key name; use and content. */
         {STYLESHEET("<xsl:template match='/'><xsl:sequence select='key(\"none\", 1)'/>"
                     "</xsl:template>"),

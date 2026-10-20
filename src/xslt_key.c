@@ -50,6 +50,7 @@
  */
 #include "xslt_key_internal.h"
 
+#include "collation_internal.h"
 #include "function_library_core_internal.h"
 #include "function_library_parts_internal.h"
 #include "sxml/name.h"
@@ -647,6 +648,17 @@ static sxml_status add_key_declaration(sxml_xslt_function_table *table,
                                         "sequence constructor, or neither (20.2.1)"));
     }
     const sxml_byte_view collation = collation_of(lowering, node);
+    /* 20.2.1: XTSE1210 for a collation attribute naming no collation
+       sxml knows (sxml_collation_find; a relative URI is none). */
+    sxml_collation known = sxml_collation_codepoint();
+    if (find_attribute(lowering, node, SXML_XSLT_AST_ATTRIBUTE_COLLATION)->value.kind ==
+            SXML_XSLT_AST_VALUE_KIND_TEXT &&
+        !sxml_collation_find(collation, &known)) {
+        return report_static_error(
+            lowering, node,
+            SXML_BYTE_VIEW_FROM_LITERAL("XTSE1210 the collation attribute of an xsl:key names "
+                                        "no collation the processor supports (20.2.1)"));
+    }
     const bool composite = is_composite(lowering, node);
     const uint32_t package = sxml_xslt_package_of_node(lowering, node);
     size_t key_index = 0;

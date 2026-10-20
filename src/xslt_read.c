@@ -4005,6 +4005,20 @@ static sxml_status compute_static_context(stylesheet_reader *reader, const conte
         const sxml_namespace_uri_identifier *extension = reader->extension_uris.elements;
         for (size_t index = 0; status == SXML_STATUS_OK && index < reader->extension_uris.count;
              index += 1) {
+            /* 24: a prefix bound to a reserved namespace (3.5.1) is
+               XTSE0085. */
+            const uint32_t uri = extension[index].index;
+            if (uri != (uint32_t)SXML_NAMESPACE_NONE &&
+                (uri <= (uint32_t)SXML_NAMESPACE_ERRORS || uri == (uint32_t)SXML_NAMESPACE_XSLT)) {
+                return raise_error(reader,
+                                   (reader_error){.error_code = "XTSE0085",
+                                                  .description = "extension-element-prefixes "
+                                                                 "names a prefix bound to a "
+                                                                 "reserved namespace (XSLT 4.0, "
+                                                                 "24)",
+                                                  .module = request->module,
+                                                  .source_span = extension_attribute->source_span});
+            }
             status = append_uri(reader, &reader->excluded_uris, extension[index]);
         }
     }
@@ -6448,8 +6462,17 @@ static sxml_status add_simplified_module(stylesheet_reader *reader, const simpli
 
 /* The text of an xsl:select element: its text children, the expression
    (10.4.2). */
-static sxml_status collect_select_text(stylesheet_reader *reader, element_source source) {
+/* What collect_select_text found besides the text. */
+typedef struct select_text_outcome {
+    /* An element (other than xsl:note) after text that is not all
+       whitespace: XTSE0010 (10.4.2). */
+    bool has_element_after_text;
+} select_text_outcome;
+
+static sxml_status collect_select_text(stylesheet_reader *reader, element_source source,
+                                       select_text_outcome *outcome) {
     reader->text.count = 0;
+    *outcome = (select_text_outcome){.has_element_after_text = false};
     sxml_node_description description;
     sxml_status status = describe(source.tree, source.element, &description);
     bool has_child = status == SXML_STATUS_OK && description.has_children;
@@ -6459,6 +6482,18 @@ static sxml_status collect_select_text(stylesheet_reader *reader, element_source
         status = describe(source.tree, child, &child_description);
         if (status == SXML_STATUS_OK && child_description.node_kind == SXML_NODE_KIND_TEXT) {
             status = append_text_piece(reader, source.tree, child);
+        } else if (status == SXML_STATUS_OK &&
+                   child_description.node_kind == SXML_NODE_KIND_ELEMENT &&
+                   !sxml_xml_text_is_whitespace((sxml_byte_view){
+                       .bytes = reader->text.elements, .byte_count = reader->text.count})) {
+            sxml_name_parts parts = {.namespace_uri = {.index = 0},
+                                     .local_name = {.bytes = NULL, .byte_count = 0}};
+            const bool is_note =
+                sxml_name_pool_get_name_parts(source.tree->name_pool, child_description.node_name,
+                                              &parts) == SXML_STATUS_OK &&
+                parts.namespace_uri.index == SXML_NAMESPACE_XSLT &&
+                sxml_byte_view_equals(parts.local_name, SXML_BYTE_VIEW_FROM_LITERAL("note"));
+            outcome->has_element_after_text = outcome->has_element_after_text || !is_note;
         }
         has_child = child_description.has_next_sibling;
         child = child_description.next_sibling;
@@ -6506,12 +6541,19 @@ static sxml_status check_element(stylesheet_reader *reader, element_node element
                                                                   "has no match attribute (XSLT "
                                                                   "4.0, 6.9.6)"});
         }
-        if ((!has_match && !has_name) || (!has_match && has_rule_attribute)) {
+        const bool has_visibility =
+            sxml_xslt_ast_find_attribute(ast, (sxml_xslt_ast_attribute_query){
+                                                  .node = node,
+                                                  .kind = SXML_XSLT_AST_ATTRIBUTE_VISIBILITY})
+                .value != 0;
+        if ((!has_match && !has_name) || (!has_match && has_rule_attribute) ||
+            (!has_name && has_visibility)) {
             return raise_at_element(reader, (element_place){.parent = parent, .facts = facts},
 (reader_error){.error_code = "XTSE0500",
                                                    .description = "xsl:template has neither "
-                                                                  "match nor name, or mode or "
-                                                                  "priority without match (XSLT "
+                                                                  "match nor name, mode or "
+                                                                  "priority without match, or "
+                                                                  "visibility without name (XSLT "
                                                                   "4.0, 6.1)"});
         }
     }
@@ -6704,7 +6746,19 @@ static sxml_status read_element(stylesheet_reader *reader, element_input input) 
     sxml_xslt_ast_value content = {.kind = SXML_XSLT_AST_VALUE_KIND_NONE};
     sxml_ast *content_ast = NULL;
     if (kind == SXML_XSLT_AST_KIND_SELECT) {
-        status = collect_select_text(reader, facts.source);
+        select_text_outcome select_text = {.has_element_after_text = false};
+        status = collect_select_text(reader, facts.source, &select_text);
+        if (status == SXML_STATUS_OK && select_text.has_element_after_text) {
+            /* 10.4.2: an xsl:fallback may follow whitespace only; the
+               expression is the last text node. */
+            return raise_error(reader,
+                               (reader_error){.error_code = "XTSE0010",
+                                              .description = "An element of xsl:select follows the "
+                                                             "text of its expression (XSLT 4.0, "
+                                                             "10.4.2)",
+                                              .module = parent.module,
+                                              .source_span = facts.source_span});
+        }
         if (status == SXML_STATUS_OK) {
             status = parse_expression(
                 reader,
