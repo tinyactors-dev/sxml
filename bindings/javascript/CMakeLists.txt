@@ -18,6 +18,8 @@
 #
 # Tests (WASI only, Node.js): javascript/package runs test/package.test.ts
 # and javascript/languages test/full.test.ts on the module;
+# javascript/code_languages test/code-language.test.ts on language modules
+# built here (D293);
 # javascript/typecheck runs tsc (after `npm ci` here); javascript/size_budget
 # checks the size budgets of D93, D138, D189 and D272.
 
@@ -60,6 +62,41 @@ if(SXML_BUILD_TESTS AND SXML_NODE_EXECUTABLE)
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
     set_tests_properties(javascript/languages PROPERTIES
         ENVIRONMENT "SXML_WASM_PATH=$<TARGET_FILE:sxml_javascript_module>")
+    # tree-sitter's WebAssembly language files (D293): vendored grammars
+    # compiled as tree-sitter 0.27's `tree-sitter build --wasm` compiles
+    # them (its clang command line, with the WASI SDK that builds this
+    # module). JSON has no external scanner, Python's allocates, CSS's uses
+    # the stack pointer and wctype.
+    set(sxml_language_module_directory "${CMAKE_CURRENT_BINARY_DIR}/code-languages")
+    set(sxml_language_modules)
+    set(sxml_grammar_directory "${PROJECT_SOURCE_DIR}/third_party/tree-sitter-grammars")
+    foreach(sxml_language_name IN ITEMS json python css)
+        set(sxml_language_sources "${sxml_grammar_directory}/${sxml_language_name}/src/parser.c")
+        if(EXISTS "${sxml_grammar_directory}/${sxml_language_name}/src/scanner.c")
+            list(APPEND sxml_language_sources
+                "${sxml_grammar_directory}/${sxml_language_name}/src/scanner.c")
+        endif()
+        set(sxml_language_output
+            "${sxml_language_module_directory}/tree-sitter-${sxml_language_name}.wasm")
+        add_custom_command(OUTPUT "${sxml_language_output}"
+            COMMAND "${CMAKE_COMMAND}" -E make_directory "${sxml_language_module_directory}"
+            COMMAND "${CMAKE_C_COMPILER}" --target=wasm32-wasip1 -o "${sxml_language_output}"
+                -fPIC -shared --no-wasm-opt -Os
+                "-Wl,--export=tree_sitter_${sxml_language_name}"
+                -Wl,--allow-undefined -Wl,--no-entry -nostdlib -fno-exceptions
+                -fvisibility=hidden ${sxml_language_sources}
+            DEPENDS ${sxml_language_sources}
+            COMMENT "Building the language module ${sxml_language_output}"
+            VERBATIM)
+        list(APPEND sxml_language_modules "${sxml_language_output}")
+    endforeach()
+    add_custom_target(sxml_javascript_language_modules ALL DEPENDS ${sxml_language_modules})
+    add_test(NAME javascript/code_languages
+        COMMAND "${SXML_NODE_EXECUTABLE}" --expose-gc --test --test-reporter=dot
+            "${CMAKE_CURRENT_SOURCE_DIR}/test/code-language.test.ts"
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+    set_tests_properties(javascript/code_languages PROPERTIES
+        ENVIRONMENT "SXML_WASM_PATH=$<TARGET_FILE:sxml_javascript_module>;SXML_CODE_LANGUAGE_DIRECTORY=${sxml_language_module_directory}")
     # The TypeScript compiler's checks, when `npm ci` has installed it here.
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/node_modules/typescript/bin/tsc")
         add_test(NAME javascript/typecheck
