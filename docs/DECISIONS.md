@@ -12141,6 +12141,28 @@ and the book's text and outputs in the same commits.
   2.24's 2ec77a1 in the after build); XT40 12,191 passed, 327 failed
   (D262: 12,187, 331).
 
+### D272. One build with everything (owner, 2026-10-20)
+Recorded 2026-10-20, after D189, D208, D227, D262. The owner, on 4.25
+leaving fn:load-xquery-module out of XSLT to keep XQuery out of XSLT
+builds: "We don't need to separate builds like this: with sxml you get
+everything (adjust size budgets as necessary), because halfway solutions
+already exist."
+- **Every shipped build has everything**: the sxml command, the native
+  libraries and the JavaScript package contain every language (XPath,
+  XQuery, XSLT, XSD) and every optional feature. There is one WebAssembly
+  module for JavaScript; hosts do not pick a smaller one.
+- **Size**: budgets are set for that one module and rise as features
+  land (D208). The core `sxml.wasm` budget of D189/D207 no longer limits
+  what a feature may add; a large size growth is still reported (D225),
+  as a fact, not a reason to leave something out.
+- **What stays**: the optional-feature view (D189) and the per-language
+  part lists (D227) are internal structure and public API that stay
+  stable; no shipped build uses them to leave parts out. Feature data
+  still comes from the host through the resolver.
+- **XSLT gets fn:load-xquery-module** (XSLT 4.0 and F&O 4.0), and any
+  other function a language left out only for size is added.
+- Packet size-3 carries this out.
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): tagging and
