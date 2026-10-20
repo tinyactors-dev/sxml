@@ -30,7 +30,7 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 (bindings/kotlin/DESIGN.md, bindings/swift/DESIGN.md).
 
 
-- 4.28: XSLT sweep (D274's open list).
+- 4.29: XSLT sweep (D276's open list).
 - 2.26: XPath/XQuery sweep (D275's open list).
 - 5.13 sweep 3: XSD sweep (the 32 XSD 1.1 failures, D270/D271's validation leftovers).
 
@@ -127,6 +127,13 @@ are not hoisted from; current-merge-group(()) per 15.5.1; globals computed
 on first read (GLOBAL_READ); typed modes and XTSE3105; XT40 11,943 at its
 last run. Left: document-4066 (fn:document's schema validation does not
 raise FODC0002); a global's side effects now happen at its first read.
+
+XSLT (4.28, D276): XT40 12,239 -> 12,250 passed, 268 failed. XSLT
+instruction errors carry module and line (D271's XTTE gap closed). Left:
+FORG0001 in parameter/variable coercion casts (4), XTTE0945 when the focus
+is absent only at run time (2), an attribute set inside xsl:for-each of a
+rule still sees the rule; xs:numeric under 1.0 compatibility given to 2.26
+(check against D197). About 17 cases the draft decides.
 
 XSLT (4.27, D274): XT40 12,210 -> 12,226 by its own changes; 12,239
 passed, 279 failed at 92a8a8c with 2.25's first commits. Left:
