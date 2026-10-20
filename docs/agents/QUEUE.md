@@ -22,11 +22,11 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 
 ## Running
 
-- 4.21: hoist-pass bug (merge-001a/016), globals on first read (XTDE3052), typed modes.
+- 7.6g: streamed xsl:merge and capture="yes" (designs in D233).
+- 7.12d: XPath Full Text; EXPath prefixes bound in the JavaScript package.
 
 ## Next
 
-- 7.6g: streamed xsl:merge and capture="yes" (designs in D233), after 4.21.
 - 7.19: the Phase 7 review, after 7.6g.
 - More XPath/XQuery and XSLT sweeps on the leftovers below; perf-4 on casts
   and path-MAP hoisting.
@@ -48,8 +48,11 @@ validation 51/68, namespace 217/224, normalize-unicode 18/18. Left:
 XTDE3490; merge-097 (Saxon collection URI); xml-version-007 (value-template
 grammar rejects XML 1.1 controls); namespace-2606/-6202; docbook-004;
 fn-transform-27/82e/94; xsl:copy of JNodes (needs an xdm.h addition);
-XTDE0430/0440; priority stays 6/40 (D29). In 4.21: the hoist bug, globals on
-first read, typed modes and XTSE3105.
+XTDE0430/0440; priority stays 6/40 (D29). 4.21 (D234): indexed FILTERs
+are not hoisted from; current-merge-group(()) per 15.5.1; globals computed
+on first read (GLOBAL_READ); typed modes and XTSE3105; XT40 11,943 at its
+last run. Left: document-4066 (fn:document's schema validation does not
+raise FODC0002); a global's side effects now happen at its first read.
 
 XSLT backwards compatibility (7.4, D197): backwards_compatibility 111 of
 124; QT4 xpath-1.0-compatibility 1 of 5. 14 cases expect fn:number-style
