@@ -2112,6 +2112,7 @@ static const char *const expression_kind_names[] = {
     [SXML_IR_EXPRESSION_KIND_SHALLOW_COPY] = "shallow-copy",
     [SXML_IR_EXPRESSION_KIND_APPLY_TEMPLATES] = "apply-templates",
     [SXML_IR_EXPRESSION_KIND_STREAM] = "stream",
+    [SXML_IR_EXPRESSION_KIND_GLOBAL_READ] = "global-read",
 };
 
 static const char *binary_operator_name(sxml_ir_binary_operator operator) {
@@ -2535,6 +2536,13 @@ static sxml_status print_expression(text_writer *writer, print_stack *stack,
     case SXML_IR_EXPRESSION_KIND_SEQUENCE:
         write_atom_list(writer, expression->sequence);
         return SXML_STATUS_OK;
+    case SXML_IR_EXPRESSION_KIND_GLOBAL_READ:
+        /* "(global-read $global:N BODY)" (D234). */
+        write_text(writer, " ");
+        write_atom(writer, (sxml_ir_atom){.atom_kind = SXML_IR_ATOM_KIND_GLOBAL_VARIABLE,
+                                          .global_variable = expression->global_read.global});
+        return push_nested_operand(
+            stack, (nested_operand){.expression = expression->global_read.body, .indent = indent});
     case SXML_IR_EXPRESSION_KIND_CONDITIONAL:
         write_text(writer, " ");
         write_atom(writer, expression->conditional.condition);
@@ -3179,6 +3187,7 @@ static const sxml_ir_pass standard_passes[] = {
     {.pass_name = SXML_BYTE_VIEW_INITIALIZER("verify"), .run = sxml_ir_verify},
     {.pass_name = SXML_BYTE_VIEW_INITIALIZER("filter-index"), .run = sxml_ir_index_filters},
     {.pass_name = SXML_BYTE_VIEW_INITIALIZER("hoist"), .run = sxml_ir_hoist_invariant_lets},
+    {.pass_name = SXML_BYTE_VIEW_INITIALIZER("global-read"), .run = sxml_ir_read_globals_lazily},
 };
 
 const sxml_ir_pass_view sxml_ir_standard_passes = {

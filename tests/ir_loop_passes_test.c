@@ -1,6 +1,7 @@
 /*
  * Tests for filter indexes (src/ir_loop_passes.c, src/evaluator_index.c;
- * docs/DECISIONS.md D224; packet perf-1): which FILTERs and where clauses
+ * docs/DECISIONS.md D224; packet perf-1), hoisting, and globals computed
+ * on first read (src/ir_global_read.c, D234): which FILTERs and where clauses
  * get one, and that a FILTER with one gives the values and errors it gives
  * without: inputs of 16 items or more, filtered three times or more, so
  * the index is remembered, built and probed.
@@ -155,13 +156,22 @@ static void evaluate_query(fixture *test_fixture, const char *query, query_outco
             &dynamic_context);
     }
     sxml_sequence value = sxml_sequence_empty();
+    /* Every global ABSENT: computed by its initializer on first read. */
+    static sxml_evaluator_slot global_slots[8];
+    memset(global_slots, 0, sizeof(global_slots));
+    const size_t global_count =
+        unit != NULL && unit->global_variable_count > 1 ? unit->global_variable_count - 1 : 0;
+    if (outcome->status == SXML_STATUS_OK && global_count > SXML_TEST_COUNT(global_slots)) {
+        outcome->status = SXML_STATUS_LIMIT_EXCEEDED;
+    }
     if (outcome->status == SXML_STATUS_OK) {
         outcome->status = sxml_evaluator_evaluate(
             dynamic_context,
             &(sxml_evaluation_request){.unit = unit,
                                        .has_context_value = false,
                                        .context_value = sxml_sequence_empty(),
-                                       .global_values = {.slots = NULL, .slot_count = 0},
+                                       .global_values = {.slots = global_slots,
+                                                         .slot_count = global_count},
                                        .static_base_uri = {.bytes = NULL, .byte_count = 0},
                                        .error_record = &outcome->error_record},
             &value);
@@ -221,6 +231,15 @@ static const golden_case golden_cases[] = {
      "              (sequence))\n"
      "      (quantified some $1 $global:1\n"
      "        (binary general-equal $1 $2)))))\n"},
+    /* A global with an initializer is read through a GLOBAL_READ (D234). */
+    {"declare variable $v := 3; $v + 1",
+     "(function 1 main (parameters 0) (captures) (slots 1) (focus $1 _ _)\n"
+     "  (global-read $global:1\n"
+     "    (binary add $global:1 1)))\n"
+     "(function 2 anonymous (parameters 0) (captures) (slots 0)\n"
+     "  3)\n"
+     "(function 3 anonymous (parameters 0) (captures) (slots 0)\n"
+     "  (static-call function:2#0))\n"},
     /* A where clause: the MAP runs over the FILTER of its input. */
     {"declare variable $c external; declare variable $v external; "
      "for $x in $c where $x/@k = $v return $x",
@@ -443,6 +462,18 @@ static const value_case value_cases[] = {
      "true() true() false()"},
     {"every $x in () satisfies (let $y := error() return $y)", "true()"},
     {"some $x in (1, 2) satisfies (let $y := error() return $x = 1)", "error:FOER0000"},
+    /* Globals computed on first read (D234): one never read is never
+       computed, one read in a loop once; an initializer's error is caught
+       inside it, not around the read; a dynamic cycle is XQDY0054. */
+    {"declare variable $e := error(); if (count(1 to 3) = 2) then $e else 5", "5"},
+    {"declare variable $x := (1 to 3) ! (. * 2); for $i in 1 to 3 return $x[$i] + $x[1]",
+     "4 6 8"},
+    {"declare variable $e := error(xs:QName('err:X')); try { $e } catch * { 'c' }",
+     "error:X"},
+    {"declare variable $e := try { error(xs:QName('err:X')) } catch * { 'c' }; ($e, $e)",
+     "\"c\" \"c\""},
+    {"declare variable $f := function() { $g }; declare variable $g := $f(); $g",
+     "error:XQDY0054"},
     /* A where clause. */
     {"let $s := (1 to 40) ! <e k='{. mod 4}' n='{.}'/> "
      "return for $i in 0 to 2 return "

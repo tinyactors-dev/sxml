@@ -987,6 +987,12 @@ static void scan_expression(edge_sink *sink, const sxml_ir_expression *expressio
     case SXML_IR_EXPRESSION_KIND_STREAM:
         add_edge(sink, node_of_atom(module, expression->stream.origin));
         return;
+    case SXML_IR_EXPRESSION_KIND_GLOBAL_READ:
+        /* Added by the global-read pass, after this scan (D234). */
+        add_edge(sink, node_of_atom(module, (sxml_ir_atom){
+                                                .atom_kind = SXML_IR_ATOM_KIND_GLOBAL_VARIABLE,
+                                                .global_variable = expression->global_read.global}));
+        return;
     case SXML_IR_EXPRESSION_KIND_NONE:
     case SXML_IR_EXPRESSION_KIND_LET:
     case SXML_IR_EXPRESSION_KIND_SEQUENCE:

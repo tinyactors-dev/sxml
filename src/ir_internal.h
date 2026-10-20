@@ -514,6 +514,9 @@ typedef enum sxml_ir_expression_kind {
        from a node of a streamed document, selected as its events pass,
        each with its focus for the body. */
     SXML_IR_EXPRESSION_KIND_STREAM,
+    /* A read of a global computed on first read (glossary `global_read`,
+       D234): the global, then the body. */
+    SXML_IR_EXPRESSION_KIND_GLOBAL_READ,
 
     /* One more than the largest kind. */
     SXML_IR_EXPRESSION_KIND_COUNT,
@@ -1094,6 +1097,20 @@ typedef struct sxml_ir_stream {
     sxml_ir_stream_accumulators accumulators;
 } sxml_ir_stream;
 
+/*
+ * GLOBAL_READ (D234): the value of body, which reads global; first, when
+ * global is ABSENT and has an initializer, its initializer runs and
+ * global is bound to its value (src/evaluator_global.c). Added by the
+ * global-read pass (src/ir_global_read.c) before each expression that
+ * reads a global with an initializer, so a global is computed when first
+ * needed and never when it is not (XQuery 4.0, 2.4.4; XSLT 4.0, 9.12).
+ * A read while the initializer runs is XQDY0054 (XTDE0640 in XSLT).
+ */
+typedef struct sxml_ir_global_read {
+    sxml_ir_global_index global;
+    sxml_ir_expression_index body;
+} sxml_ir_global_read;
+
 /* One expression: its kind, where it comes from, and the payload its kind
    names. */
 typedef struct sxml_ir_expression {
@@ -1130,6 +1147,7 @@ typedef struct sxml_ir_expression {
         sxml_ir_node_construction node_construction;
         sxml_ir_apply_templates apply_templates;
         sxml_ir_stream stream;
+        sxml_ir_global_read global_read;
     };
 } sxml_ir_expression;
 

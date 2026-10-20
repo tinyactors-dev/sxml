@@ -1,46 +1,54 @@
 /*
  * Evaluator part: global variables with an initializer
- * (src/evaluator_machine_internal.h, D101, D135). Claims no IR kind:
- * sxml_evaluator_evaluate calls sxml_evaluator_start_global_initializers
- * before the main function's body runs.
+ * (src/evaluator_machine_internal.h, D101, D135, D234). Claims no IR
+ * kind: the machine's GLOBAL_READ (src/evaluator.c) asks it to compute a
+ * global, and sxml_evaluator_evaluate asks it to bind the context global.
  *
- * XQuery 4.0, "Variable Declaration" and "Context Value Declaration": a
- * declared variable is computed before the query body, in the
- * computation order (glossary), which is the order of the initializer
- * functions' indices: lowering (src/xquery_prolog.c) adds the initializer
- * functions of the variables the module uses dependencies first, and
- * leaves the others without one, so a variable the query never reads is
- * never computed. A variable whose initializer is running is
- * BEING_COMPUTED, and reading it raises XQDY0054 (a cycle that only a
- * dynamic call can make; lowering rejects the static ones).
+ * Globals are computed on first read (XQuery 4.0, 2.4.4 and "Variable
+ * Declaration": a variable whose value is not needed need not be
+ * evaluated; XSLT 4.0, 9.12: a global variable is evaluated when its value
+ * is needed, so an unread abstract variable never raises XTDE3052,
+ * 3.4.5.2). The global-read pass (src/ir_global_read.c) puts a GLOBAL_READ
+ * before every expression that reads a global with an initializer; the
+ * first one evaluated for a global that is still ABSENT pushes this
+ * part's task, which calls the initializer and binds the value. A global
+ * whose initializer is running is BEING_COMPUTED, and reading it raises
+ * the language's circularity error (XQDY0054, XTDE0640; a cycle only a
+ * dynamic call can make, lowering rejects the static ones). An initializer
+ * that fails leaves its global ABSENT again.
  *
  * The context global (glossary: name 0) holds the initial context value:
  * the host's context value, from the main function's focus slot, when the
  * request gave one (coerced to the global's type, XPTY0004), else its
- * initializer.
+ * initializer, on first read as any global.
  *
- * Each initializer runs on the machine as a call of its IR function: a
- * part task pushes a task in the main function's frame and turns it into a
- * CALL of the initializer (the CALL task's fields are the machine's, as
- * the machine's own static calls fill them), then binds the value it
- * hands back. No C recursion (D71).
+ * Each initializer runs on the machine as a call of its IR function: the
+ * part task, past which no try/catch around the read catches (an error
+ * of the initializer is caught only inside it: XSLT 4.0, 2.4.2 and 8.3),
+ * pushes a task in the reader's frame and turns it into a CALL of the
+ * initializer (the CALL task's fields are the machine's, as the machine's
+ * own static calls fill them), then binds the value it hands back. No C
+ * recursion (D71).
  *
  * Golden file: src/evaluator_try.c.
  */
 #include "evaluator_machine_internal.h"
-#include "sort_internal.h"
 
 #include <stdalign.h>
-#include <string.h>
 
-/* The variables to compute, in computation order, and the next one, of
-   the global table at table_index (D154). */
+/* The global being computed, of the global table at table_index (D154);
+   unit tells a table that is gone from one added at its index later. */
 typedef struct global_computation {
     size_t table_index;
-    /* Global numbers (from 1); allocated with the computation. */
-    uint32_t *global_numbers;
-    size_t global_count;
-    size_t next_index;
+    const sxml_ir_unit *unit;
+    uint32_t global_number;
+    bool is_bound;
+    /* The current mode and template rule of the reader, absent while the
+       initializer runs (XSLT 4.0, 6.7 and 9.5: a global is evaluated
+       with no current template rule, in the unnamed mode). */
+    bool has_saved_context;
+    sxml_ir_mode_index saved_mode;
+    uint32_t saved_template_rule_index;
 } global_computation;
 
 static const sxml_ir_global_variable *global_of(const sxml_evaluator_global_table *table,
@@ -49,13 +57,45 @@ static const sxml_ir_global_variable *global_of(const sxml_evaluator_global_tabl
                                             (sxml_ir_global_index){.value = global_number});
 }
 
+/* The computation's global slot, or NULL when its table is gone. */
+static sxml_evaluator_slot *computed_slot(sxml_dynamic_context *context,
+                                          const global_computation *computation) {
+    if (computation->table_index >= context->global_table_count) {
+        return NULL;
+    }
+    sxml_evaluator_global_table *table = &context->global_tables[computation->table_index];
+    if (table->unit != computation->unit || computation->global_number == 0 ||
+        computation->global_number > table->slot_count) {
+        return NULL;
+    }
+    return &table->slots[computation->global_number - 1];
+}
+
+/* Gives the reader its current mode and template rule back. */
+static void restore_context(sxml_dynamic_context *context, global_computation *computation) {
+    if (computation->has_saved_context) {
+        context->current_mode = computation->saved_mode;
+        context->current_template_rule_index = computation->saved_template_rule_index;
+        computation->has_saved_context = false;
+    }
+}
+
+/* Releases the computation; a global it did not bind (its initializer
+   failed) is ABSENT again. */
 static void release_computation(sxml_dynamic_context *context, void *state) {
+    global_computation *computation = state;
+    restore_context(context, computation);
+    sxml_evaluator_slot *slot = computed_slot(context, computation);
+    if (!computation->is_bound && slot != NULL &&
+        slot->slot_state == SXML_EVALUATOR_SLOT_STATE_BEING_COMPUTED) {
+        slot->slot_state = SXML_EVALUATOR_SLOT_STATE_ABSENT;
+    }
     sxml_allocator_release(context->allocator, state);
 }
 
 /* Binds the context global (name 0) to the host's context value: the
    main function's focus slot, read in the body task's frame. */
-static sxml_status bind_context_global(sxml_dynamic_context *context, size_t table_index) {
+sxml_status sxml_evaluator_bind_context_global(sxml_dynamic_context *context, size_t table_index) {
     const sxml_evaluator_task *body_task = sxml_evaluator_machine_top(context);
     const sxml_ir_slot focus_slot = body_task->function->focus.context_value;
     const sxml_evaluator_global_table *table = &context->global_tables[table_index];
@@ -90,45 +130,30 @@ static sxml_status bind_context_global(sxml_dynamic_context *context, size_t tab
     return SXML_STATUS_OK;
 }
 
-/* Whether a global (a uint32_t number) is computed before another: its
-   initializer comes first. state is the global table. */
-static bool is_computed_before(const void *state, sxml_sort_pair pair) {
-    const sxml_evaluator_global_table *table = state;
-    return global_of(table, *(const uint32_t *)pair.first)->initializer.value <
-           global_of(table, *(const uint32_t *)pair.second)->initializer.value;
-}
-
-/* Sorts the computation's globals by initializer index. */
-static void sort_by_initializer(const sxml_evaluator_global_table *table,
-                                global_computation *computation) {
-    sxml_sort_in_place(&(sxml_sort_request){.elements = computation->global_numbers,
-                                            .element_count = computation->global_count,
-                                            .element_size = sizeof(uint32_t),
-                                            .is_before = is_computed_before,
-                                            .state = table});
-}
-
-/* Pushes a CALL of the initializer of the next global (see the file
-   comment), or finishes when none is left. */
+/* Pushes a CALL of the global's initializer (see the file comment), then
+   binds the value it returns. */
 static sxml_status step_computation(sxml_dynamic_context *context, sxml_evaluator_task *task) {
     global_computation *computation = task->details.part.state;
-    /* The table array may have grown since the last step. */
-    sxml_evaluator_global_table *table = &context->global_tables[computation->table_index];
-    if (task->phase == 1) {
-        const uint32_t computed = computation->global_numbers[computation->next_index];
-        table->slots[computed - 1] = (sxml_evaluator_slot){
-            .value = sxml_evaluator_machine_take_value(context),
-            .slot_state = SXML_EVALUATOR_SLOT_STATE_BOUND};
-        computation->next_index += 1;
-        task->phase = 0;
+    sxml_evaluator_slot *slot = computed_slot(context, computation);
+    if (slot == NULL) {
+        return SXML_STATUS_INVALID_ARGUMENT;
     }
-    if (computation->next_index == computation->global_count) {
+    if (task->phase == 1) {
+        *slot = (sxml_evaluator_slot){.value = sxml_evaluator_machine_take_value(context),
+                                      .slot_state = SXML_EVALUATOR_SLOT_STATE_BOUND};
+        computation->is_bound = true;
+        restore_context(context, computation);
         return sxml_evaluator_machine_finish(context, sxml_sequence_empty());
     }
-    const uint32_t global_number = computation->global_numbers[computation->next_index];
-    const sxml_ir_function *initializer =
-        sxml_ir_unit_get_function(table->unit, global_of(table, global_number)->initializer);
-    table->slots[global_number - 1].slot_state = SXML_EVALUATOR_SLOT_STATE_BEING_COMPUTED;
+    const sxml_evaluator_global_table *table = &context->global_tables[computation->table_index];
+    const sxml_ir_function *initializer = sxml_ir_unit_get_function(
+        table->unit, global_of(table, computation->global_number)->initializer);
+    slot->slot_state = SXML_EVALUATOR_SLOT_STATE_BEING_COMPUTED;
+    computation->has_saved_context = true;
+    computation->saved_mode = context->current_mode;
+    computation->saved_template_rule_index = context->current_template_rule_index;
+    context->current_mode = (sxml_ir_mode_index){.value = 0};
+    context->current_template_rule_index = 0;
     /* The task pointer is invalid after the push. */
     task->phase = 1;
     const sxml_status status =
@@ -148,75 +173,39 @@ static sxml_status step_computation(sxml_dynamic_context *context, sxml_evaluato
     return SXML_STATUS_OK;
 }
 
-sxml_status sxml_evaluator_start_global_initializers(sxml_dynamic_context *dynamic_context,
-                                                     size_t table_index) {
-    const sxml_evaluator_global_table *table = &dynamic_context->global_tables[table_index];
-    size_t global_count = 0;
-    for (uint32_t global_number = 1; global_number <= table->slot_count;
-         global_number += 1) {
-        if (global_of(table, global_number)->initializer.value != 0 ||
-            global_of(table, global_number)->variable_name.index == 0) {
-            global_count += 1;
-        }
-    }
-    if (global_count == 0) {
-        return SXML_STATUS_OK;
-    }
-    sxml_status status = bind_context_global(dynamic_context, table_index);
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    global_count = 0;
-    for (uint32_t global_number = 1; global_number <= table->slot_count;
-         global_number += 1) {
-        if (global_of(table, global_number)->initializer.value != 0 &&
-            table->slots[global_number - 1].slot_state ==
-                SXML_EVALUATOR_SLOT_STATE_ABSENT) {
-            global_count += 1;
-        }
-    }
-    if (global_count == 0) {
-        return SXML_STATUS_OK;
-    }
-    size_t byte_count = 0;
-    status = sxml_size_multiply(global_count, sizeof(uint32_t), &byte_count);
-    if (status == SXML_STATUS_OK) {
-        status = sxml_size_add(byte_count, sizeof(global_computation), &byte_count);
+sxml_status sxml_evaluator_compute_global(sxml_dynamic_context *dynamic_context,
+                                          sxml_evaluator_global_request request) {
+    const sxml_evaluator_global_table *table =
+        &dynamic_context->global_tables[request.table_index];
+    if (request.global_number == 0 || request.global_number > table->slot_count ||
+        global_of(table, request.global_number)->initializer.value == 0) {
+        return SXML_STATUS_INVALID_ARGUMENT;
     }
     void *memory = NULL;
-    if (status == SXML_STATUS_OK) {
-        status = sxml_allocator_allocate(
-            dynamic_context->allocator,
-            (sxml_allocation_request){.byte_count = byte_count,
-                                      .alignment = alignof(global_computation)},
-            &memory);
-    }
+    const sxml_status status = sxml_allocator_allocate(
+        dynamic_context->allocator,
+        (sxml_allocation_request){.byte_count = sizeof(global_computation),
+                                  .alignment = alignof(global_computation)},
+        &memory);
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    /* The numbers follow the computation in its block (whose alignment is
-       at least uint32_t's). */
-    global_computation *computation = memory;
-    *computation = (global_computation){
-        .table_index = table_index,
-        .global_numbers = (uint32_t *)(computation + 1),
-        .global_count = global_count,
-        .next_index = 0};
-    size_t filled = 0;
-    for (uint32_t global_number = 1; global_number <= table->slot_count;
-         global_number += 1) {
-        if (global_of(table, global_number)->initializer.value != 0 &&
-            table->slots[global_number - 1].slot_state ==
-                SXML_EVALUATOR_SLOT_STATE_ABSENT) {
-            computation->global_numbers[filled] = global_number;
-            filled += 1;
-        }
-    }
-    sort_by_initializer(table, computation);
-    return sxml_evaluator_machine_push_part_task(
+    *(global_computation *)memory = (global_computation){.table_index = request.table_index,
+                                                         .unit = table->unit,
+                                                         .global_number = request.global_number,
+                                                         .is_bound = false,
+                                                         .has_saved_context = false,
+                                                         .saved_mode = {.value = 0},
+                                                         .saved_template_rule_index = 0};
+    const sxml_status pushed = sxml_evaluator_machine_push_part_task(
         dynamic_context, &(sxml_evaluator_part_task_state){.step = step_computation,
                                                            .release_state = release_computation,
-                                                           .state = computation});
+                                                           .state = memory});
+    if (pushed == SXML_STATUS_OK) {
+        /* An initializer's error is not caught around the read. */
+        sxml_evaluator_machine_top(dynamic_context)->stops_catching = true;
+    }
+    return pushed;
 }
 
 /* No kinds; the registry lists the part all the same (D101). */

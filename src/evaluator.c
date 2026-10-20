@@ -41,6 +41,13 @@ static const sxml_static_error sxml_circular_variable_error = {
         "A global variable depends on itself (XQuery 4.0, section 5.16)"),
 };
 
+static const sxml_static_error sxml_circular_xslt_variable_error = {
+    .error_status = SXML_STATUS_DYNAMIC_ERROR,
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XTDE0640"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(
+        "A global variable depends on itself (XSLT 4.0, section 9.11)"),
+};
+
 static const sxml_static_error sxml_path_operand_error = {
     .error_status = SXML_STATUS_TYPE_ERROR,
     .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XPTY0004"),
@@ -3883,10 +3890,43 @@ static bool sxml_expression_kind_is_leaf(sxml_ir_expression_kind kind) {
     case SXML_IR_EXPRESSION_KIND_SHALLOW_COPY:
     case SXML_IR_EXPRESSION_KIND_APPLY_TEMPLATES:
     case SXML_IR_EXPRESSION_KIND_STREAM:
+    case SXML_IR_EXPRESSION_KIND_GLOBAL_READ:
     case SXML_IR_EXPRESSION_KIND_COUNT:
         break;
     }
     return false;
+}
+
+/* The slot of the global a GLOBAL_READ in function names, or NULL when
+   the function's unit has no global table (D154) or no such global. */
+static sxml_evaluator_slot *sxml_global_read_slot(sxml_dynamic_context *context,
+                                                  const sxml_ir_function *function,
+                                                  const sxml_ir_global_read *read) {
+    sxml_evaluator_global_table *table = sxml_evaluator_find_global_table(context, function->unit);
+    if (table == NULL || read->global.value == 0 || read->global.value > table->slot_count) {
+        return NULL;
+    }
+    return &table->slots[read->global.value - 1];
+}
+
+/* expression, or the body of the GLOBAL_READs at it whose globals are
+   computed (or have nothing to compute): the expression evaluated next
+   once they are passed, so a read of a computed global costs nothing. */
+static sxml_ir_expression_index sxml_past_global_reads(sxml_dynamic_context *context,
+                                                       const sxml_ir_function *function,
+                                                       sxml_ir_expression_index expression) {
+    sxml_ir_expression_index current = expression;
+    for (;;) {
+        const sxml_ir_expression *read = sxml_ir_unit_get_expression(function->unit, current);
+        if (read->expression_kind != SXML_IR_EXPRESSION_KIND_GLOBAL_READ) {
+            return current;
+        }
+        const sxml_evaluator_slot *slot = sxml_global_read_slot(context, function, &read->global_read);
+        if (slot != NULL && slot->slot_state != SXML_EVALUATOR_SLOT_STATE_BOUND) {
+            return current;
+        }
+        current = read->global_read.body;
+    }
 }
 
 /*
@@ -3911,6 +3951,11 @@ static sxml_status sxml_machine_push_operand(sxml_dynamic_context *context,
         operand->function != top->function || operand->frame_base != top->frame_base) {
         return sxml_machine_push(context, operand);
     }
+    /* Past the reads of computed globals (D234): the same leaves as
+       without them. */
+    sxml_evaluator_task passed = *operand;
+    passed.expression = sxml_past_global_reads(context, operand->function, operand->expression);
+    operand = &passed;
     const sxml_ir_expression *expression =
         sxml_ir_unit_get_expression(operand->function->unit, operand->expression);
     if (!sxml_expression_kind_is_leaf(expression->expression_kind) ||
@@ -3940,6 +3985,8 @@ static const sxml_ir_expression *sxml_filter_inline_predicate(const sxml_evaluat
         filter->focus.context_size.value == 0) {
         return NULL;
     }
+    /* A predicate behind a GLOBAL_READ (D234) is not inline: whether a
+       predicate is must not change while the FILTER runs. */
     const sxml_ir_expression *predicate =
         sxml_ir_unit_get_expression(task->function->unit, filter->predicate);
     const sxml_ir_expression_kind kind = predicate->expression_kind;
@@ -5316,6 +5363,7 @@ static sxml_status sxml_make_leaf_value(sxml_dynamic_context *context,
     case SXML_IR_EXPRESSION_KIND_SHALLOW_COPY:
     case SXML_IR_EXPRESSION_KIND_APPLY_TEMPLATES:
     case SXML_IR_EXPRESSION_KIND_STREAM:
+    case SXML_IR_EXPRESSION_KIND_GLOBAL_READ:
     case SXML_IR_EXPRESSION_KIND_COUNT:
         break;
     }
@@ -5343,6 +5391,50 @@ static sxml_status sxml_machine_start_part_kind(sxml_dynamic_context *context,
     task->details.part = (sxml_evaluator_part_task_state){
         .step = step, .release_state = NULL, .state = NULL};
     return SXML_STATUS_OK;
+}
+
+/* --------------------------------------------------- Global reads */
+
+/*
+ * GLOBAL_READ (D234): its global is computed first if it is ABSENT and
+ * has an initializer (src/evaluator_global.c, phase 1 takes the empty
+ * value), then the body replaces it (tail). A global BEING_COMPUTED is a
+ * circularity: XTDE0640 in a unit whose parts evaluate templates (XSLT,
+ * 9.11; D227), XQDY0054 otherwise (XQuery 4.0, 5.16). A global without
+ * initializer, or a unit without a global table, leaves the body's own
+ * read to raise what it raises.
+ */
+static sxml_status sxml_machine_step_global_read(sxml_dynamic_context *context,
+                                                 const sxml_ir_global_read *read) {
+    sxml_evaluator_task *task = sxml_machine_top(context);
+    if (task->phase == 1) {
+        sxml_sequence_release(sxml_machine_take_value(context));
+        task->phase = 0;
+        task->expression = read->body;
+        return SXML_STATUS_OK;
+    }
+    const sxml_ir_unit *unit = task->function->unit;
+    sxml_evaluator_slot *slot = sxml_global_read_slot(context, task->function, read);
+    if (slot != NULL && slot->slot_state == SXML_EVALUATOR_SLOT_STATE_BEING_COMPUTED) {
+        const bool is_xslt =
+            unit->evaluator_parts != NULL &&
+            sxml_evaluator_find_kind_handler(unit->evaluator_parts,
+                                             SXML_IR_EXPRESSION_KIND_APPLY_TEMPLATES) != NULL;
+        return sxml_error_record_report(context->error_record,
+                                        is_xslt ? &sxml_circular_xslt_variable_error
+                                                : &sxml_circular_variable_error);
+    }
+    if (slot == NULL || slot->slot_state == SXML_EVALUATOR_SLOT_STATE_BOUND ||
+        sxml_ir_unit_get_global_variable(unit, read->global)->initializer.value == 0) {
+        task->expression = read->body;
+        return SXML_STATUS_OK;
+    }
+    const sxml_evaluator_global_table *table = sxml_evaluator_find_global_table(context, unit);
+    task->phase = 1;
+    return sxml_evaluator_compute_global(
+        context, (sxml_evaluator_global_request){
+                     .table_index = (size_t)(table - context->global_tables),
+                     .global_number = read->global.value});
 }
 
 /* Runs the EXPRESSION task on top for one step. */
@@ -5399,6 +5491,8 @@ static sxml_status sxml_machine_step_expression(sxml_dynamic_context *context) {
         return sxml_start_static_call(context, &expression->static_call);
     case SXML_IR_EXPRESSION_KIND_DYNAMIC_CALL:
         return sxml_start_dynamic_call(context, &expression->dynamic_call);
+    case SXML_IR_EXPRESSION_KIND_GLOBAL_READ:
+        return sxml_machine_step_global_read(context, &expression->global_read);
     case SXML_IR_EXPRESSION_KIND_MAP:
         return sxml_machine_step_map(context, &expression->map);
     case SXML_IR_EXPRESSION_KIND_FILTER:
@@ -5496,10 +5590,26 @@ static bool sxml_machine_catch(sxml_dynamic_context *context, sxml_caught_error 
         return false;
     }
     const size_t task_count = context->task_stack.task_count;
-    /* The top task's own failure is never handed to itself. */
+    /* The top task's own failure is never handed to itself. A task with
+       stops_catching (a global's computation, D234) hides its failures
+       from the catching tasks of its unit below it, not from those of
+       the unit evaluation that asked for its unit (fn:load-xquery-module,
+       fn:transform). */
     size_t catching_count = task_count > 0 ? task_count - 1 : 0;
-    while (catching_count > error.base_count &&
-           !context->task_stack.tasks[catching_count - 1].catches_errors) {
+    const sxml_ir_unit *hidden_unit =
+        task_count > 0 && context->task_stack.tasks[task_count - 1].stops_catching
+            ? context->task_stack.tasks[task_count - 1].function->unit
+            : NULL;
+    while (catching_count > error.base_count) {
+        const sxml_evaluator_task *below = &context->task_stack.tasks[catching_count - 1];
+        if (below->catches_errors &&
+            (hidden_unit == NULL || below->function == NULL ||
+             below->function->unit != hidden_unit)) {
+            break;
+        }
+        if (below->stops_catching && below->function != NULL) {
+            hidden_unit = below->function->unit;
+        }
         catching_count -= 1;
     }
     if (catching_count <= error.base_count) {
@@ -5798,8 +5908,8 @@ static sxml_status sxml_add_global_table(sxml_dynamic_context *context,
         const sxml_ir_global_variable *variable = sxml_ir_unit_get_global_variable(
             unit, (sxml_ir_global_index){.value = (uint32_t)slot_index + 1});
         const sxml_evaluator_slot *given = &request->global_values.slots[slot_index];
-        /* An ABSENT variable with an initializer is computed by the global
-           part (sxml_evaluator_start_global_initializers); a given value
+        /* An ABSENT variable with an initializer is computed on first read
+           (GLOBAL_READ, src/evaluator_global.c, D234); a given value
            wins over the initializer (XQuery 4.0, "Variable Declaration": an external
            variable's default). */
         if (given->slot_state != SXML_EVALUATOR_SLOT_STATE_BOUND) {
@@ -5862,8 +5972,9 @@ static sxml_status sxml_start_main_function(sxml_dynamic_context *context,
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    /* Declared global variables (src/evaluator_global.c, D101). */
-    return sxml_evaluator_start_global_initializers(context, table_index);
+    /* The context global; declared globals are computed on first read
+       (src/evaluator_global.c, D101, D234). */
+    return sxml_evaluator_bind_context_global(context, table_index);
 }
 
 /* Ends a run: restores the context for the next one. */

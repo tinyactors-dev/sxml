@@ -170,6 +170,7 @@ static bool kind_is_plain(sxml_ir_expression_kind kind) {
     case SXML_IR_EXPRESSION_KIND_SHALLOW_COPY:
     case SXML_IR_EXPRESSION_KIND_APPLY_TEMPLATES:
     case SXML_IR_EXPRESSION_KIND_STREAM:
+    case SXML_IR_EXPRESSION_KIND_GLOBAL_READ:
     case SXML_IR_EXPRESSION_KIND_COUNT:
         return false;
     }

@@ -5973,6 +5973,59 @@ static bool is_bound_global(const sxml_xslt_lowering *lowering, size_t global_in
     return lowering->static_context_count < 2U;
 }
 
+/*
+ * 9.5: XTDE0050 for a required stylesheet parameter without a value is
+ * raised whether or not the parameter is read, but globals are computed
+ * on first read (D234): the main function reads each required parameter
+ * first, LET(s, $global:N, body), and the global-read pass makes the read
+ * compute it (its initializer raises XTDE0050 when no value is bound).
+ */
+static sxml_status read_required_parameters(const sxml_xslt_lowering *lowering) {
+    sxml_xpath_lowerer *lowerer = lowering->lowerer;
+    const sxml_ir_function_index main_index = {.value = 1};
+    sxml_ir_function main_function = *sxml_ir_unit_get_function(lowerer->unit, main_index);
+    sxml_status status = SXML_STATUS_OK;
+    for (size_t global_index = 0; status == SXML_STATUS_OK && global_index < lowering->global_count;
+         global_index += 1) {
+        const sxml_xslt_ast_node_index node = lowering->global_nodes[global_index];
+        const sxml_xslt_ast_attribute *required = find_attribute(
+            lowering, (attribute_lookup){.node = node, .kind = SXML_XSLT_AST_ATTRIBUTE_REQUIRED});
+        if (kind_of(lowering, node) != SXML_XSLT_AST_KIND_PARAM ||
+            required->value.kind != SXML_XSLT_AST_VALUE_KIND_BOOLEAN ||
+            !required->value.payload.is_true || !is_bound_global(lowering, global_index) ||
+            main_function.body.value == 0 || main_function.slot_count == UINT32_MAX) {
+            continue;
+        }
+        sxml_ir_expression_index read = {0};
+        status = sxml_xslt_lowering_add_expression(
+            lowerer,
+            atom_expression((sxml_ir_atom){
+                .atom_kind = SXML_IR_ATOM_KIND_GLOBAL_VARIABLE,
+                .global_variable = {.value = (uint32_t)global_index + 1U}}),
+            &read);
+        main_function.slot_count += 1;
+        sxml_ir_expression_index let = {0};
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xslt_lowering_add_expression(
+                lowerer,
+                (sxml_ir_expression){
+                    .expression_kind = SXML_IR_EXPRESSION_KIND_LET,
+                    .let = {.variable = {.value = main_function.slot_count},
+                            .bound_expression = read,
+                            .body = main_function.body,
+                            .is_content = false}},
+                &let);
+        }
+        main_function.body = let;
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_ir_unit_replace_function(
+        lowerer->unit,
+        &(sxml_ir_function_replacement){.index = main_index, .function = main_function});
+}
+
 sxml_status sxml_xslt_lowering_add_global_variables(const sxml_xslt_lowering *lowering) {
     const size_t global_count = lowering->global_count;
     if (global_count == 0) {
@@ -6045,6 +6098,9 @@ sxml_status sxml_xslt_lowering_add_global_variables(const sxml_xslt_lowering *lo
                                   .occurrence = SXML_OCCURRENCE_ZERO_OR_MORE},
                 .initializer = {.value = 0}},
             &global);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = read_required_parameters(lowering);
     }
     sxml_xpath_lowerer_release_scratch(lowerer, memory);
     sxml_xpath_lowerer_release_scratch(lowerer, graph.first_edges);

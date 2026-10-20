@@ -63,7 +63,10 @@
  * caught (limits, memory, unsupported features, invalid arguments: XQuery
  * 4.0, "Try/Catch Expressions", catches dynamic and type
  * errors only). Catching tasks are looked for only above the base of the
- * running machine loop.
+ * running machine loop; below a task with stops_catching set (a global's
+ * computation, D234), not among the tasks of its function's unit (an
+ * error of an initializer is caught inside the initializer, not around
+ * the read: XSLT 4.0, 2.4.2 and 8.3), but in a unit evaluation's asker.
  *
  * Delivering. A node constructor whose content is one expression makes
  * its part task a receiving task (glossary `receiving_task`, D166): it
@@ -202,6 +205,9 @@ struct sxml_evaluator_task {
     bool counts_depth;
     /* True for a catching task (see "Catching"). */
     bool catches_errors;
+    /* True for a task no catching task below catches the failures of
+       (see "Catching"). */
+    bool stops_catching;
     /* True for a delivering task (see "Delivering"). */
     bool delivers_content;
     union {
@@ -379,16 +385,31 @@ SXML_NODISCARD sxml_status sxml_evaluator_start_filter_index(
 
 /*
  * Called by sxml_evaluator_evaluate, and for a unit evaluation (D154),
- * after the main function's frame, RETURN task and body task are pushed,
- * so tasks it pushes run before the body (the top task is the body's):
- * starts computing the global variables of the global table at
- * table_index with an initializer that the request left ABSENT (XQuery
- * 4.0, "Variable Declaration") in the order of their initializers'
- * indices, and binds the context global (name 0) to the host's context
- * value (D135). Defined in src/evaluator_global.c.
+ * after the main function's frame, RETURN task and body task are pushed
+ * (the top task is the body's): binds the context global (name 0) of the
+ * global table at table_index to the host's context value (D135). The
+ * other globals are computed on first read (GLOBAL_READ, D234). Defined in
+ * src/evaluator_global.c.
  */
-SXML_NODISCARD sxml_status sxml_evaluator_start_global_initializers(
+SXML_NODISCARD sxml_status sxml_evaluator_bind_context_global(
     sxml_dynamic_context *dynamic_context, size_t table_index);
+
+/* A global of the global table at table_index, by number (from 1). */
+typedef struct sxml_evaluator_global_request {
+    size_t table_index;
+    uint32_t global_number;
+} sxml_evaluator_global_request;
+
+/*
+ * Pushes a PART task, in the top task's function and frame, that computes
+ * the global of request, which has an initializer and is ABSENT: it is
+ * BEING_COMPUTED while its initializer's CALL runs, then BOUND to the
+ * value, and the task finishes with the empty sequence; ABSENT again when
+ * the task is released before (the initializer failed). For the machine's
+ * GLOBAL_READ (D234). Defined in src/evaluator_global.c.
+ */
+SXML_NODISCARD sxml_status sxml_evaluator_compute_global(
+    sxml_dynamic_context *dynamic_context, sxml_evaluator_global_request request);
 
 /* The global table of unit in the evaluation running, or NULL when it
    has none (glossary `global_table`). Valid until a table is added.

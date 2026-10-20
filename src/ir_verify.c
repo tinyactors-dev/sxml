@@ -908,6 +908,15 @@ static sxml_status visit_expression(verifier *checker,
         return check_apply_templates(checker, &expression->apply_templates);
     case SXML_IR_EXPRESSION_KIND_STREAM:
         return check_stream(checker, &expression->stream);
+    case SXML_IR_EXPRESSION_KIND_GLOBAL_READ:
+        /* D234: a global of the unit, then the body. */
+        status = check_required_atom(
+            checker, (sxml_ir_atom){.atom_kind = SXML_IR_ATOM_KIND_GLOBAL_VARIABLE,
+                                    .global_variable = expression->global_read.global});
+        if (status == SXML_STATUS_OK) {
+            status = push_visit(checker, expression->global_read.body);
+        }
+        return status;
     }
     return report(checker, "an expression kind is unknown");
 }

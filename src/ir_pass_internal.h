@@ -123,10 +123,21 @@ SXML_NODISCARD sxml_status sxml_ir_hoist_invariant_lets(const sxml_ir_pass_reque
 SXML_NODISCARD sxml_status sxml_ir_index_filters(const sxml_ir_pass_request *request);
 
 /*
+ * The global-read pass (src/ir_global_read.c, D234): puts a GLOBAL_READ of
+ * each global with an initializer that an expression reads as one of its
+ * own atoms in the expression's place, the expression moved into its
+ * body, so globals are computed on first read. Returns the allocator's
+ * failures and SXML_STATUS_LIMIT_EXCEEDED at the unit's expression limit.
+ */
+SXML_NODISCARD sxml_status sxml_ir_read_globals_lazily(const sxml_ir_pass_request *request);
+
+/*
  * The passes compile runs, in order (src/ir.c, packet 1.12):
  * {"verify", sxml_ir_verify}, {"filter-index", sxml_ir_index_filters},
- * {"hoist", sxml_ir_hoist_invariant_lets} (D224): filter indexes first,
- * while index keys still read globals and not the slots hoisting binds.
+ * {"hoist", sxml_ir_hoist_invariant_lets} (D224), {"global-read",
+ * sxml_ir_read_globals_lazily} (D234): filter indexes first, while index
+ * keys still read globals and not the slots hoisting binds; global reads
+ * last, so the loop passes see globals as atoms.
  */
 extern const sxml_ir_pass_view sxml_ir_standard_passes;
 
