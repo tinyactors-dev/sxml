@@ -28,7 +28,7 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 (bindings/kotlin/DESIGN.md, bindings/swift/DESIGN.md).
 
 
-- 2.23: XPath/XQuery sweep on the largest remaining failure clusters.
+- perf-4: laziness and short-circuiting, the 2,000-order join, the step limit.
 - 4.23: XSLT sweep on the largest failure clusters.
 
 ## Next
