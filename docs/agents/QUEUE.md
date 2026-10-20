@@ -87,7 +87,7 @@ XPath and XQuery (after 2.23, D258; XP40 32,716, XQ40 46,017 passed):
 - is-id of list and union ID types (fn-element-with-id-4/5); fn:xsd-
   validator's use-xsi-schema-location (FODC0009).
 - The suite's `recordTypeDecl/` module paths (the directory is
-  `RecordTypeDecl/`; 11 cases, a suite error to report upstream).
+  `RecordTypeDecl/`; 11 cases, a suite error; the owner reports it upstream).
 - fn:serialize canonical-JSON cases (27) need `bin:unpack-double` (7.8).
 - A processor keeps every imported schema until it is destroyed (D174).
 
@@ -99,7 +99,8 @@ fn-transform-27/82e/94; xsl:copy of JNodes (needs an xdm.h addition);
 XTDE0430/0440; 4.22 (D252): the newest drafts (13 Oct 2026, qtspecs 72f2229) and
 xslt40-test (91328fb) are what sxml already had; 57 suite cases contradict
 the draft (53 "~T" type patterns that PR 2911 removed, 4 priorities,
-match-080/239) and the draft wins (D245). typed="~T" on xsl:mode added.
+match-080/239) and the draft wins (D245; the owner confirmed on
+2026-10-20: no "~T" extension). typed="~T" on xsl:mode added.
 Refresh both together when qtspecs or the suite move. 4.21 (D234): indexed FILTERs
 are not hoisted from; current-merge-group(()) per 15.5.1; globals computed
 on first read (GLOBAL_READ); typed modes and XTSE3105; XT40 11,943 at its
