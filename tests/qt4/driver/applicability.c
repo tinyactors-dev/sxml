@@ -87,6 +87,22 @@ static const sxml_qt4_supported_dependency sxml_qt4_supported_dependencies[] = {
      SXML_BYTE_VIEW_INITIALIZER("big_integer")},
     {SXML_BYTE_VIEW_INITIALIZER("limits"),
      SXML_BYTE_VIEW_INITIALIZER("year_lt_0")},
+    /* The numbering sequences fn:format-integer has beyond the decimal
+       digit families: Arabic-Indic digits, circled, parenthesized and
+       full-stop numbers, Greek letters (F&O 4.0, 4.6.1); not the CJK
+       numerals (U+4E00). */
+    {SXML_BYTE_VIEW_INITIALIZER("format-integer-sequence"),
+     SXML_BYTE_VIEW_INITIALIZER("\xD9\xA1")},
+    {SXML_BYTE_VIEW_INITIALIZER("format-integer-sequence"),
+     SXML_BYTE_VIEW_INITIALIZER("\xE2\x91\xA0")},
+    {SXML_BYTE_VIEW_INITIALIZER("format-integer-sequence"),
+     SXML_BYTE_VIEW_INITIALIZER("\xE2\x91\xB4")},
+    {SXML_BYTE_VIEW_INITIALIZER("format-integer-sequence"),
+     SXML_BYTE_VIEW_INITIALIZER("\xE2\x92\x88")},
+    {SXML_BYTE_VIEW_INITIALIZER("format-integer-sequence"),
+     SXML_BYTE_VIEW_INITIALIZER("\xCE\x91")},
+    {SXML_BYTE_VIEW_INITIALIZER("format-integer-sequence"),
+     SXML_BYTE_VIEW_INITIALIZER("\xCE\xB1")},
     {SXML_BYTE_VIEW_INITIALIZER("language"), SXML_BYTE_VIEW_INITIALIZER("en")},
     {SXML_BYTE_VIEW_INITIALIZER("language"), SXML_BYTE_VIEW_INITIALIZER("de")},
     {SXML_BYTE_VIEW_INITIALIZER("language"), SXML_BYTE_VIEW_INITIALIZER("fr")},
