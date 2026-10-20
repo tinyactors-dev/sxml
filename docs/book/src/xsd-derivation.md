@@ -118,6 +118,8 @@ abstract, only they can:
 $ sxml validate --schema=media-shelf.xsd media-shelf.xml
 $ echo '<shelf><dvd id="x"><title>X</title></dvd><checked/></shelf>' | sxml validate --schema=media-shelf.xsd -
 -:1:8: cvc-complex-type.2.4: element 'dvd' is not allowed here; expected 'entry'
+-:1:42: cvc-complex-type.2.4: element 'checked' is not allowed here; expected 'entry'
+-:1:42: cvc-datatype-valid.1.2.1: element 'checked' has the value '', which is not valid for type 'xs:date'
 ```
 
 The message names the head, `entry`, which stands for every member of

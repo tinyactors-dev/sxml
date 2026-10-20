@@ -868,6 +868,7 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `substitution_group` | The element declarations that may appear where a head declaration is expected: those whose substitution group affiliations reach it (XSD 1.1 Part 1, 3.3.6.2) |
 | `content_model` | The compiled form of a complex type's particle: a deterministic automaton over element names whose transitions are element declarations and schema wildcards, with counters for large maxOccurs (D167) |
 | `content_model_counter` | A counter of a content model that counts the repetitions of one particle between its minimum and maximum occurrences, instead of a copy of states per repetition |
+| `content_recovery` | What the validator does after a child element its parent's content model rejects (cvc-complex-type.2.4): it moves to the nearest state the child is accepted from, as if the elements before it were missing, or else skips the child, so that the rest of the content is still assessed and its errors reported (D277) |
 | `content_model_cursor` | Where matching an element's children has reached in its content model: a state and the counter values |
 | `expected_term` | A term a content model cursor would accept next, for error messages ("expected 'shipTo'") |
 | `message_template` | A validation error's description as static text with placeholders (%e an element, %a an attribute, %v a value, %t a type, %x the expected terms of a content model cursor, %f the facet a value breaks, ...) that the error's fields fill |

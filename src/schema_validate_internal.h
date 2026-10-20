@@ -87,6 +87,10 @@ typedef struct sxml_schema_validation_frame {
     bool is_nilled;
     /* An error in the content: the rest is assessed laxly. */
     bool has_content_error;
+    /* The content model rejected the last child element, and the cursor
+       is where that report listed the expected terms (cvc-complex-type.2.4
+       recovery: the rejected element is skipped). */
+    bool is_after_rejection;
     bool has_element_children;
     /* Character children were met (also whitespace ones). */
     bool has_character_children;

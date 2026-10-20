@@ -1216,6 +1216,7 @@ static sxml_status flush_pending(sxml_schema_validator *validator) {
                                           .counter_count = 0,
                                           .is_nilled = false,
                                           .has_content_error = false,
+                                          .is_after_rejection = false,
                                           .has_element_children = false,
                                           .has_character_children = false,
                                           .text_start = validator->text_bytes.entry_count,
@@ -1408,6 +1409,32 @@ static sxml_status find_particle_declaration(sxml_schema_validator *validator,
     return status;
 }
 
+/* A child the content model matched. */
+typedef struct matched_child {
+    const sxml_schema_validation_frame *parent;
+    sxml_schema_content_model_match match;
+    sxml_name_identifier element_name;
+} matched_child;
+
+/* What a matched child is assessed with: its element declaration, or
+   the wildcard's process contents (with the declaration of its name in
+   the type's particles, for Element Declarations Consistent). */
+static sxml_status assess_matched_child(sxml_schema_validator *validator, matched_child matched,
+                                        child_assessment *child) {
+    if (matched.match.match_kind == SXML_SCHEMA_MATCH_ELEMENT_DECLARATION) {
+        *child = (child_assessment){.assessment = SXML_SCHEMA_ASSESSMENT_STRICT,
+                                    .element_declaration = matched.match.element_declaration,
+                                    .missing_declaration_constraint = no_text};
+        return SXML_STATUS_OK;
+    }
+    *child = wildcard_child(validator, matched.match.wildcard, matched.element_name);
+    return find_particle_declaration(
+        validator,
+        (particle_search){.type_definition = matched.parent->type_definition,
+                          .element_name = matched.element_name},
+        &child->consistent_declaration);
+}
+
 /* The child of a strictly assessed parent: through the content model. */
 typedef struct child_request {
     sxml_schema_validation_frame *parent;
@@ -1490,34 +1517,75 @@ static sxml_status match_child(sxml_schema_validator *validator, child_request r
         }
         parent->content_model_state = cursor.state;
     }
+    parent->is_after_rejection = match.match_kind == SXML_SCHEMA_MATCH_NONE;
     switch (match.match_kind) {
     case SXML_SCHEMA_MATCH_NONE: {
         /* 3.4.4.2, clause 2.4: the child does not fit the content model.
-           A step that does not match leaves the counters as they were. */
+           A step that does not match leaves the cursor as it was, so the
+           rest of the content is matched as if the child were not there,
+           and its later errors are reported too. The child is assessed
+           by a declaration of its name in the type's particles where
+           there is one (as for a wildcard, 3.8.6.3), else laxly. */
         const sxml_schema_message message = {
             .text = TEXT("%e is not allowed here; expected %x"),
             .element = child_element,
             .cursor = parent->content_model != NULL ? &before : NULL};
-        return report_content_error(validator,
-                                    (content_error){.frame = parent,
-                                                    .constraint_name = TEXT("cvc-complex-type.2.4"),
-                                                    .message = message,
-                                                    .location = request.location});
-    }
-    case SXML_SCHEMA_MATCH_ELEMENT_DECLARATION:
-        *child = (child_assessment){.assessment = SXML_SCHEMA_ASSESSMENT_STRICT,
-                                    .element_declaration = match.element_declaration,
-                                    .missing_declaration_constraint = no_text};
-        return SXML_STATUS_OK;
-    case SXML_SCHEMA_MATCH_WILDCARD:
-        *child = wildcard_child(validator, match.wildcard, request.element_name);
-        return find_particle_declaration(
+        sxml_status status = report_at(validator,
+                                       (located_error){.constraint_name =
+                                                           TEXT("cvc-complex-type.2.4"),
+                                                       .message = message,
+                                                       .location = request.location});
+        if (status != SXML_STATUS_OK || parent->content_model == NULL) {
+            return status;
+        }
+        /* Recovery (glossary content_recovery): as if the elements
+           before the child were missing, where the model takes it next;
+           else the child is skipped. Either way the rest of the content
+           is matched on, and its later errors are reported too. */
+        sxml_schema_content_model_cursor cursor = before;
+        status = sxml_schema_content_model_recover(
+            validator->components,
+            &(sxml_schema_content_model_recovery_request){.cursor = &cursor,
+                                                         .element_name = request.element_name,
+                                                         .scratch = &validator->particle_stack,
+                                                         .allocator = validator->allocator},
+            &match);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        parent->content_model_state = cursor.state;
+        if (match.match_kind != SXML_SCHEMA_MATCH_NONE) {
+            parent->is_after_rejection = false;
+            return assess_matched_child(validator, (matched_child){.parent = parent,
+                                                                   .match = match,
+                                                                   .element_name =
+                                                                       request.element_name},
+                                        child);
+        }
+        /* Skipped: assessed by a declaration of its name in the type's
+           particles where there is one (as for a wildcard, 3.8.6.3),
+           else laxly. */
+        sxml_schema_element_declaration_index local = {.value = 0};
+        status = find_particle_declaration(
             validator,
             (particle_search){.type_definition = parent->type_definition,
                               .element_name = request.element_name},
-            &child->consistent_declaration);
+            &local);
+        if (status == SXML_STATUS_OK && local.value != 0) {
+            *child = (child_assessment){.assessment = SXML_SCHEMA_ASSESSMENT_STRICT,
+                                        .element_declaration = local,
+                                        .missing_declaration_constraint = no_text};
+        }
+        return status;
     }
-    return SXML_STATUS_OK;
+    case SXML_SCHEMA_MATCH_ELEMENT_DECLARATION:
+    case SXML_SCHEMA_MATCH_WILDCARD:
+        break;
+    }
+    return assess_matched_child(
+        validator,
+        (matched_child){.parent = parent, .match = match, .element_name = request.element_name},
+        child);
 }
 
 /* The validation root (5.2): the configured governing type, else the
@@ -1746,8 +1814,10 @@ static sxml_status end_strict_element(sxml_schema_validator *validator,
                 .counter_values =
                     sxml_schema_scratch_array_at(&validator->counter_values, frame->first_counter),
                 .counter_count = frame->counter_count};
-            if (!sxml_schema_content_model_can_end(&cursor)) {
-                /* 3.4.4.2, clause 2.4: the content is not complete. */
+            if (!sxml_schema_content_model_can_end(&cursor) && !frame->is_after_rejection) {
+                /* 3.4.4.2, clause 2.4: the content is not complete
+                   (unless the last child's rejection listed what was
+                   expected here already). */
                 const sxml_schema_message message = {
                     .text = TEXT("the content of %e is incomplete; expected %x"),
                     .element = frame_element(frame),

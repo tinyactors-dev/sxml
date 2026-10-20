@@ -2688,6 +2688,64 @@ sxml_status sxml_schema_content_model_step(const sxml_schema_components *compone
     return SXML_STATUS_OK;
 }
 
+sxml_status sxml_schema_content_model_recover(
+    const sxml_schema_components *components,
+    const sxml_schema_content_model_recovery_request *request,
+    sxml_schema_content_model_match *match) {
+    *match = (sxml_schema_content_model_match){.match_kind = SXML_SCHEMA_MATCH_NONE};
+    sxml_schema_content_model_cursor *cursor = request->cursor;
+    const sxml_schema_content_model *model = cursor->content_model;
+    if (cursor->state == 0 || cursor->state > model->state_count) {
+        return SXML_STATUS_OK;
+    }
+    sxml_name_parts parts = {.namespace_uri = {.index = 0}};
+    sxml_status status = sxml_name_pool_get_name_parts(components->processor->name_pool,
+                                                       request->element_name, &parts);
+    const wildcard_name name = {.name = request->element_name,
+                                .namespace_uri = parts.namespace_uri,
+                                .symbol_space = SXML_SCHEMA_SYMBOL_SPACE_ELEMENT_DECLARATION};
+    /* A breadth-first walk (D71: a queue, no recursion): entries 0 to
+       state_count mark the states seen, the queue follows them. */
+    sxml_schema_scratch_array *scratch = request->scratch;
+    scratch->entry_count = 0;
+    const uint32_t unseen = 0;
+    for (uint32_t state = 0; status == SXML_STATUS_OK && state <= model->state_count;
+         state += 1) {
+        status = sxml_schema_scratch_array_append(request->allocator, scratch, &unseen);
+    }
+    const size_t queue_start = (size_t)model->state_count + 1U;
+    if (status == SXML_STATUS_OK) {
+        *(uint32_t *)sxml_schema_scratch_array_at(scratch, cursor->state) = 1;
+        status = sxml_schema_scratch_array_append(request->allocator, scratch, &cursor->state);
+    }
+    const uint32_t start_state = cursor->state;
+    for (size_t queued = queue_start; status == SXML_STATUS_OK && queued < scratch->entry_count;
+         queued += 1) {
+        const uint32_t state_index =
+            *(const uint32_t *)sxml_schema_scratch_array_at(scratch, queued);
+        if (state_index != start_state) {
+            cursor->state = state_index;
+            step_cursor(components, (cursor_step){.cursor = cursor, .name = &name}, match);
+            if (match->match_kind != SXML_SCHEMA_MATCH_NONE) {
+                return SXML_STATUS_OK;
+            }
+            cursor->state = start_state;
+        }
+        const content_model_state *state = &model->states[state_index];
+        for (uint32_t entry = 0; status == SXML_STATUS_OK && entry < state->transitions.index_count;
+             entry += 1) {
+            const uint32_t target =
+                model->transitions[state->transitions.first_index + entry].target_state;
+            uint32_t *mark = sxml_schema_scratch_array_at(scratch, target);
+            if (target != 0 && target <= model->state_count && *mark == 0) {
+                *mark = 1;
+                status = sxml_schema_scratch_array_append(request->allocator, scratch, &target);
+            }
+        }
+    }
+    return status;
+}
+
 static void add_expected_term(sxml_schema_expected_term_buffer *buffer,
                               sxml_schema_content_model_match term) {
     if (buffer->term_count < buffer->term_capacity) {

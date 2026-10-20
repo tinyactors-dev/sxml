@@ -2106,6 +2106,33 @@ SXML_NODISCARD sxml_status sxml_schema_scratch_array_append(
 void sxml_schema_scratch_array_release(sxml_allocator allocator,
                                        sxml_schema_scratch_array *array);
 
+/* A child element the cursor's state rejected, to recover from. */
+typedef struct sxml_schema_content_model_recovery_request {
+    /* In/out, as for a step. */
+    sxml_schema_content_model_cursor *cursor;
+    sxml_name_identifier element_name;
+    /* Scratch with uint32_t entries, and its allocator. */
+    sxml_schema_scratch_array *scratch;
+    sxml_allocator allocator;
+} sxml_schema_content_model_recovery_request;
+
+/*
+ * Recovery after cvc-complex-type.2.4 (glossary content_recovery): the
+ * nearest state reachable from the cursor's by transitions, as if the
+ * elements they take were missing, from which the child matches; the
+ * cursor moves there and steps, and *match is what the child matched.
+ * Counter tests are not applied on the way, the counters stay as they
+ * were. NONE, with the cursor unchanged, when no reachable state takes
+ * the child. Not a validation rule: what follows a rejected child has
+ * no attribution (3.4.4.2), so this only decides which later errors are
+ * reported. Returns the name pool's and the allocator's failures.
+ * src/schema_content_model.c.
+ */
+SXML_NODISCARD sxml_status sxml_schema_content_model_recover(
+    const sxml_schema_components *components,
+    const sxml_schema_content_model_recovery_request *request,
+    sxml_schema_content_model_match *match);
+
 /* ------------------------------------------------- Validator seams (5.7) */
 
 /*

@@ -323,6 +323,44 @@ static void test_purchase_order(sxml_test_state *state) {
     sxml_processor_destroy(processor);
 }
 
+/* After a child the content model rejects, the rest of the content is
+   matched on (glossary content_recovery): a missing element costs one
+   report, a skipped extra one too, and later errors are still found. */
+static void test_content_recovery(sxml_test_state *state) {
+    sxml_processor *processor = open_processor();
+    SXML_TEST_REQUIRE(state, processor != NULL);
+    sxml_schema *schema = compile(processor, order_schema);
+    SXML_TEST_REQUIRE(state, schema != NULL);
+    const struct {
+        const char *document;
+        size_t report_count;
+    } cases[] = {
+        /* shipTo missing: billTo is where the model takes it next. */
+        {"<purchaseOrder><billTo><name>R</name><zip>1</zip></billTo><items/></purchaseOrder>", 1},
+        /* The same, with a later error in billTo's content. */
+        {"<purchaseOrder><billTo><name>R</name><zip>x</zip></billTo><items/></purchaseOrder>", 2},
+        /* An extra element is skipped; the content goes on after it. */
+        {"<purchaseOrder><shipTo><name>A</name><zip>1</zip></shipTo><junk/>"
+         "<billTo><name>R</name><zip>1</zip></billTo><items/></purchaseOrder>",
+         1},
+        /* items missing at the end: one report, not two. */
+        {"<purchaseOrder><shipTo><name>A</name><zip>1</zip></shipTo><junk/></purchaseOrder>", 1},
+    };
+    for (size_t case_index = 0; case_index < SXML_TEST_COUNT(cases); case_index += 1) {
+        const validation_result result =
+            validate(&(validation_request){.processor = processor,
+                                           .schema = schema,
+                                           .document = cases[case_index].document,
+                                           .validation_mode = SXML_VALIDATION_MODE_STRICT});
+        SXML_TEST_EXPECT(state, result.status == SXML_STATUS_OK);
+        SXML_TEST_EXPECT(state, result.outcome.validity == SXML_VALIDITY_INVALID);
+        SXML_TEST_EXPECT(state, strcmp(result.log.first_code, "cvc-complex-type.2.4") == 0);
+        SXML_TEST_EXPECT(state, result.log.report_count == cases[case_index].report_count);
+    }
+    sxml_schema_destroy(schema);
+    sxml_processor_destroy(processor);
+}
+
 static void test_declarations_and_xsi(sxml_test_state *state) {
     sxml_processor *processor = open_processor();
     SXML_TEST_REQUIRE(state, processor != NULL);
@@ -744,6 +782,7 @@ static void test_validation_survives_every_allocation_failure(sxml_test_state *s
 static const sxml_test_case schema_validate_test_cases[] = {
     {.name = "lifecycle_checks_its_arguments", .function = test_lifecycle_checks_its_arguments},
     {.name = "purchase_order", .function = test_purchase_order},
+    {.name = "content_recovery", .function = test_content_recovery},
     {.name = "declarations_and_xsi", .function = test_declarations_and_xsi},
     {.name = "validated_node_has_typed_value", .function = test_validated_node_has_typed_value},
     {.name = "validated_copy_has_defaults", .function = test_validated_copy_has_defaults},

@@ -732,7 +732,12 @@ only the first. CONSTRAINT is the name that XSD 1.1 gives the rule that
 failed, for example `cvc-complex-type.2.4` (XSD 1.1 Part 1, appendix C).
 The description names the element or attribute, the value that is not
 valid, and what was expected: the elements that the content model allows
-there, the type, or the facet. A FILE that is not well-formed is reported
+there, the type, or the facet. After an element that the content model
+does not allow (`cvc-complex-type.2.4`), the rest of its parent's content
+is still checked: when the element is allowed further on, the elements
+before it count as missing, otherwise it counts as extra and is skipped,
+so one mistake gives one report and the later errors are found too. A
+FILE that is not well-formed is reported
 as `sxml check` reports it. A FILE is parsed in segments, so the
 errors in its content before the place where it stops being well-formed
 are reported too, before that place; in JSON, such a FILE has `errors`

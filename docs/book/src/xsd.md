@@ -62,6 +62,7 @@ damaged.xml:6:14: cvc-enumeration-valid: attribute 'currency' has the value 'GBP
 damaged.xml:6:7: cvc-fractionDigits-valid: element 'price' has the value '9.999', which is not valid for type 'amount': the value has more fraction digits than the fractionDigits facet (XSD 1.1 Part 2, 4.3.12.4); the fractionDigits facet is '2'
 damaged.xml:8:11: cvc-id.2: the ID 'dune' of attribute 'id' is used twice in the document
 damaged.xml:9:7: cvc-complex-type.2.4: element 'author' is not allowed here; expected 'title'
+damaged.xml:10:7: cvc-complex-type.2.4: element 'title' is not allowed here; expected 'author' or 'price'
 damaged.xml:8:5: cvc-identity-constraint.4.1: element 'book': its key sequence is that of an earlier member (unique 'book-id')
 ```
 

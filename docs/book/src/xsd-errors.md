@@ -82,12 +82,16 @@ mean:
 | `cvc-identity-constraint.4.3` | A keyref names a key that doesn't exist | Add the target, or fix the reference |
 | `cvc-assertion`, `cvc-assertions-valid` | An assertion is false | Read the assertion in the message |
 
-## One mistake can hide others
+## After an element that is not allowed
 
-When an element is not allowed where it is, sxml can't know what the
-author meant, so it reports that element and doesn't check the rest of
-the content of its parent. Here `author` and `title` are swapped, and
-the price is wrong too:
+When an element is not allowed where it is, sxml reports it and then
+goes on with the rest of the content of its parent, so one run finds
+the later mistakes too. It guesses what the author meant: if the
+element is allowed further on in the content model, the elements
+before it are taken as missing, and checking continues from there;
+otherwise the element is taken as extra and skipped. Either way the
+element's own content is still checked against its declaration. Here
+`author` and `title` are swapped, and the price is wrong too:
 
 `late.xml`:
 
@@ -98,12 +102,23 @@ the price is wrong too:
 ```console
 $ sxml validate --schema=library.xsd late.xml
 late.xml:4:7: cvc-complex-type.2.4: element 'author' is not allowed here; expected 'title'
+late.xml:5:7: cvc-complex-type.2.4: element 'title' is not allowed here; expected 'author' or 'price'
+late.xml:6:14: cvc-enumeration-valid: attribute 'currency' has the value 'GBP', which is not valid for type 'currency': the value is not one of the enumeration facets (XSD 1.1 Part 2, 4.3.5.4); the enumeration facets are 'EUR', 'USD'
+late.xml:6:7: cvc-datatype-valid.1.2.1: element 'price' has the value 'cheap', which is not valid for type 'amount'
 ```
 
-Only the first mistake is reported. After you swap the two elements,
-validation goes on past them, and the next run reports the currency
-and the price. The other elements of the document, outside this book,
-are checked as usual.
+`author` is allowed after a `title`, so sxml takes the `title` as
+missing and goes on after `author`; then the real `title` comes too
+late, and is reported as well. The currency and the price are checked
+as usual. A missing element costs one report, and so does an extra
+one:
+
+```console
+$ printf '<library>\n  <shelf name="Fiction">\n    <book id="dune" year="1965">\n      <author>Frank Herbert</author>\n      <price currency="EUR">9.99</price>\n      <isbn>0441013597</isbn>\n    </book>\n  </shelf>\n</library>\n' > missing.xml
+$ sxml validate --schema=library.xsd missing.xml
+missing.xml:4:7: cvc-complex-type.2.4: element 'author' is not allowed here; expected 'title'
+missing.xml:6:7: cvc-complex-type.2.4: element 'isbn' is not allowed here; expected 'tags'
+```
 
 ## Documents that are not well-formed
 
@@ -138,7 +153,7 @@ line, column, byte offset and message:
 
 ```console
 $ sxml validate --schema=library.xsd --format=json late.xml
-{"schema":{"documents":["library.xsd"],"status":"valid"},"files":[{"file":"late.xml","status":"invalid","errors":[{"code":"cvc-complex-type.2.4","line":4,"column":7,"byte_offset":74,"message":"element 'author' is not allowed here; expected 'title'"}]}]}
+{"schema":{"documents":["library.xsd"],"status":"valid"},"files":[{"file":"late.xml","status":"invalid","errors":[{"code":"cvc-complex-type.2.4","line":4,"column":7,"byte_offset":74,"message":"element 'author' is not allowed here; expected 'title'"},{"code":"cvc-complex-type.2.4","line":5,"column":7,"byte_offset":111,"message":"element 'title' is not allowed here; expected 'author' or 'price'"},{"code":"cvc-enumeration-valid","line":6,"column":14,"byte_offset":144,"message":"attribute 'currency' has the value 'GBP', which is not valid for type 'currency': the value is not one of the enumeration facets (XSD 1.1 Part 2, 4.3.5.4); the enumeration facets are 'EUR', 'USD'"},{"code":"cvc-datatype-valid.1.2.1","line":6,"column":7,"byte_offset":137,"message":"element 'price' has the value 'cheap', which is not valid for type 'amount'"}]}]}
 $ sxml validate --schema=broken.xsd --format=json one-loan.xml
 {"schema":{"documents":["broken.xsd"],"status":"invalid","errors":[{"document":"broken.xsd","code":"src-attribute","line":8,"column":7,"byte_offset":255,"message":"An attribute's value is not allowed: use"}]},"files":[]}
 ```
@@ -150,8 +165,9 @@ file can't be read:
 
 ```console
 $ sxml validate --schema=library.xsd missing.xml; echo "exit status $?"
-sxml validate: cannot read 'missing.xml'
-exit status 3
+missing.xml:4:7: cvc-complex-type.2.4: element 'author' is not allowed here; expected 'title'
+missing.xml:6:7: cvc-complex-type.2.4: element 'isbn' is not allowed here; expected 'tags'
+exit status 1
 ```
 
 From XQuery, a `validate` expression that fails raises `err:XQDY0027`
