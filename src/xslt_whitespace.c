@@ -41,6 +41,8 @@ typedef struct stripping_filter {
     sxml_tree_builder target;
     sxml_allocator allocator;
     sxml_name_pool *name_pool;
+    /* For the type annotations of the elements copied. */
+    const sxml_type_registry *type_registry;
     space_rule *rules;
     size_t rule_count;
     open_element *elements;
@@ -295,6 +297,43 @@ static bool preserves_element(const stripping_filter *filter, sxml_name_identifi
     return best == NULL || best->preserves;
 }
 
+/* 4.2.2: an element whose type annotation is a simple type or a complex
+   type with simple content keeps its whitespace text children whatever
+   the declarations say. */
+static bool has_simple_content(const stripping_filter *filter, sxml_type_identifier type) {
+    if (type.index == SXML_TYPE_NONE || type.index == SXML_TYPE_XS_UNTYPED ||
+        filter->type_registry == NULL) {
+        return false;
+    }
+    sxml_type_description description;
+    memset(&description, 0, sizeof(description));
+    if (sxml_type_registry_describe_type(filter->type_registry, type, &description) !=
+        SXML_STATUS_OK) {
+        return false;
+    }
+    switch (description.variety) {
+    case SXML_TYPE_VARIETY_COMPLEX:
+        return description.variety_details.complex_type.content_type_variety ==
+               SXML_CONTENT_TYPE_VARIETY_SIMPLE;
+    case SXML_TYPE_VARIETY_ATOMIC:
+    case SXML_TYPE_VARIETY_LIST:
+    case SXML_TYPE_VARIETY_UNION:
+    case SXML_TYPE_VARIETY_ANY_SIMPLE:
+    case SXML_TYPE_VARIETY_ENUMERATION:
+        return true;
+    case SXML_TYPE_VARIETY_ANY_ITEM:
+    case SXML_TYPE_VARIETY_NODE_TEST:
+    case SXML_TYPE_VARIETY_JSON_NODE_TEST:
+    case SXML_TYPE_VARIETY_FUNCTION:
+    case SXML_TYPE_VARIETY_MAP:
+    case SXML_TYPE_VARIETY_ARRAY:
+    case SXML_TYPE_VARIETY_RECORD:
+    case SXML_TYPE_VARIETY_CHOICE:
+        break;
+    }
+    return false;
+}
+
 /* ------------------------------------------------------------ The filter */
 
 static bool is_whitespace(sxml_byte_view text) {
@@ -343,7 +382,8 @@ static sxml_status filter_start_element(void *state, const sxml_element_start_ev
     }
     /* xml:space is inherited until an element sets it again. */
     filter->elements[filter->element_count] = (open_element){
-        .rule_preserves = preserves_element(filter, event->element_name),
+        .rule_preserves = preserves_element(filter, event->element_name) ||
+                          has_simple_content(filter, event->type_annotation),
         .space_preserves = filter->element_count > 0 &&
                            filter->elements[filter->element_count - 1].space_preserves};
     filter->element_count += 1;
@@ -441,6 +481,8 @@ sxml_status sxml_xslt_strip_document(const sxml_xslt_whitespace_stripping *strip
     stripping_filter filter = {.target = {.state = NULL, .operations = NULL},
                                .allocator = processor->allocator,
                                .name_pool = processor->name_pool,
+                               .type_registry =
+                                   sxml_item_heap_get_type_registry(processor->item_heap),
                                .rules = NULL,
                                .rule_count = 0,
                                .elements = NULL,
