@@ -1,0 +1,12 @@
+tree-sitter grammar for c, vendored for sxml:parse-code
+(docs/DECISIONS.md, D285) by tools/vendor-tree-sitter-grammar.sh.
+
+Upstream:   https://github.com/tree-sitter/tree-sitter-c
+Directory:  .
+Tag:        v0.24.2
+Commit:     b780e47fc780ddc8da13afa35a3f4ed5c157823d
+Highlights: queries/highlights.scm
+Copied:     LICENSE, src/ (parser.c, any scanner.c and its headers,
+            tree_sitter/), the highlights queries above in the order of
+            tree-sitter.json, test/corpus and any test/highlight;
+            unmodified.

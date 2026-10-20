@@ -1,0 +1,12 @@
+tree-sitter grammar for javascript, vendored for sxml:parse-code
+(docs/DECISIONS.md, D285) by tools/vendor-tree-sitter-grammar.sh.
+
+Upstream:   https://github.com/tree-sitter/tree-sitter-javascript
+Directory:  .
+Tag:        none
+Commit:     58404d8cf191d69f2674a8fd507bd5776f46cb11
+Highlights: queries/highlights.scm queries/highlights-jsx.scm queries/highlights-params.scm
+Copied:     LICENSE, src/ (parser.c, any scanner.c and its headers,
+            tree_sitter/), the highlights queries above in the order of
+            tree-sitter.json, test/corpus and any test/highlight;
+            unmodified.

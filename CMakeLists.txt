@@ -167,4 +167,11 @@ if(SXML_BUILD_TESTS AND SXML_BUILD_APPS
     add_subdirectory(tests/ixml)
 endif()
 
+# The tests of the vendored tree-sitter grammars (packet 7.22, D285): run
+# with the sxml command, so they come after apps/.
+if(SXML_BUILD_TESTS AND SXML_BUILD_APPS
+   AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/tree-sitter/CMakeLists.txt")
+    add_subdirectory(tests/tree-sitter)
+endif()
+
 include(SxmlLint)
