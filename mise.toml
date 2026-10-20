@@ -1,0 +1,66 @@
+# The tools and tasks that build the sxml command for every supported
+# platform as installable archives (D256; tools/dist.sh, README.md
+# "Install"). `mise install` fetches the tools; `mise run dist` builds
+# every archive into build/dist/.
+#
+# zig cross-compiles the native targets (cmake/toolchains/zig.cmake): it
+# carries the C library headers for musl, macOS and MinGW-w64. The WASI
+# SDK builds the WebAssembly command (cmake/wasi-sdk.cmake); node runs it
+# (tools/run-wasi.mjs).
+
+[tools]
+cmake = "3.31.9"
+ninja = "1.13.1"
+zig = "0.15.2"
+node = "22.22.0"
+"github:WebAssembly/wasi-sdk" = "wasi-sdk-34"
+
+[tasks.dist]
+description = "Build the sxml archives of every target, then SHA256SUMS"
+depends = [
+    "dist:x86_64-linux", "dist:aarch64-linux",
+    "dist:x86_64-macos", "dist:aarch64-macos",
+    "dist:x86_64-windows", "dist:aarch64-windows",
+    "dist:wasm32-wasi",
+]
+run = "tools/dist.sh checksums"
+
+[tasks."dist:x86_64-linux"]
+description = "sxml for Linux on x86_64: a static musl executable"
+run = "tools/dist.sh build x86_64-linux"
+
+[tasks."dist:aarch64-linux"]
+description = "sxml for Linux on AArch64: a static musl executable"
+run = "tools/dist.sh build aarch64-linux"
+
+[tasks."dist:x86_64-macos"]
+description = "sxml for macOS 11 and later on Intel"
+run = "tools/dist.sh build x86_64-macos"
+
+[tasks."dist:aarch64-macos"]
+description = "sxml for macOS 11 and later on Apple silicon"
+run = "tools/dist.sh build aarch64-macos"
+
+[tasks."dist:x86_64-windows"]
+description = "sxml.exe for Windows on x86_64 (MinGW-w64, static)"
+run = "tools/dist.sh build x86_64-windows"
+
+[tasks."dist:aarch64-windows"]
+description = "sxml.exe for Windows on ARM64 (MinGW-w64, static)"
+run = "tools/dist.sh build aarch64-windows"
+
+[tasks."dist:wasm32-wasi"]
+description = "sxml.wasm, the command as a WASI preview 1 module"
+run = "tools/dist.sh build wasm32-wasi"
+
+[tasks."dist:checksums"]
+description = "Write build/dist/SHA256SUMS over the archives there are"
+run = "tools/dist.sh checksums"
+
+[tasks."dist:verify"]
+description = "Run the archives the build machine can run (qemu, wine, node when present)"
+run = "tools/dist.sh verify"
+
+[tasks.install]
+description = "Build sxml for this machine and install it: mise run install [-- PREFIX], default ~/.local"
+run = "tools/dist.sh install"
