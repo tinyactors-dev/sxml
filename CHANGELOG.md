@@ -16,6 +16,15 @@ not tagged yet, or into the next minor release.
 
 ### Added (Phase 7)
 
+- **Streaming in the JavaScript package** (D294): `serializeTo`,
+  `XQuery.runTo` and `transform({ output, resultDocumentOutput })` write
+  serialized output to a sink a chunk at a time instead of returning a
+  string, with adapters for text (UTF-8 across chunk borders), WHATWG
+  and Node.js streams; a resolver may answer an XML document with an
+  iterable of chunks, and `transform({ streamedSource })` streams the
+  principal source, so a large transformation runs in about 11 MB of
+  module memory.
+
 - **Invisible XML for large inputs** (D290): regular rules whose XML is
   their text are compiled with the grammar into automata and read in
   one step, item sets are made only where items are, the input is read

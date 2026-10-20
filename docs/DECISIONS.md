@@ -13737,6 +13737,108 @@ Swift, waits for 6.12 (the host shim now passes languages, below).
   refreshed. The CLI module is unchanged by this packet (15,041,890 /
   2,704,138).
 
+### D294. Streamed output and input in the JavaScript API (packet js-2)
+Recorded 2026-10-20, after D99, D138, D216, D228, D231, D233, D238, D272.
+The owner: "the JavaScript API will burn a lot of memory with large
+outputs because everything is buffered." Every serializing call wrote
+into the processor's output buffer, which the package then decoded into
+one string; the module's memory grows to fit the buffer and never
+shrinks.
+- **Host shim** (`bindings/host/sxml_host.h`, additive; not a public
+  header, D99 does not apply): an `output_writer` per processor,
+  `sxml_host_set_output(processor, {writer, chunk_byte_count})`. With a
+  writer, `sxml_host_serialize`, `sxml_host_query_serialize` and the
+  serialized principal result of `sxml_host_stylesheet_transform` go to
+  a chunk stream: the serializer's writes are gathered in a buffer of
+  the chunk size (64 KiB by default, allocated for the call) and written
+  as BYTES events when it is full and at the end; a write at least a
+  chunk long that finds the buffer empty is written from where it is, a
+  chunk at a time. Serialized result documents are written between
+  RESULT_DOCUMENT_OPENED (its URI) and RESULT_DOCUMENT_CLOSED
+  (is_abandoned) events, through a result document handler that
+  delegates to the collector for RAW and TREE delivery; the buffer is
+  flushed before each bound, so bytes before a bound belong to what was
+  open before it, and dropped for an abandoned document. The output
+  stream of the library (`sxml_output_stream`, `serialize.h`) already
+  receives the bytes in pieces; nothing changes below the shim.
+- **Byte readers** (D233 through the shim): `sxml_host_resource` gains
+  `reader_identifier`, and a resolver may answer
+  SXML_RESOURCE_FORM_BYTE_READER; the processor's
+  `sxml_host_byte_reader` (`sxml_host_set_byte_reader`: read into the
+  buffer sxml lends, release when sxml stops reading) then serves it.
+  `sxml_host_transform_request` gains `streamed_source_uri` (D228), after
+  the side results, so existing word offsets stay. Swift's memberwise
+  transform request gains the field (not compiled here: no Swift
+  toolchain in this container); Kotlin's JNI uses designated
+  initializers. Rejected: a writer or reader in the processor
+  configuration (each host's constructor call would change), and a
+  public incremental parse for `Processor.parse` (D233 rejected a reader
+  in `sxml_xml_parse_request`; `doc($uri)` with a chunk source does it).
+- **JavaScript** (`src/stream.ts`, imports `sxml_host.write`, `read`,
+  `release_reader` in `sxml_javascript_stream.c`): an `output_sink`
+  (a function, or `{write, close?, abort?}`); `Processor.serializeTo`,
+  `Value.serializeTo`, `XQuery.serializeTo` and `runTo`,
+  `PutDocument.serializeTo`, `TransformOptions.output`,
+  `resultDocumentOutput(uri)` (undefined gathers the document as text,
+  as before) and `streamedSource`; `ProcessorOptions.outputChunkByteCount`.
+  Each chunk is copied out of the module (the buffer is reused); an
+  object sink is closed after the call, or aborted with the error when it
+  fails, and a result document's sink when it is abandoned. A sink's
+  exception stops the call and is rethrown, as the resolver's (D216);
+  a sink or chunk source must not use its processor. A resolver may
+  answer an XML document with a `chunk_source` (an iterable of
+  Uint8Array or string chunks, closed with return()); other kinds join
+  the chunks. The string-returning methods are unchanged (additive API).
+  Adapters: `textSink` (TextDecoder in stream mode, so characters split
+  across chunks decode whole), `writableStreamSink`, `nodeStreamSink`,
+  `outputReadableStream`.
+- **Backpressure**: an evaluation runs synchronously inside sxml.wasm,
+  so a sink cannot make it wait. A sink that consumes each chunk at once
+  (writeSync, a hash, a decoder feeding a parser, postMessage to a thread
+  that reads concurrently) keeps memory bounded by one chunk; the stream
+  adapters queue chunks in JavaScript memory until the call returns,
+  which still spares the module's copy and the string. True backpressure
+  would need the evaluation to suspend (JSPI or an asyncify build), not
+  proposed.
+- **Validation reports** stay side results: they are objects, not
+  serialized output.
+- **Measured** (Node.js 22, the wasm preset's module, output 108.7 MB
+  of 1.8 million elements, written with fs.writeSync to /dev/null; module memory, peak
+  JavaScript heap, peak resident set): `value.serialize` 749.2 MB,
+  112.6 MB, 859 MB; `serializeTo` 480.8 MB, 4.1 MB, 547 MB (the tree
+  itself is the rest). `query.run` and `runTo` and `transform` from a
+  template: the same. `transform` with `xsl:source-document
+  streamable="yes"` (95.6 MB source): 791.2 MB, 1,048 MB resident; with
+  a chunk source and a sink 481.4 MB, 570 MB (that shape builds the
+  principal result). `streamedSource` with a streamable mode (D231's
+  streamed serialization): string source and string result 387.4 MB,
+  112.6 MB, 713 MB; chunk source and sink 10.6 MB, 14.6 MB, 172 MB.
+- **Tests**: `tests/host_shim_test.c` (chunks of 4 bytes, a failing
+  write, back to the output; a document through the byte reader,
+  released once, not available without a reader), 10 of 10 under ASan
+  and UBSan. New `javascript/streams` (test/stream.test.ts, 19 cases):
+  chunked output equals the strings for values, queries, fn:put and
+  transformations, chunk sizes 1 to 4 split multi-byte characters and
+  textSink joins them, result documents to sinks and gathered, aborts
+  on a serialization error inside a result document, a throwing sink, a
+  sink using its processor, the three adapters, chunk sources for fn:doc,
+  unparsed-text, a throwing source and a streamed principal source, and
+  a 100.4 MB output of a streamed source (a 2.6 MB chunk source) under
+  64 MB of module memory and 32 MB of JavaScript heap growth (about 4
+  s). javascript/package and javascript/languages pass unchanged. The
+  book's JavaScript chapter: 6 examples match.
+- **Sizes**: `sxml.wasm` 13,450,808 bytes stripped / 2,377,893 gzipped
+  (13,448,586 / 2,377,992 before this change, +2,222 bytes; budget
+  14,000,000 / 2,800,000, not raised).
+- **Found**: a streamed principal source whose stylesheet writes text
+  with method text (an xsl:value-of per record) grows memory with the
+  square of the output (20,000 records of 1 KB reach 4 GB, out of
+  memory); with method xml and elements it stays at 11 MB. The text
+  method's principal result is not a streamed serialization (D231), and
+  adjacent text seems to be joined anew each time. Not fixed here (an
+  evaluator matter); the default step limit also stops the streamed
+  identity of 95 MB from the package, which has no option for it.
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): tagging and

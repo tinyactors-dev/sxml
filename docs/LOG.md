@@ -4,6 +4,18 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- js-2 done (D294): streamed output and input in the JavaScript API.
+  The host shim gains an output writer (chunks of 64 KiB from a reused
+  buffer, result documents between open and close events) and byte
+  readers; the package gains serializeTo, runTo, TransformOptions.output,
+  resultDocumentOutput and streamedSource, chunk sources from the
+  resolver, and textSink, writableStreamSink, nodeStreamSink and
+  outputReadableStream. 108.7 MB of output: module memory 749 MB to
+  481 MB and JavaScript heap 113 MB to 4 MB with a tree; with a
+  streamed source and a streamable mode 387 MB to 11 MB. New
+  javascript/streams (19 cases, a 100 MB output under 64 MB). Found: a
+  streamed source with method text grows memory quadratically.
+
 - book-4 done (D292): the codegen chapter on trees. XQuery builds a
   tree of the TypeScript program in a small vocabulary of our own
   (generated/program.xml), an XSLT printer (print.xsl) writes the
