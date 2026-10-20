@@ -206,13 +206,9 @@ void sxml_xsd_test_decide(const sxml_xsd_test_case *test_case,
                           .non_goal = sxml_xsd_test_empty_text},
         .expected_validity = SXML_XSD_TEST_VALIDITY_VALID,
         .expected_text = sxml_xsd_test_empty_text};
-    /* D165: the introspection set checks the suite's metadata. */
-    if (sxml_byte_view_equals(test_case->test_set_file_path,
-                              SXML_TEXT("common/introspection.testSet"))) {
-        sxml_xsd_test_skip(decision, SXML_TEXT("test set"),
-                           SXML_TEXT("introspection (the suite's metadata)"));
-        return;
-    }
+    /* The introspection set checks the suite's metadata against xsts.xsd;
+       it runs since the driver serves the XLink schema document that
+       xsts.xsd imports (D278; D165 left it out). */
     const sxml_byte_view versions[] = {test_case->test_set_version,
                                        test_case->group_version,
                                        test_case->test_version};

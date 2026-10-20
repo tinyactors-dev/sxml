@@ -211,7 +211,9 @@ describes as it reads the suite (`third_party/xsdtests`, D165).
 - `suite.xml` is a `testSuite` of 93 `testSetRef`s (two more, the
   precisionDecimal sets, are commented out and listed in
   `extra-suite.xml`). The first, `common/introspection.testSet`, validates
-  the suite's own files and is not run (D165).
+  the suite's own files against `common/xsts.xsd`; it is run since the
+  driver serves the XLink schema document xsts.xsd imports
+  (`third_party/w3c-xlink`, D278; D165 left it out).
 - A `testSet` (`name`, `contributor`, `version?`) holds `testGroup`s
   (`name`, `version?`), each with at most one `schemaTest` and any number
   of `instanceTest`s (`name`, `version?`). A schema test lists its

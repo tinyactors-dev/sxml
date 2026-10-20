@@ -32,7 +32,8 @@
  * supported ("if a processor configuration supports all of them, the
  * result given is prescribed"), else the first without a version. The
  * introspection test set (common/introspection.testSet) checks the suite's
- * own metadata and is not run (D165).
+ * own metadata against xsts.xsd and is run like any other (D278; D165 left
+ * it out until the driver served xsts.xsd's XLink import).
  *
  * Every applicable test is in scope: the XSD suite has no non-goals of its
  * own, so the answer's is_in_scope is is_applicable.

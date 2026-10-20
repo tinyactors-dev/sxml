@@ -59,9 +59,19 @@ static void sxml_xsd_test_fail(sxml_xsd_test_answer *answer,
 static const sxml_byte_view sxml_xsd_test_uri_prefix =
     SXML_BYTE_VIEW_INITIALIZER("file:///");
 
+/* The XLink schema document xsts.xsd imports, and its vendored copy
+   relative to the suite's directory (third_party/xsdtests). */
+static const sxml_byte_view sxml_xsd_test_xlink_uri =
+    SXML_BYTE_VIEW_INITIALIZER("http://www.w3.org/XML/2008/06/xlink.xsd");
+static const sxml_byte_view sxml_xsd_test_xlink_path =
+    SXML_BYTE_VIEW_INITIALIZER("../w3c-xlink/xlink.xsd");
+
 /* Serves the suite's files to the schema assembly: an absolute URI
-   file:///SUITE-PATH is the suite file SUITE-PATH; anything else is not
-   available. */
+   file:///SUITE-PATH is the suite file SUITE-PATH, and the W3C's XLink
+   schema document, which the suite's own xsts.xsd imports (the
+   introspection set), is the copy vendored beside the suite
+   (third_party/w3c-xlink, D278), as the library serves its stand-in
+   xml.xsd; anything else is not available. */
 typedef struct sxml_xsd_test_resolver_state {
     sxml_xsd_test_catalog *catalog;
     sxml_allocator allocator;
@@ -74,9 +84,11 @@ static sxml_status sxml_xsd_test_resolve(void *state,
     memset(resource, 0, sizeof(*resource));
     const sxml_byte_view uri = request->absolute_uri;
     const size_t prefix_count = sxml_xsd_test_uri_prefix.byte_count;
+    const bool is_xlink = sxml_byte_view_equals(uri, sxml_xsd_test_xlink_uri);
     if (request->resource_kind != SXML_RESOURCE_KIND_SCHEMA_DOCUMENT ||
-        uri.byte_count <= prefix_count ||
-        memcmp(uri.bytes, sxml_xsd_test_uri_prefix.bytes, prefix_count) != 0) {
+        (!is_xlink &&
+         (uri.byte_count <= prefix_count ||
+          memcmp(uri.bytes, sxml_xsd_test_uri_prefix.bytes, prefix_count) != 0))) {
         resource->resource_form = SXML_RESOURCE_FORM_NONE;
         return SXML_STATUS_OK;
     }
@@ -84,8 +96,9 @@ static sxml_status sxml_xsd_test_resolve(void *state,
     const sxml_status status = sxml_xsd_test_catalog_read_file(
         resolver->catalog,
         &(sxml_qt4_file_request){
-            .suite_path = {.bytes = uri.bytes + prefix_count,
-                           .byte_count = uri.byte_count - prefix_count},
+            .suite_path = is_xlink ? sxml_xsd_test_xlink_path
+                                   : (sxml_byte_view){.bytes = uri.bytes + prefix_count,
+                                                      .byte_count = uri.byte_count - prefix_count},
             .allocator = resolver->allocator},
         &contents);
     if (status == SXML_STATUS_OUT_OF_MEMORY) {
@@ -241,9 +254,10 @@ typedef struct sxml_xsd_test_compile_request {
     sxml_processor *processor;
     sxml_allocator allocator;
     const sxml_xsd_test_documents *documents;
-    /* The base URI of RESOLVED documents (location hints): the instance
-       document's URI; empty otherwise. */
     sxml_byte_view base_uri;
+    /* The parsed instance whose schema location hints join the schema
+       (include/sxml/schema.h, D278); the zero item for none. */
+    sxml_item hint_node;
 } sxml_xsd_test_compile_request;
 
 static void sxml_xsd_test_compile(const sxml_xsd_test_compile_request *request,
@@ -260,7 +274,8 @@ static void sxml_xsd_test_compile(const sxml_xsd_test_compile_request *request,
             .report_sink = {.state = &error_count,
                             .operations = &sxml_xsd_test_report_operations},
             .maximum_content_model_state_count = 0,
-            .error_record = &compilation->error_record},
+            .error_record = &compilation->error_record,
+            .schema_location_hint_node = request->hint_node},
         &compilation->schema);
 }
 
@@ -299,98 +314,19 @@ static void sxml_xsd_test_judge(sxml_xsd_test_answer *answer, sxml_xsd_test_verd
 /* -------------------------------------------------------- Location hints */
 
 /*
- * The schema documents an instance names in xsi:schemaLocation (the
- * second of each pair) and xsi:noNamespaceSchemaLocation attributes (XSD
- * 1.1 Part 1, 4.3.2), appended as RESOLVED documents, relative to the
- * instance, to the test's schema documents (xsd_test_run.h). Their URI
- * references point into the parsed instance, which hints keeps.
+ * An instance's xsi:schemaLocation and xsi:noNamespaceSchemaLocation hints
+ * (XSD 1.1 Part 1, 4.3.2) are followed by the library
+ * (sxml_schema_configuration.schema_location_hint_node, D278): the test's
+ * schema documents are compiled again with the parsed instance, and that
+ * schema is used when it compiles (xsd_test_run.h). An instance without a
+ * hint attribute is not compiled again.
  */
-typedef struct sxml_xsd_test_hints {
-    sxml_item instance_node;
-    /* The test's documents, then the hinted ones. */
-    sxml_xsd_test_documents documents;
-    size_t hint_count;
-} sxml_xsd_test_hints;
-
-static bool sxml_xsd_test_is_space(uint8_t byte) {
-    return byte == ' ' || byte == '\t' || byte == '\n' || byte == '\r';
-}
-
-/* The whitespace-separated tokens of value, every step-th from the
-   first-th (0 based); written to documents when not NULL. Returns the
-   count. */
-typedef struct sxml_xsd_test_token_request {
-    sxml_byte_view value;
-    size_t first;
-    size_t step;
-    sxml_schema_document *documents;
-} sxml_xsd_test_token_request;
-
-static size_t sxml_xsd_test_take_tokens(const sxml_xsd_test_token_request *request) {
-    size_t token_index = 0;
-    size_t taken = 0;
-    size_t byte_index = 0;
-    const sxml_byte_view value = request->value;
-    while (byte_index < value.byte_count) {
-        while (byte_index < value.byte_count && sxml_xsd_test_is_space(value.bytes[byte_index])) {
-            byte_index += 1;
-        }
-        const size_t start = byte_index;
-        while (byte_index < value.byte_count && !sxml_xsd_test_is_space(value.bytes[byte_index])) {
-            byte_index += 1;
-        }
-        if (byte_index == start) {
-            break;
-        }
-        if (token_index >= request->first && (token_index - request->first) % request->step == 0) {
-            if (request->documents != NULL) {
-                request->documents[taken] = (sxml_schema_document){
-                    .document_source = SXML_SCHEMA_DOCUMENT_SOURCE_RESOLVED,
-                    .document_uri = {.bytes = value.bytes + start, .byte_count = byte_index - start},
-                    .checks_target_namespace = false};
-            }
-            taken += 1;
-        }
-        token_index += 1;
-    }
-    return taken;
-}
-
-/* The hint attributes of the parsed instance: its node count and the two
-   names (0 when never interned: no hint). */
-typedef struct sxml_xsd_test_hint_scan {
-    sxml_node_reference document;
-    uint32_t node_count;
-    sxml_name_identifier schema_location;
-    sxml_name_identifier no_namespace_schema_location;
-} sxml_xsd_test_hint_scan;
-
-/* Counts the hinted documents, or writes them from documents on. */
-static size_t sxml_xsd_test_scan_hints(const sxml_xsd_test_hint_scan *scan,
-                                       sxml_schema_document *documents) {
-    size_t hint_count = 0;
-    for (uint32_t node_index = 1; node_index < scan->node_count; node_index += 1) {
-        sxml_node_reference node = scan->document;
-        node.node_index.index = node_index;
-        sxml_node_description description;
-        sxml_byte_view value = sxml_xsd_test_empty_text;
-        if (sxml_node_describe(node, &description) != SXML_STATUS_OK ||
-            description.node_kind != SXML_NODE_KIND_ATTRIBUTE ||
-            description.node_name.index == 0 ||
-            (description.node_name.index != scan->schema_location.index &&
-             description.node_name.index != scan->no_namespace_schema_location.index) ||
-            sxml_node_get_content(node, &value) != SXML_STATUS_OK) {
-            continue;
-        }
-        const bool is_pairs = description.node_name.index == scan->schema_location.index;
-        hint_count += sxml_xsd_test_take_tokens(&(sxml_xsd_test_token_request){
-            .value = value,
-            .first = is_pairs ? 1U : 0U,
-            .step = is_pairs ? 2U : 1U,
-            .documents = documents == NULL ? NULL : documents + hint_count});
-    }
-    return hint_count;
-}
+typedef struct sxml_xsd_test_hint_request {
+    sxml_processor *processor;
+    sxml_allocator allocator;
+    const sxml_xsd_test_documents *schema_documents;
+    const sxml_schema_document *instance;
+} sxml_xsd_test_hint_request;
 
 static sxml_name_identifier sxml_xsd_test_xsi_name(sxml_processor *processor,
                                                    sxml_byte_view local_name) {
@@ -404,19 +340,40 @@ static sxml_name_identifier sxml_xsd_test_xsi_name(sxml_processor *processor,
     return name;
 }
 
-typedef struct sxml_xsd_test_hint_request {
-    sxml_processor *processor;
-    sxml_allocator allocator;
-    const sxml_xsd_test_documents *schema_documents;
-    const sxml_schema_document *instance;
-} sxml_xsd_test_hint_request;
+/* True when the parsed instance has a hint attribute. */
+static bool sxml_xsd_test_has_hints(sxml_processor *processor, sxml_item instance_node) {
+    const sxml_name_identifier schema_location =
+        sxml_xsd_test_xsi_name(processor, SXML_TEXT("schemaLocation"));
+    const sxml_name_identifier no_namespace_schema_location =
+        sxml_xsd_test_xsi_name(processor, SXML_TEXT("noNamespaceSchemaLocation"));
+    sxml_node_reference document = {.tree = NULL, .node_index = {.index = 0}, .namespace_number = 0};
+    sxml_tree_description tree_description;
+    if ((schema_location.index == 0 && no_namespace_schema_location.index == 0) ||
+        sxml_item_get_node(instance_node, &document) != SXML_STATUS_OK ||
+        sxml_tree_describe(document.tree, &tree_description) != SXML_STATUS_OK) {
+        return false;
+    }
+    for (uint32_t node_index = 1; node_index < tree_description.node_count; node_index += 1) {
+        sxml_node_reference node = document;
+        node.node_index.index = node_index;
+        sxml_node_description description;
+        if (sxml_node_describe(node, &description) == SXML_STATUS_OK &&
+            description.node_kind == SXML_NODE_KIND_ATTRIBUTE && description.node_name.index != 0 &&
+            (description.node_name.index == schema_location.index ||
+             description.node_name.index == no_namespace_schema_location.index)) {
+            return true;
+        }
+    }
+    return false;
+}
 
-/* Collects the hints of the instance into hints; false when there are
-   none (or the instance does not parse, which validation reports). */
-static bool sxml_xsd_test_collect_hints(const sxml_xsd_test_hint_request *request,
-                                        sxml_xsd_test_hints *hints) {
-    memset(hints, 0, sizeof(*hints));
+/* Compiles the test's schema documents with the instance's hints and,
+   when that schema compiles, validates against it instead
+   (xsd_test_run.h); hints that break the schema are not followed. */
+static void sxml_xsd_test_add_hints(const sxml_xsd_test_hint_request *request,
+                                    sxml_xsd_test_compilation *compilation) {
     const sxml_byte_view uri = request->instance->document_uri;
+    sxml_item instance_node = {.representation = 0};
     if (sxml_processor_parse_document(
             request->processor,
             &(sxml_xml_parse_request){.input = request->instance->document_text,
@@ -425,67 +382,22 @@ static bool sxml_xsd_test_collect_hints(const sxml_xsd_test_hint_request *reques
                                       .base_uri = uri,
                                       .encoding_name = sxml_xsd_test_empty_text,
                                       .diagnostic = NULL},
-            &hints->instance_node) != SXML_STATUS_OK) {
-        return false;
+            &instance_node) != SXML_STATUS_OK) {
+        /* Validation reports an instance that does not parse. */
+        return;
     }
-    sxml_xsd_test_hint_scan scan = {
-        .document = {.tree = NULL, .node_index = {.index = 0}, .namespace_number = 0},
-        .node_count = 0,
-        .schema_location = sxml_xsd_test_xsi_name(request->processor, SXML_TEXT("schemaLocation")),
-        .no_namespace_schema_location =
-            sxml_xsd_test_xsi_name(request->processor, SXML_TEXT("noNamespaceSchemaLocation"))};
-    sxml_tree_description tree_description;
-    if (sxml_item_get_node(hints->instance_node, &scan.document) != SXML_STATUS_OK ||
-        sxml_tree_describe(scan.document.tree, &tree_description) != SXML_STATUS_OK) {
-        return false;
-    }
-    scan.node_count = tree_description.node_count;
-    hints->hint_count = sxml_xsd_test_scan_hints(&scan, NULL);
-    const size_t own_count = request->schema_documents->document_count;
-    void *memory = NULL;
-    if (hints->hint_count == 0 ||
-        sxml_allocator_allocate(
-            request->allocator,
-            (sxml_allocation_request){
-                .byte_count = (own_count + hints->hint_count) * sizeof(sxml_schema_document),
-                .alignment = _Alignof(sxml_schema_document)},
-            &memory) != SXML_STATUS_OK) {
-        return false;
-    }
-    hints->documents.schema_documents = memory;
-    if (own_count != 0) {
-        memcpy(memory, request->schema_documents->schema_documents,
-               own_count * sizeof(sxml_schema_document));
-    }
-    (void)sxml_xsd_test_scan_hints(&scan, hints->documents.schema_documents + own_count);
-    hints->documents.document_count = own_count + hints->hint_count;
-    return true;
-}
-
-static void sxml_xsd_test_release_hints(sxml_allocator allocator, sxml_xsd_test_hints *hints) {
-    sxml_allocator_release(allocator, hints->documents.schema_documents);
-    sxml_item_release(hints->instance_node);
-    memset(hints, 0, sizeof(*hints));
-}
-
-/* Compiles the test's schema documents with the instance's hinted ones
-   and, when that schema compiles, validates against it instead
-   (xsd_test_run.h); a hint that breaks the schema is not followed. */
-static void sxml_xsd_test_add_hints(const sxml_xsd_test_hint_request *request,
-                                    sxml_xsd_test_compilation *compilation) {
-    sxml_xsd_test_hints hints;
-    if (!sxml_xsd_test_collect_hints(request, &hints)) {
-        sxml_xsd_test_release_hints(request->allocator, &hints);
+    if (!sxml_xsd_test_has_hints(request->processor, instance_node)) {
+        sxml_item_release(instance_node);
         return;
     }
     sxml_xsd_test_compilation hinted;
-    sxml_xsd_test_compile(
-        &(sxml_xsd_test_compile_request){.processor = request->processor,
-                                         .allocator = request->allocator,
-                                         .documents = &hints.documents,
-                                         .base_uri = request->instance->document_uri},
-        &hinted);
-    sxml_xsd_test_release_hints(request->allocator, &hints);
+    sxml_xsd_test_compile(&(sxml_xsd_test_compile_request){.processor = request->processor,
+                                                           .allocator = request->allocator,
+                                                           .documents = request->schema_documents,
+                                                           .base_uri = sxml_xsd_test_empty_text,
+                                                           .hint_node = instance_node},
+                          &hinted);
+    sxml_item_release(instance_node);
     if (hinted.status != SXML_STATUS_OK) {
         sxml_schema_destroy(hinted.schema);
         return;
@@ -626,7 +538,8 @@ static void sxml_xsd_test_run_in(const sxml_xsd_test_isolated_request *request,
     sxml_xsd_test_compile(&(sxml_xsd_test_compile_request){.processor = processor,
                                                            .allocator = allocator,
                                                            .documents = &schema_documents,
-                                                           .base_uri = sxml_xsd_test_empty_text},
+                                                           .base_uri = sxml_xsd_test_empty_text,
+                                                           .hint_node = {.representation = 0}},
                           &compilation);
     if (is_instance_test && compilation.status == SXML_STATUS_OK) {
         sxml_xsd_test_add_hints(&(sxml_xsd_test_hint_request){.processor = processor,
