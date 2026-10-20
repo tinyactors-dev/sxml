@@ -4,6 +4,17 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- book-2 done (D270): the book's XQuery part grows from 5 to 11
+  sections (grouping and windows, types and errors, inputs and
+  external variables, serialization, XQuery 4.0, a report project)
+  and the XSD part from 2 to 9 (simple and complex types, derivation,
+  namespaces, keys, XSD 1.1, reading errors, deeper schema-aware
+  XQuery and XSLT). Every example checked against a release build.
+  Found, not fixed (QUEUE): relative collection() exits 4 with a
+  status name; dynamic errors in library modules carry the main
+  module's file name; xsi:type resolves an undeclared xs prefix; no
+  fn:trace output in the CLI.
+
 - perf-4 done (D259): the three things the book found. The book's join
   (2,000 orders) 12.9 to 0.045 s: "E//T[P]" becomes descendant::T[P]
   (the descendant pass), untyped keys answer numeric probes (the number

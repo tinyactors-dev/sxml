@@ -11976,6 +11976,43 @@ progress; the record is completed when the packet ends.
   recorder implement it, other builders leave it NULL and keep the start
   event's values. This replaces D180's "no later mark is possible".
 
+### D270. The book's XQuery and XSD parts (packet book-2)
+Recorded 2026-10-20, after D257. The owner asked the book to cover
+XQuery and XSD as deeply as XPath and XSLT, so that a reader who knows
+neither can learn them and work with sxml from the book alone.
+- **Structure.** Chapter 3 (XQuery) has eleven sections: FLWOR,
+  Grouping and Windows, Building XML, Conditions/Types/Errors,
+  Functions and Modules, Documents/Parameters/Context, Writing Results,
+  Updating Documents, What's New in XQuery 4.0, and a project chapter
+  (a loans report: one library module, HTML, JSON and fn:put outputs;
+  examples in `docs/book/examples/xquery-project`). Chapter 5 (XSD) has
+  nine: the introduction, Simple Types and Facets, Complex Types and
+  Content Models, Deriving Types, Namespaces and Larger Schemas, Keys
+  and References, XSD 1.1 Features, Reading Validation Errors, Typed
+  Data and Schema-Aware Queries. Top-level chapter numbers are
+  unchanged, so "Chapter N" references elsewhere still hold. Full Text
+  stays in Chapter 7; the XQuery part points there.
+- **Only what works.** Every feature shown was run against a release
+  build; what the CLI lacks is said plainly: no `fn:collection` (the
+  book shows `--param` lists and `file:list` instead), no
+  `xsi:schemaLocation` following, no fn:trace/fn:message output in
+  `sxml xquery`.
+- **Findings for later packets** (QUEUE, not fixed here: the book
+  avoids them): `collection("relative")` in `sxml xquery`/`xpath`
+  ends with exit 4 and `expression: SXML_STATUS_INVALID_ARGUMENT`
+  instead of err:FODC0002 (an absolute URI gives FODC0002); a dynamic
+  error raised in a library module is reported with the main module's
+  file name and the library module's line and column ($err:module is
+  right); `xsi:type="xs:string"` resolves the prefix xs in an instance
+  that does not declare it (cvc-elt.4.1 expected); `sxml xpath` and
+  `sxml xquery` install no trace sink, so fn:trace and fn:message
+  write nothing; after an element that cvc-complex-type.2.4 rejects,
+  the rest of its parent's content is not assessed (recovery, not a
+  wrong verdict); the CLI's `--context-item` document has no
+  document-uri.
+- **Verified**: tools/check-book-examples.sh on a release build of a
+  HEAD snapshot, for every chapter file the packet touched.
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): tagging and
