@@ -1,5 +1,5 @@
-// Generated from the XSD schema by generate.xq. Do not edit.
-import { characterCount, checkBoolean, checkDate, checkDecimal, checkInteger, checkObject, checkString } from "../runtime.ts";
+// Generated from the XSD schema by program.xq and print.xsl. Do not edit.
+import { characterCount, checkBoolean, checkDate, checkInteger, checkObject, checkString } from "../runtime.ts";
 
 export type BookId = string;
 
@@ -54,9 +54,7 @@ export function checkBook(value: unknown, path: string, problems: string[]): val
   checkGenre(value.genre, path + ".genre", problems);
   checkBoolean(value.available, path + ".available", problems);
   for (const key of Object.keys(value)) {
-    if (!["id", "title", "genre", "available"].includes(key)) {
-      problems.push(path + "." + key + ": is not allowed");
-    }
+    if (!["id", "title", "genre", "available"].includes(key)) problems.push(path + "." + key + ": is not allowed");
   }
   return problems.length === count;
 }
@@ -70,9 +68,7 @@ export function checkBookRequest(value: unknown, path: string, problems: string[
   const count = problems.length;
   checkBookId(value.id, path + ".id", problems);
   for (const key of Object.keys(value)) {
-    if (!["id"].includes(key)) {
-      problems.push(path + "." + key + ": is not allowed");
-    }
+    if (!["id"].includes(key)) problems.push(path + "." + key + ": is not allowed");
   }
   return problems.length === count;
 }
@@ -88,9 +84,7 @@ export function checkBookSearch(value: unknown, path: string, problems: string[]
   if (value.genre !== undefined) checkGenre(value.genre, path + ".genre", problems);
   if (value.availableOnly !== undefined) checkBoolean(value.availableOnly, path + ".availableOnly", problems);
   for (const key of Object.keys(value)) {
-    if (!["genre", "availableOnly"].includes(key)) {
-      problems.push(path + "." + key + ": is not allowed");
-    }
+    if (!["genre", "availableOnly"].includes(key)) problems.push(path + "." + key + ": is not allowed");
   }
   return problems.length === count;
 }
@@ -105,12 +99,10 @@ export function checkBookList(value: unknown, path: string, problems: string[]):
   if (Array.isArray(value.books)) {
     value.books.forEach((item, index) => checkBook(item, path + ".books[" + index + "]", problems));
   } else {
-    problems.push(path + ".books" + ": expected an array");
+    problems.push(path + ".books: expected an array");
   }
   for (const key of Object.keys(value)) {
-    if (!["books"].includes(key)) {
-      problems.push(path + "." + key + ": is not allowed");
-    }
+    if (!["books"].includes(key)) problems.push(path + "." + key + ": is not allowed");
   }
   return problems.length === count;
 }
@@ -128,9 +120,7 @@ export function checkLoanRequest(value: unknown, path: string, problems: string[
   checkMemberId(value.member, path + ".member", problems);
   checkLoanDays(value.days, path + ".days", problems);
   for (const key of Object.keys(value)) {
-    if (!["book", "member", "days"].includes(key)) {
-      problems.push(path + "." + key + ": is not allowed");
-    }
+    if (!["book", "member", "days"].includes(key)) problems.push(path + "." + key + ": is not allowed");
   }
   return problems.length === count;
 }
@@ -148,9 +138,7 @@ export function checkLoan(value: unknown, path: string, problems: string[]): val
   checkMemberId(value.member, path + ".member", problems);
   checkDate(value.due, path + ".due", problems);
   for (const key of Object.keys(value)) {
-    if (!["book", "member", "due"].includes(key)) {
-      problems.push(path + "." + key + ": is not allowed");
-    }
+    if (!["book", "member", "due"].includes(key)) problems.push(path + "." + key + ": is not allowed");
   }
   return problems.length === count;
 }

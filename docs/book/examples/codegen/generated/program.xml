@@ -1,0 +1,1350 @@
+<program>
+  <module file="types.ts">
+    <comment>Generated from the XSD schema by program.xq and print.xsl. Do not edit.</comment>
+    <import from="../runtime.ts">
+      <name>characterCount</name>
+      <name>checkBoolean</name>
+      <name>checkDate</name>
+      <name>checkInteger</name>
+      <name>checkObject</name>
+      <name>checkString</name>
+    </import>
+    <type-alias name="BookId" export="true">
+      <type name="string"/>
+    </type-alias>
+    <function name="checkBookId" export="true">
+      <parameter name="value">
+        <type name="unknown"/>
+      </parameter>
+      <parameter name="path">
+        <type name="string"/>
+      </parameter>
+      <parameter name="problems">
+        <array-type>
+          <type name="string"/>
+        </array-type>
+      </parameter>
+      <returns>
+        <predicate parameter="value">
+          <type name="BookId"/>
+        </predicate>
+      </returns>
+      <body>
+        <if>
+          <not>
+            <call function="checkString">
+              <name>value</name>
+              <name>path</name>
+              <name>problems</name>
+            </call>
+          </not>
+          <then>
+            <return>
+              <boolean>false</boolean>
+            </return>
+          </then>
+        </if>
+        <const name="count">
+          <member name="length">
+            <name>problems</name>
+          </member>
+        </const>
+        <if>
+          <not>
+            <call method="test">
+              <regex flags="u">^(?:[a-z][a-z0-9-]*)$</regex>
+              <name>value</name>
+            </call>
+          </not>
+          <then>
+            <statement>
+              <call method="push">
+                <name>problems</name>
+                <binary operator="plus">
+                  <name>path</name>
+                  <string>: must match [a-z][a-z0-9-]*</string>
+                </binary>
+              </call>
+            </statement>
+          </then>
+        </if>
+        <if>
+          <binary operator="greater">
+            <call function="characterCount">
+              <name>value</name>
+            </call>
+            <number>40</number>
+          </binary>
+          <then>
+            <statement>
+              <call method="push">
+                <name>problems</name>
+                <binary operator="plus">
+                  <name>path</name>
+                  <string>: must have at most 40 characters</string>
+                </binary>
+              </call>
+            </statement>
+          </then>
+        </if>
+        <return>
+          <binary operator="equal">
+            <member name="length">
+              <name>problems</name>
+            </member>
+            <name>count</name>
+          </binary>
+        </return>
+      </body>
+    </function>
+    <type-alias name="MemberId" export="true">
+      <type name="string"/>
+    </type-alias>
+    <function name="checkMemberId" export="true">
+      <parameter name="value">
+        <type name="unknown"/>
+      </parameter>
+      <parameter name="path">
+        <type name="string"/>
+      </parameter>
+      <parameter name="problems">
+        <array-type>
+          <type name="string"/>
+        </array-type>
+      </parameter>
+      <returns>
+        <predicate parameter="value">
+          <type name="MemberId"/>
+        </predicate>
+      </returns>
+      <body>
+        <if>
+          <not>
+            <call function="checkString">
+              <name>value</name>
+              <name>path</name>
+              <name>problems</name>
+            </call>
+          </not>
+          <then>
+            <return>
+              <boolean>false</boolean>
+            </return>
+          </then>
+        </if>
+        <const name="count">
+          <member name="length">
+            <name>problems</name>
+          </member>
+        </const>
+        <if>
+          <not>
+            <call method="test">
+              <regex flags="u">^(?:m[0-9]{4})$</regex>
+              <name>value</name>
+            </call>
+          </not>
+          <then>
+            <statement>
+              <call method="push">
+                <name>problems</name>
+                <binary operator="plus">
+                  <name>path</name>
+                  <string>: must match m[0-9]{4}</string>
+                </binary>
+              </call>
+            </statement>
+          </then>
+        </if>
+        <return>
+          <binary operator="equal">
+            <member name="length">
+              <name>problems</name>
+            </member>
+            <name>count</name>
+          </binary>
+        </return>
+      </body>
+    </function>
+    <type-alias name="Genre" export="true">
+      <union>
+        <string>fiction</string>
+        <string>science</string>
+        <string>history</string>
+      </union>
+    </type-alias>
+    <function name="checkGenre" export="true">
+      <parameter name="value">
+        <type name="unknown"/>
+      </parameter>
+      <parameter name="path">
+        <type name="string"/>
+      </parameter>
+      <parameter name="problems">
+        <array-type>
+          <type name="string"/>
+        </array-type>
+      </parameter>
+      <returns>
+        <predicate parameter="value">
+          <type name="Genre"/>
+        </predicate>
+      </returns>
+      <body>
+        <if>
+          <not>
+            <call function="checkString">
+              <name>value</name>
+              <name>path</name>
+              <name>problems</name>
+            </call>
+          </not>
+          <then>
+            <return>
+              <boolean>false</boolean>
+            </return>
+          </then>
+        </if>
+        <const name="count">
+          <member name="length">
+            <name>problems</name>
+          </member>
+        </const>
+        <if>
+          <not>
+            <call method="includes">
+              <array>
+                <string>fiction</string>
+                <string>science</string>
+                <string>history</string>
+              </array>
+              <name>value</name>
+            </call>
+          </not>
+          <then>
+            <statement>
+              <call method="push">
+                <name>problems</name>
+                <binary operator="plus">
+                  <name>path</name>
+                  <string>: must be one of fiction, science, history</string>
+                </binary>
+              </call>
+            </statement>
+          </then>
+        </if>
+        <return>
+          <binary operator="equal">
+            <member name="length">
+              <name>problems</name>
+            </member>
+            <name>count</name>
+          </binary>
+        </return>
+      </body>
+    </function>
+    <type-alias name="LoanDays" export="true">
+      <type name="number"/>
+    </type-alias>
+    <function name="checkLoanDays" export="true">
+      <parameter name="value">
+        <type name="unknown"/>
+      </parameter>
+      <parameter name="path">
+        <type name="string"/>
+      </parameter>
+      <parameter name="problems">
+        <array-type>
+          <type name="string"/>
+        </array-type>
+      </parameter>
+      <returns>
+        <predicate parameter="value">
+          <type name="LoanDays"/>
+        </predicate>
+      </returns>
+      <body>
+        <if>
+          <not>
+            <call function="checkInteger">
+              <name>value</name>
+              <name>path</name>
+              <name>problems</name>
+            </call>
+          </not>
+          <then>
+            <return>
+              <boolean>false</boolean>
+            </return>
+          </then>
+        </if>
+        <const name="count">
+          <member name="length">
+            <name>problems</name>
+          </member>
+        </const>
+        <if>
+          <binary operator="less">
+            <name>value</name>
+            <number>1</number>
+          </binary>
+          <then>
+            <statement>
+              <call method="push">
+                <name>problems</name>
+                <binary operator="plus">
+                  <name>path</name>
+                  <string>: must be at least 1</string>
+                </binary>
+              </call>
+            </statement>
+          </then>
+        </if>
+        <if>
+          <binary operator="greater">
+            <name>value</name>
+            <number>28</number>
+          </binary>
+          <then>
+            <statement>
+              <call method="push">
+                <name>problems</name>
+                <binary operator="plus">
+                  <name>path</name>
+                  <string>: must be at most 28</string>
+                </binary>
+              </call>
+            </statement>
+          </then>
+        </if>
+        <return>
+          <binary operator="equal">
+            <member name="length">
+              <name>problems</name>
+            </member>
+            <name>count</name>
+          </binary>
+        </return>
+      </body>
+    </function>
+    <interface name="Book" export="true">
+      <property name="id">
+        <type name="BookId"/>
+      </property>
+      <property name="title">
+        <type name="string"/>
+      </property>
+      <property name="genre">
+        <type name="Genre"/>
+      </property>
+      <property name="available">
+        <type name="boolean"/>
+      </property>
+    </interface>
+    <function name="checkBook" export="true">
+      <parameter name="value">
+        <type name="unknown"/>
+      </parameter>
+      <parameter name="path">
+        <type name="string"/>
+      </parameter>
+      <parameter name="problems">
+        <array-type>
+          <type name="string"/>
+        </array-type>
+      </parameter>
+      <returns>
+        <predicate parameter="value">
+          <type name="Book"/>
+        </predicate>
+      </returns>
+      <body>
+        <if>
+          <not>
+            <call function="checkObject">
+              <name>value</name>
+              <name>path</name>
+              <name>problems</name>
+            </call>
+          </not>
+          <then>
+            <return>
+              <boolean>false</boolean>
+            </return>
+          </then>
+        </if>
+        <const name="count">
+          <member name="length">
+            <name>problems</name>
+          </member>
+        </const>
+        <statement>
+          <call function="checkBookId">
+            <member name="id">
+              <name>value</name>
+            </member>
+            <binary operator="plus">
+              <name>path</name>
+              <string>.id</string>
+            </binary>
+            <name>problems</name>
+          </call>
+        </statement>
+        <statement>
+          <call function="checkString">
+            <member name="title">
+              <name>value</name>
+            </member>
+            <binary operator="plus">
+              <name>path</name>
+              <string>.title</string>
+            </binary>
+            <name>problems</name>
+          </call>
+        </statement>
+        <statement>
+          <call function="checkGenre">
+            <member name="genre">
+              <name>value</name>
+            </member>
+            <binary operator="plus">
+              <name>path</name>
+              <string>.genre</string>
+            </binary>
+            <name>problems</name>
+          </call>
+        </statement>
+        <statement>
+          <call function="checkBoolean">
+            <member name="available">
+              <name>value</name>
+            </member>
+            <binary operator="plus">
+              <name>path</name>
+              <string>.available</string>
+            </binary>
+            <name>problems</name>
+          </call>
+        </statement>
+        <for-of name="key">
+          <call method="keys">
+            <name>Object</name>
+            <name>value</name>
+          </call>
+          <body>
+            <if>
+              <not>
+                <call method="includes">
+                  <array>
+                    <string>id</string>
+                    <string>title</string>
+                    <string>genre</string>
+                    <string>available</string>
+                  </array>
+                  <name>key</name>
+                </call>
+              </not>
+              <then>
+                <statement>
+                  <call method="push">
+                    <name>problems</name>
+                    <binary operator="plus">
+                      <name>path</name>
+                      <string>.</string>
+                      <name>key</name>
+                      <string>: is not allowed</string>
+                    </binary>
+                  </call>
+                </statement>
+              </then>
+            </if>
+          </body>
+        </for-of>
+        <return>
+          <binary operator="equal">
+            <member name="length">
+              <name>problems</name>
+            </member>
+            <name>count</name>
+          </binary>
+        </return>
+      </body>
+    </function>
+    <interface name="BookRequest" export="true">
+      <property name="id">
+        <type name="BookId"/>
+      </property>
+    </interface>
+    <function name="checkBookRequest" export="true">
+      <parameter name="value">
+        <type name="unknown"/>
+      </parameter>
+      <parameter name="path">
+        <type name="string"/>
+      </parameter>
+      <parameter name="problems">
+        <array-type>
+          <type name="string"/>
+        </array-type>
+      </parameter>
+      <returns>
+        <predicate parameter="value">
+          <type name="BookRequest"/>
+        </predicate>
+      </returns>
+      <body>
+        <if>
+          <not>
+            <call function="checkObject">
+              <name>value</name>
+              <name>path</name>
+              <name>problems</name>
+            </call>
+          </not>
+          <then>
+            <return>
+              <boolean>false</boolean>
+            </return>
+          </then>
+        </if>
+        <const name="count">
+          <member name="length">
+            <name>problems</name>
+          </member>
+        </const>
+        <statement>
+          <call function="checkBookId">
+            <member name="id">
+              <name>value</name>
+            </member>
+            <binary operator="plus">
+              <name>path</name>
+              <string>.id</string>
+            </binary>
+            <name>problems</name>
+          </call>
+        </statement>
+        <for-of name="key">
+          <call method="keys">
+            <name>Object</name>
+            <name>value</name>
+          </call>
+          <body>
+            <if>
+              <not>
+                <call method="includes">
+                  <array>
+                    <string>id</string>
+                  </array>
+                  <name>key</name>
+                </call>
+              </not>
+              <then>
+                <statement>
+                  <call method="push">
+                    <name>problems</name>
+                    <binary operator="plus">
+                      <name>path</name>
+                      <string>.</string>
+                      <name>key</name>
+                      <string>: is not allowed</string>
+                    </binary>
+                  </call>
+                </statement>
+              </then>
+            </if>
+          </body>
+        </for-of>
+        <return>
+          <binary operator="equal">
+            <member name="length">
+              <name>problems</name>
+            </member>
+            <name>count</name>
+          </binary>
+        </return>
+      </body>
+    </function>
+    <interface name="BookSearch" export="true">
+      <property name="genre" optional="true">
+        <type name="Genre"/>
+      </property>
+      <property name="availableOnly" optional="true">
+        <type name="boolean"/>
+      </property>
+    </interface>
+    <function name="checkBookSearch" export="true">
+      <parameter name="value">
+        <type name="unknown"/>
+      </parameter>
+      <parameter name="path">
+        <type name="string"/>
+      </parameter>
+      <parameter name="problems">
+        <array-type>
+          <type name="string"/>
+        </array-type>
+      </parameter>
+      <returns>
+        <predicate parameter="value">
+          <type name="BookSearch"/>
+        </predicate>
+      </returns>
+      <body>
+        <if>
+          <not>
+            <call function="checkObject">
+              <name>value</name>
+              <name>path</name>
+              <name>problems</name>
+            </call>
+          </not>
+          <then>
+            <return>
+              <boolean>false</boolean>
+            </return>
+          </then>
+        </if>
+        <const name="count">
+          <member name="length">
+            <name>problems</name>
+          </member>
+        </const>
+        <if>
+          <binary operator="not-equal">
+            <member name="genre">
+              <name>value</name>
+            </member>
+            <name>undefined</name>
+          </binary>
+          <then>
+            <statement>
+              <call function="checkGenre">
+                <member name="genre">
+                  <name>value</name>
+                </member>
+                <binary operator="plus">
+                  <name>path</name>
+                  <string>.genre</string>
+                </binary>
+                <name>problems</name>
+              </call>
+            </statement>
+          </then>
+        </if>
+        <if>
+          <binary operator="not-equal">
+            <member name="availableOnly">
+              <name>value</name>
+            </member>
+            <name>undefined</name>
+          </binary>
+          <then>
+            <statement>
+              <call function="checkBoolean">
+                <member name="availableOnly">
+                  <name>value</name>
+                </member>
+                <binary operator="plus">
+                  <name>path</name>
+                  <string>.availableOnly</string>
+                </binary>
+                <name>problems</name>
+              </call>
+            </statement>
+          </then>
+        </if>
+        <for-of name="key">
+          <call method="keys">
+            <name>Object</name>
+            <name>value</name>
+          </call>
+          <body>
+            <if>
+              <not>
+                <call method="includes">
+                  <array>
+                    <string>genre</string>
+                    <string>availableOnly</string>
+                  </array>
+                  <name>key</name>
+                </call>
+              </not>
+              <then>
+                <statement>
+                  <call method="push">
+                    <name>problems</name>
+                    <binary operator="plus">
+                      <name>path</name>
+                      <string>.</string>
+                      <name>key</name>
+                      <string>: is not allowed</string>
+                    </binary>
+                  </call>
+                </statement>
+              </then>
+            </if>
+          </body>
+        </for-of>
+        <return>
+          <binary operator="equal">
+            <member name="length">
+              <name>problems</name>
+            </member>
+            <name>count</name>
+          </binary>
+        </return>
+      </body>
+    </function>
+    <interface name="BookList" export="true">
+      <property name="books">
+        <array-type>
+          <type name="Book"/>
+        </array-type>
+      </property>
+    </interface>
+    <function name="checkBookList" export="true">
+      <parameter name="value">
+        <type name="unknown"/>
+      </parameter>
+      <parameter name="path">
+        <type name="string"/>
+      </parameter>
+      <parameter name="problems">
+        <array-type>
+          <type name="string"/>
+        </array-type>
+      </parameter>
+      <returns>
+        <predicate parameter="value">
+          <type name="BookList"/>
+        </predicate>
+      </returns>
+      <body>
+        <if>
+          <not>
+            <call function="checkObject">
+              <name>value</name>
+              <name>path</name>
+              <name>problems</name>
+            </call>
+          </not>
+          <then>
+            <return>
+              <boolean>false</boolean>
+            </return>
+          </then>
+        </if>
+        <const name="count">
+          <member name="length">
+            <name>problems</name>
+          </member>
+        </const>
+        <if>
+          <call method="isArray">
+            <name>Array</name>
+            <member name="books">
+              <name>value</name>
+            </member>
+          </call>
+          <then>
+            <statement>
+              <call method="forEach">
+                <member name="books">
+                  <name>value</name>
+                </member>
+                <arrow>
+                  <parameter name="item"/>
+                  <parameter name="index"/>
+                  <call function="checkBook">
+                    <name>item</name>
+                    <binary operator="plus">
+                      <name>path</name>
+                      <string>.books[</string>
+                      <name>index</name>
+                      <string>]</string>
+                    </binary>
+                    <name>problems</name>
+                  </call>
+                </arrow>
+              </call>
+            </statement>
+          </then>
+          <else>
+            <statement>
+              <call method="push">
+                <name>problems</name>
+                <binary operator="plus">
+                  <name>path</name>
+                  <string>.books: expected an array</string>
+                </binary>
+              </call>
+            </statement>
+          </else>
+        </if>
+        <for-of name="key">
+          <call method="keys">
+            <name>Object</name>
+            <name>value</name>
+          </call>
+          <body>
+            <if>
+              <not>
+                <call method="includes">
+                  <array>
+                    <string>books</string>
+                  </array>
+                  <name>key</name>
+                </call>
+              </not>
+              <then>
+                <statement>
+                  <call method="push">
+                    <name>problems</name>
+                    <binary operator="plus">
+                      <name>path</name>
+                      <string>.</string>
+                      <name>key</name>
+                      <string>: is not allowed</string>
+                    </binary>
+                  </call>
+                </statement>
+              </then>
+            </if>
+          </body>
+        </for-of>
+        <return>
+          <binary operator="equal">
+            <member name="length">
+              <name>problems</name>
+            </member>
+            <name>count</name>
+          </binary>
+        </return>
+      </body>
+    </function>
+    <interface name="LoanRequest" export="true">
+      <property name="book">
+        <type name="BookId"/>
+      </property>
+      <property name="member">
+        <type name="MemberId"/>
+      </property>
+      <property name="days">
+        <type name="LoanDays"/>
+      </property>
+    </interface>
+    <function name="checkLoanRequest" export="true">
+      <parameter name="value">
+        <type name="unknown"/>
+      </parameter>
+      <parameter name="path">
+        <type name="string"/>
+      </parameter>
+      <parameter name="problems">
+        <array-type>
+          <type name="string"/>
+        </array-type>
+      </parameter>
+      <returns>
+        <predicate parameter="value">
+          <type name="LoanRequest"/>
+        </predicate>
+      </returns>
+      <body>
+        <if>
+          <not>
+            <call function="checkObject">
+              <name>value</name>
+              <name>path</name>
+              <name>problems</name>
+            </call>
+          </not>
+          <then>
+            <return>
+              <boolean>false</boolean>
+            </return>
+          </then>
+        </if>
+        <const name="count">
+          <member name="length">
+            <name>problems</name>
+          </member>
+        </const>
+        <statement>
+          <call function="checkBookId">
+            <member name="book">
+              <name>value</name>
+            </member>
+            <binary operator="plus">
+              <name>path</name>
+              <string>.book</string>
+            </binary>
+            <name>problems</name>
+          </call>
+        </statement>
+        <statement>
+          <call function="checkMemberId">
+            <member name="member">
+              <name>value</name>
+            </member>
+            <binary operator="plus">
+              <name>path</name>
+              <string>.member</string>
+            </binary>
+            <name>problems</name>
+          </call>
+        </statement>
+        <statement>
+          <call function="checkLoanDays">
+            <member name="days">
+              <name>value</name>
+            </member>
+            <binary operator="plus">
+              <name>path</name>
+              <string>.days</string>
+            </binary>
+            <name>problems</name>
+          </call>
+        </statement>
+        <for-of name="key">
+          <call method="keys">
+            <name>Object</name>
+            <name>value</name>
+          </call>
+          <body>
+            <if>
+              <not>
+                <call method="includes">
+                  <array>
+                    <string>book</string>
+                    <string>member</string>
+                    <string>days</string>
+                  </array>
+                  <name>key</name>
+                </call>
+              </not>
+              <then>
+                <statement>
+                  <call method="push">
+                    <name>problems</name>
+                    <binary operator="plus">
+                      <name>path</name>
+                      <string>.</string>
+                      <name>key</name>
+                      <string>: is not allowed</string>
+                    </binary>
+                  </call>
+                </statement>
+              </then>
+            </if>
+          </body>
+        </for-of>
+        <return>
+          <binary operator="equal">
+            <member name="length">
+              <name>problems</name>
+            </member>
+            <name>count</name>
+          </binary>
+        </return>
+      </body>
+    </function>
+    <interface name="Loan" export="true">
+      <property name="book">
+        <type name="BookId"/>
+      </property>
+      <property name="member">
+        <type name="MemberId"/>
+      </property>
+      <property name="due">
+        <type name="string"/>
+      </property>
+    </interface>
+    <function name="checkLoan" export="true">
+      <parameter name="value">
+        <type name="unknown"/>
+      </parameter>
+      <parameter name="path">
+        <type name="string"/>
+      </parameter>
+      <parameter name="problems">
+        <array-type>
+          <type name="string"/>
+        </array-type>
+      </parameter>
+      <returns>
+        <predicate parameter="value">
+          <type name="Loan"/>
+        </predicate>
+      </returns>
+      <body>
+        <if>
+          <not>
+            <call function="checkObject">
+              <name>value</name>
+              <name>path</name>
+              <name>problems</name>
+            </call>
+          </not>
+          <then>
+            <return>
+              <boolean>false</boolean>
+            </return>
+          </then>
+        </if>
+        <const name="count">
+          <member name="length">
+            <name>problems</name>
+          </member>
+        </const>
+        <statement>
+          <call function="checkBookId">
+            <member name="book">
+              <name>value</name>
+            </member>
+            <binary operator="plus">
+              <name>path</name>
+              <string>.book</string>
+            </binary>
+            <name>problems</name>
+          </call>
+        </statement>
+        <statement>
+          <call function="checkMemberId">
+            <member name="member">
+              <name>value</name>
+            </member>
+            <binary operator="plus">
+              <name>path</name>
+              <string>.member</string>
+            </binary>
+            <name>problems</name>
+          </call>
+        </statement>
+        <statement>
+          <call function="checkDate">
+            <member name="due">
+              <name>value</name>
+            </member>
+            <binary operator="plus">
+              <name>path</name>
+              <string>.due</string>
+            </binary>
+            <name>problems</name>
+          </call>
+        </statement>
+        <for-of name="key">
+          <call method="keys">
+            <name>Object</name>
+            <name>value</name>
+          </call>
+          <body>
+            <if>
+              <not>
+                <call method="includes">
+                  <array>
+                    <string>book</string>
+                    <string>member</string>
+                    <string>due</string>
+                  </array>
+                  <name>key</name>
+                </call>
+              </not>
+              <then>
+                <statement>
+                  <call method="push">
+                    <name>problems</name>
+                    <binary operator="plus">
+                      <name>path</name>
+                      <string>.</string>
+                      <name>key</name>
+                      <string>: is not allowed</string>
+                    </binary>
+                  </call>
+                </statement>
+              </then>
+            </if>
+          </body>
+        </for-of>
+        <return>
+          <binary operator="equal">
+            <member name="length">
+              <name>problems</name>
+            </member>
+            <name>count</name>
+          </binary>
+        </return>
+      </body>
+    </function>
+  </module>
+  <module file="client.ts">
+    <comment>Generated from the API description by program.xq and print.xsl. Do not edit.</comment>
+    <import from="../runtime.ts">
+      <name>call</name>
+      <name>expect</name>
+    </import>
+    <import from="./types.ts" type-only="true">
+      <name>BookRequest</name>
+      <name>Book</name>
+      <name>BookSearch</name>
+      <name>BookList</name>
+      <name>LoanRequest</name>
+      <name>Loan</name>
+    </import>
+    <import from="./types.ts">
+      <name>checkBookRequest</name>
+      <name>checkBook</name>
+      <name>checkBookSearch</name>
+      <name>checkBookList</name>
+      <name>checkLoanRequest</name>
+      <name>checkLoan</name>
+    </import>
+    <function name="getBook" export="true" async="true">
+      <doc>Finds one book by its id.</doc>
+      <parameter name="input">
+        <type name="BookRequest"/>
+      </parameter>
+      <returns>
+        <type name="Promise">
+          <type name="Book"/>
+        </type>
+      </returns>
+      <body>
+        <statement>
+          <call function="expect">
+            <type name="BookRequest"/>
+            <name>input</name>
+            <name>checkBookRequest</name>
+          </call>
+        </statement>
+        <const name="output">
+          <await>
+            <call function="call">
+              <string>getBook</string>
+              <string>query</string>
+              <name>input</name>
+            </call>
+          </await>
+        </const>
+        <return>
+          <call function="expect">
+            <type name="Book"/>
+            <name>output</name>
+            <name>checkBook</name>
+          </call>
+        </return>
+      </body>
+    </function>
+    <function name="searchBooks" export="true" async="true">
+      <doc>Lists the books of a genre, or all books.</doc>
+      <parameter name="input">
+        <type name="BookSearch"/>
+      </parameter>
+      <returns>
+        <type name="Promise">
+          <type name="BookList"/>
+        </type>
+      </returns>
+      <body>
+        <statement>
+          <call function="expect">
+            <type name="BookSearch"/>
+            <name>input</name>
+            <name>checkBookSearch</name>
+          </call>
+        </statement>
+        <const name="output">
+          <await>
+            <call function="call">
+              <string>searchBooks</string>
+              <string>query</string>
+              <name>input</name>
+            </call>
+          </await>
+        </const>
+        <return>
+          <call function="expect">
+            <type name="BookList"/>
+            <name>output</name>
+            <name>checkBookList</name>
+          </call>
+        </return>
+      </body>
+    </function>
+    <function name="borrowBook" export="true" async="true">
+      <doc>Lends a book to a member for some days.</doc>
+      <parameter name="input">
+        <type name="LoanRequest"/>
+      </parameter>
+      <returns>
+        <type name="Promise">
+          <type name="Loan"/>
+        </type>
+      </returns>
+      <body>
+        <statement>
+          <call function="expect">
+            <type name="LoanRequest"/>
+            <name>input</name>
+            <name>checkLoanRequest</name>
+          </call>
+        </statement>
+        <const name="output">
+          <await>
+            <call function="call">
+              <string>borrowBook</string>
+              <string>command</string>
+              <name>input</name>
+            </call>
+          </await>
+        </const>
+        <return>
+          <call function="expect">
+            <type name="Loan"/>
+            <name>output</name>
+            <name>checkLoan</name>
+          </call>
+        </return>
+      </body>
+    </function>
+  </module>
+  <module file="server.ts">
+    <comment>Generated from the API description by program.xq and print.xsl. Do not edit.</comment>
+    <import from="../runtime.ts">
+      <name>serve</name>
+    </import>
+    <import from="./types.ts" type-only="true">
+      <name>BookRequest</name>
+      <name>Book</name>
+      <name>BookSearch</name>
+      <name>BookList</name>
+      <name>LoanRequest</name>
+      <name>Loan</name>
+    </import>
+    <import from="./types.ts">
+      <name>checkBookRequest</name>
+      <name>checkBook</name>
+      <name>checkBookSearch</name>
+      <name>checkBookList</name>
+      <name>checkLoanRequest</name>
+      <name>checkLoan</name>
+    </import>
+    <interface name="Implementation" export="true">
+      <doc>What the server does: one method for each remote function.</doc>
+      <method name="getBook">
+        <doc>Finds one book by its id.</doc>
+        <parameter name="input">
+          <type name="BookRequest"/>
+        </parameter>
+        <returns>
+          <type name="Promise">
+            <type name="Book"/>
+          </type>
+        </returns>
+      </method>
+      <method name="searchBooks">
+        <doc>Lists the books of a genre, or all books.</doc>
+        <parameter name="input">
+          <type name="BookSearch"/>
+        </parameter>
+        <returns>
+          <type name="Promise">
+            <type name="BookList"/>
+          </type>
+        </returns>
+      </method>
+      <method name="borrowBook">
+        <doc>Lends a book to a member for some days.</doc>
+        <parameter name="input">
+          <type name="LoanRequest"/>
+        </parameter>
+        <returns>
+          <type name="Promise">
+            <type name="Loan"/>
+          </type>
+        </returns>
+      </method>
+    </interface>
+    <function name="createHandler" export="true">
+      <doc>A Node.js request listener that checks every input and output.</doc>
+      <parameter name="implementation">
+        <type name="Implementation"/>
+      </parameter>
+      <body>
+        <return>
+          <call function="serve">
+            <object>
+              <entry name="getBook">
+                <object>
+                  <entry name="kind">
+                    <string>query</string>
+                  </entry>
+                  <entry name="checkInput">
+                    <name>checkBookRequest</name>
+                  </entry>
+                  <entry name="checkOutput">
+                    <name>checkBook</name>
+                  </entry>
+                  <entry name="run">
+                    <arrow>
+                      <parameter name="input"/>
+                      <call method="getBook">
+                        <name>implementation</name>
+                        <name>input</name>
+                      </call>
+                    </arrow>
+                  </entry>
+                </object>
+              </entry>
+              <entry name="searchBooks">
+                <object>
+                  <entry name="kind">
+                    <string>query</string>
+                  </entry>
+                  <entry name="checkInput">
+                    <name>checkBookSearch</name>
+                  </entry>
+                  <entry name="checkOutput">
+                    <name>checkBookList</name>
+                  </entry>
+                  <entry name="run">
+                    <arrow>
+                      <parameter name="input"/>
+                      <call method="searchBooks">
+                        <name>implementation</name>
+                        <name>input</name>
+                      </call>
+                    </arrow>
+                  </entry>
+                </object>
+              </entry>
+              <entry name="borrowBook">
+                <object>
+                  <entry name="kind">
+                    <string>command</string>
+                  </entry>
+                  <entry name="checkInput">
+                    <name>checkLoanRequest</name>
+                  </entry>
+                  <entry name="checkOutput">
+                    <name>checkLoan</name>
+                  </entry>
+                  <entry name="run">
+                    <arrow>
+                      <parameter name="input"/>
+                      <call method="borrowBook">
+                        <name>implementation</name>
+                        <name>input</name>
+                      </call>
+                    </arrow>
+                  </entry>
+                </object>
+              </entry>
+            </object>
+          </call>
+        </return>
+      </body>
+    </function>
+  </module>
+</program>

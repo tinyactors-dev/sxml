@@ -19,15 +19,19 @@ given:
 ```
 
 It validates the description first, so the generator never sees one
-that is wrong, and stops at the first command that fails. `--force`
-lets `sxml` replace the files of an earlier run. The generated files of
-the examples were made with it, and are kept with the sources:
+that is wrong, builds the tree of the program into `program.xml`,
+prints the tree into the TypeScript files, and writes the OpenAPI
+document of a later part of this section. It stops at the first
+command that fails. `--force` lets `sxml` replace the files of an
+earlier run. The generated files of the examples were made with it,
+and are kept with the sources:
 
 ```console
 $ sh generate.sh
 $ ls generated
 client.ts
 openapi.json
+program.xml
 server.ts
 types.ts
 ```
@@ -50,6 +54,48 @@ up to date
 Put these two commands into the checks that run before a change is
 merged, and nobody can change the schema and forget the code, or edit
 generated code by hand: `diff` fails, and shows what differs.
+
+## Checking the generated code
+
+The client and the server are printed from the same tree, so they
+should fit together: every function of the client has a method in the
+server's `Implementation` and a route in `createHandler`, and every
+name they import from `runtime.ts` is one that `runtime.ts` exports.
+The [Source Code as XML](source-code.md) chapter's `sxml:parse-code`
+can check that on the code itself, after it was printed, with
+tree-sitter's TypeScript grammar. `check.xq` parses the three
+TypeScript files and compares their parts, and also compares the
+client with the tree it was printed from:
+
+`check.xq`:
+
+```xquery
+{{#include ../examples/codegen/check.xq}}
+```
+
+The element names in it are tree-sitter's (`function_declaration`,
+`method_signature`, `pair`), not the generator's: the check reads the
+code as any TypeScript file would be read, and doesn't trust the
+printer. On the files that are kept, everything fits:
+
+```console
+$ sxml xquery --method=text check.xq
+3 functions: client, server and runtime agree
+```
+
+Someone who deletes a method from the server's interface by hand, in
+a copy, finds out at once:
+
+```console
+$ cp -r generated edited
+$ sed '/borrowBook(input: LoanRequest)/d' generated/server.ts > edited/server.ts
+$ sxml xquery --method=text --param=directory=edited check.xq
+check.xq:35:8: local:mismatch: client function borrowBook has no method in Implementation
+```
+
+The check also guards the generator and the printer: a generator that
+forgot a route, or a printer that dropped a function, makes it fail in
+the same way. Run it after `generate.sh`, next to the comparison above.
 
 ## A second target with XSLT
 
@@ -90,12 +136,12 @@ $ sxml xpath --method=json 'json-doc("generated/openapi.json")?components?schema
 {"type":"integer","minimum":1,"maximum":28}
 ```
 
-Which language to use is a matter of taste. XQuery reads like a
-program, and string constructors make text output easy to write; XSLT's
-template rules suit sources with many kinds of nodes, where the output
-follows the input, and its `xsl:result-document` can write many files
-from one transformation, as in [Many Outputs, Functions and
-Packages](xslt-packages.md).
+Which language to use for which step is a matter of taste. XQuery
+reads like a program, and suits the generator, which looks things up
+in two documents and builds a new one; XSLT's template rules suit the
+printer and this stylesheet, whose sources have many kinds of nodes and
+whose output follows the input, and its `xsl:result-document` writes
+many files from one transformation.
 
 ## When the schema changes
 
@@ -137,12 +183,13 @@ $ cp library-2.xsd library.xsd
 $ sh generate.sh next
 $ diff -rq generated next
 Files generated/openapi.json and next/openapi.json differ
+Files generated/program.xml and next/program.xml differ
 Files generated/types.ts and next/types.ts differ
 ```
 
 The client and the server didn't change: no function's types did. The
-types did, and the difference is exactly the change to the schema,
-written out in TypeScript:
+tree did, and so the types: the difference is exactly the change to
+the schema, written out in TypeScript:
 
 ```console
 $ diff -u -L generated/types.ts -L next/types.ts generated/types.ts next/types.ts
@@ -166,14 +213,14 @@ $ diff -u -L generated/types.ts -L next/types.ts generated/types.ts next/types.t
 +  if (value > 5) problems.push(path + ": must be at most 5");
    return problems.length === count;
  }
- 
+
 @@ -44,6 +54,7 @@
    title: string;
    genre: Genre;
    available: boolean;
 +  rating?: Rating;
  }
- 
+
  export function checkBook(value: unknown, path: string, problems: string[]): value is Book {
 @@ -53,8 +64,9 @@
    checkString(value.title, path + ".title", problems);
@@ -181,11 +228,11 @@ $ diff -u -L generated/types.ts -L next/types.ts generated/types.ts next/types.t
    checkBoolean(value.available, path + ".available", problems);
 +  if (value.rating !== undefined) checkRating(value.rating, path + ".rating", problems);
    for (const key of Object.keys(value)) {
--    if (!["id", "title", "genre", "available"].includes(key)) {
-+    if (!["id", "title", "genre", "available", "rating"].includes(key)) {
-       problems.push(path + "." + key + ": is not allowed");
-     }
+-    if (!["id", "title", "genre", "available"].includes(key)) problems.push(path + "." + key + ": is not allowed");
++    if (!["id", "title", "genre", "available", "rating"].includes(key)) problems.push(path + "." + key + ": is not allowed");
    }
+   return problems.length === count;
+ }
 ```
 
 The new limit is now in the browser's checks, in the server's, and in
@@ -212,13 +259,21 @@ other because they come from the same place:
   TypeScript types and runtime checks;
 - an API description in a language of our own, with a schema of its
   own;
-- an XQuery library module that writes code with string constructors,
-  and a main module that stores the files with `fn:put`;
+- an XQuery library module that builds a tree of the TypeScript
+  program, in a small vocabulary of our own, and finds the imports by
+  querying it;
+- an XSLT printer with one template rule for each kind of element and
+  the layout in one place, and a second style that imports it and
+  changes two declarations;
+- a check that parses the generated code with `sxml:parse-code` and
+  compares the client, the server and the runtime;
 - an XSLT stylesheet that writes JSON with template rules and maps;
 - a script that makes everything, and a comparison that shows whether
   the kept files are current.
 
-The same approach works for other targets: classes for a language on
-the server, SQL tables, forms for a web page, or documentation.
-Whatever the target, the schema stays the one place where a rule is
-written.
+Each step is small, and each can be tried on its own: the generator's
+functions return trees that a test can query, and the printer prints
+any piece of a tree. The same approach works for other targets: a
+vocabulary and a printer for a language on the server, SQL tables,
+forms for a web page, or documentation. Whatever the target, the
+schema stays the one place where a rule is written.

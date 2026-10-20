@@ -95,6 +95,8 @@ most:
 - [Streaming Large Files](xslt-streaming.md): transforming documents
   larger than memory.
 
-Chapter 12 writes an OpenAPI document from an XSD schema with template
-rules, in [A Pipeline, a Second Target and a Changing
-Schema](codegen-pipeline.md).
+Chapter 12 prints a tree of TypeScript code as text with one template
+rule for each kind of element, in [Printing the Tree with
+XSLT](codegen-printer.md), and writes an OpenAPI document from an XSD
+schema with template rules, in [A Pipeline, a Second Target and a
+Changing Schema](codegen-pipeline.md).

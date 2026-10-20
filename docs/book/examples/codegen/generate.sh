@@ -5,5 +5,6 @@ set -e
 directory=${1:-generated}
 sxml validate --schema=api.xsd api.xml
 mkdir -p "$directory"
-sxml xquery --allow-put --force --param=directory="$directory" generate.xq
+sxml xquery --force --output="$directory/program.xml" program.xq
+sxml transform --force --result-directory="$directory" print.xsl "$directory/program.xml"
 sxml transform --force --output="$directory/openapi.json" openapi.xsl api.xml

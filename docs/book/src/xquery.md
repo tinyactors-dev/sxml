@@ -95,5 +95,5 @@ Comments that start with `(:~` document the declaration after them:
 
 Full-text search, with `contains text`, is part of XQuery in sxml too;
 it is in Chapter 7, with the other ways of working with text.
-Chapter 12 uses XQuery to generate TypeScript from a schema, in
-[Project: Generating Code from a Schema](codegen.md).
+Chapter 12 uses XQuery to build the tree of a TypeScript program from a
+schema, in [Project: Generating Code from a Schema](codegen.md).

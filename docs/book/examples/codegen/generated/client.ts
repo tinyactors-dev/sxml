@@ -1,4 +1,4 @@
-// Generated from the API description by generate.xq. Do not edit.
+// Generated from the API description by program.xq and print.xsl. Do not edit.
 import { call, expect } from "../runtime.ts";
 import type { BookRequest, Book, BookSearch, BookList, LoanRequest, Loan } from "./types.ts";
 import { checkBookRequest, checkBook, checkBookSearch, checkBookList, checkLoanRequest, checkLoan } from "./types.ts";

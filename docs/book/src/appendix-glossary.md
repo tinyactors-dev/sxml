@@ -91,6 +91,10 @@ applied all together at the end of the query.
 **Predicate.** A condition in square brackets after a step or
 expression, which keeps the items for which it is true.
 
+**Printer.** A program that writes a syntax tree as source text, with
+the keywords, punctuation and layout of the language. In Chapter 12, an
+XSLT stylesheet with one template rule for each kind of element.
+
 **Processor.** In the sxml library, the object that owns the names,
 types and values of everything compiled and evaluated with it.
 
@@ -128,10 +132,16 @@ its tree, so memory doesn't grow with its size.
 **String constructor.** In XQuery, a string written between
 ``` ``[ ``` and ``` ]`` ```, with expressions between `` `{ `` and
 `` }` ``; everything else, braces and quotes included, is literal text.
-Made for generating code.
+The simplest way to write a line or two of code; for whole files, see
+*Syntax tree*.
 
 **Substitution group.** In XSD, the global elements that may appear
 wherever their head element is allowed.
+
+**Syntax tree.** A program as a tree of its parts. A *concrete* syntax
+tree, as `sxml:parse-code` returns, holds every token and space, so its
+string value is the source; an *abstract* one holds only the parts that
+vary, such as names, types and statements, and a printer adds the rest.
 
 **Target namespace.** The namespace of the components that a schema
 document declares.

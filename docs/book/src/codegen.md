@@ -17,14 +17,18 @@ the rest. XML tools are good at this job:
   with facets for the rules, and another schema checks the description
   of the functions.
 - The source is data. A schema is an XML document, so XQuery and XSLT
-  can read it like any other document and turn it into text.
+  can read it like any other document.
+- The code is data too, on its way out. The generator doesn't write
+  text: it builds a tree of the program, an XML document, which can be
+  queried and checked before a stylesheet prints it.
 
 We'll describe a small API for the library: three *remote functions*,
 which a browser page calls as if they were local functions, while they
-run on the server. From that description, XQuery generates TypeScript:
-the types, with runtime checks made from the facets, a browser client,
-and the server's request handler. XSLT then writes the same API as an
-OpenAPI document, for other tools.
+run on the server. From that description, XQuery builds the tree of a
+TypeScript program: the types, with runtime checks made from the
+facets, a browser client, and the server's request handler. An XSLT
+stylesheet prints the tree as TypeScript, and another writes the same
+API as an OpenAPI document, for other tools.
 
 The idea comes from web frameworks that let you declare a function once
 and call it from the browser, with the framework doing the network part:
@@ -101,13 +105,17 @@ document. The generator checks that one itself, as we'll see.
 
 ## The plan
 
-The project has three parts:
+The project has four parts:
 
-- [Generating TypeScript with XQuery](codegen-typescript.md): a library
-  module turns the schema into types and checks, and the description
-  into a client and a server.
+- [Building a Tree of the Program with XQuery](codegen-typescript.md):
+  a library module turns the schema into types and checks, and the
+  description into a client and a server, all as elements of a small
+  vocabulary for TypeScript.
+- [Printing the Tree with XSLT](codegen-printer.md): one template rule
+  for each kind of element, and the layout in one place.
 - [Running the Generated Code](codegen-running.md): a small server and
   a client that calls it, with Node.js.
 - [A Pipeline, a Second Target and a Changing Schema](codegen-pipeline.md):
-  one script that makes every file, an OpenAPI document made with XSLT,
-  and what happens when the schema changes.
+  one script that makes every file, a check that parses the generated
+  code and compares its parts, an OpenAPI document made with XSLT, and
+  what happens when the schema changes.

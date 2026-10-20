@@ -51,7 +51,8 @@
 - [sxml in JavaScript](javascript.md)
 - [Performance and Memory](performance.md)
 - [Project: Generating Code from a Schema](codegen.md)
-    - [Generating TypeScript with XQuery](codegen-typescript.md)
+    - [Building a Tree of the Program with XQuery](codegen-typescript.md)
+    - [Printing the Tree with XSLT](codegen-printer.md)
     - [Running the Generated Code](codegen-running.md)
     - [A Pipeline, a Second Target and a Changing Schema](codegen-pipeline.md)
 
