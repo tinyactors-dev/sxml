@@ -12046,8 +12046,40 @@ aaa0dbe, 7b9dd14, b4a4769, 926eae5.
   had another packet's uncommitted changes.
 
 ### D263. XPath and XQuery conformance sweep: D258's leftovers and fresh clusters (packet 2.24)
-Recorded 2026-10-20, after D84, D99, D180, D190, D226, D258. In
-progress; the record is completed when the packet ends.
+Recorded 2026-10-20, after D84, D99, D180, D190, D226, D234, D258. No
+IR expression kind added; one public header changed additively
+(tree.h, below).
+- **Start** (release driver, whole runs at d9ff5ed): XP40 32,716 passed
+  (32 wrong-error), 55 failed; XQ40 46,017 (53), 191 failed. Clusters by
+  root cause: D258's open list (context value types of library modules
+  4, string-length/normalize-space 2, QName casts in direct
+  constructors 5, is-id of list and union elements 6, use-xsi-schema-
+  location 0 failing cases); in-scope namespaces of nested direct
+  constructors 5; static checks of named item types, function types,
+  EQNames and PI targets 12; casts from strings to unions 1; variable
+  cycles found statically 2 (+2 wrong errors); xs:T#0 and
+  function-lookup 1; partial-application names 3; and the kept groups
+  (assert-xml whitespace about 25, XML 1.1 query lexing 13 (D195),
+  recordTypeDecl/ paths 5, EXPath Binary's types, staticTyping).
+- **Library context value types** (XQuery 4.0, 5.17): the context global
+  takes the main module's type (item()* without one) and each library
+  declaration adds a global of name 0 without initializer, whose type
+  the evaluator matches, without coercion, when it binds or computes the
+  context global (XPTY0004).
+- **fn:string(.) defaults** (F&O 4.0, 5.3.11, 5.3.12):
+  `sxml_function_parameter.defaults_to_string_value` (with
+  SXML_PARAMETER_DEFAULT_CONTEXT_VALUE): static calls pass fn:string(.),
+  named references capture it, fn:function-lookup binds it through
+  fn:string's row; an explicit argument is xs:anyAtomicType?.
+- **Namespaces of a place** (D84 extended): a cast to a
+  namespace-sensitive type records, in XQuery and XSLT, the statically
+  known namespaces of its place (`sxml_ir_cast.namespace_bindings`;
+  direct constructors' declarations, XSLT elements' namespaces); XSLT's
+  general comparisons record them for xs:untypedAtomic against xs:QName
+  (`sxml_ir_binary.namespace_bindings`). Empty lists mean the running
+  module's (`sxml_dynamic_context_get_static_namespaces`), now also for
+  general comparisons. Not covered: XSLT's per-element default collation
+  (choose-0107, collations-0121 to -0124), another static property.
 - **is-id of list and union elements** (XDM 4.0, 7.5.2.4): an additive
   optional tree builder operation, `set_element_identity`
   (`include/sxml/tree.h`, after the freeze as D99 allows, with
@@ -12058,6 +12090,55 @@ progress; the record is completed when the packet ends.
   value is an xs:ID or xs:IDREF); the arena tree and the validator's
   recorder implement it, other builders leave it NULL and keep the start
   event's values. This replaces D180's "no later mark is possible".
+- **Nested direct constructors** (XQuery 4.0, 4.12.4): a direct element
+  constructor in another's content has only its own in-scope namespaces
+  (construction flag OWN_NAMESPACES; its declared list already holds the
+  enclosing declarations); elements of enclosed expressions are copies
+  and inherit as before (Constr-inscope-24 to -26).
+- **Variable cycles** (5.16): the prolog's dependency walk no longer
+  raises XQDY0054 for a cycle of its static superset; the evaluator
+  raises it for a global being computed (D234).
+- **Smaller fixes**: document-node(N) and document-node(N1|N2) (a choice
+  of document tests); XQST0039 for repeated parameter names in function
+  types; XQST0070 and XPST0154 for EQNames; NCName PI targets
+  (XPTY0004); fn:string of nested JNodes; computed names' collapsed
+  URIs; map:build's lower-arity duplicates functions (function
+  coercion); XQST0045, XQST0146, XQST0034 and XQST0140 for named item
+  types; casts of strings to unions from their text (F&O 23.3.7); a
+  general comparison's QName cast; xs:T#0 through fn:function-lookup;
+  catch-clause variables referenced with a constructor's prefix;
+  partial applications named by their native row;
+  namespace-uri-for-prefix's (xs:NCName | enum(''))? parameter.
+- **Measured** (release driver, whole runs at 8669abe, which has
+  4.25's, 4.26's and cli-2's commits too, about eight cases of these
+  numbers): XP40 32,731 passed (30 wrong-error), 40 failed; XQ40 46,070
+  (49), 138 failed; 0 errors; XT40 12,192 passed, 326 failed; no case
+  lost at any step, case by case. CONFORMANCE.md is not regenerated:
+  another packet has uncommitted changes in it.
+- **Static typing** (the optional staticTyping feature; 104 XQ40 and 48
+  XP40 cases, almost all expecting a static XPTY0004, a few XPST0005):
+  XQuery 4.0 has dropped the feature and its appendix (6, "Changes in
+  4.0", PR 1344), so the rules are XQuery 3.1's and the Formal
+  Semantics'. It would take one new IR pass after lowering that infers a
+  static sequence type for every expression kind (about 100 kinds, with
+  the registry's subtype tests and occurrence arithmetic), pessimistic
+  checks at calls, operators, paths and casts, node-kind and schema-type
+  inference for axis steps, and the XQuery Update rules (27 cases):
+  estimated 4,000 to 6,000 lines in two or three packets, behind an
+  option off by default, since it rejects queries that run correctly.
+  Proposed default: do not implement; the cases stay not run.
+- **Not done**: XQuery's XML 1.1 lexing (D195, 13 cases); the
+  whitespace-only assert-xml cases; JNode name tests Q{}N against NCName
+  (frozen sxml_name_test; JAxes-292, PathExpr-J-157);
+  fn:load-xquery-module in XPath (needs an optional feature like
+  xslt-transform: header change); runtime constructors of named item
+  types for fn:function-lookup (itemTypeDecl-058); xml:id under lax
+  validation without the xml namespace schema (fo-test-fn-id-001 and
+  three more) and IDREF checks on element roots (2, D199); deep-equal of
+  partial applications (4); the singletons listed in the runs
+  (serialization adaptive and XML method 13, load-xquery-module 9,
+  fn:transform 3, xml-to-json 4, xsd-validator 3, collations of
+  group/order by 2).
 
 ### D270. The book's XQuery and XSD parts (packet book-2)
 Recorded 2026-10-20, after D257. The owner asked the book to cover

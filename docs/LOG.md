@@ -4,6 +4,20 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 2.24 done (D263): XPath/XQuery sweep. XP40 32,716 to 32,731 passed
+  (55 to 40 failed, 32 to 30 wrong errors), XQ40 46,017 to 46,070 (191
+  to 138, 53 to 49), about eight of them from 4.25, 4.26 and cli-2; no
+  case lost. Library context value types; fn:string(.) defaults of
+  string-length and normalize-space; QName casts with the namespaces of
+  their place (direct constructors, XSLT elements); is-id of list and
+  union elements through an additive optional tree builder operation
+  (tree.h); nested direct constructors keep only their own namespaces;
+  variable cycles found when they run; named item type, EQName and
+  function type checks. Static typing (dropped by XQuery 4.0) estimated
+  at two or three packets, proposed not to do. CONFORMANCE.md not
+  regenerated (another packet's uncommitted changes). Left: D263's
+  "Not done".
+
 - size-3 done (D272): every build has everything. fn:load-xquery-module
   is a library part for every language, so XSLT and XPath have it (QT4
   XP40 fn-load-xquery-module 0 to 56, fn-function-lookup 657 to 661;

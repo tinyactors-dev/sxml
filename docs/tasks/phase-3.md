@@ -403,3 +403,10 @@ Files: the evaluator, the XPath and XQuery lowering and static analysis,
 the function library and the validator parts the fixes touch.
 Verification as D181 says; the XP40 and XQ40 sections of
 `docs/CONFORMANCE.md` regenerated from whole runs of the final code.
+**Done** 2026-10-20 (D263): D258's list but use-xsi-schema-location
+(no failing case), nested constructors' namespaces, named item type
+checks, variable cycles at run time, XSLT's QName casts and comparisons;
+XP40 32,716 to 32,731 passed (55 to 40 failed), XQ40 46,017 to 46,070
+(191 to 138), none lost; static typing estimated, not implemented.
+CONFORMANCE.md not regenerated (another packet's uncommitted changes).
+Open: D263's "Not done".
