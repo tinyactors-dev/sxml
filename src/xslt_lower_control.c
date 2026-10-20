@@ -3677,11 +3677,8 @@ typedef struct iterate_parameter {
     sxml_ir_atom current_value;
 } iterate_parameter;
 
-/* The closure's slots: its three parameters, then the captures. */
-#define ITERATE_STATE_SLOT 1U
-#define ITERATE_ITEM_SLOT 2U
-#define ITERATE_POSITION_SLOT 3U
-#define ITERATE_PARAMETER_COUNT 3U
+/* The closure's state parameter. */
+#define ITERATE_STATE_SLOT SXML_XSLT_CLOSURE_FIRST_SLOT
 
 typedef struct iterate_locals {
     sxml_xslt_instruction_locals head;
@@ -3691,17 +3688,11 @@ typedef struct iterate_locals {
     size_t parameter_count;
     size_t parameter_index;
     sxml_ir_atom initial_state;
-    /* The closure being lowered. */
-    sxml_ir_function_index closure;
-    sxml_xpath_lowering_function_frame function_frame;
-    /* Captures (owned memory 1) and their atoms in the outer function
-       (owned memory 2), with one more for the size. */
-    sxml_ir_atom *outer_atoms;
-    size_t captured_count;
+    /* The closure being lowered (owned memories 1 and 2). */
+    sxml_xslt_closure closure;
     sxml_xpath_lowering_block closure_block;
     sxml_ir_atom control;
     sxml_xpath_lowering_block running_block;
-    sxml_xpath_lowering_focus body_focus;
     sxml_ir_atom body;
     sxml_ir_atom states;
     sxml_ir_atom final_state;
@@ -3757,19 +3748,20 @@ static sxml_ir_atom find_visible_atom(const sxml_xpath_lowerer *lowerer,
 
 /* The closure's captures: every variable in scope (innermost of each
    name) and every global variable declared, then the size. */
-static sxml_status find_iterate_captures(sxml_xpath_lowering_machine *machine,
-                                         sxml_xpath_lowering_frame *frame) {
+static sxml_status find_closure_captures(sxml_xpath_lowering_machine *machine,
+                                         sxml_xpath_lowering_frame *frame,
+                                         const sxml_xslt_closure_start *start) {
     sxml_xpath_lowerer *lowerer = machine->state;
-    iterate_locals *locals = frame->locals;
+    sxml_xslt_closure *closure = start->closure;
     const sxml_variable_declaration_view declarations = {
-        .variable_declarations = locals->head.lowering->global_declarations,
-        .variable_declaration_count = locals->head.lowering->global_count};
+        .variable_declarations = start->lowering->global_declarations,
+        .variable_declaration_count = start->lowering->global_count};
     const size_t capacity =
         lowerer->scope_entry_count + declarations.variable_declaration_count + 1U;
     sxml_status status = sxml_xpath_lowering_allocate_owned(
         machine, frame,
         (sxml_xpath_lowering_owned_request){
-            .memory_index = 1,
+            .memory_index = start->memory_index,
             .scratch = {.element_count = capacity,
                         .element_size = sizeof(sxml_xpath_lowering_capture_entry),
                         .element_alignment = alignof(sxml_xpath_lowering_capture_entry)}});
@@ -3777,7 +3769,7 @@ static sxml_status find_iterate_captures(sxml_xpath_lowering_machine *machine,
         status = sxml_xpath_lowering_allocate_owned(
             machine, frame,
             (sxml_xpath_lowering_owned_request){
-                .memory_index = 2,
+                .memory_index = start->memory_index + 1U,
                 .scratch = {.element_count = capacity,
                             .element_size = sizeof(sxml_ir_atom),
                             .element_alignment = alignof(sxml_ir_atom)}});
@@ -3785,8 +3777,8 @@ static sxml_status find_iterate_captures(sxml_xpath_lowering_machine *machine,
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    sxml_xpath_lowering_capture_entry *captures = frame->owned_memory[1];
-    locals->outer_atoms = frame->owned_memory[2];
+    sxml_xpath_lowering_capture_entry *captures = frame->owned_memory[start->memory_index];
+    closure->outer_atoms = frame->owned_memory[start->memory_index + 1U];
     size_t capture_count = 0;
     size_t captured_count = 0;
     const size_t candidate_count =
@@ -3823,22 +3815,148 @@ static sxml_status find_iterate_captures(sxml_xpath_lowering_machine *machine,
         } else {
             captures[capture_count] = (sxml_xpath_lowering_capture_entry){
                 .variable_name = entry.variable_name,
-                .atom = sxml_ir_slot_atom((sxml_ir_slot){.value = ITERATE_PARAMETER_COUNT +
-                                                          (uint32_t)captured_count + 1U})};
-            locals->outer_atoms[captured_count] = outer;
+                .atom = sxml_ir_slot_atom(
+                    (sxml_ir_slot){.value = SXML_XSLT_CLOSURE_PARAMETER_COUNT +
+                                            (uint32_t)captured_count + 1U})};
+            closure->outer_atoms[captured_count] = outer;
             captured_count += 1;
         }
         capture_count += 1;
     }
-    locals->captured_count = captured_count;
-    locals->function_frame.function.captures = captures;
-    locals->function_frame.function.capture_count = capture_count;
+    closure->captured_count = captured_count;
+    closure->function_frame.function.captures = captures;
+    closure->function_frame.function.capture_count = capture_count;
     return SXML_STATUS_OK;
 }
 
 /* The slot the closure keeps the input's size in: after the captures. */
-static sxml_ir_slot size_capture_slot(const iterate_locals *locals) {
-    return (sxml_ir_slot){.value = ITERATE_PARAMETER_COUNT + (uint32_t)locals->captured_count + 1U};
+static sxml_ir_slot size_capture_slot(const sxml_xslt_closure *closure) {
+    return (sxml_ir_slot){.value = SXML_XSLT_CLOSURE_PARAMETER_COUNT +
+                                   (uint32_t)closure->captured_count + 1U};
+}
+
+sxml_status sxml_xslt_lowering_enter_closure(sxml_xpath_lowering_machine *machine,
+                                             sxml_xpath_lowering_frame *frame,
+                                             const sxml_xslt_closure_start *start) {
+    sxml_xpath_lowerer *lowerer = machine->state;
+    sxml_xslt_closure *closure = start->closure;
+    closure->function_frame = (sxml_xpath_lowering_function_frame){0};
+    sxml_status status = find_closure_captures(machine, frame, start);
+    const sxml_sequence_type parameter_types[SXML_XSLT_CLOSURE_PARAMETER_COUNT] = {
+        {.item_type = sxml_builtin_type_identifier(SXML_TYPE_ITEM),
+         .occurrence = SXML_OCCURRENCE_ZERO_OR_MORE},
+        {.item_type = sxml_builtin_type_identifier(SXML_TYPE_ITEM),
+         .occurrence = SXML_OCCURRENCE_EXACTLY_ONE},
+        {.item_type = sxml_builtin_type_identifier(SXML_TYPE_XS_INTEGER),
+         .occurrence = SXML_OCCURRENCE_EXACTLY_ONE}};
+    sxml_type_identifier signature = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_register_signature(
+            lowerer,
+            (sxml_xpath_lowering_signature_request){
+                .parameter_types = {.sequence_types = parameter_types,
+                                    .sequence_type_count = SXML_XSLT_CLOSURE_PARAMETER_COUNT},
+                .result_type = {.item_type = sxml_builtin_type_identifier(SXML_TYPE_ITEM),
+                                .occurrence = SXML_OCCURRENCE_ZERO_OR_MORE}},
+            &signature);
+    }
+    const uint32_t slot_count = size_capture_slot(closure).value;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_ir_unit_add_function(
+            lowerer->unit,
+            &(sxml_ir_function){.function_name = {.index = 0},
+                                .signature = signature,
+                                .parameter_count = SXML_XSLT_CLOSURE_PARAMETER_COUNT,
+                                .captured_variables = {0},
+                                .defining_function = lowerer->function->function_index,
+                                .slot_count = slot_count,
+                                .body = {.value = 0},
+                                /* Its stylesheet module: a dynamic error in
+                                   the body names it (D169). */
+                                .module_number = sxml_xslt_lowering_module_of_node(
+                                    start->lowering, start->node)},
+            &closure->function);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    closure->function_frame.function.function_index = closure->function;
+    closure->function_frame.function.function_level = lowerer->function->function_level + 1U;
+    closure->function_frame.function.slot_count = slot_count;
+    closure->function_frame.focus =
+        (sxml_xpath_lowering_focus){.kind = SXML_XPATH_LOWERING_FOCUS_KIND_ABSENT};
+    sxml_xpath_lowerer_enter_function(lowerer, &closure->function_frame);
+    closure->focus = (sxml_xpath_lowering_focus){
+        .kind = SXML_XPATH_LOWERING_FOCUS_KIND_SLOTS,
+        .slots = {.context_value = {.value = SXML_XSLT_CLOSURE_FIRST_SLOT + 1U},
+                  .context_position = {.value = SXML_XSLT_CLOSURE_FIRST_SLOT + 2U},
+                  .context_size = {.value = 0}}};
+    return SXML_STATUS_OK;
+}
+
+sxml_status sxml_xslt_lowering_leave_closure(sxml_xpath_lowerer *lowerer,
+                                             const sxml_xslt_closure_finish *finish,
+                                             sxml_ir_atom *function_item) {
+    sxml_xslt_closure *closure = finish->closure;
+    sxml_ir_expression_index body = finish->body;
+    sxml_status status = SXML_STATUS_OK;
+    const sxml_ir_slot read_size = closure->focus.slots.context_size;
+    if (read_size.value != 0) {
+        /* last(): the size, captured, copied to the slot the body reads. */
+        sxml_ir_expression_index captured = {0};
+        status = sxml_xslt_lowering_add_expression(
+            lowerer, atom_expression(sxml_ir_slot_atom(size_capture_slot(closure))), &captured);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xslt_lowering_add_expression(
+                lowerer,
+                (sxml_ir_expression){
+                    .expression_kind = SXML_IR_EXPRESSION_KIND_LET,
+                    .let = {.variable = read_size, .bound_expression = captured, .body = body}},
+                &body);
+        }
+    }
+    sxml_xpath_lowerer_leave_function(lowerer, &closure->function_frame);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    /* The size in the outer function: count(input) when read, else (). */
+    sxml_ir_atom *size = &closure->outer_atoms[closure->captured_count];
+    if (read_size.value != 0) {
+        status = bind_call(lowerer,
+                           (call_request){.block = finish->block,
+                                          .function_namespace = SXML_NAMESPACE_FUNCTIONS,
+                                          .local_name = SXML_BYTE_VIEW_FROM_LITERAL("count"),
+                                          .arguments = {.atoms = &finish->input, .atom_count = 1}},
+                           size);
+    } else {
+        status = add_empty_atom(lowerer, size);
+    }
+    sxml_ir_atom_list captured = {0};
+    if (status == SXML_STATUS_OK) {
+        status =
+            sxml_ir_unit_add_atoms(lowerer->unit,
+                                   (sxml_ir_atom_view){.atoms = closure->outer_atoms,
+                                                       .atom_count = closure->captured_count + 1U},
+                                   &captured);
+    }
+    if (status == SXML_STATUS_OK) {
+        sxml_ir_function_replacement replacement = {
+            .index = closure->function,
+            .function = *sxml_ir_unit_get_function(lowerer->unit, closure->function)};
+        replacement.function.body = body;
+        replacement.function.captured_variables = captured;
+        replacement.function.slot_count = closure->function_frame.function.slot_count;
+        status = sxml_ir_unit_replace_function(lowerer->unit, &replacement);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return bind(lowerer,
+                (binding){.block = finish->block,
+                          .expression = {.expression_kind =
+                                             SXML_IR_EXPRESSION_KIND_FUNCTION_DEFINITION,
+                                         .function_definition = {.function = closure->function}}},
+                function_item);
 }
 
 static sxml_status start_iterate(sxml_xpath_lowering_machine *machine,
@@ -3982,52 +4100,15 @@ static sxml_status start_closure(sxml_xpath_lowering_machine *machine,
     sxml_xpath_lowerer *lowerer = machine->state;
     iterate_locals *locals = frame->locals;
     const sxml_xslt_lowering *lowering = locals->head.lowering;
-    locals->function_frame = (sxml_xpath_lowering_function_frame){0};
-    sxml_status status = find_iterate_captures(machine, frame);
-    const sxml_sequence_type parameter_types[ITERATE_PARAMETER_COUNT] = {
-        {.item_type = sxml_builtin_type_identifier(SXML_TYPE_ITEM),
-         .occurrence = SXML_OCCURRENCE_ZERO_OR_MORE},
-        {.item_type = sxml_builtin_type_identifier(SXML_TYPE_ITEM),
-         .occurrence = SXML_OCCURRENCE_EXACTLY_ONE},
-        {.item_type = sxml_builtin_type_identifier(SXML_TYPE_XS_INTEGER),
-         .occurrence = SXML_OCCURRENCE_EXACTLY_ONE}};
-    sxml_type_identifier signature = {0};
-    if (status == SXML_STATUS_OK) {
-        status = sxml_xpath_lowerer_register_signature(
-            lowerer,
-            (sxml_xpath_lowering_signature_request){
-                .parameter_types = {.sequence_types = parameter_types,
-                                    .sequence_type_count = ITERATE_PARAMETER_COUNT},
-                .result_type = {.item_type = sxml_builtin_type_identifier(SXML_TYPE_ITEM),
-                                .occurrence = SXML_OCCURRENCE_ZERO_OR_MORE}},
-            &signature);
-    }
-    const uint32_t slot_count = size_capture_slot(locals).value;
-    if (status == SXML_STATUS_OK) {
-        status = sxml_ir_unit_add_function(
-            lowerer->unit,
-            &(sxml_ir_function){.function_name = {.index = 0},
-                                .signature = signature,
-                                .parameter_count = ITERATE_PARAMETER_COUNT,
-                                .captured_variables = {0},
-                                .defining_function = lowerer->function->function_index,
-                                .slot_count = slot_count,
-                                .body = {.value = 0},
-                                /* Its stylesheet module: a dynamic error in
-                                   the body names it (D169). */
-                                .module_number = sxml_xslt_lowering_module_of_node(
-                                    locals->head.lowering, locals->head.node)},
-            &locals->closure);
-    }
+    sxml_status status = sxml_xslt_lowering_enter_closure(
+        machine, frame,
+        &(sxml_xslt_closure_start){.lowering = lowering,
+                                   .node = locals->head.node,
+                                   .memory_index = 1,
+                                   .closure = &locals->closure});
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    locals->function_frame.function.function_index = locals->closure;
-    locals->function_frame.function.function_level = lowerer->function->function_level + 1U;
-    locals->function_frame.function.slot_count = slot_count;
-    locals->function_frame.focus =
-        (sxml_xpath_lowering_focus){.kind = SXML_XPATH_LOWERING_FOCUS_KIND_ABSENT};
-    sxml_xpath_lowerer_enter_function(lowerer, &locals->function_frame);
     const sxml_ir_atom state = sxml_ir_slot_atom((sxml_ir_slot){.value = ITERATE_STATE_SLOT});
     locals->closure_block = (sxml_xpath_lowering_block){.first = {0}, .open_let = {0}};
     locals->running_block = (sxml_xpath_lowering_block){.first = {0}, .open_let = {0}};
@@ -4042,11 +4123,6 @@ static sxml_status start_closure(sxml_xpath_lowering_machine *machine,
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    locals->body_focus =
-        (sxml_xpath_lowering_focus){.kind = SXML_XPATH_LOWERING_FOCUS_KIND_SLOTS,
-                                    .slots = {.context_value = {.value = ITERATE_ITEM_SLOT},
-                                              .context_position = {.value = ITERATE_POSITION_SLOT},
-                                              .context_size = {.value = 0}}};
     return sxml_xslt_lowering_call_sequence_constructor(
         machine,
         &(sxml_xslt_sequence_constructor_call){
@@ -4058,7 +4134,7 @@ static sxml_status start_closure(sxml_xpath_lowering_machine *machine,
                             .atom = &locals->body,
                             .atom_block = &locals->running_block,
                             .focused = NULL},
-            .focus = &locals->body_focus});
+            .focus = &locals->closure.focus});
 }
 
 /* In the running block: the next state from the body's value. */
@@ -4249,61 +4325,14 @@ static sxml_status finish_closure(sxml_xpath_lowering_machine *machine,
                                                .result = conditional},
             &body);
     }
-    const sxml_ir_slot read_size = locals->body_focus.slots.context_size;
-    if (status == SXML_STATUS_OK && read_size.value != 0) {
-        /* last(): the size, captured, copied to the slot the body reads. */
-        sxml_ir_expression_index captured = {0};
-        status = sxml_xslt_lowering_add_expression(lowerer, atom_expression(sxml_ir_slot_atom(size_capture_slot(locals))),
-                                &captured);
-        if (status == SXML_STATUS_OK) {
-            status = sxml_xslt_lowering_add_expression(
-                lowerer,
-                (sxml_ir_expression){
-                    .expression_kind = SXML_IR_EXPRESSION_KIND_LET,
-                    .let = {.variable = read_size, .bound_expression = captured, .body = body}},
-                &body);
-        }
-    }
-    sxml_xpath_lowerer_leave_function(lowerer, &locals->function_frame);
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    /* The size in the outer function: count(input) when read, else (). */
-    sxml_ir_atom *size = &locals->outer_atoms[locals->captured_count];
-    if (read_size.value != 0) {
-        status = bind_call(lowerer,
-                           (call_request){.block = frame->block,
-                                          .function_namespace = SXML_NAMESPACE_FUNCTIONS,
-                                          .local_name = SXML_BYTE_VIEW_FROM_LITERAL("count"),
-                                          .arguments = {.atoms = &locals->input, .atom_count = 1}},
-                           size);
-    } else {
-        status = add_empty_atom(lowerer, size);
-    }
-    sxml_ir_atom_list captured = {0};
-    if (status == SXML_STATUS_OK) {
-        status =
-            sxml_ir_unit_add_atoms(lowerer->unit,
-                                   (sxml_ir_atom_view){.atoms = locals->outer_atoms,
-                                                       .atom_count = locals->captured_count + 1U},
-                                   &captured);
-    }
-    if (status == SXML_STATUS_OK) {
-        sxml_ir_function_replacement replacement = {
-            .index = locals->closure,
-            .function = *sxml_ir_unit_get_function(lowerer->unit, locals->closure)};
-        replacement.function.body = body;
-        replacement.function.captured_variables = captured;
-        replacement.function.slot_count = locals->function_frame.function.slot_count;
-        status = sxml_ir_unit_replace_function(lowerer->unit, &replacement);
-    }
     sxml_ir_atom closure = {0};
     if (status == SXML_STATUS_OK) {
-        status = bind(
+        status = sxml_xslt_lowering_leave_closure(
             lowerer,
-            (binding){.block = frame->block,
-                      .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_FUNCTION_DEFINITION,
-                                     .function_definition = {.function = locals->closure}}},
+            &(sxml_xslt_closure_finish){.closure = &locals->closure,
+                                        .body = body,
+                                        .block = frame->block,
+                                        .input = locals->input},
             &closure);
     }
     const sxml_ir_atom scan_arguments[3] = {locals->input, locals->initial_state, closure};

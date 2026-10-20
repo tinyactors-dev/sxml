@@ -350,6 +350,16 @@ static void test_functions(sxml_test_state *state) {
                     "<xsl:param name='e' as='element()'/>"
                     "<xsl:sequence select='$e/@n || \":\" || name($e)'/></xsl:function>"),
          "\"1:item\" \"2:item\""},
+        /* 10.3.6: a deterministic function gives the same nodes for
+           identical arguments; a proactive one new nodes each time. */
+        {EVALUATE("<xsl:function name='f:e' new-each-time='no'><xsl:param name='n'/>"
+                  "<e><xsl:value-of select='$n'/></e></xsl:function>",
+                  "count((1, 2, 1, 2) ! f:e(.) | ()), f:e(1) is f:e(1), f:e(1) is f:e(1.0)"),
+         "2 true() false()"},
+        {EVALUATE("<xsl:function name='f:e' new-each-time='yes' cache='yes'>"
+                  "<xsl:param name='n'/><e/></xsl:function>",
+                  "f:e(1) is f:e(1)"),
+         "false()"},
     };
     CHECK(state, cases);
 }

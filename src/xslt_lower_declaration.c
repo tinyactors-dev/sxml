@@ -878,11 +878,20 @@ static sxml_status read_functions(const sxml_xslt_lowering *lowering,
             find_attribute(lowering, declaration, SXML_XSLT_AST_ATTRIBUTE_NEW_EACH_TIME);
         /* 10.3.7: a proactive function's results may not be reused (its
            nodes must be new each time), so its cache request is not
-           honoured. */
-        function->is_cached = cache->value.kind == SXML_XSLT_AST_VALUE_KIND_BOOLEAN &&
-                              cache->value.payload.is_true &&
-                              !(new_each_time->value.kind == SXML_XSLT_AST_VALUE_KIND_KEYWORD &&
-                                new_each_time->value.payload.keyword == SXML_XSLT_AST_KEYWORD_YES);
+           honoured. 10.3.6: a deterministic function (new-each-time="no")
+           returns the same result, its nodes too, for identical arguments
+           (F&O 4.0, "identical"), so it is always cached. */
+        const bool is_new_each_time_keyword =
+            new_each_time->value.kind == SXML_XSLT_AST_VALUE_KIND_KEYWORD;
+        const bool is_deterministic =
+            is_new_each_time_keyword &&
+            new_each_time->value.payload.keyword == SXML_XSLT_AST_KEYWORD_NO;
+        function->is_cached =
+            is_deterministic ||
+            (cache->value.kind == SXML_XSLT_AST_VALUE_KIND_BOOLEAN &&
+             cache->value.payload.is_true &&
+             !(is_new_each_time_keyword &&
+               new_each_time->value.payload.keyword == SXML_XSLT_AST_KEYWORD_YES));
     }
     return status;
 }

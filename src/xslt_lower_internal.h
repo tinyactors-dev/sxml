@@ -706,6 +706,65 @@ SXML_NODISCARD sxml_status sxml_xslt_lowering_call_focused_apply_templates(
 SXML_NODISCARD sxml_status sxml_xslt_lowering_call_streamed_document(
     sxml_xpath_lowering_machine *machine, const sxml_xslt_stream_call *call);
 
+/* ------------------------------------------------------------ Closures */
+
+/*
+ * A closure of the variables in scope (src/xslt_lower_control.c): an IR
+ * function fn($first as item()*, $item as item(), $position as
+ * xs:integer) as item()* defined in the current function, which captures
+ * every variable in scope and every global (overcapture is harmless,
+ * D126; globals are read where the closure reads them, D275) and the
+ * input's size when its body reads last(). Its body is lowered with
+ * `focus` ($item, $position, the input's size). xsl:iterate's step
+ * function (7.2, fn:scan) and split-when's (14.1, fn:partition) are
+ * closures.
+ */
+#define SXML_XSLT_CLOSURE_PARAMETER_COUNT 3U
+/* The slot of $first; $item and $position follow it. */
+#define SXML_XSLT_CLOSURE_FIRST_SLOT 1U
+
+typedef struct sxml_xslt_closure {
+    sxml_ir_function_index function;
+    sxml_xpath_lowering_function_frame function_frame;
+    /* The captured values in the outer function, then the size (frame
+       memory). */
+    sxml_ir_atom *outer_atoms;
+    size_t captured_count;
+    /* The body's focus; its size slot is set when the body reads it. */
+    sxml_xpath_lowering_focus focus;
+} sxml_xslt_closure;
+
+typedef struct sxml_xslt_closure_start {
+    const sxml_xslt_lowering *lowering;
+    /* The instruction, whose module the function names (D169). */
+    sxml_xslt_ast_node_index node;
+    /* The first of the two owned memories of the frame the closure
+       uses. */
+    size_t memory_index;
+    sxml_xslt_closure *closure;
+} sxml_xslt_closure_start;
+
+/* From a step: adds the closure's function and enters it; the caller
+   then lowers the body with closure->focus. */
+SXML_NODISCARD sxml_status sxml_xslt_lowering_enter_closure(sxml_xpath_lowering_machine *machine,
+                                                            sxml_xpath_lowering_frame *frame,
+                                                            const sxml_xslt_closure_start *start);
+
+typedef struct sxml_xslt_closure_finish {
+    sxml_xslt_closure *closure;
+    /* The finished body, in the closure's function. */
+    sxml_ir_expression_index body;
+    /* Where the function item is bound, in the outer function. */
+    sxml_xpath_lowering_block *block;
+    /* The input whose size last() reads. */
+    sxml_ir_atom input;
+} sxml_xslt_closure_finish;
+
+/* Leaves the closure's function and binds the function item in block. */
+SXML_NODISCARD sxml_status sxml_xslt_lowering_leave_closure(sxml_xpath_lowerer *lowerer,
+                                                            const sxml_xslt_closure_finish *finish,
+                                                            sxml_ir_atom *function_item);
+
 /* ------------------------------------------------------------- Helpers */
 
 /* Adds expression to the unit with no AST node: IR an XSLT instruction

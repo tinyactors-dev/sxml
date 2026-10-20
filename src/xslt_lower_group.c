@@ -14,7 +14,10 @@
  * a MAP over the population that makes one grouping pair per item, the
  * internal row of src/xslt_group.c over the pairs (for group-by the
  * XQuery group-by row, D137), an optional SORT of the groups and a MAP
- * over them whose body is the sequence constructor. The glue between them
+ * over them whose body is the sequence constructor. split-when (14.1) is
+ * fn:partition over the population with a closure of the expression
+ * (sxml_xslt_closure: $group, $next and the focus of $next), each
+ * partition a group array without a key. The glue between them
  * (data-type conversions, checks of attribute values computed at run
  * time, the atomized grouping keys) is short XPath texts lowered through
  * the embedding entry with their inputs as variables in a namespace no
@@ -1278,6 +1281,10 @@ static const sxml_xslt_ast_attribute_kind grouping_attribute_kinds[] = {
 typedef struct group_locals {
     sxml_xslt_instruction_locals head;
     sxml_xslt_grouping_method method;
+    /* split-when: the groups are fn:partition's, not the row's. */
+    bool splits;
+    /* split-when's closure (owned memories 0 and 1). */
+    sxml_xslt_closure closure;
     const sxml_xslt_ast_attribute *grouping;
     sxml_ir_atom population;
     sxml_ir_atom collation;
@@ -1331,14 +1338,14 @@ static sxml_status read_grouping(group_locals *locals) {
                               "XTSE1090 collation and composite need group-by or group-adjacent "
                               "(XSLT 4.0, 14.1)")});
     }
-    if (present == SXML_XSLT_AST_ATTRIBUTE_SPLIT_WHEN ||
-        present == SXML_XSLT_AST_ATTRIBUTE_MERGE_WHEN) {
+    if (present == SXML_XSLT_AST_ATTRIBUTE_MERGE_WHEN) {
         return sxml_xslt_lowering_report_unsupported(
             lowering, (sxml_xslt_static_error){
                           .node = node,
                           .code_and_description = SXML_BYTE_VIEW_FROM_LITERAL(
-                              "split-when and merge-when are not lowered yet")});
+                              "merge-when is not lowered yet")});
     }
+    locals->splits = present == SXML_XSLT_AST_ATTRIBUTE_SPLIT_WHEN;
     const sxml_xslt_ast_attribute *composite =
         find_attribute(lowering, node, SXML_XSLT_AST_ATTRIBUTE_COMPOSITE);
     const bool is_composite = composite->value.kind == SXML_XSLT_AST_VALUE_KIND_BOOLEAN &&
@@ -1354,6 +1361,99 @@ static sxml_status read_grouping(group_locals *locals) {
             ? SXML_XSLT_GROUPING_METHOD_STARTING_WITH
             : SXML_XSLT_GROUPING_METHOD_ENDING_WITH;
     return SXML_STATUS_OK;
+}
+
+/* split-when (14.1): the closure fn($group, $next, $position) of the
+   expression, with $group and $next (no namespace) in scope and the focus
+   of $next, its position and the population's size. */
+static sxml_status lower_split(sxml_xpath_lowering_machine *machine,
+                               sxml_xpath_lowering_frame *frame) {
+    sxml_xpath_lowerer *lowerer = machine->state;
+    group_locals *locals = frame->locals;
+    const sxml_xslt_lowering *lowering = locals->head.lowering;
+    sxml_status status = sxml_xslt_lowering_enter_closure(
+        machine, frame,
+        &(sxml_xslt_closure_start){.lowering = lowering,
+                                   .node = locals->head.node,
+                                   .memory_index = 0,
+                                   .closure = &locals->closure});
+    locals->match_scope_mark = lowerer->scope_entry_count;
+    static const char *const names[2] = {"group", "next"};
+    for (uint32_t name_index = 0; status == SXML_STATUS_OK && name_index < 2; name_index += 1) {
+        sxml_name_identifier name = {0};
+        status = sxml_name_pool_intern_name(
+            lowerer->name_pool,
+            &(sxml_name_request){.namespace_uri = {.index = SXML_NAMESPACE_NONE},
+                                 .local_name = sxml_byte_view_from_c_string(names[name_index])},
+            &name);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xpath_lowerer_push_variable(
+                lowerer,
+                (sxml_xpath_lowering_scope_entry){
+                    .variable_name = name,
+                    .function_level = lowerer->function->function_level,
+                    .atom = sxml_ir_slot_atom(
+                        (sxml_ir_slot){.value = SXML_XSLT_CLOSURE_FIRST_SLOT + name_index})});
+        }
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_xslt_lowering_call_expression(
+        machine,
+        &(sxml_xslt_expression_call){.lowering = lowering,
+                                     .expression = locals->grouping->value.payload.expression,
+                                     .block = &locals->pair_block,
+                                     .atom = &locals->key,
+                                     .focus = &locals->closure.focus});
+}
+
+/* The split-when expression's effective boolean value as the closure's
+   result, the closure, and the groups: each of fn:partition's arrays as
+   a group array without a key. */
+static const char split_groups_text[] =
+    "Q{http://www.w3.org/2005/xpath-functions}partition(" GROUP_VARIABLE
+    "population, " GROUP_VARIABLE "split) ! [?*, ()]";
+
+static sxml_status finish_split(sxml_xpath_lowering_machine *machine,
+                                sxml_xpath_lowering_frame *frame) {
+    sxml_xpath_lowerer *lowerer = machine->state;
+    group_locals *locals = frame->locals;
+    sxml_xpath_lowerer_pop_variables(lowerer, locals->match_scope_mark);
+    sxml_ir_atom decision = {0};
+    sxml_status status = sxml_xslt_lowering_bind_library_call(
+        lowerer,
+        &(sxml_xslt_library_call){.block = &locals->pair_block,
+                                  .function_namespace = SXML_NAMESPACE_FUNCTIONS,
+                                  .local_name = SXML_BYTE_VIEW_FROM_LITERAL("boolean"),
+                                  .arguments = {.atoms = &locals->key, .atom_count = 1}},
+        &decision);
+    sxml_ir_expression_index body = {0};
+    if (status == SXML_STATUS_OK) {
+        status = finish_branch(
+            lowerer, (branch_result){.block = &locals->pair_block, .value = decision}, &body);
+    }
+    sxml_ir_atom split = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xslt_lowering_leave_closure(
+            lowerer,
+            &(sxml_xslt_closure_finish){.closure = &locals->closure,
+                                        .body = body,
+                                        .block = frame->block,
+                                        .input = locals->population},
+            &split);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    const text_variable variables[2] = {{.local_name = "population", .atom = locals->population},
+                                        {.local_name = "split", .atom = split}};
+    return call_text(machine, &(text_call){.lowering = locals->head.lowering,
+                                           .text = split_groups_text,
+                                           .variables = variables,
+                                           .variable_count = 2,
+                                           .block = frame->block,
+                                           .atom = &locals->groups});
 }
 
 static bool is_keyed_method(sxml_xslt_grouping_method method) {
@@ -1628,6 +1728,9 @@ static sxml_status step_group(sxml_xpath_lowering_machine *machine,
         locals->item_focus =
             (sxml_xpath_lowering_focus){.kind = SXML_XPATH_LOWERING_FOCUS_KIND_SLOTS};
         locals->pair_block = (sxml_xpath_lowering_block){.first = {0}, .open_let = {0}};
+        if (locals->splits) {
+            return lower_split(machine, frame);
+        }
         if (!is_keyed_method(locals->method)) {
             return lower_match(machine, frame);
         }
@@ -1642,6 +1745,9 @@ static sxml_status step_group(sxml_xpath_lowering_machine *machine,
                                          .focus = &locals->item_focus});
     case SXML_XSLT_GROUP_STEP_KEY_VALUE: {
         frame->step = SXML_XSLT_GROUP_STEP_GROUPS;
+        if (locals->splits) {
+            return finish_split(machine, frame);
+        }
         if (!is_keyed_method(locals->method)) {
             outcome->is_pushed = false;
             return bind_guarded_match(lowerer, locals);
@@ -1659,7 +1765,9 @@ static sxml_status step_group(sxml_xpath_lowering_machine *machine,
     }
     case SXML_XSLT_GROUP_STEP_GROUPS:
         frame->step = SXML_XSLT_GROUP_STEP_BODY;
-        status = bind_groups(lowerer, locals, frame->block);
+        if (!locals->splits) {
+            status = bind_groups(lowerer, locals, frame->block);
+        }
         if (status != SXML_STATUS_OK || !sxml_xslt_lowering_has_sort(lowering, node)) {
             outcome->is_pushed = false;
             return status;

@@ -2,8 +2,8 @@
  * Tests for XSLT sorting and grouping (src/xslt_lower_group.c,
  * src/xslt_group.c; D152, packet 4.9): xsl:sort under xsl:for-each,
  * xsl:apply-templates, xsl:perform-sort and xsl:for-each-group;
- * xsl:for-each-group with group-by, group-adjacent, group-starting-with
- * and group-ending-with; current-group and current-grouping-key;
+ * xsl:for-each-group with group-by, group-adjacent, group-starting-with,
+ * group-ending-with and split-when; current-group and current-grouping-key;
  * xsl:merge.
  *
  * Golden file: tests/xslt_lower_control_test.c (read, lower around the
@@ -466,6 +466,21 @@ static void test_grouping_patterns(sxml_test_state *state) {
         {STYLESHEET("<xsl:for-each-group select='1' group-starting-with='*' composite='yes'>"
                     "x</xsl:for-each-group>"),
          "error:XTSE1090"},
+        /* split-when (14.1): $group, $next, the focus of $next and the
+           population's size; variables in scope are captured. */
+        {STYLESHEET("<xsl:for-each-group select='(1, 2, 5, 6, 7, 10)' "
+                    "split-when='$next ne foot($group) + 1'>"
+                    "<xsl:sequence select='[current-group()]'/></xsl:for-each-group>"),
+         "[(1,2)] [(5,6,7)] [10]"},
+        {STYLESHEET("<xsl:variable name='n' select='3'/>"
+                    "<xsl:for-each-group select='1 to 8' "
+                    "split-when='count($group) = $n and position() lt last()'>"
+                    "<xsl:sort select='sum(current-group())' order='descending'/>"
+                    "<xsl:sequence select='[current-group()]'/></xsl:for-each-group>"),
+         "[(4,5,6)] [(7,8)] [(1,2,3)]"},
+        {STYLESHEET("<xsl:for-each-group select='1' split-when='true()'>"
+                    "<xsl:sequence select='current-grouping-key()'/></xsl:for-each-group>"),
+         "error:XTDE1071"},
     };
     check_cases(state, (case_list){.cases = cases,
                                    .case_count = SXML_TEST_COUNT(cases),

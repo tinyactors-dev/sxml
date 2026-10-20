@@ -1556,38 +1556,17 @@ typedef struct key_normalization {
     const sxml_collation *collation;
 } key_normalization;
 
-/* One key value as a map key (XSLT 4.0, 20.2.2: compared with eq after
-   xs:untypedAtomic becomes xs:string, under the key's collation): a
-   string-like value as xs:string, or as its collation key under another
-   collation than the codepoint one; other values as they are, since map
-   keys are compared as eq compares them (op:same-key). */
+/* One key value as a map key (XSLT 4.0, 20.2.2: strings, xs:untypedAtomic
+   and xs:anyURI compared under the key's collation, other values by
+   fn:atomic-equal): a string-like value as xs:string, or as its collation
+   key under another collation than the codepoint one; other values as
+   they are, since map keys are compared by fn:atomic-equal too (XPath
+   4.0 maps; numbers exactly, so 12.8 is not 12.8e0). */
 static sxml_status normalize_key_value(key_normalization normalization, sxml_item value,
                                        sxml_item *key) {
     const sxml_function_call *call = normalization.call;
     const sxml_type_registry *registry = sxml_item_heap_get_type_registry(call->item_heap);
     const sxml_type_identifier type = sxml_item_get_type_annotation(value);
-    if (sxml_type_registry_is_derived_from(
-            registry,
-            (sxml_type_pair){.derived_type = type,
-                             .base_type = sxml_builtin_type_identifier(SXML_TYPE_XS_NUMERIC)})) {
-        /* eq promotes a number compared with an xs:double (XPath 4.0,
-           B.2), so 3.7 matches number('3.7'): numbers are keyed as
-           xs:double. */
-        sxml_sequence cast = sxml_sequence_empty();
-        const sxml_status status = sxml_cast_make_value(
-            call->item_heap,
-            &(sxml_cast_request){
-                .value = sxml_sequence_from_item(value),
-                .target_type = sxml_builtin_type_identifier(SXML_TYPE_XS_DOUBLE),
-                .allows_empty = false,
-                .namespace_bindings = {.namespace_bindings = NULL, .namespace_binding_count = 0},
-                .error_record = call->error_record},
-            &cast);
-        if (status == SXML_STATUS_OK) {
-            *key = cast.content;
-        }
-        return status;
-    }
     if (!is_string_like(type, registry)) {
         sxml_item_retain(value);
         *key = value;
