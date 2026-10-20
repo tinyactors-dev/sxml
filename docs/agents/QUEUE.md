@@ -21,7 +21,7 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 
 ## Running
 
-- 6.1: Phase 6 plan (Swift and Kotlin bindings, iOS and Android builds).
+- 6.2: the host shim (bindings/host/), shared by JavaScript, Kotlin and Swift.
 - 7.20: sweep (7.11's transform-004/401/009, the larger duplicates of D237).
 
 ## Next
