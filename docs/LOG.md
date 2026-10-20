@@ -4,6 +4,19 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 7.12d done (D235): XPath Full Text (Appendix B) through
+  grammars/xpath_full_text, which only the feature full-text links (in
+  grammars/xpath the productions would add 195 KB to the core); the
+  productions written once (grammars/xpath/full_text.js), Full Text's
+  parser tables once (src/full_text_parse.c, a parser part extension of
+  XQuery's part and the feature's), the lowering and the feature shared
+  with XQuery, score variables in XPath's for. `sxml.wasm` +1,215 bytes;
+  the full module and the CLI +502 KB, their budgets raised to 8,000,000
+  and 9,500,000. XP40 32,655 and XQ40 45,914 passed, unchanged case by
+  case; the ft-* cases are XQuery only, and the 48 written as XPath
+  expressions pass through the XPath API. The JavaScript package binds
+  bin wherever expath-binary is present, as the sxml command does.
+
 - 4.21 done (D234): XT40 11,913 to 11,943 passed, 0 errors, one wrong
   error now a failure (document-4066); QT4 XQ40 unchanged case by case.
   The hoist pass leaves indexed FILTERs alone (a hoisted LET raised an

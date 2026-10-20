@@ -204,6 +204,7 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `non_delimiting_terminal` | A name, keyword or numeric literal terminal; two of them must not touch (XPath 4.0, A.3.2) |
 | `query_scanner` | The external tree-sitter scanner shared by the XPath, XQuery and XSLT pattern grammars |
 | `parser_part` | What a grammar derived from grammars/xpath adds to the XPath front end's walker: its language, node types, fields and the hooks `apply_token`, `describe_payload` and `finish_node` (`sxml_ast_parser_part`, D111) |
+| `parser_part_extension` | A parser part that another names as its extension: the walker looks up node types and fields, and offers tokens, to it after the naming part, so two grammars share one language extension's tables (Full Text's, `sxml_ast_parser_part.extension`, D235) |
 | `parser_token` | A concrete syntax tree child that makes no AST node and is absorbed into its parent's detail or flags as the parent is described |
 | `unnamed_child` | A named concrete syntax tree child that its grammar gives no field (XQuery's module); a parser part names its AST field |
 | `boundary_whitespace` | Whitespace in direct element content delimited only by tags, direct constructors and enclosed expressions (XQuery 4.0, 4.12.1.4) |

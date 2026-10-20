@@ -264,6 +264,10 @@ adaptive output method writes the result, one item on each line.
   File 4.0 functions are available with the prefix `file`
   (`http://expath.org/ns/file`). Relative paths are resolved against the
   working directory.
+- XQuery and XPath Full Text 3.0 is part of the expression language, as
+  in [sxml xquery](#sxml-xquery): `contains text`, and score variables
+  in for bindings (`for $b score $s in //book[. contains text "web"]`);
+  stop word lists and thesauri by URI are read as local files.
 - `fn:invisible-xml` compiles an Invisible XML grammar (ixml notation,
   or its XML form as an `ixml` element) and returns a function that
   parses strings with it into documents; a string the grammar does not

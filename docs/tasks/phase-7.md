@@ -752,6 +752,35 @@ feature full-text; QT4 ft-* 624 of 685 pass (91 %), gate met.
 `sxml.wasm` +2 KB, the CLI and `sxml-full.wasm` +540 KB (grammar
 500 KB). 7.12b/c: stemming, stop word lists and thesauri by URI
 (the two resource kinds; fullText-defaults), scores from the matches.
+- **7.12d XPath Full Text; EXPath prefixes in the JavaScript package**
+  (after 7.12c): (1) the Full Text productions for XPath (Appendix B),
+  with XQuery's contextual keywords, sharing XQuery's lowering and the
+  feature full-text; without the feature the syntax stays XPST0003 in
+  one place; the core `sxml.wasm` grows by a few KB at most, or a
+  cleaner split is found (D208); the QT4 ft-* cases that run under XP40
+  measured. (2) The package binds the EXPath prefixes wherever the
+  feature is present, as the CLI does; its README without the
+  `namespaces` workaround.
+  - Owns: new `grammars/xpath/full_text.js`, `grammars/xpath_full_text`,
+    `src/full_text_parse.c`; `grammars/xquery/grammar.js`,
+    `src/xquery_parse.c`, `src/xpath_parse.c`, `src/xpath_ast_internal.h`
+    (the parser part), single hunks in `src/xpath_lower.c`,
+    `src/full_text.c`, `src/full_text_internal.h`,
+    `src/xquery_lower_full_text.c`, `tests/qt4/driver/applicability.c`;
+    `bindings/javascript/src/index.ts`, its README and tests, the size
+    budgets.
+  - **Done** 2026-10-20 (D235): grammars/xpath_full_text, a parser of
+    its own that only the feature links (the productions in
+    grammars/xpath would have added 194,561 bytes to the core); the
+    productions once in grammars/xpath/full_text.js, Full Text's parser
+    tables once in src/full_text_parse.c (a parser part extension);
+    score variables in XPath's for. `sxml.wasm` +1,215 bytes; the full
+    module and the CLI +502 KB (budgets raised to 8,000,000 / 2,800,000
+    and 9,500,000 / 2,100,000). XP40 32,655 and XQ40 45,914 passed,
+    unchanged case by case; no ft-* case runs under XP40 (all XQ10+):
+    through the XPath API the 48 written as XPath pass, the other 637
+    are XQuery syntax. The package binds bin with expath-binary. Left:
+    the comment of `sxml_full_text_feature()` in `xquery.h` (Proposed).
 
 ### 7.15 Full UCA collations (implementation, two packets)
 - **Specifications**: F&O 4.0, 5.2.4 "The Unicode Collation Algorithm"

@@ -10541,7 +10541,95 @@ suites with the release driver, compared case by case.
   xml-version-007, namespace-2606/-6202, docbook-004, fn:transform's
   three cases, xsl:copy of JNodes, XTDE0430/0440).
 
+### D235. XPath Full Text: a grammar of the feature; parser part extensions; the package's EXPath prefixes (packet 7.12d)
+Recorded 2026-10-20, after D12, D111, D162, D189, D208, D214, D227.
+Amends D214 ("XPath's Full Text is not implemented"). Verified as D181
+asks: the debug preset, the unit, CLI and QT4 driver tests touched,
+clang-tidy on the files changed, `tools/check-call-cycles.py`, the wasm
+preset's JavaScript tests, and the whole QT4 XP40 and XQ40 suites with
+the release driver, compared case by case.
+- **The grammar**: XQuery and XPath Full Text 3.0, Appendix B (XPath 3.0
+  with Full Text) applied to XPath 4.0 as grammars/xquery applies
+  Appendix A: FTContainsExpr as the operand of ComparisonExpr,
+  FTScoreVar in the for bindings (SimpleForBinding, after XPath 4.0's
+  positional variable), Pragma for FTExtensionSelection. XPath's let
+  bindings take no score variable (B [13]: XPST0003). The productions
+  are written once, in `grammars/xpath/full_text.js`; grammars/xquery
+  uses them (its generated parser is byte-identical) and so does the new
+  grammars/xpath_full_text.
+- **Why a grammar of its own**: the productions in grammars/xpath grow
+  its compiled parser from 310,662 to 505,223 bytes of wasm32 code and
+  data (-Os, +194,561), all of it in the core `sxml.wasm`, against D208's
+  "keep the core lean". As a parser of its own, named only by the
+  feature full-text (`sxml_full_text_operations.xpath_parser_part`), it
+  costs the core nothing and the full module and the CLI 500,913 bytes
+  (the full XPath parser again, with Full Text's states). Rejected: the
+  XQuery parser for XPath text (string literal references, direct
+  constructors, the namespace axis and the reserved names differ).
+- **D162's place for XPath** is the grammar: without the feature,
+  `sxml_xpath_compile` parses with grammars/xpath, which has no Full
+  Text syntax, so the text is XPST0003 there, as for a processor without
+  Full Text. With the feature it parses with the feature's part, then
+  runs the feature's static rules (`check_rules`: XQST0089, FTST0009,
+  FTST0019, XQST0079), then lowers. XSLT's own expressions keep
+  grammars/xpath (Full Text extends XPath and XQuery, not XSLT);
+  `xsl:evaluate`, which compiles through `sxml_xpath_compile`, has it.
+- **Parser part extensions** (glossary `parser_part_extension`;
+  `src/xpath_ast_internal.h`): a parser part may name an extension, a
+  part whose node types and fields the walker looks up after the part's
+  and whose apply_token it offers a token after the part's. Full Text's
+  node types, fields and tokens move from `src/xquery_parse.c` to
+  `src/full_text_parse.c` (`sxml_full_text_parser_part`), the extension
+  of XQuery's part and of the feature's XPath part, whose own tables are
+  empty: one definition for both grammars. XQuery's apply_token leaves
+  Full Text's nodes to the extension.
+- **Lowering**: the lowering part full_text serves XPath too (its
+  contains rule; the rule's step is the feature's, as for XQuery). The
+  core's for binding (`src/xpath_lower.c`) binds a score variable after
+  the feature's for score procedure (XQuery's, through the new operation
+  `call_for_score`, so the core does not link it), before the binding's
+  variables are in scope, as XQuery's for clause does.
+- **The QT4 driver** supports fullText, fullText-ignore, fullText-units
+  and fullText-defaults for XPath too. The ft-* cases are all XQ10+, so
+  none runs under XP40. Measured by running them through the XPath API
+  (the spec rule bypassed in a private build, not committed): the 48
+  written as XPath expressions all pass; the other 637 use XQuery syntax
+  (626 declare variables, 10 use constructors, 1 order by) and are
+  XPST0003 there, as they should be.
+- **Numbers**: release, whole runs, 7749770 against the change: XP40
+  32,655 passed, 34 wrong errors, 82 failed; XQ40 45,914, 55, 239; no
+  case changed. `tools/qt4-parse-check.py --spec XP40` classifies the
+  32,928 applicable cases alike with grammars/xpath and
+  grammars/xpath_full_text (0 false rejects, 2 false accepts).
+- **Sizes** (wasm preset, stripped / gzipped, before and after
+  d25980e): `sxml.wasm` 2,087,567 / 729,646 to 2,088,782 / 730,104
+  (+1,215: the score binding 668, the extension loops 166, the contains
+  rule 193), no budget raised; `sxml-full.wasm` 7,116,988 / 1,640,375
+  to 7,619,484 / 1,684,247; the CLI 8,711,495 / 1,921,864 to 9,213,991
+  / 1,965,878. Budgets (D208): the full module 8,000,000 / 2,800,000
+  (was 7,500,000 / 2,625,000), the CLI 9,500,000 / 2,100,000 (was
+  9,000,000 / 2,000,000). The core's size baseline is refreshed at
+  6c994b2 (it also takes in about 10 KB that other packets added since
+  D227: xml_input, ir_global_read, the XML grammar).
+- **The JavaScript package's EXPath prefixes**: as the sxml command binds
+  bin and file (EXPath Binary 4.0, 1.5; EXPath File 4.0, 1.7), the
+  package binds, for XPath and XQuery, the prefix of each feature the
+  processor has: bin with expath-binary, file with expath-file (which the
+  package's modules do not link). The caller's `namespaces` may rebind
+  them. In TypeScript (`src/index.ts`), from the processor's feature
+  list, so the core module, which has no feature, links nothing more.
+- **Left**: the declaration of `sxml_full_text_feature()` in
+  `include/sxml/xquery.h` still says "for XQuery" (see Proposed);
+  the scanner is instantiated once per grammar (5,577 bytes again in the
+  full module).
+
 ## Proposed
+
+- **The comment of `sxml_full_text_feature()`** (packet 7.12d, D235;
+  for the owner of `xquery.h`): it says Full Text is for XQuery, but the
+  feature serves XPath too since D235. Proposed default, which the
+  packet did not take because implementation packets do not change
+  headers: name XPath in the comment (no API change).
 
 - **The CLI's WebAssembly budget after the Phase 7 features** (packet
   7.10a, D201; for the owner): the `sxml` CLI module names every optional
