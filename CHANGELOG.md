@@ -148,7 +148,10 @@ not tagged yet, or into the next minor release.
   the prefix now fails with XPST0081 (in an expression or an `as` type)
   or XTSE0280 (in a name attribute such as `mode`); declare it
   (`xmlns:xs="http://www.w3.org/2001/XMLSchema"`) or write
-  `fixed-namespaces="#standard"`. XPath and XQuery keep theirs.
+  `fixed-namespaces="#standard"`. XPath and XQuery keep theirs. Casts of
+  strings to xs:QName at run time follow the same rule (D262):
+  `xs:QName($name)` with `$name` = `'fn:x'` raises FONS0004 unless the
+  stylesheet declares fn.
 
 ## [0.2.0] - unreleased
 

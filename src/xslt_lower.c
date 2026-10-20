@@ -1907,11 +1907,48 @@ typedef struct context_source {
     const sxml_xpath_static_context *base;
 } context_source;
 
+/* XPath's predeclared prefixes other than xml (XPath 4.0, 2.2.1), which
+   XSLT does not have (D261). */
+static const char *const undeclared_prefixes[] = {"xs",   "xsi",   "fn", "map",
+                                                  "array", "math", "err"};
+
+#define UNDECLARED_PREFIX_COUNT (sizeof(undeclared_prefixes) / sizeof(undeclared_prefixes[0]))
+
+/* Binds each of undeclared_prefixes that the bindings first[0, *count)
+   leave unbound to no namespace, which undeclares it: the bindings are
+   also the namespaces of run-time casts to xs:QName (D84), which would
+   otherwise fall back on XPath's predeclared prefixes (F&O 4.0, 19.1.9;
+   XSLT 4.0, 5.3.1: FONS0004 for xs:QName('fn:x'); D262). Statically a
+   prefix bound to no namespace is unbound, as it is without the entry. */
+static sxml_status undeclare_prefixes(sxml_name_pool *name_pool, sxml_namespace_binding *first,
+                                      size_t *count) {
+    for (size_t prefix_index = 0; prefix_index < UNDECLARED_PREFIX_COUNT; prefix_index += 1) {
+        sxml_namespace_prefix_identifier prefix = {.index = 0};
+        const sxml_status status = sxml_name_pool_intern_namespace_prefix(
+            name_pool, sxml_byte_view_from_c_string(undeclared_prefixes[prefix_index]), &prefix);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        bool is_bound = false;
+        for (size_t binding_index = 0; binding_index < *count; binding_index += 1) {
+            is_bound = is_bound || first[binding_index].namespace_prefix.index == prefix.index;
+        }
+        if (!is_bound) {
+            first[*count] = (sxml_namespace_binding){
+                .namespace_prefix = prefix,
+                .namespace_uri = {.index = SXML_NAMESPACE_NONE}};
+            *count += 1;
+        }
+    }
+    return SXML_STATUS_OK;
+}
+
 /* One XPath static context per static context of the AST (3.6, 5.1):
-   its namespaces (without xml, which XPath predeclares; no other
-   predeclared prefix, D261) and its
-   xpath-default-namespace as prefix 0 (5.1.2.1; "##any" is not
-   expressible and reads as none), its static base URI. */
+   its namespaces (without xml, which XPath predeclares; XPath's other
+   predeclared prefixes, when the element does not bind them, bound to no
+   namespace, D261, D262) and its
+   xpath-default-namespace as prefix 0 (5.1.2.1; "##any" is
+   has_any_default_element_namespace), its static base URI. */
 static sxml_status make_static_contexts(context_source source, lowering_storage *storage,
                                         sxml_xslt_lowering *lowering) {
     const sxml_xslt_ast *ast = source.ast;
@@ -1926,7 +1963,7 @@ static sxml_status make_static_contexts(context_source source, lowering_storage 
         binding_capacity += sxml_xslt_ast_get_namespace_bindings(
                                 ast, (sxml_xslt_ast_static_context_index){.value = context_index})
                                 .namespace_binding_count +
-                            1U;
+                            1U + UNDECLARED_PREFIX_COUNT;
     }
     void *memory = NULL;
     if (status == SXML_STATUS_OK) {
@@ -1976,6 +2013,10 @@ static sxml_status make_static_contexts(context_source source, lowering_storage 
                 first[count] = binding;
                 count += 1;
             }
+        }
+        status = undeclare_prefixes(name_pool, first, &count);
+        if (status != SXML_STATUS_OK) {
+            return status;
         }
         binding_count += count;
         storage->static_contexts[context_index] = *source.base;
