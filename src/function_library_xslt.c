@@ -44,6 +44,7 @@
 #include "sxml/version.h"
 #include "xslt_static_internal.h"
 #include "xml_internal.h"
+#include "xinclude_internal.h"
 
 #include <stdalign.h>
 #include <stdbool.h>
@@ -699,6 +700,14 @@ static sxml_status call_document(const sxml_function_call *call, sxml_sequence *
                 &document_node);
         }
         release_document_reference(&reference);
+        if (status == SXML_STATUS_OK && options.processes_xinclude) {
+            /* fn:doc's xinclude option (F&O 4.0, 17.1.1). */
+            status = sxml_function_library_process_xinclude(
+                call,
+                &(sxml_xinclude_request){.trusts_external = options.trusts_external,
+                                         .error_record = call->error_record},
+                &document_node);
+        }
         if (status == SXML_STATUS_OK && options.strips_space) {
             sxml_sequence stripped = sxml_sequence_empty();
             status = sxml_function_library_strip_document(call, document_node, &stripped);

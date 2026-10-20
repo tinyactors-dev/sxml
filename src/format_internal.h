@@ -82,6 +82,9 @@ typedef enum sxml_numbering_kind {
        0 to 20): the symbols of the sequence's range; the sequence is
        sequence_index. */
     SXML_NUMBERING_KIND_SYMBOLS,
+    /* IDEOGRAPH ONE (U+4E00): the Japanese ideographic numerals (glossary
+       ideographic_numerals), 0 to the largest uint64_t value. */
+    SXML_NUMBERING_KIND_IDEOGRAPHIC,
     /* "i" and "I": Roman numerals, 1 to 3999. */
     SXML_NUMBERING_KIND_LOWER_ROMAN,
     SXML_NUMBERING_KIND_UPPER_ROMAN,

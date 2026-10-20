@@ -442,6 +442,9 @@ typedef struct sxml_document_options {
     /* trust-external=true: external entities and an external DTD may be
        read; otherwise a reference to one is FODC0016. */
     bool trusts_external;
+    /* xinclude=true: xi:include elements are processed
+       (src/xinclude_internal.h). */
+    bool processes_xinclude;
     /* The xsd-validation option's xs:string item, owned (the caller
        releases it); empty when absent or "skip". */
     sxml_sequence xsd_validation;
@@ -452,8 +455,7 @@ typedef struct sxml_document_options {
 
 /*
  * Reads fn:doc's options map from argument argument_index into *options,
- * defined in src/function_library_json.c: dtd-validation and xinclude true
- * are FODC0013, a strip-space value outside the enumeration XPTY0004;
+ * defined in src/function_library_json.c: a strip-space value outside the enumeration XPTY0004;
  * xsd-validation and use-xsi-schema-location are kept for
  * sxml_schema_scope_validate_document; stable, trust-external and the
  * location options are accepted.

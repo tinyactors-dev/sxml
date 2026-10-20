@@ -1,0 +1,1 @@
+expression:1:1: err:FODC0016: The document has an xi:include element, and the call does not trust external resources (F&O 4.0, fn:doc, fn:parse-xml: trust-external)

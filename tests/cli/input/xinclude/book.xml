@@ -1,0 +1,5 @@
+<book xmlns:xi="http://www.w3.org/2001/XInclude">
+  <xi:include href="chapter.xml"/>
+  <xi:include href="note.txt" parse="text"/>
+  <xi:include href="missing.xml"><xi:fallback><missing/></xi:fallback></xi:include>
+</book>

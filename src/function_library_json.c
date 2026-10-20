@@ -28,6 +28,7 @@
 #include "xdm_internal.h"
 #include "system_property_internal.h"
 #include "schema_scope_internal.h"
+#include "xinclude_internal.h"
 
 #include <stdalign.h>
 #include <string.h>
@@ -54,13 +55,6 @@ static const sxml_static_error json_fallback_type_error = {
     .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XPTY0004"),
     .description = SXML_BYTE_VIEW_INITIALIZER(
         "The fallback option is not a function of one argument (F&O 4.0, section 17.4.4)"),
-};
-
-static const sxml_static_error xml_unsupported_option_error = {
-    .error_status = SXML_STATUS_DYNAMIC_ERROR,
-    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("FODC0013"),
-    .description = SXML_BYTE_VIEW_INITIALIZER(
-        "The XML parser does not support the requested option (XInclude)"),
 };
 
 static const sxml_static_error xml_schema_validation_error = {
@@ -803,16 +797,17 @@ static const sxml_option_definition parse_xml_options[] = {
 /* The definitions fn:parse-xml and fn:parse-xml-fragment read. */
 #define SXML_PARSE_XML_OPTION_COUNT ((size_t)SXML_XML_OPTION_STABLE)
 
-/* Checks the parse-xml options sxml cannot honour: XInclude (FODC0013);
-   the callers validate (xsd-validation). An unknown strip-space value is
-   XPTY0004, since the option's type is an enumeration. Writes whether
-   whitespace-only text nodes are stripped, whether the document is
-   validated against its DTD and whether external resources are trusted
-   (D199). */
+/* Checks the parse-xml options; the callers validate (xsd-validation)
+   and process XInclude (src/xinclude_internal.h). An unknown strip-space
+   value is XPTY0004, since the option's type is an enumeration. Writes
+   whether whitespace-only text nodes are stripped, whether the document
+   is validated against its DTD, whether external resources are trusted
+   (D199) and whether xi:include elements are processed. */
 typedef struct xml_space_handling {
     bool strips_space;
     bool validates_dtd;
     bool trusts_external;
+    bool processes_xinclude;
 } xml_space_handling;
 
 static sxml_status xml_check_options(const sxml_function_call *call,
@@ -821,9 +816,7 @@ static sxml_status xml_check_options(const sxml_function_call *call,
     handling->strips_space = false;
     handling->validates_dtd = json_option_is_true(values, SXML_XML_OPTION_DTD_VALIDATION);
     handling->trusts_external = json_option_is_true(values, SXML_XML_OPTION_TRUST_EXTERNAL);
-    if (json_option_is_true(values, SXML_XML_OPTION_XINCLUDE)) {
-        return sxml_error_record_report(call->error_record, &xml_unsupported_option_error);
-    }
+    handling->processes_xinclude = json_option_is_true(values, SXML_XML_OPTION_XINCLUDE);
     if (values->is_present[SXML_XML_OPTION_STRIP_SPACE]) {
         const sxml_byte_view strip_space = json_option_text(values, SXML_XML_OPTION_STRIP_SPACE);
         handling->strips_space = json_text_is(strip_space, SXML_BYTE_VIEW_FROM_LITERAL("all"));
@@ -1077,12 +1070,15 @@ sxml_status sxml_function_library_read_document_options(const sxml_function_call
                                                sizeof(parse_xml_options) /
                                                    sizeof(parse_xml_options[0])}},
         &values);
-    xml_space_handling handling = {
-        .strips_space = false, .validates_dtd = false, .trusts_external = false};
+    xml_space_handling handling = {.strips_space = false,
+                                   .validates_dtd = false,
+                                   .trusts_external = false,
+                                   .processes_xinclude = false};
     if (status == SXML_STATUS_OK) {
         status = xml_check_options(call, &values, &handling);
     }
     options->strips_space = handling.strips_space;
+    options->processes_xinclude = handling.processes_xinclude;
     options->keeps_space = status == SXML_STATUS_OK &&
                            values.is_present[SXML_XML_OPTION_STRIP_SPACE] &&
                            json_text_is(json_option_text(&values, SXML_XML_OPTION_STRIP_SPACE),
@@ -1131,6 +1127,7 @@ typedef struct xml_input {
     bool strips_space;
     bool validates_dtd;
     bool trusts_external;
+    bool processes_xinclude;
     /* The xsd-validation option; empty for "skip". */
     sxml_byte_view xsd_validation;
     /* use-xsi-schema-location (D278). */
@@ -1156,8 +1153,10 @@ static sxml_status xml_read_input(const sxml_function_call *call, sxml_option_va
         &(sxml_option_request){.argument_index = 1,
                                .definitions = {parse_xml_options, SXML_PARSE_XML_OPTION_COUNT}},
         values);
-    xml_space_handling handling = {
-        .strips_space = false, .validates_dtd = false, .trusts_external = false};
+    xml_space_handling handling = {.strips_space = false,
+                                   .validates_dtd = false,
+                                   .trusts_external = false,
+                                   .processes_xinclude = false};
     if (status == SXML_STATUS_OK) {
         status = xml_check_options(call, values, &handling);
     }
@@ -1174,6 +1173,7 @@ static sxml_status xml_read_input(const sxml_function_call *call, sxml_option_va
                             ? json_option_text(values, SXML_XML_OPTION_BASE_URI)
                             : sxml_dynamic_context_get_static_base_uri(call->dynamic_context),
             .strips_space = handling.strips_space,
+            .processes_xinclude = handling.processes_xinclude,
             .validates_dtd = handling.validates_dtd,
             .trusts_external = handling.trusts_external,
             .uses_schema_location_hints =
@@ -1183,8 +1183,9 @@ static sxml_status xml_read_input(const sxml_function_call *call, sxml_option_va
     return status;
 }
 
-/* Parses bytes as a document through the dynamic context's loader and,
-   when stripping, copies it into a stripped document. */
+/* Parses bytes as a document through the dynamic context's loader,
+   processes its xi:include elements on request (F&O 4.0, 17.2.1:
+   xinclude), and, when stripping, copies it into a stripped document. */
 static sxml_status xml_parse_document(const sxml_function_call *call, const xml_input *input,
                                       sxml_sequence *result) {
     sxml_item document_node = {.representation = 0};
@@ -1196,6 +1197,13 @@ static sxml_status xml_parse_document(const sxml_function_call *call, const xml_
                                        .blocks_external_resources = !input->trusts_external,
                                        .validates_dtd = input->validates_dtd},
         &document_node);
+    if (status == SXML_STATUS_OK && input->processes_xinclude) {
+        status = sxml_function_library_process_xinclude(
+            call,
+            &(sxml_xinclude_request){.trusts_external = input->trusts_external,
+                                     .error_record = call->error_record},
+            &document_node);
+    }
     if (status == SXML_STATUS_OK && input->xsd_validation.byte_count != 0) {
         /* F&O 4.0, 17.2.1: validated as by a validate expression (D174). */
         status = sxml_schema_scope_validate_document(

@@ -2,8 +2,9 @@
  * The system properties (src/system_property_internal.h, D163): one table
  * for fn:system-properties (F&O 4.0, 17.1.9) and the XSLT fn:system-property
  * (XSLT 4.0, 24.2.1). sxml's XPath and XQuery are schema-aware and read
- * typed data (D174), XSLT not yet; sxml has no XInclude (D97, delayed by
- * D162) and streams XSLT's streamable constructs (D219). Dynamic XSLT, the EXPath modules, DTD
+ * typed data (D174), XSLT not yet; fn:doc and fn:parse-xml process
+ * XInclude (src/xinclude_internal.h, packet 2.27) and sxml streams XSLT's
+ * streamable constructs (D219). Dynamic XSLT, the EXPath modules, DTD
  * validation and invisible XML are optional features (D189, D211, D215). XSLT has
  * backwards-compatible behaviour (packet 7.4).
  *
@@ -84,7 +85,8 @@ static const sxml_system_property sxml_system_property_table[] = {
     SXML_BOOLEAN_PROPERTY("", "supports-higher-order-functions", true),
     /* F&O only (17.1.9). */
     SXML_BOOLEAN_PROPERTY("accepts-typed-data", "", true),
-    SXML_BOOLEAN_PROPERTY("supports-xinclude", "", false),
+    /* The xinclude option of fn:doc and fn:parse-xml (packet 2.27). */
+    SXML_BOOLEAN_PROPERTY("supports-xinclude", "", true),
     /* fn:doc and fn:parse-xml validate with dtd-validation true, and the
        tree has is-id and is-idrefs from the DTD (packets 7.14b, 7.14c;
        D199, D210), when the processor names the optional feature

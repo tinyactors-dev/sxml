@@ -892,6 +892,9 @@ static void expect_all(sxml_test_state *state, const expression_case *cases,
     }
 }
 
+/* The XInclude namespace, for the parse-xml cases. */
+#define XINCLUDE "http://www.w3.org/2001/XInclude"
+
 /* The JSON lines of tests/qt4/torture-slice.txt, named by test case. */
 static const expression_case slice_cases[] = {
     /* fn-parse-json-001 */
@@ -1020,7 +1023,28 @@ static const expression_case function_cases[] = {
     /* The option reaches the loader (D199), which validates; this test's
        loader does not: tests/xpath_test.c checks the processor's. */
     {"parse-xml('<a/>', {'dtd-validation': true()})", "<a/>"},
-    {"parse-xml('<a/>', {'xinclude': true()})", "!FODC0013"},
+    /* XInclude (src/xinclude_internal.h): this test's loader has no
+       documents, so an include reads its fallback or fails (FODC0002);
+       without trust-external an include is FODC0016. */
+    {"parse-xml('<a/>', {'xinclude': true()})", "<a/>"},
+    {"parse-xml('<a xmlns:xi=\"" XINCLUDE "\"><xi:include href=\"b.xml\"/></a>', "
+     "{'xinclude': true()})",
+     "!FODC0016"},
+    {"parse-xml('<a xmlns:xi=\"" XINCLUDE "\"><xi:include href=\"b.xml\"><xi:fallback>"
+     "<c/>t</xi:fallback></xi:include></a>', {'xinclude': true(), 'trust-external': true()})",
+     "<a xmlns:xi=\"" XINCLUDE "\"><c/>t</a>"},
+    {"parse-xml('<a xmlns:xi=\"" XINCLUDE "\"><xi:include href=\"b.xml\"/></a>', "
+     "{'xinclude': true(), 'trust-external': true()})",
+     "!FODC0002"},
+    {"parse-xml('<a xmlns:xi=\"" XINCLUDE "\"><xi:fallback/></a>', "
+     "{'xinclude': true(), 'trust-external': true()})",
+     "!FODC0002"},
+    {"parse-xml('<a xmlns:xi=\"" XINCLUDE "\"><xi:include href=\"b.xml\" parse=\"c\"/></a>', "
+     "{'xinclude': true(), 'trust-external': true()})",
+     "!FODC0002"},
+    {"parse-xml('<a xmlns:xi=\"" XINCLUDE "\"><xi:include href=\"b.xml\"/></a>', "
+     "{'xinclude': false()})/a/*/name()",
+     "\"xi:include\""},
     /* F&O 4.0, fn:parse-xml: strip-space="all" drops whitespace-only text. */
     {"parse-xml('<a> <b/> </a>', {'strip-space': 'all'})", "<a><b/></a>"},
     {"parse-xml('<a/>', {'strip-space': 'some'})", "!XPTY0004"},

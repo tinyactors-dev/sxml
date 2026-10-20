@@ -141,6 +141,8 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `text_form_writer` | The bounded writer every text form writes through: it writes into caller memory what fits and counts every byte, so a caller can ask for the size first (`sxml_text_form_writer`; D249) |
 | `seal` | End the building of a unit: nothing in it moves afterwards |
 | `evaluator` | Walks the IR of a sealed unit and computes values |
+| `xinclude` | XInclude processing: copying a document with each `xi:include` element replaced by the document or text its `href` names, or by its `xi:fallback`'s children when that cannot be read; the `xinclude` option of fn:doc and fn:parse-xml (XInclude 1.0) |
+| `inclusion_fixup` | The `xml:base` and `xml:lang` attributes a top element of an included document gets where its base URI or language differs from the include's parent (XInclude 1.0, 4.5.5 and 4.5.6) |
 | `document_loader` | Internal interface through which fn:doc and fn:parse-xml obtain document nodes; the processor implements it |
 | `evaluation_environment` | What the library functions of one evaluation read from the host beyond fn:doc: the resolver for text, binary and collection resources, the trace sink, the default language, environment variables, and the static context's decimal formats and collations; carried by the processor's document loader |
 | `evaluation_memo` | Values a native body computes once per evaluation and subject node (an xsl:key's index for one tree), kept in the dynamic context until the evaluation ends (D149) |
@@ -570,6 +572,7 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `grouping_position` | The number of digit signs between a grouping separator and the end of the integer part (or the decimal separator) |
 | `numbering_kind` | How a primary format token numbers: digits, letters, Roman numerals or words, or an unsupported token formatted as `1` |
 | `alphabet` | The letters a numbering by letters counts with (`a` to `z`, Greek `α` to `ω`), named by its first letter: 1 is the first letter, after the last come two letters (bijective numeration) |
+| `ideographic_numerals` | The Japanese numbering by ideographs that the token `一` (U+4E00) asks for: digits `一` to `九`, multipliers `十 百 千` within each group of four digits, myriad units `万 億 兆 京`; no zero digit and no `一` before `十 百 千` (`百五十一` is 151, `一万` 10,000) |
 | `symbol_sequence` | A numbering sequence with one Unicode symbol per number over a fixed range, named by its symbol for 1 (CIRCLED DIGIT ONE `①`, 0 to 50); numbers outside the range are written in decimal |
 | `ordinal` | Ordinal numbering (`1st`, `second`), asked for by the `o` format modifier |
 | `variable_marker` | A part of a date picture string in square brackets, replaced by a date or time component (F&O 4.0, section 9.9.4.1) |

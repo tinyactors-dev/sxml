@@ -480,6 +480,11 @@ sxml_status sxml_integer_picture_parse_primary_format_token(sxml_byte_view prima
         result.has_upper_case_digits = check.has_upper_case_digits;
     } else if (find_numbering_sequence(primary_format_token, &result)) {
         /* An alphabet or a symbol sequence named by its first token. */
+    } else if (sxml_byte_view_equals(primary_format_token,
+                                     SXML_BYTE_VIEW_FROM_LITERAL("\xE4\xB8\x80"))) {
+        /* IDEOGRAPH ONE, U+4E00 (section 4.8.1: other numbering sequences
+           are implementation-defined; QT4 format-integer-052). */
+        result.numbering_kind = SXML_NUMBERING_KIND_IDEOGRAPHIC;
     } else if (sxml_byte_view_equals(primary_format_token, SXML_BYTE_VIEW_FROM_LITERAL("i"))) {
         result.numbering_kind = SXML_NUMBERING_KIND_LOWER_ROMAN;
     } else if (sxml_byte_view_equals(primary_format_token, SXML_BYTE_VIEW_FROM_LITERAL("I"))) {
@@ -865,6 +870,57 @@ static uint32_t find_symbol(const numbering_symbols *sequence, small_value value
     return 0;
 }
 
+/*
+ * The Japanese ideographic numerals (glossary ideographic_numerals): the
+ * digits 一 to 九, the multipliers 十 百 千 inside each group of four
+ * decimal digits, and the myriad units 万 億 兆 京 after each group but the
+ * last. A zero digit is not written, nor 一 before 十, 百 or 千
+ * (151 is 百五十一, 302 三百二, 2025 二千二十五: QT4 format-integer-052);
+ * 0 alone is 〇 (U+3007).
+ */
+static sxml_status append_ideographic(uint64_t value, sxml_format_text *text) {
+    static const uint32_t digit_symbols[10] = {0x3007U, 0x4E00U, 0x4E8CU, 0x4E09U, 0x56DBU,
+                                               0x4E94U, 0x516DU, 0x4E03U, 0x516BU, 0x4E5DU};
+    /* 十, 百, 千 for the digit positions 1 to 3 of a group. */
+    static const uint32_t multiplier_symbols[4] = {0, 0x5341U, 0x767EU, 0x5343U};
+    /* 万, 億, 兆, 京 after the groups 1 to 4 (10^4, 10^8, 10^12, 10^16). */
+    static const uint32_t myriad_symbols[5] = {0, 0x4E07U, 0x5104U, 0x5146U, 0x4EACU};
+    if (value == 0) {
+        return sxml_format_text_append_codepoint(text, digit_symbols[0]);
+    }
+    /* A uint64_t value has at most 20 decimal digits: five groups. */
+    uint32_t groups[5] = {0};
+    size_t group_count = 0;
+    for (uint64_t remaining = value; remaining > 0 && group_count < 5; remaining /= 10000U) {
+        groups[group_count] = (uint32_t)(remaining % 10000U);
+        group_count += 1;
+    }
+    sxml_status status = SXML_STATUS_OK;
+    while (status == SXML_STATUS_OK && group_count > 0) {
+        group_count -= 1;
+        const uint32_t group = groups[group_count];
+        uint32_t divisor = 1000;
+        for (size_t position = 4; status == SXML_STATUS_OK && position > 0; position -= 1) {
+            const uint32_t digit = (group / divisor) % 10U;
+            divisor /= 10U;
+            if (digit == 0) {
+                continue;
+            }
+            if (digit != 1 || position == 1) {
+                status = sxml_format_text_append_codepoint(text, digit_symbols[digit]);
+            }
+            if (status == SXML_STATUS_OK && position > 1) {
+                status = sxml_format_text_append_codepoint(text,
+                                                           multiplier_symbols[position - 1]);
+            }
+        }
+        if (status == SXML_STATUS_OK && group != 0 && group_count > 0) {
+            status = sxml_format_text_append_codepoint(text, myriad_symbols[group_count]);
+        }
+    }
+    return status;
+}
+
 /* Roman numerals, 1 to 3999. */
 typedef struct roman_request {
     uint64_t value;
@@ -1105,6 +1161,13 @@ sxml_status sxml_format_integer(const sxml_integer_formatting *formatting,
         }
         break;
     }
+    case SXML_NUMBERING_KIND_IDEOGRAPHIC:
+        if (small.fits) {
+            status = append_ideographic(small.value, text);
+        } else {
+            is_digits = true;
+        }
+        break;
     case SXML_NUMBERING_KIND_LOWER_ROMAN:
     case SXML_NUMBERING_KIND_UPPER_ROMAN:
         if (small.fits && small.value > 0 && small.value <= SXML_FORMAT_LARGEST_ROMAN) {

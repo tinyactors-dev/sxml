@@ -17,6 +17,7 @@
 #include "schema_scope_internal.h"
 #include "tree_internal.h"
 #include "xml_internal.h"
+#include "xinclude_internal.h"
 
 #include <string.h>
 
@@ -239,8 +240,8 @@ static sxml_status call_distinct_ordered_nodes(const sxml_function_call *call,
 }
 
 /* Loads the document uri_reference names as fn:doc does with options:
-   *document_node, owned, is the loader's node, its stripped copy, or the
-   validated copy of that. On failure *document_node is released. */
+   *document_node, owned, is the loader's node, its XInclude result, the
+   stripped copy of that, or the validated copy of that. On failure *document_node is released. */
 typedef struct document_loading {
     sxml_byte_view uri_reference;
     const sxml_document_options *options;
@@ -264,6 +265,14 @@ static sxml_status load_document_with_options(const sxml_function_call *call,
             .validates_dtd = options->validates_dtd,
             .skips_preparation = options->keeps_space},
         document_node);
+    if (status == SXML_STATUS_OK && options->processes_xinclude) {
+        /* F&O 4.0, 17.1.1: xinclude (src/xinclude_internal.h). */
+        status = sxml_function_library_process_xinclude(
+            call,
+            &(sxml_xinclude_request){.trusts_external = options->trusts_external,
+                                     .error_record = loading->error_record},
+            document_node);
+    }
     if (status == SXML_STATUS_OK && options->strips_space) {
         sxml_sequence stripped = sxml_sequence_empty();
         status = sxml_function_library_strip_document(call, *document_node, &stripped);

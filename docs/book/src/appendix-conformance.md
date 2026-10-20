@@ -3,8 +3,8 @@
 sxml is tested against the test suites of the W3C and others, which
 check each specification rule by rule. These are the counts of a
 release build on 20 October 2026. A test case counts as *run* unless it
-needs a feature sxml does not claim, such as XInclude or a network
-connection.
+needs a feature sxml does not claim, such as static typing or a
+network connection.
 
 | Test suite | Run | Passed | Rate |
 | --- | --: | --: | --: |

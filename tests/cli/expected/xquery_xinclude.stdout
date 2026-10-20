@@ -1,0 +1,5 @@
+<book xmlns:xi="http://www.w3.org/2001/XInclude">
+  <chapter xml:base="chapter.xml" xml:lang="en">One</chapter>
+  A note.
+  <missing/>
+</book>

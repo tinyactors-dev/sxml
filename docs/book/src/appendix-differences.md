@@ -30,7 +30,10 @@ them, EXPath File exists only with `--allow-file-access`, and `fn:put`
 writes only with `--allow-put`. Processors that read URLs and files by
 default will behave differently here on purpose.
 
-XInclude is not supported.
+XInclude is processed only when a call asks for it: `fn:doc` and
+`fn:parse-xml` with the options `xinclude` and `trust-external` both
+true. `xpointer` attributes are not supported; an include that has one
+takes its `xi:fallback`.
 
 ## Output
 

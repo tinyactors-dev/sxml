@@ -142,6 +142,13 @@ static void test_integer_pictures_format(sxml_test_state *state) {
         {"0", "\xE2\x91\xB4", "0"},
         {"11", "\xE2\x9D\xB6", "\xE2\x93\xAB"},
         {"10", "\xF0\x9D\x8D\xA0", "10"},
+        /* Japanese ideographic numerals (IDEOGRAPH ONE): no 一 before
+           十 百 千, no zero digit, myriad units (QT4 format-integer-052). */
+        {"0", "\xE4\xB8\x80", "\xE3\x80\x87"},
+        {"11", "\xE4\xB8\x80", "\xE5\x8D\x81\xE4\xB8\x80"},
+        {"302", "\xE4\xB8\x80", "\xE4\xB8\x89\xE7\x99\xBE\xE4\xBA\x8C"},
+        {"10001", "\xE4\xB8\x80", "\xE4\xB8\x80\xE4\xB8\x87\xE4\xB8\x80"},
+        {"-20", "\xE4\xB8\x80", "-\xE4\xBA\x8C\xE5\x8D\x81"},
         {"57", "I", "LVII"},
         {"1999", "i", "mcmxcix"},
         {"4000", "I", "4000"},

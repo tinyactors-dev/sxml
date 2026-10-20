@@ -160,6 +160,10 @@ sxml_add_cli_test(xpath_full_text EXIT_CODE 0 ARGUMENTS xpath "for $title score 
 # of the query commands (packet 7.10b): fn:html-doc and fn:unparsed-text.
 sxml_add_cli_test(xpath_relative_html_doc EXIT_CODE 0 ARGUMENTS xpath "string-join((html-doc('page.html')//*:p ! normalize-space(), unparsed-text('note.txt') => normalize-space()), ' ')")
 sxml_add_cli_test(xquery_relative_html_doc EXIT_CODE 0 ARGUMENTS xquery --method=text "--expression=html-doc('page.html')//*:title ! string(), ends-with(static-base-uri(), '/'), unparsed-text-lines('note.txt')")
+# fn:doc's xinclude option (packet 2.27): a document, a text and a
+# fallback included; without trust-external, FODC0016.
+sxml_add_cli_test(xquery_xinclude EXIT_CODE 0 ARGUMENTS xquery "--expression=doc('xinclude/book.xml', {'xinclude': true(), 'trust-external': true()})")
+sxml_add_cli_test(xquery_xinclude_untrusted EXIT_CODE 1 ARGUMENTS xquery "--expression=doc('xinclude/book.xml', {'xinclude': true()})")
 sxml_add_cli_test(xpath_dynamic_error EXIT_CODE 1 ARGUMENTS xpath "error(QName('http://www.w3.org/2005/xqt-errors', 'err:FOER0000'), 'stop here')")
 sxml_add_cli_test(xpath_type_error EXIT_CODE 1 ARGUMENTS xpath "(1, 2) eq 1")
 sxml_add_cli_test(xpath_no_focus EXIT_CODE 1 ARGUMENTS xpath "count(//x)")
