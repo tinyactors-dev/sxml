@@ -12986,7 +12986,113 @@ Invisible XML, book first, then the tests, then the implementation.
   into states but makes the first derivation, which sxml reads the tree
   from, harder to keep.
 
+### D285. Source code as XML: tree-sitter trees with highlights captures (packet 7.22)
+Recorded 2026-10-20, after D12, D13, D44, D71, D99, D162, D189, D191,
+D208, D215, D272. The owner's order: the book first (Chapter "Source
+Code as XML"), then the grammars' own tests, then the implementation.
+- **Shape** (glossary `syntax_node`, `node_kind`, `field_name`,
+  `token_element`): a document node; one element per named syntax node,
+  named by its kind, in no namespace; anonymous nodes (tokens) and the
+  bytes between nodes are text, so `string()` of the document is the
+  source exactly, and the document element holds the whole text, leading
+  and trailing whitespace included. A child's field name is a `field`
+  attribute. A token with a highlight or a field name becomes an
+  `sxml:token` element so it can carry them; a named kind that is no
+  NCName (an alias) an `sxml:node` element with `kind`. ERROR nodes are
+  `ERROR` elements (tree-sitter's spelling); a node the parser inserted
+  has `missing="true"`, and a missing token also `kind`. The option
+  `positions` adds `line`, `column`, `end-line`, `end-column` (from 1,
+  columns in characters, so they agree with XPath string positions);
+  off by default, so documents compare without them. `sxml` is bound to
+  `urn:sxml` on the document element. Like iXML (D215), syntax errors
+  are part of the result, not an error: tree-sitter recovers, and a
+  query can count `//ERROR`.
+- **Highlights** (glossary `highlights_query`, `capture`): the grammar's
+  `queries/highlights.scm` (the files its tree-sitter.json names, in
+  that order) runs through the runtime's query API (ts_query_*). Text
+  predicates are the host's job: `eq?`, `match?`, `any-of?`, their
+  `not-` and `any-` forms; `match?` uses sxml's regex engine (F&O 4.0,
+  6.1, no flags; the queries' Rust regexes are in the common subset, and
+  one that does not compile makes the predicate false); `#is-not?
+  local` holds and `#is? local` does not (no locals query: no node is a
+  local variable); directives (`#set!`) and unknown predicates are
+  ignored. Captures named `_…` only serve predicates. When several
+  patterns capture one node, the **last** pattern wins: the grammars'
+  queries start with `(identifier) @variable` and refine it later, and
+  their highlight tests expect the refinement (with the first pattern
+  winning, the name in `function i() {}` would be `variable`, where the
+  test says `function`). The
+  winner is the `highlight` attribute; nested captures stay nested.
+  Locals (locals.scm) and injections (injections.scm) are not run: a
+  later packet can add them in the same place.
+- **API**: `sxml:parse-code($source as xs:string?, $language as
+  xs:string, $options as map(*)? := {}) as document-node()?` with
+  options `highlights` (default true) and `positions` (default false),
+  and `sxml:code-languages() as xs:string*`, in the new well-known
+  namespace `urn:sxml` (`name.h`: SXML_NAMESPACE_SXML = 16, additive
+  after D99, as D206 added EXSLT; sxml's own functions and errors go
+  there). An unknown language is `sxml:unknown-language`. A direct
+  function rather than fn:invisible-xml's function-returning shape: a
+  grammar here is a compiled-in name, not run-time data, so there is
+  nothing to compile once. Optional feature `sxml_source_code_feature()`
+  ("source-code", `processor.h`, additive), whose library_functions
+  hold the two rows (D191), in `sxml_all_optional_features()`, so every
+  shipped build has it (D272). CLI (D44): no new command or flag;
+  `sxml xpath` and `sxml xquery` bind the prefix `sxml` as they bind
+  `bin` and `file`; a stylesheet declares it (D261).
+- **Languages** (glossary `source_code_language`): option (a), vendored
+  grammars compiled in: JSON, JavaScript (with JSX), Python, C, CSS,
+  HTML and Go, from the tree-sitter organization's repositories (MIT),
+  in `third_party/tree-sitter-grammars/LANGUAGE` (`LICENSE`, the
+  generated `src/`, the highlights queries, `test/`, and `VERSION` with
+  the commit), by `tools/vendor-tree-sitter-grammar.sh`. They join
+  grammars/CMakeLists.txt's one grammar list as
+  `sxml_source_grammar_LANGUAGE`, with the entry point renamed
+  `sxml_source_language_LANGUAGE` (sxml's own JSON grammar keeps
+  `tree_sitter_json`) and Clang's -fno-sanitize=function (upstream
+  scanners declare `()`, compatible in C17). The language table and
+  queries are generated into `src/source_code_languages.c` by
+  `tools/generate-source-code-languages.py`; adding a language is
+  vendor plus generate. Option (b), a host API to register a TSLanguage
+  and a query, is not built: it would make tree-sitter's ABI part of
+  sxml's public contract; it stays a proposal. Not shipped, by cost
+  (native -O2 code and data of parser and scanner): TypeScript
+  1,413,409 and TSX 1,447,676 bytes, Rust 1,125,096, Bash 1,335,694,
+  Markdown 368,665 plus its inline grammar 361,385; shipped: JSON
+  7,605, JavaScript 413,323, Python 459,815, C 618,257, CSS 114,067,
+  HTML 19,702, Go 222,353 (1,854,622 in all). sxml's own XPath, XQuery
+  and XML grammars are not offered: they serve sxml's parsers (markers,
+  external-subset entry points) and have no highlights queries.
+- **Mechanism** (`src/source_code.c`, `src/source_code_internal.h`,
+  `src/function_library_source_code.c`): tree-sitter parses (D12; its
+  progress callback charges the bytes read to the call's step limit and
+  cancels the parse past it); the query cursor's progress callback does
+  the same; captures are recorded in allocator memory, sorted by node,
+  one per node; one loop walks a TSTreeCursor with an explicit stack of
+  "made an element" flags (D71) and writes tree builder events into an
+  arena tree of the processor, text by byte offset, so nothing is lost
+  or doubled. The D12 exemption (tree-sitter allocates with malloc)
+  extends from the parse to the query step; parser, tree, query and
+  cursors are freed before the function returns.
+- **Tests** (D13): each shipped grammar's `test/corpus` (452 trees) and
+  `test/highlight` (187 assertions) are vendored with it;
+  `tests/tree-sitter/tree-sitter-driver.xq` runs them through `sxml
+  xquery` (public API only): the document's S-expression against the
+  corpus tree (normalized as tree-sitter normalizes; field names
+  compared only when the expected tree has some), and each `<-`/`^`
+  assertion against the highlight attributes covering its line and
+  column. `tree-sitter/suite` keeps a baseline that only goes up.
+
 ## Proposed
+
+- **More source code languages and a registration API** (D285, for the
+  owner): TypeScript and TSX (about 1.4 MB of code and data each),
+  Rust (1.1 MB), Bash (1.3 MB) and Markdown (0.7 MB with its inline
+  grammar) are vendored the same way when wanted; a host API to register
+  a TSLanguage and its query would put tree-sitter's ABI into sxml's
+  public contract. The locals and injections queries are the next
+  refinements of the highlights (9 of the 187 highlight assertions need
+  them).
 
 - **Outward-facing choices** (D208; for the owner): tagging and
   publishing releases (0.2.0 and after, `docs/RELEASE.md`, the archives of
