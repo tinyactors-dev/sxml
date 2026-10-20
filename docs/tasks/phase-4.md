@@ -535,3 +535,15 @@ the release driver).
   streaming, record coercion, fn:document per package, deterministic
   functions, split-when, JNode shallow copy, namespace undeclarations,
   copy-4308, the current rule in attribute sets.
+- [x] **4.30 XSLT real gaps** (implementation, D245, D281). Owns the
+  XSLT files a gap's cause is in, the serializer and function library
+  parts it needs when no other packet has them open, their unit tests,
+  and single insertions in the ledgers. From a fresh XT40 run at HEAD,
+  D281's real gaps, small group first, then medium; streaming and
+  namespace undeclarations only as design sketches.
+  **Done** 2026-10-20 (D289): XT40 12,261 to 12,268 passed (99 wrong
+  error), 257 to 250 failed, 0 errors; key-004 lost by the draft
+  (20.2.2). Left (sizes in D289): map-for-key-005, copy-4308,
+  function-lookup and accumulators per package, per-package
+  strip-space, schema roles kept apart, merge-when, streaming,
+  namespace undeclarations.
