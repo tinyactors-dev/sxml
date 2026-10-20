@@ -32,8 +32,6 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 (bindings/kotlin/DESIGN.md, bindings/swift/DESIGN.md).
 
 
-- 7.25: tree-sitter .wasm language files in the JavaScript package (a JS
-  dynamic linker; sxml.wasm shares memory and table; owner, 2026-10-20).
 - book-4: the codegen chapter rebuilt around a TypeScript tree and an XSLT
   printer (owner, 2026-10-20).
 - js-2: streaming output (and input) in the JavaScript API (owner).
@@ -341,6 +339,14 @@ no tree nodes for hidden parts; parse-only arrays freed before read-out.
 (was over the step limit). Parser's own memory under 2 MB per MB; the
 rest is the XML tree. Left: the ambiguous sum (3.1 s against D283's 2 s
 bound on this machine; owner's machine to judge).
+
+7.25 (D293): Sxml.loadCodeLanguage loads tree-sitter .wasm language files
+(src/linker.ts reads dylink.0; sxml.wasm exports a growable table,
+__stack_pointer and tree-sitter's 25 wasm-stdlib functions);
+createProcessor({ codeLanguages }). +7,713 bytes. Not supported:
+pre-2021 emscripten dylink, files needing other side modules, scanner
+imports outside tree-sitter's list. A loaded language's memory is never
+freed. The Swift initializer's new field is not compiled here.
 
 Platform and tooling:
 - macOS, Windows and MSVC have never been built; `_getcwd` is untested.
