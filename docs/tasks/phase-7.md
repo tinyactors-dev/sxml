@@ -463,6 +463,16 @@ part 1.2 KB of the core module.
     `src/xml_internal.h`, `include/sxml/processor.h` (the form),
     `src/processor.c`, `src/evaluator_stream.c`, `tests/xml_test.c`,
     the CLI's file reader and resolver.
+  - **Done** 2026-10-20 (D233): (a) the byte reader form and the text
+    window (`src/xml_input.c`); `sxml transform` on 95.6 MB, streamed
+    identity 133.9 MB to 11.0 MB peak resident, for-each 134.5 MB to
+    11.0 MB, 974 MB in 10.9 MB; the JavaScript host unchanged (BYTES);
+    XT40 11,918 and XQ40 45,914 passed, unchanged case by case. Left:
+    (b) xsl:merge with streamed inputs and (c) capture="yes" end rules,
+    designed in D233; both need a new IR form or function and an
+    evaluator part in files packet 4.21 held uncommitted
+    (`src/ir_internal.h`, `src/ir.c`, `src/ir_verify.c`,
+    `src/evaluator.c`, `src/evaluator_machine_internal.h`).
 - **Header**: possibly `xslt.h`, additive: a streamed principal source
   given as bytes or a parser, with a record. The resolver's BYTES form
   already serves xsl:source-document.
