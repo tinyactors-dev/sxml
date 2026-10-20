@@ -388,3 +388,18 @@ pure union types, XQTY0086, pattern facets by XSD's canonical mapping,
 fn:resolve-uri's FORG0002; XP40 32,689 to 32,716 passed (82 to 55
 failed), XQ40 45,969 to 46,017 (239 to 191), none lost. Open: D258's
 "Not done".
+
+### 2.24 XPath and XQuery conformance sweep (implementation)
+After 2.23 (owner priority 1). Starts with D258's "Not done": a library
+module's context value type, fn:string-length and fn:normalize-space
+atomizing an explicit argument, casts to xs:QName with the namespaces of
+an enclosing direct constructor, is-id of list and union ID types (an
+additive way, since tree.h is frozen), use-xsi-schema-location; then the
+largest clusters of fresh whole runs (XP40 55 failed and 32 wrong-error
+passes, XQ40 191 and 53), skipping those D258 keeps. Estimates what the
+optional staticTyping feature would take (XQuery 4.0, the appendix on
+static typing; 104 XQ40 and 48 XP40 cases) without implementing it.
+Files: the evaluator, the XPath and XQuery lowering and static analysis,
+the function library and the validator parts the fixes touch.
+Verification as D181 says; the XP40 and XQ40 sections of
+`docs/CONFORMANCE.md` regenerated from whole runs of the final code.
