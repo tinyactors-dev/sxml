@@ -1,7 +1,6 @@
 # Invisible XML Performance
 
 <!-- examples: ixml -->
-<!-- status: draft -->
 
 An iXML grammar can describe any context-free language, and a parser
 for all of them must be able to keep many readings of the input open at
@@ -40,8 +39,8 @@ input takes about four times as long and four times the memory: the
 parser is *linear* on them. A large input costs what its XML costs and
 little more. The XML tree of the log, an element and three attributes
 for each line and the messages as text, takes about 9 bytes for each
-character of the log; the parse adds less than that again, and lets go
-of all of it before the query goes on.
+character of the log; the parse adds about one more, and lets go of all
+of it before the query goes on.
 
 A 1 MB log, made by a query:
 
@@ -132,17 +131,17 @@ out of them. A rule read at once makes no items inside it and one node
 for all its text; characters and hidden rules that the XML leaves out
 make no nodes, and neighbouring characters share one. So the memory
 follows the rules the parser cannot read at once, and is small when a
-grammar's text is in rules that it can: the log needs some 20 items and
-5 nodes for each line of about 60 characters. All of it is released
+grammar's text is in rules that it can: the log needs some 15 items and
+9 nodes for each line of about 60 characters. All of it is released
 when the XML is built.
 
 A log of 10 MB:
 
 ```console
-$ sxml xquery --method=text --param=lines=250000 --output=big.log make-log.xq
-$ sxml xpath 'string-length(unparsed-text("big.log"))'
+$ sxml xquery --method=text --param=lines=250000 --output=bigger.log make-log.xq
+$ sxml xpath 'string-length(unparsed-text("bigger.log"))'
 9972228
-$ sxml xquery --method=text --param=file=big.log count-levels.xq
+$ sxml xquery --method=text --param=file=bigger.log count-levels.xq
 ERROR 83333
 INFO 83333
 WARN 83334
