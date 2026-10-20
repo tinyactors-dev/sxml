@@ -6584,8 +6584,10 @@ static sxml_status continue_binary_link(sxml_xpath_lowering_machine *machine,
             return sxml_xpath_lowering_finish_frame(machine, frame, operation.result);
         }
     }
-    sxml_ir_binary binary = {
-        .operator = operator, .left_operand = locals->left, .right_operand = locals->right};
+    sxml_ir_binary binary = {.operator = operator,
+                             .left_operand = locals->left,
+                             .right_operand = locals->right,
+                             .module_number = state->static_context->ir_module_number};
     if (state->language == SXML_LANGUAGE_XSLT &&
         operator >= SXML_IR_BINARY_OPERATOR_GENERAL_EQUAL &&
         operator <= SXML_IR_BINARY_OPERATOR_GENERAL_GREATER_OR_EQUAL) {

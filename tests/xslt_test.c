@@ -419,6 +419,17 @@ static const transformation_case transformation_cases[] = {
                     "{ if ($x le 0) then 0 else $v($x - 1) + $x }'/><xsl:template "
                     "name='xsl:initial-template'><xsl:value-of select='$v(5)'/></xsl:template>"),
          "", "15"),
+    /* [xsl:]default-collation on an inner element (XSLT 4.0, 3.7.1):
+       its comparisons compare strings under it (D275). */
+    CALL("default-collation-of-inner-element",
+         STYLESHEET("<xsl:output method='text'/><xsl:param name='x' select=\"'Adele'\"/>"
+                    "<xsl:template name='xsl:initial-template'><xsl:value-of select=\"$x eq "
+                    "'ADELE'\"/><t xsl:default-collation='http://www.w3.org/2005/xpath-functions/"
+                    "collation/html-ascii-case-insensitive'><xsl:value-of select=\"$x eq 'ADELE', "
+                    "$x = 'ADELE'\"/></t><xsl:value-of select=\"$x = 'ADELE'\" "
+                    "default-collation='http://www.w3.org/2005/xpath-functions/collation/"
+                    "html-ascii-case-insensitive'/></xsl:template>"),
+         "", "falsetrue truetrue"),
     APPLY("priority", STYLESHEET(OMIT "<xsl:template match='/'><xsl:apply-templates "
                                       "select='//b'/></xsl:template><xsl:template match='b'>"
                                       "<low/></xsl:template><xsl:template match='b[. = 3]'>"

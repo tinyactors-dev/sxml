@@ -2134,6 +2134,9 @@ typedef struct sxml_binary_operands {
     sxml_sequence raw_operands[2];
     /* What a general comparison casts xs:untypedAtomic to xs:QName with. */
     sxml_namespace_binding_view namespace_bindings;
+    /* The static context whose default collation strings compare under:
+       the expression's module's, or NULL for the running one's. */
+    const sxml_ir_static_context *static_context;
 } sxml_binary_operands;
 
 /* Charges one step per pair of items of two atomized operands (D89). A
@@ -2278,6 +2281,18 @@ static sxml_status sxml_compare_with_range(sxml_dynamic_context *context,
     return SXML_STATUS_OK;
 }
 
+/* The static context of module module_number of unit (glossary
+   ir_module), or NULL for 0, a number out of range or a module without
+   one: then the running module's applies (D163). */
+static const sxml_ir_static_context *sxml_module_static_context(const sxml_ir_unit *unit,
+                                                                uint32_t module_number) {
+    if (unit == NULL || module_number == 0 || module_number >= unit->module_count ||
+        !unit->modules[module_number].has_static_context) {
+        return NULL;
+    }
+    return &unit->modules[module_number].static_context;
+}
+
 static sxml_status sxml_make_binary_value(sxml_dynamic_context *context,
                                           const sxml_binary_operands *binary,
                                           sxml_sequence *result) {
@@ -2356,8 +2371,16 @@ static sxml_status sxml_make_binary_value(sxml_dynamic_context *context,
         const sxml_function_call call = {.dynamic_context = context,
                                          .item_heap = context->item_heap,
                                          .error_record = context->error_record};
-        status = sxml_function_library_find_collation(
-            &call, (sxml_byte_view){.bytes = NULL, .byte_count = 0}, &collation);
+        /* An empty URI asks for the running module's default collation;
+           the expression's module names its own, empty for the Unicode
+           codepoint collation. */
+        const sxml_byte_view default_uri =
+            binary->static_context == NULL
+                ? (sxml_byte_view){.bytes = NULL, .byte_count = 0}
+                : binary->static_context->default_collation_uri;
+        if (binary->static_context == NULL || default_uri.byte_count > 0) {
+            status = sxml_function_library_find_collation(&call, default_uri, &collation);
+        }
         if (status == SXML_STATUS_OK && !sxml_collation_is_codepoint_order(&collation)) {
             default_collation = &collation;
         }
@@ -5327,7 +5350,9 @@ static sxml_status sxml_make_leaf_value(sxml_dynamic_context *context,
                 expression->binary.namespace_bindings.namespace_binding_count != 0
                     ? sxml_ir_unit_get_namespace_bindings(sxml_machine_top(context)->function->unit,
                                                           expression->binary.namespace_bindings)
-                    : sxml_dynamic_context_get_static_namespaces(context)};
+                    : sxml_dynamic_context_get_static_namespaces(context),
+            .static_context = sxml_module_static_context(sxml_machine_top(context)->function->unit,
+                                                         expression->binary.module_number)};
         status = sxml_machine_read_atom(context, expression->binary.left_operand,
                                         &binary.raw_operands[0]);
         if (status == SXML_STATUS_OK) {

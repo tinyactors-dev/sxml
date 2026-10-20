@@ -730,6 +730,10 @@ static sxml_status visit_expression(verifier *checker,
         if (!binding_list_is_in_range(checker, expression->binary.namespace_bindings)) {
             return report(checker, "a comparison's namespace bindings are out of range");
         }
+        if (expression->binary.module_number != 0 &&
+            expression->binary.module_number >= checker->unit->module_count) {
+            return report(checker, "a comparison's module is out of range");
+        }
         status = check_required_atom(checker, expression->binary.left_operand);
         if (status == SXML_STATUS_OK) {
             status =

@@ -565,6 +565,11 @@ typedef struct sxml_ir_binary {
        the module's (as sxml_ir_cast.namespace_bindings, D263); empty
        means the running module's or unit's. */
     sxml_ir_namespace_binding_list namespace_bindings;
+    /* The comparisons only: the module (glossary ir_module) whose static
+       context gives the default collation strings compare under, the
+       expression's (XSLT's [xsl:]default-collation of an inner element,
+       3.7.1; D163, D275); 0 for its function's. */
+    uint32_t module_number;
 } sxml_ir_binary;
 
 /* UNARY. */

@@ -513,6 +513,16 @@ static sxml_status add_let(loop_pass *pass, const sxml_ir_let *let) {
     return pass_array_append(pass->allocator, &pass->lets, &found);
 }
 
+/* True for a comparison whose own module names a default collation
+   (sxml_ir_binary.module_number): the index, which checks the running
+   module's, is not for it. */
+static bool names_default_collation(const sxml_ir_unit *unit, const sxml_ir_binary *binary) {
+    return binary->module_number != 0 && binary->module_number < unit->module_count &&
+           unit->modules[binary->module_number].has_static_context &&
+           unit->modules[binary->module_number].static_context.default_collation_uri.byte_count >
+               0;
+}
+
 /*
  * Follows the predicate as far as its value must be true and collects the
  * LETs on the way and the necessary comparisons (see the file comment).
@@ -550,7 +560,8 @@ static sxml_status find_conjuncts(loop_pass *pass, sxml_ir_expression_index pred
             } else if (expression.expression_kind == SXML_IR_EXPRESSION_KIND_BINARY &&
                        (expression.binary.operator == SXML_IR_BINARY_OPERATOR_GENERAL_EQUAL ||
                         expression.binary.operator == SXML_IR_BINARY_OPERATOR_VALUE_EQUAL ||
-                        expression.binary.operator == SXML_IR_BINARY_OPERATOR_IS)) {
+                        expression.binary.operator == SXML_IR_BINARY_OPERATOR_IS) &&
+                       !names_default_collation(pass->unit, &expression.binary)) {
                 status = pass_array_append(pass->allocator, &pass->comparisons, &current);
             }
         }
