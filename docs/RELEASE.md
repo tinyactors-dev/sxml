@@ -60,18 +60,17 @@ headers do.
    to `main`.
 6. **Tag** (owner): `git tag -a vX.Y.Z -m "sxml X.Y.Z"`, then
    `git push origin vX.Y.Z`. Create a GitHub release from the tag with the
-   changelog section as its notes. Attach `sxml.wasm`, `sxml-full.wasm` and the package
+   changelog section as its notes. Attach `sxml.wasm` and the package
    tarball from step 7.
 7. **Publish the JavaScript package** (owner). Do this from the tagged
    commit:
 
    ```sh
-   cmake --preset wasm && cmake --build --preset wasm --target sxml_javascript_module sxml_javascript_full_module
+   cmake --preset wasm && cmake --build --preset wasm --target sxml_javascript_module
    cd bindings/javascript
    npm ci
-   SXML_WASM_PATH=../../build/wasm/bindings/javascript/sxml.wasm \
-   SXML_FULL_WASM_PATH=../../build/wasm/bindings/javascript/sxml-full.wasm npm run build
-   npm pack            # check the tarball: dist/*.js, dist/*.d.ts, dist/sxml.wasm, dist/sxml-full.wasm
+   SXML_WASM_PATH=../../build/wasm/bindings/javascript/sxml.wasm npm run build
+   npm pack            # check the tarball: dist/*.js, dist/*.d.ts, dist/sxml.wasm, dist/allkeys.txt
    npm publish         # needs the npm account and the package name
    ```
 

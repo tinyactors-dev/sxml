@@ -19,7 +19,7 @@ $ sxml xpath --context-item=books.xml '//book[@year < 1980]/title/string()'
 - [Examples](#examples): [streaming](#stream-large-documents),
   [HTML](#read-html), [Invisible XML](#parse-text-with-invisible-xml),
   [Full Text](#search-text)
-- [Features by module](#features-by-module)
+- [Features by build](#features-by-build)
 - [Use it from C](#use-it-from-c), [from JavaScript](#use-it-from-javascript)
   and [from Swift](#use-it-from-swift)
 - [Conformance](#conformance)
@@ -57,13 +57,12 @@ model (XDM 4.0) and one evaluator.
 | Swift on Linux | The `Sxml` Swift package over the native library (below). |
 | iOS, Android | Planned. The Swift package's iOS and macOS build and the Kotlin library for Android are not made yet. |
 
-The WebAssembly modules, at commit `9c5b1ba`:
+The WebAssembly modules, at commit `4f5a8bf` (stripped):
 
 | Module | Contents | Size | Gzipped |
 | --- | --- | --: | --: |
-| `sxml.wasm` (core) | XML, XPath 4.0, serialization | 2,090,746 bytes | 730,902 bytes |
-| `sxml-full.wasm` (full) | The core, plus XQuery 4.0, XSLT 4.0, XSD 1.1 and every optional feature except EXPath File | 7,637,162 bytes | 1,690,683 bytes |
-| `sxml` (WASI command) | Everything the native `sxml` command has | 9,231,791 bytes | 1,973,839 bytes |
+| `sxml.wasm` (JavaScript) | Everything: XML, XPath 4.0, XQuery 4.0, XSLT 4.0, XSD 1.1, serialization and every optional feature except EXPath File (D272) | 7,701,002 bytes | 1,713,241 bytes |
+| `sxml` (WASI command) | Everything the native `sxml` command has | 9,295,080 bytes | 1,994,875 bytes |
 
 ## Install
 
@@ -351,30 +350,29 @@ $ sxml xpath --context-item=reviews.xml '//review[. contains text "parse" using 
 "2"
 ```
 
-## Features by module
+## Features by build
 
-The JavaScript package has two modules: the core module, `sxml.wasm`, and
-the full module, `sxml-full.wasm`. The `sxml` command and the C library
-have everything.
+Every build has everything (D272): the JavaScript package's one module,
+`sxml.wasm`, the `sxml` command and the C library.
 
-| Feature | `sxml.wasm` | `sxml-full.wasm` | `sxml` command | C library |
-| --- | :-: | :-: | :-: | :-: |
-| XML 1.0 and 1.1, namespaces, DTDs and entities | yes | yes | yes | yes |
-| XPath 4.0 and F&O 4.0, with JSON and CSV | yes | yes | yes | yes |
-| Serialization 4.0 | yes | yes | yes | yes |
-| XQuery 4.0 and the XQuery Update Facility 3.0 | – | yes | yes | yes |
-| XQuery and XPath Full Text 3.0 | – | yes | yes | yes |
-| XSLT 4.0, streaming, XSLT 1.0 and EXSLT Common | – | yes | yes | yes |
-| `fn:transform` | – | yes | yes | yes |
-| XSD 1.1 validation and schema awareness | – | yes | yes | yes |
-| DTD validation | – | yes | yes | yes |
-| HTML parsing | – | yes | yes | yes |
-| Invisible XML | – | yes | yes | yes |
-| EXPath Binary | – | yes | yes | yes |
-| EXPath File | – | – | with `--allow-file-access` | yes [^file] |
-| UCA collations with CLDR tailorings | – | yes [^data] | yes | yes [^data] |
-| Time zones by name | – | yes [^data] | yes [^zoneinfo] | yes [^data] |
-| Languages and calendars in the formatting functions | – | yes [^data] | yes | yes [^data] |
+| Feature | `sxml.wasm` | `sxml` command | C library |
+| --- | :-: | :-: | :-: |
+| XML 1.0 and 1.1, namespaces, DTDs and entities | yes | yes | yes |
+| XPath 4.0 and F&O 4.0, with JSON and CSV | yes | yes | yes |
+| Serialization 4.0 | yes | yes | yes |
+| XQuery 4.0 and the XQuery Update Facility 3.0 | yes | yes | yes |
+| XQuery and XPath Full Text 3.0 | yes | yes | yes |
+| XSLT 4.0, streaming, XSLT 1.0 and EXSLT Common | yes | yes | yes |
+| `fn:transform` | yes | yes | yes |
+| XSD 1.1 validation and schema awareness | yes | yes | yes |
+| DTD validation | yes | yes | yes |
+| HTML parsing | yes | yes | yes |
+| Invisible XML | yes | yes | yes |
+| EXPath Binary | yes | yes | yes |
+| EXPath File | – | with `--allow-file-access` | yes [^file] |
+| UCA collations with CLDR tailorings | yes [^data] | yes | yes [^data] |
+| Time zones by name | yes [^data] | yes [^zoneinfo] | yes [^data] |
+| Languages and calendars in the formatting functions | yes [^data] | yes | yes [^data] |
 
 [^file]: A host names the EXPath File feature on purpose: it reads and
     writes files outside the resolver.
@@ -382,10 +380,10 @@ have everything.
     used. The JavaScript package ships the collation table.
 [^zoneinfo]: Read from `/usr/share/zoneinfo`.
 
-In the C library, XQuery, XSLT and XSD are linked when a program uses
-them, and the other features when the program names them in its
-processor configuration. A program that uses only XPath links only what
-XPath needs.
+In the C library, the optional features are on when a program names them
+in its processor configuration (`sxml_all_optional_features()` names them
+all but EXPath File); the sxml command, the Kotlin and Swift bindings and
+the JavaScript package name them all.
 
 ## Use it from C
 
@@ -535,11 +533,10 @@ console.log(titles.toString());
 // "The Art of Computer Programming"
 ```
 
-Load the full module for XQuery, XSLT and XSD:
+The same module runs XQuery, XSLT and XSD:
 
 ```js
-const full = await load({ wasm: new URL('sxml-full.wasm', import.meta.resolve('@tinyactors/sxml')) });
-const library = full.createProcessor();
+const library = sxml.createProcessor();
 const query = library.compileQuery('declare variable $n external; //book[@year < $n] ! string()');
 query.run({ context: library.parse('<books><book year="1968">TAOCP</book></books>'), variables: { n: 1975 } });
 // 'TAOCP'

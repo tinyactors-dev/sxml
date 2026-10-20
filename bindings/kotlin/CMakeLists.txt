@@ -62,7 +62,7 @@ if(NOT SXML_BUILD_TESTS OR ANDROID OR CMAKE_CROSSCOMPILING)
 endif()
 
 # The features sxml_all_optional_features() names, as
-# javascript/package_full lists them for sxml-full.wasm.
+# javascript/package lists them for sxml.wasm.
 set(sxml_kotlin_features
     "test,expath-binary,html,xslt-transform,timezone-database,dtd-validation,uca-collation,full-text,invisible-xml,localization,builtin-schemas")
 

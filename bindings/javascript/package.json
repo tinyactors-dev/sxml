@@ -10,7 +10,7 @@
       "default": "./dist/index.js"
     },
     "./sxml.wasm": "./dist/sxml.wasm",
-    "./sxml-full.wasm": "./dist/sxml-full.wasm",
+    "./sxml-full.wasm": "./dist/sxml.wasm",
     "./allkeys.txt": "./dist/allkeys.txt"
   },
   "files": [
@@ -22,7 +22,7 @@
   "sideEffects": false,
   "scripts": {
     "typecheck": "tsc",
-    "build": "tsc -p tsconfig.build.json && node -e \"const fs = require('node:fs'); fs.copyFileSync(process.env.SXML_WASM_PATH, 'dist/sxml.wasm'); fs.copyFileSync(process.env.SXML_FULL_WASM_PATH, 'dist/sxml-full.wasm'); fs.copyFileSync('../../third_party/unicode-collation/allkeys.txt', 'dist/allkeys.txt')\"",
+    "build": "tsc -p tsconfig.build.json && node -e \"const fs = require('node:fs'); fs.copyFileSync(process.env.SXML_WASM_PATH, 'dist/sxml.wasm'); fs.copyFileSync('../../third_party/unicode-collation/allkeys.txt', 'dist/allkeys.txt')\"",
     "test": "node --expose-gc --test test/package.test.ts"
   },
   "devDependencies": {

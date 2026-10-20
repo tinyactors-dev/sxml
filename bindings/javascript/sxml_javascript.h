@@ -2,7 +2,7 @@
 
 /*
  * The JavaScript shim (docs/GLOSSARY.md, "javascript_shim"): the names
- * under which sxml.wasm and sxml-full.wasm export the host shim
+ * under which sxml.wasm exports the host shim
  * (bindings/host/sxml_host.h, D238) to the package's src/index.ts (D138).
  * Each export calls the host shim function of the same name with
  * sxml_host_ in place of sxml_javascript_, so the structs the package
@@ -10,9 +10,9 @@
  * D216, so the package does not change. Not a public header: the export
  * files are its only users.
  *
- * sxml_javascript_exports.c holds the exports of both modules,
- * sxml_javascript_full_exports.c those of the full module only (XQuery,
- * XSLT, XSD: D189's two links), and sxml_javascript_host.c the resolver
+ * sxml_javascript_exports.c holds the exports of XPath, values and the
+ * processor, sxml_javascript_full_exports.c those of XQuery, XSLT and XSD
+ * (one module links both, D272), and sxml_javascript_host.c the resolver
  * that calls the package's import sxml_host.resolve.
  */
 #include "sxml_host.h"

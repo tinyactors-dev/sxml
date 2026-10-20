@@ -1,5 +1,6 @@
-// sxml for JavaScript: XML parsing, XPath 4.0 and serialization in Node.js
-// and browsers, over sxml.wasm (docs/DECISIONS.md, D10, D138).
+// sxml for JavaScript: XML parsing, XPath 4.0, XQuery 4.0, XSLT 4.0, XSD 1.1
+// validation and serialization in Node.js and browsers, over sxml.wasm
+// (docs/DECISIONS.md, D10, D138, D272).
 //
 //     import { load } from '@tinyactors/sxml';
 //     const sxml = await load();
@@ -8,9 +9,9 @@
 //     processor.evaluate('//title/string()', { context: book }).toString();
 //     // '"XPath"' (the adaptive method of Serialization 4.0)
 //
-// sxml-full.wasm adds XQuery 4.0 (Processor.compileQuery), XSLT 4.0
-// (Processor.compileStylesheet) and XSD 1.1 validation
-// (Processor.compileSchema).
+// The one module has every language and every optional feature (D272):
+// XQuery 4.0 (Processor.compileQuery), XSLT 4.0 (Processor.compileStylesheet)
+// and XSD 1.1 validation (Processor.compileSchema) besides XPath.
 //
 // Every object that owns memory in the module (Processor, XPathExpression,
 // XQuery, Stylesheet, Schema, Value) has dispose(); one that is never disposed is released when it is
@@ -32,11 +33,10 @@ export type WasmSource =
   | PromiseLike<Response>;
 
 export interface LoadOptions {
-  /** Default: sxml.wasm next to this file, the core module, which has no
-   *  optional feature. sxml-full.wasm, beside it, has every optional
-   *  feature (Sxml.features). */
+  /** Default: sxml.wasm next to this file, which has every language and
+   *  every optional feature (Sxml.features). */
   wasm?: WasmSource;
-  /** The DUCET for a module with the uca-collation feature (D213), the
+  /** The DUCET for the uca-collation feature (D213), the
    *  text of allkeys.txt of the Unicode Collation Algorithm 16.0.0: a URL
    *  or path, or the bytes. Default: allkeys.txt next to this file, which
    *  the package ships; when that cannot be read, UCA collation URIs use
@@ -58,16 +58,16 @@ export type ResourceKind =
   | 'xslt-package'
   | 'schema-document'
   | 'external-entity'
-  /** A file of the IANA Time Zone Database for the full module's
+  /** A file of the IANA Time Zone Database for the
    *  timezone-database feature: absoluteUri is 'urn:sxml:timezone-data:'
    *  and a zoneinfo path, a zone name ('Europe/Paris', a TZif file) or
    *  'zone1970.tab'. Answer with the file's bytes. */
   | 'timezone-data'
-  /** The DUCET for the full module's uca-collation feature: absoluteUri
+  /** The DUCET for the uca-collation feature: absoluteUri
    *  is 'http://www.unicode.org/Public/UCA/16.0.0/allkeys.txt'. Answer
    *  with the file's text, or leave it to LoadOptions.collationData. */
   | 'collation-data'
-  /** A CLDR file for the full module's localization feature: absoluteUri
+  /** A CLDR file for the localization feature: absoluteUri
    *  is 'urn:sxml:locale-data:' and a path below CLDR's common/
    *  directory ('main/de.xml', 'rbnf/de.xml',
    *  'supplemental/supplementalData.xml', 'supplemental/ordinals.xml').
@@ -155,7 +155,7 @@ export interface Message {
   columnNumber: number;
 }
 
-// ------------------------------------------------- XQuery (sxml-full.wasm)
+// ----------------------------------------------------------------- XQuery
 
 export interface QueryCompileOptions extends StaticOptions {}
 
@@ -206,7 +206,7 @@ export interface QueryEvaluateOptions {
   messages?: (message: Message) => void;
 }
 
-// --------------------------------------------------- XSLT (sxml-full.wasm)
+// ------------------------------------------------------------------- XSLT
 
 export interface StylesheetCompileOptions {
   /** The principal module's URI, against which xsl:include, xsl:import
@@ -275,7 +275,7 @@ export interface TransformResult {
   resultDocuments: ResultDocument[];
 }
 
-// ---------------------------------------------------- XSD (sxml-full.wasm)
+// -------------------------------------------------------------------- XSD
 
 /** A schema document: its text, with its URI, or only a URI, which the
  *  resolver is asked for (kind 'schema-document'). */
@@ -411,23 +411,20 @@ interface Exports {
   sxml_javascript_evaluate(expression: number, request: number): number;
   sxml_javascript_serialize(processor: number, request: number): number;
   sxml_javascript_string(processor: number, text: number): number;
-  // The full module only (sxml_javascript.h, "Full module").
-  sxml_javascript_query_compile?(processor: number, request: number): number;
-  sxml_javascript_query_destroy?(query: number): void;
-  sxml_javascript_query_is_updating?(query: number): number;
-  sxml_javascript_query_evaluate?(query: number, request: number): number;
-  sxml_javascript_query_serialize?(query: number, value: number): number;
-  sxml_javascript_stylesheet_compile?(processor: number, request: number): number;
-  sxml_javascript_stylesheet_destroy?(stylesheet: number): void;
-  sxml_javascript_stylesheet_transform?(stylesheet: number, request: number): number;
-  sxml_javascript_schema_create?(processor: number): number;
-  sxml_javascript_schema_destroy?(schema: number): void;
-  sxml_javascript_schema_compile?(schema: number, request: number): number;
-  sxml_javascript_schema_validate?(schema: number, request: number): number;
+  // XQuery, XSLT and XSD (sxml_javascript.h, "Full module").
+  sxml_javascript_query_compile(processor: number, request: number): number;
+  sxml_javascript_query_destroy(query: number): void;
+  sxml_javascript_query_is_updating(query: number): number;
+  sxml_javascript_query_evaluate(query: number, request: number): number;
+  sxml_javascript_query_serialize(query: number, value: number): number;
+  sxml_javascript_stylesheet_compile(processor: number, request: number): number;
+  sxml_javascript_stylesheet_destroy(stylesheet: number): void;
+  sxml_javascript_stylesheet_transform(stylesheet: number, request: number): number;
+  sxml_javascript_schema_create(processor: number): number;
+  sxml_javascript_schema_destroy(schema: number): void;
+  sxml_javascript_schema_compile(schema: number, request: number): number;
+  sxml_javascript_schema_validate(schema: number, request: number): number;
 }
-
-/** The exports only the full module has, checked present. */
-type FullExports = Required<Exports>;
 
 // sxml_status values the package itself returns from the resolver import.
 const status_ok = 0;
@@ -674,9 +671,8 @@ export class Sxml {
   readonly exports: Exports;
   /** The library version, such as '0.2.0'. */
   readonly version: string;
-  /** The optional features this module has: none in sxml.wasm; all in
-   *  sxml-full.wasm ('test' adds nothing; it checks that the list reaches
-   *  the processor). */
+  /** The optional features of the module: all of them (D272; 'test' adds
+   *  nothing, it checks that the list reaches the processor). */
   readonly features: readonly string[];
   /** The DUCET served for 'collation-data' (LoadOptions.collationData).
    *  @internal */
@@ -826,6 +822,10 @@ export async function load(options: LoadOptions = {}): Promise<Sxml> {
     },
   });
   const exports = instance.exports as unknown as Exports;
+  if (typeof exports.sxml_javascript_query_compile !== 'function') {
+    // A module of an older package, without XQuery, XSLT and XSD.
+    throw new Error('sxml: this module is not the package\'s sxml.wasm');
+  }
   memory = exports.memory;
   exports._initialize();
   sxml = new Sxml(exports);
@@ -940,9 +940,9 @@ export class Processor {
 
   /** Compiles an XQuery 4.0 main module, with the library modules it
    *  imports (the resolver is asked for them, kind 'xquery-module'), for
-   *  evaluating it many times. sxml-full.wasm only. */
+   *  evaluating it many times. */
   compileQuery(query: string, options: QueryCompileOptions = {}): XQuery {
-    const exports = this.full('XQuery');
+    const exports = this.exports();
     const state = this.enter();
     const scratch = new Scratch(state);
     let address: number;
@@ -971,9 +971,9 @@ export class Processor {
 
   /** Compiles an XSLT 4.0 stylesheet, with the modules it includes and
    *  imports (kind 'xslt-module') and the packages it uses (kind
-   *  'xslt-package'), for running it many times. sxml-full.wasm only. */
+   *  'xslt-package'), for running it many times. */
   compileStylesheet(stylesheet: string | Uint8Array, options: StylesheetCompileOptions = {}): Stylesheet {
-    const exports = this.full('XSLT');
+    const exports = this.exports();
     const state = this.enter();
     const scratch = new Scratch(state);
     const made: Value[] = [];
@@ -1003,12 +1003,12 @@ export class Processor {
    *  string is a document's text), with every document they include,
    *  import, redefine or override (the resolver is asked, kind
    *  'schema-document'). Throws a SchemaError with every report when the
-   *  schema has errors. sxml-full.wasm only. */
+   *  schema has errors. */
   compileSchema(
     documents: string | SchemaDocument | (string | SchemaDocument)[],
     options: SchemaCompileOptions = {},
   ): Schema {
-    const exports = this.full('XSD validation');
+    const exports = this.exports();
     const state = this.enter();
     const address = exports.sxml_javascript_schema_create(state.address);
     if (address === 0) {
@@ -1253,14 +1253,9 @@ export class Processor {
     return [words.length > 0 ? scratch.words(words) : 0, entries.length];
   }
 
-  /** @internal The module's full-module exports, or an error saying that
-   *  what needs them needs sxml-full.wasm. */
-  full(what: string): FullExports {
-    const exports = this.state.module.exports;
-    if (exports.sxml_javascript_query_compile === undefined) {
-      throw new Error(`sxml: ${what} needs the full module, sxml-full.wasm`);
-    }
-    return exports as FullExports;
+  /** @internal The module's exports. */
+  exports(): Exports {
+    return this.state.module.exports;
   }
 
   /** @internal Registers the handle of a compiled object. */
@@ -1430,7 +1425,7 @@ export class XQuery {
   /** Evaluates the query; the result is a new value. */
   evaluate(options: QueryEvaluateOptions = {}): Value {
     const processor = this.processor;
-    const exports = processor.full('XQuery');
+    const exports = processor.exports();
     const address = this.address();
     const state = processor.enter();
     const scratch = new Scratch(state);
@@ -1470,7 +1465,7 @@ export class XQuery {
    *  name another). Value.serialize(options) uses options instead. */
   serialize(value: Value): string {
     const processor = this.processor;
-    const exports = processor.full('XQuery');
+    const exports = processor.exports();
     processor.enter();
     processor.check(value);
     if (exports.sxml_javascript_query_serialize(this.address(), value.address()) !== status_ok) {
@@ -1561,7 +1556,7 @@ export class Stylesheet {
    *  source, or calls options.initialTemplate or options.initialFunction. */
   transform(options: TransformOptions = {}): TransformResult {
     const processor = this.processor;
-    const exports = processor.full('XSLT');
+    const exports = processor.exports();
     const address = this.address();
     const state = processor.enter();
     const scratch = new Scratch(state);
@@ -1694,7 +1689,7 @@ export class Schema {
    *  is not well-formed throws, as Processor.parse does. */
   validate(input: Value | string | Uint8Array, options: ValidateOptions = {}): ValidationResult {
     const processor = this.processor;
-    const exports = processor.full('XSD validation');
+    const exports = processor.exports();
     const address = this.address();
     if (input instanceof Value) {
       processor.check(input);

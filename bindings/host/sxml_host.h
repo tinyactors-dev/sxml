@@ -143,8 +143,8 @@ typedef struct sxml_host_serialize_request {
 
 /*
  * The structs of the full module's entry points (the section "Full module"
- * below): XQuery, XSLT and XSD, linked into sxml-full.wasm and the native
- * target sxml_host, not into sxml.wasm (D189's two links). Every field is
+ * below): XQuery, XSLT and XSD, linked into sxml.wasm and the native
+ * target sxml_host (every build has every language, D272). Every field is
  * still one 32-bit word on wasm32.
  */
 
@@ -319,11 +319,10 @@ typedef struct sxml_host_validate_request {
 
 /*
  * The optional features this link has (include/sxml/processor.h,
- * "Optional features"; D189), as static data. Defined by the one of
- * sxml_host_core_features.c (none: sxml.wasm) and
- * sxml_host_full_features.c (every feature: sxml-full.wasm and the native
- * target sxml_host) that is linked. At most 32 count, so that a feature mask
- * is one word.
+ * "Optional features"; D189), as static data. Defined by
+ * sxml_host_full_features.c: every feature sxml_all_optional_features()
+ * names, in sxml.wasm and the native target sxml_host (D272). At most 32
+ * count, so that a feature mask is one word.
  */
 sxml_optional_feature_view sxml_host_features(void);
 
@@ -408,9 +407,7 @@ uint32_t sxml_host_serialize(sxml_host_processor *processor,
 
 /*
  * In sxml_host_xquery.c, sxml_host_xslt.c and sxml_host_schema.c, linked
- * into sxml-full.wasm and the native target sxml_host, not into sxml.wasm
- * (D189's two links): the JavaScript package tells the modules apart by
- * these exports. Each
+ * into sxml.wasm and the native target sxml_host (D272). Each
  * failure returns NULL (or its status) with the processor's error set, as
  * above. A call that writes side results into its request writes them
  * also when it fails.

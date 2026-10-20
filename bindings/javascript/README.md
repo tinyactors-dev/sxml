@@ -2,12 +2,11 @@
 
 sxml for JavaScript, in Node.js and browsers. It is the sxml C library
 compiled to WebAssembly, with a small TypeScript wrapper and no runtime
-dependencies. It comes as two modules:
-
-| Module | What it has | Size | Gzipped |
-| --- | --- | --: | --: |
-| `sxml.wasm` (core) | XML parsing, XPath 4.0 with the F&O 4.0 function library, Serialization 4.0 | 2.1 MB | 730 KB |
-| `sxml-full.wasm` (full) | The core, plus XQuery 4.0 with the Update Facility 3.0, XQuery and XPath Full Text 3.0, XSLT 4.0, XSD 1.1 validation, and every optional feature except EXPath File | 7.6 MB | 1.7 MB |
+dependencies. It is one module, `sxml.wasm` (7.7 MB, 1.7 MB gzipped),
+with everything sxml has: XML parsing, XPath 4.0 with the F&O 4.0 function
+library, XQuery 4.0 with the Update Facility 3.0, XQuery and XPath Full
+Text 3.0, XSLT 4.0, XSD 1.1 validation, Serialization 4.0, and every
+optional feature except EXPath File, which reads files.
 
 ```js
 import { load } from '@tinyactors/sxml';
@@ -38,13 +37,17 @@ result.toString(); // '"XPath"\n2.027e3', the adaptive method
 
 ## Loading
 
-`load()` loads `sxml.wasm`, next to the package's JavaScript. To load the
-full module, or a module from elsewhere, pass `load({ wasm })` with a URL,
-a path, the bytes, a `WebAssembly.Module` or a `fetch()` response:
+`load()` loads `sxml.wasm`, next to the package's JavaScript. To load it
+from elsewhere, pass `load({ wasm })` with a URL, a path, the bytes, a
+`WebAssembly.Module` or a `fetch()` response:
 
 ```js
-const sxml = await load({ wasm: new URL('sxml-full.wasm', import.meta.resolve('@tinyactors/sxml')) });
+const sxml = await load({ wasm: await fetch('/assets/sxml.wasm') });
 ```
+
+The package exports the module as `@tinyactors/sxml/sxml.wasm`;
+`@tinyactors/sxml/sxml-full.wasm`, the name of the full module of earlier
+builds, is the same file.
 
 One loaded module serves any number of processors. `sxml.version` is the
 library's version (`'0.2.0'`).
@@ -52,10 +55,9 @@ library's version (`'0.2.0'`).
 ## Optional features
 
 Some parts of sxml are optional features: large tables and functions that
-not every page needs. The core module has none of them, and the full
-module has every one except EXPath File, which reads files. `sxml.features`
-lists the features of the loaded module, and `createProcessor({ features
-})` picks some of them (by default all). Without a feature, sxml behaves
+a processor may go without. The module has every one except EXPath File,
+which reads files. `sxml.features` lists them, and `createProcessor({
+features })` picks some of them (by default all). Without a feature, sxml behaves
 as the specifications say a processor without it does: its functions do
 not exist (`err:XPST0017`), or the specification's fallback applies.
 
@@ -75,10 +77,8 @@ not exist (`err:XPST0017`), or the specification's fallback applies.
 
 `uca-collation`, `timezone-database` and `localization` read their
 tables through the resolver (see [Resources](#resources)) when they are
-first used. Without the tables they behave as the core module does.
-
-In the core module, `compileQuery`, `compileStylesheet` and
-`compileSchema` throw an error that says they need `sxml-full.wasm`.
+first used. Without the tables they behave as a processor without the
+feature does.
 
 ## Processors and values
 
@@ -105,7 +105,7 @@ the `expath-binary` feature also binds `bin`, as the `sxml` command does;
 `namespaces` may rebind it:
 
 ```js
-processor.evaluate('bin:hex("CAFE") => bin:to-octets()').toString(); // '202\n254', with the full module
+processor.evaluate('bin:hex("CAFE") => bin:to-octets()').toString(); // '202\n254'
 processor.evaluate('//p:item', { context: document, namespaces: { p: 'urn:p' } });
 ```
 
@@ -131,7 +131,7 @@ prolog. A library module that the query imports is read through the
 resolver, with kind `'xquery-module'`.
 
 ```js
-const sxml = await load({ wasm: new URL('sxml-full.wasm', import.meta.resolve('@tinyactors/sxml')) });
+const sxml = await load();
 const processor = sxml.createProcessor();
 
 const books = processor.parse(`<books>
@@ -342,9 +342,9 @@ documents) are yours to dispose.
 | `Processor.parse(xml, { uri })` | A document node |
 | `Processor.compile(expression, options)` | An `XPathExpression`, with `evaluate(options)` and `variables` |
 | `Processor.evaluate(expression, options)` | Compiles and evaluates an XPath expression once |
-| `Processor.compileQuery(text, options)` | An `XQuery`, with `evaluate`, `serialize`, `run` and `isUpdating` (full module) |
-| `Processor.compileStylesheet(text, options)` | A `Stylesheet`, with `transform` (full module) |
-| `Processor.compileSchema(documents, options)` | A `Schema`, with `validate` (full module) |
+| `Processor.compileQuery(text, options)` | An `XQuery`, with `evaluate`, `serialize`, `run` and `isUpdating` |
+| `Processor.compileStylesheet(text, options)` | A `Stylesheet`, with `transform` |
+| `Processor.compileSchema(documents, options)` | A `Schema`, with `validate` |
 | `Processor.value(data)` | JavaScript data as a value |
 | `Processor.serialize(value, options)` | The same as `value.serialize(options)` |
 | `Value.toString()`, `Value.serialize(options)` | The value's text |
@@ -358,11 +358,10 @@ builds and tests it under the `wasm` preset:
 
 ```sh
 cmake --preset wasm && cmake --build --preset wasm && ctest --preset wasm -R javascript
-# javascript/languages_full runs test/full.test.ts on sxml-full.wasm
+# javascript/languages runs test/full.test.ts: XQuery, XSLT and XSD
 npm ci --prefix bindings/javascript   # adds the javascript/typecheck test
 ```
 
-`npm run build`, with `SXML_WASM_PATH` and `SXML_FULL_WASM_PATH` set to
-the built `sxml.wasm` and `sxml-full.wasm`, writes `dist/` with both
-modules and `allkeys.txt`. The steps for a release are in
+`npm run build`, with `SXML_WASM_PATH` set to the built `sxml.wasm`,
+writes `dist/` with the module and `allkeys.txt`. The steps for a release are in
 `docs/RELEASE.md`.

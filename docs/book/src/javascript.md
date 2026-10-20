@@ -15,15 +15,12 @@ The package is in the sxml repository, in `bindings/javascript`. It is
 not on npm yet; its README explains how to build it from the
 repository. It needs Node.js 22.18 or later, or any current browser.
 
-It comes with two WebAssembly modules:
-
-| Module | What it has |
-| --- | --- |
-| `sxml.wasm` (core) | XML parsing, XPath 4.0 with the whole function library, serialization |
-| `sxml-full.wasm` (full) | The core, plus XQuery 4.0, XSLT 4.0, XSD 1.1, Full Text, HTML, Invisible XML, EXPath Binary, collations, time zones and localization |
-
-A page that only needs XPath loads the core module, which is much
-smaller. `load()` loads the core module; `load({ wasm })` loads another.
+It comes with one WebAssembly module, `sxml.wasm`, which has everything
+the `sxml` command has but EXPath File: XML parsing, XPath 4.0 with the
+whole function library, XQuery 4.0, XSLT 4.0, XSD 1.1, Full Text, HTML,
+Invisible XML, EXPath Binary, collations, time zones, localization and
+serialization. `load()` loads it from beside the package's JavaScript;
+`load({ wasm })` loads it from elsewhere.
 
 ## Processors and values
 
@@ -51,9 +48,8 @@ command does, and `serialize` takes the parameters of `fn:serialize`.
 
 ## XQuery, XSLT and XSD
 
-With the full module, `compileQuery`, `compileStylesheet` and
-`compileSchema` compile the other languages, again once, to run many
-times:
+`compileQuery`, `compileStylesheet` and `compileSchema` compile the
+other languages, again once, to run many times:
 
 `languages.mjs`:
 

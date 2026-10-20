@@ -1,9 +1,7 @@
 /*
- * The exports of the full module only, sxml-full.wasm (D189's two links,
- * D216, D238): XQuery, XSLT and XSD, each the host shim function of the
- * same name with sxml_host_ in place of sxml_javascript_. sxml.wasm does
- * not link this file, which is how the package tells the modules apart.
- * Golden file: sxml_javascript_exports.c.
+ * The exports of sxml.wasm for XQuery, XSLT and XSD (D216, D238, D272),
+ * each the host shim function of the same name with sxml_host_ in place
+ * of sxml_javascript_. Golden file: sxml_javascript_exports.c.
  */
 #include "sxml_javascript.h"
 

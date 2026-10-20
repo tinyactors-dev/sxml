@@ -2,8 +2,7 @@
  * What the full links' entry points share (sxml_host_xquery.c,
  * sxml_host_xslt.c, sxml_host_schema.c): side results, names and
  * bindings, and the trace sink that makes messages side results. Linked
- * into sxml-full.wasm and the native target sxml_host only (D189's two
- * links), so that the core module, sxml.wasm, keeps its size.
+ * into sxml.wasm and the native target sxml_host (D272).
  *
  * Golden file: sxml_host.c, whose handles, helpers and memory rules
  * these follow (sxml_host_internal.h).

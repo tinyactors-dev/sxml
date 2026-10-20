@@ -1,7 +1,6 @@
 /*
- * The features of the full links, sxml-full.wasm and the native target
- * sxml_host: every optional feature sxml_all_optional_features() names
- * (D189). Linked instead of sxml_host_core_features.c.
+ * The features of every link, sxml.wasm and the native target sxml_host:
+ * every optional feature sxml_all_optional_features() names (D189, D272).
  */
 #include "sxml_host.h"
 

@@ -7,19 +7,16 @@
 #                                names: the native library the Kotlin JNI
 #                                glue and the Swift package link, and what
 #                                tests/host_shim_test.c drives.
-#   sxml_host_core_features      sxml_host_core_features.c (no optional
-#                                feature), compiled natively so that
-#                                -Werror and the lint gates see it; only
-#                                sxml.wasm links it.
 #
-# The JavaScript modules link the sources themselves (D189's two links),
-# from the lists below: bindings/javascript/CMakeLists.txt.
+# The JavaScript module links the sources itself, from the lists below
+# (bindings/javascript/CMakeLists.txt): all of them, since every build has
+# every language and feature (D272).
 
-# Both links: XPath, values, serialization, the processor.
+# XPath, values, serialization, the processor.
 set(SXML_HOST_CORE_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/sxml_host.c"
     PARENT_SCOPE)
-# The full links add XQuery, XSLT and XSD.
+# XQuery, XSLT and XSD.
 set(sxml_host_full_sources
     "${CMAKE_CURRENT_SOURCE_DIR}/sxml_host_full.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/sxml_host_xquery.c"
@@ -32,11 +29,6 @@ add_library(sxml_host STATIC sxml_host.c ${sxml_host_full_sources} sxml_host_ful
 target_include_directories(sxml_host PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(sxml_host PUBLIC sxml)
 sxml_apply_project_flags(sxml_host)
-
-add_library(sxml_host_core_features OBJECT sxml_host_core_features.c)
-target_include_directories(sxml_host_core_features PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
-target_link_libraries(sxml_host_core_features PRIVATE sxml)
-sxml_apply_project_flags(sxml_host_core_features)
 
 # tests/host_shim_test.c, registered by tests/CMakeLists.txt's glob (D45),
 # links the shim as a host binding does.

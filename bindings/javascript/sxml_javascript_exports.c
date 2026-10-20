@@ -1,5 +1,5 @@
 /*
- * The exports of both modules, sxml.wasm and sxml-full.wasm (docs/
+ * The exports of sxml.wasm for XPath, values and the processor (docs/
  * GLOSSARY.md, "javascript_shim"; D138, D238): each the host shim
  * function of the same name with sxml_host_ in place of sxml_javascript_,
  * so that src/index.ts keeps the names it imports. Golden file: the

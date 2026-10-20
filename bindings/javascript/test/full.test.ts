@@ -1,8 +1,6 @@
 // Tests of XQuery, XSLT and XSD validation in the JavaScript package under
-// Node.js (ctest javascript/languages and javascript/languages_full, wasm
-// preset). SXML_WASM_PATH names the module to load: on sxml-full.wasm
-// every test runs; on sxml.wasm, the core module, which links none of the
-// three (D189), only the test that they are refused.
+// Node.js (ctest javascript/languages, wasm preset). SXML_WASM_PATH names
+// the module to load, sxml.wasm, which has every language (D272).
 import assert from 'node:assert/strict';
 import { env } from 'node:process';
 import { describe, test } from 'node:test';
@@ -21,10 +19,9 @@ import {
 
 const wasmPath = env.SXML_WASM_PATH;
 if (wasmPath === undefined) {
-  throw new Error('set SXML_WASM_PATH to the sxml.wasm or sxml-full.wasm to test');
+  throw new Error('set SXML_WASM_PATH to the sxml.wasm to test');
 }
 const sxml = await load({ wasm: pathToFileURL(wasmPath) });
-const isFull = sxml.features.length > 0;
 
 /** Runs body with a fresh processor, then disposes it and checks that
  *  nothing it allocated is left. */
@@ -35,17 +32,7 @@ function withProcessor(body: (processor: Processor) => void, options = {}): void
   assert.equal(processor.liveAllocationCount(), 0, 'leaked allocations');
 }
 
-describe('the core module', { skip: isFull }, () => {
-  test('refuses XQuery, XSLT and XSD: they are in sxml-full.wasm', () => {
-    withProcessor((processor) => {
-      assert.throws(() => processor.compileQuery('1'), /XQuery needs the full module/);
-      assert.throws(() => processor.compileStylesheet('<x/>'), /XSLT needs the full module/);
-      assert.throws(() => processor.compileSchema('<x/>'), /XSD validation needs the full module/);
-    });
-  });
-});
-
-describe('XQuery', { skip: !isFull }, () => {
+describe('XQuery', () => {
   test('compiles once and evaluates many times with external variables', () => {
     withProcessor((processor) => {
       const query = processor.compileQuery(
@@ -208,7 +195,7 @@ describe('XQuery', { skip: !isFull }, () => {
 });
 
 const identity = `<xsl:stylesheet version="3.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
-    xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    xmlns:xs="http://www.w3.org/2001/XMLSchema" exclude-result-prefixes="xs">
   <xsl:output method="xml" omit-xml-declaration="yes"/>
   <xsl:param name="greeting" select="'Hello'"/>
   <xsl:template match="/">
@@ -230,7 +217,7 @@ const identity = `<xsl:stylesheet version="3.0" xmlns:xsl="http://www.w3.org/199
   </xsl:function>
 </xsl:stylesheet>`;
 
-describe('XSLT', { skip: !isFull }, () => {
+describe('XSLT', () => {
   test('compiles once and transforms many times with stylesheet parameters', () => {
     withProcessor((processor) => {
       const stylesheet = processor.compileStylesheet(identity);
@@ -263,6 +250,23 @@ describe('XSLT', { skip: !isFull }, () => {
       });
       assert.equal(result.output, undefined);
       assert.equal(result.value?.toString(), '42');
+    });
+  });
+
+  test('loads an XQuery library module with fn:load-xquery-module (D272)', () => {
+    withProcessor((processor) => {
+      const stylesheet = processor.compileStylesheet(`
+        <xsl:stylesheet version="3.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
+          <xsl:output omit-xml-declaration="yes"/>
+          <xsl:variable name="module">module namespace l = 'urn:lib';
+            declare function l:twice($x) { 2 * $x };</xsl:variable>
+          <xsl:template name="xsl:initial-template">
+            <out><xsl:value-of select="load-xquery-module('urn:lib', map {'content': string($module)})
+              ?functions(QName('urn:lib', 'twice'))?1(21)"/></out>
+          </xsl:template>
+        </xsl:stylesheet>`);
+      assert.equal(stylesheet.transform().output, '<out>42</out>');
+      stylesheet.dispose();
     });
   });
 
@@ -426,7 +430,7 @@ const purchaseOrder = `<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
   <xs:complexType name="loose"><xs:sequence><xs:any processContents="skip" maxOccurs="unbounded"/></xs:sequence></xs:complexType>
 </xs:schema>`;
 
-describe('XSD validation', { skip: !isFull }, () => {
+describe('XSD validation', () => {
   test('validates documents and returns the typed copy', () => {
     withProcessor((processor) => {
       const schema = processor.compileSchema({ text: purchaseOrder, uri: 'urn:po.xsd' });
@@ -531,7 +535,7 @@ describe('XSD validation', { skip: !isFull }, () => {
   });
 });
 
-describe('memory of the full module', { skip: !isFull }, () => {
+describe('memory of the languages', () => {
   test('disposing a processor releases its queries, stylesheets and schemas', () => {
     const processor = sxml.createProcessor();
     const query = processor.compileQuery('1');

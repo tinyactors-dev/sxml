@@ -1,9 +1,7 @@
 import { load } from '@tinyactors/sxml';
 
-// The full module adds XQuery, XSLT and XSD.
-const sxml = await load({
-  wasm: new URL('sxml-full.wasm', import.meta.resolve('@tinyactors/sxml')),
-});
+// The one module has XQuery, XSLT and XSD too.
+const sxml = await load();
 const processor = sxml.createProcessor();
 const library = processor.parse(`<books>
   <book year="1979"><title>Godel, Escher, Bach</title></book>

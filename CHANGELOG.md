@@ -53,8 +53,11 @@ not tagged yet, or into the next minor release.
   validation (an optional feature).
 - **XSLT 1.0 behaviour** and XPath 1.0 compatibility mode (`xpath.h`,
   D197, D206), EXSLT common; **disable-output-escaping** (D188).
-- **The JavaScript package** compiles XQuery, XSLT and schemas in
-  `sxml-full.wasm` (D216); `sxml.wasm` stays XPath only.
+- **The JavaScript package** compiles XQuery, XSLT and schemas (D216).
+  It is one module, `sxml.wasm`, with every language and every optional
+  feature but EXPath File (D272); `sxml-full.wasm` is no longer built,
+  and the package's `./sxml-full.wasm` export names `sxml.wasm`.
+- **fn:load-xquery-module** in XPath and XSLT too (F&O 4.0, 18.2; D272).
 - **The sxml command** writes files: `--output`, `--force`,
   `--result-directory`, `--method=csv` (D217).
 - Performance (D222, D224, D229, D232): XML parsing in bounded segments
