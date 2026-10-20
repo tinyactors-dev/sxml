@@ -1811,9 +1811,9 @@ Not run, by the first dependency that is not met:
 
 | Specification | Test cases | Run | Passed | of which wrong error | Failed | Errors | Not run | Passed of run |
 |---|--:|--:|--:|--:|--:|--:|--:|--:|
-| XT40 | 13,867 | 12,513 | 12,075 | 130 | 438 | 0 | 1,354 | 96.5 % |
+| XT40 | 13,867 | 12,518 | 12,081 | 130 | 437 | 0 | 1,349 | 96.5 % |
 
-Gate rate (D95): 8,275 of 8,728 in-scope test cases passed, **94.8 %** (in scope: the spec matches and no non-goal is needed; not-run cases count as not passed).
+Gate rate (D95): 8,281 of 8,728 in-scope test cases passed, **94.9 %** (in scope: the spec matches and no non-goal is needed; not-run cases count as not passed).
 
 Schema-aware (D174, area "schema-aware"): 928 of 971 test cases passed, **95.6 %** (the test cases that need schemaImport, schemaValidation or typedData, or whose environment has a schema or a validated source; outside the D95 denominator unless only their environment is schema-aware; not-run cases count as not passed).
 
@@ -1831,10 +1831,10 @@ Schema-aware (D174, area "schema-aware"): 928 of 971 test cases passed, **95.6 %
 | choose | 65 | 62 | 95.4 % |
 | copy | 146 | 133 | 91.1 % |
 | value-of | 15 | 14 | 93.3 % |
-| result-document | 150 | 143 | 95.3 % |
+| result-document | 150 | 148 | 98.7 % |
 | function | 124 | 113 | 91.1 % |
 
-XSLT slice (`tests/xslt/slice.txt`): **149/154 passed**.
+XSLT slice (`tests/xslt/slice.txt`): **150/154 passed**.
 
 ### XT40 by area
 
@@ -1843,8 +1843,8 @@ XSLT slice (`tests/xslt/slice.txt`): **149/154 passed**.
 | Attributes: `tests/attr/` | 1,634 | 1,578 | 1,478 | 13 | 100 | 0 | 56 | 93.7 % |
 | Declarations: `tests/decl/` | 1,497 | 1,451 | 1,377 | 29 | 74 | 0 | 46 | 94.9 % |
 | Expressions: `tests/expr/` | 739 | 733 | 724 | 0 | 9 | 0 | 6 | 98.8 % |
-| Functions: `tests/fn/` | 1,339 | 1,304 | 1,241 | 5 | 63 | 0 | 35 | 95.2 % |
-| Instructions: `tests/insn/` | 1,996 | 1,919 | 1,837 | 34 | 82 | 0 | 77 | 95.7 % |
+| Functions: `tests/fn/` | 1,339 | 1,305 | 1,242 | 5 | 63 | 0 | 34 | 95.2 % |
+| Instructions: `tests/insn/` | 1,996 | 1,923 | 1,842 | 34 | 81 | 0 | 73 | 95.8 % |
 | Miscellaneous: `tests/misc/` | 3,123 | 2,017 | 1,979 | 29 | 38 | 0 | 1,106 | 98.1 % |
 | Streaming (out of scope, D95): `tests/strm/` | 2,564 | 2,564 | 2,521 | 6 | 43 | 0 | 0 | 98.3 % |
 | Other | 975 | 947 | 918 | 14 | 29 | 0 | 28 | 96.9 % |
@@ -1855,7 +1855,7 @@ Failed and error test cases by the error code the query raised (or the status th
 
 | Error code | Test cases |
 |---|--:|
-| (no error: wrong result) | 294 |
+| (no error: wrong result) | 293 |
 | XTSE0340 | 48 |
 | XPTY0004 | 14 |
 | XPST0017 | 12 |
@@ -1890,8 +1890,8 @@ The 25 most frequent reasons:
 | XTSE0340: the text is not a pattern (XSLT 4.0, 6.3.1) | 48 |
 | XPST0017: no function with this name and arity is known | 12 |
 | XPTY0004: The value does not match the required type (XPath 4.0, section 3.4, coercion rules) | 11 |
-| wrong result (serialization-matches) | 9 |
 | XTSE3000: No package of the name and version an xsl:use-package asks for is found (XSLT 4.0, 3.4.3) | 8 |
+| wrong result (serialization-matches) | 8 |
 | XTDE0040: the stylesheet has no template of the initial template's name (XSLT 4.0, 2.4.4) | 5 |
 | assert: the expected value raised err:XPDY0050: The value of a treat expression does not match its… | 4 |
 | FODC0002: No such collection | 3 |
@@ -1935,7 +1935,6 @@ Not run, by the first dependency that is not met:
 | feature schema_aware (satisfied) | 22 |
 | feature XSD_1.1 | 8 |
 | year_component_values support year above 9999 (satisfied) | 7 |
-| assert-serialization: not checked by the driver | 6 |
 | feature backwards_compatibility (satisfied) | 6 |
 | unsupported: assert-warning | 6 |
 | year_component_values support negative year (satisfied) | 6 |
@@ -1945,6 +1944,7 @@ Not run, by the first dependency that is not met:
 | package_version_resolution unspecified | 4 |
 | unparsed_text_encoding iso-8859-1 | 4 |
 | feature HTML4 | 3 |
+| environment collation | 2 |
 
 ### XT40 test sets with the most failures
 
@@ -2072,7 +2072,7 @@ Not run, by the first dependency that is not met:
 | snapshot | 35 | 35 | 0 | 0 | 0 | 0 |
 | stream-available | 6 | 0 | 0 | 6 | 0 | 0 |
 | system-property | 29 | 23 | 0 | 0 | 0 | 6 |
-| transform | 12 | 9 | 0 | 2 | 0 | 1 |
+| transform | 12 | 10 | 0 | 2 | 0 | 0 |
 | type-available | 8 | 5 | 0 | 1 | 0 | 2 |
 | unparsed-entity-uri | 12 | 12 | 0 | 0 | 0 | 0 |
 | unparsed-text | 7 | 1 | 0 | 2 | 0 | 4 |
@@ -2101,7 +2101,7 @@ Not run, by the first dependency that is not met:
 | number | 274 | 274 | 2 | 0 | 0 | 0 |
 | on-empty | 72 | 71 | 0 | 1 | 0 | 0 |
 | on-non-empty | 14 | 12 | 0 | 2 | 0 | 0 |
-| result-document | 163 | 143 | 1 | 3 | 0 | 17 |
+| result-document | 163 | 148 | 1 | 2 | 0 | 13 |
 | sequence | 97 | 88 | 1 | 4 | 0 | 5 |
 | sort | 83 | 82 | 0 | 0 | 0 | 1 |
 | source-document | 60 | 56 | 2 | 3 | 0 | 1 |
