@@ -30,7 +30,7 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 (bindings/kotlin/DESIGN.md, bindings/swift/DESIGN.md).
 
 
-- 4.27: XSLT sweep (D273's open list).
+- 4.28: XSLT sweep (D274's open list).
 - 2.25: XPath/XQuery sweep (D263's open list; XSLT's per-element default
   collation, choose-0107 and collations-0121..0124).
 
@@ -117,6 +117,14 @@ are not hoisted from; current-merge-group(()) per 15.5.1; globals computed
 on first read (GLOBAL_READ); typed modes and XTSE3105; XT40 11,943 at its
 last run. Left: document-4066 (fn:document's schema validation does not
 raise FODC0002); a global's side effects now happen at its first read.
+
+XSLT (4.27, D274): XT40 12,210 -> 12,226 by its own changes; 12,239
+passed, 279 failed at 92a8a8c with 2.25's first commits. Left:
+xsl:next-match in attribute sets (2), per-package strip-space for
+fn:document (document-2401), fragment identifiers in xsl:source-document
+(docbook-003/004), strip-space "none" returning XSLT's stripped copy of an
+available document, XTTE line numbers (D271), namespace-2606. Draft wins:
+key-070, error-0150b/c/e, iterate-006, maps-910, iterate-024.
 
 XSLT (4.26, D273): XT40 12,191 -> 12,209 passed, 309 failed. Given to
 2.25: `//` lowered right-nested in xpath_lower.c gives duplicate nodes
