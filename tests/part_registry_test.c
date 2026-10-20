@@ -87,16 +87,19 @@ static bool lowering_list_has(sxml_xpath_lowering_part_view list, const char *pa
 }
 
 /* XQuery's own parts are not XPath's (XQuery 4.0's FLWOR clauses, XQuery
-   Update, Full Text), and computed constructors (XPath 4.0, 4.13) are. */
+   Update), and computed constructors (XPath 4.0, 4.13) and Full Text's
+   contains rule (XQuery and XPath Full Text 3.0, D235) are. */
 static void test_xpath_lowering_list_has_no_xquery_part(sxml_test_state *state) {
     const sxml_xpath_lowering_part_view xpath = *sxml_xpath_lowering_xpath_parts();
     const sxml_xpath_lowering_part_view xquery = *sxml_xpath_lowering_xquery_parts();
-    static const char *const xquery_only[] = {"xquery", "update", "full_text"};
+    static const char *const xquery_only[] = {"xquery", "update"};
     for (size_t name_index = 0; name_index < SXML_TEST_COUNT(xquery_only); name_index += 1) {
         SXML_TEST_EXPECT(state, lowering_list_has(xquery, xquery_only[name_index]));
         SXML_TEST_EXPECT(state, !lowering_list_has(xpath, xquery_only[name_index]));
     }
     SXML_TEST_EXPECT(state, lowering_list_has(xpath, "construct"));
+    SXML_TEST_EXPECT(state, lowering_list_has(xpath, "full_text"));
+    SXML_TEST_EXPECT(state, lowering_list_has(xquery, "full_text"));
 }
 
 /* ---------------------------------------------------------- Evaluator */

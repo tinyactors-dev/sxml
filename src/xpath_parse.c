@@ -615,12 +615,15 @@ static sxml_ast_kind sxml_xpath_kind_of(const sxml_ast_front_end *front_end,
         return SXML_AST_KIND_NONE;
     }
     const char *node_type = ts_node_type(node);
-    const sxml_ast_kind kind = sxml_xpath_kind_of_node_type(node_type);
-    if (kind != SXML_AST_KIND_NONE || front_end->part == NULL) {
-        return kind;
+    sxml_ast_kind kind = sxml_xpath_kind_of_node_type(node_type);
+    /* The part's table, then its extension's (D235). */
+    for (const sxml_ast_parser_part *table_part = front_end->part;
+         kind == SXML_AST_KIND_NONE && table_part != NULL;
+         table_part = table_part->extension) {
+        kind = sxml_xpath_part_kind_of(table_part->node_types,
+                                       sxml_byte_view_from_c_string(node_type));
     }
-    return sxml_xpath_part_kind_of(front_end->part->node_types,
-                                   sxml_byte_view_from_c_string(node_type));
+    return kind;
 }
 
 /* The AST field of field_name; SXML_AST_FIELD_NONE for NULL or unknown. */
@@ -655,7 +658,8 @@ typedef struct sxml_xpath_field_query {
 } sxml_xpath_field_query;
 
 /*
- * The AST field of a named child: the XPath table's, else the part's;
+ * The AST field of a named child: the XPath table's, else the part's or
+ * its extension's;
  * for a child without a grammar field, the part's unnamed child entry for
  * the parent's kind (D111). SXML_AST_FIELD_NONE when there is none.
  */
@@ -677,12 +681,13 @@ static sxml_ast_field sxml_xpath_field_of(const sxml_ast_front_end *front_end,
         }
         return SXML_AST_FIELD_NONE;
     }
-    const sxml_ast_field field = sxml_xpath_field_of_name(query.field_name);
-    if (field != SXML_AST_FIELD_NONE || part == NULL) {
-        return field;
+    sxml_ast_field field = sxml_xpath_field_of_name(query.field_name);
+    /* The part's table, then its extension's (D235). */
+    for (; field == SXML_AST_FIELD_NONE && part != NULL; part = part->extension) {
+        field = sxml_xpath_part_field_of(
+            part->fields, sxml_byte_view_from_c_string(query.field_name));
     }
-    return sxml_xpath_part_field_of(
-        part->fields, sxml_byte_view_from_c_string(query.field_name));
+    return field;
 }
 
 static sxml_ast_operator sxml_xpath_operator_of(sxml_byte_view token) {
@@ -1146,25 +1151,28 @@ static uint32_t sxml_xpath_jroot_selector_end(TSNode opening) {
 }
 
 /*
- * Lets the part claim token (D111); true when it did, so the XPath rules
- * are skipped.
+ * Lets the part, then its extension (D235), claim token (D111); true when
+ * one did, so the XPath rules are skipped.
  */
 static bool sxml_xpath_apply_part_token(const sxml_ast_front_end *front_end,
                                         sxml_xpath_token token,
                                         sxml_ast_node_request *request) {
-    const sxml_ast_parser_part *part = front_end->part;
-    if (part == NULL || part->apply_token == NULL) {
-        return false;
-    }
     const sxml_byte_view field_name =
         token.field_name == NULL
             ? (sxml_byte_view){.bytes = NULL, .byte_count = 0}
             : sxml_byte_view_from_c_string(token.field_name);
-    return part->apply_token(
-        (sxml_ast_parser_token){
-            .field_name = field_name,
-            .written = sxml_xpath_node_text(front_end, token.node)},
-        request);
+    for (const sxml_ast_parser_part *token_part = front_end->part;
+         token_part != NULL; token_part = token_part->extension) {
+        if (token_part->apply_token != NULL &&
+            token_part->apply_token(
+                (sxml_ast_parser_token){
+                    .field_name = field_name,
+                    .written = sxml_xpath_node_text(front_end, token.node)},
+                request)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /*

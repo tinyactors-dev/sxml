@@ -54,7 +54,9 @@
 
 #include "decimal_internal.h"
 #include "evaluator_machine_internal.h"
+#include "full_text_internal.h"
 #include "operator_internal.h"
+#include "optional_feature_internal.h"
 #include "ir_pass_internal.h"
 #include "schema_scope_internal.h"
 #include "xml_internal.h"
@@ -7603,6 +7605,8 @@ typedef struct binding_locals {
     sxml_ir_atom value;
     sxml_ir_slot item;
     sxml_ir_slot position;
+    /* A for binding's score (Full Text 3.0, 2.3.1), bound in the body. */
+    sxml_ir_atom score;
     size_t scope_mark;
     /* A for or quantifier binding's body. */
     sxml_xpath_lowering_block body_block;
@@ -7618,6 +7622,7 @@ enum {
     SXML_LOWERING_BINDING_STEP_ITERATING_REST = 4,
     SXML_LOWERING_BINDING_STEP_LET_REST = 5,
     SXML_LOWERING_BINDING_STEP_RESULT = 6,
+    SXML_LOWERING_BINDING_STEP_ITERATING_SCORE = 7,
 };
 
 /* Pushes the frame of the binding after the current one, lowered in
@@ -7894,6 +7899,30 @@ static sxml_status push_range_variables(sxml_xpath_lowerer *state,
     }
 }
 
+/* The score of a for binding with a score variable (Full Text 3.0,
+   2.3.1): the feature's for score procedure, before the binding's
+   variables are in scope, as XQuery's for clause lowers it (D235). Only
+   grammars/xpath_full_text, which the feature brings, has the syntax. */
+static sxml_status call_for_score(sxml_xpath_lowering_machine *machine,
+                                  sxml_xpath_lowering_frame *frame) {
+    sxml_xpath_lowerer *state = machine->state;
+    binding_locals *locals = frame->locals;
+    const sxml_full_text_operations *operations = sxml_processor_find_optional_feature(
+        state->static_context->processor, SXML_OPTIONAL_FEATURE_KIND_FULL_TEXT);
+    if (operations == NULL) {
+        return sxml_xpath_lowerer_report_unsupported(
+            state, locals->cursor.binding,
+            SXML_BYTE_VIEW_FROM_LITERAL("score variables need the optional feature full-text"));
+    }
+    frame->step = SXML_LOWERING_BINDING_STEP_ITERATING_SCORE;
+    return operations->call_for_score(
+        machine, &(sxml_xquery_full_text_for_score_request){
+                     .binding = locals->cursor.binding,
+                     .item = sxml_ir_slot_atom(locals->item),
+                     .block = &locals->body_block,
+                     .score = &locals->score});
+}
+
 /* A for or quantifier binding, its sequence lowered: a MAP or QUANTIFIED
    over it whose body is the rest of the bindings. */
 static sxml_status continue_iterating_binding(sxml_xpath_lowering_machine *machine,
@@ -7903,6 +7932,8 @@ static sxml_status continue_iterating_binding(sxml_xpath_lowering_machine *machi
     const sxml_ast_node_index binding = locals->cursor.binding;
     const sxml_ast_node_index positional =
         child_of(state, binding, SXML_AST_FIELD_POSITION);
+    const sxml_ast_node_index score = child_of(state, binding, SXML_AST_FIELD_SCORE);
+    bool binds_variables = false;
     if (frame->step == SXML_LOWERING_BINDING_STEP_ITERATING_VALUE) {
         frame->step = SXML_LOWERING_BINDING_STEP_ITERATING_REST;
         const sxml_ast_kind kind = node_of(state, binding)->kind;
@@ -7918,9 +7949,19 @@ static sxml_status continue_iterating_binding(sxml_xpath_lowering_machine *machi
             status = sxml_xpath_lowerer_add_slot(state, &locals->position);
         }
         locals->scope_mark = state->scope_entry_count;
-        if (status == SXML_STATUS_OK) {
-            status = push_range_variables(state, frame);
+        if (status != SXML_STATUS_OK) {
+            return status;
         }
+        if (score.value != 0) {
+            return call_for_score(machine, frame);
+        }
+        binds_variables = true;
+    } else if (frame->step == SXML_LOWERING_BINDING_STEP_ITERATING_SCORE) {
+        frame->step = SXML_LOWERING_BINDING_STEP_ITERATING_REST;
+        binds_variables = true;
+    }
+    if (binds_variables) {
+        sxml_status status = push_range_variables(state, frame);
         if (status == SXML_STATUS_OK && positional.value != 0) {
             sxml_name_identifier position_name = {0};
             status = sxml_xpath_lowerer_resolve_variable_name(
@@ -7964,6 +8005,20 @@ static sxml_status continue_iterating_binding(sxml_xpath_lowering_machine *machi
                     (sxml_xpath_lowering_scope_entry){.variable_name = position_name,
                                   .function_level = state->function->function_level,
                                   .atom = sxml_ir_slot_atom(locals->position)});
+            }
+        }
+        if (status == SXML_STATUS_OK && score.value != 0) {
+            /* "score $s" (Full Text 3.0, 2.3.1; its name differs from the
+               binding's others, XQST0089, by the feature's static rules). */
+            sxml_name_identifier score_name = {0};
+            status = sxml_xpath_lowerer_resolve_variable_name(
+                state, child_of(state, score, SXML_AST_FIELD_NAME), &score_name);
+            if (status == SXML_STATUS_OK) {
+                status = sxml_xpath_lowerer_push_variable(
+                    state, (sxml_xpath_lowering_scope_entry){
+                               .variable_name = score_name,
+                               .function_level = state->function->function_level,
+                               .atom = locals->score});
             }
         }
         if (status != SXML_STATUS_OK) {
@@ -8226,6 +8281,7 @@ static sxml_status continue_binding(sxml_xpath_lowering_machine *machine,
     case SXML_LOWERING_BINDING_STEP_BINDING:
         return begin_binding(machine, frame);
     case SXML_LOWERING_BINDING_STEP_ITERATING_VALUE:
+    case SXML_LOWERING_BINDING_STEP_ITERATING_SCORE:
     case SXML_LOWERING_BINDING_STEP_ITERATING_REST:
         return continue_iterating_binding(machine, frame);
     case SXML_LOWERING_BINDING_STEP_LET_VALUE: {
@@ -9442,17 +9498,35 @@ sxml_status sxml_xpath_compile(const sxml_xpath_compile_request *request,
     if (request == NULL || request->static_context == NULL) {
         return SXML_STATUS_INVALID_ARGUMENT;
     }
+    /* XQuery and XPath Full Text 3.0 (Appendix B; D235): with the optional
+       feature full-text, XPath parses with grammars/xpath_full_text and
+       the feature's static rules run; without it, grammars/xpath has no
+       Full Text syntax, so it is XPST0003 there (D162). */
+    const sxml_full_text_operations *full_text = sxml_processor_find_optional_feature(
+        request->static_context->processor, SXML_OPTIONAL_FEATURE_KIND_FULL_TEXT);
+    const sxml_ast_build_request build_request = {
+        .expression_text = request->expression_text,
+        .source_name = request->source_name,
+        .allocator = request->static_context->allocator,
+        .maximum_expression_depth = request->maximum_expression_depth,
+        .error_record = request->error_record};
     sxml_ast *ast = NULL;
-    sxml_status status = sxml_xpath_build_ast(
-        &(sxml_ast_build_request){
-            .expression_text = request->expression_text,
-            .source_name = request->source_name,
-            .allocator = request->static_context->allocator,
-            .maximum_expression_depth = request->maximum_expression_depth,
-            .error_record = request->error_record},
-        &ast);
+    sxml_status status =
+        full_text == NULL
+            ? sxml_xpath_build_ast(&build_request, &ast)
+            : sxml_ast_build_with_parser_part(&build_request, full_text->xpath_parser_part, &ast);
     if (status != SXML_STATUS_OK) {
         return status;
+    }
+    if (full_text != NULL) {
+        status = full_text->check_rules(&(sxml_xquery_full_text_rules_request){
+            .ast = ast,
+            .processor = request->static_context->processor,
+            .error_record = request->error_record});
+        if (status != SXML_STATUS_OK) {
+            sxml_ast_destroy(ast);
+            return status;
+        }
     }
     status = check_namespace_declarations(ast, request->error_record);
     if (status != SXML_STATUS_OK) {

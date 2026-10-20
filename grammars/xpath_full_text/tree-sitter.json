@@ -1,0 +1,19 @@
+{
+  "grammars": [
+    {
+      "name": "xpath_full_text",
+      "camelcase": "XPathFullText",
+      "scope": "source.xpath-full-text",
+      "path": ".",
+      "file-types": ["xpft"]
+    }
+  ],
+  "metadata": {
+    "version": "0.1.0",
+    "license": "MIT",
+    "description": "XPath 4.0 with Full Text 3.0 grammar for sxml",
+    "links": {
+      "repository": "https://github.com/dhamidi/sxml"
+    }
+  }
+}

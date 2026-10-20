@@ -1,9 +1,11 @@
 /*
- * The XQuery lowering part `full_text` (src/xpath_lower_internal.h;
- * src/full_text_internal.h; docs/DECISIONS.md D103, D189, D214; packet
- * 7.12a): what XQuery's lowering always links of XQuery and XPath Full
- * Text 3.0, kept small so that a program without the optional feature
- * full-text (sxml.wasm) carries little of it:
+ * The lowering part `full_text` (src/xpath_lower_internal.h;
+ * src/full_text_internal.h; docs/DECISIONS.md D103, D189, D214, D235;
+ * packets 7.12a and 7.12d): what XQuery's lowering always links of XQuery
+ * and XPath Full Text 3.0, kept small so that a program without the
+ * optional feature full-text (sxml.wasm) carries little of it. XPath's
+ * lowering links its rule only: XPath reaches the for score procedure
+ * through the feature's operations.
  *
  * - the D162 place: without the feature, the first Full Text construct
  *   of a module is XPST0003 (a processor without Full Text does not
@@ -452,7 +454,9 @@ static const sxml_xpath_lowering_rule full_text_rules[] = {
     {.kind = SXML_AST_KIND_FT_CONTAINS_EXPRESSION, .procedure = &contains_procedure},
 };
 
+/* XPath's too (D235): XPath parses Full Text only with the feature
+   (grammars/xpath_full_text), so its D162 place is the grammar. */
 const sxml_xpath_lowering_part sxml_xpath_lowering_part_full_text = {
-    .languages = SXML_LANGUAGE_XQUERY,
+    .languages = SXML_LANGUAGE_XPATH | SXML_LANGUAGE_XQUERY,
     .rules = full_text_rules,
     .rule_count = sizeof(full_text_rules) / sizeof(full_text_rules[0])};

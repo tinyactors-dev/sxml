@@ -1,11 +1,11 @@
 /*
  * Tests for XQuery and XPath Full Text 3.0 through include/sxml/xquery.h
- * alone (docs/DECISIONS.md D214): contains text with every connective,
- * FTWords variant, positional filter and the match options sxml has, the
- * score variables, the static rules, the dynamic errors, the ignore
- * option and the processor without the feature full-text. Every case
- * checks for leaked cells and allocations; one runs under failing
- * allocations.
+ * and include/sxml/xpath.h alone (docs/DECISIONS.md D214, D235): contains
+ * text with every connective, FTWords variant, positional filter and the
+ * match options sxml has, the score variables, the static rules, the
+ * dynamic errors, the ignore option, XPath with Full Text (Appendix B)
+ * and the processor without the feature full-text. Every case checks for
+ * leaked cells and allocations; one runs under failing allocations.
  *
  * Golden file: tests/xquery_update_test.c.
  */
@@ -13,6 +13,7 @@
 #include "sxml/processor.h"
 #include "sxml/serialize.h"
 #include "sxml/xdm.h"
+#include "sxml/xpath.h"
 #include "sxml/xquery.h"
 #include "test_runner.h"
 
@@ -132,6 +133,37 @@ static sxml_status run_query(const fixture *test_fixture, query_run *run) {
         sxml_sequence_release(result);
     }
     sxml_xquery_query_destroy(query);
+    return status;
+}
+
+/* As run_query for an XPath expression (sxml_xpath_expression_create),
+   serialized with the default parameters (the adaptive method). */
+static sxml_status run_xpath(const fixture *test_fixture, query_run *run) {
+    memset(&run->error_record, 0, sizeof(run->error_record));
+    sxml_output_buffer_clear(test_fixture->output_buffer);
+    sxml_xpath_expression *expression = NULL;
+    sxml_status status = sxml_xpath_expression_create(
+        fixture_allocator(test_fixture),
+        &(sxml_xpath_expression_configuration){.processor = test_fixture->processor,
+                                               .expression_text = run->expression_text,
+                                               .source_name = TEXT("test.xpath"),
+                                               .error_record = &run->error_record},
+        &expression);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_sequence result = sxml_sequence_empty();
+    status = sxml_xpath_expression_evaluate(
+        expression, &(sxml_xpath_evaluation_request){.error_record = &run->error_record},
+        &result);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_serialize_sequence(
+            sxml_processor_get_item_heap(test_fixture->processor),
+            &(sxml_serialization_request){.value = result, .error_record = &run->error_record},
+            sxml_output_buffer_as_output_stream(test_fixture->output_buffer));
+        sxml_sequence_release(result);
+    }
+    sxml_xpath_expression_destroy(expression);
     return status;
 }
 
@@ -411,6 +443,67 @@ static void test_without_the_feature_full_text_is_a_syntax_error(sxml_test_state
     SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
 }
 
+/* ------------------------------------------------------------- XPath */
+
+/* XPath with Full Text (Appendix B; D235): contains text and the score
+   variables of for bindings, with the feature; XPST0003 without it, as
+   grammars/xpath has no Full Text syntax. XPath's let bindings take no
+   score variable (B [13]). */
+static void test_xpath_has_full_text_with_the_feature(sxml_test_state *state) {
+    static const query_case cases[] = {
+        QUERY_VALUE("xpath contains text", "'Web site usability' contains text 'usability'",
+                    "true()"),
+        QUERY_VALUE("xpath stemming",
+                    "('Improving usability', 'Cooking') ! "
+                    "(. contains text 'improve' using stemming)",
+                    "true()\nfalse()"),
+        QUERY_VALUE("xpath for score",
+                    "for $t at $i score $s in ('a b', 'c')[. contains text 'b'] "
+                    "return ($i, $s gt 0, $s lt 1)",
+                    "1\ntrue()\ntrue()"),
+        QUERY_VALUE("xpath for score without a contains predicate",
+                    "for $t score $s in (1, 2) return $s", "1.0e0\n1.0e0"),
+        QUERY_ERROR("xpath XQST0089", "for $t score $t in 1 return 1", "XQST0089"),
+        QUERY_ERROR("xpath FTST0009", "'a' contains text 'a' using language 'th'", "FTST0009"),
+        QUERY_ERROR("xpath let score", "let score $s := 1 return $s", "XPST0003"),
+    };
+    fixture test_fixture;
+    SXML_TEST_EXPECT(state,
+                     fixture_create((fixture_request){.has_full_text = true}, &test_fixture) ==
+                         SXML_STATUS_OK);
+    for (size_t case_index = 0; case_index < sizeof(cases) / sizeof(cases[0]); case_index += 1) {
+        const query_case *current = &cases[case_index];
+        query_run run = {.expression_text = current->expression_text};
+        const sxml_status status = run_xpath(&test_fixture, &run);
+        const bool passed =
+            current->expected_error_code.byte_count > 0
+                ? status != SXML_STATUS_OK &&
+                      sxml_byte_view_equals(run.error_record.code.local_name,
+                                            current->expected_error_code)
+                : status == SXML_STATUS_OK && output_is(&test_fixture, current->expected_output);
+        (void)sxml_test_record_check(state, (sxml_test_check){.passed = passed,
+                                                              .expression = current->case_name,
+                                                              .file_name = __FILE__,
+                                                              .line_number = __LINE__});
+    }
+    SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
+    SXML_TEST_EXPECT(state,
+                     fixture_create((fixture_request){.has_full_text = false}, &test_fixture) ==
+                         SXML_STATUS_OK);
+    static const sxml_byte_view without[] = {
+        SXML_BYTE_VIEW_INITIALIZER("'a' contains text 'a'"),
+        SXML_BYTE_VIEW_INITIALIZER("for $a score $s in 1 return $s"),
+    };
+    for (size_t query_index = 0; query_index < sizeof(without) / sizeof(without[0]);
+         query_index += 1) {
+        query_run run = {.expression_text = without[query_index]};
+        SXML_TEST_EXPECT(state, run_xpath(&test_fixture, &run) == SXML_STATUS_STATIC_ERROR);
+        SXML_TEST_EXPECT(state,
+                         sxml_byte_view_equals(run.error_record.code.local_name, TEXT("XPST0003")));
+    }
+    SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
+}
+
 /* ------------------------------------------------- Failing allocations */
 
 static const sxml_byte_view failing_query = SXML_BYTE_VIEW_INITIALIZER(
@@ -468,6 +561,8 @@ static const sxml_test_case full_text_test_cases[] = {
      .function = test_stop_words_and_thesauri_come_from_the_resolver},
     {.name = "without_the_feature_full_text_is_a_syntax_error",
      .function = test_without_the_feature_full_text_is_a_syntax_error},
+    {.name = "xpath_has_full_text_with_the_feature",
+     .function = test_xpath_has_full_text_with_the_feature},
     {.name = "contains_survives_allocation_failures",
      .function = test_contains_survives_allocation_failures},
 };

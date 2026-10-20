@@ -153,6 +153,9 @@ sxml_add_cli_test(xpath_invisible_xml_error EXIT_CODE 1 ARGUMENTS xpath "invisib
 # (packet 7.12c, D214).
 sxml_add_cli_test(xquery_full_text EXIT_CODE 0 ARGUMENTS xquery "--expression=('Improving usability' contains text 'improve' using stemming, 'propagating the errors' contains text 'propagating of errors' using stop words at 'full-text/stop-words.txt', 'the software' contains text 'program' using thesaurus at 'full-text/thesaurus.xml')")
 sxml_add_cli_test(xquery_full_text_missing_thesaurus EXIT_CODE 1 ARGUMENTS xquery "--expression='a' contains text 'a' using thesaurus at 'full-text/missing.xml'")
+# Full Text in XPath (Appendix B; packet 7.12d, D235): a score variable,
+# stemming and a thesaurus read as a local file.
+sxml_add_cli_test(xpath_full_text EXIT_CODE 0 ARGUMENTS xpath "for $title score $score in ('Improving usability', 'Cooking')[. contains text 'improve' using stemming ftand 'usability'] return ($title, $score gt 0), 'the software' contains text 'program' using thesaurus at 'full-text/thesaurus.xml'")
 # Relative names resolve against the working directory, the static base URI
 # of the query commands (packet 7.10b): fn:html-doc and fn:unparsed-text.
 sxml_add_cli_test(xpath_relative_html_doc EXIT_CODE 0 ARGUMENTS xpath "string-join((html-doc('page.html')//*:p ! normalize-space(), unparsed-text('note.txt') => normalize-space()), ' ')")

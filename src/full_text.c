@@ -417,11 +417,36 @@ static sxml_status score_contains(const sxml_function_call *call, sxml_sequence 
 
 /* ---------------------------------------------------------- Definition */
 
+/* Defined by the generated parser of grammars/xpath_full_text (D12,
+   D235). */
+const struct TSLanguage *
+tree_sitter_xpath_full_text(void); // NOLINT(readability-identifier-naming)
+
+/* XPath with Full Text (Appendix B; D235): the XPath front end's tables
+   and hooks, and Full Text's as the extension. Only the feature links its
+   grammar, so the core sxml.wasm keeps grammars/xpath alone. */
+static const sxml_ast_parser_part xpath_parser_part = {
+    .language = tree_sitter_xpath_full_text,
+    .root_node_type = SXML_BYTE_VIEW_INITIALIZER("xpath"),
+    .node_types = {.entries = NULL, .entry_count = 0},
+    .fields = {.entries = NULL, .entry_count = 0},
+    .unnamed_children = {.entries = NULL, .entry_count = 0},
+    /* The XPath front end's descriptions. */
+    .syntax_error_description = {.bytes = NULL, .byte_count = 0},
+    .missing_token_description = {.bytes = NULL, .byte_count = 0},
+    .apply_token = NULL,
+    .describe_payload = NULL,
+    .finish_node = NULL,
+    .extension = &sxml_full_text_parser_part,
+};
+
 static const sxml_full_text_operations full_text_operations = {
     .contains = contains,
     .score_contains = score_contains,
     .check_rules = sxml_full_text_check_rules,
     .lower_step = sxml_full_text_lower_step,
+    .xpath_parser_part = &xpath_parser_part,
+    .call_for_score = sxml_xquery_call_full_text_for_score,
 };
 
 const sxml_optional_feature_definition sxml_full_text_feature_definition = {

@@ -10,6 +10,7 @@
 #include "sxml/status.h"
 #include "sxml/view.h"
 #include "sxml/xdm.h"
+#include "xpath_ast_internal.h"
 #include "xpath_lower_internal.h"
 
 /*
@@ -17,8 +18,14 @@
  * `full_text_selection`, `all_matches`). Internal to sxml.
  *
  * The parts and where they live:
- * - src/xquery_lower_full_text.c, linked with XQuery's lowering (also in
- *   sxml.wasm), kept small: the D162 place (without the feature, Full
+ * - grammars/xpath/full_text.js, the productions, shared by
+ *   grammars/xquery and grammars/xpath_full_text (XPath with Full Text,
+ *   Appendix B), whose parser only the feature links (D235): without the
+ *   feature XPath parses with grammars/xpath, which has no Full Text
+ *   syntax (XPST0003). src/full_text_parse.c maps their node types,
+ *   fields and tokens for both.
+ * - src/xquery_lower_full_text.c, linked with XQuery's lowering and,
+ *   for its contains rule, XPath's (sxml.wasm), kept small: the D162 place (without the feature, Full
  *   Text is XPST0003: a processor without Full Text does not accept its
  *   syntax), the lowering rule whose step is the feature's, the internal
  *   native rows below and the score of let score. It never names the
@@ -642,4 +649,23 @@ typedef struct sxml_full_text_operations {
     /* sxml_full_text_lower_step. */
     sxml_status (*lower_step)(sxml_xpath_lowering_machine *machine,
                               sxml_xpath_lowering_frame *frame);
+    /* The parser part of XPath with Full Text (grammars/xpath_full_text,
+       its extension sxml_full_text_parser_part), which sxml_xpath_compile
+       parses with when the processor has the feature (D235). */
+    const sxml_ast_parser_part *xpath_parser_part;
+    /* sxml_xquery_call_full_text_for_score, for the for bindings of
+       XPath's lowering (src/xpath_lower.c), which does not link it
+       itself. */
+    sxml_status (*call_for_score)(sxml_xpath_lowering_machine *machine,
+                                  const sxml_xquery_full_text_for_score_request *request);
 } sxml_full_text_operations;
+
+/* ------------------------------------------- Parsing (src/full_text_parse.c) */
+
+/*
+ * The Full Text parser part (D111, D235): the ft_* node types, the fields
+ * and the tokens of the productions of grammars/xpath/full_text.js. It
+ * has no grammar of its own: XQuery's parser part and the XPath Full Text
+ * part name it as their extension (src/xpath_ast_internal.h).
+ */
+extern const sxml_ast_parser_part sxml_full_text_parser_part;

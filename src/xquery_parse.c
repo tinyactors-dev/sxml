@@ -30,6 +30,7 @@
  *
  * Section numbers are of XQuery 4.0 (W3C QT4 CG draft, 13 October 2026).
  */
+#include "full_text_internal.h"
 #include "sort_internal.h"
 #include "xpath_ast_internal.h"
 #include "xml_internal.h"
@@ -46,7 +47,8 @@ tree_sitter_xquery(void); // NOLINT(readability-identifier-naming)
  * Every named node type of grammars/xquery/src/node-types.json that
  * grammars/xpath does not have and that makes an AST node, sorted in byte
  * order. Not here: allowing_empty, which is absorbed as a flag of its
- * for_item_binding (D111).
+ * for_item_binding (D111), and the ft_* node types of Full Text, which are
+ * the extension's (src/full_text_parse.c, D235).
  */
 static const sxml_ast_node_type_entry sxml_xquery_node_types[] = {
     {SXML_BYTE_VIEW_INITIALIZER("annotation"), SXML_AST_KIND_ANNOTATION},
@@ -100,49 +102,6 @@ static const sxml_ast_node_type_entry sxml_xquery_node_types[] = {
      SXML_AST_KIND_EXTENSION_EXPRESSION},
     {SXML_BYTE_VIEW_INITIALIZER("finally_clause"),
      SXML_AST_KIND_FINALLY_CLAUSE},
-    {SXML_BYTE_VIEW_INITIALIZER("ft_and"), SXML_AST_KIND_FT_AND},
-    {SXML_BYTE_VIEW_INITIALIZER("ft_case_option"),
-     SXML_AST_KIND_FT_CASE_OPTION},
-    {SXML_BYTE_VIEW_INITIALIZER("ft_contains_expression"),
-     SXML_AST_KIND_FT_CONTAINS_EXPRESSION},
-    {SXML_BYTE_VIEW_INITIALIZER("ft_content"), SXML_AST_KIND_FT_CONTENT},
-    {SXML_BYTE_VIEW_INITIALIZER("ft_diacritics_option"),
-     SXML_AST_KIND_FT_DIACRITICS_OPTION},
-    {SXML_BYTE_VIEW_INITIALIZER("ft_distance"), SXML_AST_KIND_FT_DISTANCE},
-    {SXML_BYTE_VIEW_INITIALIZER("ft_extension_option"),
-     SXML_AST_KIND_FT_EXTENSION_OPTION},
-    {SXML_BYTE_VIEW_INITIALIZER("ft_extension_selection"),
-     SXML_AST_KIND_FT_EXTENSION_SELECTION},
-    {SXML_BYTE_VIEW_INITIALIZER("ft_language_option"),
-     SXML_AST_KIND_FT_LANGUAGE_OPTION},
-    {SXML_BYTE_VIEW_INITIALIZER("ft_mild_not"), SXML_AST_KIND_FT_MILD_NOT},
-    {SXML_BYTE_VIEW_INITIALIZER("ft_option_declaration"),
-     SXML_AST_KIND_FT_OPTION_DECLARATION},
-    {SXML_BYTE_VIEW_INITIALIZER("ft_or"), SXML_AST_KIND_FT_OR},
-    {SXML_BYTE_VIEW_INITIALIZER("ft_order"), SXML_AST_KIND_FT_ORDER},
-    {SXML_BYTE_VIEW_INITIALIZER("ft_primary_with_options"),
-     SXML_AST_KIND_FT_PRIMARY_WITH_OPTIONS},
-    {SXML_BYTE_VIEW_INITIALIZER("ft_range"), SXML_AST_KIND_FT_RANGE},
-    {SXML_BYTE_VIEW_INITIALIZER("ft_scope"), SXML_AST_KIND_FT_SCOPE},
-    {SXML_BYTE_VIEW_INITIALIZER("ft_score_variable"),
-     SXML_AST_KIND_FT_SCORE_VARIABLE},
-    {SXML_BYTE_VIEW_INITIALIZER("ft_selection"), SXML_AST_KIND_FT_SELECTION},
-    {SXML_BYTE_VIEW_INITIALIZER("ft_stem_option"),
-     SXML_AST_KIND_FT_STEM_OPTION},
-    {SXML_BYTE_VIEW_INITIALIZER("ft_stop_word_option"),
-     SXML_AST_KIND_FT_STOP_WORD_OPTION},
-    {SXML_BYTE_VIEW_INITIALIZER("ft_stop_words"), SXML_AST_KIND_FT_STOP_WORDS},
-    {SXML_BYTE_VIEW_INITIALIZER("ft_stop_words_inclusion"),
-     SXML_AST_KIND_FT_STOP_WORDS_INCLUSION},
-    {SXML_BYTE_VIEW_INITIALIZER("ft_thesaurus_id"),
-     SXML_AST_KIND_FT_THESAURUS_ID},
-    {SXML_BYTE_VIEW_INITIALIZER("ft_thesaurus_option"),
-     SXML_AST_KIND_FT_THESAURUS_OPTION},
-    {SXML_BYTE_VIEW_INITIALIZER("ft_unary_not"), SXML_AST_KIND_FT_UNARY_NOT},
-    {SXML_BYTE_VIEW_INITIALIZER("ft_wildcard_option"),
-     SXML_AST_KIND_FT_WILDCARD_OPTION},
-    {SXML_BYTE_VIEW_INITIALIZER("ft_window"), SXML_AST_KIND_FT_WINDOW},
-    {SXML_BYTE_VIEW_INITIALIZER("ft_words"), SXML_AST_KIND_FT_WORDS},
     {SXML_BYTE_VIEW_INITIALIZER("function_declaration"),
      SXML_AST_KIND_FUNCTION_DECLARATION},
     {SXML_BYTE_VIEW_INITIALIZER("group_by_clause"),
@@ -234,10 +193,12 @@ static const sxml_ast_node_type_entry sxml_xquery_node_types[] = {
 
 /*
  * The fields of grammars/xquery that hold named nodes and that
- * grammars/xpath does not have, sorted in byte order. The fields that hold
- * tokens (allowing_empty, direction, empty, external, fixed, inherit_mode,
- * kind, mode, only, preserve_mode, stable, static, and name of
- * decimal_format_property) are read by sxml_xquery_apply_token.
+ * grammars/xpath does not have, sorted in byte order; those only Full
+ * Text's nodes have are the extension's (src/full_text_parse.c, D235).
+ * The fields that hold tokens (allowing_empty, direction, empty, external,
+ * fixed, inherit_mode, kind, mode, only, preserve_mode, stable, static,
+ * and name of decimal_format_property) are read by
+ * sxml_xquery_apply_token.
  */
 static const sxml_ast_field_entry sxml_xquery_fields[] = {
     {SXML_BYTE_VIEW_INITIALIZER("annotation"), SXML_AST_FIELD_ANNOTATION},
@@ -253,34 +214,18 @@ static const sxml_ast_field_entry sxml_xquery_fields[] = {
     {SXML_BYTE_VIEW_INITIALIZER("end"), SXML_AST_FIELD_END},
     {SXML_BYTE_VIEW_INITIALIZER("end_name"), SXML_AST_FIELD_END_NAME},
     {SXML_BYTE_VIEW_INITIALIZER("errors"), SXML_AST_FIELD_ERRORS},
-    {SXML_BYTE_VIEW_INITIALIZER("filter"), SXML_AST_FIELD_FILTER},
     {SXML_BYTE_VIEW_INITIALIZER("finally"), SXML_AST_FIELD_FINALLY},
-    {SXML_BYTE_VIEW_INITIALIZER("ignore"), SXML_AST_FIELD_IGNORE},
-    {SXML_BYTE_VIEW_INITIALIZER("inclusion"), SXML_AST_FIELD_INCLUSION},
-    {SXML_BYTE_VIEW_INITIALIZER("language"), SXML_AST_FIELD_LANGUAGE},
     {SXML_BYTE_VIEW_INITIALIZER("location"), SXML_AST_FIELD_LOCATION},
-    {SXML_BYTE_VIEW_INITIALIZER("maximum"), SXML_AST_FIELD_MAXIMUM},
-    {SXML_BYTE_VIEW_INITIALIZER("minimum"), SXML_AST_FIELD_MINIMUM},
     {SXML_BYTE_VIEW_INITIALIZER("modify"), SXML_AST_FIELD_MODIFY},
     {SXML_BYTE_VIEW_INITIALIZER("next"), SXML_AST_FIELD_NEXT},
-    {SXML_BYTE_VIEW_INITIALIZER("option"), SXML_AST_FIELD_OPTION},
     {SXML_BYTE_VIEW_INITIALIZER("pragma"), SXML_AST_FIELD_PRAGMA},
     {SXML_BYTE_VIEW_INITIALIZER("previous"), SXML_AST_FIELD_PREVIOUS},
     {SXML_BYTE_VIEW_INITIALIZER("prolog"), SXML_AST_FIELD_PROLOG},
     {SXML_BYTE_VIEW_INITIALIZER("property"), SXML_AST_FIELD_PROPERTY},
-    {SXML_BYTE_VIEW_INITIALIZER("range"), SXML_AST_FIELD_RANGE},
-    {SXML_BYTE_VIEW_INITIALIZER("relationship"), SXML_AST_FIELD_RELATIONSHIP},
-    {SXML_BYTE_VIEW_INITIALIZER("score"), SXML_AST_FIELD_SCORE},
-    {SXML_BYTE_VIEW_INITIALIZER("selection"), SXML_AST_FIELD_SELECTION},
     {SXML_BYTE_VIEW_INITIALIZER("source"), SXML_AST_FIELD_SOURCE},
     {SXML_BYTE_VIEW_INITIALIZER("specification"), SXML_AST_FIELD_SPECIFICATION},
     {SXML_BYTE_VIEW_INITIALIZER("start"), SXML_AST_FIELD_START},
-    {SXML_BYTE_VIEW_INITIALIZER("thesaurus"), SXML_AST_FIELD_THESAURUS},
-    {SXML_BYTE_VIEW_INITIALIZER("times"), SXML_AST_FIELD_TIMES},
     {SXML_BYTE_VIEW_INITIALIZER("version"), SXML_AST_FIELD_VERSION},
-    {SXML_BYTE_VIEW_INITIALIZER("weight"), SXML_AST_FIELD_WEIGHT},
-    {SXML_BYTE_VIEW_INITIALIZER("word"), SXML_AST_FIELD_WORD},
-    {SXML_BYTE_VIEW_INITIALIZER("words"), SXML_AST_FIELD_WORDS},
 };
 
 /* The child of module (main_module or library_module) has no grammar
@@ -296,9 +241,8 @@ typedef struct sxml_xquery_keyword_entry {
 } sxml_xquery_keyword_entry;
 
 /* The tokens of the `mode` and `kind` fields (5.3 to 5.8, 5.14, 5.17,
-   4.25; XQuery Update Facility 3.0, 5.2 and 5.4.1), and of the `any_all`,
-   `unit` and `content` fields of Full Text 3.0 (3.2, 3.4.5, 3.4.6, 3.5;
-   D214). */
+   4.25; XQuery Update Facility 3.0, 5.2 and 5.4.1). Full Text's are the
+   extension's (src/full_text_parse.c, D235). */
 static const sxml_xquery_keyword_entry sxml_xquery_keywords[] = {
     {SXML_BYTE_VIEW_INITIALIZER("preserve"), SXML_AST_KEYWORD_PRESERVE},
     {SXML_BYTE_VIEW_INITIALIZER("strip"), SXML_AST_KEYWORD_STRIP},
@@ -318,21 +262,6 @@ static const sxml_xquery_keyword_entry sxml_xquery_keywords[] = {
     {SXML_BYTE_VIEW_INITIALIZER("into"), SXML_AST_KEYWORD_INTO},
     {SXML_BYTE_VIEW_INITIALIZER("after"), SXML_AST_KEYWORD_AFTER},
     {SXML_BYTE_VIEW_INITIALIZER("before"), SXML_AST_KEYWORD_BEFORE},
-    {SXML_BYTE_VIEW_INITIALIZER("any"), SXML_AST_KEYWORD_ANY},
-    {SXML_BYTE_VIEW_INITIALIZER("all"), SXML_AST_KEYWORD_ALL},
-    {SXML_BYTE_VIEW_INITIALIZER("phrase"), SXML_AST_KEYWORD_PHRASE},
-    {SXML_BYTE_VIEW_INITIALIZER("words"), SXML_AST_KEYWORD_WORDS},
-    {SXML_BYTE_VIEW_INITIALIZER("sentences"), SXML_AST_KEYWORD_SENTENCES},
-    {SXML_BYTE_VIEW_INITIALIZER("paragraphs"), SXML_AST_KEYWORD_PARAGRAPHS},
-    {SXML_BYTE_VIEW_INITIALIZER("sentence"), SXML_AST_KEYWORD_SENTENCE},
-    {SXML_BYTE_VIEW_INITIALIZER("paragraph"), SXML_AST_KEYWORD_PARAGRAPH},
-    {SXML_BYTE_VIEW_INITIALIZER("start"), SXML_AST_KEYWORD_START},
-    {SXML_BYTE_VIEW_INITIALIZER("end"), SXML_AST_KEYWORD_END},
-    {SXML_BYTE_VIEW_INITIALIZER("entire"), SXML_AST_KEYWORD_ENTIRE},
-    {SXML_BYTE_VIEW_INITIALIZER("insensitive"), SXML_AST_KEYWORD_INSENSITIVE},
-    {SXML_BYTE_VIEW_INITIALIZER("sensitive"), SXML_AST_KEYWORD_SENSITIVE},
-    {SXML_BYTE_VIEW_INITIALIZER("lowercase"), SXML_AST_KEYWORD_LOWERCASE},
-    {SXML_BYTE_VIEW_INITIALIZER("uppercase"), SXML_AST_KEYWORD_UPPERCASE},
 };
 
 /* A decimal format property name (5.10, DFPropertyName). */
@@ -387,14 +316,6 @@ static const sxml_xquery_flag_entry sxml_xquery_flag_tokens[] = {
      SXML_AST_FLAG_STATIC},
     {SXML_BYTE_VIEW_INITIALIZER("value_of"), SXML_BYTE_VIEW_INITIALIZER(""),
      SXML_AST_FLAG_VALUE_OF},
-    {SXML_BYTE_VIEW_INITIALIZER("separate_words"),
-     SXML_BYTE_VIEW_INITIALIZER(""), SXML_AST_FLAG_SEPARATE_WORDS},
-    {SXML_BYTE_VIEW_INITIALIZER("different"), SXML_BYTE_VIEW_INITIALIZER(""),
-     SXML_AST_FLAG_DIFFERENT},
-    {SXML_BYTE_VIEW_INITIALIZER("no"), SXML_BYTE_VIEW_INITIALIZER(""),
-     SXML_AST_FLAG_NO},
-    {SXML_BYTE_VIEW_INITIALIZER("uses_default"),
-     SXML_BYTE_VIEW_INITIALIZER(""), SXML_AST_FLAG_DEFAULT},
     {SXML_BYTE_VIEW_INITIALIZER("direction"),
      SXML_BYTE_VIEW_INITIALIZER("descending"), SXML_AST_FLAG_DESCENDING},
     {SXML_BYTE_VIEW_INITIALIZER("preserve_mode"),
@@ -608,12 +529,17 @@ sxml_xquery_property_of(sxml_byte_view written) {
 
 /*
  * The apply_token hook (D111): the XQuery tokens become detail and flags
- * (src/xpath_ast_internal.h, sxml_ast_kind). Tokens it does not claim
- * follow the XPath rules.
+ * (src/xpath_ast_internal.h, sxml_ast_kind). Tokens it does not claim go
+ * to the extension, then follow the XPath rules; those of Full Text's
+ * nodes are the extension's (D235).
  */
 static bool sxml_xquery_apply_token(sxml_ast_parser_token token,
                                     sxml_ast_node_request *request) {
     const sxml_ast_kind kind = request->kind;
+    if (kind >= SXML_AST_KIND_FT_OPTION_DECLARATION &&
+        kind <= SXML_AST_KIND_FT_EXTENSION_OPTION) {
+        return false;
+    }
     if (sxml_byte_view_equals(token.field_name,
                               SXML_BYTE_VIEW_FROM_LITERAL("empty")) &&
         kind == SXML_AST_KIND_ORDER_SPECIFICATION) {
@@ -627,13 +553,6 @@ static bool sxml_xquery_apply_token(sxml_ast_parser_token token,
     }
     if (sxml_byte_view_equals(token.field_name,
                               SXML_BYTE_VIEW_FROM_LITERAL("mode")) ||
-        sxml_byte_view_equals(token.field_name,
-                              SXML_BYTE_VIEW_FROM_LITERAL("any_all")) ||
-        sxml_byte_view_equals(token.field_name,
-                              SXML_BYTE_VIEW_FROM_LITERAL("unit")) ||
-        (sxml_byte_view_equals(token.field_name,
-                               SXML_BYTE_VIEW_FROM_LITERAL("content")) &&
-         kind == SXML_AST_KIND_FT_CONTENT) ||
         (sxml_byte_view_equals(token.field_name,
                                SXML_BYTE_VIEW_FROM_LITERAL("kind")) &&
          (kind == SXML_AST_KIND_DEFAULT_NAMESPACE_DECLARATION ||
@@ -1923,6 +1842,8 @@ static const sxml_ast_parser_part sxml_xquery_parser_part = {
     .apply_token = sxml_xquery_apply_token,
     .describe_payload = sxml_xquery_describe_payload,
     .finish_node = sxml_xquery_finish_node,
+    /* XQuery and XPath Full Text 3.0 (D214, D235). */
+    .extension = &sxml_full_text_parser_part,
 };
 
 sxml_status sxml_xquery_build_ast(const sxml_ast_build_request *request,

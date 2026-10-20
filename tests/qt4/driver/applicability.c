@@ -53,9 +53,10 @@ typedef struct sxml_qt4_supported_dependency {
  * - XQUpdate and revalidation skip (XQuery only): the XQuery Update
  *   Facility 3.0 (packet 7.7a, D187); revalidation lax and strict are
  *   not supported yet (XUST0026, 7.7c).
- * - fullText, fullText-ignore, fullText-units and fullText-defaults
- *   (XQuery only): Full Text 3.0 (packets 7.12a to c, D214); they stay
- *   non-goals of the D95 denominators, as schemaImport does.
+ * - fullText, fullText-ignore, fullText-units and fullText-defaults:
+ *   Full Text 3.0 (packets 7.12a to c, D214; XPath's too since 7.12d,
+ *   D235, though the QT4 cases are XQuery only); they stay non-goals of
+ *   the D95 denominators, as schemaImport does.
  * - binary: the EXPath Binary Module 4.0, the optional feature
  *   sxml_expath_binary_feature() that the driver's processor names
  *   (packet 7.8, D198).
@@ -154,6 +155,21 @@ static const sxml_qt4_supported_dependency sxml_qt4_supported_dependencies[] = {
        (packet 7.18, D215). */
     {SXML_BYTE_VIEW_INITIALIZER("feature"),
      SXML_BYTE_VIEW_INITIALIZER("fn-invisible-xml")},
+    /* XQuery and XPath Full Text 3.0, the optional feature
+       sxml_full_text_feature() (packets 7.12a and, for
+       XPath, 7.12d; D214, D235), with the ignore
+       option and element boundaries as paragraph (and so sentence)
+       boundaries; and fullText-defaults, the XQFTTS default stop word
+       list and thesaurus, which the resource table serves (packet
+       7.12c). */
+    {SXML_BYTE_VIEW_INITIALIZER("feature"),
+     SXML_BYTE_VIEW_INITIALIZER("fullText")},
+    {SXML_BYTE_VIEW_INITIALIZER("feature"),
+     SXML_BYTE_VIEW_INITIALIZER("fullText-ignore")},
+    {SXML_BYTE_VIEW_INITIALIZER("feature"),
+     SXML_BYTE_VIEW_INITIALIZER("fullText-units")},
+    {SXML_BYTE_VIEW_INITIALIZER("feature"),
+     SXML_BYTE_VIEW_INITIALIZER("fullText-defaults")},
 };
 
 /* The features of schema awareness (the area "schema-aware",
@@ -178,20 +194,6 @@ static const sxml_qt4_supported_dependency sxml_qt4_xquery_dependencies[] = {
      SXML_BYTE_VIEW_INITIALIZER("lax")},
     {SXML_BYTE_VIEW_INITIALIZER("revalidation"),
      SXML_BYTE_VIEW_INITIALIZER("strict")},
-    /* XQuery and XPath Full Text 3.0, the optional feature
-       sxml_full_text_feature() (packet 7.12a, D214), with the ignore
-       option and element boundaries as paragraph (and so sentence)
-       boundaries; and fullText-defaults, the XQFTTS default stop word
-       list and thesaurus, which the resource table serves (packet
-       7.12c). */
-    {SXML_BYTE_VIEW_INITIALIZER("feature"),
-     SXML_BYTE_VIEW_INITIALIZER("fullText")},
-    {SXML_BYTE_VIEW_INITIALIZER("feature"),
-     SXML_BYTE_VIEW_INITIALIZER("fullText-ignore")},
-    {SXML_BYTE_VIEW_INITIALIZER("feature"),
-     SXML_BYTE_VIEW_INITIALIZER("fullText-units")},
-    {SXML_BYTE_VIEW_INITIALIZER("feature"),
-     SXML_BYTE_VIEW_INITIALIZER("fullText-defaults")},
 };
 
 /* For XPath only: XPath 1.0 compatibility mode (packet 7.4,

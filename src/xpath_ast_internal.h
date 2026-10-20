@@ -1678,6 +1678,13 @@ SXML_NODISCARD sxml_status sxml_xslt_pattern_build_ast(
  * A hook may be NULL. A hook that fails stops the walk with its status;
  * a syntax or static error is raised with sxml_ast_front_end_raise, so the
  * walker fills the error record.
+ *
+ * A part may name an extension: the part of a language extension that
+ * several grammars share (Full Text's, src/full_text_parse.c, for
+ * grammars/xquery and grammars/xpath_full_text; D235). Steps 1 and 2 look
+ * in the extension's tables after the part's, and step 3 offers a token
+ * to the extension's apply_token after the part's; the extension's other
+ * members are unused, and it has no extension of its own.
  */
 
 /* A grammar's language; declared by the generated parser of each grammar. */
@@ -1780,6 +1787,9 @@ typedef struct sxml_ast_parser_part {
     sxml_ast_apply_token_function apply_token;
     sxml_ast_describe_payload_function describe_payload;
     sxml_ast_finish_node_function finish_node;
+    /* The extension whose tables and apply_token come after this part's
+       (see above); NULL for none. */
+    const struct sxml_ast_parser_part *extension;
 } sxml_ast_parser_part;
 
 /*
