@@ -59,6 +59,14 @@ static const sxml_static_error function_has_no_string_error = {
         "A function item, map or array has no string value (F&O 4.0, fn:string)"),
 };
 
+static const sxml_static_error jvalue_sequence_error = {
+    .error_status = SXML_STATUS_TYPE_ERROR,
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XPTY0004"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(
+        "The jvalue of a JNode is a sequence of more than one item, which has no string "
+        "value (F&O 4.0, fn:string)"),
+};
+
 /* Appends the canonical text of an atomic item (casting to xs:string, F&O
    4.0, section 19.1.2); declared in src/function_library_core_internal.h. */
 sxml_status sxml_function_library_text_append_atomic(sxml_library_text *text, sxml_item item) {
@@ -101,12 +109,13 @@ sxml_status sxml_function_library_text_append_atomic(sxml_library_text *text, sx
 }
 
 /* The string value of one item as fn:string gives it (F&O 4.0, section
-   2.1.4), appended to text. A JNode gives the string value of its
-   ·jvalue·, when that is a single atomic item or XNode. */
+   12.1.6), appended to text. A JNode gives string(jvalue($value)): the
+   string value of its ·jvalue·, when that is a single atomic item, XNode
+   or JNode (whose own ·jvalue· is then taken, in a loop). */
 static sxml_status append_string_value(const sxml_function_call *call,
                                        sxml_library_text *text, sxml_item item) {
     sxml_item current = item;
-    if (sxml_item_get_kind(current) == SXML_ITEM_KIND_JSON_NODE) {
+    while (sxml_item_get_kind(current) == SXML_ITEM_KIND_JSON_NODE) {
         sxml_json_node_description description;
         sxml_status status = sxml_json_node_describe(current, &description);
         if (status != SXML_STATUS_OK) {
@@ -125,8 +134,8 @@ static sxml_status append_string_value(const sxml_function_call *call,
             value.has_item = true;
             value.item = description.json_value.content;
         }
-        if (!value.has_item || sxml_item_get_kind(value.item) == SXML_ITEM_KIND_JSON_NODE) {
-            return sxml_function_library_report(call, &function_has_no_string_error);
+        if (!value.has_item) {
+            return sxml_function_library_report(call, &jvalue_sequence_error);
         }
         current = value.item;
     }

@@ -1334,27 +1334,36 @@ static sxml_status add_globals(module_lowering *module) {
                 &global);
         }
     }
-    /* The main module's context value declaration, or without one the
-       first library module's, which states the type the context value
-       must have (5.17; fn:load-xquery-module checks it, F&O 4.0, 18.2). */
-    const sxml_xquery_static_context *context = main_context;
-    for (size_t module_index = 1; context->context_value_declaration.value == 0 &&
-                                  module_index < module->set->module_count;
-         module_index += 1) {
-        if (module->contexts[module_index].context_value_declaration.value != 0) {
-            context = &module->contexts[module_index];
-        }
-    }
-    if (context->context_value_declaration.value == 0) {
-        context = main_context;
-    }
+    /* The context global: the main module's context value declaration
+       (item()* without one), whose type the context value is coerced to.
+       Then one more global of name 0, without initializer, per library
+       module that declares the context value: the value, after that
+       coercion, must match each one's type without further coercion
+       (5.17, XPTY0004; the evaluator checks them when it binds the
+       context global, fn:load-xquery-module when it loads, F&O 4.0,
+       18.2). */
     if (status == SXML_STATUS_OK && module->has_context_global) {
         sxml_ir_global_index global = {0};
         status = sxml_ir_unit_add_global_variable(
             module->unit,
             &(sxml_ir_global_variable){.variable_name = {.index = 0},
-                                       .declared_type = context->context_value_type,
+                                       .declared_type = main_context->context_value_type,
                                        .initializer = ordered[context_node(module)]},
+            &global);
+    }
+    for (size_t module_index = 1; status == SXML_STATUS_OK && module->has_context_global &&
+                                  module_index < module->set->module_count;
+         module_index += 1) {
+        const sxml_xquery_static_context *library = &module->contexts[module_index];
+        if (library->context_value_declaration.value == 0) {
+            continue;
+        }
+        sxml_ir_global_index global = {0};
+        status = sxml_ir_unit_add_global_variable(
+            module->unit,
+            &(sxml_ir_global_variable){.variable_name = {.index = 0},
+                                       .declared_type = library->context_value_type,
+                                       .initializer = {.value = 0}},
             &global);
     }
     sxml_xpath_lowerer_release_scratch(module->lowerer, ordered);

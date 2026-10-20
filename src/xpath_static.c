@@ -318,6 +318,24 @@ sxml_status sxml_xpath_resolve_name(const sxml_xpath_name_request *request,
             (uri_text){.text = sxml_ast_get_text(ast, name.namespace_uri),
                        .static_context = request->static_context},
             &uri);
+        const static_error_site site = {.ast = ast,
+                                        .node = request->name_node,
+                                        .error_record = request->error_record};
+        if (status == SXML_STATUS_OK && uri.index == SXML_NAMESPACE_XMLNS) {
+            /* XPath 4.0, 2.1.2.1: no EQName is in the xmlns namespace. */
+            return report_at(site, SXML_BYTE_VIEW_FROM_LITERAL("XQST0070"),
+                             SXML_BYTE_VIEW_FROM_LITERAL(
+                                 "the namespace URI of an EQName is "
+                                 "http://www.w3.org/2000/xmlns/"));
+        }
+        if (status == SXML_STATUS_OK && uri.index == SXML_NAMESPACE_NONE &&
+            name.namespace_prefix.byte_count > 0) {
+            /* XPath 4.0, 2.1.2.1: Q{}prefix:local has a prefix and no
+               namespace URI. */
+            return report_at(site, SXML_BYTE_VIEW_FROM_LITERAL("XPST0154"),
+                             SXML_BYTE_VIEW_FROM_LITERAL(
+                                 "a URIQualifiedName has a prefix but no namespace URI"));
+        }
     } else if (name.namespace_prefix.byte_count > 0) {
         prefix_binding binding = {0};
         status = look_up_prefix(
@@ -863,6 +881,10 @@ static sxml_status resolve_name_test(const type_resolver *resolver,
 typedef struct element_test_request {
     sxml_ast_node_index node;
     sxml_node_kind node_kind;
+    /* document-node(N1 | N2): each member element(Ni) is registered
+       inside a document-node test, so the result is a choice of
+       document-node(element(Ni)) (XPath 4.0, 3.2.7.1). */
+    bool is_in_document_test;
 } element_test_request;
 
 static sxml_status register_choice(type_resolver *resolver,
@@ -903,8 +925,12 @@ static sxml_status resolve_element_or_attribute_test(
             return status;
         }
     }
+    /* document-node(N) passes the union N itself (see
+       continue_document_test). */
     const sxml_ast_node_index union_node =
-        find_field(resolver, request.node, SXML_AST_FIELD_NAME);
+        kind_of(resolver, request.node) == SXML_AST_KIND_NAME_TEST_UNION
+            ? request.node
+            : find_field(resolver, request.node, SXML_AST_FIELD_NAME);
     const size_t test_count =
         union_node.value == 0
             ? 0
@@ -943,6 +969,18 @@ static sxml_status resolve_element_or_attribute_test(
                 &(sxml_type_description){
                     .variety = SXML_TYPE_VARIETY_NODE_TEST,
                     .variety_details = {.node_test = node_test}},
+                &members[member_count]);
+        }
+        if (status == SXML_STATUS_OK && request.is_in_document_test) {
+            const sxml_type_identifier element_test = members[member_count];
+            status = register_type(
+                resolver,
+                &(sxml_type_description){
+                    .variety = SXML_TYPE_VARIETY_NODE_TEST,
+                    .variety_details = {.node_test = {.node_kind = SXML_NODE_KIND_DOCUMENT,
+                                                      .name_test = {.name_test_kind =
+                                                                        SXML_NAME_TEST_KIND_ANY_NAME},
+                                                      .document_element_test = element_test}}},
                 &members[member_count]);
         }
         member_count += 1;
@@ -1501,7 +1539,8 @@ static bool resolve_leaf_type(type_resolver *resolver,
                                    .node_kind =
                                        kind == SXML_AST_KIND_ELEMENT_NODE_TYPE
                                            ? SXML_NODE_KIND_ELEMENT
-                                           : SXML_NODE_KIND_ATTRIBUTE},
+                                           : SXML_NODE_KIND_ATTRIBUTE,
+                                   .is_in_document_test = false},
             item_type);
         return true;
     case SXML_AST_KIND_SCHEMA_ELEMENT_NODE_TYPE:
@@ -1511,7 +1550,8 @@ static bool resolve_leaf_type(type_resolver *resolver,
             (element_test_request){.node = node,
                                    .node_kind = kind == SXML_AST_KIND_SCHEMA_ELEMENT_NODE_TYPE
                                                     ? SXML_NODE_KIND_ELEMENT
-                                                    : SXML_NODE_KIND_ATTRIBUTE},
+                                                    : SXML_NODE_KIND_ATTRIBUTE,
+                                   .is_in_document_test = false},
             item_type);
         return true;
     case SXML_AST_KIND_PROCESSING_INSTRUCTION_NODE_TYPE:
@@ -1656,13 +1696,15 @@ static sxml_status continue_document_test(type_machine *machine,
         }
         if (kind_of(resolver, content) == SXML_AST_KIND_NAME_TEST_UNION) {
             /* document-node(N) abbreviates document-node(element(N))
-               (XPath 4.0, 3.2.7.1). Resolve the union as an element
-               test's names. */
+               (XPath 4.0, 3.2.7.1): the union's names as element tests,
+               each in its document test. */
+            frame->is_finished = true;
             return resolve_element_or_attribute_test(
                 resolver,
-                (element_test_request){.node = frame->node,
-                                       .node_kind = SXML_NODE_KIND_ELEMENT},
-                &frame->item_part);
+                (element_test_request){.node = content,
+                                       .node_kind = SXML_NODE_KIND_ELEMENT,
+                                       .is_in_document_test = true},
+                frame->destination);
         }
         return begin_item_type(machine,
                                (type_part){.node = content,
@@ -1677,6 +1719,52 @@ static sxml_status continue_document_test(type_machine *machine,
                                     .name_test = {.name_test_kind =
                                                       SXML_NAME_TEST_KIND_ANY_NAME},
                                     .document_element_test = frame->item_part}}});
+}
+
+/* XQST0039 when parameter, of a TypedFunctionType, has a name that an
+   earlier parameter has: the names are documentary, but distinct (XPath
+   4.0, 3.2.8.1). */
+typedef struct parameter_name_check {
+    sxml_ast_node_index function_type;
+    sxml_ast_node_index parameter;
+} parameter_name_check;
+
+static sxml_status check_parameter_name(const type_resolver *resolver,
+                                        parameter_name_check check) {
+    const sxml_ast_node_index parameter = check.parameter;
+    const sxml_ast_node_index name = find_field(resolver, parameter, SXML_AST_FIELD_NAME);
+    if (name.value == 0) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_xpath_name_request request = {.ast = resolver->ast,
+                                             .name_node = name,
+                                             .name_role = SXML_XPATH_NAME_ROLE_NO_NAMESPACE,
+                                             .static_context = resolver->static_context,
+                                             .error_record = resolver->error_record};
+    sxml_xpath_resolved_name resolved = {0};
+    sxml_status status = sxml_xpath_resolve_name(&request, &resolved);
+    for (sxml_ast_node_index earlier = find_field(
+             resolver, check.function_type, SXML_AST_FIELD_PARAMETER);
+         status == SXML_STATUS_OK && earlier.value != parameter.value;
+         earlier = sxml_ast_find_next_with_same_field(resolver->ast, earlier)) {
+        const sxml_ast_node_index earlier_name =
+            find_field(resolver, earlier, SXML_AST_FIELD_NAME);
+        if (earlier_name.value == 0) {
+            continue;
+        }
+        sxml_xpath_name_request earlier_request = request;
+        earlier_request.name_node = earlier_name;
+        sxml_xpath_resolved_name earlier_resolved = {0};
+        status = sxml_xpath_resolve_name(&earlier_request, &earlier_resolved);
+        if (status == SXML_STATUS_OK &&
+            earlier_resolved.namespace_uri.index == resolved.namespace_uri.index &&
+            sxml_byte_view_equals(earlier_resolved.local_name, resolved.local_name)) {
+            status = report_at(site_of(resolver, name), SXML_BYTE_VIEW_FROM_LITERAL("XQST0039"),
+                               SXML_BYTE_VIEW_FROM_LITERAL(
+                                   "two parameters of a function type have the same name"));
+        }
+    }
+    return status;
 }
 
 /* function(T1, T2) as R (XPath 4.0, 3.2.8.1). */
@@ -1698,6 +1786,12 @@ static sxml_status continue_function_type(type_machine *machine,
             frame->next_part =
                 sxml_ast_find_next_with_same_field(resolver->ast, parameter);
             frame->parts_resolved += 1;
+            const sxml_status status = check_parameter_name(
+                resolver,
+                (parameter_name_check){.function_type = frame->node, .parameter = parameter});
+            if (status != SXML_STATUS_OK) {
+                return status;
+            }
             return begin_sequence_type(
                 machine,
                 (sequence_type_part){

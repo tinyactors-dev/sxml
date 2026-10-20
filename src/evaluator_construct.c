@@ -596,6 +596,48 @@ static sxml_status sxml_construct_split_lexical(sxml_dynamic_context *context,
     return status;
 }
 
+/* Interns the namespace URI of a BracedURILiteral whitespace-normalized
+   as xs:anyURI is (XPath 4.0, 2.1.2.1: leading and trailing whitespace
+   removed, inner runs collapsed to one space). */
+static sxml_status sxml_construct_intern_collapsed_uri(sxml_dynamic_context *context,
+                                                       sxml_byte_view written,
+                                                       sxml_namespace_uri_identifier *uri) {
+    sxml_name_pool *name_pool = sxml_item_heap_get_name_pool(context->item_heap);
+    const sxml_byte_view trimmed = sxml_xml_text_trim_whitespace(written);
+    bool has_inner_whitespace = false;
+    for (size_t byte_index = 0; byte_index < trimmed.byte_count; byte_index += 1) {
+        has_inner_whitespace =
+            has_inner_whitespace || sxml_xml_byte_is_whitespace(trimmed.bytes[byte_index]);
+    }
+    if (!has_inner_whitespace) {
+        return sxml_name_pool_intern_namespace_uri(name_pool, trimmed, uri);
+    }
+    void *memory = NULL;
+    sxml_status status = sxml_allocator_allocate(
+        context->allocator,
+        (sxml_allocation_request){.byte_count = trimmed.byte_count, .alignment = 1}, &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    uint8_t *collapsed = memory;
+    size_t collapsed_count = 0;
+    for (size_t byte_index = 0; byte_index < trimmed.byte_count; byte_index += 1) {
+        const uint8_t byte = trimmed.bytes[byte_index];
+        if (!sxml_xml_byte_is_whitespace(byte)) {
+            collapsed[collapsed_count] = byte;
+            collapsed_count += 1;
+        } else if (collapsed[collapsed_count - 1] != ' ') {
+            /* The first byte of trimmed is no whitespace. */
+            collapsed[collapsed_count] = ' ';
+            collapsed_count += 1;
+        }
+    }
+    status = sxml_name_pool_intern_namespace_uri(
+        name_pool, (sxml_byte_view){.bytes = collapsed, .byte_count = collapsed_count}, uri);
+    sxml_allocator_release(context->allocator, memory);
+    return status;
+}
+
 /* Q{uri}local or Q{uri}prefix:local (XQuery 4.0, sections 4.12.3.1 and
    4.12.3.2). */
 static sxml_status sxml_construct_name_from_eqname(sxml_dynamic_context *context,
@@ -626,8 +668,8 @@ static sxml_status sxml_construct_name_from_eqname(sxml_dynamic_context *context
     sxml_name_pool *name_pool = sxml_item_heap_get_name_pool(context->item_heap);
     sxml_name_parts name_parts = {.namespace_uri = {.index = 0},
                                   .local_name = parts.local_name};
-    status = sxml_name_pool_intern_namespace_uri(
-        name_pool, sxml_xml_text_trim_whitespace(namespace_uri), &name_parts.namespace_uri);
+    status = sxml_construct_intern_collapsed_uri(
+        context, namespace_uri, &name_parts.namespace_uri);
     if (status == SXML_STATUS_OK) {
         status = sxml_name_pool_intern_namespace_prefix(name_pool, parts.namespace_prefix,
                                                         &name->namespace_prefix);

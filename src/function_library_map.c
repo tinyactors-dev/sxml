@@ -444,6 +444,10 @@ typedef struct assembly_state {
     bool is_merge;
     duplicates_policy policy;
     sxml_item combine_function;
+    /* The arguments combine_function takes: 2, or fewer for a function of
+       lower arity, which the option's coercion to function(item()*,
+       item()*) as item()* wraps to ignore the others (XPath 4.0, 3.4.4). */
+    size_t combine_arity;
     sxml_item map;
     sxml_sequence_iterator iterator;
     sxml_item current_item;
@@ -508,8 +512,20 @@ static sxml_status read_duplicates_option(const sxml_function_call *call,
                                               SXML_HIGHER_ORDER_ERROR_INVALID_OPTION);
     }
     if (sxml_item_is_function_item(value.content)) {
+        sxml_function_item_description description;
+        const sxml_status described = sxml_function_item_describe(value.content, &description);
+        if (described != SXML_STATUS_OK) {
+            return described;
+        }
+        if (description.arity > 2) {
+            /* XPath 4.0, 3.4.4: a function of higher arity than the
+               required type is a type error. */
+            return sxml_higher_order_report_error(call->error_record,
+                                                  SXML_HIGHER_ORDER_ERROR_WRONG_TYPE);
+        }
         state->policy = SXML_DUPLICATES_POLICY_FUNCTION;
         state->combine_function = value.content;
+        state->combine_arity = description.arity;
         return SXML_STATUS_OK;
     }
     static const struct {
@@ -979,7 +995,8 @@ static sxml_status assembly_run(assembly_state *state, const sxml_function_call 
                     .step_kind = SXML_NATIVE_STEP_KIND_CALL,
                     .result = sxml_sequence_empty(),
                     .function_item = state->combine_function,
-                    .arguments = {.sequences = state->call_arguments, .sequence_count = 2}};
+                    .arguments = {.sequences = state->call_arguments,
+                                  .sequence_count = state->combine_arity}};
                 return SXML_STATUS_OK;
             }
             state->phase = SXML_ASSEMBLY_PHASE_NEXT;

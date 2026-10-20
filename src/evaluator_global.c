@@ -93,41 +93,91 @@ static void release_computation(sxml_dynamic_context *context, void *state) {
     sxml_allocator_release(context->allocator, state);
 }
 
+/* The type error of a context value that does not match a library
+   module's context value declaration (XQuery 4.0, 5.17). */
+static const sxml_static_error library_context_value_error = {
+    .error_status = SXML_STATUS_TYPE_ERROR,
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XPTY0004"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(
+        "The context value does not match the type a library module declares for it "
+        "(XQuery 4.0, 5.17)"),
+};
+
+/* Checks the value of the context global, the first global of name 0,
+   against the declared types of the table's later globals of name 0:
+   those of library modules, matched without coercion (XQuery 4.0, 5.17:
+   "the context value must match the type declared in each one"). */
+static sxml_status check_library_context_types(sxml_dynamic_context *context,
+                                               const sxml_evaluator_global_table *table,
+                                               uint32_t context_global_number) {
+    const sxml_sequence value = table->slots[context_global_number - 1].value;
+    sxml_status status = SXML_STATUS_OK;
+    for (uint32_t global_number = context_global_number + 1;
+         status == SXML_STATUS_OK && global_number <= table->slot_count; global_number += 1) {
+        const sxml_ir_global_variable *variable = global_of(table, global_number);
+        if (variable->variable_name.index != 0) {
+            continue;
+        }
+        sxml_type_match match = {.is_match = false};
+        status = sxml_evaluator_match_sequence_type(
+            context,
+            &(sxml_type_match_request){.value = value,
+                                       .sequence_type = variable->declared_type,
+                                       .error_record = context->error_record},
+            &match);
+        if (status == SXML_STATUS_OK && !match.is_match) {
+            status = sxml_evaluator_machine_raise(context, &library_context_value_error);
+        }
+    }
+    return status;
+}
+
+/* The number of the context global (the first global of name 0); 0 when
+   the table has none. */
+static uint32_t context_global_number_of(const sxml_evaluator_global_table *table) {
+    for (uint32_t global_number = 1; global_number <= table->slot_count; global_number += 1) {
+        if (global_of(table, global_number)->variable_name.index == 0) {
+            return global_number;
+        }
+    }
+    return 0;
+}
+
 /* Binds the context global (name 0) to the host's context value: the
    main function's focus slot, read in the body task's frame. */
 sxml_status sxml_evaluator_bind_context_global(sxml_dynamic_context *context, size_t table_index) {
     const sxml_evaluator_task *body_task = sxml_evaluator_machine_top(context);
     const sxml_ir_slot focus_slot = body_task->function->focus.context_value;
     const sxml_evaluator_global_table *table = &context->global_tables[table_index];
-    for (uint32_t global_number = 1; global_number <= table->slot_count; global_number += 1) {
-        const sxml_ir_global_variable *variable = global_of(table, global_number);
-        sxml_evaluator_slot *global_slot = &table->slots[global_number - 1];
-        if (variable->variable_name.index != 0 ||
-            global_slot->slot_state == SXML_EVALUATOR_SLOT_STATE_BOUND ||
-            focus_slot.value == 0 || focus_slot.value > body_task->function->slot_count) {
-            continue;
-        }
-        const sxml_evaluator_slot *frame_slot =
-            &context->frame_stack.slots[body_task->frame_base + focus_slot.value - 1];
-        if (frame_slot->slot_state != SXML_EVALUATOR_SLOT_STATE_BOUND) {
-            return SXML_STATUS_OK;
-        }
-        sxml_sequence coerced = sxml_sequence_empty();
-        const sxml_status status = sxml_evaluator_coerce(
-            context,
-            &(sxml_coercion_request){.value = frame_slot->value,
-                                     .sequence_type = variable->declared_type,
-                                     .role = SXML_IR_COERCION_ROLE_VARIABLE,
-                                     .error_record = context->error_record},
-            &coerced);
-        if (status != SXML_STATUS_OK) {
-            return status;
-        }
-        *global_slot = (sxml_evaluator_slot){.value = coerced,
-                                             .slot_state = SXML_EVALUATOR_SLOT_STATE_BOUND};
+    const uint32_t global_number = context_global_number_of(table);
+    if (global_number == 0 || focus_slot.value == 0 ||
+        focus_slot.value > body_task->function->slot_count) {
         return SXML_STATUS_OK;
     }
-    return SXML_STATUS_OK;
+    const sxml_ir_global_variable *variable = global_of(table, global_number);
+    sxml_evaluator_slot *global_slot = &table->slots[global_number - 1];
+    if (global_slot->slot_state == SXML_EVALUATOR_SLOT_STATE_BOUND) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_evaluator_slot *frame_slot =
+        &context->frame_stack.slots[body_task->frame_base + focus_slot.value - 1];
+    if (frame_slot->slot_state != SXML_EVALUATOR_SLOT_STATE_BOUND) {
+        return SXML_STATUS_OK;
+    }
+    sxml_sequence coerced = sxml_sequence_empty();
+    const sxml_status status = sxml_evaluator_coerce(
+        context,
+        &(sxml_coercion_request){.value = frame_slot->value,
+                                 .sequence_type = variable->declared_type,
+                                 .role = SXML_IR_COERCION_ROLE_VARIABLE,
+                                 .error_record = context->error_record},
+        &coerced);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    *global_slot =
+        (sxml_evaluator_slot){.value = coerced, .slot_state = SXML_EVALUATOR_SLOT_STATE_BOUND};
+    return check_library_context_types(context, table, global_number);
 }
 
 /* Pushes a CALL of the global's initializer (see the file comment), then
@@ -138,14 +188,22 @@ static sxml_status step_computation(sxml_dynamic_context *context, sxml_evaluato
     if (slot == NULL) {
         return SXML_STATUS_INVALID_ARGUMENT;
     }
+    const sxml_evaluator_global_table *table = &context->global_tables[computation->table_index];
     if (task->phase == 1) {
         *slot = (sxml_evaluator_slot){.value = sxml_evaluator_machine_take_value(context),
                                       .slot_state = SXML_EVALUATOR_SLOT_STATE_BOUND};
         computation->is_bound = true;
         restore_context(context, computation);
+        if (global_of(table, computation->global_number)->variable_name.index == 0) {
+            /* The context global's initializer (XQuery 4.0, 5.17). */
+            const sxml_status status =
+                check_library_context_types(context, table, computation->global_number);
+            if (status != SXML_STATUS_OK) {
+                return status;
+            }
+        }
         return sxml_evaluator_machine_finish(context, sxml_sequence_empty());
     }
-    const sxml_evaluator_global_table *table = &context->global_tables[computation->table_index];
     const sxml_ir_function *initializer = sxml_ir_unit_get_function(
         table->unit, global_of(table, computation->global_number)->initializer);
     slot->slot_state = SXML_EVALUATOR_SLOT_STATE_BEING_COMPUTED;
