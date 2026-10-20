@@ -13508,6 +13508,9 @@ owner: sxml's iXML usable on tens to hundreds of MB; the book first
 ### D291. XSLT per-package items, an absent global focus through call-template, namespace undeclarations (packet 4.31)
 Recorded 2026-10-20, after D99, D245, D289; in progress.
 
+### D292. The codegen chapter builds a tree of the TypeScript program and prints it with XSLT (packet book-4)
+Recorded 2026-10-20, after D257, D282, D285, D288; in progress.
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): tagging and
