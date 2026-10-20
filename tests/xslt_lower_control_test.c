@@ -439,6 +439,12 @@ static void test_conditional_content(sxml_test_state *state) {
 static void test_messages_and_others(sxml_test_state *state) {
     static const transform_case cases[] = {
         {STYLESHEET("<xsl:message>note</xsl:message><a/>"), "<a/>"},
+        /* 24.1, 14.2, 15.5: a static call binds the context functions of
+           grouping and merging anywhere. */
+        {STYLESHEET("<xsl:sequence select=\"function-available('current-group', 0), "
+                    "function-available('current-merge-group', 1), "
+                    "function-available('current-group', 1)\"/>"),
+         "true() true() false()"},
         {STYLESHEET("<xsl:message terminate='yes' select='\"stop\"'/><a/>"), "error:XTMM9000"},
         {STYLESHEET("<xsl:message terminate='{1 = 1}'>x</xsl:message>"), "error:XTMM9000"},
         {STYLESHEET("<xsl:message terminate='{1 = 2}'>x</xsl:message>ok"), "ok"},

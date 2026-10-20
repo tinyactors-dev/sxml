@@ -322,7 +322,9 @@ static sxml_status call_available_system_properties(const sxml_function_call *ca
 #define STATIC_FUNCTION_MAXIMUM_ARITY 32U
 
 /* Whether query names an fn function XSLT lowering implements rather
-   than a library row (src/xslt_key.c, src/xslt_accumulator.c). */
+   than a library row (src/xslt_key.c, src/xslt_accumulator.c, and the
+   context functions of grouping and merging, src/xpath_lower.c: a
+   static call binds them anywhere, 14.2, 15.5). */
 static bool is_lowered_function(const sxml_function_call *call, sxml_function_query query) {
     static const struct {
         const char *local_name;
@@ -331,6 +333,9 @@ static bool is_lowered_function(const sxml_function_call *call, sxml_function_qu
     } lowered[] = {
         {"key", 2, 3},      {"map-for-key", 1, 2},        {"copy-of", 0, 1},
         {"snapshot", 0, 1}, {"accumulator-before", 1, 1}, {"accumulator-after", 1, 1},
+        {"current-group", 0, 0}, {"current-grouping-key", 0, 0},
+        {"current-merge-group", 0, 1}, {"current-merge-key", 0, 0},
+        {"current-merge-key-array", 0, 0},
     };
     sxml_name_parts parts = {.namespace_uri = {.index = 0},
                              .local_name = {.bytes = NULL, .byte_count = 0}};

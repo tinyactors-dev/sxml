@@ -2930,6 +2930,115 @@ typedef struct fixed_namespaces_request {
     sxml_xslt_ast_module_index module;
 } fixed_namespaces_request;
 
+/* A fixed-namespaces token that is a URI reference (3.6.1): the document
+   it locates as xsl:include would (3.10.1), whose outermost element's
+   in-scope namespaces join the run that starts at first.
+   SXML_STATUS_STATIC_ERROR (XTSE0122) when no namespace well-formed
+   document can be read. */
+typedef struct namespace_document_request {
+    sxml_xslt_ast_module_index module;
+    sxml_byte_view reference;
+    size_t first_index;
+} namespace_document_request;
+
+static sxml_status add_document_bindings(stylesheet_reader *reader,
+                                         namespace_document_request request) {
+    const sxml_byte_view base_uri =
+        sxml_xslt_ast_get_module(reader->ast, request.module)->module_uri;
+    sxml_uri_resolution resolution = {.uri = {.bytes = NULL, .byte_count = 0}, .memory = NULL};
+    sxml_status status = sxml_uri_resolve(&(sxml_uri_resolution_request){
+                                              .base_uri = base_uri,
+                                              .reference = request.reference,
+                                              .allocator = reader->allocator},
+                                          &resolution);
+    if (status != SXML_STATUS_OK) {
+        return status == SXML_STATUS_OUT_OF_MEMORY ? status : SXML_STATUS_STATIC_ERROR;
+    }
+    const sxml_resource_resolver resolver = reader->resource_resolver.operations == NULL
+                                                ? reader->processor->resource_resolver
+                                                : reader->resource_resolver;
+    sxml_resource resource;
+    memset(&resource, 0, sizeof(resource));
+    bool is_resolved = false;
+    status = SXML_STATUS_STATIC_ERROR;
+    if (resolver.operations != NULL && resolver.operations->resolve != NULL) {
+        status = resolver.operations->resolve(
+            resolver.state,
+            &(sxml_resource_request){.resource_kind = SXML_RESOURCE_KIND_XSLT_MODULE,
+                                     .uri_reference = request.reference,
+                                     .absolute_uri = resolution.uri,
+                                     .processor = reader->processor,
+                                     .encoding_name = {.bytes = NULL, .byte_count = 0},
+                                     .is_default_collection = false,
+                                     .target_namespace_uri = {.bytes = NULL, .byte_count = 0},
+                                     .package_version = {.bytes = NULL, .byte_count = 0}},
+            &resource);
+        is_resolved = status == SXML_STATUS_OK;
+    }
+    sxml_item document = {.representation = 0};
+    bool has_document = false;
+    if (is_resolved && resource.resource_form == SXML_RESOURCE_FORM_BYTES) {
+        status = parse_module(reader,
+                              (module_text){.content = resource.content,
+                                            .encoding_name = resource.encoding_name,
+                                            .module_uri = resolution.uri},
+                              &document);
+        has_document = status == SXML_STATUS_OK;
+        if (!has_document && status != SXML_STATUS_OUT_OF_MEMORY &&
+            status != SXML_STATUS_LIMIT_EXCEEDED) {
+            status = SXML_STATUS_STATIC_ERROR;
+        }
+    } else if (status != SXML_STATUS_OUT_OF_MEMORY) {
+        status = SXML_STATUS_STATIC_ERROR;
+    }
+    sxml_node_reference node = {.tree = NULL, .node_index = {.index = 0}, .namespace_number = 0};
+    if (has_document) {
+        status = sxml_item_get_node(document, &node);
+    }
+    /* The outermost element: the document node's element child. */
+    sxml_node_description description;
+    memset(&description, 0, sizeof(description));
+    if (has_document && status == SXML_STATUS_OK) {
+        status = sxml_node_describe(node, &description);
+    }
+    bool has_child = has_document && status == SXML_STATUS_OK && description.has_children;
+    node.node_index = description.first_child;
+    bool has_element = false;
+    while (has_child && status == SXML_STATUS_OK && !has_element) {
+        status = sxml_node_describe(node, &description);
+        has_element = status == SXML_STATUS_OK && description.node_kind == SXML_NODE_KIND_ELEMENT;
+        has_child = description.has_next_sibling;
+        if (!has_element) {
+            node.node_index = description.next_sibling;
+        }
+    }
+    sxml_namespace_binding_view bindings = {.namespace_bindings = NULL,
+                                            .namespace_binding_count = 0};
+    if (has_element) {
+        status = sxml_node_get_in_scope_namespaces(node, &bindings);
+    } else if (status == SXML_STATUS_OK) {
+        status = SXML_STATUS_STATIC_ERROR;
+    }
+    for (size_t index = 0; has_element && status == SXML_STATUS_OK &&
+                           index < bindings.namespace_binding_count;
+         index += 1) {
+        /* Prefixed bindings: the default namespace is not a prefix. */
+        if (bindings.namespace_bindings[index].namespace_prefix.index != 0) {
+            status = append_binding(reader, &reader->fixed_bindings,
+                                    (binding_addition){.binding = bindings.namespace_bindings[index],
+                                                       .first_index = request.first_index});
+        }
+    }
+    if (has_document) {
+        sxml_item_release(document);
+    }
+    if (is_resolved && resolver.operations->release != NULL) {
+        resolver.operations->release(resolver.state, &resource);
+    }
+    sxml_allocator_release(reader->allocator, resolution.memory);
+    return status;
+}
+
 static sxml_status read_fixed_namespaces(stylesheet_reader *reader, fixed_namespaces_request request) {
     /* Each module's run is at the end of the array; append_binding only
        replaces within it, since earlier runs are left behind. */
@@ -3003,8 +3112,11 @@ static sxml_status read_fixed_namespaces(stylesheet_reader *reader, fixed_namesp
             }
             continue;
         }
-        /* A URI of a document whose namespaces to take: not supported. */
-        status = SXML_STATUS_STATIC_ERROR;
+        /* A URI of a document whose namespaces to take. */
+        status = add_document_bindings(reader, (namespace_document_request){
+                                                   .module = request.module,
+                                                   .reference = token,
+                                                   .first_index = first});
     }
     if (status == SXML_STATUS_STATIC_ERROR) {
         return raise_error(reader,
