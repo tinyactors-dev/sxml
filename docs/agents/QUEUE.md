@@ -22,11 +22,10 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 
 ## Running
 
-- 7.6g: streamed xsl:merge and capture="yes" (designs in D233).
+- 7.19: the Phase 7 review and gate.
 
 ## Next
 
-- 7.19: the Phase 7 review, after 7.6g.
 - More XPath/XQuery and XSLT sweeps on the leftovers below; perf-4 on casts
   and path-MAP hoisting.
 
