@@ -31,8 +31,6 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 
 
 - 4.30: XSLT real gaps from D281 (small and medium groups).
-- book-3: a book chapter on code generation with XQuery, XSD and XSLT
-  (typed RPC for browser and backend; owner, 2026-10-20).
 - 7.21: fast Invisible XML; book first, then tests, then implementation.
 - 7.22: tree-sitter trees as XDM with highlights captures; book first,
   then the grammars' corpus and highlight tests, then implementation.
