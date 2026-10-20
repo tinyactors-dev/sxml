@@ -28,12 +28,12 @@ static const sxml_cli_program sxml_program_entry = {
     .summary = SXML_BYTE_VIEW_INITIALIZER(
         "check, validate, query and transform XML documents"),
     .description = SXML_BYTE_VIEW_INITIALIZER(
-        "sxml checks XML 1.0 documents, validates them against XSD 1.1\n"
-        "schemas, evaluates XPath 4.0 expressions and XQuery 4.0 queries, and\n"
-        "runs XSLT 4.0 stylesheets. Results go to standard output, errors to\n"
-        "standard error. Documents, schemas and modules are read from local\n"
-        "files; sxml never uses the network. A FILE operand of - reads\n"
-        "standard input.\n"
+        "sxml checks XML 1.0 and 1.1 documents, validates them against DTDs\n"
+        "and XSD 1.1 schemas, evaluates XPath 4.0 expressions and XQuery 4.0\n"
+        "queries, and runs XSLT 4.0 stylesheets. Results go to standard\n"
+        "output, errors to standard error. Documents, schemas and modules are\n"
+        "read from local files; sxml never uses the network. A FILE operand\n"
+        "of - reads standard input.\n"
         "\n"
         "Exit status: 0 on success; 1 when the operation fails (a document\n"
         "is not well-formed or not valid, a query or stylesheet raises an\n"

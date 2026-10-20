@@ -2,12 +2,12 @@ sxml - check, validate, query and transform XML documents
 
 Usage: sxml [--version] COMMAND [ARGUMENT...]
 
-sxml checks XML 1.0 documents, validates them against XSD 1.1
-schemas, evaluates XPath 4.0 expressions and XQuery 4.0 queries, and
-runs XSLT 4.0 stylesheets. Results go to standard output, errors to
-standard error. Documents, schemas and modules are read from local
-files; sxml never uses the network. A FILE operand of - reads
-standard input.
+sxml checks XML 1.0 and 1.1 documents, validates them against DTDs
+and XSD 1.1 schemas, evaluates XPath 4.0 expressions and XQuery 4.0
+queries, and runs XSLT 4.0 stylesheets. Results go to standard
+output, errors to standard error. Documents, schemas and modules are
+read from local files; sxml never uses the network. A FILE operand
+of - reads standard input.
 
 Exit status: 0 on success; 1 when the operation fails (a document
 is not well-formed or not valid, a query or stylesheet raises an

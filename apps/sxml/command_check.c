@@ -1,6 +1,7 @@
 /*
  * sxml check [--external-entities] [--validate-dtd] [--format=text|json]
- * FILE...: checks that every FILE is namespace-well-formed XML 1.0, and
+ * FILE...: checks that every FILE is namespace-well-formed XML 1.0 or
+ * 1.1 (XML 1.1, 4.3.4; D195), and
  * with --validate-dtd valid against its DTD (apps/sxml/README.md, "sxml
  * check"; include/sxml/xml.h, sxml_xml_parser_check; D44, D199).
  *
@@ -508,12 +509,12 @@ const sxml_cli_command sxml_check_command = {
     .name = SXML_BYTE_VIEW_INITIALIZER("check"),
     .summary = SXML_BYTE_VIEW_INITIALIZER("Check that XML documents are well-formed"),
     .description = SXML_BYTE_VIEW_INITIALIZER(
-        "Checks that each FILE is a well-formed XML 1.0 document that also\n"
-        "conforms to Namespaces in XML 1.0. No tree is built. The supported\n"
-        "encodings are UTF-8, UTF-16, ISO-8859-1 and US-ASCII. The external DTD\n"
-        "subset and external entities are read only with --external-entities,\n"
-        "and then only as local files, relative to the file that refers to\n"
-        "them.\n"
+        "Checks that each FILE is a well-formed XML 1.0 or XML 1.1 document\n"
+        "(by the version its XML declaration names) that also conforms to\n"
+        "Namespaces in XML. No tree is built. The supported encodings are\n"
+        "UTF-8, UTF-16, ISO-8859-1 and US-ASCII. The external DTD subset and\n"
+        "external entities are read only with --external-entities, and then\n"
+        "only as local files, relative to the file that refers to them.\n"
         "\n"
         "With --validate-dtd, each FILE must also be valid against its DTD\n"
         "(XML 1.0, section 5.1); the first error of each FILE is reported. A\n"

@@ -1,47 +1,68 @@
 # sxml
 
-sxml is a small, embeddable XML toolchain written in portable C. It parses
-XML, validates it against XSD 1.1 schemas, evaluates XPath 4.0 and XQuery
-4.0, and runs XSLT 4.0 stylesheets, as a library and as the `sxml` command.
+sxml is an XML toolchain in portable C. It parses XML and HTML, validates
+documents against XSD 1.1 schemas and DTDs, and runs XPath 4.0, XQuery 4.0
+and XSLT 4.0, from one small library with no dependencies. Use it from C,
+from JavaScript in browsers and Node.js, or as the `sxml` command.
+
+```console
+$ sxml xpath --context-item=books.xml '//book[@year < 1980]/title/string()'
+"Godel, Escher, Bach"
+"The Art of Computer Programming"
+```
+
+- [What it does](#what-it-does)
+- [Where it runs](#where-it-runs)
+- [Quick start](#quick-start)
+- [Examples](#examples): [streaming](#stream-large-documents),
+  [HTML](#read-html), [Invisible XML](#parse-text-with-invisible-xml),
+  [Full Text](#search-text)
+- [Features by module](#features-by-module)
+- [Use it from C](#use-it-from-c) and [from JavaScript](#use-it-from-javascript)
+- [Conformance](#conformance)
+- [Status](#status)
 
 ## What it does
 
-- **XML 1.0** with namespaces: parsing into a tree, from UTF-8, UTF-16,
-  ISO-8859-1 and US-ASCII.
-- **XSD 1.1** schema validation: every XSD 1.0 structure, the XSD 1.1
-  additions such as open content, conditional inclusion, assertions and
-  type alternatives, identity constraints, and all built-in datatypes and
-  facets.
-- **Schema awareness**: XPath, XQuery and XSLT see the types of imported
-  or host-supplied schemas; XQuery's `import schema` and `validate`, and
-  XSLT's `xsl:import-schema` and validation attributes.
-- **XPath 4.0** with the full F&O 4.0 function library: maps, arrays,
-  higher-order functions, regular expressions, dates and times, decimal
-  arithmetic.
-- **XQuery 4.0**: FLWOR expressions with grouping and windows, node
-  constructors, library modules, try/catch.
-- **XSLT 4.0**: template rules and modes, grouping, sorting, keys,
-  numbering, accumulators, packages and result documents.
-- **Serialization 4.0**: the xml, xhtml, html, text, json, csv and adaptive
-  output methods.
-- **JSON and CSV**: `fn:parse-json`, `fn:json-to-xml`, `fn:xml-to-json`,
-  `fn:parse-csv` and `fn:csv-to-xml`.
+sxml implements these standards. All of its languages share one data
+model (XDM 4.0) and one evaluator.
 
-All four languages share one data model (XDM 4.0) and one evaluator.
+| Area | Standard |
+| --- | --- |
+| Parsing | XML 1.0 (Fifth Edition) and XML 1.1, Namespaces in XML 1.0 and 1.1, from UTF-8, UTF-16, ISO-8859-1 and US-ASCII |
+| DTDs | The internal and external subsets, external entities, attribute defaults, and DTD validation (XML 1.0, section 5) |
+| HTML | HTML parsing as the HTML Living Standard specifies it, every encoding of the Encoding Standard: `fn:parse-html` and `fn:html-doc` |
+| Data model | XDM 4.0 |
+| Expressions | XPath 4.0 and the F&O 4.0 function library: maps, arrays, records, higher-order functions, regular expressions, dates and times, decimal arithmetic, JSON and CSV |
+| Queries | XQuery 4.0, the XQuery Update Facility 3.0 (with `fn:put`), and XQuery and XPath Full Text 3.0 in XQuery, with stemming, stop words and thesauri |
+| Transformations | XSLT 4.0, with streaming, packages, accumulators, `xsl:evaluate` and `fn:transform`; XSLT 1.0, 2.0 and 3.0 stylesheets; EXSLT Common |
+| Schemas | XSD 1.1 validation; schema-aware XPath, XQuery and XSLT |
+| Output | Serialization 4.0: the xml, xhtml, html, text, json, csv and adaptive methods, `disable-output-escaping` |
+| Grammars | Invisible XML 1.0: `fn:invisible-xml` |
+| Extensions | EXPath Binary 4.0 and EXPath File 4.0 |
+| Text | Unicode 16.0; the Unicode Collation Algorithm with the CLDR root collation and CLDR tailorings; the IANA Time Zone Database; CLDR month and day names, calendars and number words in `fn:format-date` and `fn:format-integer` |
 
 ## Where it runs
 
-- **Linux, macOS and Windows**: a C library, static or shared, built with
-  CMake.
-- **Browsers and Node.js**: a WebAssembly module with a TypeScript
-  wrapper, in [`bindings/javascript`](bindings/javascript).
-- **iOS and Android**: planned. Swift and Kotlin bindings are not
-  available yet.
+| Target | What you get |
+| --- | --- |
+| Linux | The C library, static or shared, and the `sxml` command. Built and tested with Clang and GCC. |
+| macOS, Windows | The same C17 code, with an MSVC build preset. Neither platform has been built yet. |
+| Browsers and Node.js | The `sxml-js` package: a TypeScript wrapper over two WebAssembly modules (below). |
+| WASI | The `sxml` command as a WebAssembly program. |
+| iOS, Android | Planned. There are no Swift or Kotlin bindings yet. |
+
+The WebAssembly modules, at commit `e4ea880`:
+
+| Module | Contents | Size | Gzipped |
+| --- | --- | --: | --: |
+| `sxml.wasm` (core) | XML, XPath 4.0, serialization | 2,085,139 bytes | 728,743 bytes |
+| `sxml-full.wasm` (full) | The core, plus XQuery 4.0, XSLT 4.0, XSD 1.1 and every optional feature except EXPath File | 7,110,859 bytes | 1,637,620 bytes |
+| `sxml` (WASI command) | Everything the native `sxml` command has | 8,705,286 bytes | 1,919,916 bytes |
 
 ## Quick start
 
-You need CMake 3.24 or later, Ninja and a C17 compiler (Clang or GCC; MSVC
-on Windows has its own preset, `msvc`).
+You need CMake 3.24 or later, Ninja and a C17 compiler (Clang or GCC).
 
 ```sh
 cmake --preset release
@@ -49,7 +70,9 @@ cmake --build --preset release
 export PATH="$PWD/build/release/apps:$PATH"
 ```
 
-The examples below use this file, `books.xml`:
+The examples use this file.
+
+`books.xml`:
 
 ```xml
 <books>
@@ -67,7 +90,9 @@ $ echo $?
 0
 ```
 
-Validate it against an XSD schema. `books.xsd`:
+Validate it against an XSD schema.
+
+`books.xsd`:
 
 ```xml
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
@@ -88,8 +113,7 @@ Validate it against an XSD schema. `books.xsd`:
 </xs:schema>
 ```
 
-No output means the document is valid. Errors name the line, the column
-and the XSD rule that failed:
+Errors name the line, the column and the XSD rule that failed:
 
 ```console
 $ sxml validate --schema=books.xsd books.xml
@@ -101,16 +125,15 @@ $ echo '<books><book year="soon"><title>Dune</title></book></books>' | sxml vali
 Evaluate XPath 4.0:
 
 ```console
-$ sxml xpath --context-item=books.xml '//book[@year < 1980]/title/string()'
-"Godel, Escher, Bach"
-"The Art of Computer Programming"
 $ sxml xpath --context-item=books.xml 'sum(//price ! xs:decimal(.))'
 257.5
 $ sxml xpath --method=json 'map { "a": [1, 2] }'
 {"a":[1,2]}
 ```
 
-Run an XQuery 4.0 query. `titles.xq`:
+Run an XQuery 4.0 query.
+
+`titles.xq`:
 
 ```xquery
 <titles>{
@@ -125,7 +148,9 @@ $ sxml xquery --context-item=books.xml titles.xq
 <titles><title year="1968">The Art of Computer Programming</title><title year="1979">Godel, Escher, Bach</title><title year="1986">Structure and Interpretation of Computer Programs</title></titles>
 ```
 
-Transform with XSLT 4.0. `list.xsl`:
+Transform with XSLT 4.0.
+
+`list.xsl`:
 
 ```xml
 <xsl:stylesheet version="4.0" expand-text="yes" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
@@ -164,8 +189,147 @@ $ sxml transform list.xsl books.xml
 </html>
 ```
 
-`sxml help` lists every command;
+`sxml help` lists every command.
 [apps/sxml/README.md](apps/sxml/README.md) is the full reference.
+
+## Examples
+
+### Stream large documents
+
+In an XSLT mode declared `streamable="yes"`, `sxml transform` reads its
+input as it parses it and never builds a tree. Memory stays flat however
+large the input is.
+
+`total.xsl`:
+
+```xml
+<xsl:stylesheet version="4.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
+  <xsl:mode streamable="yes"/>
+  <xsl:output method="text"/>
+  <xsl:template match="/orders">
+    <xsl:value-of select="format-number(sum(order/total), '#,##0.00')"/>
+  </xsl:template>
+</xsl:stylesheet>
+```
+
+`orders.xml` is 76 MB, with one million orders such as
+`<order id="1"><customer>c1</customer><total>37.01</total></order>`:
+
+```console
+$ sxml transform total.xsl orders.xml
+499,995,000.00
+```
+
+The streamed run uses 11 MB of memory at its peak. Without
+`streamable="yes"`, the same stylesheet builds the tree and uses 597 MB.
+A 974 MB document streams in 11 MB too. Accumulators, `xsl:fork`,
+`xsl:iterate` and `xsl:source-document streamable="yes"` stream as well.
+A stylesheet that is not guaranteed-streamable is rejected with the error
+XSLT 4.0 gives (XTSE3430).
+
+### Read HTML
+
+`fn:parse-html` and `fn:html-doc` parse HTML as browsers do, into elements
+in the XHTML namespace.
+
+`shop.html`:
+
+```html
+<!doctype html><title>Shop</title>
+<table><tr><td>Tea<td>3.50
+<tr><td>Coffee<td>4.20</table>
+```
+
+```console
+$ sxml xpath 'html-doc("shop.html")//*:tr ! string-join(*:td ! normalize-space(), ": ")'
+"Tea: 3.50"
+"Coffee: 4.20"
+$ sxml xpath --method=xml "parse-html('<ul><li>Tea<li>Coffee</ul>')//*:ul"
+<ul xmlns="http://www.w3.org/1999/xhtml"><li>Tea</li><li>Coffee</li></ul>
+```
+
+### Parse text with Invisible XML
+
+`fn:invisible-xml` compiles an Invisible XML grammar into a function that
+turns text into XML.
+
+`date.ixml`:
+
+```
+date: day, -" ", month, -" ", year.
+day: digit, digit?.
+month: "January"; "February"; "March"; "April"; "May"; "June";
+       "July"; "August"; "September"; "October"; "November"; "December".
+year: digit, digit, digit, digit.
+-digit: ["0"-"9"].
+```
+
+```console
+$ sxml xpath --method=xml 'invisible-xml(unparsed-text("date.ixml"))("20 October 2026")'
+<date><day>20</day><month>October</month><year>2026</year></date>
+$ sxml xpath --method=xml 'invisible-xml(unparsed-text("date.ixml"))("20 Octobre 2026")'
+<failed xmlns:ixml="http://invisiblexml.org/NS" ixml:state="failed"><line>1</line><column>9</column><position>9</position><unexpected>"r"</unexpected><expected>"e"</expected></failed>
+```
+
+### Search text
+
+XQuery Full Text adds `contains text` to XQuery: words and phrases,
+`ftand`, `ftor` and `ftnot`, distances, windows, wildcards, stemming,
+stop words and thesauri.
+
+`reviews.xml`:
+
+```xml
+<reviews>
+  <review id="1">The parser handled every document we tried.</review>
+  <review id="2">Parsing large files was slow at first.</review>
+  <review id="3">Streaming keeps memory flat, even for huge inputs.</review>
+</reviews>
+```
+
+```console
+$ sxml xquery --context-item=reviews.xml --method=adaptive --expression='//review[. contains text "parse"]/@id/string()'
+$ sxml xquery --context-item=reviews.xml --method=adaptive --expression='//review[. contains text "parse" using stemming]/@id/string()'
+"2"
+$ sxml xquery --context-item=reviews.xml --method=adaptive --expression='//review[. contains text "memory" ftand "huge" distance at most 5 words]/@id/string()'
+"3"
+```
+
+## Features by module
+
+The JavaScript package has two modules: the core module, `sxml.wasm`, and
+the full module, `sxml-full.wasm`. The `sxml` command and the C library
+have everything.
+
+| Feature | `sxml.wasm` | `sxml-full.wasm` | `sxml` command | C library |
+| --- | :-: | :-: | :-: | :-: |
+| XML 1.0 and 1.1, namespaces, DTDs and entities | yes | yes | yes | yes |
+| XPath 4.0 and F&O 4.0, with JSON and CSV | yes | yes | yes | yes |
+| Serialization 4.0 | yes | yes | yes | yes |
+| XQuery 4.0 and the XQuery Update Facility 3.0 | – | yes | yes | yes |
+| XQuery Full Text 3.0 | – | yes | yes | yes |
+| XSLT 4.0, streaming, XSLT 1.0 and EXSLT Common | – | yes | yes | yes |
+| `fn:transform` | – | yes | yes | yes |
+| XSD 1.1 validation and schema awareness | – | yes | yes | yes |
+| DTD validation | – | yes | yes | yes |
+| HTML parsing | – | yes | yes | yes |
+| Invisible XML | – | yes | yes | yes |
+| EXPath Binary | – | yes | yes | yes |
+| EXPath File | – | – | with `--allow-file-access` | yes [^file] |
+| UCA collations with CLDR tailorings | – | yes [^data] | yes | yes [^data] |
+| Time zones by name | – | yes [^data] | yes [^zoneinfo] | yes [^data] |
+| Languages and calendars in the formatting functions | – | yes [^data] | yes | yes [^data] |
+
+[^file]: A host names the EXPath File feature on purpose: it reads and
+    writes files outside the resolver.
+[^data]: The tables come from the host's resolver when they are first
+    used. The JavaScript package ships the collation table.
+[^zoneinfo]: Read from `/usr/share/zoneinfo`.
+
+In the C library, XQuery, XSLT and XSD are linked when a program uses
+them, and the other features when the program names them in its
+processor configuration. A program that uses only XPath links only what
+XPath needs.
 
 ## Use it from C
 
@@ -281,24 +445,22 @@ add_executable(books books.c)
 target_link_libraries(books PRIVATE sxml)
 ```
 
-```console
+```
 $ ./books
 "The Art of Computer Programming"
 ```
 
-XQuery (`sxml/xquery.h`) and XSLT (`sxml/xslt.h`) follow the same pattern:
-compile once, evaluate many times, with the same processor, contexts and
-serializer.
+XQuery (`sxml/xquery.h`), XSLT (`sxml/xslt.h`) and XSD (`sxml/schema.h`)
+follow the same pattern: compile once, run many times, with the same
+processor, contexts and serializer. To turn on optional features, list
+them in the processor configuration, for example
+`.optional_features = sxml_all_optional_features()`.
 
 ## Use it from JavaScript
 
-The `sxml-js` package in [`bindings/javascript`](bindings/javascript) runs
-the same library as WebAssembly. Its core module, `sxml.wasm`, covers XML
-parsing, XPath 4.0 and serialization. The full module, `sxml-full.wasm`,
-adds XQuery 4.0 (with updates), XSLT 4.0 and XSD 1.1 validation:
-`processor.compileQuery`, `processor.compileStylesheet` and
-`processor.compileSchema`. The package is not on npm yet: build it from
-this repository as its README describes.
+The `sxml-js` package in [`bindings/javascript`](bindings/javascript)
+runs the same library as WebAssembly, with no runtime dependencies. It is
+not on npm yet: build it from this repository as its README describes.
 
 ```js
 import { load } from 'sxml-js';
@@ -315,53 +477,58 @@ const titles = processor.evaluate('//book[@year < $year] ! string()', {
 });
 console.log(titles.toString());
 // "The Art of Computer Programming"
-
-const data = processor.evaluate('map { "count": count(//book) }', { context: books });
-console.log(data.serialize({ method: 'json' }));
-// {"count":2}
-
-processor.dispose();
 ```
 
-With `sxml-full.wasm` loaded, a query or a stylesheet is compiled once and
-run many times:
+Load the full module for XQuery, XSLT and XSD:
 
 ```js
-const query = processor.compileQuery('declare variable $n external; //book[@year < $n] ! string()');
-query.run({ context: books, variables: { n: 1975 } });
-// 'The Art of Computer Programming'
+const full = await load({ wasm: new URL('sxml-full.wasm', import.meta.resolve('sxml-js')) });
+const library = full.createProcessor();
+const query = library.compileQuery('declare variable $n external; //book[@year < $n] ! string()');
+query.run({ context: library.parse('<books><book year="1968">TAOCP</book></books>'), variables: { n: 1975 } });
+// 'TAOCP'
 ```
 
 The package's [README](bindings/javascript/README.md) describes its API.
 
-## Standards conformance
+## Conformance
 
-sxml is tested against the W3C test suites for XPath, XQuery and XSLT 4.0
-and XSD 1.1. Pass rates of the test cases that apply to sxml:
+sxml is tested against the W3C test suites. The counts are of a release
+build at commit `e4ea880` (2026-10-20). A test case counts as run unless
+it needs a feature that sxml does not claim; a test case that expects an
+error and gets another error code counts as passed, as the QT4 catalog
+allows.
 
-| Test suite | Test cases run | Passed | Rate |
+| Test suite | Run | Passed | Rate |
 | --- | --: | --: | --: |
-| QT4, XPath 4.0 and F&O 4.0 (XP40) | 31,267 | 30,931 | 98.9 % |
-| QT4, XQuery 4.0 (XQ40) | 41,808 | 41,273 | 98.7 % |
-| XSLT 4.0 (XT40) | 9,208 | 8,650 | 93.9 % |
-| XSD 1.1 (W3C XSD test suite) | 41,518 | 41,483 | 99.9 % |
+| QT4: XPath 4.0 and F&O 4.0 (XP40) | 32,771 | 32,689 | 99.7 % |
+| QT4: XQuery 4.0 (XQ40), with Update and Full Text | 46,208 | 45,969 | 99.5 % |
+| XSLT 4.0 (XT40) | 12,513 | 12,053 | 96.3 % |
+| XSD 1.1 (W3C XSD test suite) | 41,518 | 41,486 | 99.9 % |
 
-The schema-aware test cases are run too: XPath passes 279 of 315, XQuery
-1,236 of 1,516 and XSLT 627 of 971. Test cases that need a feature sxml
-does not have (XQuery Update, Full Text, EXPath modules, streaming) are
-not run.
-[docs/CONFORMANCE.md](docs/CONFORMANCE.md) has the full results, by test
-set and by failure cause.
+The schema-aware test cases among them: XPath passes 304 of 315, XQuery
+1,397 of 1,516 and XSLT 920 of 971. Other suites:
+
+| Test suite | Passed |
+| --- | --: |
+| W3C XML Conformance Test Suite: valid, invalid and not well-formed documents, XML 1.0 and 1.1 | 2,237 of 2,237 |
+| html5lib: tokenizer | 7,045 of 7,045 |
+| html5lib: tree construction | 1,749 of 1,753 |
+| html5lib: encoding | 82 of 82 |
+| Invisible XML community test suite | 886 of 890 |
+
+[docs/CONFORMANCE.md](docs/CONFORMANCE.md) has the QT4, XSLT and XSD
+results by test set.
 
 ## Design
 
-- **Portable C17.** One code base for every platform, with no
-  dependencies outside the repository.
+- **Portable C17.** One code base, with no dependencies outside the
+  repository.
 - **No global state.** Every object lives in memory you control, and
   separate processors share nothing.
-- **Caller-controlled memory.** sxml never calls `malloc` itself. Every
-  object takes an `sxml_allocator`, or is placed in memory you provide
-  after a `memory_requirements` query.
+- **Your memory.** sxml never calls `malloc` itself. Every object takes
+  an `sxml_allocator`, or is placed in memory you provide after a
+  `memory_requirements` query.
 - **No recursion.** Parsers and the evaluator use explicit stacks, so
   deeply nested documents and queries do not overflow the C stack. Depth
   and work are bounded by limits you configure.
@@ -372,11 +539,12 @@ set and by failure cause.
 
 ## Status
 
-sxml is under active development and has no tagged release yet. XML
-parsing, XPath 4.0, XQuery 4.0, XSLT 4.0, XSD 1.1 validation and
-serialization are implemented, in the library and in the `sxml` command.
-XPath, XQuery and XSLT are schema-aware. All public C headers, `schema.h`
-included, are stable.
+sxml 0.2.0 is in active development and has no tagged release yet.
+Everything above works in the library, the `sxml` command and, where the
+table says so, in JavaScript. The public C headers are stable. Not done
+yet: builds for macOS and Windows, bindings for iOS and Android,
+`xsl:merge` over streamed inputs, and Full Text in XPath expressions
+(it works in XQuery).
 
 ## License
 
@@ -385,7 +553,6 @@ The repository does not have a license file yet.
 ## Documentation
 
 - [apps/sxml/README.md](apps/sxml/README.md): the `sxml` command.
-- [docs/CLI.md](docs/CLI.md): the design rules of the `sxml` command.
 - [include/sxml/](include/sxml/): the C API. Each header documents its
   types and functions; start with `processor.h` and `xpath.h`.
 - [bindings/javascript/README.md](bindings/javascript/README.md): the

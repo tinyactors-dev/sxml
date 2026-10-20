@@ -1,9 +1,14 @@
 # sxml
 
 `sxml` is the command-line program of the sxml library. It checks XML
-documents, validates them against XSD 1.1 schemas, evaluates XPath 4.0
-expressions and XQuery 4.0 queries, runs XSLT 4.0 stylesheets, and writes
-the results to standard output or to the file that `--output` names.
+1.0 and 1.1 documents, validates them against DTDs and XSD 1.1 schemas,
+evaluates XPath 4.0 expressions and XQuery 4.0 queries (with the Update
+Facility and Full Text), runs XSLT 4.0 stylesheets (streamed when the
+stylesheet allows it), and writes the results to standard output or to
+the file that `--output` names. Every optional feature of the library is
+in it: HTML parsing, Invisible XML, `fn:transform`, EXPath Binary, UCA
+collations, time zones, and languages and calendars in the formatting
+functions; EXPath File with `--allow-file-access`.
 
 ```console
 $ sxml xpath --context-item=books.xml '//book[@year < 1980]/title/string()'
@@ -168,6 +173,57 @@ document:
 </xs:schema>
 ```
 
+`orders.xml`:
+
+```xml
+<orders>
+  <order id="1"><customer>c1</customer><total>37.01</total></order>
+  <order id="2"><customer>c2</customer><total>74.02</total></order>
+  <order id="3"><customer>c3</customer><total>111.03</total></order>
+</orders>
+```
+
+`total.xsl`, which streams its input:
+
+```xml
+<xsl:stylesheet version="4.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
+  <xsl:mode streamable="yes"/>
+  <xsl:output method="text"/>
+  <xsl:template match="/orders">
+    <xsl:value-of select="format-number(sum(order/total), '#,##0.00')"/>
+  </xsl:template>
+</xsl:stylesheet>
+```
+
+`shop.html`:
+
+```html
+<!doctype html><title>Shop</title>
+<table><tr><td>Tea<td>3.50
+<tr><td>Coffee<td>4.20</table>
+```
+
+`date.ixml`, an Invisible XML grammar:
+
+```
+date: day, -" ", month, -" ", year.
+day: digit, digit?.
+month: "January"; "February"; "March"; "April"; "May"; "June";
+       "July"; "August"; "September"; "October"; "November"; "December".
+year: digit, digit, digit, digit.
+-digit: ["0"-"9"].
+```
+
+`reviews.xml`:
+
+```xml
+<reviews>
+  <review id="1">The parser handled every document we tried.</review>
+  <review id="2">Parsing large files was slow at first.</review>
+  <review id="3">Streaming keeps memory flat, even for huge inputs.</review>
+</reviews>
+```
+
 `bad-books.xml`, which is not valid against `books.xsd`:
 
 ```xml
@@ -269,6 +325,13 @@ $ echo '<p>hi</p>' | sxml xpath --context-item=- 'string(/p)'
 "hi"
 $ sxml xpath '1 div 0'
 expression:1:1: err:FOAR0001: division by zero (F&O 4.0, op:numeric-divide, op:numeric-integer-divide, op:numeric-mod)
+$ sxml xpath 'html-doc("shop.html")//*:tr ! string-join(*:td ! normalize-space(), ": ")'
+"Tea: 3.50"
+"Coffee: 4.20"
+$ sxml xpath --method=xml 'invisible-xml(unparsed-text("date.ixml"))("20 October 2026")'
+<date><day>20</day><month>October</month><year>2026</year></date>
+$ sxml xpath "format-date(xs:date('2026-10-20'), '[FNn], [D]. [MNn] [Y]', 'de', (), ())"
+"Dienstag, 20. Oktober 2026"
 $ sxml xpath "bin:hex('CAFE') => bin:to-octets()"
 202
 254
@@ -326,6 +389,11 @@ serialization. The default method is xml.
   replace, rename, updating functions) writes the context item's document
   as its updates left it, in place of its value, which is empty. The file
   itself is not changed; copy-modify and transform-with work in any query.
+- XQuery Full Text 3.0 is part of the language: `contains text` with
+  `ftand`, `ftor`, `ftnot`, phrases, distances, windows, wildcards,
+  stemming (Snowball stemmers for en, de, fr, it, es and nl, chosen by
+  `using language`), and stop word lists and thesauri by URI, which are
+  read as local files.
 - `fn:put($node, $uri)` stores a document only with `--allow-put`: sxml
   serializes the node, with the parameters of fn:put's third argument, to
   the local file that `$uri` names. A relative `$uri` is a file in the
@@ -353,6 +421,8 @@ $ sxml xquery --context-item=books.xml --method=text --expression='copy $b := //
 TAOCP
 $ sxml xquery --context-item=books.xml --expression='import schema default element namespace "" at "books.xsd"; (validate { /books })//book[1]/@year instance of attribute(*, xs:gYear)'
 true
+$ sxml xquery --context-item=reviews.xml --method=adaptive --expression='//review[. contains text "parse" using stemming]/@id/string()'
+"2"
 $ sxml xquery --allow-file-access --method=text --expression='file:write-text-lines("notes.txt", ("one", "two")), file:read-text-lines("notes.txt")[2]'
 two
 $ sxml xquery --context-item=books.xml --method=csv --expression='//book ! [string(title), number(price)]'
@@ -387,11 +457,13 @@ transformation.
   or else `xsl:initial-template`, without a context item.
 - When templates are applied to an INPUT file in a mode that is declared
   `streamable="yes"` and whose template rules are all
-  guaranteed-streamable, and the stylesheet reads no accumulator, INPUT
-  is streamed: it is read as it is parsed and never built as one tree
-  (XSLT 4.0, 2.4.3 and 18; D228). It is then not the global context item
-  (2.4.2): a global variable that reads the context item fails with
-  XPDY0002. Standard input (`-`) is always built as a tree.
+  guaranteed-streamable, INPUT is streamed: it is read as it is parsed
+  and never built as one tree (XSLT 4.0, 2.4.3 and 18), so memory stays
+  flat however large INPUT is. Accumulators are computed while streaming,
+  except one whose end rule has `capture="yes"`: a stylesheet that reads
+  such an accumulator builds the tree. A streamed INPUT is not the global
+  context item (2.4.2): a global variable that reads the context item
+  fails with XPDY0002. Standard input (`-`) is always built as a tree.
 
 The principal result goes to standard output, or to the file that
 `--output` names. The unnamed `xsl:output` of the stylesheet controls the
@@ -465,6 +537,8 @@ $ sxml transform --method=xml list.xsl - < books.xml | head -2
 <html>
 $ sxml transform hello.xsl
 Hello from XSLT 4.0
+$ sxml transform total.xsl orders.xml
+222.06
 $ sxml transform --initial-template=main hello.xsl
 hello.xsl: err:XTDE0040: the stylesheet has no template of the initial template's name (XSLT 4.0, 2.4.4)
 $ sxml transform chapters.xsl books.xml
@@ -535,9 +609,10 @@ Check that XML documents are well-formed.
 sxml check [--external-entities] [--validate-dtd] [--format=FORMAT] FILE...
 ```
 
-`sxml check` checks that each FILE is a well-formed XML 1.0 document that
-also conforms to Namespaces in XML 1.0. The supported encodings are UTF-8,
-UTF-16, ISO-8859-1 and US-ASCII. The external DTD subset and external
+`sxml check` checks that each FILE is a well-formed XML 1.0 or XML 1.1
+document, by the version its XML declaration names, that also conforms to
+Namespaces in XML. The supported encodings are UTF-8, UTF-16, ISO-8859-1
+and US-ASCII. The external DTD subset and external
 entities are read only with `--external-entities`.
 
 When every FILE is well-formed, `sxml check` writes nothing. Each problem
@@ -580,11 +655,15 @@ limit is exceeded (entity expansion beyond 4 MiB).
 $ sxml check books.xml
 $ echo '<a><b/></a' > broken.xml
 $ sxml check broken.xml
-broken.xml:2:1: not well-formed: the document ends or breaks off before a construct is complete (XML 1.0, section 2.1)
+broken.xml:1:8: not well-formed: the text does not match the XML 1.0 grammar here (XML 1.0, section 2.1)
 $ sxml check --format=json books.xml broken.xml
-{"files":[{"file":"books.xml","status":"well-formed"},{"file":"broken.xml","status":"not-well-formed","line":2,"column":1,"byte_offset":11,"message":"not well-formed: the document ends or breaks off before a construct is complete (XML 1.0, section 2.1)"}]}
+{"files":[{"file":"books.xml","status":"well-formed"},{"file":"broken.xml","status":"not-well-formed","line":1,"column":8,"byte_offset":7,"message":"not well-formed: the text does not match the XML 1.0 grammar here (XML 1.0, section 2.1)"}]}
 $ sxml check missing.xml
 sxml check: cannot read 'missing.xml'
+$ printf '<?xml version="1.1"?>\n<a>&#1;</a>\n' > control.xml
+$ sxml check control.xml
+$ sed 's/1.1/1.0/' control.xml | sxml check -
+-:2:4: WFC: Legal Character: a character reference must denote a character (XML 1.0, section 4.1)
 ```
 
 With a DTD (the files of `tests/cli/input/dtd/`): `article.xml` names the

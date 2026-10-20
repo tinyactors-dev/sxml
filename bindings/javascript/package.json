@@ -1,7 +1,7 @@
 {
   "name": "sxml-js",
   "version": "0.2.0",
-  "description": "sxml for JavaScript: XML parsing, XPath 4.0 and serialization in Node.js and browsers, over WebAssembly",
+  "description": "sxml for JavaScript: XML, XPath 4.0, XQuery 4.0, XSLT 4.0 and XSD 1.1 in Node.js and browsers, over WebAssembly",
   "license": "MIT",
   "type": "module",
   "exports": {

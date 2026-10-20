@@ -2,12 +2,12 @@ sxml check - Check that XML documents are well-formed
 
 Usage: sxml check [--external-entities] [--validate-dtd] [--format=FORMAT] FILE...
 
-Checks that each FILE is a well-formed XML 1.0 document that also
-conforms to Namespaces in XML 1.0. No tree is built. The supported
-encodings are UTF-8, UTF-16, ISO-8859-1 and US-ASCII. The external DTD
-subset and external entities are read only with --external-entities,
-and then only as local files, relative to the file that refers to
-them.
+Checks that each FILE is a well-formed XML 1.0 or XML 1.1 document
+(by the version its XML declaration names) that also conforms to
+Namespaces in XML. No tree is built. The supported encodings are
+UTF-8, UTF-16, ISO-8859-1 and US-ASCII. The external DTD subset and
+external entities are read only with --external-entities, and then
+only as local files, relative to the file that refers to them.
 
 With --validate-dtd, each FILE must also be valid against its DTD
 (XML 1.0, section 5.1); the first error of each FILE is reported. A
