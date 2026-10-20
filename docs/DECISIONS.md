@@ -12572,6 +12572,89 @@ case. **XT40 12,239 to 12,250 passed (107 to 104 wrong error), 279 to
   strip-space "none" of an available document, namespace-2606.
 - The XT40 section of `docs/CONFORMANCE.md` was not regenerated.
 
+### D277. XSD conformance sweep 3: XSD 1.1 component rules, content recovery (packet 5.13)
+Recorded 2026-10-20, after D178, D180, D263, D270, D271, D275. No public
+header changed; internal additions only (schema_internal.h:
+sxml_schema_value_constraints_are_equal, sxml_schema_content_model_recover,
+sxml_schema_type_definition.restricts_attribute_group;
+schema_read_internal.h: sxml_schema_document_reference.needs_document;
+the validation frame's is_after_rejection).
+- **Start** (release sxml-xsd-test, whole run at 7277563): 41,486 of
+  41,518 in scope passed, 32 failed, 217 not run.
+- **Fixed, 21, by what XSD 1.1 decides** (commit 3b037b0):
+  src-attribute.5, fixed with use="prohibited" (4; QUEUE had it as a
+  1.0-only rule, but 3.2.3 clause 5 is new in 1.1); an attribute's type
+  must be simple, src-resolve (1); a required base attribute keeps a use
+  in the restriction's {attribute uses}, and the restriction that checks
+  a redefined attribute group inherits none (2); src-redefine.1, a
+  redefine with components whose document does not resolve (4); simple
+  content restricting xs:anySimpleType or xs:anyAtomicType without
+  facets, cos-st-restricts.1.1 (4); fixed values in restrictions compare
+  as values, equal or identical (1); Element Declarations Consistent,
+  wildcard paragraph: type tables of a local declaration and the
+  top-level one a strict or lax wildcard matches (3); a restricting
+  wildcard the union of the base's wildcards covers (1); xml:lang of
+  schema documents is a language or empty (1). End: 41,507 passed, 11
+  failed, none lost; the slice 147/147.
+- **Left, 11, not decided by XSD 1.1 as the tests expect**:
+  - XSD 1.0 rules: particlesK006 (1.0's particle restriction; 1.1's
+    is by language), particlesZ033_g (UPA between an element and a
+    wildcard, allowed in 1.1, 3.8.6.4's note), annotF001 (xml:lang=""
+    is invalid only with the 2001 xml.xsd).
+  - Against the 1.1 Rec: ibm s3_4_2_4si03 expects a circular attribute
+    group reference to be an error; 3.6.2.1 says it is not.
+  - xs:NOTATION used directly (github w3c/xsdtests issue 12): 1.1 makes
+    validating a literal against xs:NOTATION the error; D171 keeps it a
+    schema error, as MHK's 2026 revision of over027 does. Then
+    particlesZ007 (schema valid, 2006) and particlesZ007.i fail, and
+    so does over027.n01, whose schema is (rightly, by that reading)
+    invalid while the instance test expects a verdict.
+  - Instance tests of indeterminate schemas: schU3.i, schU4.i, schU5.i
+    (a document redefined twice, bug 4136) and ste110.i (a circular
+    union, bug 4957, queried): sxml rejects the schema, the instance
+    tests expect "invalid", and the driver counts an instance of a
+    failed schema as a fail (D165).
+  - XML 1.1 instances, named in QUEUE: none fail now; they are not run
+    (XML-1.1 is not a supported substrate token).
+- **Not run** (217): the introspection set (92) validates the suite's
+  own catalogs against xsts.xsd, which imports
+  http://www.w3.org/XML/2008/06/xlink.xsd; with a local copy of that
+  file all 92 pass (measured with sxml validate). Cheap to run: the
+  driver's resolver would serve that one file, as the stand-in xml.xsd
+  is served (D180); it needs xlink.xsd in third_party, for the owner.
+  "queried" (57): run as an experiment, 27 pass; their expectations are
+  the ones the WG queried, so they stay out. "version 1.0" (50): XSD
+  1.0 behaviour, not an XSD 1.1 processor's; not cheap to judge, stay
+  out. The rest (indeterminate 14, none applies 2, disputed 1, Unicode
+  4.0.0 1) have no expectation to compare with.
+- **Content recovery** (D270's and D271's open item; commit 707ca3a;
+  glossary content_recovery): after a child the content model rejects
+  (cvc-complex-type.2.4), the validator moves to the nearest state the
+  child is accepted from, as if the elements before it were missing
+  (a breadth-first walk over the states, an explicit queue, D71;
+  counter tests not applied on the way), or else skips the child and
+  assesses it by a declaration of its name in the type's particles
+  (else laxly); the rest of the content goes on being matched and
+  checked. A missing element is one report, an extra one one, a swap
+  two; "incomplete" is not repeated right after a rejection at the same
+  state. Verdicts do not change (no attribution after the rejected
+  child, 3.4.4.2); empty, simple and nilled content keep the lax rest.
+  The book's XSD chapters and apps/sxml/README.md show it.
+- **xsi:schemaLocation in sxml validate: not added.** The library does
+  not follow schema location hints (schema.h: "not followed (4.3.2
+  allows it)"; fn:xsd-validator's use-xsi-schema-location=true is
+  FODC0009), so a flag would name something that does not work (CLI
+  rules). The book's "Schema hints in documents" stands. Following
+  hints needs the validator to add documents to its schema while it
+  validates (hints may appear on any element), which is a design packet.
+- **IDREF checks at an element validation root** stay (D275).
+- **Measured** (release drivers, before/after each change): XSD11
+  41,486 -> 41,507; QT4 XQ40 schema-aware sets (77 test sets with
+  schemaValidation, schemaImport, typedData or xsd-validator) 11,977
+  passed, 57 failed, unchanged; XT40 schema_aware sets (52) 4,083
+  passed, 87 failed, unchanged; no case changed outcome. CONFORMANCE.md
+  is not regenerated.
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): tagging and

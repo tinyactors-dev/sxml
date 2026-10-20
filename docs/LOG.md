@@ -4,6 +4,19 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 5.13 sweep 3 done (D277): XSD11 41,486 to 41,507 of 41,518 in scope
+  (32 to 11 failed), none lost. XSD 1.1 rules added: src-attribute.5,
+  src-redefine.1, simple attribute types, required uses kept by
+  restrictions, simple content restricting xs:anySimpleType, fixed values
+  compared as values, Element Declarations Consistent with wildcards,
+  wildcard unions in restrictions, xml:lang. The 11 left are XSD 1.0
+  rules or disputed expectations. After a cvc-complex-type.2.4
+  rejection the validator recovers and checks the rest of the content
+  (book and CLI README updated). Schema-aware QT4 (XQ40) and XT40 sets
+  unchanged. Not added: xsi:schemaLocation in sxml validate (the
+  library has no hints). The introspection set passes with a local
+  xlink.xsd.
+
 - 4.28 done (D276): XSLT sweep, XT40 12,239 to 12,250 passed (107 to
   104 wrong error), 279 to 268 failed, 0 errors, none lost. Errors an
   instruction raises name its module and line ($err:line-number, CLI

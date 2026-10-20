@@ -439,6 +439,14 @@ stand-in xml.xsd only without another document of the namespace, invalid
 sources judged as the transformation's error); validate-items a row of
 its own (sxml.wasm in budget); xslt.h's in_scope_schemas comment
 accepted. XT40 8,650 (0 errors), XP40 30,931, XQ40 41,273, XSD 41,483.
+**Sweep 3** done 2026-10-20 (D277): the 32 XSD11 failures by cause, 21
+fixed by XSD 1.1's rules (src-attribute.5, src-redefine.1, attribute
+types, required uses in restrictions, simple content of
+xs:anySimpleType, fixed values as values, Element Declarations
+Consistent with wildcards, wildcard unions, xml:lang), 11 left as 1.0
+rules or disputed; content recovery after cvc-complex-type.2.4; no
+xsi:schemaLocation in the CLI (the library follows no hints). XSD
+41,507 of 41,518; schema-aware XQ40 and XT40 sets unchanged.
 
 ### 5.14 Phase 5 review (review)
 After everything. Owns the gate boxes. A separate agent (D11) runs the
