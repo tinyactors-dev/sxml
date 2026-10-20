@@ -12727,6 +12727,28 @@ provide an option to control whether they do so").
   `third_party/w3c-xlink/` with its license (W3C Software and Document
   License) and served by the XSD driver's resolver for that URI, as the
   library serves its stand-in xml.xsd; the introspection set is run.
+- **The XSD driver** follows hints through the library now (its own
+  scan of xsi:schemaLocation pairs is gone): an instance with a hint
+  attribute compiles the test's documents again with
+  schema_location_hint_node, used when it compiles, as before.
+- **QT4 driver**: the feature schema-location-hint ("at" hints of
+  import schema resolved as relative URIs) is supported for XQuery;
+  qischema041, 042 and 083 pass.
+- **Done** (commits d7e87f6, 6669c24, 67f313b, 9e86eec). Verified as
+  D181 asks: debug preset (schema*, xquery_schema, xslt_schema,
+  function_library*, json, qt4, xsd, cli tests: 296 passed),
+  clang-tidy clean on the changed files, check-call-cycles 0 cycles,
+  tools/check-book-examples.sh on the touched chapters.
+- **Measured** (release drivers, HEAD 240bb83 before, the packet's
+  files after): XSD11 whole run 41,507 -> 41,599 passed (the 92
+  introspection tests), 11 failed unchanged (D277's 11), 217 -> 125 not
+  run; QT4 XQ40 schema-aware sets (76) 11,691 -> 11,696 passed, 53 -> 51
+  failed (fn-doc-40-065 and fn-doc-available-40-065 by this packet,
+  xml-to-json-057 by 4.29; fn-system-properties-supports-xinclude
+  failed in the after snapshot only because it ran 2.27's uncommitted
+  driver hunk without its code), 334 -> 331 not run; parse-xml-440
+  passes; XT40 schema_aware sets (52) 4,084 -> 4,087 passed (4.29's
+  commits), none lost. CONFORMANCE.md not regenerated.
 
 ### D280. XPath and XQuery conformance sweep: JNode Q{}N tests, listed modules, run-time type constructors (packet 2.26)
 Recorded 2026-10-20, after D99, D148, D190, D197, D258, D263, D275, D276.

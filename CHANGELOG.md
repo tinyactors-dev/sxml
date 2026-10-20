@@ -89,6 +89,14 @@ not tagged yet, or into the next minor release.
   option of fn:parse-xml and fn:document.
 - **`sxml validate`** checks documents against a schema, with
   `--mode=lax` and `--format=json` (`docs/CLI.md`, D176).
+- **Schema location hints** (D278): `sxml_schema_configuration` gains
+  `schema_location_hint_node` (additive; the zero item follows none), so
+  the xsi:schemaLocation and xsi:noNamespaceSchemaLocation hints of an
+  instance join the assembly through the resolver, for namespaces the
+  schema does not have yet. fn:xsd-validator, fn:doc, fn:doc-available,
+  fn:parse-xml and XSLT's fn:document honour use-xsi-schema-location
+  (it raised FODC0009 before), and `sxml validate --use-schema-location`
+  follows each FILE's hints; `--schema` is then optional.
 - XSD conformance (`docs/CONFORMANCE.md`): the W3C XSD test suite in
   scope 99.9 %; schema-aware XQ40 81.5 %, schema-aware XT40 64.6 %.
 

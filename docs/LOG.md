@@ -4,6 +4,18 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 5.16 done (D278): schema location hints. schema.h gains
+  `sxml_schema_configuration.schema_location_hint_node` (additive):
+  an instance's xsi:schemaLocation and xsi:noNamespaceSchemaLocation
+  hints join the assembly through the resolver, only for namespaces the
+  schema lacks. fn:xsd-validator, fn:doc, fn:doc-available,
+  fn:parse-xml and fn:document honour use-xsi-schema-location (no more
+  FODC0009); `sxml validate --use-schema-location` (book and README
+  updated); xlink.xsd vendored, the 92 introspection tests run and
+  pass. XSD11 41,507 to 41,599 passed (11 failed, unchanged); QT4
+  schema-aware XQ40 11,691 to 11,696; XT40 schema-aware 4,084 to 4,087;
+  none lost. CONFORMANCE.md not regenerated.
+
 - 4.29 done (D281): XSLT sweep, XT40 12,250 to 12,261 passed (104 to
   99 wrong error), 268 to 257 failed, 0 errors, none lost. A failed
   cast in an XSLT binding's coercion is its type error (XTTE0570,

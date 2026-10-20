@@ -460,6 +460,27 @@ NCName, whitespace and token helpers merged (fifteen files), an
 allocation-failure loop for schema.h, `schema.h` stable, five accepted
 designs out of Proposed.
 
+### 5.16 Schema location hints (design and implementation)
+After 5.13 sweep 3 (D277). Owns the additive field of
+`include/sxml/schema.h` (with D278), `src/schema_assemble.c`,
+`src/function_library_schema.c`, the use-xsi-schema-location hunks of
+`src/function_library_json.c`, `src/function_library_node.c`,
+`src/function_library_xslt.c` and `src/function_library_core_internal.h`,
+`apps/sxml/command_validate.c`, `tests/cli/` (validate_hints*),
+`tests/xsd/driver/`, `third_party/w3c-xlink/`, the book's
+"Schema hints in documents". XSD 1.1 Part 1, 4.3.2: the hints of an
+instance join the assembly when the host asks; fn:xsd-validator's
+use-xsi-schema-location works; `sxml validate` follows hints with a
+flag; xlink.xsd vendored so that the introspection set runs.
+**Done** 2026-10-20 (D278): `schema_location_hint_node`, hints only
+for namespaces the schema lacks; fn:xsd-validator, fn:doc,
+fn:doc-available, fn:parse-xml and fn:document; XQuery validate and
+XSLT validation keep ignoring hints; `sxml validate
+--use-schema-location`; the XSD driver through the library; the QT4
+driver's schema-location-hint. XSD11 41,507 to 41,599 (the 92
+introspection tests), 11 failed unchanged; QT4 schema-aware XQ40
+11,691 to 11,696; XT40 schema-aware 4,084 to 4,087; none lost.
+
 ## `sxml validate` (design for 5.10; docs/CLI.md gets it when it works)
 
 ```
@@ -485,7 +506,8 @@ with `validate`.
   valid. Each error goes to standard error as
   `FILE:LINE:COLUMN: CONSTRAINT: description`, every error of the file,
   not only the first; a FILE that is not well-formed is reported as
-  `sxml check` reports it. xsi:schemaLocation hints are ignored.
+  `sxml check` reports it. xsi:schemaLocation hints are ignored
+  (5.16 added `--use-schema-location`, D278).
 - Standard input is read at most once: `-` as a SCHEMA and a FILE, or
   twice, is a usage error.
 - With `--format=json`, one JSON object on standard output:
