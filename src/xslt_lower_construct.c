@@ -2884,6 +2884,79 @@ static sxml_status bind_member(sxml_xpath_lowerer *lowerer, member_request reque
                 atom);
 }
 
+/* request.value with each JNode replaced by its ·jvalue·, bound in
+   request.block: value ! (if (. instance of jnode()) then jvalue(.)
+   else .). */
+static sxml_status bind_json_values(sxml_xpath_lowerer *lowerer, member_request request,
+                                    sxml_ir_atom *atom) {
+    sxml_ir_slot item_slot = {0};
+    sxml_status status = sxml_xpath_lowerer_add_slot(lowerer, &item_slot);
+    const sxml_ir_atom item = {.atom_kind = SXML_IR_ATOM_KIND_SLOT, .slot = item_slot};
+    branch body = {.block = {.first = {0}, .open_let = {0}}, .result = {0}};
+    sxml_ir_atom is_json_node = {0};
+    if (status == SXML_STATUS_OK) {
+        status = bind_instance_of(lowerer,
+                                  (instance_request){.block = &body.block,
+                                                     .value = item,
+                                                     .item_type = SXML_TYPE_JSON_NODE,
+                                                     .occurrence = SXML_OCCURRENCE_EXACTLY_ONE},
+                                  &is_json_node);
+    }
+    branch unwrapped = {.block = {.first = {0}, .open_let = {0}}, .result = {0}};
+    sxml_ir_atom json_value = {0};
+    if (status == SXML_STATUS_OK) {
+        status = bind_call(lowerer,
+                           (call_request){.block = &unwrapped.block,
+                                          .function_namespace = SXML_NAMESPACE_FUNCTIONS,
+                                          .local_name = SXML_BYTE_VIEW_FROM_LITERAL("jvalue"),
+                                          .arguments = {.atoms = &item, .atom_count = 1}},
+                           &json_value);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = add_atom_content(lowerer, json_value, &unwrapped.result);
+    }
+    sxml_ir_expression_index then_branch = {0};
+    if (status == SXML_STATUS_OK) {
+        status = finish_branch(lowerer, &unwrapped, &then_branch);
+    }
+    sxml_ir_expression_index else_branch = {0};
+    if (status == SXML_STATUS_OK) {
+        status = add_atom_content(lowerer, item, &else_branch);
+    }
+    sxml_ir_atom chosen = {0};
+    if (status == SXML_STATUS_OK) {
+        status = bind(lowerer,
+                      (sxml_xslt_expression_to_bind){
+                          .block = &body.block,
+                          .expression = (sxml_ir_expression){
+                              .expression_kind = SXML_IR_EXPRESSION_KIND_CONDITIONAL,
+                              .conditional = {.condition = is_json_node,
+                                              .then_branch = then_branch,
+                                              .else_branch = else_branch}}},
+                      &chosen);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = add_atom_content(lowerer, chosen, &body.result);
+    }
+    sxml_ir_expression_index body_expression = {0};
+    if (status == SXML_STATUS_OK) {
+        status = finish_branch(lowerer, &body, &body_expression);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return bind(
+        lowerer,
+        (sxml_xslt_expression_to_bind){
+            .block = request.block,
+            .expression = (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_MAP,
+                                               .map = {.input = request.value,
+                                                       .focus = {.context_value = item_slot},
+                                                       .body = body_expression,
+                                                       .flags = 0}}},
+        atom);
+}
+
 /* xsl:array (22.1): array:of-members over one JNode per member: without
    for-each, each item of the value (a JNode as it is, any other item in
    fn:jtree); with for-each, the value computed for each item of it as the
@@ -3078,14 +3151,21 @@ static sxml_status continue_array_member(sxml_xpath_lowering_machine *machine,
                                                "attribute and content (XSLT 4.0, 22.1)"},
                            &source);
     }
+    /* 22.1: V1 is the value with each JNode replaced by its ·jvalue·
+       (one level: a ·jvalue· that holds JNodes again keeps them). */
+    sxml_ir_atom unwrapped = {0};
+    sxml_status status = bind_json_values(
+        machine->state, (member_request){.block = frame->block, .value = locals->value},
+        &unwrapped);
     sxml_ir_atom tree = {0};
-    const sxml_status status =
-        bind_call(machine->state,
-                  (call_request){.block = frame->block,
-                                 .function_namespace = SXML_NAMESPACE_FUNCTIONS,
-                                 .local_name = SXML_BYTE_VIEW_FROM_LITERAL("jtree"),
-                                 .arguments = {.atoms = &locals->value, .atom_count = 1}},
-                  &tree);
+    if (status == SXML_STATUS_OK) {
+        status = bind_call(machine->state,
+                           (call_request){.block = frame->block,
+                                          .function_namespace = SXML_NAMESPACE_FUNCTIONS,
+                                          .local_name = SXML_BYTE_VIEW_FROM_LITERAL("jtree"),
+                                          .arguments = {.atoms = &unwrapped, .atom_count = 1}},
+                           &tree);
+    }
     if (status != SXML_STATUS_OK) {
         return status;
     }

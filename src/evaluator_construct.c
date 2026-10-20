@@ -186,6 +186,30 @@ static const sxml_static_error sxml_construct_xslt_function_content_error = {
         "the content of an instruction contains a function item"),
 };
 
+static const sxml_static_error sxml_construct_xslt_conflicting_namespace_error = {
+    .error_status = SXML_STATUS_DYNAMIC_ERROR,
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XTDE0430"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(
+        "the namespace nodes of an element map one prefix to two namespace URIs (XSLT 4.0, "
+        "5.7.1)"),
+};
+
+static const sxml_static_error sxml_construct_xslt_default_namespace_error = {
+    .error_status = SXML_STATUS_DYNAMIC_ERROR,
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XTDE0440"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(
+        "a namespace node with no name is added to an element in no namespace (XSLT 4.0, "
+        "5.7.1)"),
+};
+
+static const sxml_static_error sxml_construct_xslt_copied_map_error = {
+    .error_status = SXML_STATUS_TYPE_ERROR,
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XTTE3375"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(
+        "the content of xsl:copy of a map JNode is not a sequence of maps (XSLT 4.0, "
+        "11.9.1.2, 21.1.1)"),
+};
+
 static const sxml_static_error sxml_construct_copy_cardinality_error = {
     .error_status = SXML_STATUS_TYPE_ERROR,
     .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XTTE3180"),
@@ -909,6 +933,8 @@ typedef struct sxml_construction {
     uint32_t construction_flags;
     /* True for the content of a document node. */
     bool is_document;
+    /* The name of the element being built; 0 for a document. */
+    sxml_name_identifier element_name;
     /* True once a child node or non-empty text was sent: no attribute or
        namespace node may follow (XQTY0024). */
     bool has_children;
@@ -961,6 +987,7 @@ static sxml_construction sxml_construction_empty(sxml_dynamic_context *context,
                                .rules = sxml_construct_top_rules(context, rules),
                                .construction_flags = sxml_construct_top_flags(context),
                                .is_document = false,
+                               .element_name = {.index = 0},
                                .has_children = false,
                                .follows_atomic_item = false,
                                .frames = NULL,
@@ -1253,6 +1280,43 @@ static sxml_status sxml_construction_copy(sxml_construction *construction,
     return status;
 }
 
+/* A namespace node in the content of an element built by XSLT's rules
+   (XSLT 4.0, 5.7.1): XTDE0440 for a default namespace (a namespace node
+   with no name and a URI) on an element in no namespace, and XTDE0430
+   where the tree rejects a second URI for one prefix (XQuery's
+   XQDY0102). */
+static sxml_status sxml_construction_add_xslt_namespace(sxml_construction *construction,
+                                                        sxml_node_reference node,
+                                                        const sxml_node_description *description) {
+    sxml_dynamic_context *context = construction->dynamic_context;
+    sxml_status status = SXML_STATUS_OK;
+    if (description->node_name.index == 0 && !construction->is_document) {
+        sxml_name_parts parts = {.namespace_uri = {.index = 0},
+                                 .local_name = {.bytes = NULL, .byte_count = 0}};
+        sxml_byte_view namespace_uri = {.bytes = NULL, .byte_count = 0};
+        status = sxml_name_pool_get_name_parts(sxml_item_heap_get_name_pool(context->item_heap),
+                                               construction->element_name, &parts);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_node_get_content(node, &namespace_uri);
+        }
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        if (parts.namespace_uri.index == SXML_NAMESPACE_NONE && namespace_uri.byte_count != 0) {
+            return sxml_evaluator_machine_raise(context,
+                                                &sxml_construct_xslt_default_namespace_error);
+        }
+    }
+    status = sxml_construction_copy(construction, node, description);
+    if (status == SXML_STATUS_DYNAMIC_ERROR && context->error_record != NULL &&
+        sxml_byte_view_equals(context->error_record->code.local_name,
+                              SXML_BYTE_VIEW_FROM_LITERAL("XQDY0102"))) {
+        return sxml_evaluator_machine_raise(context,
+                                            &sxml_construct_xslt_conflicting_namespace_error);
+    }
+    return status;
+}
+
 /* The children of a document node in the content (XQuery 4.0, section
    4.12.1.3, step 2: a document node is replaced by its children). */
 static sxml_status sxml_construction_add_document_children(
@@ -1310,6 +1374,10 @@ static sxml_status sxml_construction_add_node(sxml_construction *construction,
                 (sxml_construct_rule_errors){
                     .xquery_error = &sxml_construct_late_attribute_error,
                     .xslt_error = &sxml_construct_xslt_late_attribute_error});
+        }
+        if (description.node_kind == SXML_NODE_KIND_NAMESPACE &&
+            construction->rules == SXML_CONSTRUCT_RULES_XSLT) {
+            return sxml_construction_add_xslt_namespace(construction, node, &description);
         }
         return sxml_construction_copy(construction, node, &description);
     case SXML_NODE_KIND_DOCUMENT:
@@ -1812,6 +1880,7 @@ static sxml_status sxml_construction_start_element(sxml_construction *constructi
     if (is_enclosed) {
         construction->enclosing->has_children = true;
     }
+    construction->element_name = start->name.expanded_name;
     sxml_status status = construction->builder.operations->start_element(
         construction->builder.state,
         &(sxml_element_start_event){
@@ -2463,15 +2532,280 @@ static sxml_status sxml_construct_copy_with_content(sxml_dynamic_context *contex
     return sxml_construct_continue(construction, status, start);
 }
 
+/* ------------------------------------------- Shallow copy of JNodes */
+
+/* The phase of a SHALLOW_COPY task whose content, evaluated for a map or
+   array JNode, is ready (phase 1 is a construction's content). */
+enum { SXML_CONSTRUCT_PHASE_JNODE_CONTENT = 2 };
+
+/* The single map or array a JNode's ·jvalue· is, or none
+   (has_container false): an Array or Map JNode (XSLT 4.0, 11.9.1.2). */
+typedef struct sxml_construct_jnode_container {
+    bool has_container;
+    sxml_item container;
+} sxml_construct_jnode_container;
+
+/* The item of a sequence of exactly one item, borrowed; has_item false
+   for any other length. */
+typedef struct sxml_construct_single_item {
+    bool has_item;
+    sxml_item item;
+} sxml_construct_single_item;
+
+static sxml_status sxml_construct_get_single_item(sxml_dynamic_context *context,
+                                                  sxml_sequence sequence,
+                                                  sxml_construct_single_item *single) {
+    single->has_item = false;
+    uint64_t item_count = 0;
+    sxml_status status = sxml_sequence_count(sequence, context->error_record, &item_count);
+    if (status == SXML_STATUS_OK && item_count == 1) {
+        status = sxml_sequence_get_item(
+            sequence, (sxml_item_request){.item_index = 0, .error_record = context->error_record},
+            &single->item);
+        single->has_item = status == SXML_STATUS_OK;
+    }
+    return status;
+}
+
+static sxml_status sxml_construct_find_container(sxml_dynamic_context *context,
+                                                 sxml_sequence json_value,
+                                                 sxml_construct_jnode_container *found) {
+    sxml_construct_single_item single = {.has_item = false, .item = {.representation = 0}};
+    const sxml_status status = sxml_construct_get_single_item(context, json_value, &single);
+    const sxml_item_kind kind =
+        single.has_item ? sxml_item_get_kind(single.item) : SXML_ITEM_KIND_ATOMIC;
+    found->has_container = kind == SXML_ITEM_KIND_MAP || kind == SXML_ITEM_KIND_ARRAY;
+    found->container = single.item;
+    return status;
+}
+
+/* The ·jvalue· of J1 for a container J0 (XSLT 4.0, 11.9.1.2), from the
+   content's value S: an array of one member per item of S (a JNode's
+   ·jvalue·, any other item itself), as xsl:array select="S"; or the
+   maps of S (a JNode's ·jvalue·) merged, the last of duplicate keys
+   kept, as xsl:map select="S" duplicates="use-last". */
+typedef struct sxml_construct_container_value {
+    bool is_array;
+    sxml_sequence content;
+} sxml_construct_container_value;
+
+static sxml_status sxml_construct_make_container(sxml_dynamic_context *context,
+                                                 sxml_construct_container_value request,
+                                                 sxml_item *container) {
+    sxml_item made = {.representation = 0};
+    sxml_status status =
+        request.is_array
+            ? sxml_array_make(context->item_heap,
+                              (sxml_sequence_view){.sequences = NULL, .sequence_count = 0}, &made)
+            : sxml_map_make(context->item_heap,
+                            &(sxml_map_request){
+                                .map_entries = {.map_entries = NULL, .map_entry_count = 0},
+                                .duplicate_key_policy = SXML_DUPLICATE_KEY_POLICY_USE_LAST,
+                                .error_record = context->error_record},
+                            &made);
+    sxml_sequence_iterator iterator = sxml_sequence_iterator_start(request.content);
+    while (status == SXML_STATUS_OK) {
+        sxml_iteration_step step = {.has_item = false, .item = {.representation = 0}};
+        status = sxml_sequence_iterator_next(&iterator, context->error_record, &step);
+        if (status != SXML_STATUS_OK || !step.has_item) {
+            break;
+        }
+        sxml_sequence part = sxml_sequence_from_item(step.item);
+        if (sxml_item_get_kind(step.item) == SXML_ITEM_KIND_JSON_NODE) {
+            sxml_json_node_description description;
+            status = sxml_json_node_describe(step.item, &description);
+            part = description.json_value;
+        }
+        sxml_item next = {.representation = 0};
+        if (status == SXML_STATUS_OK && request.is_array) {
+            status = sxml_array_append(
+                context->item_heap,
+                &(sxml_array_update){.array = made, .member_index = 0, .member = part}, &next);
+        } else if (status == SXML_STATUS_OK) {
+            sxml_construct_single_item single = {.has_item = false,
+                                                 .item = {.representation = 0}};
+            status = sxml_construct_get_single_item(context, part, &single);
+            if (status == SXML_STATUS_OK &&
+                (!single.has_item || sxml_item_get_kind(single.item) != SXML_ITEM_KIND_MAP)) {
+                status =
+                    sxml_evaluator_machine_raise(context, &sxml_construct_xslt_copied_map_error);
+            }
+            if (status != SXML_STATUS_OK) {
+                break;
+            }
+            next = made;
+            sxml_item_retain(next);
+            size_t entry_count = 0;
+            status = sxml_map_get_size(single.item, &entry_count);
+            for (size_t entry_index = 0; status == SXML_STATUS_OK && entry_index < entry_count;
+                 entry_index += 1) {
+                sxml_map_entry entry;
+                status = sxml_map_get_entry(single.item, entry_index, &entry);
+                sxml_item put = {.representation = 0};
+                if (status == SXML_STATUS_OK) {
+                    status = sxml_map_put(
+                        context->item_heap,
+                        &(sxml_map_update){.map = next, .key = entry.key, .value = entry.value},
+                        &put);
+                }
+                if (status == SXML_STATUS_OK) {
+                    sxml_item_release(next);
+                    next = put;
+                }
+            }
+        }
+        if (status == SXML_STATUS_OK) {
+            sxml_item_release(made);
+            made = next;
+        } else {
+            sxml_item_release(next);
+        }
+    }
+    if (status != SXML_STATUS_OK) {
+        sxml_item_release(made);
+        return status;
+    }
+    *container = made;
+    return SXML_STATUS_OK;
+}
+
+/* J1, the parentless copy of J0 with J0's ·jkey· and json_value. */
+typedef struct sxml_construct_jnode_result {
+    sxml_item original;
+    sxml_sequence json_value;
+} sxml_construct_jnode_result;
+
+static sxml_status sxml_construct_make_jnode_copy(sxml_dynamic_context *context,
+                                                  sxml_construct_jnode_result request,
+                                                  sxml_sequence *result) {
+    sxml_json_node_description description;
+    sxml_status status = sxml_json_node_describe(request.original, &description);
+    sxml_item copy = {.representation = 0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_json_node_make_keyed_root(
+            context->item_heap,
+            (sxml_json_keyed_root){.json_key = description.json_key,
+                                   .json_value = request.json_value},
+            &copy);
+    }
+    if (status == SXML_STATUS_OK) {
+        *result = sxml_sequence_from_item(copy);
+    }
+    return status;
+}
+
+/* Copies a JNode J0 (XSLT 4.0, 11.9.1.2): for an Array or Map JNode the
+   content is evaluated first (phase SXML_CONSTRUCT_PHASE_JNODE_CONTENT
+   finishes); otherwise J1 has J0's ·jvalue· and the content is not
+   evaluated. A JNode whose ·jvalue· is two or more items gets its
+   ·jvalue· too (the per-item copies of 11.9.1.2 are not made). */
+static sxml_status sxml_construct_start_jnode_copy(sxml_dynamic_context *context,
+                                                   sxml_item original) {
+    sxml_json_node_description description;
+    sxml_status status = sxml_json_node_describe(original, &description);
+    sxml_construct_jnode_container found = {.has_container = false,
+                                            .container = {.representation = 0}};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_construct_find_container(context, description.json_value, &found);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_evaluator_task *task = sxml_evaluator_machine_top(context);
+    const sxml_ir_expression_index content = sxml_construct_expression(task)->node_construction.content;
+    if (content.value == 0) {
+        /* No content: the copy the built-in rules make of an item that
+           is not an element or document (src/xslt_lower_template.c),
+           which for a JNode is the JNode as it is (6.10.2, 6.10.3: the
+           identity). */
+        sxml_item_retain(original);
+        return sxml_construct_end(context, SXML_STATUS_OK, sxml_sequence_from_item(original));
+    }
+    if (found.has_container) {
+        /* The task pointer is invalid after the push. */
+        task->phase = SXML_CONSTRUCT_PHASE_JNODE_CONTENT;
+        return sxml_evaluator_machine_push_expression(context, content);
+    }
+    sxml_sequence result = sxml_sequence_empty();
+    sxml_item container = {.representation = 0};
+    if (found.has_container) {
+        status = sxml_construct_make_container(
+            context,
+            (sxml_construct_container_value){
+                .is_array = sxml_item_get_kind(found.container) == SXML_ITEM_KIND_ARRAY,
+                .content = sxml_sequence_empty()},
+            &container);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_construct_make_jnode_copy(
+            context,
+            (sxml_construct_jnode_result){.original = original,
+                                          .json_value = found.has_container
+                                                            ? sxml_sequence_from_item(container)
+                                                            : description.json_value},
+            &result);
+    }
+    sxml_item_release(container);
+    return sxml_construct_end(context, status, result);
+}
+
+/* The end of the copy of an Array or Map JNode: the content's value S
+   is ready. */
+static sxml_status sxml_construct_finish_jnode_copy(sxml_dynamic_context *context) {
+    sxml_sequence content = sxml_evaluator_machine_take_value(context);
+    sxml_construct_copied_item copied;
+    sxml_status status = sxml_construct_read_copied_item(context, &copied);
+    sxml_json_node_description description;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_json_node_describe(copied.item, &description);
+    }
+    sxml_construct_jnode_container found = {.has_container = false,
+                                            .container = {.representation = 0}};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_construct_find_container(context, description.json_value, &found);
+    }
+    sxml_item container = {.representation = 0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_construct_make_container(
+            context,
+            (sxml_construct_container_value){
+                .is_array = sxml_item_get_kind(found.container) == SXML_ITEM_KIND_ARRAY,
+                .content = content},
+            &container);
+    }
+    sxml_sequence result = sxml_sequence_empty();
+    if (status == SXML_STATUS_OK) {
+        status = sxml_construct_make_jnode_copy(
+            context,
+            (sxml_construct_jnode_result){.original = copied.item,
+                                          .json_value = sxml_sequence_from_item(container)},
+            &result);
+    }
+    sxml_item_release(container);
+    sxml_sequence_release(copied.value);
+    sxml_sequence_release(content);
+    return sxml_construct_end(context, status, result);
+}
+
 /* SHALLOW_COPY (XSLT 4.0, section 11.9.1). */
 static sxml_status sxml_construct_step_shallow_copy(sxml_dynamic_context *dynamic_context,
                                                     sxml_evaluator_task *task) {
+    if (task->phase == SXML_CONSTRUCT_PHASE_JNODE_CONTENT) {
+        return sxml_construct_finish_jnode_copy(dynamic_context);
+    }
     if (task->phase != 0) {
         return sxml_construct_finish_content(dynamic_context);
     }
     sxml_construct_copied_item copied;
     sxml_status status = sxml_construct_read_copied_item(dynamic_context, &copied);
     if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (copied.has_item && sxml_item_get_kind(copied.item) == SXML_ITEM_KIND_JSON_NODE) {
+        /* The JNode stays alive in the atom's slot while the content is
+           evaluated. */
+        status = sxml_construct_start_jnode_copy(dynamic_context, copied.item);
+        sxml_sequence_release(copied.value);
         return status;
     }
     if (sxml_construct_copy_takes_content(&copied)) {
@@ -2483,8 +2817,7 @@ static sxml_status sxml_construct_step_shallow_copy(sxml_dynamic_context *dynami
     }
     sxml_sequence result = sxml_sequence_empty();
     if (copied.has_item && !copied.is_node) {
-        /* Atomic items, function items and JNodes are returned as they
-           are. */
+        /* Atomic items and function items are returned as they are. */
         sxml_item_retain(copied.item);
         result = sxml_sequence_from_item(copied.item);
     } else if (copied.has_item) {

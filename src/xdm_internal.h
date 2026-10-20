@@ -356,6 +356,22 @@ SXML_NODISCARD sxml_status sxml_sequence_make_vector_taking(
 SXML_NODISCARD sxml_status sxml_json_node_make_item_node(
     sxml_item_heap *item_heap, sxml_item origin, sxml_item *json_node);
 
+/* A parentless JNode to make with a key (XSLT 4.0, 11.9.1.2: the copy
+   of a JNode keeps its ·jkey·). Borrowed; the JNode retains them. */
+typedef struct sxml_json_keyed_root {
+    /* ·jkey·; a zero-initialized item for none, as for a root. */
+    sxml_item json_key;
+    sxml_sequence json_value;
+} sxml_json_keyed_root;
+
+/*
+ * Makes a root JNode (no ·jparent·, a JTree of its own, as
+ * sxml_json_node_make_root) whose ·jkey· is request.json_key, and writes
+ * it, owned, to *json_node. Failures as for sxml_json_node_make_root.
+ */
+SXML_NODISCARD sxml_status sxml_json_node_make_keyed_root(
+    sxml_item_heap *item_heap, sxml_json_keyed_root request, sxml_item *json_node);
+
 /* --------------------------------------------------------- Heap memory */
 
 /*

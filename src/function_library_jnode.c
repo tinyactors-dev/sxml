@@ -18,7 +18,7 @@
 
 /* fn:jkey($input as jnode()? := .) as xs:anyAtomicType? (F&O 4.0, section
    16.1.2): the key of the entry or the 1-based member position; () for
-   () and for a root JNode, which has no ·jkey·. */
+   () and for a root JNode without a ·jkey·. */
 static sxml_status call_jkey(const sxml_function_call *call, sxml_sequence *result) {
     sxml_optional_item input;
     sxml_status status = sxml_function_library_read_optional_item(call, 0, &input);
@@ -28,7 +28,11 @@ static sxml_status call_jkey(const sxml_function_call *call, sxml_sequence *resu
     }
     sxml_json_node_description description;
     status = sxml_json_node_describe(input.item, &description);
-    if (status != SXML_STATUS_OK || !description.has_parent) {
+    /* A root has no ·jkey·, except the copy of a JNode, which keeps its
+       key (XSLT 4.0, 11.9.1.2). */
+    if (status != SXML_STATUS_OK ||
+        (!description.has_parent &&
+         description.json_key.representation == SXML_ITEM_REPRESENTATION_NONE)) {
         return status;
     }
     sxml_item_retain(description.json_key);

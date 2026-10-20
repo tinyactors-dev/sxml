@@ -2262,6 +2262,9 @@ typedef struct stylesheet_reader {
        module; module_state per module index. */
     scratch_array fixed_bindings;
     scratch_array module_states;
+    /* static_declaration: the static variables and parameters read so
+       far, for XTSE3450 (9.6). */
+    scratch_array static_declarations;
 
     /* The first text node of the text being collected, and where it is. */
     sxml_node_index text_node;
@@ -2566,6 +2569,26 @@ static sxml_status start_module(stylesheet_reader *reader, const module_start *s
 static element_attribute *attribute_at(const stylesheet_reader *reader, size_t attribute_index) {
     element_attribute *attributes = reader->attributes.elements;
     return &attributes[attribute_index];
+}
+
+/* A static variable or parameter already read (9.6). */
+typedef struct static_declaration {
+    sxml_name_identifier variable_name;
+    sxml_xslt_ast_module_index module;
+    bool is_parameter;
+    /* False for a parameter whose value is supplied from outside. */
+    bool is_initialized;
+    /* Owned. */
+    sxml_sequence value;
+    sxml_ast_source_span source_span;
+} static_declaration;
+
+static void release_static_declarations(stylesheet_reader *reader) {
+    static_declaration *declarations = reader->static_declarations.elements;
+    for (size_t index = 0; index < reader->static_declarations.count; index += 1) {
+        sxml_sequence_release(declarations[index].value);
+    }
+    reader->static_declarations.count = 0;
 }
 
 static void release_shadow_values(stylesheet_reader *reader) {
@@ -4921,12 +4944,33 @@ static sxml_status coerce_static_value(stylesheet_reader *reader, static_value_c
     return SXML_STATUS_OK;
 }
 
+static sxml_status record_static_declaration(stylesheet_reader *reader,
+                                             const static_declaration *declaration,
+                                             bool *is_hidden);
+
 static sxml_status read_static_declaration(stylesheet_reader *reader, const declaration_input *input) {
     const sxml_xslt_ast *ast = reader->ast;
     const sxml_xslt_ast_attribute *static_attribute = sxml_xslt_ast_get_attribute(
         ast, sxml_xslt_ast_find_attribute(ast, (sxml_xslt_ast_attribute_query){
                                                    .node = input->node,
                                                    .kind = SXML_XSLT_AST_ATTRIBUTE_STATIC}));
+    const sxml_xslt_ast_attribute *tunnel_attribute = sxml_xslt_ast_get_attribute(
+        ast, sxml_xslt_ast_find_attribute(ast, (sxml_xslt_ast_attribute_query){
+                                                   .node = input->node,
+                                                   .kind = SXML_XSLT_AST_ATTRIBUTE_TUNNEL}));
+    if (input->facts->rule->kind == SXML_XSLT_AST_KIND_PARAM &&
+        tunnel_attribute->value.kind == SXML_XSLT_AST_VALUE_KIND_BOOLEAN &&
+        tunnel_attribute->value.payload.is_true &&
+        (input->parent->rule == NULL || input->parent->rule->kind != SXML_XSLT_AST_KIND_TEMPLATE)) {
+        /* 9.2: "the value yes may be specified only for template
+           parameters"; no code of its own, so XTSE0020. */
+        return raise_error(reader, (reader_error){.error_code = "XTSE0020",
+                                                  .description = "tunnel=\"yes\" on a parameter "
+                                                                 "that is not a template's "
+                                                                 "(XSLT 4.0, 9.2)",
+                                                  .module = input->parent->module,
+                                                  .source_span = input->facts->source_span});
+    }
     const sxml_xslt_ast_attribute *required_attribute = sxml_xslt_ast_get_attribute(
         ast, sxml_xslt_ast_find_attribute(ast, (sxml_xslt_ast_attribute_query){
                                                    .node = input->node,
@@ -4970,6 +5014,21 @@ static sxml_status read_static_declaration(stylesheet_reader *reader, const decl
     sxml_status status = SXML_STATUS_OK;
     if (input->parent->child_context != SXML_CHILD_CONTEXT_DECLARATIONS) {
         return raise_error(reader, misplaced);
+    }
+    const sxml_xslt_ast_attribute *visibility_attribute = sxml_xslt_ast_get_attribute(
+        ast, sxml_xslt_ast_find_attribute(ast, (sxml_xslt_ast_attribute_query){
+                                                   .node = input->node,
+                                                   .kind = SXML_XSLT_AST_ATTRIBUTE_VISIBILITY}));
+    if (visibility_attribute->value.kind == SXML_XSLT_AST_VALUE_KIND_KEYWORD &&
+        visibility_attribute->value.payload.keyword != SXML_XSLT_AST_KEYWORD_PRIVATE) {
+        /* 9.6: a static variable's visibility is private; no code of its
+           own, so XTSE0020. */
+        return raise_error(reader, (reader_error){.error_code = "XTSE0020",
+                                                  .description = "A static variable or parameter "
+                                                                 "has a visibility other than "
+                                                                 "private (XSLT 4.0, 9.6)",
+                                                  .module = input->parent->module,
+                                                  .source_span = input->facts->source_span});
     }
     *input->is_static = true;
     const sxml_xslt_ast_attribute *name_attribute = sxml_xslt_ast_get_attribute(
@@ -5029,13 +5088,167 @@ static sxml_status read_static_declaration(stylesheet_reader *reader, const decl
                                                             : "XTTE0570";
         status = coerce_static_value(reader, (static_value_coercion){.input = input, .error_code = code}, &value);
     }
+    bool is_hidden = false;
     if (status == SXML_STATUS_OK) {
+        status = record_static_declaration(
+            reader,
+            &(static_declaration){.variable_name = name,
+                                  .module = input->parent->module,
+                                  .is_parameter = is_parameter,
+                                  .is_initialized = !is_supplied,
+                                  .value = value,
+                                  .source_span = input->facts->source_span},
+            &is_hidden);
+    }
+    if (status == SXML_STATUS_OK && !is_hidden) {
         status = sxml_xslt_static_scope_add_variable(
             reader->static_scope,
             &(sxml_xslt_static_variable){.variable_name = name, .value = value});
     }
     sxml_sequence_release(value);
     return status;
+}
+
+/* The module whose import precedence module has: itself, or the module
+   that includes it, up the chain of xsl:include (3.10.2). */
+static sxml_xslt_ast_module_index precedence_module_of(const stylesheet_reader *reader,
+                                                       sxml_xslt_ast_module_index module) {
+    const sxml_xslt_ast_module *entry = sxml_xslt_ast_get_module(reader->ast, module);
+    while (entry->relation == SXML_XSLT_AST_MODULE_RELATION_INCLUDED) {
+        module = entry->parent_module;
+        entry = sxml_xslt_ast_get_module(reader->ast, module);
+    }
+    return module;
+}
+
+/* Whether ancestor is module or a module above it in the module tree,
+   within one package (an xsl:use-package edge ends the climb). */
+typedef struct module_pair {
+    sxml_xslt_ast_module_index ancestor;
+    sxml_xslt_ast_module_index module;
+} module_pair;
+
+static bool is_module_at_or_above(const stylesheet_reader *reader, module_pair pair) {
+    sxml_xslt_ast_module_index module = pair.module;
+    while (module.value != 0) {
+        if (module.value == pair.ancestor.value) {
+            return true;
+        }
+        const sxml_xslt_ast_module *entry = sxml_xslt_ast_get_module(reader->ast, module);
+        if (entry->relation == SXML_XSLT_AST_MODULE_RELATION_USED_PACKAGE) {
+            return false;
+        }
+        module = entry->parent_module;
+    }
+    return false;
+}
+
+/* Whether two modules are in one package. */
+static bool is_same_package(const stylesheet_reader *reader, module_pair pair) {
+    sxml_xslt_ast_module_index roots[2] = {pair.ancestor, pair.module};
+    for (size_t root_index = 0; root_index < 2; root_index += 1) {
+        const sxml_xslt_ast_module *entry = sxml_xslt_ast_get_module(reader->ast, roots[root_index]);
+        while (entry->relation != SXML_XSLT_AST_MODULE_RELATION_USED_PACKAGE &&
+               entry->parent_module.value != 0) {
+            roots[root_index] = entry->parent_module;
+            entry = sxml_xslt_ast_get_module(reader->ast, roots[root_index]);
+        }
+    }
+    return roots[0].value == roots[1].value;
+}
+
+/* Whether two static values are identical for 9.6: the same length,
+   atomic items atomic-equal, other items the same item; a function item
+   (a map and an array are function items) is never consistent. */
+static bool are_static_values_identical(sxml_sequence first, sxml_sequence second) {
+    uint64_t first_count = 0;
+    uint64_t second_count = 0;
+    if (sxml_sequence_count(first, NULL, &first_count) != SXML_STATUS_OK ||
+        sxml_sequence_count(second, NULL, &second_count) != SXML_STATUS_OK ||
+        first_count != second_count) {
+        return false;
+    }
+    for (uint64_t item_index = 0; item_index < first_count; item_index += 1) {
+        sxml_item first_item = {.representation = 0};
+        sxml_item second_item = {.representation = 0};
+        if (sxml_sequence_get_item(first, (sxml_item_request){.item_index = item_index,
+                                                              .error_record = NULL},
+                                   &first_item) != SXML_STATUS_OK ||
+            sxml_sequence_get_item(second, (sxml_item_request){.item_index = item_index,
+                                                               .error_record = NULL},
+                                   &second_item) != SXML_STATUS_OK) {
+            return false;
+        }
+        const sxml_item_kind kind = sxml_item_get_kind(first_item);
+        if (kind != sxml_item_get_kind(second_item) || kind == SXML_ITEM_KIND_FUNCTION ||
+            kind == SXML_ITEM_KIND_MAP || kind == SXML_ITEM_KIND_ARRAY) {
+            return false;
+        }
+        if (kind == SXML_ITEM_KIND_ATOMIC
+                ? !sxml_atomic_item_is_atomic_equal(first_item, second_item)
+                : first_item.representation != second_item.representation) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/* 9.6, XTSE3450: a static variable must be consistent with an earlier
+   one of its name in its package of lower import precedence: both
+   variables or both parameters, and identical values when initialized.
+   An earlier declaration has lower precedence unless its module is the
+   new one's or above it in the module tree (the new one is then in a
+   module that module imports or includes); *is_hidden is then true when
+   that precedence is higher, so the earlier one stays in scope. Then
+   records declaration, whose value it retains. */
+static sxml_status record_static_declaration(stylesheet_reader *reader,
+                                             const static_declaration *declaration,
+                                             bool *is_hidden) {
+    *is_hidden = false;
+    const static_declaration *earlier = reader->static_declarations.elements;
+    const sxml_xslt_ast_module_index level = precedence_module_of(reader, declaration->module);
+    for (size_t index = 0; index < reader->static_declarations.count; index += 1) {
+        const static_declaration *other = &earlier[index];
+        const module_pair pair = {.ancestor = precedence_module_of(reader, other->module),
+                                  .module = level};
+        if (other->variable_name.index != declaration->variable_name.index ||
+            !is_same_package(reader, pair)) {
+            continue;
+        }
+        if (is_module_at_or_above(reader, pair)) {
+            /* The earlier one has the higher (or the same) precedence; of
+               a higher one, it stays the one used (9.6). */
+            *is_hidden = *is_hidden || pair.ancestor.value != level.value;
+            continue;
+        }
+        const bool is_consistent =
+            other->is_parameter == declaration->is_parameter &&
+            (!other->is_initialized || !declaration->is_initialized ||
+             are_static_values_identical(other->value, declaration->value));
+        if (!is_consistent) {
+            return raise_error(reader,
+                               (reader_error){.error_code = "XTSE3450",
+                                              .description = "A static variable is not "
+                                                             "consistent with one of its name "
+                                                             "of lower import precedence "
+                                                             "declared before it (XSLT 4.0, 9.6)",
+                                              .module = declaration->module,
+                                              .source_span = declaration->source_span});
+        }
+    }
+    const sxml_status status = reserve_scratch(
+        reader, &reader->static_declarations,
+        (scratch_reservation){.element_size = sizeof(static_declaration),
+                              .element_alignment = alignof(static_declaration),
+                              .needed_count = reader->static_declarations.count + 1U});
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    static_declaration *declarations = reader->static_declarations.elements;
+    declarations[reader->static_declarations.count] = *declaration;
+    sxml_sequence_retain(declaration->value);
+    reader->static_declarations.count += 1;
+    return SXML_STATUS_OK;
 }
 
 /* ------------------------------------------- Includes and imports (3.10) */
@@ -6713,12 +6926,14 @@ static sxml_status walk(stylesheet_reader *reader) {
 
 static void release_reader(stylesheet_reader *reader) {
     release_shadow_values(reader);
+    release_static_declarations(reader);
     scratch_array *arrays[] = {&reader->frames,         &reader->text,
                                &reader->attributes,     &reader->shadow_values,
                                &reader->bindings,       &reader->evaluation_bindings,
                                &reader->context_text,   &reader->excluded_uris,
                                &reader->extension_uris, &reader->name_tokens,
-                               &reader->fixed_bindings, &reader->module_states};
+                               &reader->fixed_bindings, &reader->module_states,
+                               &reader->static_declarations};
     for (size_t index = 0; index < sizeof(arrays) / sizeof(arrays[0]); index += 1) {
         sxml_allocator_release(reader->allocator, arrays[index]->elements);
         *arrays[index] = (scratch_array){.elements = NULL, .count = 0, .capacity = 0};

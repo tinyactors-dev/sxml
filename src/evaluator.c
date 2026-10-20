@@ -2749,7 +2749,9 @@ static sxml_status sxml_entry_list_add_maps(sxml_dynamic_context *context,
         if (status != SXML_STATUS_OK) {
             break;
         }
-        if (description.has_parent) {
+        /* A JNode with a ·jkey· gives its entry: a child, or a root that
+           keeps a copied JNode's key (XSLT 4.0, 11.9.1.2). */
+        if (description.json_key.representation != SXML_ITEM_REPRESENTATION_NONE) {
             status = sxml_entry_list_add(
                 list, (sxml_map_entry){.key = description.json_key,
                                        .value = description.json_value});

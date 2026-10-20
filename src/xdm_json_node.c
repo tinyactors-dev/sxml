@@ -273,6 +273,29 @@ sxml_status sxml_json_node_make_root(sxml_item_heap *item_heap,
     return SXML_STATUS_OK;
 }
 
+sxml_status sxml_json_node_make_keyed_root(sxml_item_heap *item_heap,
+                                           sxml_json_keyed_root request,
+                                           sxml_item *json_node) {
+    sxml_item root = {.representation = SXML_ITEM_REPRESENTATION_NONE};
+    sxml_status status = sxml_json_node_make(
+        item_heap,
+        &(sxml_json_node_request){
+            .parent = {.representation = SXML_ITEM_REPRESENTATION_NONE},
+            .json_key = request.json_key,
+            .json_value = request.json_value,
+            .child_index = 0,
+            .depth = 0,
+            .json_tree = {.value = 0}},
+        &root);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_json_node_cell_from_cell(sxml_item_get_cell(root))->json_tree =
+        sxml_item_heap_issue_tree_identifier(item_heap);
+    *json_node = root;
+    return SXML_STATUS_OK;
+}
+
 sxml_status sxml_json_node_describe(sxml_item json_node,
                                     sxml_json_node_description *description) {
     if (!sxml_item_is_json_node(json_node)) {
