@@ -381,6 +381,14 @@ static const slice_case library_cases[] = {
                 "(generate-id($d//b) = generate-id($d/a/b), generate-id($d//b) = generate-id($d/a))",
                 "1 2 xs:dateTime(\"1999-12-31T00:00:00Z\") \"a b\" \"a \" -1000 4294967295 "
                 "13367494538843734067838845976575 true() false()"),
+    /* Packet 2.27: element() selects no JNode, * every one (XPath 4.0,
+       4.7.5.4 and 4.7.5.5). */
+    SLICE_VALUE("sweep-2.27",
+                "let $j := jtree({'a': {'b': 1}}) return "
+                "(count($j/a/self::element()), count($j/a/self::*), count($j/element()), "
+                "count($j/*)), "
+                "build-dateTime({'year': parse-xml('<y>2026</y>')/y, 'month': 3, 'day': 26})",
+                "0 1 0 1 xs:date(\"2026-03-26\")"),
     /* Packet 2.19: JNode ids (F&O 4.0, 14.1.11), decimal and double zero,
        a computed constructor in XPath 4.0 (section 4.13). */
     SLICE_VALUE("sweep-2.19",

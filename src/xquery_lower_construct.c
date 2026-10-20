@@ -627,7 +627,7 @@ static sxml_status start_direct_element(sxml_xpath_lowering_machine *machine,
         status = add_qname_constant(
             state,
             &(qname_constant_request){.name_node = child_of(state, element, SXML_AST_FIELD_NAME),
-                                      .name_role = SXML_XPATH_NAME_ROLE_ELEMENT_OR_TYPE,
+                                      .name_role = SXML_XPATH_NAME_ROLE_CONSTRUCTED_ELEMENT,
                                       .static_context = locals->own_context != NULL
                                                             ? locals->own_context
                                                             : state->static_context},
@@ -1083,7 +1083,7 @@ static sxml_status add_literal_name(sxml_xpath_lowerer *state, sxml_ast_node_ind
             &(qname_constant_request){.name_node = name,
                                       .name_role =
                                           kind == SXML_AST_KIND_COMPUTED_ELEMENT_CONSTRUCTOR
-                                              ? SXML_XPATH_NAME_ROLE_ELEMENT_OR_TYPE
+                                              ? SXML_XPATH_NAME_ROLE_CONSTRUCTED_ELEMENT
                                               : SXML_XPATH_NAME_ROLE_NO_NAMESPACE,
                                       .static_context = state->static_context},
             atom);

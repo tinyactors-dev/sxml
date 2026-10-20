@@ -249,6 +249,12 @@ static const value_case value_cases[] = {
     {{"declare namespace p = 'urn:p'; <p:a/>", false, 0}, "<p:a xmlns:p=\"urn:p\"/>"},
     {{"declare default element namespace 'urn:d'; <a/>", false, 0}, "<a xmlns=\"urn:d\"/>"},
     {{"declare default element namespace 'urn:d'; namespace-uri(<a/>)", false, 0}, "\"urn:d\""},
+    /* 5.14.1 (packet 2.27): a fixed default namespace stays for name
+       tests under xmlns=""; constructed names follow xmlns="". */
+    {{"declare fixed default element namespace 'urn:d'; let $in := <a><b>x</b></a> return "
+      "<e xmlns=''><f>{string($in//b)}</f></e> ! (string(), namespace-uri(f))",
+      false, 0},
+     "\"x\" \"\""},
     {{"declare namespace xs = 'urn:x'; xs:b instance of xs:QName", false, 0}, "error:XPST0051"},
     {{"declare default function namespace 'http://www.w3.org/2005/xpath-functions/math'; "
       "pi() gt 3", false, 0},

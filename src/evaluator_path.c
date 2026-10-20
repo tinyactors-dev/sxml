@@ -1064,6 +1064,9 @@ sxml_status sxml_evaluator_make_step_value(sxml_dynamic_context *dynamic_context
         return status;
     }
     test.has_qualified_name_test = request->has_qualified_name_test;
+    /* element() and schema-element() select no JNode (XPath 4.0, section
+       4.7.5.5); * selects every one (4.7.5.4). */
+    test.matches_json_nodes = test.matches_json_nodes && !request->is_xnode_type_test;
     sxml_item_list list = sxml_item_list_start(dynamic_context->allocator);
     const sxml_step_output output = {.dynamic_context = dynamic_context,
                                      .test = &test,

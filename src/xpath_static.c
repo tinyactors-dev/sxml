@@ -258,10 +258,13 @@ static sxml_status look_up_prefix(prefix_lookup lookup,
 }
 
 /* The default namespace for elements and types: a declaration in the
-   expression, else the configuration's binding of prefix 0, else none. */
+   expression, else the configuration's fixed one, else its binding of
+   prefix 0, else none. is_constructed_element: the constructed element
+   namespace rule, which a fixed default does not decide. */
 typedef struct default_namespace_lookup {
     const sxml_ast *ast;
     const sxml_xpath_static_context *static_context;
+    bool is_constructed_element;
 } default_namespace_lookup;
 
 /* The default element namespace: its URI, or "##any" (no namespace; XPath
@@ -301,6 +304,11 @@ static sxml_status look_up_default_element_namespace(default_namespace_lookup lo
             (uri_text){.text = text, .static_context = lookup.static_context}, uri);
     }
     found->is_any_namespace = lookup.static_context->has_any_default_element_namespace;
+    if (lookup.static_context->has_fixed_default_element_namespace &&
+        !lookup.is_constructed_element) {
+        *uri = lookup.static_context->fixed_default_element_namespace;
+        return SXML_STATUS_OK;
+    }
     const sxml_namespace_binding_view bindings =
         lookup.static_context->namespace_bindings;
     for (size_t binding_index = 0;
@@ -371,11 +379,15 @@ sxml_status sxml_xpath_resolve_name(const sxml_xpath_name_request *request,
         uri = binding.namespace_uri;
     } else {
         switch (request->name_role) {
-        case SXML_XPATH_NAME_ROLE_ELEMENT_OR_TYPE: {
+        case SXML_XPATH_NAME_ROLE_ELEMENT_OR_TYPE:
+        case SXML_XPATH_NAME_ROLE_CONSTRUCTED_ELEMENT: {
             default_element_namespace found = {.namespace_uri = {0}, .is_any_namespace = false};
             status = look_up_default_element_namespace(
                 (default_namespace_lookup){
-                    .ast = ast, .static_context = request->static_context},
+                    .ast = ast,
+                    .static_context = request->static_context,
+                    .is_constructed_element =
+                        request->name_role == SXML_XPATH_NAME_ROLE_CONSTRUCTED_ELEMENT},
                 &found);
             uri = found.namespace_uri;
             is_any_namespace = found.is_any_namespace;

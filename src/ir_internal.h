@@ -622,6 +622,13 @@ typedef struct sxml_ir_static_call {
     /* The module (glossary ir_module) whose static context the callee
        reads while it runs (the expression's, D163); 0 for its function's. */
     uint32_t module_number;
+    /* XQuery's call of a native function that reads the dynamic context
+       (format-number's decimal format name, for one): the statically known
+       namespaces of its place, with the declarations of enclosing direct
+       constructors (XQuery 4.0, 4.12.1.2), which the callee reads as the
+       static namespaces; empty for the module's (as
+       sxml_ir_cast.namespace_bindings, D263). */
+    sxml_ir_namespace_binding_list namespace_bindings;
 } sxml_ir_static_call;
 
 /* DYNAMIC_CALL. */
@@ -766,12 +773,16 @@ typedef struct sxml_ir_sort {
    test was written as a prefixed QName or a URIQualifiedName, not as an
    NCName; on JNodes an NCName selects string keys and any other name
    xs:QName keys (section 4.7.5.4), which the registered test, a name
-   alone, does not tell apart (Q{}a and a). */
+   alone, does not tell apart (Q{}a and a). is_xnode_type_test: the test
+   was written as an XNode type, element() or schema-element(), which
+   selects no JNode (section 4.7.5.5), where the registered test of * is
+   the same. */
 typedef struct sxml_ir_step {
     sxml_ir_atom origin;
     sxml_axis axis;
     sxml_type_identifier node_test;
     bool has_qualified_name_test;
+    bool is_xnode_type_test;
 } sxml_ir_step;
 
 /* DOCUMENT_ORDER. */

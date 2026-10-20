@@ -724,6 +724,23 @@ const sxml_ir_static_context *sxml_dynamic_context_get_static_context(
 
 sxml_namespace_binding_view sxml_dynamic_context_get_static_namespaces(
     const sxml_dynamic_context *dynamic_context) {
+    /* A native function an XQuery static call runs reads the namespaces
+       of the call's place (sxml_ir_static_call.namespace_bindings). */
+    const sxml_evaluator_task_stack *stack = &dynamic_context->task_stack;
+    for (size_t task_count = stack->task_count; task_count > 0; task_count -= 1) {
+        const sxml_evaluator_task *task = &stack->tasks[task_count - 1];
+        if (task->function == NULL || task->function->unit == NULL) {
+            continue;
+        }
+        const sxml_ir_expression *expression =
+            sxml_ir_unit_get_expression(task->function->unit, task->expression);
+        if (expression->expression_kind == SXML_IR_EXPRESSION_KIND_STATIC_CALL &&
+            expression->static_call.namespace_bindings.namespace_binding_count != 0) {
+            return sxml_ir_unit_get_namespace_bindings(task->function->unit,
+                                                       expression->static_call.namespace_bindings);
+        }
+        break;
+    }
     const sxml_lexical_context lexical = sxml_find_lexical_context(dynamic_context);
     if (lexical.module != NULL && lexical.module->has_static_namespaces) {
         return lexical.module->static_namespaces;
@@ -3674,6 +3691,7 @@ static sxml_status sxml_map_step_at_once(sxml_dynamic_context *context,
                                  .axis = step->axis,
                                  .node_test = step->node_test,
                                  .has_qualified_name_test = step->has_qualified_name_test,
+                                 .is_xnode_type_test = step->is_xnode_type_test,
                                  .error_record = context->error_record,
                                  .maximum_node_count = body->item_demand},
             &value);
@@ -5429,6 +5447,7 @@ static sxml_status sxml_make_leaf_value(sxml_dynamic_context *context,
                                      .node_test = expression->step.node_test,
                                      .has_qualified_name_test =
                                          expression->step.has_qualified_name_test,
+                                     .is_xnode_type_test = expression->step.is_xnode_type_test,
                                      .error_record = context->error_record},
                 result);
         }

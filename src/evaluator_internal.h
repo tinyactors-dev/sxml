@@ -807,8 +807,9 @@ typedef struct sxml_step_request {
     sxml_axis axis;
     /* A registered item type (sxml_ir_step). */
     sxml_type_identifier node_test;
-    /* sxml_ir_step.has_qualified_name_test. */
+    /* sxml_ir_step.has_qualified_name_test and is_xnode_type_test. */
     bool has_qualified_name_test;
+    bool is_xnode_type_test;
     sxml_error_record *error_record;
     /* For a forward axis from an XNode: at most this many nodes of each
        origin, its first in document order (an item demand, D259); 0 for

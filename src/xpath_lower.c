@@ -2209,6 +2209,14 @@ static sxml_status make_entry_call(sxml_xpath_lowerer *state, const entry_call *
         .static_call = {.target = target_of(call->entry),
                         .arguments = call->arguments,
                         .module_number = call->module_number}};
+    if (state->language == SXML_LANGUAGE_XQUERY &&
+        call->entry->entry_kind == SXML_FUNCTION_ENTRY_KIND_NATIVE &&
+        call->entry->native_function != NULL &&
+        (call->entry->native_function->properties & SXML_NATIVE_FUNCTION_USES_DYNAMIC_CONTEXT) !=
+            0) {
+        /* The callee may resolve lexical QNames (eqname-007). */
+        return add_place_namespaces(state, &expression->static_call.namespace_bindings);
+    }
     return SXML_STATUS_OK;
 }
 
@@ -4215,8 +4223,9 @@ typedef struct step_request {
     sxml_ir_atom origin;
     sxml_axis axis;
     sxml_type_identifier node_test;
-    /* sxml_ir_step.has_qualified_name_test. */
+    /* sxml_ir_step.has_qualified_name_test and is_xnode_type_test. */
     bool has_qualified_name_test;
+    bool is_xnode_type_test;
 } step_request;
 
 static sxml_status add_step(sxml_xpath_lowerer *state, step_request request,
@@ -4230,7 +4239,8 @@ static sxml_status add_step(sxml_xpath_lowerer *state, step_request request,
                                     .axis = request.axis,
                                     .node_test = request.node_test,
                                     .has_qualified_name_test =
-                                        request.has_qualified_name_test}}},
+                                        request.has_qualified_name_test,
+                                    .is_xnode_type_test = request.is_xnode_type_test}}},
         expression);
 }
 
@@ -5608,7 +5618,8 @@ static sxml_status add_item_axis_step(sxml_xpath_lowerer *state, step_request re
                                          .axis = SXML_AXIS_CHILD,
                                          .node_test = request.node_test,
                                          .has_qualified_name_test =
-                                             request.has_qualified_name_test},
+                                             request.has_qualified_name_test,
+                                         .is_xnode_type_test = request.is_xnode_type_test},
                           &children);
     }
     /* Not a sequence: empty, or the one item as a JNode. */
@@ -5662,7 +5673,8 @@ static sxml_status add_item_axis_step(sxml_xpath_lowerer *state, step_request re
                                          .axis = SXML_AXIS_SELF,
                                          .node_test = request.node_test,
                                          .has_qualified_name_test =
-                                             request.has_qualified_name_test},
+                                             request.has_qualified_name_test,
+                                         .is_xnode_type_test = request.is_xnode_type_test},
                           &single);
     }
     if (status == SXML_STATUS_OK) {
@@ -5963,7 +5975,9 @@ static sxml_status add_axis_step_expression(sxml_xpath_lowerer *state,
         .axis = locals->axis,
         .node_test = node_test,
         .has_qualified_name_test = test_kind == SXML_AST_KIND_PREFIXED_NAME ||
-                                   test_kind == SXML_AST_KIND_URI_QUALIFIED_NAME};
+                                   test_kind == SXML_AST_KIND_URI_QUALIFIED_NAME,
+        .is_xnode_type_test = test_kind == SXML_AST_KIND_ELEMENT_NODE_TYPE ||
+                              test_kind == SXML_AST_KIND_SCHEMA_ELEMENT_NODE_TYPE};
     return locals->is_item_axis
                ? add_item_axis_step(state, request, &locals->result)
                : add_step(state, request, &locals->result);

@@ -696,6 +696,16 @@ static sxml_status read_namespaces(const static_reader *reader, const prolog_sur
                             SXML_BYTE_VIEW_FROM_LITERAL(
                                 "XQST0070 the XML namespaces cannot be the default namespace"));
         }
+        /* 5.14.1, 5.11: "fixed" keeps the default namespace for elements
+           and types whatever xmlns="" direct constructors declare. */
+        const sxml_ast_node_index prefix =
+            child_of(ast, survey->default_element_namespace, SXML_AST_FIELD_PREFIX);
+        if (status == SXML_STATUS_OK &&
+            ((node_of(ast, survey->default_element_namespace)->flags & SXML_AST_FLAG_FIXED) != 0 ||
+             (prefix.value != 0 && (node_of(ast, prefix)->flags & SXML_AST_FLAG_FIXED) != 0))) {
+            context->xpath.has_fixed_default_element_namespace = true;
+            context->xpath.fixed_default_element_namespace = uri;
+        }
         if (status == SXML_STATUS_OK) {
             list.bindings[list.binding_count] = (sxml_namespace_binding){
                 .namespace_prefix = {.index = 0}, .namespace_uri = uri};
@@ -2928,11 +2938,21 @@ static sxml_status check_constructor_names(const static_reader *reader,
         sxml_function_entry entry = {.entry_kind = SXML_FUNCTION_ENTRY_KIND_NONE};
         status = find_alias_constructor(
             (alias_search){.module = context, .query = &query, .is_imported = false}, &entry);
+        if (status == SXML_STATUS_OK && entry.entry_kind == SXML_FUNCTION_ENTRY_KIND_NONE) {
+            /* 5.18, XQST0034: the constructor functions of the in-scope
+               schema types count too (5.11; user-defined-11). */
+            status = sxml_schema_scope_find_constructor(
+                &(sxml_schema_scope_constructor_request){
+                    .schemas = context->xpath.unit_static_context.in_scope_schemas,
+                    .type_registry = sxml_item_heap_get_type_registry(context->xpath.item_heap),
+                    .query = &query},
+                &entry);
+        }
         if (status == SXML_STATUS_OK && entry.entry_kind == SXML_FUNCTION_ENTRY_KIND_CONSTRUCTOR) {
             status = report(reader, function->declaration,
                             SXML_BYTE_VIEW_FROM_LITERAL(
                                 "XQST0034 a declared function has the name of a named item "
-                                "type's constructor function and arity 1"));
+                                "type's or schema type's constructor function and arity 1"));
         }
     }
     return status;

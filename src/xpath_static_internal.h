@@ -119,6 +119,14 @@ typedef struct sxml_xpath_static_context {
        an unprefixed type name is in the xs namespace, and prefix 0 is
        bound to no namespace (for constructed elements). */
     bool has_any_default_element_namespace;
+    /* The default namespace for elements and types is fixed (XQuery 4.0,
+       5.14.1 and 5.11, "declare fixed default element namespace"): it is
+       fixed_default_element_namespace throughout the module, and
+       namespace declaration attributes of direct constructors (xmlns="")
+       change only the binding of prefix 0, which constructed element
+       names use (the constructed element namespace rule, 2.1.4). */
+    bool has_fixed_default_element_namespace;
+    sxml_namespace_uri_identifier fixed_default_element_namespace;
     /* The unit module (glossary ir_module) whose static context the
        function calls lowered in this context read at run time: an XSLT
        element's (D163); 0 for the calling function's. */
@@ -156,6 +164,11 @@ typedef enum sxml_xpath_name_role {
     /* Element names in name tests and types: the default namespace for
        elements and types. */
     SXML_XPATH_NAME_ROLE_ELEMENT_OR_TYPE,
+    /* The names of constructed elements: the namespace bound to prefix 0
+       in the statically known namespaces (XQuery 4.0, 2.1.4, the
+       constructed element namespace rule); the default namespace for
+       elements and types unless that is fixed. */
+    SXML_XPATH_NAME_ROLE_CONSTRUCTED_ELEMENT,
     /* Function names: by the static context's function namespace rule. */
     SXML_XPATH_NAME_ROLE_FUNCTION,
     /* Variables, attributes, QName literals, processing-instruction
