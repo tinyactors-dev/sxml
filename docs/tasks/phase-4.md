@@ -561,3 +561,14 @@ the release driver).
   file is indented). Left (sizes in D291): function-lookup-005, schema
   roles kept apart (import-schema-216), merge-when, D276's current rule,
   streaming.
+- [x] **4.32 XSLT streaming conformance** (implementation, D245, D289,
+  D291, D294). Owns src/xslt_streamability.c, the streamed evaluation
+  and the XSLT, function library and driver parts a cause is in, their
+  unit tests, and single insertions in the ledgers. From a fresh XT40
+  run at HEAD: every failing streaming case (si-*, sf-*, sx-*, su-*,
+  stream-*, accumulators, merge, source-document) clustered by cause,
+  the largest first; the newest draft wins over the suite.
+  **Done** 2026-10-20 (D296): XT40 12,273 to 12,283 passed (98 wrong
+  error), 245 to 235 failed, 0 errors, no case lost; of 54 failing
+  streaming cases 9 are fixed, 37 the draft's or the suite's (D296). Left:
+  accumulator-061, capture-206.

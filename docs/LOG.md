@@ -4,6 +4,18 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 4.32 done (D296): XSLT streaming conformance. The newest draft moved
+  streamability into XSLT Streaming 4.0: XTSE3155, fn:filter as
+  filter(N, I); fn:snapshot keeps a document's unparsed entities;
+  document-node(element(N, T)) tests the type; input-type-annotations
+  strip after xsl:source-document validates; the driver's principal
+  package. XT40 12,273 -> 12,283 passed (98 wrong error), 235 failed,
+  0 errors, no case lost; XQ40 and XP40 unchanged. Of 54 failing
+  streaming cases, 9 are fixed and 37 are decided by the draft or the
+  suite (mostly whitespace in assert-xml and F&O 4.0's exact numeric
+  comparison).
+  Left: accumulator-061, capture-206.
+
 - stream-1 done (D295): long streams. The text method's principal
   result is a streamed serialization (it built a tree, whose text run
   the arena tree copied at every event past 1 MiB: 4.7 MB of text was

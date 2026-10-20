@@ -14002,6 +14002,70 @@ D294. The two problems js-2 found (D294, "Found").
   sxml.wasm 13,452,276 bytes stripped, 2,423,328 gzipped (budget
   14,000,000 / 2,800,000, not raised).
 
+### D296. XSLT streaming conformance: the draft's XSLT Streaming 4.0, snapshot documents, document-node types (packet 4.32)
+Recorded 2026-10-20, after D212, D219, D223, D228, D231, D236, D273,
+D289, D291, D295. Verified as D181 asks: the debug preset (xslt*,
+xquery_lower_construct, function_library*, evaluator_stream tests),
+clang-tidy on the changed files, the call-cycle check, the book
+examples (520 match), and whole XT40, XQ40 and XP40 runs with the
+release driver after each change, case by case. **XT40 12,273 to
+12,283 passed (98 wrong error), 245 to 235 failed, 0 errors**, from a
+whole run at 19d3fb5 (stream-1's commits in between changed no
+outcome); XQ40 46,158 and XP40 32,815 as before. Commits d67e37f,
+0378bf4, 0e8d459.
+- **The newest draft moved chapter 19** into its own specification,
+  *XSLT Streaming 4.0* (qt4cg.org/specifications/xslt-streaming-40/):
+  XTSE3430 and the analysis are its sections 3 to 12; XSLT 4.0's
+  chapter 19 is now accumulators. New comments cite it ("XSLT Streaming
+  4.0, 12.9"); the older "XSLT 4.0, 19.8.x" citations in
+  src/xslt_streamability.c stand for the same rules (3.0's numbers)
+  and are left until that file is next reworked.
+- **Analysis**: XTSE3155 (Streaming 4.0, 8), a function without
+  parameters whose streamability is not unclassified; the verdict
+  carries an error code (su-shallow-descent-901, error-3155a).
+  fn:filter is filter(N, I) in the table of 12.9 and has no rule of its
+  own, so its sequence argument is navigation whatever the function's
+  signature (sf-filter-001, which the suite marks _WRONG); for-each,
+  fold-left and for-each-pair keep their refinement (12.9.10, .13, .14).
+- **Run time**: fn:snapshot's document ancestor is copied as xsl:copy
+  copies a document (XSLT 4.0, 20.4, 11.9.1): base URI and unparsed
+  entities, by an internal row document-copy beside the key rows
+  (sf-unparsed-entity-03, -04). document-node(element(N, T)) tests the
+  element's annotation and nilled too (XPath 4.0, 3.2.7.1; it tested
+  the name only: si-document-113, -114). input-type-annotations="strip"
+  applies after xsl:source-document and xsl:merge-source validate
+  (4.2, 4.2.1): a copy without annotations (streamable-147). The XSLT
+  driver's unnamed principal package is the first module not of role
+  secondary (su-filter-101, -102).
+- **Memory stays bounded**: a for-each with fn:snapshot over a 13 MB
+  document of 400,000 records, release CLI: peak resident 8.5 MB
+  streamed, 171 MB unstreamed, output identical; evaluator_stream_test
+  passes under its 1 MB limits.
+- **The draft or the suite decides** (37 of the 54 failing streaming
+  cases at the start; 9 are fixed, 8 left below): whitespace text nodes in assert-xml (the
+  expected results are indented or drop text the stylesheet writes:
+  sf-snapshot-0201 to -0209, accumulator-054, si-copy-of-801,
+  si-for-each-807, stream-210, su-absorbing-201, -204); mixed numeric
+  comparison is exact in F&O 4.0 (xs:double 4.32 ne 4.32: sx-gc-eq-016,
+  -020, -021, -116, -120, -121, sx-if-213); map constructor duplicates
+  are XQDY0137 in XPath 4.0 (sx-MapExpr-007, si-fork-814); [xsl:]type
+  is XTTE1540 (25.1.2; si-copy-117, si-copy-of-117); lax validation of
+  an undeclared element gives xs:anyType (F&O 4.0, 17.2.4; stream-013,
+  non-stream-013, si-result-document-024); a sorted xsl:for-each-group
+  in xsl:fork is streamable (Streaming 4.0, 12.6.19, 12.6.20;
+  si-fork-953); E/@id is in document order (sf-reverse-001); the order
+  of two trees is implementation-dependent (si-fork-118); FODC0005 is a
+  "may" of fn:doc (stream-006, non-stream-006); no xsl:mode means no
+  applicable accumulators (19.2; accumulator-073); a template of a
+  package without visibility is private (accumulator-038);
+  streamable-149's environment source is invalid before the stylesheet
+  runs (the driver's validation, cvc code).
+- **Not done**: accumulator-061 (accumulator-after#1 in a global whose
+  global context item is absent while streaming raises XPDY0002 where
+  the test wants XTDE3350; D291's absent focus of globals, medium);
+  capture-206 (D236); merge-017, -054, -067 and the three merge-097
+  cases are not streaming causes.
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): tagging and
