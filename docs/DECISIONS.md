@@ -13505,6 +13505,9 @@ Recorded 2026-10-20, after D71, D99, D215, D283; in progress. The
 owner: sxml's iXML usable on tens to hundreds of MB; the book first
 (f560fdf), then the tests (ef46866), then the implementation.
 
+### D291. XSLT per-package items, an absent global focus through call-template, namespace undeclarations (packet 4.31)
+Recorded 2026-10-20, after D99, D245, D289; in progress.
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): tagging and
