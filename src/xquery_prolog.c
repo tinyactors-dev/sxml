@@ -1474,6 +1474,64 @@ static sxml_status lower_library_modules(module_lowering *module,
 
 /* Lowers everything into module->unit, whose function 1 is the main
    function (see the file comment). */
+/* ------------------------------------------------ Type constructors */
+
+/*
+ * The constructor function of each named item type a module declares
+ * that is a generalized atomic type (XQuery 4.0, 5.19), as a top-level
+ * IR function of its name and arity 1 whose body is the cast: static
+ * calls and named references reach it through the static function table
+ * already, fn:function-lookup at run time through the unit's functions
+ * (F&O 4.0, 13.1: the statically known function definitions;
+ * itemTypeDecl-058). Its signature is the table's.
+ */
+static sxml_status add_type_constructors(module_lowering *module) {
+    sxml_status status = SXML_STATUS_OK;
+    for (size_t module_index = 0;
+         status == SXML_STATUS_OK && module_index < module->set->module_count;
+         module_index += 1) {
+        const sxml_xquery_static_context *context = &module->contexts[module_index];
+        const sxml_function_table table = context->xpath.function_table;
+        for (size_t type_index = context->imported_item_type_count;
+             status == SXML_STATUS_OK && table.operations != NULL &&
+             type_index < context->named_item_type_count;
+             type_index += 1) {
+            const sxml_function_query query = {
+                .function_name = context->named_item_types[type_index].type_name, .arity = 1};
+            sxml_function_entry entry = {.entry_kind = SXML_FUNCTION_ENTRY_KIND_NONE};
+            status = table.operations->find_function(table.state, &query, &entry);
+            if (status != SXML_STATUS_OK ||
+                entry.entry_kind != SXML_FUNCTION_ENTRY_KIND_CONSTRUCTOR) {
+                continue;
+            }
+            /* The parameter is xs:anyAtomicType? by the signature, so the
+               call has atomized it: the body is the cast. */
+            sxml_ir_expression_index cast = {0};
+            status = sxml_ir_unit_add_expression(
+                module->unit,
+                &(sxml_ir_expression){
+                    .expression_kind = SXML_IR_EXPRESSION_KIND_CAST,
+                    .cast = {.value = sxml_ir_slot_atom((sxml_ir_slot){.value = 1}),
+                             .target_type = entry.constructor_type,
+                             .allows_empty = true}},
+                &cast);
+            sxml_ir_function_index constructor = {0};
+            if (status == SXML_STATUS_OK) {
+                status = sxml_ir_unit_add_function(
+                    module->unit,
+                    &(sxml_ir_function){.function_name = query.function_name,
+                                        .signature = entry.signature,
+                                        .parameter_count = 1,
+                                        .slot_count = 1,
+                                        .body = cast,
+                                        .module_number = (uint32_t)module_index},
+                    &constructor);
+            }
+        }
+    }
+    return status;
+}
+
 static sxml_status lower_module(module_lowering *module,
                                 const sxml_xquery_lowering_request *request,
                                 sxml_ast_node_index body) {
@@ -1550,6 +1608,9 @@ static sxml_status lower_module(module_lowering *module,
     }
     if (status == SXML_STATUS_OK) {
         status = add_globals(module);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = add_type_constructors(module);
     }
     sxml_xpath_lowerer_release_scratch(module->lowerer, module->regions);
     sxml_xpath_lowerer_release_scratch(module->lowerer, module->initializers);

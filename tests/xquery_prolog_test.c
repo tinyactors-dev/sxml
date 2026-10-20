@@ -322,6 +322,12 @@ static const value_case value_cases[] = {
     /* 5.19, 5.20: named item types and records. */
     {{"declare type local:i as xs:integer; 3 instance of local:i, local:i('5') + 1", false, 0},
      "true() 6"},
+    /* Its constructor function is found by fn:function-lookup at run time
+       (itemTypeDecl-058). */
+    {{"declare type local:i as xs:integer; "
+      "function-lookup(xs:QName('local:i'), 1)('42'), function-lookup(xs:QName('local:i'), 2)",
+      false, 0},
+     "42"},
     {{"declare variable $v as local:s := 'a'; declare type local:s as xs:string; $v", false, 0},
      "\"a\""},
     {{"declare type local:a as local:b; declare type local:b as xs:string; 'x' instance of local:a",
