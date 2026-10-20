@@ -30,9 +30,8 @@ static bool read_key_text(sxml_item key, sxml_byte_view *text) {
     return true;
 }
 
-/* True for an xs:QName key with a namespace: an implementation-defined
-   option, which sxml ignores. */
-static bool key_is_extension(sxml_item key, const sxml_name_pool *name_pool) {
+bool sxml_function_library_option_key_is_extension(sxml_item key,
+                                                   const sxml_name_pool *name_pool) {
     sxml_atomic_datum datum;
     sxml_name_parts parts;
     return sxml_atomic_item_get_datum(key, &datum) == SXML_STATUS_OK &&
@@ -91,7 +90,7 @@ sxml_status sxml_function_library_read_options(const sxml_function_call *call,
         }
         const size_t found = find_definition(definitions, entry.key);
         if (found == definitions.definition_count) {
-            if (key_is_extension(entry.key, name_pool)) {
+            if (sxml_function_library_option_key_is_extension(entry.key, name_pool)) {
                 continue;
             }
             return sxml_function_library_report(call, &unknown_option_error);

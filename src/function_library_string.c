@@ -1471,12 +1471,9 @@ static const sxml_static_error collation_option_error = {
         "not a single atomic item (F&O 4.0, section 5.2.9)"),
 };
 
-/* Appends one keyword=value parameter for a map entry of fn:collation:
-   the key's string, "=", and the value's string, with true and false as
-   yes and no. */
-static sxml_status append_collation_parameter(const sxml_function_call *call,
-                                              sxml_library_text *text,
-                                              sxml_map_entry entry) {
+/* append_collation_parameter after the value's atomization. */
+static sxml_status append_collation_entry(const sxml_function_call *call,
+                                          sxml_library_text *text, sxml_map_entry entry) {
     sxml_atomic_datum key_datum;
     if (sxml_atomic_item_get_datum(entry.key, &key_datum) != SXML_STATUS_OK ||
         key_datum.datum_kind != SXML_DATUM_KIND_STRING ||
@@ -1500,6 +1497,32 @@ static sxml_status append_collation_parameter(const sxml_function_call *call,
     if (status == SXML_STATUS_OK) {
         status = sxml_function_library_text_append_atomic(text, entry.value.content);
     }
+    return status;
+}
+
+/* Appends one keyword=value parameter for a map entry of fn:collation:
+   the key's string, "=", and the value's string, with true and false as
+   yes and no. A node value is atomized first, as the option parameter
+   conventions' coercion does (fn-contains-47: an attribute). */
+static sxml_status append_collation_parameter(const sxml_function_call *call,
+                                              sxml_library_text *text,
+                                              sxml_map_entry entry) {
+    sxml_sequence atomized = sxml_sequence_empty();
+    if (call->dynamic_context != NULL &&
+        sxml_sequence_get_representation(entry.value) ==
+            SXML_SEQUENCE_REPRESENTATION_SINGLE_ITEM &&
+        sxml_item_get_kind(entry.value.content) == SXML_ITEM_KIND_NODE) {
+        const sxml_status status = sxml_evaluator_atomize(
+            call->dynamic_context,
+            &(sxml_atomization_request){.value = entry.value, .error_record = call->error_record},
+            &atomized);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        entry.value = atomized;
+    }
+    const sxml_status status = append_collation_entry(call, text, entry);
+    sxml_sequence_release(atomized);
     return status;
 }
 

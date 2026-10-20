@@ -348,29 +348,62 @@ static sxml_status read_boolean_value(const sxml_function_call *call, sxml_seque
     return is_valid ? SXML_STATUS_OK : sxml_function_library_report(call, &invalid_option_error);
 }
 
-/* Reads a string option into *text; *is_present is false when absent. */
+/* A string option: *is_present is false when absent; text views value,
+   the option's value coerced to xs:string, owned (release_string_option). */
 typedef struct string_option {
     bool is_present;
     sxml_string text;
+    sxml_sequence value;
 } string_option;
 
+static void release_string_option(string_option *option) {
+    sxml_sequence_release(option->value);
+    *option = (string_option){.is_present = false,
+                              .text = {.utf8 = {.bytes = NULL}},
+                              .value = sxml_sequence_empty()};
+}
+
+/* Reads a string option, coerced to xs:string by the coercion rules (F&O
+   4.0, section 1.7: a node or xs:untypedAtomic is accepted;
+   deep-equal-40-comments-011). */
 static sxml_status read_string_option(const sxml_function_call *call, option_query query,
                                       string_option *option) {
     sxml_sequence value = sxml_sequence_empty();
     sxml_status status = find_option(call, query, &value);
-    *option = (string_option){.is_present = false, .text = {.utf8 = {.bytes = NULL}}};
+    *option = (string_option){.is_present = false,
+                              .text = {.utf8 = {.bytes = NULL}},
+                              .value = sxml_sequence_empty()};
     if (status != SXML_STATUS_OK ||
         sxml_sequence_get_representation(value) == SXML_SEQUENCE_REPRESENTATION_EMPTY) {
         return status;
     }
+    sxml_sequence coerced = value;
+    if (call->dynamic_context != NULL) {
+        status = sxml_evaluator_coerce(
+            call->dynamic_context,
+            &(sxml_coercion_request){
+                .value = value,
+                .sequence_type = {.item_type = sxml_builtin_type_identifier(SXML_TYPE_XS_STRING),
+                                  .occurrence = SXML_OCCURRENCE_EXACTLY_ONE},
+                .role = SXML_IR_COERCION_ROLE_FUNCTION_ARGUMENT,
+                .error_record = call->error_record},
+            &coerced);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+    } else {
+        sxml_sequence_retain(coerced);
+    }
     sxml_item item;
     sxml_atomic_datum datum;
-    if (!read_single_item(value, &item) || sxml_item_get_kind(item) != SXML_ITEM_KIND_ATOMIC ||
+    if (!read_single_item(coerced, &item) || sxml_item_get_kind(item) != SXML_ITEM_KIND_ATOMIC ||
         sxml_atomic_item_get_datum(item, &datum) != SXML_STATUS_OK ||
         datum.datum_kind != SXML_DATUM_KIND_STRING) {
+        sxml_sequence_release(coerced);
         return sxml_function_library_report(call, &invalid_option_error);
     }
-    *option = (string_option){.is_present = true, .text = datum.datum_details.string};
+    *option = (string_option){
+        .is_present = true, .text = datum.datum_details.string, .value = coerced};
     return SXML_STATUS_OK;
 }
 
@@ -408,6 +441,7 @@ static sxml_status read_text_options(const sxml_function_call *call, sxml_item o
             status = sxml_function_library_report(call, &invalid_option_error);
         }
     }
+    release_string_option(&option);
     if (status == SXML_STATUS_OK) {
         status = read_string_option(
             call,
@@ -430,6 +464,7 @@ static sxml_status read_text_options(const sxml_function_call *call, sxml_item o
             status = sxml_function_library_report(call, &invalid_option_error);
         }
     }
+    release_string_option(&option);
     if (status == SXML_STATUS_OK) {
         status = read_string_option(
             call,
@@ -442,6 +477,7 @@ static sxml_status read_text_options(const sxml_function_call *call, sxml_item o
         status = sxml_function_library_find_collation(call, option.text.utf8,
                                                       &result->collation);
     }
+    release_string_option(&option);
     return status;
 }
 
@@ -490,9 +526,10 @@ static sxml_status read_callback_options(const sxml_function_call *call, sxml_it
     return status;
 }
 
-/* Reads an options map (F&O 4.0, section 1.5.3, option parameter
-   conventions): string keys must name options; keys of other types (QNames
-   of implementation-defined options) are ignored. */
+/* Reads an options map (F&O 4.0, section 1.7, option parameter
+   conventions): a key must name an option unless it is an xs:QName in a
+   namespace (an implementation-defined option, ignored); a QName in no
+   namespace is XPTY0004 (deep-equal-40-options-007). */
 static sxml_status read_options_map(const sxml_function_call *call, sxml_item options,
                                     deep_equal_options *result) {
     size_t entry_count = 0;
@@ -501,13 +538,17 @@ static sxml_status read_options_map(const sxml_function_call *call, sxml_item op
          entry_index += 1) {
         sxml_map_entry entry;
         status = sxml_map_get_entry(options, entry_index, &entry);
+        if (status != SXML_STATUS_OK) {
+            break;
+        }
         sxml_atomic_datum datum;
-        if (status != SXML_STATUS_OK ||
-            sxml_atomic_item_get_datum(entry.key, &datum) != SXML_STATUS_OK ||
-            datum.datum_kind != SXML_DATUM_KIND_STRING) {
+        if (sxml_function_library_option_key_is_extension(
+                entry.key, sxml_item_heap_get_name_pool(call->item_heap))) {
             continue;
         }
-        if (!is_known_option(datum.datum_details.string.utf8)) {
+        if (sxml_atomic_item_get_datum(entry.key, &datum) != SXML_STATUS_OK ||
+            datum.datum_kind != SXML_DATUM_KIND_STRING ||
+            !is_known_option(datum.datum_details.string.utf8)) {
             return sxml_function_library_report(call, &unknown_option_error);
         }
     }

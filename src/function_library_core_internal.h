@@ -385,6 +385,13 @@ typedef struct sxml_option_values {
     sxml_sequence values[SXML_FUNCTION_OPTION_LIMIT];
 } sxml_option_values;
 
+/* True for an options map key that is an xs:QName in a namespace: an
+   implementation-defined option, which sxml ignores (F&O 4.0, section
+   1.7, option parameter conventions); any other key that names no option
+   is XPTY0004. */
+bool sxml_function_library_option_key_is_extension(sxml_item key,
+                                                   const sxml_name_pool *name_pool);
+
 /*
  * Reads the options map of request->argument_index into *values: a key
  * that names no definition is XPTY0004 unless it is an xs:QName in a
