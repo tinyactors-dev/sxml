@@ -596,6 +596,14 @@ static sxml_byte_view sxml_qt4_trim_space(sxml_byte_view text) {
     return text;
 }
 
+/* True when text, trimmed, starts and ends with markup: a document's
+   worth of XML, whose surrounding whitespace is not content (XML 1.0,
+   [1] document, [27] Misc). */
+static bool sxml_qt4_is_markup_text(sxml_byte_view trimmed) {
+    return trimmed.byte_count >= 2 && trimmed.bytes[0] == '<' &&
+           trimmed.bytes[trimmed.byte_count - 1] == '>';
+}
+
 /* Drops a byte order mark and an XML declaration (XML 1.0, [23]) from the
    start of text, which goes inside a wrapper element. */
 static sxml_byte_view sxml_qt4_strip_declaration(sxml_byte_view text) {
@@ -791,9 +799,17 @@ static sxml_status sxml_qt4_serialize_result(sxml_qt4_assertion_state *state,
             sxml_output_buffer_as_output_stream(comparison->output_buffer));
     }
     if (status == SXML_STATUS_OK) {
-        status = sxml_qt4_make_string(
-            state, sxml_output_buffer_get_bytes(comparison->output_buffer),
-            &comparison->actual);
+        /* The same for the result as for the expected text: a result tree
+           written as "\n<out>...</out>\n" (an XSLT result whose document
+           node has whitespace text nodes around its element) is that
+           document's worth of XML; canonicalizing it, as the catalog asks,
+           drops the whitespace outside the document element. */
+        sxml_byte_view written = sxml_output_buffer_get_bytes(comparison->output_buffer);
+        const sxml_byte_view trimmed = sxml_qt4_trim_space(written);
+        if (sxml_qt4_is_markup_text(trimmed)) {
+            written = trimmed;
+        }
+        status = sxml_qt4_make_string(state, written, &comparison->actual);
     }
     if (status != SXML_STATUS_OK && sxml_status_has_error_record(status)) {
         comparison->has_verdict = true;
@@ -841,9 +857,7 @@ static sxml_status sxml_qt4_compare_xml(sxml_qt4_assertion_state *state,
            after a CDATA section's element, is not content (XML 1.0,
            [1] Misc). */
         const sxml_byte_view trimmed = sxml_qt4_trim_space(text);
-        if (expected_xml.file_contents != NULL ||
-            (trimmed.byte_count >= 2 && trimmed.bytes[0] == '<' &&
-             trimmed.bytes[trimmed.byte_count - 1] == '>')) {
+        if (expected_xml.file_contents != NULL || sxml_qt4_is_markup_text(trimmed)) {
             text = trimmed;
         }
         status = sxml_qt4_make_string(state, text, &comparison->expected);
