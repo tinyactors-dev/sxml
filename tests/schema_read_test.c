@@ -523,6 +523,34 @@ static void test_representation_constraints(sxml_test_state *state) {
                                                           "default='x'/></xs:attributeGroup>"
                                                           "</xs:schema>",
                                                 "src-attribute.2"));
+    /* XSD 1.1 adds clause 5: a fixed value is not prohibited. */
+    SXML_TEST_EXPECT(state, document_fails_with(XS_SCHEMA "><xs:complexType name='t'>"
+                                                          "<xs:attribute name='a' use='prohibited' "
+                                                          "fixed='x'/></xs:complexType>"
+                                                          "</xs:schema>",
+                                                "src-attribute.5"));
+    /* xml:lang is a language or empty (xml.xsd); " " is neither. */
+    SXML_TEST_EXPECT(state, reads_without_error(XS_SCHEMA "><xs:annotation>"
+                                                          "<xs:documentation xml:lang=''/>"
+                                                          "<xs:documentation xml:lang='en-GB'/>"
+                                                          "</xs:annotation></xs:schema>"));
+    SXML_TEST_EXPECT(state, !reads_without_error(XS_SCHEMA "><xs:annotation>"
+                                                           "<xs:documentation xml:lang=' '/>"
+                                                           "</xs:annotation></xs:schema>"));
+    /* A redefine with components needs its document (4.2.4 clause 1);
+       one with an annotation alone does not. */
+    SXML_TEST_EXPECT(state, document_fails_with(XS_SCHEMA "><xs:redefine schemaLocation='none.xsd'>"
+                                                          "<xs:attributeGroup name='g'/>"
+                                                          "</xs:redefine></xs:schema>",
+                                                "src-redefine.1"));
+    SXML_TEST_EXPECT(state, reads_without_error(XS_SCHEMA "><xs:redefine schemaLocation='none.xsd'>"
+                                                          "<xs:annotation/></xs:redefine>"
+                                                          "</xs:schema>"));
+    /* An attribute's type is a simple type (3.2.2.1). */
+    SXML_TEST_EXPECT(state, document_fails_with(XS_SCHEMA "><xs:complexType name='c'/>"
+                                                          "<xs:attribute name='a' type='c'/>"
+                                                          "</xs:schema>",
+                                                "src-resolve"));
     SXML_TEST_EXPECT(state, document_fails_with(XS_SCHEMA "><xs:attribute name='xmlns'/>"
                                                           "</xs:schema>",
                                                 "no-xmlns"));

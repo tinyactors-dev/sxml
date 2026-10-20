@@ -14,6 +14,7 @@
 #include "test_runner.h"
 
 #include <stdalign.h>
+#include <stdio.h>
 #include <string.h>
 
 #define TEXT(literal) SXML_BYTE_VIEW_FROM_LITERAL(literal)
@@ -299,6 +300,86 @@ static void test_errors_reported(sxml_test_state *state) {
     sxml_processor_destroy(processor);
 }
 
+/* Compiles one document; writes the first error's code (empty when it
+   compiles) to *code, which borrows from the record. */
+typedef struct compilation_result {
+    sxml_status status;
+    sxml_byte_view code;
+} compilation_result;
+
+static compilation_result compile_text(sxml_processor *processor, const char *text) {
+    static sxml_error_record record;
+    memset(&record, 0, sizeof(record));
+    const sxml_schema_document document = text_document(text);
+    sxml_schema *schema = NULL;
+    const sxml_status status = sxml_schema_create(
+        sxml_default_allocator(),
+        &(sxml_schema_configuration){
+            .processor = processor,
+            .schema_documents = {.schema_documents = &document, .schema_document_count = 1},
+            .error_record = &record},
+        &schema);
+    sxml_schema_destroy(schema);
+    return (compilation_result){.status = status,
+                                .code = status == SXML_STATUS_OK
+                                            ? (sxml_byte_view){.bytes = NULL, .byte_count = 0}
+                                            : record.code.local_name};
+}
+
+#define XS "<xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'>"
+
+/* Component rules of XSD 1.1 (packet 5.13 sweep 3). */
+static void test_component_rules(sxml_test_state *state) {
+    sxml_processor *processor = open_processor(NULL);
+    SXML_TEST_REQUIRE(state, processor != NULL);
+    const struct {
+        const char *document;
+        const char *code;
+    } cases[] = {
+        /* 3.4.2.2: simple content restricting xs:anySimpleType. */
+        {XS "<xs:complexType name='t'><xs:simpleContent><xs:restriction base='xs:anyType'/>"
+            "</xs:simpleContent></xs:complexType></xs:schema>",
+         "cos-st-restricts.1.1"},
+        /* A required attribute of the base may not be prohibited. */
+        {XS "<xs:complexType name='b'><xs:attribute name='a' use='required'/></xs:complexType>"
+            "<xs:complexType name='r'><xs:complexContent><xs:restriction base='b'>"
+            "<xs:attribute name='a' use='prohibited'/></xs:restriction></xs:complexContent>"
+            "</xs:complexType></xs:schema>",
+         "derivation-ok-restriction.3"},
+        /* Fixed values compare as values (equal or identical). */
+        {XS "<xs:complexType name='b'><xs:attribute name='a' type='xs:int' fixed=' 01'/>"
+            "</xs:complexType><xs:complexType name='r'><xs:complexContent>"
+            "<xs:restriction base='b'><xs:attribute name='a' type='xs:int' fixed='1'/>"
+            "</xs:restriction></xs:complexContent></xs:complexType></xs:schema>",
+         ""},
+        /* 3.8.6.3: a wildcard competes with a local declaration whose
+           type table differs from the top-level one's. */
+        {XS "<xs:element name='a'><xs:alternative type='xs:integer'/></xs:element>"
+            "<xs:complexType name='t'><xs:sequence><xs:element name='a'/>"
+            "<xs:any namespace='##local'/></xs:sequence></xs:complexType></xs:schema>",
+         "cos-element-consistent"},
+        /* A wildcard that only the union of the base's two covers. */
+        {XS "<xs:complexType name='b'><xs:choice maxOccurs='2'>"
+            "<xs:any namespace='##local' processContents='skip'/>"
+            "<xs:any namespace='##other' processContents='skip'/></xs:choice></xs:complexType>"
+            "<xs:complexType name='r'><xs:complexContent><xs:restriction base='b'>"
+            "<xs:sequence><xs:any namespace='##any' processContents='skip'/></xs:sequence>"
+            "</xs:restriction></xs:complexContent></xs:complexType></xs:schema>",
+         ""},
+    };
+    for (size_t case_index = 0; case_index < SXML_TEST_COUNT(cases); case_index += 1) {
+        const compilation_result result = compile_text(processor, cases[case_index].document);
+        const sxml_byte_view expected = sxml_byte_view_from_c_string(cases[case_index].code);
+        const bool matches = sxml_byte_view_equals(result.code, expected);
+        if (!matches) {
+            (void)fprintf(stderr, "case %zu: got '%.*s'\n", case_index,
+                          (int)result.code.byte_count, (const char *)result.code.bytes);
+        }
+        SXML_TEST_EXPECT(state, matches);
+    }
+    sxml_processor_destroy(processor);
+}
+
 static const sxml_test_case schema_test_cases[] = {
     {.name = "lifecycle_checks_its_arguments", .function = test_lifecycle_checks_its_arguments},
     {.name = "declarations_found", .function = test_declarations_found},
@@ -306,6 +387,7 @@ static const sxml_test_case schema_test_cases[] = {
     {.name = "xml_namespace_document_kept", .function = test_xml_namespace_document_kept},
     {.name = "node_documents", .function = test_node_documents},
     {.name = "errors_reported", .function = test_errors_reported},
+    {.name = "component_rules", .function = test_component_rules},
 };
 
 int main(int argument_count, char **arguments) {

@@ -936,6 +936,11 @@ typedef struct sxml_schema_type_definition {
        defaultAttributes (none when either is absent or false). Property,
        RESOLVE: default_attribute_group. */
     bool applies_default_attributes;
+    /* As read: the unnamed restriction a redefined attribute group is
+       checked with (src-redefine.7.2.2): the attribute uses of the two
+       groups are compared as {attribute uses}, so the base's are not
+       inherited (Part 1, 4.2.4). */
+    bool restricts_attribute_group;
     sxml_schema_reference_index default_attribute_group_reference;
     sxml_schema_attribute_group_index default_attribute_group;
     /* Property, COMPLEX_TYPES: {content type}: its variety, its particle
@@ -1906,6 +1911,26 @@ SXML_NODISCARD sxml_status sxml_schema_check_derivation(
     const sxml_schema_components *components,
     const sxml_schema_derivation_request *request,
     sxml_schema_derivation_outcome *outcome);
+
+/* Two value constraints and the type of their values. */
+typedef struct sxml_schema_value_comparison {
+    sxml_schema_value_constraint first;
+    sxml_schema_value_constraint second;
+    /* A simple type, or a complex type with simple content. */
+    sxml_schema_type_definition_index type_definition;
+} sxml_schema_value_comparison;
+
+/*
+ * True when the two lexical forms are the same text, or, cast to the
+ * type, are values equal or identical item for item: a fixed value
+ * subsumes only such a fixed value (XSD 1.1 Part 1, 3.4.6.4, default
+ * bindings of elements and attributes; 3.5.1; Part 2, 2.2.3 and 2.2.4).
+ * A form that does not cast, or a type no cast targets
+ * (xs:anySimpleType, xs:anyAtomicType, one that did not register),
+ * compares by text. src/schema_complex_type.c (5.6).
+ */
+bool sxml_schema_value_constraints_are_equal(const sxml_schema_components *components,
+                                             const sxml_schema_value_comparison *comparison);
 
 /* ------------------------------------------------------ Content models */
 

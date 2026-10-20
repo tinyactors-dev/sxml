@@ -653,9 +653,10 @@ static sxml_status resolve_identity_constraint_lists(resolver *state) {
 
 /* Attribute declarations and uses, particles, keyrefs and type
    alternatives (3.2.2.1, 3.5.2, 3.9.2, 3.11.2, 3.12.2). */
-static void resolve_other_references(resolver *state) {
+static sxml_status resolve_other_references(resolver *state) {
+    sxml_status status = SXML_STATUS_OK;
     const uint32_t attribute_count = table_count(state, SXML_SCHEMA_TABLE_ATTRIBUTE_DECLARATION);
-    for (uint32_t index = 5; index < attribute_count; index += 1) {
+    for (uint32_t index = 5; status == SXML_STATUS_OK && index < attribute_count; index += 1) {
         sxml_schema_attribute_declaration *declaration =
             edit(state, SXML_SCHEMA_TABLE_ATTRIBUTE_DECLARATION, index);
         if (declaration == NULL) {
@@ -667,7 +668,23 @@ static void resolve_other_references(resolver *state) {
         } else if (type == 0) {
             type = (uint32_t)SXML_TYPE_XS_ANY_SIMPLE_TYPE;
         }
+        if (type != 0 && sxml_schema_get_type_definition(
+                             state->components, (sxml_schema_type_definition_index){.value = type})
+                                 ->variety == SXML_TYPE_VARIETY_COMPLEX) {
+            /* 3.2.2.1: type= resolves to a simple type definition
+               (3.17.6.2 clause 2, the kind of component). */
+            status = report(state, (resolve_error){.constraint_name = "src-resolve",
+                                                   .description = "The type of an attribute "
+                                                                  "declaration is not a simple "
+                                                                  "type",
+                                                   .name = declaration->attribute_name,
+                                                   .position = declaration->position});
+            type = (uint32_t)SXML_TYPE_XS_ANY_SIMPLE_TYPE;
+        }
         declaration->type_definition.value = type;
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
     }
     const uint32_t use_count = table_count(state, SXML_SCHEMA_TABLE_ATTRIBUTE_USE);
     for (uint32_t index = 1; index < use_count; index += 1) {
@@ -723,7 +740,7 @@ static void resolve_other_references(resolver *state) {
                     ? component_of(state, alternative->type_reference)
                     : alternative->anonymous_type.value;
         }
-    }
+    }    return status;
 }
 
 /* ---------------------------------------------------------- Circularity */
@@ -815,7 +832,9 @@ sxml_status sxml_schema_resolve_references(sxml_schema_compilation *compilation)
         status = resolve_identity_constraint_lists(&state);
     }
     if (status == SXML_STATUS_OK) {
-        resolve_other_references(&state);
+        status = resolve_other_references(&state);
+    }
+    if (status == SXML_STATUS_OK) {
         status = check_group_cycles(&state);
     }
     sxml_allocator_release(state.allocator, state.stack);

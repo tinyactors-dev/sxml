@@ -146,6 +146,9 @@ typedef struct sxml_schema_document_reference {
     /* xs:import: its namespace attribute (SXML_NAMESPACE_NONE when
        absent). */
     sxml_namespace_uri_identifier imported_namespace;
+    /* xs:redefine with children other than xs:annotation: its
+       schemaLocation must resolve (Part 1, 4.2.4 clause 1). */
+    bool needs_document;
 } sxml_schema_document_reference;
 
 /*

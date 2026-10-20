@@ -2163,8 +2163,49 @@ static sxml_status check_state(content_compiler *compiler, uint32_t state) {
     return status;
 }
 
+/* Whether a strict or lax wildcard of the model, or of the type's open
+   content, matches the name of one of the model's element declarations
+   (3.8.6.3, second paragraph, clause 2; 3.10.4.2: the name is a sibling,
+   so a wildcard that disallows ##definedSibling does not match it). */
+static bool wildcard_matches_sibling(const content_compiler *compiler, sxml_name_identifier name) {
+    const sxml_schema_type_definition *type_definition =
+        sxml_schema_get_type_definition(compiler->components, compiler->complex_type);
+    const uint32_t particle_count = entry_count_of(&compiler->local_particles);
+    for (uint32_t local_index = 0; local_index <= particle_count; local_index += 1) {
+        sxml_schema_wildcard_index wildcard = {.value = 0};
+        if (local_index < particle_count) {
+            const local_particle *particle = local_particle_at(compiler, local_index);
+            if (particle->term_kind == SXML_SCHEMA_TERM_WILDCARD) {
+                wildcard.value = particle->term;
+            }
+        } else if (type_definition->open_content_mode != SXML_SCHEMA_OPEN_CONTENT_NONE) {
+            wildcard = type_definition->open_content_wildcard;
+        }
+        if (wildcard.value == 0) {
+            continue;
+        }
+        const sxml_schema_wildcard *definition =
+            sxml_schema_get_wildcard(compiler->components, wildcard);
+        if (definition->process_contents == SXML_SCHEMA_PROCESS_CONTENTS_SKIP ||
+            definition->disallows_sibling) {
+            continue;
+        }
+        if (sxml_schema_wildcard_allows_name(
+                compiler->components,
+                &(sxml_schema_wildcard_test){
+                    .wildcard = wildcard,
+                    .name = name,
+                    .symbol_space = SXML_SCHEMA_SYMBOL_SPACE_ELEMENT_DECLARATION})) {
+            return true;
+        }
+    }
+    return false;
+}
+
 /* Element Declarations Consistent (3.8.6.3): declarations of one name,
-   also through substitution groups, have one named type. */
+   also through substitution groups, have one named type; when a strict
+   or lax wildcard matches their name and a top-level declaration of it
+   exists, their type tables and its are equivalent. */
 static sxml_status check_element_consistency(content_compiler *compiler) {
     compiler->keys.entry_count = 0;
     sxml_status status = SXML_STATUS_OK;
@@ -2210,6 +2251,35 @@ static sxml_status check_element_consistency(content_compiler *compiler) {
                                            .description = "Two element declarations of one name "
                                                           "in a content model have different types",
                                            .name = first->element_name});
+        }
+    }
+    /* The second paragraph: declarations a wildcard competes with. */
+    for (size_t entry = 0; status == SXML_STATUS_OK && !compiler->has_reported &&
+                           entry < compiler->keys.entry_count;
+         entry += 1) {
+        const sxml_schema_element_declaration_index local = {
+            .value = (uint32_t)(keys[entry] & UINT32_MAX)};
+        const sxml_name_identifier name =
+            sxml_schema_get_element_declaration(compiler->components, local)->element_name;
+        uint32_t global = 0;
+        if (!sxml_schema_components_find_name(
+                compiler->components,
+                (sxml_schema_name_key){.symbol_space = SXML_SCHEMA_SYMBOL_SPACE_ELEMENT_DECLARATION,
+                                       .name = name},
+                &global) ||
+            global == local.value || !wildcard_matches_sibling(compiler, name)) {
+            continue;
+        }
+        if (!sxml_schema_type_tables_are_equivalent(
+                compiler->components,
+                &(sxml_schema_type_table_pair){.first = local, .second = {.value = global}})) {
+            status = report_error(
+                compiler,
+                (content_report){.constraint_name = "cos-element-consistent",
+                                 .description = "An element declaration and the top-level "
+                                                "declaration of its name, which a wildcard of the "
+                                                "content model matches, have different type tables",
+                                 .name = name});
         }
     }
     return status;
@@ -2708,17 +2778,16 @@ static bool declaration_subsumes(const sxml_schema_components *components,
     if (specific->is_nillable && !general->is_nillable) {
         return false;
     }
-    if (general->value_constraint.variety == SXML_SCHEMA_VALUE_CONSTRAINT_FIXED) {
-        const sxml_byte_view general_value =
-            sxml_schema_get_text(components, general->value_constraint.lexical_form);
-        const sxml_byte_view specific_value =
-            sxml_schema_get_text(components, specific->value_constraint.lexical_form);
-        if (specific->value_constraint.variety != SXML_SCHEMA_VALUE_CONSTRAINT_FIXED ||
-            general_value.byte_count != specific_value.byte_count ||
-            (general_value.byte_count != 0 &&
-             memcmp(general_value.bytes, specific_value.bytes, general_value.byte_count) != 0)) {
-            return false;
-        }
+    /* A fixed value: the same, equal or identical, in the specific
+       declaration's type. */
+    if (general->value_constraint.variety == SXML_SCHEMA_VALUE_CONSTRAINT_FIXED &&
+        (specific->value_constraint.variety != SXML_SCHEMA_VALUE_CONSTRAINT_FIXED ||
+         !sxml_schema_value_constraints_are_equal(
+             components,
+             &(sxml_schema_value_comparison){.first = general->value_constraint,
+                                             .second = specific->value_constraint,
+                                             .type_definition = specific->type_definition}))) {
+        return false;
     }
     if ((general->disallowed_substitutions & ~specific->disallowed_substitutions) != 0) {
         return false;
@@ -2986,9 +3055,162 @@ static bool restriction_takes_by_element(const restriction_walk *walk, sxml_name
            choice.transition->term_kind == SXML_SCHEMA_TERM_ELEMENT_DECLARATION;
 }
 
+/* Whether a base wildcard's process contents bind at least as loosely
+   as the restriction's (3.4.6.4, default bindings: skip subsumes all,
+   lax subsumes lax and strict). */
+static bool strength_subsumes(binding_strength general, binding_strength specific) {
+    return general == SXML_BINDING_SKIP ||
+           (general == SXML_BINDING_LAX && specific != SXML_BINDING_SKIP) ||
+           (general == SXML_BINDING_STRICT && specific == SXML_BINDING_STRICT);
+}
+
+/* The wildcards of the base's transitions from its current
+   configuration. */
+typedef struct base_wildcards {
+    const content_model_transition *transitions;
+    uint32_t transition_count;
+    const restriction_walk *walk;
+} base_wildcards;
+
+static bool is_live_wildcard(base_wildcards wildcards, uint32_t entry) {
+    const content_model_transition *transition = &wildcards.transitions[entry];
+    return transition->term_kind == SXML_SCHEMA_TERM_WILDCARD &&
+           cursor_tests_hold(&wildcards.walk->base, transition->tests);
+}
+
+/* Whether some base wildcard allows a namespace. */
+static bool some_wildcard_allows_namespace(base_wildcards wildcards, uint32_t namespace_index) {
+    const sxml_schema_components *components = wildcards.walk->compiler->components;
+    for (uint32_t entry = 0; entry < wildcards.transition_count; entry += 1) {
+        if (!is_live_wildcard(wildcards, entry)) {
+            continue;
+        }
+        const sxml_schema_wildcard_index wildcard = {wildcards.transitions[entry].term};
+        if (namespace_constraint_allows(components, sxml_schema_get_wildcard(components, wildcard),
+                                        namespace_index)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/* Whether the union of the base wildcards covers the restriction's
+   wildcard where no one of them does (3.4.6.4: the base is
+   deterministic, 3.8.6.4, so each name goes to the one wildcard that
+   allows it). The namespaces: an enumeration's each by some wildcard;
+   an infinite set (any, not) only within a union with a not, whose
+   finitely many uncovered namespaces it does not allow. The names: a
+   name one base wildcard disallows, another allows. A keyword
+   (##defined, ##definedSibling) of a base wildcard the restriction
+   lacks is not covered. */
+static bool union_covers(base_wildcards wildcards, sxml_schema_wildcard_index restricted) {
+    const sxml_schema_components *components = wildcards.walk->compiler->components;
+    const sxml_schema_wildcard *specific = sxml_schema_get_wildcard(components, restricted);
+    const sxml_schema_index_view specific_namespaces =
+        sxml_schema_get_list(components, specific->namespaces);
+    const sxml_schema_wildcard *first_not = NULL;
+    uint32_t live_count = 0;
+    for (uint32_t entry = 0; entry < wildcards.transition_count; entry += 1) {
+        if (!is_live_wildcard(wildcards, entry)) {
+            continue;
+        }
+        live_count += 1;
+        const sxml_schema_wildcard *general = sxml_schema_get_wildcard(
+            components, (sxml_schema_wildcard_index){wildcards.transitions[entry].term});
+        if ((general->disallows_defined && !specific->disallows_defined) ||
+            (general->disallows_sibling && !specific->disallows_sibling)) {
+            return false;
+        }
+        if (general->namespace_constraint_variety == SXML_SCHEMA_NAMESPACE_CONSTRAINT_NOT &&
+            first_not == NULL) {
+            first_not = general;
+        }
+        const sxml_schema_index_view disallowed =
+            sxml_schema_get_list(components, general->disallowed_names);
+        for (size_t name_entry = 0; name_entry < disallowed.index_count; name_entry += 1) {
+            const sxml_name_identifier name_identifier = {.index = disallowed.indexes[name_entry]};
+            bool is_covered = !sxml_schema_wildcard_allows_name(
+                components,
+                &(sxml_schema_wildcard_test){
+                    .wildcard = restricted,
+                    .name = name_identifier,
+                    .symbol_space = SXML_SCHEMA_SYMBOL_SPACE_ELEMENT_DECLARATION});
+            for (uint32_t other = 0; !is_covered && other < wildcards.transition_count;
+                 other += 1) {
+                is_covered = other != entry && is_live_wildcard(wildcards, other) &&
+                             sxml_schema_wildcard_allows_name(
+                                 components,
+                                 &(sxml_schema_wildcard_test){
+                                     .wildcard = {wildcards.transitions[other].term},
+                                     .name = name_identifier,
+                                     .symbol_space = SXML_SCHEMA_SYMBOL_SPACE_ELEMENT_DECLARATION});
+            }
+            if (!is_covered) {
+                return false;
+            }
+        }
+    }
+    if (live_count < 2U) {
+        return false;
+    }
+    if (specific->namespace_constraint_variety == SXML_SCHEMA_NAMESPACE_CONSTRAINT_ENUMERATION) {
+        for (size_t entry = 0; entry < specific_namespaces.index_count; entry += 1) {
+            if (!some_wildcard_allows_namespace(wildcards, specific_namespaces.indexes[entry])) {
+                return false;
+            }
+        }
+        return true;
+    }
+    if (first_not == NULL) {
+        return false;
+    }
+    /* The namespaces no base wildcard allows are among first_not's
+       excluded ones. */
+    const sxml_schema_index_view excluded = sxml_schema_get_list(components, first_not->namespaces);
+    for (size_t entry = 0; entry < excluded.index_count; entry += 1) {
+        if (!some_wildcard_allows_namespace(wildcards, excluded.indexes[entry]) &&
+            namespace_constraint_allows(components, specific, excluded.indexes[entry])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/* A restricting wildcard the union of the base's wildcards covers: one
+   configuration per base wildcard it shares a namespace with. */
+static sxml_status add_union_configurations(restriction_walk *walk, base_wildcards wildcards,
+                                            sxml_schema_wildcard_index restricted) {
+    const sxml_schema_components *components = walk->compiler->components;
+    const binding_strength strength = wildcard_strength(components, restricted);
+    sxml_status status = SXML_STATUS_OK;
+    for (uint32_t entry = 0;
+         status == SXML_STATUS_OK && !walk->is_violated && entry < wildcards.transition_count;
+         entry += 1) {
+        const content_model_transition *transition = &wildcards.transitions[entry];
+        if (!is_live_wildcard(wildcards, entry) ||
+            !wildcards_overlap(components,
+                               (wildcard_pair){.first_wildcard = restricted,
+                                               .second_wildcard = {transition->term}})) {
+            continue;
+        }
+        if (!strength_subsumes(wildcard_strength(components, (sxml_schema_wildcard_index){
+                                                                 transition->term}),
+                               strength)) {
+            walk->is_violated = true;
+            break;
+        }
+        copy_cursor(&walk->base_next, &walk->base);
+        cursor_apply_operations(&walk->base_next, transition->operations);
+        walk->base_next.state = transition->target_state;
+        status = add_configuration(walk);
+    }
+    return status;
+}
+
 /* A wildcard move of the restriction (restricted_next set): every name
    the base takes by an element transition is checked by name, the rest
-   needs a base wildcard (or open content) that covers the wildcard. */
+   needs a base wildcard (or open content) that covers the wildcard, or
+   base wildcards whose union covers it. */
 static sxml_status check_wildcard_move(restriction_walk *walk,
                                        sxml_schema_wildcard_index wildcard) {
     const sxml_schema_components *components = walk->compiler->components;
@@ -3080,13 +3302,18 @@ static sxml_status check_wildcard_move(restriction_walk *walk,
             walk->base_next.state = base->suffix_state;
         }
     } else {
+        const content_model_state *base_state = &base->states[walk->base.state];
+        const base_wildcards wildcards = {
+            .transitions = &base->transitions[base_state->transitions.first_index],
+            .transition_count = base_state->transitions.index_count,
+            .walk = walk};
+        if (union_covers(wildcards, wildcard)) {
+            return add_union_configurations(walk, wildcards, wildcard);
+        }
         walk->is_violated = true;
         return SXML_STATUS_OK;
     }
-    const binding_strength general_strength = wildcard_strength(components, covering);
-    if (general_strength != SXML_BINDING_SKIP &&
-        !(general_strength == SXML_BINDING_LAX && strength != SXML_BINDING_SKIP) &&
-        !(general_strength == SXML_BINDING_STRICT && strength == SXML_BINDING_STRICT)) {
+    if (!strength_subsumes(wildcard_strength(components, covering), strength)) {
         walk->is_violated = true;
         return SXML_STATUS_OK;
     }

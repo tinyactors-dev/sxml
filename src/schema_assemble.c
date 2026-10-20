@@ -1067,8 +1067,16 @@ sxml_status sxml_schema_assembly_add_reference(sxml_schema_assembly *assembly,
        (Part 1, 4.2.3 clause 2.4, 4.2.6.2): its components are missing,
        and src-resolve reports what refers to them. include/sxml/schema.h
        says otherwise for include, redefine and override (D170,
-       Proposed). */
-    (void)is_missing;
+       Proposed). An xs:redefine with components is the exception: its
+       schemaLocation must resolve (4.2.4 clause 1). */
+    if (status == SXML_STATUS_OK && is_missing && reference->needs_document) {
+        status = report_document(
+            assembly, (document_error){.constraint_name = "src-redefine.1",
+                                       .description = "The schema document an xs:redefine with "
+                                                      "redefinitions names cannot be read",
+                                       .subject = reference->schema_location,
+                                       .position = reference->position});
+    }
     sxml_allocator_release(assembly->allocator, resolution.memory);
     const size_t referrer_position = position_of_document(assembly, referrer->document);
     if (status == SXML_STATUS_OK && position != SIZE_MAX && referrer_position != SIZE_MAX) {

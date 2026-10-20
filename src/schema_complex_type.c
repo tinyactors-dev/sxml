@@ -772,7 +772,14 @@ static sxml_status restrict_simple_content(complex_type_stage *stage, simple_res
                                            uint32_t *simple_type) {
     const uint32_t base_simple_type = request.base_simple_type;
     const sxml_schema_type_definition read = *get_type(stage->components, request.complex_type);
-    if (read.facets.entry_count == 0 && read.facet_assertions.entry_count == 0) {
+    /* 3.4.2.2 clauses 1 and 2: the content's simple type restricts the
+       base's. Without facets it is the base's, except for xs:anySimpleType
+       and xs:anyAtomicType, which no restriction may have as its base (the
+       note there; 3.16.6.2 clause 1.1): the synthesized type reports it. */
+    const bool is_special_base = base_simple_type == (uint32_t)SXML_TYPE_XS_ANY_SIMPLE_TYPE ||
+                                 base_simple_type == (uint32_t)SXML_TYPE_XS_ANY_ATOMIC_TYPE;
+    if (read.facets.entry_count == 0 && read.facet_assertions.entry_count == 0 &&
+        !is_special_base) {
         *simple_type = base_simple_type;
         return SXML_STATUS_OK;
     }
@@ -908,7 +915,8 @@ static sxml_status derive_attributes(complex_type_stage *stage, uint32_t type_in
     sxml_status status = collect_attribute_closure(stage, &closure);
     attributes->own_use_count = stage->indexes.entry_count;
     attributes->attribute_wildcard = closure.complete_wildcard;
-    if (status != SXML_STATUS_OK || base.variety != SXML_TYPE_VARIETY_COMPLEX) {
+    if (status != SXML_STATUS_OK || base.variety != SXML_TYPE_VARIETY_COMPLEX ||
+        read.restricts_attribute_group) {
         return status;
     }
     const bool is_extension = read.derivation_method == SXML_SCHEMA_DERIVATION_EXTENSION;
@@ -1024,14 +1032,15 @@ static sxml_status check_attribute_restriction(complex_type_stage *stage, uint32
         const sxml_schema_value_constraint own_value = effective_value_constraint(components, use);
         bool is_value_compatible = base_value.variety != SXML_SCHEMA_VALUE_CONSTRAINT_FIXED;
         if (!is_value_compatible && own_value.variety == SXML_SCHEMA_VALUE_CONSTRAINT_FIXED) {
-            const sxml_byte_view base_text =
-                sxml_schema_get_text(components, base_value.lexical_form);
-            const sxml_byte_view own_text =
-                sxml_schema_get_text(components, own_value.lexical_form);
-            is_value_compatible =
-                base_text.byte_count == own_text.byte_count &&
-                (base_text.byte_count == 0 ||
-                 memcmp(base_text.bytes, own_text.bytes, base_text.byte_count) == 0);
+            /* 3.4.6.4, subsumption: a fixed value equal or identical to
+               the base's, in the restriction's type. */
+            is_value_compatible = sxml_schema_value_constraints_are_equal(
+                components, &(sxml_schema_value_comparison){
+                                .first = base_value,
+                                .second = own_value,
+                                .type_definition = sxml_schema_get_attribute_declaration(
+                                                       components, own_entry->attribute_declaration)
+                                                       ->type_definition});
         }
         const bool keeps_required = base_entry->use_kind != SXML_SCHEMA_ATTRIBUTE_USE_REQUIRED ||
                                     own_entry->use_kind == SXML_SCHEMA_ATTRIBUTE_USE_REQUIRED;
@@ -1042,14 +1051,16 @@ static sxml_status check_attribute_restriction(complex_type_stage *stage, uint32
             return report(stage, error);
         }
     }
-    /* A required use of the base stays (XSD 1.0 clause 3). */
+    /* A required use of the base stays (XSD 1.0 clause 3): its name has
+       a use in the restriction's {attribute uses}, which hold no
+       prohibited ones (3.4.2.5). */
     const sxml_schema_index_view base_uses = sxml_schema_get_list(components, base->attribute_uses);
     for (size_t entry = 0; entry < base_uses.index_count; entry += 1) {
         const sxml_schema_attribute_use *base_entry = sxml_schema_get_attribute_use(
             components, (sxml_schema_attribute_use_index){.value = base_uses.indexes[entry]});
         if (base_entry->use_kind == SXML_SCHEMA_ATTRIBUTE_USE_REQUIRED &&
-            is_prohibited_name(components, type_definition->attribute_uses,
-                               use_name(components, base_uses.indexes[entry]))) {
+            find_use(components, type_definition->attribute_uses,
+                     use_name(components, base_uses.indexes[entry])) == 0) {
             return report(stage, error);
         }
     }
@@ -1305,6 +1316,125 @@ static sxml_status compile_complex_type(complex_type_stage *stage, uint32_t type
     return status;
 }
 
+/* ------------------------------------------------------ Value constraints */
+
+/* The simple type a value constraint's values have, as registered; NONE
+   for one no cast targets (xs:anySimpleType and xs:anyAtomicType take
+   every value, Part 2, 3.2.1 and 3.2.2) or that did not register. */
+static sxml_type_identifier value_type_of(const sxml_schema_components *components,
+                                          uint32_t type_index) {
+    const sxml_schema_type_definition *type_definition = get_type(components, type_index);
+    if (type_definition->variety == SXML_TYPE_VARIETY_COMPLEX) {
+        if (type_definition->content_type_variety != SXML_CONTENT_TYPE_VARIETY_SIMPLE) {
+            return (sxml_type_identifier){.index = SXML_TYPE_NONE};
+        }
+        type_definition = get_type(components, type_definition->simple_content_type.value);
+    }
+    const sxml_type_identifier registered = type_definition->registered_type;
+    if (registered.index == (uint32_t)SXML_TYPE_XS_ANY_SIMPLE_TYPE ||
+        registered.index == (uint32_t)SXML_TYPE_XS_ANY_ATOMIC_TYPE) {
+        return (sxml_type_identifier){.index = SXML_TYPE_NONE};
+    }
+    return registered;
+}
+
+/* A value constraint cast to a registered simple type. */
+typedef struct value_cast {
+    sxml_schema_value_constraint value_constraint;
+    sxml_type_identifier target_type;
+} value_cast;
+
+static sxml_status cast_value_constraint(const sxml_schema_components *components,
+                                         value_cast request, sxml_sequence *value) {
+    const sxml_schema_namespace_context *context =
+        sxml_schema_get_namespace_context(components, request.value_constraint.namespace_context);
+    sxml_error_record ignored;
+    return sxml_cast_make_value_from_text(
+        sxml_processor_get_item_heap(components->processor),
+        &(sxml_text_cast_request){
+            .text = sxml_schema_get_text(components, request.value_constraint.lexical_form),
+            .target_type = request.target_type,
+            .namespace_bindings =
+                sxml_schema_get_namespace_bindings(components, context->namespace_bindings),
+            .error_record = &ignored},
+        value);
+}
+
+/* The primitive type of an atomic item, for Part 2, 2.2.3: values of
+   different primitive types are never equal. */
+static sxml_type_identifier primitive_of(const sxml_schema_components *components,
+                                         sxml_item item) {
+    sxml_type_description description;
+    if (sxml_type_registry_describe_type(components->processor->type_registry,
+                                         sxml_item_get_type_annotation(item),
+                                         &description) != SXML_STATUS_OK) {
+        return (sxml_type_identifier){.index = SXML_TYPE_NONE};
+    }
+    return description.primitive_type;
+}
+
+/* Two cast values: equal or identical item for item (Part 2, 2.2.3,
+   2.2.4; a list is equal to a list of as many pairwise equal items). */
+typedef struct value_pair {
+    sxml_sequence first;
+    sxml_sequence second;
+} value_pair;
+
+static bool values_are_equal(const sxml_schema_components *components, value_pair pair) {
+    sxml_sequence_iterator first = sxml_sequence_iterator_start(pair.first);
+    sxml_sequence_iterator second = sxml_sequence_iterator_start(pair.second);
+    for (;;) {
+        sxml_iteration_step first_step = {.has_item = false};
+        sxml_iteration_step second_step = {.has_item = false};
+        if (sxml_sequence_iterator_next(&first, NULL, &first_step) != SXML_STATUS_OK ||
+            sxml_sequence_iterator_next(&second, NULL, &second_step) != SXML_STATUS_OK ||
+            first_step.has_item != second_step.has_item) {
+            return false;
+        }
+        if (!first_step.has_item) {
+            return true;
+        }
+        if (!sxml_atomic_item_is_atomic_equal(first_step.item, second_step.item) ||
+            primitive_of(components, first_step.item).index !=
+                primitive_of(components, second_step.item).index) {
+            return false;
+        }
+    }
+}
+
+bool sxml_schema_value_constraints_are_equal(const sxml_schema_components *components,
+                                             const sxml_schema_value_comparison *comparison) {
+    const sxml_byte_view first_text =
+        sxml_schema_get_text(components, comparison->first.lexical_form);
+    const sxml_byte_view second_text =
+        sxml_schema_get_text(components, comparison->second.lexical_form);
+    if (sxml_byte_view_equals(first_text, second_text)) {
+        return true;
+    }
+    const sxml_type_identifier target_type =
+        value_type_of(components, comparison->type_definition.value);
+    if (target_type.index == SXML_TYPE_NONE) {
+        return false;
+    }
+    sxml_sequence first = sxml_sequence_empty();
+    sxml_sequence second = sxml_sequence_empty();
+    bool is_equal =
+        cast_value_constraint(components,
+                              (value_cast){.value_constraint = comparison->first,
+                                           .target_type = target_type},
+                              &first) == SXML_STATUS_OK &&
+        cast_value_constraint(components,
+                              (value_cast){.value_constraint = comparison->second,
+                                           .target_type = target_type},
+                              &second) == SXML_STATUS_OK;
+    if (is_equal) {
+        is_equal = values_are_equal(components, (value_pair){.first = first, .second = second});
+    }
+    sxml_sequence_release(first);
+    sxml_sequence_release(second);
+    return is_equal;
+}
+
 /* ------------------------------------------------ Element declarations */
 
 /* Element Default Valid (Immediate) (3.3.6.2), clause 1: the value
@@ -1319,33 +1449,15 @@ static sxml_status check_simple_value_constraint(complex_type_stage *stage,
     if (declaration->value_constraint.variety == SXML_SCHEMA_VALUE_CONSTRAINT_NONE) {
         return SXML_STATUS_OK;
     }
-    const sxml_schema_type_definition *type_definition =
-        get_type(components, declaration->type_definition.value);
-    if (type_definition->variety == SXML_TYPE_VARIETY_COMPLEX) {
-        if (type_definition->content_type_variety != SXML_CONTENT_TYPE_VARIETY_SIMPLE) {
-            return SXML_STATUS_OK;
-        }
-        type_definition = get_type(components, type_definition->simple_content_type.value);
-    }
-    /* xs:anySimpleType and xs:anyAtomicType take every value (Part 2,
-       3.2.1, 3.2.2); no cast targets them. */
-    if (type_definition->registered_type.index == SXML_TYPE_NONE ||
-        type_definition->registered_type.index == (uint32_t)SXML_TYPE_XS_ANY_SIMPLE_TYPE ||
-        type_definition->registered_type.index == (uint32_t)SXML_TYPE_XS_ANY_ATOMIC_TYPE) {
+    const sxml_type_identifier target_type =
+        value_type_of(components, declaration->type_definition.value);
+    if (target_type.index == SXML_TYPE_NONE) {
         return SXML_STATUS_OK;
     }
-    const sxml_schema_namespace_context *context = sxml_schema_get_namespace_context(
-        components, declaration->value_constraint.namespace_context);
-    sxml_error_record ignored;
     sxml_sequence value = sxml_sequence_empty();
-    const sxml_status status = sxml_cast_make_value_from_text(
-        sxml_processor_get_item_heap(components->processor),
-        &(sxml_text_cast_request){
-            .text = sxml_schema_get_text(components, declaration->value_constraint.lexical_form),
-            .target_type = type_definition->registered_type,
-            .namespace_bindings =
-                sxml_schema_get_namespace_bindings(components, context->namespace_bindings),
-            .error_record = &ignored},
+    const sxml_status status = cast_value_constraint(
+        components,
+        (value_cast){.value_constraint = declaration->value_constraint, .target_type = target_type},
         &value);
     if (status == SXML_STATUS_OK) {
         sxml_sequence_release(value);

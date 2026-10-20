@@ -1492,6 +1492,37 @@ static bool is_valid_value(value_kind kind, sxml_byte_view value) {
     return true;
 }
 
+/* xml:lang on an element of a schema document: xs:documentation
+   declares it, and the lax wildcard of the others assesses it, by the
+   declaration of xml.xsd, a union of xs:language and the empty string
+   (Part 1, appendix A; XML 1.0, 2.12). */
+static sxml_status check_xml_lang(schema_reader *reader, sxml_byte_view value) {
+    if (value.byte_count == 0) {
+        return SXML_STATUS_OK;
+    }
+    sxml_error_record ignored;
+    sxml_sequence language = sxml_sequence_empty();
+    const sxml_status status = sxml_cast_make_value_from_text(
+        sxml_processor_get_item_heap(reader->components->processor),
+        &(sxml_text_cast_request){
+            .text = value,
+            .target_type = sxml_builtin_type_identifier(SXML_TYPE_XS_LANGUAGE),
+            .namespace_bindings = {.namespace_bindings = NULL, .namespace_binding_count = 0},
+            .error_record = &ignored},
+        &language);
+    if (status == SXML_STATUS_OK) {
+        sxml_sequence_release(language);
+        return SXML_STATUS_OK;
+    }
+    if (status != SXML_STATUS_DYNAMIC_ERROR && status != SXML_STATUS_TYPE_ERROR) {
+        return status;
+    }
+    return report(reader, (read_error){.constraint_name = {.bytes = NULL, .byte_count = 0},
+                                       .description = "An xml:lang attribute is neither a "
+                                                      "language nor empty",
+                                       .subject = value});
+}
+
 static bool find_rule_attribute(const role_rule *rule, sxml_byte_view local_name,
                                 read_attribute *attribute) {
     for (uint32_t attribute_index = 0; attribute_index < (uint32_t)SXML_READ_ATTRIBUTE_COUNT;
@@ -1531,6 +1562,11 @@ static sxml_status collect_attributes(schema_reader *reader) {
         if (parts.namespace_uri.index == (uint32_t)SXML_NAMESPACE_XML &&
             sxml_byte_view_equals(parts.local_name, SXML_TEXT("base"))) {
             element->record->has_xml_base = true;
+            continue;
+        }
+        if (parts.namespace_uri.index == (uint32_t)SXML_NAMESPACE_XML &&
+            sxml_byte_view_equals(parts.local_name, SXML_TEXT("lang"))) {
+            status = check_xml_lang(reader, value);
             continue;
         }
         if (parts.namespace_uri.index != SXML_NAMESPACE_NONE &&
@@ -2476,6 +2512,7 @@ static sxml_status add_restriction_side(schema_reader *reader, restriction_side 
                                                  .entry = &particle},
                                &definition.explicit_content.value);
     } else if (status == SXML_STATUS_OK && !is_group) {
+        definition.restricts_attribute_group = side.base_type != 0;
         uint32_t reference = 0;
         status = add_resolved_reference(
             reader,
@@ -2714,6 +2751,27 @@ static sxml_status read_schema_defaults(schema_reader *reader) {
     return status;
 }
 
+/* Whether the element has a child element other than xs:annotation
+   (the components of an xs:redefine, 4.2.4 clause 1). */
+static sxml_status has_component_children(schema_reader *reader, bool *has_components) {
+    *has_components = false;
+    sxml_status status = SXML_STATUS_OK;
+    bool has_child = reader->element.description.has_children;
+    uint32_t child = reader->element.description.first_child.index;
+    while (status == SXML_STATUS_OK && has_child && !*has_components) {
+        sxml_node_description description;
+        status = describe_node(reader, child, &description);
+        if (status == SXML_STATUS_OK && description.node_kind == SXML_NODE_KIND_ELEMENT) {
+            const sxml_name_parts parts = name_parts_of(reader, description.node_name);
+            *has_components = !is_schema_namespace(parts.namespace_uri) ||
+                              !sxml_byte_view_equals(parts.local_name, SXML_TEXT("annotation"));
+        }
+        has_child = description.has_next_sibling;
+        child = description.next_sibling.index;
+    }
+    return status;
+}
+
 /* An xs:include, xs:import, xs:redefine or xs:override (Part 1, 4.2.3 to
    4.2.6). */
 static sxml_status read_document_reference(schema_reader *reader,
@@ -2725,7 +2783,8 @@ static sxml_status read_document_reference(schema_reader *reader,
         .position = reader->element.position,
         .schema_location = sxml_xml_text_trim_whitespace(attribute_value(reader, SXML_READ_ATTRIBUTE_SCHEMA_LOCATION)),
         .base_uri = {.bytes = NULL, .byte_count = 0},
-        .imported_namespace = {.index = SXML_NAMESPACE_NONE}};
+        .imported_namespace = {.index = SXML_NAMESPACE_NONE},
+        .needs_document = false};
     sxml_status status = SXML_STATUS_OK;
     if (relation == SXML_SCHEMA_DOCUMENT_RELATION_IMPORT) {
         const bool has_namespace = has_attribute(reader, SXML_READ_ATTRIBUTE_NAMESPACE);
@@ -2757,7 +2816,12 @@ static sxml_status read_document_reference(schema_reader *reader,
         relation == SXML_SCHEMA_DOCUMENT_RELATION_OVERRIDE) {
         reader->element.skips_subtree = true;
     }
-    status = current_base_uri(reader, &reference.base_uri);
+    if (relation == SXML_SCHEMA_DOCUMENT_RELATION_REDEFINE) {
+        status = has_component_children(reader, &reference.needs_document);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = current_base_uri(reader, &reference.base_uri);
+    }
     if (status == SXML_STATUS_OK) {
         status = sxml_schema_assembly_add_reference(reader->assembly, &reference);
     }
@@ -3954,6 +4018,14 @@ static sxml_status read_local_attribute(schema_reader *reader) {
         status = report(reader, (read_error){.constraint_name = SXML_TEXT("src-attribute.2"),
                                              .description = "An attribute with a default is "
                                                             "optional",
+                                             .subject = {.bytes = NULL, .byte_count = 0}});
+    }
+    if (status == SXML_STATUS_OK && has_attribute(reader, SXML_READ_ATTRIBUTE_FIXED) &&
+        use.use_kind == SXML_SCHEMA_ATTRIBUTE_USE_PROHIBITED) {
+        /* 3.2.3 clause 5, new in XSD 1.1. */
+        status = report(reader, (read_error){.constraint_name = SXML_TEXT("src-attribute.5"),
+                                             .description = "An attribute with a fixed value is "
+                                                            "not prohibited",
                                              .subject = {.bytes = NULL, .byte_count = 0}});
     }
     if (status == SXML_STATUS_OK) {
