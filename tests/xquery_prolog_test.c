@@ -410,7 +410,7 @@ static const error_case error_cases[] = {
     {"declare function local:f() { $p }; 1", "XPST0008"},
     {"declare function local:f() { local:g() }; 1", "XPST0017"},
     {"declare variable $x as p:t := 1; 1", "XPST0081"},
-    {"declare type local:a as local:a; 1", "XPST0051"},
+    {"declare type local:a as local:a; 1", "XQST0140"},
     {"declare default decimal-format zero-digit = 'A'; 1", "XQST0097"},
     {"declare default decimal-format decimal-separator = ','; 1", "XQST0098"},
     {"declare default decimal-format digit = 'x' digit = 'y'; 1", "XQST0114"},

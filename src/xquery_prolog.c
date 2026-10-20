@@ -45,10 +45,11 @@
  * entries each body and initializer added are scanned for the global
  * variables they read and the declared functions they call or reference,
  * a static superset of what they read when run. A walk from the query
- * body orders the variables it reaches dependencies first; a cycle
- * through a variable is XQDY0054, raised statically (5.16: "If it is
- * discovered, during static analysis or during dynamic evaluation, that
- * such a cycle exists"). Each reached variable's global then gets, in
+ * body orders the variables it reaches dependencies first; a cycle of
+ * that superset is no error by itself: a variable depends on another
+ * only when computing it reads the other (5.16), which the evaluator
+ * finds, raising XQDY0054 for a global being computed (D263, replacing
+ * the static check). Each reached variable's global then gets, in
  * that order, an initializer function that calls its lowered initializer,
  * so the global part computes them by initializer index
  * (src/evaluator_global.c); variables the body never reaches get none and
@@ -1044,10 +1045,9 @@ typedef struct dependency_graph {
 } dependency_graph;
 
 /* The walk's state: per node its color (0 not seen, 1 on the path, 2
-   done), its place on the path, and the path with each node's next edge. */
+   done), and the path with each node's next edge. */
 typedef struct dependency_walk {
     uint8_t *colors;
-    size_t *path_positions;
     uint32_t *path_nodes;
     size_t *path_edges;
     /* The variables in computation order. */
@@ -1055,39 +1055,14 @@ typedef struct dependency_walk {
     size_t order_count;
 } dependency_walk;
 
-/* The declaration a variable node stands for, in its module's AST. */
-typedef struct declaration_place {
-    const sxml_ast *ast;
-    sxml_ast_node_index declaration;
-} declaration_place;
 
-static declaration_place declaration_of_node(const module_lowering *module, size_t node) {
-    if (node == context_node(module)) {
-        return (declaration_place){.ast = module->contexts[0].ast,
-                                   .declaration = module->contexts[0].context_value_declaration};
-    }
-    const uint32_t global_number = (uint32_t)(module->host_variable_count + node);
-    for (size_t module_index = 0; module_index < module->set->module_count; module_index += 1) {
-        const sxml_xquery_static_context *context = &module->contexts[module_index];
-        for (size_t variable_index = 0; variable_index < context->prolog_variable_count;
-             variable_index += 1) {
-            if (context->global_numbers[context->host_variable_count + variable_index] ==
-                global_number) {
-                return (declaration_place){.ast = context->ast,
-                                           .declaration = context->variable_nodes[variable_index]};
-            }
-        }
-    }
-    return (declaration_place){.ast = module->contexts[0].ast, .declaration = {.value = 0}};
-}
-
-/* Walks from the query body; XQDY0054 for a cycle through a variable. */
+/* Walks from the query body, ordering the variables it reaches
+   dependencies first; a cycle is left to the evaluator (5.16). */
 static sxml_status walk_dependencies(module_lowering *module, const dependency_graph *graph,
                                      dependency_walk *walk) {
     size_t path_count = 1;
     walk->path_nodes[0] = 0;
     walk->path_edges[0] = graph->first_edges[0];
-    walk->path_positions[0] = 0;
     walk->colors[0] = 1;
     while (path_count > 0) {
         const size_t top = walk->path_nodes[path_count - 1];
@@ -1111,31 +1086,16 @@ static sxml_status walk_dependencies(module_lowering *module, const dependency_g
         }
         if (walk->colors[target] == 0) {
             walk->colors[target] = 1;
-            walk->path_positions[target] = path_count;
             walk->path_nodes[path_count] = (uint32_t)target;
             walk->path_edges[path_count] = graph->first_edges[target];
             path_count += 1;
             continue;
         }
-        if (walk->colors[target] != 1) {
-            continue;
-        }
-        /* A cycle: the path from target to the top. */
-        for (size_t position = walk->path_positions[target]; position < path_count;
-             position += 1) {
-            if (is_variable_node(module, walk->path_nodes[position])) {
-                const declaration_place place =
-                    declaration_of_node(module, walk->path_nodes[position]);
-                return sxml_xpath_report_static_error(
-                    &(sxml_xpath_static_error){
-                        .ast = place.ast,
-                        .node = place.declaration,
-                        .code_local_name = SXML_BYTE_VIEW_FROM_LITERAL("XQDY0054"),
-                        .description = SXML_BYTE_VIEW_FROM_LITERAL(
-                            "the value of a variable depends on itself")},
-                    module->error_record);
-            }
-        }
+        /* A cycle (colors[target] == 1) is a static superset of what runs:
+           a variable depends on another only if the read happens while it
+           is computed (5.16), which the evaluator finds (XQDY0054 for a
+           global BEING_COMPUTED, src/evaluator_global.c). The walk goes
+           on. */
     }
     return SXML_STATUS_OK;
 }
@@ -1202,14 +1162,6 @@ static sxml_status order_variables(module_lowering *module, computation_order *o
             (sxml_xpath_lowering_scratch_request){.element_count = node_count,
                                                   .element_size = sizeof(size_t),
                                                   .element_alignment = alignof(size_t)},
-            (void **)&walk.path_positions);
-    }
-    if (status == SXML_STATUS_OK) {
-        status = allocate_zeroed(
-            module,
-            (sxml_xpath_lowering_scratch_request){.element_count = node_count,
-                                                  .element_size = sizeof(size_t),
-                                                  .element_alignment = alignof(size_t)},
             (void **)&walk.path_edges);
     }
     if (status == SXML_STATUS_OK) {
@@ -1234,7 +1186,6 @@ static sxml_status order_variables(module_lowering *module, computation_order *o
     sxml_xpath_lowerer_release_scratch(module->lowerer, graph.first_edges);
     sxml_xpath_lowerer_release_scratch(module->lowerer, graph.targets);
     sxml_xpath_lowerer_release_scratch(module->lowerer, walk.colors);
-    sxml_xpath_lowerer_release_scratch(module->lowerer, walk.path_positions);
     sxml_xpath_lowerer_release_scratch(module->lowerer, walk.path_edges);
     sxml_xpath_lowerer_release_scratch(module->lowerer, walk.path_nodes);
     if (status != SXML_STATUS_OK) {

@@ -1842,6 +1842,97 @@ static void import_item_types(const static_reader *reader, sxml_xquery_static_co
         .named_item_type_count = context->named_item_type_count};
 }
 
+/* The node after node in a walk of root's subtree in document order; 0
+   past its end. */
+static sxml_ast_node_index next_in_subtree(const sxml_ast *ast, sxml_ast_node_index root,
+                                           sxml_ast_node_index node) {
+    const sxml_ast_node *current = node_of(ast, node);
+    if (current->first_child.value != 0) {
+        return current->first_child;
+    }
+    sxml_ast_node_index walked = node;
+    while (walked.value != root.value) {
+        const sxml_ast_node *walked_node = node_of(ast, walked);
+        if (walked_node->next_sibling.value != 0) {
+            return walked_node->next_sibling;
+        }
+        walked = walked_node->parent;
+    }
+    return (sxml_ast_node_index){.value = 0};
+}
+
+/* resolve_type_name without reporting: for a look that may fail. */
+static sxml_status resolve_quiet_type_name(const static_reader *reader,
+                                           sxml_ast_node_index name_node,
+                                           sxml_name_identifier *name) {
+    sxml_xpath_resolved_name resolved = {0};
+    const sxml_status status = sxml_xpath_resolve_name(
+        &(sxml_xpath_name_request){.ast = reader->ast,
+                                   .name_node = name_node,
+                                   .name_role = SXML_XPATH_NAME_ROLE_ELEMENT_OR_TYPE,
+                                   .static_context = &reader->context->xpath,
+                                   .error_record = NULL},
+        &resolved);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_name_pool_intern_name(
+        reader->name_pool,
+        &(sxml_name_request){.namespace_uri = resolved.namespace_uri,
+                             .local_name = resolved.local_name},
+        name);
+}
+
+/* Item type declarations that could not be resolved, whatever the
+   order. */
+typedef struct pending_types {
+    const sxml_ast_node_index *declarations;
+    size_t declaration_count;
+} pending_types;
+
+/* XQST0140 (5.19): a declaration left unresolved whose type names one of
+   the unresolved declarations refers to itself through them, a cycle.
+   The names in each type are resolved quietly; one that does not
+   resolve is the other error's, reported after. */
+static sxml_status check_type_cycle(const static_reader *reader, pending_types pending) {
+    const sxml_ast *ast = reader->ast;
+    sxml_status status = SXML_STATUS_OK;
+    for (size_t pending_index = 0;
+         status == SXML_STATUS_OK && pending_index < pending.declaration_count;
+         pending_index += 1) {
+        const sxml_ast_node_index type = child_of(ast, pending.declarations[pending_index],
+                                                  SXML_AST_FIELD_TYPE);
+        for (sxml_ast_node_index walked = type; status == SXML_STATUS_OK && walked.value != 0;
+             walked = next_in_subtree(ast, type, walked)) {
+            const sxml_ast_kind kind = node_of(ast, walked)->kind;
+            if (kind != SXML_AST_KIND_NCNAME && kind != SXML_AST_KIND_PREFIXED_NAME &&
+                kind != SXML_AST_KIND_URI_QUALIFIED_NAME) {
+                continue;
+            }
+            sxml_name_identifier name = {0};
+            if (resolve_quiet_type_name(reader, walked, &name) != SXML_STATUS_OK) {
+                continue;
+            }
+            for (size_t other_index = 0; other_index < pending.declaration_count;
+                 other_index += 1) {
+                sxml_name_identifier declared = {0};
+                if (resolve_quiet_type_name(
+                        reader,
+                        child_of(ast, pending.declarations[other_index], SXML_AST_FIELD_NAME),
+                        &declared) == SXML_STATUS_OK &&
+                    declared.index == name.index) {
+                    status = report(reader, pending.declarations[pending_index],
+                                    SXML_BYTE_VIEW_FROM_LITERAL(
+                                        "XQST0140 named item types refer to each other in a "
+                                        "cycle"));
+                    break;
+                }
+            }
+        }
+    }
+    return status;
+}
+
 static sxml_status read_item_types(const static_reader *reader, const prolog_survey *survey,
                                    sxml_xquery_static_context *context) {
     const sxml_ast *ast = reader->ast;
@@ -1957,6 +2048,10 @@ static sxml_status read_item_types(const static_reader *reader, const prolog_sur
             }
         }
         pending_count = kept_count;
+    }
+    if (status == SXML_STATUS_OK && pending_count > 0) {
+        status = check_type_cycle(reader, (pending_types){.declarations = pending,
+                                                          .declaration_count = pending_count});
     }
     if (status == SXML_STATUS_OK && pending_count > 0) {
         sxml_type_identifier unused = {0};
