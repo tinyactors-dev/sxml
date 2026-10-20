@@ -40,6 +40,10 @@ you implement or use.
   `sxml.wasm` lean: large features go behind optional features (D189).
 - **Do not wait on the owner** (D208): take the proposed default for an
   open question that is not irreversible, record it, and go on.
+- **The book** (D257): `docs/book/` shows real output. A change to CLI
+  output or to an error message the book shows updates the book in the same
+  commit; `tools/check-book-examples.sh BUILD-DIR` checks it (`--update`
+  rewrites the outputs for review).
 - **The CLI** (`apps/`, rules in `docs/CLI.md`) uses only the public API.
   When your work makes a capability real, extend the matching command with
   end-to-end tests. Never add a command or flag for something that does not
