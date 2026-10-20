@@ -14,11 +14,12 @@ transform-004 needs a suspendable compiler (D71), transform-401 waits on
   XT40 12,157 (4.24, D261: stylesheets see only declared prefixes and
   xml, or fixed-namespaces), XSD in scope 41,486 of 41,518.
   Zero error outcomes in every suite.
-- Optional features (D189). Budgets (D202, D207, D208): core `sxml.wasm`
-  2,200,000 / 770,000 (2,077,439 / 725,473 after size-2, D227: each module
-  links only its languages' parts), `sxml-full.wasm` 8,000,000 /
-  2,800,000, CLI 9,500,000 / 2,100,000 (D235: XPath Full Text grammar). The size test compares the core's
-  linker map with a baseline and prints the top growths (D225).
+- One build with everything (D272, size-3): every shipped build has every
+  language and optional feature; the JavaScript package ships one
+  `sxml.wasm` (7,701,002 / 1,713,241 bytes; budget 8,000,000 / 2,800,000;
+  `./sxml-full.wasm` is an alias). CLI budget 9,500,000 / 2,100,000. The
+  size test compares the module's linker map with a baseline and prints
+  the top growths (D225). fn:load-xquery-module serves every language.
 - EXPath Binary (D198) 646 of 646 and File (D200) 270 of 270 in XQ40; File
   needs `--allow-file-access` in the CLI and has no Windows implementation.
 
@@ -31,8 +32,6 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 
 - 4.26: XSLT sweep (D262's and D260's open lists).
 - 2.24: XPath/XQuery sweep (D258's open list; a static-typing estimate).
-- size-3: one build with everything (D272): one WebAssembly module,
-  fn:load-xquery-module in XSLT, budgets raised.
 
 ## Next
 
@@ -117,6 +116,10 @@ XQuery only); fn:load-xquery-module in XSLT would link XQuery into XSLT
 builds (D189); D260's single cases. Kept as the draft decides: FORG0001 in
 coercions, no XTTE0600, sequence JNode copies, format-number under 1.0
 compatibility, XSD 1.1 regex syntax, XPDY0002 for unparsed-entity-*.
+
+size-3 (D272): fn:load-xquery-module in XPath: XP40 0 -> 56 of 60 run (021,
+040, 051, 067 fail); XT40 load-xquery-module-001 raises FOQM0002 per F&O
+4.0 where the suite expects XQST0059 or FOQM0006.
 
 XSLT prefixes (4.24, D261): a run-time cast of a string to xs:QName still
 falls back on XPath's predeclared prefixes in every language (the evaluator

@@ -20,8 +20,9 @@ by agent review, as the owner chose (D11, D161, D169, D182, D237); gate boxes
 that need long fuzzing or the full lint of all presets wait for the owner's
 machine (D181). CI is disabled for now (D123). Verification is in
 proportion (D181). The substrate headers are frozen (D99); all public APIs
-are stable. Optional features keep the core `sxml.wasm` lean (D189, D208).
-Agent prompts and the work queue live in `docs/agents/`.
+are stable. Every shipped build has every language and feature (D272).
+Priorities (D255): conformance, CLI builds for every platform, the book
+(`docs/book`); the Swift and Kotlin bindings are paused. Agent prompts and the work queue live in `docs/agents/`.
 
 ## Design principle
 
