@@ -612,6 +612,7 @@ static sxml_status read_document_reference(const sxml_function_call *call, sxml_
 static sxml_status read_document_function_options(const sxml_function_call *call,
                                                   sxml_document_options *options) {
     *options = (sxml_document_options){.strips_space = false,
+                                       .keeps_space = false,
                                        .validates_dtd = false,
                                        .trusts_external = true,
                                        .xsd_validation = sxml_sequence_empty()};
@@ -637,7 +638,8 @@ static sxml_status read_document_function_options(const sxml_function_call *call
    returned. An options map's options are fn:doc's: an external DTD or
    entity is FODC0016 without trust-external, dtd-validation and
    strip-space "all" and xsd-validation act as for fn:doc (F&O 4.0,
-   17.1.1, 17.2.1; D179). */
+   17.1.1, 17.2.1; D179), and strip-space "none" reads the document
+   without the stylesheet's xsl:strip-space (D274). */
 static sxml_status call_document(const sxml_function_call *call, sxml_sequence *result) {
     if (call->dynamic_context == NULL) {
         return SXML_STATUS_INVALID_ARGUMENT;
@@ -687,7 +689,8 @@ static sxml_status call_document(const sxml_function_call *call, sxml_sequence *
                                          .base_uri = base_uri,
                                          .error_record = call->error_record,
                                          .blocks_external_resources = !options.trusts_external,
-                                         .validates_dtd = options.validates_dtd},
+                                         .validates_dtd = options.validates_dtd,
+                                         .skips_preparation = options.keeps_space},
                 &document_node);
         }
         release_document_reference(&reference);

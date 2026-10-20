@@ -937,8 +937,10 @@ typedef struct sxml_document_lookup {
     sxml_item document_node;
 } sxml_document_lookup;
 
-static sxml_document_lookup sxml_loader_find_document(
-    const sxml_processor_document_loader *loader, sxml_byte_view uri) {
+/* The available document of uri (the host's, as it supplied it). */
+static sxml_document_lookup
+sxml_loader_find_available_document(const sxml_processor_document_loader *loader,
+                                    sxml_byte_view uri) {
     const sxml_available_document_view available = loader->configuration.available_documents;
     for (size_t document_index = 0; document_index < available.available_document_count;
          document_index += 1) {
@@ -948,6 +950,15 @@ static sxml_document_lookup sxml_loader_find_document(
             return (sxml_document_lookup){.is_found = true,
                                           .document_node = document->document_node};
         }
+    }
+    return (sxml_document_lookup){.is_found = false, .document_node = {.representation = 0}};
+}
+
+static sxml_document_lookup sxml_loader_find_document(const sxml_processor_document_loader *loader,
+                                                      sxml_byte_view uri) {
+    const sxml_document_lookup available = sxml_loader_find_available_document(loader, uri);
+    if (available.is_found) {
+        return available;
     }
     for (size_t document_index = 0; document_index < loader->loaded_document_count;
          document_index += 1) {
@@ -1409,7 +1420,8 @@ static sxml_status sxml_loader_resolve(sxml_processor_document_loader *loader,
         resolver.operations->release(resolver.state, &resource);
     }
     const sxml_document_preparation preparation = loader->configuration.document_preparation;
-    if (status == SXML_STATUS_OK && preparation.operations != NULL) {
+    if (status == SXML_STATUS_OK && preparation.operations != NULL &&
+        !exchange->request->skips_preparation) {
         sxml_item prepared = {.representation = 0};
         status = preparation.operations->prepare_document(preparation.state, *document_node,
                                                           &prepared);
@@ -1447,7 +1459,14 @@ static sxml_status sxml_loader_load_document(void *state,
     const sxml_byte_view absolute_uri = sxml_uri_has_scheme(resolution.uri)
                                             ? resolution.uri
                                             : (sxml_byte_view){.bytes = NULL, .byte_count = 0};
-    const sxml_document_lookup lookup = sxml_loader_find_document(loader, resolution.uri);
+    /* strip-space="none" with a preparation: not the kept, prepared
+       document but a new unprepared one. An available document is given
+       as configured (XSLT configures its stripped copies, 4.2.2). */
+    const bool is_unprepared =
+        request->skips_preparation && loader->configuration.document_preparation.operations != NULL;
+    const sxml_document_lookup lookup =
+        is_unprepared ? sxml_loader_find_available_document(loader, resolution.uri)
+                      : sxml_loader_find_document(loader, resolution.uri);
     sxml_item node = {.representation = 0};
     if (lookup.is_found) {
         sxml_item_retain(lookup.document_node);
@@ -1458,7 +1477,7 @@ static sxml_status sxml_loader_load_document(void *state,
             &(sxml_resolution_exchange){
                 .request = request, .absolute_uri = absolute_uri, .resource = NULL},
             &node);
-        if (status == SXML_STATUS_OK) {
+        if (status == SXML_STATUS_OK && !is_unprepared) {
             status = sxml_loader_keep_document(
                 loader, &(sxml_loaded_document_request){.uri = resolution.uri,
                                                         .document_node = node});

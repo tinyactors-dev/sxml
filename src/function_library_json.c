@@ -1082,6 +1082,10 @@ sxml_status sxml_function_library_read_document_options(const sxml_function_call
         status = xml_check_options(call, &values, &handling);
     }
     options->strips_space = handling.strips_space;
+    options->keeps_space = status == SXML_STATUS_OK &&
+                           values.is_present[SXML_XML_OPTION_STRIP_SPACE] &&
+                           json_text_is(json_option_text(&values, SXML_XML_OPTION_STRIP_SPACE),
+                                        SXML_BYTE_VIEW_FROM_LITERAL("none"));
     options->validates_dtd = handling.validates_dtd;
     options->trusts_external = handling.trusts_external;
     options->xsd_validation = sxml_sequence_empty();

@@ -256,12 +256,13 @@ static sxml_status load_document_with_options(const sxml_function_call *call,
     *document_node = (sxml_item){.representation = 0};
     sxml_status status = sxml_dynamic_context_load_document(
         call->dynamic_context,
-        &(sxml_document_request){.uri_reference = loading->uri_reference,
-                                 .base_uri = sxml_dynamic_context_get_static_base_uri(
-                                     call->dynamic_context),
-                                 .error_record = loading->error_record,
-                                 .blocks_external_resources = !options->trusts_external,
-                                 .validates_dtd = options->validates_dtd},
+        &(sxml_document_request){
+            .uri_reference = loading->uri_reference,
+            .base_uri = sxml_dynamic_context_get_static_base_uri(call->dynamic_context),
+            .error_record = loading->error_record,
+            .blocks_external_resources = !options->trusts_external,
+            .validates_dtd = options->validates_dtd,
+            .skips_preparation = options->keeps_space},
         document_node);
     if (status == SXML_STATUS_OK && options->strips_space) {
         sxml_sequence stripped = sxml_sequence_empty();
@@ -307,6 +308,7 @@ static sxml_status call_doc(const sxml_function_call *call, sxml_sequence *resul
         return SXML_STATUS_OK;
     }
     sxml_document_options options = {.strips_space = false,
+                                     .keeps_space = false,
                                      .validates_dtd = false,
                                      .trusts_external = false,
                                      .xsd_validation = sxml_sequence_empty()};
@@ -347,6 +349,7 @@ static sxml_status call_doc_available(const sxml_function_call *call, sxml_seque
         return status;
     }
     sxml_document_options options = {.strips_space = false,
+                                     .keeps_space = false,
                                      .validates_dtd = false,
                                      .trusts_external = false,
                                      .xsd_validation = sxml_sequence_empty()};

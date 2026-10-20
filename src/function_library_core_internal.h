@@ -426,6 +426,9 @@ sxml_string sxml_function_library_option_string(sxml_option_lookup lookup);
 typedef struct sxml_document_options {
     /* strip-space="all": whitespace-only text nodes are removed. */
     bool strips_space;
+    /* strip-space="none": none are, not even by the host's document
+       preparation (sxml_document_request.skips_preparation). */
+    bool keeps_space;
     /* dtd-validation=true: the document is validated against its DTD
        (FODC0007 when it is not valid; D199). */
     bool validates_dtd;

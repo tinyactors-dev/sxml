@@ -144,6 +144,11 @@ typedef struct sxml_document_request {
     /* dtd-validation=true: FODC0007 when the document is not valid against
        its DTD. */
     bool validates_dtd;
+    /* strip-space="none" (F&O 4.0, 17.1.1): the document as parsed,
+       without the host's document preparation (XSLT's xsl:strip-space,
+       4.2.2). The loader keeps only prepared documents, so with a
+       preparation each such call reads a new tree (D274). */
+    bool skips_preparation;
 } sxml_document_request;
 
 /* Bytes fn:parse-xml parses into a new document (F&O 4.0,

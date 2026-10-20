@@ -55,7 +55,7 @@ static const char package_text[] =
     "<xsl:template name='xsl:initial-template' visibility='public'><package/></xsl:template>"
     "</xsl:package>";
 
-static const char document_text[] = "<doc><v>1</v><v>2</v></doc>";
+static const char document_text[] = "<doc> <v>1</v> <v>2</v></doc>";
 
 /* A simplified stylesheet module: no package, not even an implicit one
    (XSLT 4.0, 3.4, 3.7). */
@@ -474,6 +474,15 @@ static const transformation_case transformation_cases[] = {
     APPLY("document", STYLESHEET("<xsl:output method='text'/><xsl:template match='/'><xsl:value-of "
                                  "select=\"sum(document('doc.xml')//v)\"/></xsl:template>"),
           SOURCE, "3"),
+    /* strip-space "none" (20.1, F&O 4.0 17.1.1): without xsl:strip-space,
+       a new tree. */
+    APPLY("document-strip-space",
+          STYLESHEET("<xsl:output method='text'/><xsl:strip-space elements='*'/>"
+                     "<xsl:template match='/'><xsl:value-of select=\"count(document('doc.xml')/doc/"
+                     "node()), count(document('doc.xml', {'strip-space': 'none'})/doc/node()), "
+                     "count(doc('doc.xml', {'strip-space': 'none'})/doc/node()), "
+                     "doc('doc.xml') is document('doc.xml')\"/></xsl:template>"),
+          SOURCE, "2 4 4 true"),
     APPLY("result-document-principal",
           STYLESHEET("<xsl:template match='/'><xsl:result-document method='text'>"
                      "<xsl:value-of select='count(//b)'/></xsl:result-document></xsl:template>"),
