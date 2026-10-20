@@ -11397,6 +11397,57 @@ Packet 6.5 added the rest of the task file's Kotlin API to
   `NativeSideResults`, `NativeBindings` and their fields in the consumer
   ProGuard rules: the glue looks them up by name.
 
+### D251. The Android build: two API 24 fallbacks, NDK presets, build and fetch scripts (packet 6.3, paused)
+Recorded 2026-10-20, after D208, D238, D247, D250. The work stopped at D255,
+after the code was committed (fb76abe). `bindings/kotlin/DESIGN.md` has
+the resume plan.
+- **Fallbacks**, one branch each, next to the `_WIN32` branch:
+  - `src/allocator.c`: below `__ANDROID_API__` 28, the over-aligned case
+    uses `posix_memalign` instead of `aligned_alloc`. `free` releases
+    both.
+  - `src/processor.c`: one helper, `sxml_platform_utc_time`, reads the
+    clock. Below API 29 it uses `clock_gettime(CLOCK_REALTIME)` instead
+    of `timespec_get` (C17 7.27.2.5).
+
+  Both are checked by the undefined symbols of the arm64 object files.
+  `docs/C_GUIDELINES.md` has the platform note.
+- **Presets**: `android-arm64-v8a`, `android-armeabi-v7a`,
+  `android-x86_64` and `android-x86`. The toolchain is
+  `$env{ANDROID_NDK_HOME}/build/cmake/android.toolchain.cmake`, at
+  android-24, MinSizeRel. Each has a configure preset and a build
+  preset, and no test preset: nothing runs.
+- **`tools/build-android.sh [DIR] [ABI...]`** builds every target per
+  ABI: the library, the unit tests (built, not run), the apps and
+  `libsxml_kotlin.so`. It then:
+  - fails when a 64-bit library's LOAD alignment is not 0x4000;
+  - fails when the library exports anything but `Java_*` and
+    `JNI_OnLoad`;
+  - writes `DIR/sizes.txt`.
+- **`tools/fetch-binding-toolchains.sh DIR TOOL...`** fetches `ndk`
+  (r28c), `android-sdk` (cmdline-tools 13114758, platform 35,
+  build-tools 35.0.0), `kotlin` (2.2.20) and `swift` (6.2, Ubuntu 24.04).
+  Each download is checked against a SHA-256 sum. Tested here: `ndk`,
+  `android-sdk` and `kotlin`. The Swift sum was taken from a streamed
+  download; the archive was not unpacked.
+- **Results** (NDK r28c, `-Werror`, 568 targets per ABI).
+  `libsxml_kotlin.so` sizes, stripped / gzip -9:
+  - arm64-v8a 7,558,944 / 1,859,972, LOAD 0x4000;
+  - armeabi-v7a 6,591,092 / 1,747,590, LOAD 0x1000;
+  - x86_64 7,789,056 / 1,928,181, LOAD 0x4000;
+  - x86 7,599,348 / 1,980,055, LOAD 0x1000.
+
+  These are within the proposed budget for arm64-v8a (9,000,000 /
+  2,400,000). They are below the probe's numbers, which measured
+  `libsxml.so` with the JavaScript shim. Needed libraries: libc, libm and
+  libdl.
+- **Not done here: devices.** There is no `/dev/kvm`, and ARM images do
+  not run on x86 hosts. Emulator and device runs need the owner's
+  machine or CI with KVM (6.6, 6.10).
+- **Open**:
+  - D238's ctest `android/build` has no owner (proposed: 6.6).
+  - `SXML_BUILD_KOTLIN`, named in 6.6's text, does not exist.
+    `sxml_kotlin` is built whenever `ANDROID` is set.
+
 ### D252. XSLT on the newest draft: nothing moved; typed="~T" (packet 4.22)
 Recorded 2026-10-20, after D13, D29, D179, D185, D245. Verified as D181
 asks: the debug preset, the touched unit and CLI tests (xslt, the

@@ -324,6 +324,11 @@ import), `bindings/javascript/CMakeLists.txt`, and the top-level
 Golden: `bindings/javascript/sxml_javascript.c`.
 
 ### 6.3 Android build and the two fallbacks (implementation, here)
+**Paused** 2026-10-20 (D251, D255): the fallbacks, the presets,
+`tools/build-android.sh` and `tools/fetch-binding-toolchains.sh` are
+committed. All four ABIs build with `-Werror` at android-24, and LOAD is
+0x4000 on arm64-v8a and x86_64. Device runs are the owner's (no KVM
+here). Resume from `bindings/kotlin/DESIGN.md`.
 After 6.1, and after any running packet commits its changes to
 `src/processor.c` (it was being edited when this plan was written).
 Owns:

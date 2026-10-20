@@ -4,6 +4,18 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 6.3 paused (D251, D255): the Android build. `src/allocator.c` uses
+  `posix_memalign` below API 28 and `src/processor.c` uses `clock_gettime`
+  below API 29. There are four NDK presets (android-24, MinSizeRel),
+  plus `tools/build-android.sh` and `tools/fetch-binding-toolchains.sh`
+  (pinned, SHA-256). All four ABIs build every target with `-Werror`.
+  `libsxml_kotlin.so` stripped / gzip -9: arm64-v8a 7,558,944 /
+  1,859,972, armeabi-v7a 6,591,092 / 1,747,590, x86_64 7,789,056 /
+  1,928,181, x86 7,599,348 / 1,980,055. LOAD 0x4000 on the 64-bit ABIs.
+  No device or emulator here (no KVM): that is the owner's.
+  `bindings/kotlin/DESIGN.md` is the resume plan for 6.3, 6.6, 6.10 and
+  6.11.
+
 - 4.22 done (D252): XSLT on the newest draft. Nothing moved: the XSLT,
   XPath, XQuery and F&O 4.0 editor's drafts are still those of 13 October
   2026 (qtspecs 72f2229) and xslt40-test's newest commit is the vendored
