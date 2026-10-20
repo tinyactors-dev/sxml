@@ -38,12 +38,12 @@ private let featurePrefixes: [(feature: String, prefix: String, uri: String)] = 
 /// shim's state pointer is set before the processor exists).
 final class ProcessorState {
     let resolver: Resolver?
-    let collationData: [UInt8]?
+    let collationData: CollationData
     /// The error the resolver threw during the current call.
     var pendingError: (any Error)?
     var isInResolver = false
 
-    init(resolver: Resolver?, collationData: [UInt8]?) {
+    init(resolver: Resolver?, collationData: CollationData) {
         self.resolver = resolver
         self.collationData = collationData
     }
@@ -82,7 +82,7 @@ public final class Processor {
             }
             featureMask |= UInt32(1) << UInt32(featureIndex)
         }
-        state = ProcessorState(resolver: resolver, collationData: collationData.servedBytes)
+        state = ProcessorState(resolver: resolver, collationData: collationData)
         var configuration = sxml_host_processor_configuration(
             failing_allocation_number: UInt32(clamping: failingAllocationNumber),
             feature_mask: featureMask,
@@ -174,14 +174,7 @@ public final class Processor {
     {
         try enter()
         try check(value)
-        guard let options else {
-            return try serializeWith(value, options: nil)
-        }
-        var parameters: [String: (any XdmInput)?] = [:]
-        for (key, parameter) in options {
-            parameters[kebabCase(key)] = parameter
-        }
-        let optionsValue = try self.value(parameters)
+        let optionsValue = try serializationOptions(options)
         return try serializeWith(value, options: optionsValue)
     }
 
@@ -257,12 +250,7 @@ public final class Processor {
     {
         var scratch = Scratch(processor: handle)
         defer { scratch.release() }
-        var namespaceBindings: [sxml_host_namespace] = []
-        for (prefix, uri) in staticNamespaces(namespaces) {
-            namespaceBindings.append(
-                sxml_host_namespace(
-                    namespace_prefix: try scratch.view(prefix), namespace_uri: try scratch.view(uri)))
-        }
+        let namespaceBindings = try self.namespaceBindings(namespaces, scratch: &scratch)
         var variableNames: [sxml_host_variable] = []
         for name in variables {
             let (namespaceURI, localName) = splitName(name)
@@ -302,6 +290,58 @@ public final class Processor {
         return try adopt(result)
     }
 
+    /// The $options map of fn:serialize for options, whose keys may be
+    /// camelCase; nil for none.
+    func serializationOptions(_ options: [String: (any XdmInput)?]?) throws -> Value? {
+        guard let options else {
+            return nil
+        }
+        var parameters: [String: (any XdmInput)?] = [:]
+        for (key, parameter) in options {
+            parameters[kebabCase(key)] = parameter
+        }
+        return try value(parameters)
+    }
+
+    /// Serializes value with a map of parameters, or by the adaptive method
+    /// without.
+    func serializeWith(_ value: Value, options: Value?) throws -> String {
+        try enter()
+        var request = sxml_host_serialize_request(value: value.handle, options: options?.handle)
+        let status = withExtendedLifetime((value, options)) {
+            sxml_host_serialize(handle, &request)
+        }
+        if status != SXML_STATUS_OK.rawValue {
+            throw failure()
+        }
+        return output()
+    }
+
+    /// The bytes of the processor's last serialization, as text.
+    func output() -> String {
+        text(of: sxml_host_output_of(handle).pointee)
+    }
+
+    /// Whether the last operation failed: the resolver threw, or the
+    /// processor's error has a status.
+    func hasFailed() -> Bool {
+        state.pendingError != nil || sxml_host_error_of(handle).pointee.status != SXML_STATUS_OK.rawValue
+    }
+
+    /// The namespaces of a compilation (`staticNamespaces`) as the shim's
+    /// bindings, copied into scratch.
+    func namespaceBindings(_ namespaces: [String: String], scratch: inout Scratch) throws
+        -> [sxml_host_namespace]
+    {
+        var bindings: [sxml_host_namespace] = []
+        for (prefix, uri) in staticNamespaces(namespaces) {
+            bindings.append(
+                sxml_host_namespace(
+                    namespace_prefix: try scratch.view(prefix), namespace_uri: try scratch.view(uri)))
+        }
+        return bindings
+    }
+
     // ------------------------------------------------------------- Private
 
     private func parseDocument<Bytes: Collection>(_ bytes: Bytes, uri: String?) throws -> Value
@@ -329,20 +369,6 @@ public final class Processor {
             .map { ($0.prefix, $0.uri) }
         merged.append(contentsOf: namespaces.sorted { $0.key < $1.key }.map { ($0.key, $0.value) })
         return merged
-    }
-
-    /// Serializes value with a map of parameters, or by the adaptive method
-    /// without.
-    private func serializeWith(_ value: Value, options: Value?) throws -> String {
-        try enter()
-        var request = sxml_host_serialize_request(value: value.handle, options: options?.handle)
-        let status = withExtendedLifetime((value, options)) {
-            sxml_host_serialize(handle, &request)
-        }
-        if status != SXML_STATUS_OK.rawValue {
-            throw failure()
-        }
-        return text(of: sxml_host_output_of(handle).pointee)
     }
 }
 
@@ -400,7 +426,7 @@ private func resolveResource(
         bytes = content
     case nil:
         guard resourceRequest.kind == .collationData, resourceRequest.absoluteURI == ducetURI,
-            let collationData = processorState.collationData
+            let collationData = processorState.collationData.servedBytes
         else {
             return SXML_STATUS_OK.rawValue
         }

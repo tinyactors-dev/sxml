@@ -1,6 +1,7 @@
 // Resources (include/sxml/processor.h, "Resource resolver"; D238): what
 // a resolver is asked for and what it answers. Golden:
 // bindings/javascript/src/index.ts, ResourceKind and Resolver.
+import Foundation
 
 /// What a resolver is asked for, by the JavaScript package's names, in
 /// the order of `sxml_resource_kind`.
@@ -58,14 +59,15 @@ public enum Resource: Sendable, Equatable {
 public typealias Resolver = (ResourceRequest) throws -> Resource?
 
 /// The DUCET (allkeys.txt of the Unicode Collation Algorithm 16.0.0) that
-/// the uca-collation feature reads (D213). A resolver's own answer for
-/// `.collationData` comes first.
+/// the uca-collation feature reads (D213), served when the processor's
+/// resolver has no answer for `.collationData`: a resolver's own answer
+/// comes first.
 public enum CollationData: Sendable, Equatable {
-    /// The copy the package ships. Until packet 6.8 adds it as a SwiftPM
-    /// resource, the package has none, and UCA collation URIs use sxml's
-    /// fallback (fallback=no is FOCH0002), as with `.none`.
+    /// The copy the package ships, a SwiftPM resource of module Sxml
+    /// (`Bundle.module`), read when a UCA collation is first used.
     case bundled
-    /// None: UCA collation URIs use sxml's fallback.
+    /// None: UCA collation URIs use sxml's fallback (fallback=no is
+    /// FOCH0002).
     case none
     /// Another copy of allkeys.txt.
     case bytes([UInt8])
@@ -74,7 +76,7 @@ public enum CollationData: Sendable, Equatable {
     var servedBytes: [UInt8]? {
         switch self {
         case .bundled:
-            return nil
+            return bundledCollationData
         case .none:
             return nil
         case .bytes(let bytes):
@@ -82,6 +84,17 @@ public enum CollationData: Sendable, Equatable {
         }
     }
 }
+
+/// The package's DUCET, read from its resource bundle once per process,
+/// when first asked for; nil when the bundle has no copy.
+private let bundledCollationData: [UInt8]? = {
+    guard let url = Bundle.module.url(forResource: "allkeys", withExtension: "txt"),
+        let data = try? Data(contentsOf: url)
+    else {
+        return nil
+    }
+    return [UInt8](data)
+}()
 
 /// The URI the uca-collation feature asks for its DUCET by.
 let ducetURI = "http://www.unicode.org/Public/UCA/16.0.0/allkeys.txt"

@@ -40,6 +40,11 @@ let package = Package(
             name: "Sxml",
             dependencies: ["CSxmlHost"],
             path: "bindings/swift/Sources/Sxml",
+            // The DUCET for CollationData.bundled (D213): a copy of
+            // third_party/unicode-collation/allkeys.txt (the same git blob;
+            // SwiftPM would copy a symbolic link as a link). A test checks
+            // that the two are the same.
+            resources: [.copy("Resources/allkeys.txt")],
             swiftSettings: swiftSettings,
             linkerSettings: linkerSettings),
         .testTarget(
