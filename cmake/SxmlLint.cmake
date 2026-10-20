@@ -22,6 +22,11 @@ if(SXML_BUILD_APPS)
         "${PROJECT_SOURCE_DIR}/apps/*.c")
     list(APPEND SXML_LINT_SOURCES ${SXML_LINT_APP_SOURCES})
 endif()
+# The Kotlin JNI glue compiles only where JNI's headers were found
+# (bindings/kotlin/CMakeLists.txt).
+if(NOT TARGET sxml_kotlin)
+    list(FILTER SXML_LINT_SOURCES EXCLUDE REGEX "/bindings/kotlin/")
+endif()
 list(APPEND SXML_LINT_SOURCES ${SXML_HEADER_CHECK_SOURCES})
 
 if(SXML_CLANG_TIDY_EXECUTABLE)
