@@ -1,0 +1,8 @@
+/* libsxml_kotlin.so exports the JNI entry points only (D238). */
+{
+    global:
+        Java_*;
+        JNI_OnLoad;
+    local:
+        *;
+};

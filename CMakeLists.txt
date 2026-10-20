@@ -130,6 +130,10 @@ add_subdirectory(bindings/host)
 # also measures the CLI module.
 add_subdirectory(bindings/javascript)
 
+# The Kotlin binding (D238): libsxml_kotlin.so where JNI's headers are
+# found, and its JVM tests (kotlin/jvm, skipped without a JDK or kotlinc).
+add_subdirectory(bindings/kotlin)
+
 # The Swift package (D238; Package.swift at the root): on Linux, the host
 # shim merged into one archive and the ctest swift/linux.
 add_subdirectory(bindings/swift)
