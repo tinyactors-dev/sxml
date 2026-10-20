@@ -251,6 +251,23 @@ static const transformation_case transformation_cases[] = {
                  "</xsl:variable><xsl:value-of select='$kept/* instance of element(*, s:hat-type),"
                  " $stripped/* instance of element(*, xs:untyped)'/>"),
      "true true", NULL},
+    /* XTTE0950 (11.9.1.1, 11.9.2): namespace-sensitive content copied
+       with validation="preserve" without its namespaces or its parent;
+       fn:copy-of preserves (20.6.1). */
+#define QNAME_SCHEMA                                                                               \
+    "<xsl:import-schema><xs:schema targetNamespace='urn:q'><xs:element name='e'>"                  \
+    "<xs:complexType><xs:attribute name='q' type='xs:QName'/></xs:complexType>"                    \
+    "</xs:element></xs:schema></xsl:import-schema>"                                                \
+    "<xsl:variable name='x' as='element()'><e xmlns='urn:q' xmlns:p='urn:p' q='p:v' "              \
+    "xsl:validation='strict'/></xsl:variable>"
+    {QNAME_SCHEMA MAIN("<xsl:copy-of select='$x' validation='preserve'/>"), "", NULL},
+    {QNAME_SCHEMA MAIN("<xsl:copy-of select='$x' copy-namespaces='no' validation='preserve'/>"),
+     NULL, "XTTE0950"},
+    {QNAME_SCHEMA MAIN("<a><xsl:copy-of select='$x/@q' validation='preserve'/></a>"), NULL,
+     "XTTE0950"},
+    {QNAME_SCHEMA MAIN("<a><xsl:copy-of select='$x/@q'/></a>"), "", NULL},
+    {QNAME_SCHEMA MAIN("<a><xsl:sequence select='copy-of($x/@q)'/></a>"), NULL, "XTTE0950"},
+#undef QNAME_SCHEMA
     /* default-validation="preserve" (3.6.1). */
     {IMPORT "<xsl:variable name='h'><s:hat xsl:validation='strict' size='2'/></xsl:variable>"
             "<xsl:template name='xsl:initial-template' default-validation='preserve'>"

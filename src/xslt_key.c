@@ -1535,7 +1535,7 @@ static sxml_status lower_key_function(sxml_xslt_function_table *table,
 }
 
 /* fn:copy-of($input) (XSLT 4.0, 20.6.1): the deep copies xsl:copy-of
-   makes (11.9.2, copy-namespaces="yes"). */
+   makes (11.9.2, copy-namespaces="yes", validation="preserve"). */
 static sxml_status lower_copy_of(sxml_xslt_function_table *table,
                                  const table_function *function) {
     sxml_xpath_lowerer *lowerer = table->lowering->lowerer;
@@ -1554,7 +1554,9 @@ static sxml_status lower_copy_of(sxml_xslt_function_table *table,
         lowerer,
         (sxml_xslt_copy_request){.block = &block,
                                  .value = sxml_ir_slot_atom((sxml_ir_slot){.value = 1}),
-                                 .construction_flags = (uint32_t)SXML_IR_CONSTRUCTION_XSLT_RULES},
+                                 .construction_flags =
+                                     (uint32_t)SXML_IR_CONSTRUCTION_XSLT_RULES |
+                                     (uint32_t)SXML_IR_CONSTRUCTION_PRESERVES_TYPES},
         &copies);
     if (status == SXML_STATUS_OK && sxml_xslt_has_accumulators(table->lowering)) {
         /* XSLT 4.0, 19.10: the copies keep the accumulator values (packet

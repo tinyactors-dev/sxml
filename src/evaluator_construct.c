@@ -81,6 +81,14 @@ static const sxml_static_error sxml_construct_namespace_sensitive_copy_error = {
         "preserve, without its namespaces (XQuery 4.0, 4.12.1.3)"),
 };
 
+static const sxml_static_error sxml_construct_xslt_namespace_sensitive_copy_error = {
+    .error_status = SXML_STATUS_TYPE_ERROR,
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XTTE0950"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(
+        "a copied node has namespace-sensitive content under validation=\"preserve\", "
+        "without its namespaces or its parent element (XSLT 4.0, 11.9.1.1)"),
+};
+
 static const sxml_static_error sxml_construct_invalid_name_error = {
     .error_status = SXML_STATUS_DYNAMIC_ERROR,
     .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XQDY0074"),
@@ -983,6 +991,11 @@ typedef struct sxml_construction {
     /* True when the last content item was atomic, so the next atomic item
        is preceded by a space. */
     bool follows_atomic_item;
+    /* The element SHALLOW_COPY copies with new content: its own
+       attributes in the content are copied with their parent element
+       (XTTE0950, XSLT 4.0, 11.9.1.1). */
+    bool has_copied_element;
+    sxml_node_reference copied_element;
     sxml_construct_content_frame *frames;
     size_t frame_count;
     size_t frame_capacity;
@@ -1032,6 +1045,10 @@ static sxml_construction sxml_construction_empty(sxml_dynamic_context *context,
                                .element_name = {.index = 0},
                                .has_children = false,
                                .follows_atomic_item = false,
+                               .has_copied_element = false,
+                               .copied_element = {.tree = NULL,
+                                                  .node_index = {.index = 0},
+                                                  .namespace_number = 0},
                                .frames = NULL,
                                .frame_count = 0,
                                .frame_capacity = 0};
@@ -1254,13 +1271,14 @@ static sxml_status sxml_node_is_namespace_sensitive(sxml_construction *construct
    copied attribute (without its element) whose typed value is
    namespace-sensitive, or, with copy-namespaces no-preserve, a copied
    element whose typed value or an attribute's is (each element of the
-   copied subtree is copied). XSLT's rules do not apply it. */
+   copied subtree is copied). XSLT's xsl:copy and xsl:copy-of with
+   validation="preserve" have the same rule as XTTE0950 (XSLT 4.0,
+   11.9.1.1, 11.9.2). */
 static sxml_status sxml_construction_check_copy(sxml_construction *construction,
                                                 sxml_node_reference node,
                                                 const sxml_node_description *description) {
     const uint32_t flags = construction->construction_flags;
     if ((flags & (uint32_t)SXML_IR_CONSTRUCTION_PRESERVES_TYPES) == 0 ||
-        (flags & (uint32_t)SXML_IR_CONSTRUCTION_XSLT_RULES) != 0 ||
         node.namespace_number != 0) {
         return SXML_STATUS_OK;
     }
@@ -1270,7 +1288,13 @@ static sxml_status sxml_construction_check_copy(sxml_construction *construction,
             return SXML_STATUS_OK;
         }
         last_index = description->last_descendant.index;
-    } else if (description->node_kind != SXML_NODE_KIND_ATTRIBUTE) {
+    } else if (description->node_kind != SXML_NODE_KIND_ATTRIBUTE ||
+               ((flags & (uint32_t)SXML_IR_CONSTRUCTION_NO_PRESERVE_NAMESPACES) == 0 &&
+                construction->has_copied_element && description->has_parent &&
+                node.tree == construction->copied_element.tree &&
+                description->parent.index == construction->copied_element.node_index.index)) {
+        /* An attribute of the element being copied is copied with it,
+           and with its namespaces. */
         return SXML_STATUS_OK;
     }
     sxml_status status = SXML_STATUS_OK;
@@ -1286,8 +1310,10 @@ static sxml_status sxml_construction_check_copy(sxml_construction *construction,
             &is_namespace_sensitive);
     }
     if (status == SXML_STATUS_OK && is_namespace_sensitive) {
-        return sxml_evaluator_machine_raise(construction->dynamic_context,
-                                            &sxml_construct_namespace_sensitive_copy_error);
+        return sxml_evaluator_machine_raise(
+            construction->dynamic_context, (flags & (uint32_t)SXML_IR_CONSTRUCTION_XSLT_RULES) != 0
+                                               ? &sxml_construct_xslt_namespace_sensitive_copy_error
+                                               : &sxml_construct_namespace_sensitive_copy_error);
     }
     return status;
 }
@@ -1953,6 +1979,8 @@ typedef struct sxml_construct_element_request {
     sxml_construct_element_start start;
     sxml_ir_expression_index content;
     sxml_construct_rules rules;
+    /* The element SHALLOW_COPY copies; NULL for a constructor. */
+    const sxml_node_reference *copied_element;
 } sxml_construct_element_request;
 
 static sxml_status sxml_construct_open_element(sxml_dynamic_context *context,
@@ -1966,6 +1994,10 @@ static sxml_status sxml_construct_open_element(sxml_dynamic_context *context,
                 .rules = request->rules,
                 .base_uri = sxml_dynamic_context_get_static_base_uri(context)},
             construction);
+    }
+    if (status == SXML_STATUS_OK && request->copied_element != NULL) {
+        construction->has_copied_element = true;
+        construction->copied_element = *request->copied_element;
     }
     if (status == SXML_STATUS_OK) {
         status = sxml_construction_start_element(construction, &request->start);
@@ -2550,7 +2582,8 @@ static sxml_status sxml_construct_copy_with_content(sxml_dynamic_context *contex
                                   ? copied->description.type_annotation
                                   : (sxml_type_identifier){.index = SXML_TYPE_NONE}},
                 .content = content,
-                .rules = SXML_CONSTRUCT_RULES_XSLT});
+                .rules = SXML_CONSTRUCT_RULES_XSLT,
+                .copied_element = &copied->node});
     }
     sxml_construction *construction = NULL;
     sxml_status status = sxml_construct_allocate(context, &construction);

@@ -3103,8 +3103,9 @@ static sxml_status resolve_eqname(stylesheet_reader *reader, const eqname_reques
                     result->is_malformed = true;
                     return SXML_STATUS_OK;
                 }
-                local_name = (sxml_byte_view){.bytes = local_name.bytes + colon_index + 1,
-                                              .byte_count = local_name.byte_count - colon_index - 1};
+                local_name =
+                    (sxml_byte_view){.bytes = local_name.bytes + colon_index + 1,
+                                     .byte_count = local_name.byte_count - colon_index - 1};
                 break;
             }
         }
