@@ -9,7 +9,9 @@
   commit someone else's changes.
 - Use the session's scratchpad for temporary files. Name your directories
   after your packet (`build-5.13`, `5.13-work`), keep them small, and delete
-  them before your final report: the disk is shared and limited.
+  them before your final report: the disk is shared and limited. Delete
+  only directories named after your own packet: never the scratchpad
+  itself or a wildcard over it (a whole-scratchpad delete has happened).
 
 ## Read first
 

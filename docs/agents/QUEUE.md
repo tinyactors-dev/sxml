@@ -39,8 +39,6 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 - js-2: streaming output (and input) in the JavaScript API (owner).
 - 4.31: XSLT namespace undeclarations in the tree, per-package items,
   copy-4308 (D289).
-- 7.24: Invisible XML: DFAs for regular nonterminals, a shared packed
-  forest built during the parse so item sets can be freed (D283).
   (Book-first pages carry <!-- status: draft -->; check-book-examples.sh
   skips them unless --drafts.)
 
@@ -335,6 +333,14 @@ simplification. 1 MB: log 1.12 -> 0.18 s, csv 1.25 -> 0.28 s, calc 2.14 ->
 (4x input, 3.8-4.2x time); memory 90-200 bytes per character (all sets
 kept). Ambiguous inputs stay cubic. Suite 886 of 907 (21 not run: Unicode
 versions, C0 controls).
+
+7.24 (D290): regular rules compiled to token automata (every end a
+completion; ambiguity still counted); item sets only where items are;
+no tree nodes for hidden parts; parse-only arrays freed before read-out.
+1 MB log 0.196 s / 90 MB -> 0.059 s / 21 MB; 100 MB log 6.2 s / 1.17 GB
+(was over the step limit). Parser's own memory under 2 MB per MB; the
+rest is the XML tree. Left: the ambiguous sum (3.1 s against D283's 2 s
+bound on this machine; owner's machine to judge).
 
 Platform and tooling:
 - macOS, Windows and MSVC have never been built; `_getcwd` is untested.
