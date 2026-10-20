@@ -12096,6 +12096,51 @@ neither can learn them and work with sxml from the book alone.
 - **Verified**: tools/check-book-examples.sh on a release build of a
   HEAD snapshot, for every chapter file the packet touched.
 
+### D271. The CLI bugs the book found (packet cli-2)
+Recorded 2026-10-20, after D44, D148, D257, D262, D270. The four
+findings of D270, each fixed at its root with an end-to-end CLI test,
+and the book's text and outputs in the same commits.
+- **Collections**: the program's resolver answers COLLECTION and
+  URI_COLLECTION with NONE, so fn:collection and fn:uri-collection
+  raise FODC0002 for any URI. It used to read a file a relative URI
+  named and hand back BYTES, a form a collection does not allow
+  (SXML_STATUS_INVALID_ARGUMENT, exit 4). The CLI still has no
+  collections; one (a directory, a list) would be a new option.
+- **Errors in library modules**: sxml xquery reports an error before
+  releasing the query, so a dynamic or type error names the module it
+  was raised in (`sxml_query_failure.has_live_location`), as static
+  errors did (D148). The evaluator already put the module's URI in the
+  location; it borrows from the compiled unit.
+- **QNames in instances** (XSD 1.1 Part 1, 3.3.4.1 cvc-elt.4.1; Part 2,
+  3.3.18): the validator's cast bindings
+  (`sxml_schema_validator_get_cast_bindings`) end with XPath's
+  predeclared prefixes but xml bound to no namespace, which undeclares
+  them for src/cast_lexical.c's fallback, as D262 does for XSLT. A
+  default value (attribute or element) is read with the namespace
+  context of the schema document that gives it
+  (`sxml_schema_value_request.namespace_context`), where its {value} is
+  resolved; saxon-Complex complex004.v2 depends on it. XQuery's
+  `validate lax { <a xsi:type='xs:integer'/> }` without xmlns:xs is now
+  XQDY0027 (QT4 validateexpr-34, xsd-validator-034).
+- **Trace output**: the query commands give their processor
+  sxml_stream_trace_sink over standard error (the public hook existed;
+  no header change); sxml transform keeps its xsl:message lines and
+  passes fn:trace and fn:message to the same sink.
+- **Also**: the --context-item document (and the input of transform and
+  serialize) has its file URI as document URI and base URI.
+- **Left**: XTTE errors of a validation in XSLT (xsl:copy-of
+  validation=, type=) have no line: src/function_library_schema.c raises
+  them with the schema error's location (line 0 for a constructed
+  node), and the evaluator then finds no source span on the internal
+  call the XSLT lowering makes; the fix is in the lowering's spans
+  (src/xslt_lower*.c), not cheap here. Also still open from D270: the
+  content after a cvc-complex-type.2.4 rejection is not assessed, and
+  xsi:schemaLocation is not followed by the CLI.
+- **Counts** (release drivers): XSD11 41,486 passed, unchanged; XQ40
+  45,996 to 46,013 (xsd-validator-034 from this packet, the rest from
+  2.24's 2ec77a1 in the after build); XT40 12,191 passed, 327 failed
+  (D262: 12,187, 331).
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): tagging and

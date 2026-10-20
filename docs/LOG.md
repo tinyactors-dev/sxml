@@ -4,6 +4,18 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- cli-2 done (D271): the CLI bugs book-2 found. A relative
+  collection() raises FODC0002 (the resolver gave a file's bytes for a
+  collection: exit 4); a dynamic error in a library module names the
+  module's file (the query was released before the report); xsi:type
+  and QName values no longer resolve an undeclared xs: (cvc-elt.4.1;
+  defaults read in the schema's namespaces); fn:trace and fn:message
+  go to standard error in xpath, xquery and transform; the
+  --context-item document has a document-uri. XSD11 41,486 unchanged,
+  XQ40 45,996 to 46,013 (one from this packet), XT40 12,191; book
+  397 examples match. Left: XTTE errors of XSLT validation have no
+  line (the lowering's spans).
+
 - 4.25 done (D262): XSLT sweep, XT40 12,157 to 12,187 passed (120 to
   118 wrong error), 361 to 331 failed, 0 errors, none lost. Captured
   groups and the cleared output URI pass through template calls (one
