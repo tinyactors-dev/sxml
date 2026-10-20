@@ -598,6 +598,7 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `evaluation` | One run of a compiled expression or query against a dynamic context |
 | `evaluation_depth` | How deeply evaluation nests (function calls, nested expressions); bounded so deep recursion is a limit, not a stack overflow |
 | `evaluation_step` | One unit of evaluator work counted against `maximum_evaluation_step_count`: a task the machine runs, or an item pair a general comparison reads |
+| `step_grant` | The evaluation steps each element a streamed document reads gives back to the evaluation, so the step bound of a streamed evaluation grows with its input (D295) |
 | `static_base_uri` | The base URI of the static context (XPath 4.0, section 2.2.1), against which fn:doc and fn:resolve-uri resolve relative URIs |
 | `uri_resolution` | Resolving a URI reference against a base URI (RFC 3986, section 5.2) |
 | `loaded_document` | A document fn:doc loaded during one evaluation, kept so the same URI gives the same node |
@@ -944,11 +945,11 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `text_window` | The part of a document's decoded UTF-8 text the XML parser holds: decoded from the input a part at a time as document segments need it, the text before the segment being parsed given up (`sxml_xml_text_window`, D233) |
 | `streamed_accumulator_values` | The values of the xslt accumulators a streamed document computes as its events pass, kept by depth for the nodes its stream windows hold now and read by fn:accumulator-before and fn:accumulator-after for those nodes (D231) |
 | `streamed_prong` | A prong of an xsl:fork in the body of a streamed xsl:source-document, streamed in a pass of its own over the document: a STREAM with OPENS_DOCUMENT over the same href (D231) |
-| `principal_stream` | The principal result of a transformation that streams its principal source, built as it is made into the result writer's tree builder and serialized as it is built when it is serialized as XML, so its tree is never held (D231) |
+| `principal_stream` | The principal result of a transformation that streams its principal source, built as it is made into the result writer's tree builder and serialized as it is built when it is serialized as XML or text, so its tree is never held (D231, D295) |
 | `merge_stream` | A streamed xsl:merge-source of MERGE: the URIs of its anchor documents and the STREAM chain of its select, whose last body makes the tuple of a selected node (D236) |
 | `merge_cursor` | The reader of one input of MERGE: an anchor document of a merge stream, pulled one selected node at a time, or the grounded sources' tuples; its current tuple is its head (D236) |
 | `tee` | An element whose events the stream builder also sends to a full stream window of its own as they pass, for end rules with capture="yes" (XSLT 4.0, 19.9; D236) |
-| `streamed_serialization` | An XML serialization fed by tree builder events, writing each start tag, text and end tag as it arrives and holding only the open elements (D231) |
+| `streamed_serialization` | An XML or text serialization fed by tree builder events, writing each start tag, text and end tag as it arrives and holding only the open elements (D231, D295) |
 | `lowering_override` | One node of one XPath AST that a procedure of the caller lowers instead of the rule of its kind, wherever lowering meets it (`sxml_xpath_lowering_override`, D223) |
 | `pending_update_list` | The update primitives an updating expression returns, applied together at the end of a snapshot (XQuery Update Facility 3.0, "pending update list"); internal to the evaluator, not an XDM item |
 | `update_primitive` | One change of a pending update list: insert, delete, replace node, replace value, rename, put (XQuery Update Facility 3.0, "update primitives") |

@@ -13915,6 +13915,93 @@ shrinks.
   evaluator matter); the default step limit also stops the streamed
   identity of 95 MB from the package, which has no option for it.
 
+### D295. Long streams: the text method streams, long text runs grow linearly, streamed elements grant steps (packet stream-1)
+Recorded 2026-10-20, after D71, D89, D99, D224, D229, D231, D233, D259,
+D294. The two problems js-2 found (D294, "Found").
+- **Quadratic memory, the cause**: a streamed principal source whose
+  stylesheet wrote text with method="text" (an xsl:value-of per record)
+  went to the principal stream (D231), which serialized as it went only
+  for the xml method; for text the events built the result tree. The
+  arena tree's text store moves a pending text run that outgrows its
+  block to a new one; past the largest block (1 MiB) the new block had
+  exactly the room the run needed, so every text event copied the whole
+  run into a fresh block and left the old one in the arena: quadratic
+  time and memory (5,000 records of 1 KB, 4.7 MB of text, were killed at
+  13.5 GB). Any tree with one long text node made of many events had it
+  (html, xml with indent, constructed trees).
+- **Fixes**: (1) `src/arena_tree.c`: a run that outgrows the largest
+  block gets room for as much again as it holds: O(n) bytes copied, at
+  most about 4n of blocks. (2) The streamed serialization
+  (`src/serialize_xml.c`, glossary `streamed_serialization`) takes the
+  text method without normalization-form (`sxml_serialization_streams`):
+  a tree builder of its own writes each text event's characters as it
+  comes and nothing for the other events (Serialization 4.0, 8: the
+  string values of the text nodes in document order; disabled escaping
+  changes nothing there, XSLT 4.0, 26.1.8). normalization-form is left
+  to the built tree: the serializer normalizes a text node at a time, and
+  two events' characters could combine. (3) The xml method's streamed
+  serialization joins adjacent text into one node before writing it
+  (D231); it now writes the joined text in parts of 64 KiB when that
+  writes the same characters (not in a CDATA section, not normalizing),
+  so one long text node is not held whole either.
+- **Other methods**: html and xml with indent, canonical, doctype or
+  standalone still build the tree (now linear: 18.8 MB of html text,
+  75.6 MB); json and adaptive (no tree by default, 26.1) deliver the raw
+  sequence of text nodes (linear, 166 MB for 18.8 MB; SERE0023 for json
+  and many items, as the specification says). A streamed html writer
+  is not made here.
+- **The step limit for long streams**: D259's 10^8 steps stopped the
+  streamed identity of a 93 MB document (2.7 million elements) after
+  68 MB, from the CLI as from the package. Decided: each element a
+  streamed document's parse reads grants the evaluation 500 steps
+  (`SXML_EVALUATOR_STREAMED_ELEMENT_STEP_COUNT`,
+  `sxml_dynamic_context_grant_steps`, internal: the steps taken are
+  lowered, never below none, after each resume of the parse; glossary
+  `step_grant`). The identity takes about 50 an element (its
+  attributes and text included), so a stream that does up to ten times that
+  per element runs within the bound; a loop that reads no more input
+  stops at the bound plus the grant of what was read, at most 500 steps
+  an element; evaluations of trees, and the bound itself, are unchanged
+  (D259's "a runaway query stops in about 8 s" holds for them). Rejected:
+  a larger default (it weakens the bound for every query), and a grant
+  per event taken by a STREAM task (a body that reads full windows or
+  skips content would take steps for elements it never takes as
+  events).
+- **JavaScript**: `createProcessor({ maximumEvaluationStepCount })`,
+  `sxml_processor_limits.maximum_evaluation_step_count` (0 and absent:
+  sxml's default; a whole number below 2^53, else RangeError). The
+  export `sxml_javascript_processor_create` takes a request struct
+  (failing allocation, feature mask, code languages, step count; wasm32
+  offsets 0, 4, 8, 16, asserted) instead of three arguments, and
+  `sxml_host_processor_configuration` gains
+  `maximum_evaluation_step_count` at its end (the host shim, not a public
+  header: D99 does not apply; Kotlin's JNI uses designated initializers,
+  Swift's memberwise call passes 0, not compiled here). The CLI has no
+  step flag and gets none: no command needed one, and the grant makes
+  its streams run. README and the book's JavaScript and performance
+  chapters say so.
+- **Measured** (release CLI, peak resident set; Node.js 22 with the wasm
+  module, a chunk source and a writeSync sink): method text, 20,000
+  records of 1 KB: 11.0 MB 0.55 s (before: out of memory), byte-identical
+  to method xml (11.0 MB 0.5 s); Node 10.3 MB of module memory, 1.3 s
+  (D294: 4 GB). The streamed identity of 93 MB: before stopped at the
+  bound after 15.9 s, after the whole output in 23.2 s, 11.0 MB; Node
+  52.6 s, 10.7 MB of module memory, 160 MB resident. Method text over
+  the 93 MB file: 11.0 MB, 13.6 s; Node 29.8 s.
+- **Tests**: arena_tree long_text_runs_grow_linearly (a 2 MB node from
+  2,000 events allocates 5.2 MB); evaluator_stream principal cases for
+  the text method and one long text node under xml (peaks 208 KB and
+  400 KB under a 1 MB limit) and streamed_elements_grant_steps (under
+  10^6 steps the streamed identity of 90,000 elements runs; the
+  unstreamed one and a loop after two records stop); javascript/streams
+  2 new cases. Debug (ASan, UBSan), release and wasm: 407 of 407.
+  XT40, 96 sets (si-*, sf-*, sx-*, streamable, accumulator, merge,
+  iterate, source-document, streaming-fallback, stream-available,
+  output, result-document, value-of; 3,465 cases, release driver, case
+  by case): 3,382 passed before and after, no outcome differs.
+  sxml.wasm 13,452,276 bytes stripped, 2,423,328 gzipped (budget
+  14,000,000 / 2,800,000, not raised).
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): tagging and

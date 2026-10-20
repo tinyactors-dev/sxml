@@ -4,6 +4,18 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- stream-1 done (D295): long streams. The text method's principal
+  result is a streamed serialization (it built a tree, whose text run
+  the arena tree copied at every event past 1 MiB: 4.7 MB of text was
+  killed at 13.5 GB); method text over 20,000 records of 1 KB now
+  11 MB in 0.55 s, like xml. Long text runs in any tree grow linearly;
+  the xml method's joined text is written in 64 KiB parts. Each element
+  a streamed document reads grants 500 steps, so the streamed identity
+  of 93 MB runs to the end (23 s CLI, 53 s Node, 11 MB); the package
+  gains createProcessor({ maximumEvaluationStepCount }). XT40 96
+  streaming and output sets: no outcome differs. Left: a streamed html
+  writer.
+
 - 4.31 done (D291): XSLT per-package items. Accumulators, fn:document's
   and fn:doc's xsl:strip-space and fn:function-lookup's visibility per
   package (the IR static context's package_number, a private flag on IR

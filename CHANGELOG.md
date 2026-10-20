@@ -16,6 +16,15 @@ not tagged yet, or into the next minor release.
 
 ### Added (Phase 7)
 
+- **Long streams** (D295): a streamed transformation with
+  `method="text"` is written as it is made, in bounded memory, like the
+  xml method (it used memory growing with the square of the output); a
+  long text node of any tree is built in linear time and memory; each
+  element a streamed document reads grants 500 evaluation steps, so
+  long streams run within the default step limit; and the JavaScript
+  package's `createProcessor({ maximumEvaluationStepCount })` sets the
+  limit.
+
 - **Streaming in the JavaScript package** (D294): `serializeTo`,
   `XQuery.runTo` and `transform({ output, resultDocumentOutput })` write
   serialized output to a sink a chunk at a time instead of returning a
