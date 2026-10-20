@@ -49,6 +49,10 @@ typedef struct sxml_xslt_whitespace_stripping {
    stripping changes nothing and no copy is made. */
 bool sxml_xslt_strips_whitespace(const sxml_xslt_ast *ast);
 
+/* True when some module root asks for input-type-annotations="strip"
+   (XSLT 4.0, 4.2.1). */
+bool sxml_xslt_strips_type_annotations(const sxml_xslt_ast *ast);
+
 /* True when the stylesheet strips whitespace or type annotations: only
    then are documents copied (sxml_xslt_strip_document). */
 bool sxml_xslt_prepares_documents(const sxml_xslt_ast *ast);

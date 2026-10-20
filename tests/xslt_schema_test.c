@@ -38,9 +38,13 @@ static const char schema_text[] =
     "<xs:attribute name='colour' type='xs:string'/>"
     "</xs:schema>";
 
+static const char hat_text[] = "<hat xmlns='urn:s' size='3'/>";
+
 static const sxml_resource_entry fixture_resources[] = {
     {.uri = SXML_BYTE_VIEW_INITIALIZER("http://example.com/x/s.xsd"),
      .content = {.bytes = (const uint8_t *)schema_text, .byte_count = sizeof(schema_text) - 1}},
+    {.uri = SXML_BYTE_VIEW_INITIALIZER("http://example.com/x/hat.xml"),
+     .content = {.bytes = (const uint8_t *)hat_text, .byte_count = sizeof(hat_text) - 1}},
 };
 
 static const sxml_resource_entry_view fixture_resource_view = {
@@ -202,6 +206,11 @@ static const transformation_case transformation_cases[] = {
          "<x xsl:schema-role='r'>a</x>"),
      "a", NULL},
     {IMPORT MAIN("<x xsl:schema-role='r'/>"), NULL, "XTSE4045"},
+    /* 18.1, 25.2: xsl:source-document validates the document it reads. */
+    {IMPORT MAIN("<xsl:source-document href='hat.xml' validation='strict'>"
+                 "<xsl:value-of select='s:hat instance of element(*, s:hat-type)'/>"
+                 "</xsl:source-document>"),
+     "true", NULL},
     /* A location the resolver does not deliver is no error (3.13). */
     {"<xsl:import-schema namespace='urn:v' schema-location='none.xsd'/>" MAIN("<x/>"), "", NULL},
     /* Validation of constructed nodes (25.1). */
@@ -386,6 +395,15 @@ static void test_host_schemas_type_the_source(sxml_test_state *state) {
          " xmlns:s='urn:s' input-type-annotations='strip'><xsl:output method='text'/>"
          "<xsl:template name='xsl:initial-template'><xsl:value-of select='s:hat instance of element(*, "
          "Q{http://www.w3.org/2001/XMLSchema}untyped)'/></xsl:template></xsl:stylesheet>",
+         "true"},
+        /* 4.2.1: a document xsl:source-document validates loses its
+           annotations after validation (streamable-147). */
+        {"<xsl:stylesheet version='3.0' xmlns:xsl='http://www.w3.org/1999/XSL/Transform'"
+         " xmlns:s='urn:s' input-type-annotations='strip'><xsl:output method='text'/>"
+         IMPORT "<xsl:template name='xsl:initial-template'>"
+         "<xsl:source-document href='hat.xml' validation='strict'><xsl:value-of select='s:hat"
+         " instance of element(*, Q{http://www.w3.org/2001/XMLSchema}untyped)'/>"
+         "</xsl:source-document></xsl:template></xsl:stylesheet>",
          "true"},
     };
     for (size_t case_index = 0; case_index < SXML_TEST_COUNT(cases); case_index += 1) {

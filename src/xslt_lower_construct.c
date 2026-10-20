@@ -40,6 +40,7 @@
 #include "xml_internal.h"
 #include "xslt_accumulator_internal.h"
 #include "xslt_snippet_text_internal.h"
+#include "xslt_whitespace_internal.h"
 
 #include <stdalign.h>
 #include <stdbool.h>
@@ -494,16 +495,32 @@ sxml_status sxml_xslt_lowering_bind_validation(sxml_xpath_lowerer *lowerer,
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    return bind(lowerer,
-                (sxml_xslt_expression_to_bind){
-                    .block = request->block,
-                    .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_STATIC_CALL,
-                                   .static_call = {.target = {.target_kind =
-                                                                  SXML_IR_FUNCTION_TARGET_KIND_NATIVE,
-                                                              .native_function =
-                                                                  &sxml_schema_validate_items_function},
-                                                   .arguments = argument_list}}},
-                atom);
+    status = bind(lowerer,
+                  (sxml_xslt_expression_to_bind){
+                      .block = request->block,
+                      .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_STATIC_CALL,
+                                     .static_call = {.target = {.target_kind =
+                                                                    SXML_IR_FUNCTION_TARGET_KIND_NATIVE,
+                                                                .native_function =
+                                                                    &sxml_schema_validate_items_function},
+                                                     .arguments = argument_list}}},
+                  atom);
+    const sxml_xslt_ast_kind kind = node_of(request->query.lowering, request->query.node)->kind;
+    if (status == SXML_STATUS_OK &&
+        (kind == SXML_XSLT_AST_KIND_SOURCE_DOCUMENT || kind == SXML_XSLT_AST_KIND_MERGE_SOURCE) &&
+        sxml_xslt_strips_type_annotations(request->query.lowering->ast)) {
+        /* 4.2: a source document's type annotations are stripped after
+           its validation (4.2.1, input-type-annotations="strip"): a copy
+           without them, which keeps the unparsed entities (11.9.2;
+           streamable-147). */
+        const sxml_ir_atom validated = *atom;
+        status = sxml_xslt_lowering_bind_copy_of(
+            lowerer,
+            (sxml_xslt_copy_request){
+                .block = request->block, .value = validated, .construction_flags = 0},
+            atom);
+    }
+    return status;
 }
 
 /* Ends frame with atom, validated as query's instruction asks. */

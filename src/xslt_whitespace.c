@@ -108,7 +108,7 @@ bool sxml_xslt_strips_whitespace(const sxml_xslt_ast *ast) {
 
 /* XSLT 4.0, 4.1: some module root asks for input-type-annotations="strip"
    (D179). */
-static bool strips_type_annotations(const sxml_xslt_ast *ast) {
+bool sxml_xslt_strips_type_annotations(const sxml_xslt_ast *ast) {
     for (uint32_t module_index = 1; module_index < ast->module_count; module_index += 1) {
         const sxml_xslt_ast_module *module =
             sxml_xslt_ast_get_module(ast, (sxml_xslt_ast_module_index){.value = module_index});
@@ -126,7 +126,7 @@ static bool strips_type_annotations(const sxml_xslt_ast *ast) {
 }
 
 bool sxml_xslt_prepares_documents(const sxml_xslt_ast *ast) {
-    return sxml_xslt_strips_whitespace(ast) || strips_type_annotations(ast);
+    return sxml_xslt_strips_whitespace(ast) || sxml_xslt_strips_type_annotations(ast);
 }
 
 static uint32_t precedence_of(const sxml_xslt_ast *ast, sxml_xslt_ast_node_index node) {
@@ -496,7 +496,7 @@ static sxml_status strip_package_document(package_stripping request, sxml_item d
                                           sxml_item *stripped) {
     const sxml_xslt_whitespace_stripping *stripping = request.stripping;
     sxml_node_reference node = {.tree = NULL, .node_index = {.index = 0}, .namespace_number = 0};
-    const bool strips_annotations = strips_type_annotations(stripping->ast);
+    const bool strips_annotations = sxml_xslt_strips_type_annotations(stripping->ast);
     if (!sxml_xslt_prepares_documents(stripping->ast) || !is_document_node(document_node, &node)) {
         sxml_item_retain(document_node);
         *stripped = document_node;
