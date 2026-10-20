@@ -297,6 +297,11 @@ static const value_case value_cases[] = {
     {"element {'e'} {}, element {xs:QName('e')} {}, element #f {}", "<e/> <e/> <f/>"},
     {"attribute {'a'} {'v'}", "a=\"v\""},
     {"document {<a/>, 'x'} instance of document-node()", "true()"},
+    /* XPath 4.0, 3.2.7.1: document-node(element(N, T)) tests the
+       element's annotation too. */
+    {"document {<a/>} instance of document-node(element(*, xs:integer)), "
+     "document {<a/>} instance of document-node(element(a, xs:untyped))",
+     "false() true()"},
     {"text {1, 2}, comment {'c'}, processing-instruction {'t'} {' v'}", "1 2 <!--c--> <?t v?>"},
     {"namespace p {'urn:p'}, namespace {'q'} {'urn:q'}", "xmlns:p=\"urn:p\" xmlns:q=\"urn:q\""},
     /* Errors raised by the evaluator for computed names (4.12.3.1). */

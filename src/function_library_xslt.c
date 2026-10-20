@@ -15,8 +15,9 @@
  * The rows behind fn:key (sxml_xslt_key_functions, in no namespace and in
  * no part): key-name, key-index (the index of one key for one tree, built
  * once per evaluation and kept in the evaluation memo) and key-normalize
- * (key values as map keys). src/xslt_key.c lowers fn:key from XPath texts
- * that call them. The rows behind the accumulator functions
+ * (key values as map keys), and document-copy (the document ancestor of
+ * fn:snapshot). src/xslt_key.c lowers fn:key and fn:snapshot from XPath
+ * texts that call them. The rows behind the accumulator functions
  * (sxml_xslt_accumulator_functions, packet 4.14, D155): accumulator-name,
  * accumulator-scope, accumulator-values, accumulator-link,
  * accumulator-original and accumulator-streamed (D231), for
@@ -1752,6 +1753,99 @@ static const sxml_function_parameter key_normalize_parameters[] = {
      .parameter_default = SXML_PARAMETER_DEFAULT_REQUIRED},
 };
 
+/* document-copy($original, $content): a new document node with the base
+   URI and the unparsed entities of $original and a copy of $content, its
+   type annotations kept: the document ancestor of a snapshot (XSLT 4.0,
+   20.4: a copy as xsl:copy makes it, which copies the unparsed-entities
+   property, 11.9.1). */
+static sxml_status call_document_copy(const sxml_function_call *call, sxml_sequence *result) {
+    sxml_optional_item original = {.has_item = false};
+    sxml_optional_item content = {.has_item = false};
+    sxml_status status = sxml_function_library_read_optional_item(call, 0, &original);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_function_library_read_optional_item(call, 1, &content);
+    }
+    sxml_node_reference original_node = {.tree = NULL};
+    sxml_node_reference content_node = {.tree = NULL};
+    if (status == SXML_STATUS_OK && (!original.has_item || !content.has_item)) {
+        status = SXML_STATUS_INVALID_ARGUMENT;
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_item_get_node(original.item, &original_node);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_item_get_node(content.item, &content_node);
+    }
+    sxml_tree_description description;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_tree_describe(original_node.tree, &description);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    const sxml_allocator tree_allocator = sxml_item_heap_as_allocator(call->item_heap);
+    sxml_arena_tree *arena_tree = NULL;
+    status = sxml_arena_tree_create(
+        tree_allocator,
+        &(sxml_arena_tree_configuration){
+            .allocator = tree_allocator,
+            .initial_memory = {.bytes = NULL, .byte_count = 0},
+            .item_heap = call->item_heap,
+            .duplicate_attribute_policy = SXML_DUPLICATE_ATTRIBUTE_POLICY_REJECT,
+            .is_destroyed_when_unreferenced = true,
+            .error_record = call->error_record},
+        &arena_tree);
+    const sxml_tree_builder builder =
+        status == SXML_STATUS_OK ? sxml_arena_tree_as_tree_builder(arena_tree)
+                                 : (sxml_tree_builder){.state = NULL, .operations = NULL};
+    if (status == SXML_STATUS_OK) {
+        status = builder.operations->start_document(
+            builder.state,
+            &(sxml_document_start_event){.document_uri = {.bytes = NULL, .byte_count = 0},
+                                         .base_uri = description.base_uri,
+                                         .location = {.source_name = {.bytes = NULL,
+                                                                      .byte_count = 0},
+                                                      .line_number = 0,
+                                                      .column_number = 0,
+                                                      .byte_offset = 0}});
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_tree_builder_copy_unparsed_entities(builder, original_node.tree);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_tree_builder_copy_node(builder,
+                                             &(sxml_copy_request){.node = content_node,
+                                                                  .preserves_namespaces = true,
+                                                                  .inherits_namespaces = true,
+                                                                  .preserves_type_annotations = true,
+                                                                  .strips_identity = false});
+    }
+    if (status == SXML_STATUS_OK) {
+        status = builder.operations->end_document(builder.state);
+    }
+    sxml_tree *tree = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_arena_tree_finish(arena_tree, &tree);
+    }
+    if (status != SXML_STATUS_OK) {
+        sxml_arena_tree_destroy(arena_tree);
+        return status;
+    }
+    *result = sxml_sequence_from_item(sxml_node_item_make(
+        (sxml_node_reference){.tree = tree, .node_index = {.index = 0}, .namespace_number = 0}));
+    sxml_tree_release(tree);
+    return SXML_STATUS_OK;
+}
+
+static const sxml_function_parameter document_copy_parameters[] = {
+    {.parameter_name = SXML_BYTE_VIEW_INITIALIZER("original"),
+     .parameter_type = SXML_BYTE_VIEW_INITIALIZER("document-node()"),
+     .parameter_default = SXML_PARAMETER_DEFAULT_REQUIRED},
+    {.parameter_name = SXML_BYTE_VIEW_INITIALIZER("content"),
+     .parameter_type = SXML_BYTE_VIEW_INITIALIZER("node()"),
+     .parameter_default = SXML_PARAMETER_DEFAULT_REQUIRED},
+};
+
 /* In no namespace: only the snippets of src/xslt_key.c name them, through
    a table no stylesheet expression sees. */
 static const sxml_native_function key_functions[] = {
@@ -1776,6 +1870,13 @@ static const sxml_native_function key_functions[] = {
      .parameters = {key_normalize_parameters, 3},
      .result_type = SXML_BYTE_VIEW_INITIALIZER("xs:anyAtomicType*"),
      .call = call_key_normalize,
+     .resumable_body = NULL},
+    {.function_namespace = SXML_NAMESPACE_NONE,
+     .properties = SXML_NATIVE_FUNCTION_USES_DYNAMIC_CONTEXT,
+     .local_name = SXML_BYTE_VIEW_INITIALIZER("document-copy"),
+     .parameters = {document_copy_parameters, 2},
+     .result_type = SXML_BYTE_VIEW_INITIALIZER("document-node()"),
+     .call = call_document_copy,
      .resumable_body = NULL},
 };
 

@@ -255,6 +255,28 @@ typedef struct sxml_described_node_test {
     const sxml_node_test *node_test;
 } sxml_described_node_test;
 
+/* A node's description and the node test whose type annotation part it
+   should match. */
+typedef struct sxml_annotation_question {
+    const sxml_node_description *description;
+    const sxml_node_test *node_test;
+} sxml_annotation_question;
+
+/* element(N, T) and attribute(N, T) (XPath 4.0, section 3.2.7.2): the
+   annotation is T or derived from it, and nilled elements match only with
+   "?"; true for a test without a type. */
+static bool sxml_annotation_matches_test(const sxml_item_heap *item_heap,
+                                         sxml_annotation_question question) {
+    if (question.node_test->type_annotation.index == SXML_TYPE_NONE) {
+        return true;
+    }
+    return sxml_type_registry_is_derived_from(
+               sxml_item_heap_get_type_registry(item_heap),
+               (sxml_type_pair){.derived_type = question.description->type_annotation,
+                                .base_type = question.node_test->type_annotation}) &&
+           (!question.description->is_nilled || question.node_test->allows_nilled);
+}
+
 /* sxml_evaluator_test_node for a node already described. */
 static sxml_status sxml_test_described_node(const sxml_item_heap *item_heap,
                                             const sxml_described_node_test *request,
@@ -293,16 +315,10 @@ static sxml_status sxml_test_described_node(const sxml_item_heap *item_heap,
             &name_match);
         is_match = name_match.is_match;
     }
-    if (status == SXML_STATUS_OK && is_match &&
-        node_test->type_annotation.index != SXML_TYPE_NONE) {
-        /* element(N, T) and attribute(N, T): the annotation is T or derived
-           from it; nilled elements only with "?" (section 3.2.7.2). */
-        is_match = sxml_type_registry_is_derived_from(
-                       sxml_item_heap_get_type_registry(item_heap),
-                       (sxml_type_pair){
-                           .derived_type = description->type_annotation,
-                           .base_type = node_test->type_annotation}) &&
-                   (!description->is_nilled || node_test->allows_nilled);
+    if (status == SXML_STATUS_OK && is_match) {
+        is_match = sxml_annotation_matches_test(
+            item_heap, (sxml_annotation_question){.description = description,
+                                                  .node_test = node_test});
     }
     if (status == SXML_STATUS_OK && is_match &&
         description->node_kind == SXML_NODE_KIND_DOCUMENT &&
@@ -360,6 +376,14 @@ static sxml_status sxml_test_described_node(const sxml_item_heap *item_heap,
                                          .name_test = &inner->name_test},
                     &name_match);
                 is_match = name_match.is_match;
+            }
+            if (status == SXML_STATUS_OK && is_match) {
+                /* document-node(element(N, T)): the element's annotation
+                   too (section 3.2.7.1). */
+                is_match = sxml_annotation_matches_test(
+                    item_heap,
+                    (sxml_annotation_question){.description = &element_description,
+                                               .node_test = inner});
             }
         }
     }

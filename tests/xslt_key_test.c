@@ -368,6 +368,12 @@ static void test_functions(sxml_test_state *state) {
                     "count(snapshot(//b)/../../*), snapshot(//item[1]/@n)/../name(), "
                     "snapshot(//b) is //b'/></xsl:template>"),
          "\"doc\" \"item\" 1 \"item\" false()"},
+        /* The document ancestor of a snapshot keeps the base URI (20.4,
+           as xsl:copy copies it with its unparsed entities). */
+        {STYLESHEET("<xsl:template match='/'>"
+                    "<xsl:sequence select='root(snapshot(//b)) instance of document-node(), "
+                    "deep-equal(base-uri(root(snapshot(//b))), base-uri(/))'/></xsl:template>"),
+         "true() true()"},
         /* A namespace node's snapshot is its new parent's (20.6.2). */
         {STYLESHEET("<xsl:template match='/'>"
                     "<xsl:sequence select='snapshot(/doc/namespace::xml)/../name(), "

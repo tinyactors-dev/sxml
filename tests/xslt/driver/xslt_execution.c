@@ -364,8 +364,11 @@ static sxml_status sxml_xslt_test_resolve(void *state,
             const bool is_unnamed =
                 module->uri.byte_count == 0 && module->package_name.byte_count == 0;
             if (request->uri_reference.byte_count == 0) {
-                /* The principal package without a name: the first such. */
-                if (is_unnamed && best == NULL) {
+                /* The principal package without a name: the first such
+                   whose role is not secondary (su-filter-101 lists its
+                   library package first). */
+                if (is_unnamed && best == NULL &&
+                    module->module_role != SXML_XSLT_TEST_MODULE_ROLE_SECONDARY) {
                     best = module;
                 }
                 continue;
