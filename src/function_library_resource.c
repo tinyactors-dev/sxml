@@ -343,10 +343,12 @@ static void text_reading_release(text_reading *reading) {
 }
 
 /*
- * The shared start of fn:unparsed-text, -lines and -available: reads the
- * arguments and the resource. A retrieval failure is raised as FOUT1170
- * with the resolver's description (the status says so); a decoding
- * failure is left in reading->outcome.failure.
+ * The shared start of fn:unparsed-text, -lines, -available and
+ * fn:json-doc: reads the arguments and the resource. An untrusted call
+ * raises FODC0016 (XPath 4.0, 2.2.3: no external resources are available
+ * to untrusted code); a retrieval failure is raised as FOUT1170 with the
+ * resolver's description (the status says so); a decoding failure is
+ * left in reading->outcome.failure.
  */
 static sxml_status start_text_reading(const sxml_function_call *call, text_function function,
                                       text_reading *reading) {
@@ -355,8 +357,12 @@ static sxml_status start_text_reading(const sxml_function_call *call, text_funct
     if (call->dynamic_context == NULL) {
         return SXML_STATUS_INVALID_ARGUMENT;
     }
+    sxml_status status = sxml_dynamic_context_check_trust(call->dynamic_context, call->error_record);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
     sxml_optional_item source;
-    sxml_status status = sxml_function_library_read_optional_item(call, 0, &source);
+    status = sxml_function_library_read_optional_item(call, 0, &source);
     if (status == SXML_STATUS_OK) {
         status = read_text_options(call, function, &reading->options);
     }
@@ -379,14 +385,7 @@ static sxml_status start_text_reading(const sxml_function_call *call, text_funct
    map(*))? := {}) as xs:string? (F&O 4.0, section 17.1.5). */
 static sxml_status call_unparsed_text(const sxml_function_call *call, sxml_sequence *result) {
     text_reading reading;
-    sxml_status status = call->dynamic_context == NULL
-                             ? SXML_STATUS_OK
-                             : sxml_dynamic_context_check_trust(call->dynamic_context,
-                                                                call->error_record);
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    status = start_text_reading(call, SXML_TEXT_FUNCTION_UNPARSED_TEXT, &reading);
+    sxml_status status = start_text_reading(call, SXML_TEXT_FUNCTION_UNPARSED_TEXT, &reading);
     if (status == SXML_STATUS_OK && reading.has_source) {
         if (reading.outcome.failure != SXML_TEXT_FAILURE_NONE) {
             status = report_text_failure(call, &reading.outcome);
@@ -467,14 +466,7 @@ static sxml_status make_lines(const sxml_function_call *call, sxml_byte_view tex
 static sxml_status call_unparsed_text_lines(const sxml_function_call *call,
                                             sxml_sequence *result) {
     text_reading reading;
-    sxml_status status = call->dynamic_context == NULL
-                             ? SXML_STATUS_OK
-                             : sxml_dynamic_context_check_trust(call->dynamic_context,
-                                                                call->error_record);
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    status = start_text_reading(call, SXML_TEXT_FUNCTION_UNPARSED_TEXT_LINES, &reading);
+    sxml_status status = start_text_reading(call, SXML_TEXT_FUNCTION_UNPARSED_TEXT_LINES, &reading);
     if (status == SXML_STATUS_OK && reading.has_source) {
         if (reading.outcome.failure != SXML_TEXT_FAILURE_NONE) {
             status = report_text_failure(call, &reading.outcome);
@@ -501,7 +493,8 @@ static sxml_status call_unparsed_text_available(const sxml_function_call *call,
     if (status == SXML_STATUS_OK) {
         is_available = reading.has_source && reading.outcome.failure == SXML_TEXT_FAILURE_NONE;
     } else if (status == SXML_STATUS_DYNAMIC_ERROR) {
-        /* FOUT1170 was raised for a resource not retrieved. */
+        /* FOUT1170 was raised for a resource not retrieved, FODC0016 for
+           an untrusted call. */
         status = SXML_STATUS_OK;
     }
     text_reading_release(&reading);
