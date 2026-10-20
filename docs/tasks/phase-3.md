@@ -410,3 +410,17 @@ XP40 32,716 to 32,731 passed (55 to 40 failed), XQ40 46,017 to 46,070
 (191 to 138), none lost; static typing estimated, not implemented.
 CONFORMANCE.md not regenerated (another packet's uncommitted changes).
 Open: D263's "Not done".
+
+### 2.25 XPath and XQuery conformance sweep (implementation)
+After 2.24. From fresh whole runs (XP40 40 failed and 30 wrong-error
+passes, XQ40 138 and 49), with D263's open list: XSLT's per-element
+default collation, fn:load-xquery-module singletons, xml:id under lax
+validation, IDREF checks at a validation root, XQuery's XML 1.1 lexing
+(D237's design), serialization singletons; first the "//" path bug
+4.26 found and XSLT globals in inline functions (orchestrator).
+Verification as D181 says.
+**Done** 2026-10-20 (D275): "//" paths, XSLT globals at call time,
+place default collations, library static contexts, load-xquery-module's
+variables, vendor-options and trust, context-dependent references, lax
+xml:id, XML 1.1 query text; XP40 32,793 to 32,797 passed, XQ40 46,070
+to 46,101, XT40 +13, none lost. Open: D275's "Not done".

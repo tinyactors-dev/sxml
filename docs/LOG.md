@@ -4,6 +4,20 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 2.25 done (D275): XPath/XQuery sweep. XP40 32,793 to 32,797 passed
+  (40 to 36 failed), XQ40 46,070 to 46,101 (138 to 107 failed, 49 to
+  44 wrong errors), XT40 +13 from this packet; no case lost. "//E1/E2"
+  is ((//E1)/E2): later steps no longer run once per descendant (4.26's
+  find). XSLT inline functions read globals when called; comparisons
+  use their own element's default collation; a library module has its
+  own static context (decimal formats, collation, schemas, namespaces);
+  load-xquery-module binds external variables only, checks
+  vendor-options and refuses untrusted content's imports;
+  context-dependent references keep their module; lax xml:id is an ID;
+  XML 1.1 query text as a processor option (processor.h, additive),
+  which the QT4 driver sets for xml-version 1.1 tests. Left: D275's
+  "Not done".
+
 - 4.27 done (D274): XSLT sweep, XT40 12,210 to 12,226 passed (115 to
   107 wrong error), 308 to 292 failed, 0 errors, none lost. CDATA
   requests make text nodes of their own in final output (D188's way),

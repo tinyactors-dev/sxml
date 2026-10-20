@@ -12422,6 +12422,86 @@ became 12,210 with 2.24's commits); at 92a8a8c, with 2.25's commits
 - The XT40 section of `docs/CONFORMANCE.md` was not regenerated (a
   later packet regenerates it from whole runs of all suites).
 
+### D275. XPath and XQuery conformance sweep: "//" paths, place static contexts, XML 1.1 query text (packet 2.25)
+Recorded 2026-10-20, after D163, D195, D237, D259, D263, D272. One
+public header changed additively (processor.h, below); one IR field
+(sxml_ir_binary.module_number) and one IR global flag
+(sxml_ir_global_variable.is_external).
+- **Start** (release drivers, whole runs at 87686bc): XP40 32,793
+  passed (30 wrong-error), 40 failed; XQ40 46,070 (49), 138 failed;
+  XT40 12,207, 311 failed. Most XQ40 failures are D263's kept groups
+  (whitespace-only assert-xml, among them fn-analyze-string's and the
+  six upd-propagateNamespace cases; recordTypeDecl/ paths; EXPath
+  Binary's types; staticTyping).
+- **"//E1/E2"** (XPath 4.0, 4.6.3; the orchestrator's priority, found
+  by 4.26): an absolute "//" path lowered its whole relative path as one
+  MAP body per descendant, so later steps ran once per descendant and
+  atomic results repeated (//PRICE/../../name()). The first step of the
+  relative path is now mapped over the descendants and each later "/"
+  or "//" is a chain link (chain_locals.start_operand), as in a relative
+  path; D259's descendant pass still applies.
+- **XSLT globals in inline functions** (XSLT 4.0, 9.7, a variable in
+  scope in its own declaration): read from the unit's global table at
+  call time, as XQuery's (D154); XPath's host-bound globals stay
+  captured (D55). A function item called after its evaluation ended
+  still reads no global table (D154's limit, now XSLT's too).
+- **The default collation of a place** (XSLT 4.0, 3.7.1): comparisons
+  carry the module of their static context (sxml_ir_binary.
+  module_number, as static calls do, D163) and compare strings under its
+  default collation; the filter-index pass leaves such comparisons
+  alone. D263's open item (choose-0107, collations-0121 to -0124).
+- **A library module's static context** (XQuery 4.0, 5.2): its IR
+  module records its decimal formats, default collation, in-scope
+  schemas and statically known namespaces; its functions read them when
+  they run (format-number with the library's decimal format; validate
+  in a loaded module's function).
+- **fn:load-xquery-module** (F&O 4.0, 18.2): the variables option binds
+  external variables only; vendor-options is map(xs:QName, item()*)
+  (XPTY0004); content loaded without trust gets no module or schema
+  imports (FOQM0003). The QT4 driver serves an undeclared module from
+  the suite file its location hint names.
+- **Context-dependent references** (XPath 4.0, 4.5.4; F&O 4.0, 1.7): a
+  named reference to a native row with USES_DYNAMIC_CONTEXT is a
+  closure of its module, so it keeps its static context and trust when
+  another module calls it. fn:function-lookup's run-time results are
+  not covered (xqhof18, xqhof19).
+- **xml:id under lax validation** (xml:id 1.0, 4): without a
+  declaration in scope, xml:id is assessed as xs:ID (is-id, the ID
+  table, IDREFs to it). D263's open item. IDREF checks at an element
+  validation root stay as XSD's cvc-id has them (no text of XQuery 4.0,
+  4.25, which defines validate by fn:xsd-validator, lifts them); the two
+  upd- cases expecting otherwise stay failing.
+- **XML 1.1 query text** (D195; D237's design taken by D208):
+  `sxml_processor_configuration.reads_query_text_as_xml_1_1`
+  (include/sxml/processor.h, additive; glossary query_text_xml_version),
+  false by default: NEL and LINE SEPARATOR are line ends (a pre-pass
+  translates them in a copy; error offsets after one are in the copy),
+  character references may denote C0 controls, xmlns:p="" undeclares p
+  in a direct constructor, and an undeclared output:version is 1.1. The
+  QT4 driver sets it for a test that depends on xml-version 1.1 alone;
+  the CLI does not.
+- **omit-xml-declaration** (deviation from D237's design): D237 made
+  the library's XQuery default no while the CLI writes none, which the
+  CLI cannot tell apart from a declared no without a new function. The
+  library keeps DEFAULT (yes) for an undeclared parameter; the QT4
+  driver, as a host, takes no (XQuery 4.0, 5.22.1 leaves it to the
+  implementation).
+- **Measured** (release drivers, whole runs, case by case, no case lost
+  at any step): XP40 32,793 to 32,797 passed (40 to 36 failed); XQ40
+  46,070 to 46,101 (138 to 107 failed, 49 to 44 wrong-error); XT40
+  12,207 to 12,220 from this packet's changes (12,239 in the final run,
+  with 4.26's and 4.27's commits); XSD11 41,486 unchanged. CONFORMANCE.md is not
+  regenerated: 4.28 commits XSLT changes while these runs were made, so
+  no one commit matches them.
+- **Not done**: Q{}N name tests on JNodes (frozen sxml_name_test);
+  runtime constructors of named item types for fn:function-lookup
+  (itemTypeDecl-058); function items fn:function-lookup makes (xqhof18,
+  -19); format-number's decimal format name with a direct constructor's
+  namespaces (eqname-007); two modules of one namespace without a
+  location (modules-collide-var-001, -fn-001); the serialization
+  singletons (adaptive 6, csv 1); deep-equal of partial applications
+  (4); fn:transform 3; static typing (D263: not done).
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): tagging and
