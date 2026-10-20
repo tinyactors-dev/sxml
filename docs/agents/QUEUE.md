@@ -21,6 +21,7 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 
 ## Running
 
+- 4.22: XSLT moves to the newest draft and the newest xslt40-test (D245).
 - 6.4: Kotlin core on the JVM (dev.tinyactors.sxml).
 - 6.7: Swift core on Linux (module Sxml).
 - 7.20: sweep (7.11's transform-004/401/009, the larger duplicates of D237).
@@ -60,7 +61,7 @@ validation 51/68, namespace 217/224, normalize-unicode 18/18. Left:
 XTDE3490; merge-097 (Saxon collection URI); xml-version-007 (value-template
 grammar rejects XML 1.1 controls); namespace-2606/-6202; docbook-004;
 fn-transform-27/82e/94; xsl:copy of JNodes (needs an xdm.h addition);
-XTDE0430/0440; priority stays 6/40 (D29). 4.21 (D234): indexed FILTERs
+XTDE0430/0440; priority 6/40 under D29; D245 now targets the newest draft (4.22). 4.21 (D234): indexed FILTERs
 are not hoisted from; current-merge-group(()) per 15.5.1; globals computed
 on first read (GLOBAL_READ); typed modes and XTSE3105; XT40 11,943 at its
 last run. Left: document-4066 (fn:document's schema validation does not
