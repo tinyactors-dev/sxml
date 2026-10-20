@@ -4,6 +4,15 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- docs-2 done: README.md rewritten as a plain overview (standards with
+  versions, the modules and their sizes at e4ea880, streaming, HTML, iXML
+  and Full Text examples run on a release build, features by module,
+  conformance, status); apps/sxml/README.md and the check and program help
+  texts brought up to date (74 console commands match exactly);
+  bindings/javascript/README.md covers the full module. CONFORMANCE.md
+  regenerated from whole release runs at e4ea880: XP40 32,689, XQ40
+  45,969, XT40 12,053, XSD in scope 41,486 of 41,518, 0 errors.
+
 - 7.6f (a) done (D233): incremental bytes. A byte reader resource form
   (`processor.h`, additive): a streamed document is decoded and parsed
   as its bytes arrive through a text window (`src/xml_input.c`: UTF-8,
