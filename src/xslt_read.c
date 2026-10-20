@@ -4617,6 +4617,20 @@ static role_decision decide_role(const stylesheet_reader *reader, const role_req
     case SXML_CHILD_CONTEXT_DOCUMENT:
         if (facts->is_xslt) {
             if (rule != NULL && (rule->element_flags & SXML_ELEMENT_FLAG_MODULE_ROOT) != 0) {
+                const sxml_xslt_ast_module_relation relation =
+                    sxml_xslt_ast_get_module(reader->ast, parent->module)->relation;
+                /* 3.10.1, 3.4.1: an xsl:package is a package, not a
+                   stylesheet module an xsl:include or xsl:import may
+                   name. */
+                if (rule->kind == SXML_XSLT_AST_KIND_PACKAGE &&
+                    (relation == SXML_XSLT_AST_MODULE_RELATION_INCLUDED ||
+                     relation == SXML_XSLT_AST_MODULE_RELATION_IMPORTED)) {
+                    return (role_decision){
+                        .role = SXML_ELEMENT_ROLE_IGNORED,
+                        .error_code = "XTSE0165",
+                        .description = "An xsl:include or xsl:import names an xsl:package, "
+                                       "which is no stylesheet module (XSLT 4.0, 3.10.1)"};
+                }
                 return (role_decision){.role = SXML_ELEMENT_ROLE_MODULE_ROOT, .error_code = NULL,
                                        .description = NULL};
             }

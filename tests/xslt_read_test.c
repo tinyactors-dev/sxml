@@ -279,6 +279,9 @@ static void test_includes_and_imports(sxml_test_state *state) {
          .content = SXML_BYTE_VIEW_INITIALIZER(
              "<xsl:stylesheet version='3.0' " XSL_NAMESPACE ">"
              "<xsl:import href='main.xsl'/></xsl:stylesheet>")},
+        {.uri = SXML_BYTE_VIEW_INITIALIZER("file:///package.xsl"),
+         .content = SXML_BYTE_VIEW_INITIALIZER("<xsl:package version='3.0' " XSL_NAMESPACE
+                                               "/>")},
     };
     read_fixture fixture;
     const read_case including = {
@@ -286,7 +289,7 @@ static void test_includes_and_imports(sxml_test_state *state) {
                 "<xsl:include href='base.xsl'/><xsl:include href='base.xsl'/>"
                 "<xsl:template name='m'/></xsl:stylesheet>",
         .modules = modules,
-        .module_count = 2};
+        .module_count = 3};
     SXML_TEST_REQUIRE(state, open_processor(&fixture, &including));
     read_stylesheet(&fixture, &including);
     SXML_TEST_REQUIRE(state, fixture.status == SXML_STATUS_OK);
@@ -298,13 +301,19 @@ static void test_includes_and_imports(sxml_test_state *state) {
     const read_case importing = {.text = "<xsl:stylesheet version='3.0' " XSL_NAMESPACE ">"
                                          "<xsl:import href='loop.xsl'/></xsl:stylesheet>",
                                  .modules = modules,
-                                 .module_count = 2};
+                                 .module_count = 3};
     SXML_TEST_EXPECT(state, reads_with(&importing, "XTSE0210"));
     const read_case missing = {.text = "<xsl:stylesheet version='3.0' " XSL_NAMESPACE ">"
                                        "<xsl:import href='none.xsl'/></xsl:stylesheet>",
                                .modules = modules,
-                               .module_count = 2};
+                               .module_count = 3};
     SXML_TEST_EXPECT(state, reads_with(&missing, "XTSE0165"));
+    /* An xsl:package is no stylesheet module (3.10.1). */
+    const read_case package = {.text = "<xsl:stylesheet version='3.0' " XSL_NAMESPACE ">"
+                                       "<xsl:include href='package.xsl'/></xsl:stylesheet>",
+                               .modules = modules,
+                               .module_count = 3};
+    SXML_TEST_EXPECT(state, reads_with(&package, "XTSE0165"));
 }
 
 /* Static errors of the element syntax. */

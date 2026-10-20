@@ -262,6 +262,14 @@ static const package_case package_cases[] = {
                "</xsl:override></xsl:use-package>",
                "<xsl:value-of select='1'/>"),
           "XTSE3060"),
+    /* 3.4.5.3: the overriding function's new-each-time is the
+       overridden one's (maybe when absent). */
+    FAILS("override-new-each-time",
+          MAIN("<xsl:use-package name='urn:library'><xsl:override><xsl:function "
+               "name='f:hook' visibility='public' new-each-time='no'><xsl:sequence "
+               "select=\"'new'\"/></xsl:function></xsl:override></xsl:use-package>",
+               "<xsl:value-of select='1'/>"),
+          "XTSE3070"),
     FAILS("override-nothing",
           MAIN("<xsl:use-package name='urn:library'><xsl:override><xsl:function "
                "name='f:absent'><xsl:sequence select='1'/></xsl:function>"

@@ -708,13 +708,8 @@ static sxml_status call_document(const sxml_function_call *call, sxml_sequence *
                                          .error_record = call->error_record},
                 &document_node);
         }
-        if (status == SXML_STATUS_OK && options.strips_space) {
-            sxml_sequence stripped = sxml_sequence_empty();
-            status = sxml_function_library_strip_document(call, document_node, &stripped);
-            sxml_item_release(document_node);
-            document_node =
-                status == SXML_STATUS_OK ? stripped.content : (sxml_item){.representation = 0};
-        }
+        /* Validation first, as fn:doc's (F&O 4.0, 17.2.1): strip-space
+           "all" keeps the whitespace of elements of simple content. */
         if (status == SXML_STATUS_OK && xsd_validation.byte_count > 0) {
             status = sxml_schema_scope_validate_document(
                 call,
@@ -722,6 +717,13 @@ static sxml_status call_document(const sxml_function_call *call, sxml_sequence *
                     .xsd_validation = xsd_validation,
                     .uses_schema_location_hints = options.uses_schema_location_hints},
                 &document_node);
+        }
+        if (status == SXML_STATUS_OK && options.strips_space) {
+            sxml_sequence stripped = sxml_sequence_empty();
+            status = sxml_function_library_strip_document(call, document_node, &stripped);
+            sxml_item_release(document_node);
+            document_node =
+                status == SXML_STATUS_OK ? stripped.content : (sxml_item){.representation = 0};
         }
         if (status == SXML_STATUS_OK) {
             status = sxml_sequence_builder_append_item(builder, document_node);

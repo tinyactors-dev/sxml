@@ -1577,7 +1577,35 @@ static bool are_context_items_equivalent(const sxml_xslt_lowering *lowering, sig
            are_identical(lowering, (type_comparison){.first = first.type, .second = second.type});
 }
 
-/* XTSE3070 (3.4.5.3): the overriding signature is compatible. */
+/* A keyword attribute's value, or absent when it is not given. */
+typedef struct keyword_default {
+    sxml_xslt_ast_node_index node;
+    sxml_xslt_ast_attribute_kind kind;
+    sxml_xslt_ast_keyword absent;
+} keyword_default;
+
+static sxml_xslt_ast_keyword effective_keyword_of(const sxml_xslt_lowering *lowering,
+                                                  keyword_default query) {
+    const sxml_xslt_ast_keyword keyword = keyword_of(lowering, query.node, query.kind);
+    return keyword == SXML_XSLT_AST_KEYWORD_NONE ? query.absent : keyword;
+}
+
+/* 3.4.5.3: an overridden function's streamability other than
+   unspecified is the overriding one's too. */
+static bool is_streamability_kept(const sxml_xslt_lowering *lowering, signature_pair pair) {
+    const keyword_default overridden = {.node = pair.overridden,
+                                        .kind = SXML_XSLT_AST_ATTRIBUTE_STREAMABILITY,
+                                        .absent = SXML_XSLT_AST_KEYWORD_UNSPECIFIED};
+    const sxml_xslt_ast_keyword kept = effective_keyword_of(lowering, overridden);
+    return kept == SXML_XSLT_AST_KEYWORD_UNSPECIFIED ||
+           kept == effective_keyword_of(lowering, (keyword_default){.node = pair.overriding,
+                                                                    .kind = overridden.kind,
+                                                                    .absent = overridden.absent});
+}
+
+/* XTSE3070 (3.4.5.3): the overriding signature is compatible: the same
+   types, parameters, new-each-time and streamability for functions,
+   streamable kept for attribute sets. */
 static bool is_signature_compatible(const sxml_xslt_lowering *lowering, signature_pair pair) {
     switch ((uint32_t)node_of(lowering, pair.overriding)->kind) {
     case SXML_XSLT_AST_KIND_TEMPLATE:
@@ -1595,7 +1623,21 @@ static bool is_signature_compatible(const sxml_xslt_lowering *lowering, signatur
                    lowering,
                    (type_comparison){.first = declared_type_of(lowering, pair.overriding),
                                      .second = declared_type_of(lowering, pair.overridden)}) &&
-               are_parameters_compatible(lowering, pair);
+               are_parameters_compatible(lowering, pair) &&
+               effective_keyword_of(lowering,
+                                    (keyword_default){.node = pair.overriding,
+                                                      .kind = SXML_XSLT_AST_ATTRIBUTE_NEW_EACH_TIME,
+                                                      .absent = SXML_XSLT_AST_KEYWORD_MAYBE}) ==
+                   effective_keyword_of(lowering,
+                                        (keyword_default){
+                                            .node = pair.overridden,
+                                            .kind = SXML_XSLT_AST_ATTRIBUTE_NEW_EACH_TIME,
+                                            .absent = SXML_XSLT_AST_KEYWORD_MAYBE}) &&
+               is_streamability_kept(lowering, pair);
+    case SXML_XSLT_AST_KIND_ATTRIBUTE_SET:
+        /* A streamable attribute set stays streamable. */
+        return !is_true_attribute(lowering, pair.overridden, SXML_XSLT_AST_ATTRIBUTE_STREAMABLE) ||
+               is_true_attribute(lowering, pair.overriding, SXML_XSLT_AST_ATTRIBUTE_STREAMABLE);
     case SXML_XSLT_AST_KIND_VARIABLE:
     case SXML_XSLT_AST_KIND_PARAM:
         return are_identical(
