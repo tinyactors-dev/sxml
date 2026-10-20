@@ -2621,15 +2621,34 @@ static sxml_status resolve_item_type(const sxml_xslt_lowering *lowering,
     return status;
 }
 
+/* What find_global_context_item finds. */
+typedef struct global_context_item_search {
+    /* The top-level package's declaration in force; 0 for none. */
+    sxml_xslt_ast_node_index found;
+    /* A library package's declaration with use="required"; 0 for none. */
+    sxml_xslt_ast_node_index required_in_library;
+} global_context_item_search;
+
 /* The xsl:global-context-item in force (3.4.9): at most one per module,
-   all of one stylesheet alike (XTSE3087); 0 for none. */
+   all of the top-level package alike (XTSE3087). "The global context
+   item is available only within the top-level package": a library
+   package's declaration is ignored unless it has use="required", which
+   is XTTE0590. */
 static sxml_status find_global_context_item(const sxml_xslt_lowering *lowering,
-                                            sxml_xslt_ast_node_index *found) {
+                                            global_context_item_search *search) {
     const sxml_xslt_ast *ast = lowering->ast;
-    found->value = 0;
+    *search = (global_context_item_search){.found = {.value = 0},
+                                           .required_in_library = {.value = 0}};
+    sxml_xslt_ast_node_index *found = &search->found;
     for (uint32_t order = 1; sxml_xslt_ast_get_declaration(ast, order).value != 0; order += 1) {
         const sxml_xslt_ast_node_index declaration = sxml_xslt_ast_get_declaration(ast, order);
         if (node_of(lowering, declaration)->kind != SXML_XSLT_AST_KIND_GLOBAL_CONTEXT_ITEM) {
+            continue;
+        }
+        if (sxml_xslt_package_of_node(lowering, declaration) != 1U) {
+            if (use_of(lowering, declaration) == SXML_XSLT_AST_KEYWORD_REQUIRED) {
+                search->required_in_library = declaration;
+            }
             continue;
         }
         if (found->value != 0) {
@@ -2758,8 +2777,30 @@ static sxml_status lower_supplied_item(sxml_xpath_lowerer *lowerer, supplied_ite
 sxml_status sxml_xslt_lowering_bind_global_context_item(
     sxml_xpath_lowerer *lowerer, const sxml_xslt_global_context_item_call *call) {
     const sxml_xslt_lowering *lowering = call->lowering;
-    sxml_xslt_ast_node_index declaration = {.value = 0};
-    sxml_status status = find_global_context_item(lowering, &declaration);
+    global_context_item_search search;
+    sxml_status status = find_global_context_item(lowering, &search);
+    if (status == SXML_STATUS_OK && search.required_in_library.value != 0) {
+        sxml_ir_expression_index raise = {0};
+        status = add_raise(lowerer,
+                           (raise_text){.error_status = SXML_STATUS_TYPE_ERROR,
+                                        .code = SXML_BYTE_VIEW_FROM_LITERAL("XTTE0590"),
+                                        .description = SXML_BYTE_VIEW_FROM_LITERAL(
+                                            "a library package's xsl:global-context-item has "
+                                            "use=\"required\", and the global context item is "
+                                            "available only in the top-level package (XSLT 4.0, "
+                                            "3.4.9)")},
+                           &raise);
+        sxml_ir_atom ignored = {0};
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xpath_lowerer_bind_expression(
+                lowerer,
+                (sxml_xpath_lowering_expression_in_block){.block = call->block,
+                                                          .expression = raise},
+                &ignored);
+        }
+        return status;
+    }
+    const sxml_xslt_ast_node_index declaration = search.found;
     if (status != SXML_STATUS_OK || declaration.value == 0) {
         return status;
     }
