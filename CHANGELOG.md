@@ -9,9 +9,60 @@ release are in `docs/RELEASE.md`.
 
 ## [Unreleased]
 
-XQuery 4.0 (Phase 3, D161), XSLT 4.0 (Phase 4, D169) and XSD 1.1 with
-schema awareness (Phase 5, D182). The owner decides whether this goes
-into 0.2.0, which is not tagged yet, or into the next minor release.
+XQuery 4.0 (Phase 3, D161), XSLT 4.0 (Phase 4, D169), XSD 1.1 with
+schema awareness (Phase 5, D182) and the deferred features of Phase 7
+(D183, D237). The owner decides whether this goes into 0.2.0, which is
+not tagged yet, or into the next minor release.
+
+### Added (Phase 7)
+
+- **Optional features** (`processor.h`, D189): a processor names the
+  features it uses (`sxml_optional_feature`), so a program links only
+  those; without one, the feature's single rejection place gives the
+  specification's error (D162). `sxml_all_optional_features()` names
+  them all. Large data comes from the host through the resolver (D184):
+  the DUCET and CLDR files, TZif zones, Full Text stop words and
+  thesauri.
+- **Streaming XSLT** (D212, D219, D223, D228, D231, D233, D236):
+  streamability analysis with XTSE3430, streamed xsl:source-document,
+  streamable modes and template rules, accumulators, xsl:iterate,
+  xsl:fork, xsl:merge over streamed inputs, capture="yes", a streamed
+  principal source and result (`xslt.h`), and a byte reader resource
+  form (`processor.h`): `sxml transform` sums 1,000,000 orders in
+  11 MB. supports-streaming is true.
+- **The XQuery Update Facility 3.0** and the 4.0 draft's additions
+  (D187, D205): every updating expression, copy-modify, fn:put and
+  revalidation, through an update sink (`xquery.h`); `sxml xquery
+  --allow-put`.
+- **XQuery and XPath Full Text 3.0** (D214, D235): every selection,
+  match option and positional filter, Snowball stemmers for en, de, fr,
+  it, es and nl, stop words, thesauri and scores.
+- **fn:parse-html and fn:html-doc** (D201, D218): the WHATWG tokenizer
+  and tree construction, encoding sniffing and every legacy decoder.
+- **fn:invisible-xml** (D215) over an Earley parser.
+- **fn:transform** (D203) and **xsl:evaluate** (D196).
+- **EXPath Binary** (D198) and **EXPath File** (D200, a file system in
+  `processor.h`; `sxml xpath` and `sxml xquery --allow-file-access`).
+- **UCA collations** with CLDR tailorings (D213, D220); **IANA time
+  zones** for fn:civil-timezone and the formatting functions' places
+  (D209); **languages and calendars** in the formatting functions:
+  names, ordinals and spell-out for en, de, fr, it, es, nl; the BE, JE,
+  OS and AH calendars (D221).
+- **XML 1.1 input** (D195) and **DTD processing** (D199, D210, D211): the
+  external subset, external entities, attribute defaults and DTD
+  validation (an optional feature).
+- **XSLT 1.0 behaviour** and XPath 1.0 compatibility mode (`xpath.h`,
+  D197, D206), EXSLT common; **disable-output-escaping** (D188).
+- **The JavaScript package** compiles XQuery, XSLT and schemas in
+  `sxml-full.wasm` (D216); `sxml.wasm` stays XPath only.
+- **The sxml command** writes files: `--output`, `--force`,
+  `--result-directory`, `--method=csv` (D217).
+- Performance (D222, D224, D229, D232): XML parsing in bounded segments
+  (100 MB in 98 MB), filter indexes for joins, 25 MB/s parsing.
+- Conformance at 9c5b1ba (`docs/CONFORMANCE.md`): XP40 99.5 %, XQ40
+  99.5 %, XT40 94.8 % of the in-scope cases; XSD 99.9 %; the iXML suite
+  886 of 907, html5lib tree construction 1,749 of 1,753, xmlconf
+  2,237 of 2,237.
 
 ### Added
 

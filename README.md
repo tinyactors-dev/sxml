@@ -52,13 +52,13 @@ model (XDM 4.0) and one evaluator.
 | WASI | The `sxml` command as a WebAssembly program. |
 | iOS, Android | Planned. There are no Swift or Kotlin bindings yet. |
 
-The WebAssembly modules, at commit `e4ea880`:
+The WebAssembly modules, at commit `9c5b1ba`:
 
 | Module | Contents | Size | Gzipped |
 | --- | --- | --: | --: |
-| `sxml.wasm` (core) | XML, XPath 4.0, serialization | 2,085,139 bytes | 728,743 bytes |
-| `sxml-full.wasm` (full) | The core, plus XQuery 4.0, XSLT 4.0, XSD 1.1 and every optional feature except EXPath File | 7,110,859 bytes | 1,637,620 bytes |
-| `sxml` (WASI command) | Everything the native `sxml` command has | 8,705,286 bytes | 1,919,916 bytes |
+| `sxml.wasm` (core) | XML, XPath 4.0, serialization | 2,090,746 bytes | 730,902 bytes |
+| `sxml-full.wasm` (full) | The core, plus XQuery 4.0, XSLT 4.0, XSD 1.1 and every optional feature except EXPath File | 7,637,162 bytes | 1,690,683 bytes |
+| `sxml` (WASI command) | Everything the native `sxml` command has | 9,231,791 bytes | 1,973,839 bytes |
 
 ## Quick start
 
@@ -496,7 +496,7 @@ The package's [README](bindings/javascript/README.md) describes its API.
 ## Conformance
 
 sxml is tested against the W3C test suites. The counts are of a release
-build at commit `e4ea880` (2026-10-20). A test case counts as run unless
+build at commit `9c5b1ba` (2026-10-20). A test case counts as run unless
 it needs a feature that sxml does not claim; a test case that expects an
 error and gets another error code counts as passed, as the QT4 catalog
 allows.
@@ -505,11 +505,11 @@ allows.
 | --- | --: | --: | --: |
 | QT4: XPath 4.0 and F&O 4.0 (XP40) | 32,771 | 32,689 | 99.7 % |
 | QT4: XQuery 4.0 (XQ40), with Update and Full Text | 46,208 | 45,969 | 99.5 % |
-| XSLT 4.0 (XT40) | 12,513 | 12,053 | 96.3 % |
+| XSLT 4.0 (XT40) | 12,513 | 12,075 | 96.5 % |
 | XSD 1.1 (W3C XSD test suite) | 41,518 | 41,486 | 99.9 % |
 
 The schema-aware test cases among them: XPath passes 304 of 315, XQuery
-1,397 of 1,516 and XSLT 920 of 971. Other suites:
+1,397 of 1,516 and XSLT 928 of 971. Other suites:
 
 | Test suite | Passed |
 | --- | --: |
@@ -517,7 +517,7 @@ The schema-aware test cases among them: XPath passes 304 of 315, XQuery
 | html5lib: tokenizer | 7,045 of 7,045 |
 | html5lib: tree construction | 1,749 of 1,753 |
 | html5lib: encoding | 82 of 82 |
-| Invisible XML community test suite | 886 of 890 |
+| Invisible XML community test suite | 886 of 886 run (21 need another Unicode version or input no xs:string holds) |
 
 [docs/CONFORMANCE.md](docs/CONFORMANCE.md) has the QT4, XSLT and XSD
 results by test set.
