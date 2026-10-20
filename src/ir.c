@@ -988,7 +988,8 @@ static void sxml_static_context_fill_block(const sxml_static_context_fill *fill,
             .collation_binding_count = context->collation_bindings.collation_binding_count},
         .in_scope_schemas = {.schemas = context->in_scope_schemas.schema_count == 0 ? NULL
                                                                                    : schemas,
-                             .schema_count = context->in_scope_schemas.schema_count}};
+                             .schema_count = context->in_scope_schemas.schema_count},
+        .package_number = context->package_number};
 }
 
 /* Copies context into one block of unit allocator memory (*memory, NULL
@@ -1000,8 +1001,9 @@ typedef struct sxml_static_context_copy {
 } sxml_static_context_copy;
 
 static sxml_status sxml_copy_static_context(sxml_ir_unit *unit, sxml_static_context_copy request) {
-    *request.copy = (sxml_ir_static_context){.default_collation_uri = {.bytes = NULL,
-                                                                       .byte_count = 0}};
+    *request.copy = (sxml_ir_static_context){
+        .default_collation_uri = {.bytes = NULL, .byte_count = 0},
+        .package_number = request.context->package_number};
     *request.memory = NULL;
     sxml_static_context_layout layout;
     sxml_status status = sxml_static_context_compute_layout(request.context, &layout);

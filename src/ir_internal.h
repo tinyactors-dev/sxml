@@ -1323,6 +1323,11 @@ typedef struct sxml_ir_function {
        modules[module_number]), whose static base URI and source name it
        reads; 0 for the unit's own. */
     uint32_t module_number;
+    /* fn:function-lookup finds it only from code of its own package
+       (sxml_ir_static_context.package_number): a stylesheet function
+       whose visibility is private or hidden is in the static context of
+       its package alone (XSLT 4.0, 10.3.5, 3.5.3.1). */
+    bool is_private;
 } sxml_ir_function;
 
 /* --------------------------------------------------------------- Globals */
@@ -1450,6 +1455,12 @@ typedef struct sxml_ir_static_context {
     sxml_byte_view default_collation_uri;
     sxml_collation_binding_view collation_bindings;
     sxml_schema_view in_scope_schemas;
+    /* The package of the code (XSLT 4.0, 3.5), named by the index of its
+       top module (sxml_xslt_package_top_module); 0 outside XSLT. It
+       selects the document preparation of fn:doc and fn:document (the
+       package's xsl:strip-space, 4.2.2; glossary `document_preparation`)
+       and the private functions fn:function-lookup finds (10.3.5). */
+    uint32_t package_number;
 } sxml_ir_static_context;
 
 /*

@@ -265,7 +265,8 @@ static sxml_status load_document_with_options(const sxml_function_call *call,
             .error_record = loading->error_record,
             .blocks_external_resources = !options->trusts_external,
             .validates_dtd = options->validates_dtd,
-            .skips_preparation = options->keeps_space},
+            .skips_preparation = options->keeps_space,
+            .preparation_number = sxml_function_library_preparation_number(call)},
         document_node);
     if (status == SXML_STATUS_OK && options->processes_xinclude) {
         /* F&O 4.0, 17.1.1: xinclude (src/xinclude_internal.h). */

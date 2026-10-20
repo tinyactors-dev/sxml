@@ -696,7 +696,9 @@ static sxml_status call_document(const sxml_function_call *call, sxml_sequence *
                                          .error_record = call->error_record,
                                          .blocks_external_resources = !options.trusts_external,
                                          .validates_dtd = options.validates_dtd,
-                                         .skips_preparation = options.keeps_space},
+                                         .skips_preparation = options.keeps_space,
+                                         .preparation_number =
+                                             sxml_function_library_preparation_number(call)},
                 &document_node);
         }
         release_document_reference(&reference);

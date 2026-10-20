@@ -665,6 +665,14 @@ sxml_sequence sxml_function_library_get_argument(const sxml_function_call *call,
     return call->arguments.sequences[argument_index];
 }
 
+uint32_t sxml_function_library_preparation_number(const sxml_function_call *call) {
+    const sxml_ir_static_context *static_context =
+        call->dynamic_context == NULL
+            ? NULL
+            : sxml_dynamic_context_get_static_context(call->dynamic_context);
+    return static_context == NULL ? 0 : static_context->package_number;
+}
+
 sxml_status sxml_function_library_read_optional_item(const sxml_function_call *call,
                                                      size_t argument_index,
                                                      sxml_optional_item *optional_item) {

@@ -149,6 +149,10 @@ typedef struct sxml_document_request {
        4.2.2). The loader keeps only prepared documents, so with a
        preparation each such call reads a new tree (D274). */
     bool skips_preparation;
+    /* The document preparation to apply (the caller's static context's
+       package, sxml_ir_static_context.package_number); 0 for the default. The
+       loader keeps one document per URI and preparation. */
+    uint32_t preparation_number;
 } sxml_document_request;
 
 /* Bytes fn:parse-xml parses into a new document (F&O 4.0,

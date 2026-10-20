@@ -243,6 +243,8 @@ typedef struct sxml_processor_loaded_document {
     size_t uri_byte_count;
     /* Owned. */
     sxml_item document_node;
+    /* The preparation it went through (sxml_preparation_request). */
+    uint32_t preparation_number;
 } sxml_processor_loaded_document;
 
 /* One collection fn:collection or fn:uri-collection read in this
@@ -263,10 +265,18 @@ typedef struct sxml_processor_loaded_collection {
 /* A step every document the loader gets from the resolver goes through
    before it is kept: XSLT's whitespace stripping of source documents
    (XSLT 4.0, 4.2; src/xslt_whitespace_internal.h, D150). */
+/* One document to prepare, and which preparation (the caller's
+   preparation_number; 0 for the default, XSLT's top-level package). */
+typedef struct sxml_preparation_request {
+    sxml_item document_node;
+    uint32_t preparation_number;
+} sxml_preparation_request;
+
 typedef struct sxml_document_preparation_operations {
-    /* Writes the document to keep, owned, to *prepared; document_node
-       stays the caller's. */
-    sxml_status (*prepare_document)(void *state, sxml_item document_node, sxml_item *prepared);
+    /* Writes the document to keep, owned, to *prepared; the request's
+       document_node stays the caller's. */
+    sxml_status (*prepare_document)(void *state, const sxml_preparation_request *request,
+                                    sxml_item *prepared);
 } sxml_document_preparation_operations;
 
 typedef struct sxml_document_preparation {

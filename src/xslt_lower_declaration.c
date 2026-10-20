@@ -939,12 +939,16 @@ static sxml_status add_function_shells(const sxml_xslt_lowering *lowering,
             /* Its module: a dynamic error in it names its stylesheet
                module (D169). */
             const uint32_t module_number = sxml_xslt_lowering_module_of_node(lowering, function->node);
+            const sxml_xslt_visibility visibility =
+                sxml_xslt_package_get_visibility(lowering, function->node);
             status = sxml_ir_unit_add_function(
                 lowering->lowerer->unit,
                 &(sxml_ir_function){.function_name = function->function_name,
                                     .signature = *signature,
                                     .parameter_count = arity,
-                                    .module_number = module_number},
+                                    .module_number = module_number,
+                                    .is_private = visibility == SXML_XSLT_VISIBILITY_PRIVATE ||
+                                                  visibility == SXML_XSLT_VISIBILITY_HIDDEN},
                 &function_index);
             if (arity == function->required_count) {
                 function->first_function = function_index;
@@ -956,7 +960,9 @@ static sxml_status add_function_shells(const sxml_xslt_lowering *lowering,
                     &(sxml_ir_function){.function_name = function->function_name,
                                         .signature = *signature,
                                         .parameter_count = arity,
-                                        .module_number = module_number},
+                                        .module_number = module_number,
+                                        .is_private = visibility == SXML_XSLT_VISIBILITY_PRIVATE ||
+                                                      visibility == SXML_XSLT_VISIBILITY_HIDDEN},
                     &function->cached_body);
             }
         }
@@ -2499,6 +2505,9 @@ typedef struct static_context_module {
     const sxml_xslt_ast_static_context *ast_context;
     const package_decimal_formats *formats;
     sxml_byte_view module_uri;
+    /* The top module of its package: the document preparation of the
+       package's xsl:strip-space (4.2.2). */
+    uint32_t package_module;
 } static_context_module;
 
 static sxml_status add_static_context_module(const sxml_xslt_lowering *lowering,
@@ -2519,7 +2528,8 @@ static sxml_status add_static_context_module(const sxml_xslt_lowering *lowering,
                  .default_collation_uri =
                      sxml_xslt_ast_get_text(lowering->ast, request.ast_context->default_collation),
                  .collation_bindings = {.collation_bindings = NULL, .collation_binding_count = 0},
-                 .in_scope_schemas = request.context->unit_static_context.in_scope_schemas},
+                 .in_scope_schemas = request.context->unit_static_context.in_scope_schemas,
+                 .package_number = request.package_module},
             .static_context_memory = NULL,
             .has_static_namespaces = true,
             .static_namespaces = request.context->namespace_bindings,
@@ -2596,7 +2606,9 @@ sxml_status sxml_xslt_declare_static_context_modules(const sxml_xslt_lowering *l
                 .context = &contexts[context_index],
                 .ast_context = sxml_xslt_ast_get_static_context(lowering->ast, index),
                 .formats = &formats[package],
-                .module_uri = module_uri},
+                .module_uri = module_uri,
+                .package_module =
+                    node_of(lowering, sxml_xslt_package_get_root(lowering, package))->module.value},
             &contexts[context_index].ir_module_number);
     }
     sxml_xpath_lowerer_release_scratch(lowering->lowerer, context_modules);

@@ -2900,6 +2900,47 @@ sxml_status sxml_evaluator_make_function_reference(
     return sxml_function_item_make(dynamic_context->item_heap, &item_request, item);
 }
 
+/* The package of function's code (sxml_ir_static_context.package_number;
+   0 and 1 are both the top-level one). */
+static uint32_t sxml_function_package(const sxml_ir_unit *unit, const sxml_ir_function *function) {
+    const sxml_ir_static_context *static_context = &unit->static_context;
+    if (function->module_number != 0 && function->module_number < unit->module_count &&
+        unit->modules[function->module_number].has_static_context) {
+        static_context = &unit->modules[function->module_number].static_context;
+    }
+    return static_context->package_number == 0 ? 1U : static_context->package_number;
+}
+
+/* The named function of the unit query names, as the caller's place sees
+   it: one of the caller's package first, then one of another package
+   that is not private there (XSLT 4.0, 10.3.5). */
+static const sxml_ir_function *sxml_find_visible_unit_function(
+    const sxml_dynamic_context *dynamic_context, const sxml_ir_unit *unit,
+    const sxml_unit_function_query *query) {
+    const sxml_ir_static_context *place = sxml_dynamic_context_get_static_context(dynamic_context);
+    const uint32_t caller_package =
+        place == NULL || place->package_number == 0 ? 1U : place->package_number;
+    for (uint32_t search_pass = 0; search_pass < 2; search_pass += 1) {
+        for (uint32_t function_number = 1; function_number < unit->function_count;
+             function_number += 1) {
+            const sxml_ir_function *function = &unit->functions[function_number];
+            /* Top-level and named: no closure of a reference, no default
+               function or initializer. */
+            if (function->function_name.index != query->function_name.index ||
+                function->parameter_count != query->arity ||
+                function->defining_function.value != 0 ||
+                function->captured_variables.atom_count != 0) {
+                continue;
+            }
+            const bool is_own = sxml_function_package(unit, function) == caller_package;
+            if (search_pass == 0 ? is_own : !is_own && !function->is_private) {
+                return function;
+            }
+        }
+    }
+    return NULL;
+}
+
 sxml_status sxml_evaluator_find_unit_function(sxml_dynamic_context *dynamic_context,
                                               sxml_unit_function_query query,
                                               sxml_item *item) {
@@ -2910,17 +2951,10 @@ sxml_status sxml_evaluator_find_unit_function(sxml_dynamic_context *dynamic_cont
     const sxml_evaluator_task *caller =
         &dynamic_context->task_stack.tasks[dynamic_context->task_stack.task_count - 1];
     const sxml_ir_unit *unit = caller->function->unit;
-    for (uint32_t function_number = 1; function_number < unit->function_count;
-         function_number += 1) {
-        const sxml_ir_function *function = &unit->functions[function_number];
-        /* Top-level and named: no closure of a reference, no default
-           function or initializer. */
-        if (function->function_name.index != query.function_name.index ||
-            function->parameter_count != query.arity ||
-            function->defining_function.value != 0 ||
-            function->captured_variables.atom_count != 0) {
-            continue;
-        }
+    const sxml_ir_function *function =
+        sxml_find_visible_unit_function(dynamic_context, unit, &query);
+    if (function != NULL) {
+        const uint32_t function_number = (uint32_t)(function - unit->functions);
         /* A function whose focus is the three slots after its parameters
            takes the caller's focus as captured values (slots are filled
            with the captured values after the arguments). */

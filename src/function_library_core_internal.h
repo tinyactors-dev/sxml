@@ -463,6 +463,11 @@ typedef struct sxml_document_options {
 SXML_NODISCARD sxml_status sxml_function_library_read_document_options(
     const sxml_function_call *call, size_t argument_index, sxml_document_options *options);
 
+/* The document preparation the documents call loads go through: its
+   static context's package (sxml_ir_static_context.package_number;
+   XSLT 4.0, 4.2.2), 0 without one. Defined in src/function_library.c. */
+uint32_t sxml_function_library_preparation_number(const sxml_function_call *call);
+
 /*
  * Copies a document node into a new document without the whitespace-only
  * text nodes outside xml:space="preserve" (strip-space="all"), keeping its

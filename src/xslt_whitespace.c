@@ -10,6 +10,8 @@
  */
 #include "xslt_whitespace_internal.h"
 
+#include "xslt_package_internal.h"
+
 #include "sxml/name.h"
 #include "sxml/tree.h"
 
@@ -50,6 +52,10 @@ typedef struct stripping_filter {
     size_t element_capacity;
     /* xml:space; 0 when never interned (no document has it). */
     sxml_name_identifier space_attribute_name;
+    /* The package whose declarations apply, by its top module (4.2.2:
+       xsl:strip-space and xsl:preserve-space apply to the documents a
+       package loads; D163's identity of a package). */
+    uint32_t package_module;
 } stripping_filter;
 
 /* ------------------------------------------------------------ The rules */
@@ -202,7 +208,8 @@ static sxml_status collect_rules(const sxml_xslt_ast *ast, stripping_filter *fil
     size_t rule_count = 0;
     for (uint32_t order = 1; sxml_xslt_ast_get_declaration(ast, order).value != 0; order += 1) {
         const sxml_xslt_ast_node_index node = sxml_xslt_ast_get_declaration(ast, order);
-        if (is_space_declaration(ast, node)) {
+        if (is_space_declaration(ast, node) &&
+            sxml_xslt_package_top_module(ast, node).value == filter->package_module) {
             rule_count += tests_of(ast, node).name_token_count;
         }
     }
@@ -218,7 +225,8 @@ static sxml_status collect_rules(const sxml_xslt_ast *ast, stripping_filter *fil
     filter->rules = memory;
     for (uint32_t order = 1; sxml_xslt_ast_get_declaration(ast, order).value != 0; order += 1) {
         const sxml_xslt_ast_node_index node = sxml_xslt_ast_get_declaration(ast, order);
-        if (!is_space_declaration(ast, node)) {
+        if (!is_space_declaration(ast, node) ||
+            sxml_xslt_package_top_module(ast, node).value != filter->package_module) {
             continue;
         }
         const sxml_xslt_ast_name_token_view tests = tests_of(ast, node);
@@ -468,8 +476,25 @@ static bool is_document_node(sxml_item item, sxml_node_reference *node) {
            description.node_kind == SXML_NODE_KIND_DOCUMENT;
 }
 
+/* A document to strip by the declarations of one package (its top
+   module's index; 0 for the top-level package's). */
+typedef struct package_stripping {
+    const sxml_xslt_whitespace_stripping *stripping;
+    uint32_t package_module;
+} package_stripping;
+
+static sxml_status strip_package_document(package_stripping request, sxml_item document_node,
+                                          sxml_item *stripped);
+
 sxml_status sxml_xslt_strip_document(const sxml_xslt_whitespace_stripping *stripping,
                                      sxml_item document_node, sxml_item *stripped) {
+    return strip_package_document(
+        (package_stripping){.stripping = stripping, .package_module = 0}, document_node, stripped);
+}
+
+static sxml_status strip_package_document(package_stripping request, sxml_item document_node,
+                                          sxml_item *stripped) {
+    const sxml_xslt_whitespace_stripping *stripping = request.stripping;
     sxml_node_reference node = {.tree = NULL, .node_index = {.index = 0}, .namespace_number = 0};
     const bool strips_annotations = strips_type_annotations(stripping->ast);
     if (!sxml_xslt_prepares_documents(stripping->ast) || !is_document_node(document_node, &node)) {
@@ -488,7 +513,9 @@ sxml_status sxml_xslt_strip_document(const sxml_xslt_whitespace_stripping *strip
                                .elements = NULL,
                                .element_count = 0,
                                .element_capacity = 0,
-                               .space_attribute_name = {.index = 0}};
+                               .space_attribute_name = {.index = 0},
+                               .package_module =
+                                   request.package_module == 0 ? 1U : request.package_module};
     (void)sxml_name_pool_find_name(
         processor->name_pool,
         &(sxml_name_request){.namespace_uri = sxml_well_known_namespace_identifier(SXML_NAMESPACE_XML),
@@ -542,8 +569,11 @@ sxml_status sxml_xslt_strip_document(const sxml_xslt_whitespace_stripping *strip
 
 /* ------------------------------------------------- Document preparation */
 
-static sxml_status prepare_document(void *state, sxml_item document_node, sxml_item *prepared) {
-    return sxml_xslt_strip_document(state, document_node, prepared);
+static sxml_status prepare_document(void *state, const sxml_preparation_request *request,
+                                    sxml_item *prepared) {
+    return strip_package_document(
+        (package_stripping){.stripping = state, .package_module = request->preparation_number},
+        request->document_node, prepared);
 }
 
 static const sxml_document_preparation_operations stripping_operations = {

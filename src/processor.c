@@ -962,8 +962,16 @@ sxml_loader_find_available_document(const sxml_processor_document_loader *loader
     return (sxml_document_lookup){.is_found = false, .document_node = {.representation = 0}};
 }
 
+/* A kept document's key: its URI and the preparation it went through
+   (4.2.2: each XSLT package strips by its own declarations). */
+typedef struct sxml_kept_document_key {
+    sxml_byte_view uri;
+    uint32_t preparation_number;
+} sxml_kept_document_key;
+
 static sxml_document_lookup sxml_loader_find_document(const sxml_processor_document_loader *loader,
-                                                      sxml_byte_view uri) {
+                                                      sxml_kept_document_key key) {
+    const sxml_byte_view uri = key.uri;
     const sxml_document_lookup available = sxml_loader_find_available_document(loader, uri);
     if (available.is_found) {
         return available;
@@ -972,7 +980,8 @@ static sxml_document_lookup sxml_loader_find_document(const sxml_processor_docum
          document_index += 1) {
         const sxml_processor_loaded_document *document =
             &loader->loaded_documents[document_index];
-        if (sxml_byte_view_equals((sxml_byte_view){.bytes = document->uri_bytes,
+        if (document->preparation_number == key.preparation_number &&
+            sxml_byte_view_equals((sxml_byte_view){.bytes = document->uri_bytes,
                                                    .byte_count = document->uri_byte_count},
                                   uri)) {
             return (sxml_document_lookup){.is_found = true,
@@ -987,6 +996,7 @@ typedef struct sxml_loaded_document_request {
     sxml_byte_view uri;
     /* Retained by the loader. */
     sxml_item document_node;
+    uint32_t preparation_number;
 } sxml_loaded_document_request;
 
 /* An array of the loader that grows by doubling. */
@@ -1052,7 +1062,8 @@ static sxml_status sxml_loader_keep_document(sxml_processor_document_loader *loa
     loader->loaded_documents[loader->loaded_document_count] =
         (sxml_processor_loaded_document){.uri_bytes = uri_memory,
                                          .uri_byte_count = request->uri.byte_count,
-                                         .document_node = request->document_node};
+                                         .document_node = request->document_node,
+                                         .preparation_number = request->preparation_number};
     loader->loaded_document_count += 1;
     return SXML_STATUS_OK;
 }
@@ -1431,8 +1442,12 @@ static sxml_status sxml_loader_resolve(sxml_processor_document_loader *loader,
     if (status == SXML_STATUS_OK && preparation.operations != NULL &&
         !exchange->request->skips_preparation) {
         sxml_item prepared = {.representation = 0};
-        status = preparation.operations->prepare_document(preparation.state, *document_node,
-                                                          &prepared);
+        status = preparation.operations->prepare_document(
+            preparation.state,
+            &(sxml_preparation_request){
+                .document_node = *document_node,
+                .preparation_number = exchange->request->preparation_number},
+            &prepared);
         sxml_item_release(*document_node);
         *document_node = prepared;
     }
@@ -1474,7 +1489,10 @@ static sxml_status sxml_loader_load_document(void *state,
         request->skips_preparation && loader->configuration.document_preparation.operations != NULL;
     const sxml_document_lookup lookup =
         is_unprepared ? sxml_loader_find_available_document(loader, resolution.uri)
-                      : sxml_loader_find_document(loader, resolution.uri);
+                      : sxml_loader_find_document(
+                            loader, (sxml_kept_document_key){
+                                        .uri = resolution.uri,
+                                        .preparation_number = request->preparation_number});
     sxml_item node = {.representation = 0};
     if (lookup.is_found) {
         sxml_item_retain(lookup.document_node);
@@ -1487,8 +1505,10 @@ static sxml_status sxml_loader_load_document(void *state,
             &node);
         if (status == SXML_STATUS_OK && !is_unprepared) {
             status = sxml_loader_keep_document(
-                loader, &(sxml_loaded_document_request){.uri = resolution.uri,
-                                                        .document_node = node});
+                loader, &(sxml_loaded_document_request){
+                            .uri = resolution.uri,
+                            .document_node = node,
+                            .preparation_number = request->preparation_number});
             if (status != SXML_STATUS_OK) {
                 sxml_item_release(node);
             }
@@ -1527,7 +1547,9 @@ sxml_status sxml_processor_document_loader_open_streamed(
                                                     .error_record = request->error_record,
                                                     .blocks_external_resources = false,
                                                     .validates_dtd = false};
-    const sxml_document_lookup lookup = sxml_loader_find_document(loader, document->resolution.uri);
+    const sxml_document_lookup lookup = sxml_loader_find_document(
+        loader,
+        (sxml_kept_document_key){.uri = document->resolution.uri, .preparation_number = 0});
     const sxml_resource_resolver resolver = loader->configuration.evaluation_environment.resource_resolver;
     if (lookup.is_found || resolver.operations == NULL || resolver.operations->resolve == NULL) {
         return sxml_loader_load_document(loader, &document_request, &document->document_node);
@@ -1563,7 +1585,10 @@ sxml_status sxml_processor_document_loader_open_streamed(
         if (status == SXML_STATUS_OK && preparation.operations != NULL) {
             sxml_item prepared = {.representation = 0};
             status = preparation.operations->prepare_document(
-                preparation.state, document->document_node, &prepared);
+                preparation.state,
+                &(sxml_preparation_request){.document_node = document->document_node,
+                                            .preparation_number = 0},
+                &prepared);
             sxml_item_release(document->document_node);
             document->document_node = prepared;
         }
@@ -1963,7 +1988,10 @@ static sxml_status sxml_loader_keep_collection_documents(sxml_processor_document
             sxml_item_get_node(step.item, &document) != SXML_STATUS_OK ||
             sxml_tree_describe(document.tree, &tree) != SXML_STATUS_OK ||
             tree.document_uri.byte_count == 0 ||
-            sxml_loader_find_document(loader, tree.document_uri).is_found) {
+            sxml_loader_find_document(loader, (sxml_kept_document_key){
+                                                  .uri = tree.document_uri,
+                                                  .preparation_number = 0})
+                .is_found) {
             continue;
         }
         status = sxml_loader_keep_document(

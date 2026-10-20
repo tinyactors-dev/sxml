@@ -512,8 +512,10 @@ static sxml_status sxml_stream_end_window(sxml_stream_document *document,
     const sxml_document_preparation preparation = document->source.preparation;
     if (preparation.operations != NULL) {
         sxml_item prepared = {.representation = 0};
-        status =
-            preparation.operations->prepare_document(preparation.state, document_node, &prepared);
+        status = preparation.operations->prepare_document(
+            preparation.state,
+            &(sxml_preparation_request){.document_node = document_node, .preparation_number = 0},
+            &prepared);
         sxml_item_release(document_node);
         if (status != SXML_STATUS_OK) {
             return status;
