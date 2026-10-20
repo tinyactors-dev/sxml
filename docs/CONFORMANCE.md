@@ -4,7 +4,7 @@
 
 Results of the W3C QT4 test suite (`third_party/qt4tests`, D13) under `sxml-qt4 run` (D92), a release build, one process per test set. *Passed* counts passes and wrong errors (a wrong error code counts as a pass, catalog-schema.xsd); *not run* means not applicable to sxml or using an unsupported feature; *run* is test cases minus not run.
 
-- Code under test: commit `9c5b1ba366c6` of 2026-10-20
+- Code under test: commit `e74d4ad475b6` of 2026-10-20
 - Regenerate: `cmake --preset release && cmake --build --preset release && tools/run-qt4.sh --program build/release/tests/qt4/driver/sxml-qt4 && tools/run-qt4.sh --program build/release/tests/qt4/driver/sxml-qt4 --spec XQ40 && tools/conformance-report.py build/qt4-run` (XQ40 is reported when its run is in the directory; XT40 and XSD11 when `tools/run-xslt.sh` and `tools/run-xsd.sh` ran into it too)
 
 ## Torture slice
@@ -17,25 +17,25 @@ Results of the W3C QT4 test suite (`third_party/qt4tests`, D13) under `sxml-qt4 
 
 | Specification | Test cases | Run | Passed | of which wrong error | Failed | Errors | Not run | Passed of run |
 |---|--:|--:|--:|--:|--:|--:|--:|--:|
-| XP40 | 47,313 | 32,771 | 32,716 | 32 | 55 | 0 | 14,542 | 99.8 % |
+| XP40 | 47,313 | 32,841 | 32,815 | 30 | 26 | 0 | 14,472 | 99.9 % |
 
-Gate rate (D95): 32,565 of 32,716 in-scope test cases passed, **99.5 %** (in scope: the spec matches and no non-goal is needed; not-run cases count as not passed).
+Gate rate (D95): 32,656 of 32,716 in-scope test cases passed, **99.8 %** (in scope: the spec matches and no non-goal is needed; not-run cases count as not passed).
 
-Schema-aware (D174, area "schema-aware"): 306 of 315 test cases passed, **97.1 %** (the test cases that need schemaImport, schemaValidation or typedData, or whose environment has a schema or a validated source; outside the D95 denominator unless only their environment is schema-aware; not-run cases count as not passed).
+Schema-aware (D174, area "schema-aware"): 314 of 315 test cases passed, **99.7 %** (the test cases that need schemaImport, schemaValidation or typedData, or whose environment has a schema or a validated source; outside the D95 denominator unless only their environment is schema-aware; not-run cases count as not passed).
 
 ### XP40 by area
 
 | Area (test-set prefix) | Test cases | Run | Passed | of which wrong error | Failed | Errors | Not run | Passed of run |
 |---|--:|--:|--:|--:|--:|--:|--:|--:|
-| Functions (F&O 4.0, fn:): `fn-*` | 17,250 | 15,295 | 15,261 | 8 | 34 | 0 | 1,955 | 99.8 % |
+| Functions (F&O 4.0, fn:): `fn-*` | 17,250 | 15,364 | 15,345 | 6 | 19 | 0 | 1,886 | 99.9 % |
 | Operators (F&O 4.0, op:): `op-*` | 4,789 | 3,811 | 3,810 | 0 | 1 | 0 | 978 | 100.0 % |
-| Grammar productions (XPath/XQuery 4.0): `prod-*` | 14,932 | 8,943 | 8,933 | 1 | 10 | 0 | 5,989 | 99.9 % |
-| Map functions (map:): `map-*` | 361 | 353 | 352 | 0 | 1 | 0 | 8 | 99.7 % |
-| Array functions (array:): `array-*` | 537 | 495 | 494 | 0 | 1 | 0 | 42 | 99.8 % |
+| Grammar productions (XPath/XQuery 4.0): `prod-*` | 14,932 | 8,944 | 8,943 | 1 | 1 | 0 | 5,988 | 100.0 % |
+| Map functions (map:): `map-*` | 361 | 353 | 353 | 0 | 0 | 0 | 8 | 100.0 % |
+| Array functions (array:): `array-*` | 537 | 495 | 495 | 0 | 0 | 0 | 42 | 100.0 % |
 | Math functions (math:): `math-*` | 181 | 181 | 181 | 0 | 0 | 0 | 0 | 100.0 % |
-| Constructor functions and types (xs:): `xs-*` | 227 | 194 | 193 | 0 | 1 | 0 | 33 | 99.5 % |
-| Miscellaneous: `misc-*` | 3,042 | 784 | 782 | 0 | 2 | 0 | 2,258 | 99.7 % |
-| Applications: `app-*` | 3,034 | 1,776 | 1,771 | 0 | 5 | 0 | 1,258 | 99.7 % |
+| Constructor functions and types (xs:): `xs-*` | 227 | 194 | 194 | 0 | 0 | 0 | 33 | 100.0 % |
+| Miscellaneous: `misc-*` | 3,042 | 784 | 783 | 0 | 1 | 0 | 2,258 | 99.9 % |
+| Applications: `app-*` | 3,034 | 1,776 | 1,772 | 0 | 4 | 0 | 1,258 | 99.8 % |
 | Serialization methods: `method-*` | 508 | 0 | 0 | 0 | 0 | 0 | 508 | – |
 | XQuery Update: `upd-*` | 825 | 0 | 0 | 0 | 0 | 0 | 825 | – |
 | XQuery Full Text: `ft-*` | 685 | 0 | 0 | 0 | 0 | 0 | 685 | – |
@@ -48,12 +48,8 @@ Failed and error test cases by the error code the query raised (or the status th
 
 | Error code | Test cases |
 |---|--:|
-| (no error: wrong result) | 42 |
-| XPTY0004 | 5 |
-| FODC0013 | 2 |
-| XPST0017 | 2 |
-| FODC0014 | 1 |
-| FOTY0014 | 1 |
+| (no error: wrong result) | 20 |
+| XPTY0004 | 4 |
 | FOXT0002 | 1 |
 | SEPM0016 | 1 |
 
@@ -61,30 +57,16 @@ The 25 most frequent reasons:
 
 | Cause | Test cases |
 |---|--:|
-| wrong result (assert-true) | 7 |
+| wrong result (assert-true) | 6 |
 | wrong result (assert-xml) | 6 |
-| wrong result (assert-eq) | 5 |
 | XPTY0004: The value does not match the required type (XPath 4.0, section 3.4, coercion rules) | 4 |
-| wrong result (assert) | 4 |
-| wrong result (assert-deep-eq) | 3 |
-| wrong result (assert-false) | 3 |
-| wrong result (assert-string-value) | 3 |
-| FODC0013: The XML parser does not support the requested option (XInclude) | 2 |
-| XPST0017: no function with this name and arity is known | 2 |
-| error: expected FOQM0006, got () | 2 |
-| error: expected XPTY0004, got false() | 2 |
-| FODC0014: Strict validation of a document whose element has no declaration in the static context (F… | 1 |
-| FOTY0014: A function item, map or array has no string value (F&O 4.0, fn:string) | 1 |
+| wrong result (assert-eq) | 3 |
+| wrong result (assert) | 2 |
 | FOXT0002: the stylesheet or source location cannot be read (F&O 4.0, 18.3) | 1 |
 | SEPM0016: line-ending must be a newline, a carriage return, or both | 1 |
-| XPTY0004: A function item is called with a number of arguments other than its arity (XPath 4.0, sec… | 1 |
 | error: expected FODC0011, got <html xmlns="http://www.w3.org/1999/xhtml"><head> <title>Contains unm… | 1 |
-| error: expected FOTY0012, got "ns:barns:bar2ns:barDerivurn1test1test2" | 1 |
-| error: expected FOTY0012, got 38 | 1 |
-| error: expected XPST0154, got ("", "ex", "a") | 1 |
-| error: expected XQST0039, got true() | 1 |
-| error: expected XQST0070, got () | 1 |
-| wrong result (assert-empty) | 1 |
+| error: expected XPTY0004, got false() | 1 |
+| wrong result (assert-false) | 1 |
 
 Wrong errors (counted as passed) by the error raised:
 
@@ -92,9 +74,8 @@ Wrong errors (counted as passed) by the error raised:
 |---|--:|
 | XPTY0004: The value does not match the required type (XPath 4.0, section 3.4, coercion rules) | 23 |
 | FODC0014: Strict validation of a document whose element has no declaration in the static context (F… | 2 |
-| FOTY0014: A function item, map or array has no string value (F&O 4.0, fn:string) | 2 |
 | XPST0017: no function with this name and arity is known | 2 |
-| FODC0002: The file cannot be read | 1 |
+| FODC0002: The file cannot be read (:/) | 1 |
 | FODT0001: the year is beyond the range this implementation supports | 1 |
 | FOJS0005: An option has a value that is not allowed for it | 1 |
 
@@ -103,12 +84,11 @@ Not run, by the first dependency that is not met:
 | Reason | Test cases |
 |---|--:|
 | spec: not applicable to this language | 14,385 |
-| feature fn-load-xquery-module | 79 |
 | feature staticTyping | 48 |
+| feature fn-load-xquery-module (satisfied) | 17 |
 | feature fn-transform-XSLT (satisfied) | 4 |
 | feature dtd-validation-option (satisfied) | 2 |
 | feature schemaImport (satisfied) | 2 |
-| format-integer-sequence ١ | 2 |
 | unicode-normalization-form FULLY-NORMALIZED (satisfied) | 2 |
 | unicode-version 7.0 | 2 |
 | xsd-version 1.0 | 2 |
@@ -117,36 +97,23 @@ Not run, by the first dependency that is not met:
 | feature expath-file (satisfied) | 1 |
 | feature fn-invisible-xml (satisfied) | 1 |
 | feature fn-transform-XSLT30 (satisfied) | 1 |
+| feature schemaValidation (satisfied) | 1 |
 
 ### XP40 test sets with the most failures
 
 | Test set | Test cases | Passed | Failed | Errors | Not run |
 |---|--:|--:|--:|--:|--:|
-| app-spec-examples | 1,498 | 1,353 | 5 | 0 | 140 |
-| fn-deep-equal | 587 | 448 | 5 | 0 | 134 |
 | fn-format-number | 308 | 285 | 5 | 0 | 18 |
-| fn-doc-available | 47 | 40 | 4 | 0 | 3 |
-| fn-function-lookup | 684 | 657 | 3 | 0 | 24 |
+| app-spec-examples | 1,498 | 1,354 | 4 | 0 | 140 |
+| fn-deep-equal | 587 | 449 | 4 | 0 | 134 |
 | fn-serialize | 292 | 225 | 3 | 0 | 64 |
 | fn-transform | 137 | 127 | 3 | 0 | 7 |
-| fn-element-with-id | 5 | 3 | 2 | 0 | 0 |
 | fn-map-to-element | 233 | 226 | 2 | 0 | 5 |
-| misc-BuiltInKeywords | 304 | 302 | 2 | 0 | 0 |
-| prod-EQName | 54 | 30 | 2 | 0 | 22 |
-| prod-NodeTest | 84 | 32 | 2 | 0 | 50 |
-| array-sort-with | 25 | 24 | 1 | 0 | 0 |
-| fn-collection | 33 | 24 | 1 | 0 | 8 |
-| fn-doc | 75 | 67 | 1 | 0 | 7 |
+| fn-doc-available | 47 | 43 | 1 | 0 | 3 |
 | fn-html-doc | 10 | 9 | 1 | 0 | 0 |
-| fn-normalize-space | 47 | 45 | 1 | 0 | 1 |
-| fn-slice | 104 | 99 | 1 | 0 | 4 |
-| fn-string | 82 | 81 | 1 | 0 | 0 |
-| fn-string-length | 44 | 41 | 1 | 0 | 2 |
-| map-build | 60 | 57 | 1 | 0 | 2 |
+| misc-BuiltInKeywords | 304 | 303 | 1 | 0 | 0 |
 | op-same-key | 30 | 11 | 1 | 0 | 18 |
-| prod-AxisStep.J | 155 | 126 | 1 | 0 | 28 |
-| prod-CompElemConstructor | 114 | 42 | 1 | 0 | 71 |
-| prod-DefaultNamespaceDecl | 82 | 2 | 1 | 0 | 79 |
+| prod-SequenceType | 66 | 63 | 1 | 0 | 2 |
 
 ### Every XP40 test set
 
@@ -180,7 +147,7 @@ Not run, by the first dependency that is not met:
 | fn-collation | 89 | 89 | 0 | 0 | 0 | 0 |
 | fn-collation-available | 8 | 8 | 0 | 0 | 0 | 0 |
 | fn-collation-key | 37 | 37 | 0 | 0 | 0 | 0 |
-| fn-collection | 33 | 24 | 0 | 1 | 0 | 8 |
+| fn-collection | 33 | 25 | 0 | 0 | 0 | 8 |
 | fn-compare | 235 | 234 | 0 | 0 | 0 | 1 |
 | fn-concat | 111 | 106 | 0 | 0 | 0 | 5 |
 | fn-contains | 82 | 72 | 0 | 0 | 0 | 10 |
@@ -199,20 +166,20 @@ Not run, by the first dependency that is not met:
 | fn-days-from-duration | 33 | 33 | 0 | 0 | 0 | 0 |
 | fn-days-in-month | 18 | 18 | 0 | 0 | 0 | 0 |
 | fn-decode-from-uri | 29 | 29 | 0 | 0 | 0 | 0 |
-| fn-deep-equal | 587 | 448 | 0 | 5 | 0 | 134 |
+| fn-deep-equal | 587 | 449 | 0 | 4 | 0 | 134 |
 | fn-default-collation | 7 | 7 | 0 | 0 | 0 | 0 |
 | fn-default-language | 6 | 6 | 0 | 0 | 0 | 0 |
 | fn-distinct-ordered-nodes | 10 | 10 | 0 | 0 | 0 | 0 |
 | fn-distinct-values | 125 | 106 | 0 | 0 | 0 | 19 |
 | fn-divide-decimals | 21 | 21 | 0 | 0 | 0 | 0 |
-| fn-doc | 75 | 67 | 3 | 1 | 0 | 7 |
-| fn-doc-available | 47 | 40 | 0 | 4 | 0 | 3 |
+| fn-doc | 75 | 68 | 3 | 0 | 0 | 7 |
+| fn-doc-available | 47 | 43 | 0 | 1 | 0 | 3 |
 | fn-document-uri | 55 | 24 | 0 | 0 | 0 | 31 |
 | fn-do-until | 25 | 25 | 0 | 0 | 0 | 0 |
 | fn-drop-while | 18 | 18 | 0 | 0 | 0 | 0 |
 | fn-duplicate-values | 128 | 113 | 0 | 0 | 0 | 15 |
 | fn-duration-to-seconds | 18 | 18 | 0 | 0 | 0 | 0 |
-| fn-element-with-id | 5 | 3 | 0 | 2 | 0 | 0 |
+| fn-element-with-id | 5 | 5 | 0 | 0 | 0 | 0 |
 | fn-element-to-map | 220 | 181 | 0 | 0 | 0 | 39 |
 | fn-element-to-map-plan | 21 | 20 | 0 | 0 | 0 | 1 |
 | fn-empty | 54 | 52 | 0 | 0 | 0 | 2 |
@@ -236,12 +203,12 @@ Not run, by the first dependency that is not met:
 | fn-for-each-pair | 55 | 48 | 0 | 0 | 0 | 7 |
 | fn-format-date | 138 | 136 | 0 | 0 | 0 | 2 |
 | fn-format-dateTime | 94 | 88 | 0 | 0 | 0 | 6 |
-| fn-format-integer | 102 | 94 | 0 | 0 | 0 | 8 |
+| fn-format-integer | 102 | 102 | 0 | 0 | 0 | 0 |
 | fn-format-number | 308 | 285 | 0 | 5 | 0 | 18 |
 | fn-format-time | 98 | 94 | 0 | 0 | 0 | 4 |
 | fn-function-annotations | 25 | 14 | 0 | 0 | 0 | 11 |
 | fn-function-arity | 23 | 19 | 1 | 0 | 0 | 4 |
-| fn-function-lookup | 684 | 657 | 0 | 3 | 0 | 24 |
+| fn-function-lookup | 684 | 661 | 0 | 0 | 0 | 23 |
 | fn-function-name | 30 | 26 | 1 | 0 | 0 | 4 |
 | fn-generate-id | 41 | 33 | 0 | 0 | 0 | 8 |
 | fn-graphemes | 1,189 | 1,189 | 0 | 0 | 0 | 0 |
@@ -276,7 +243,7 @@ Not run, by the first dependency that is not met:
 | fn-jvalue | 16 | 16 | 0 | 0 | 0 | 0 |
 | fn-lang | 46 | 38 | 0 | 0 | 0 | 8 |
 | fn-last | 69 | 54 | 0 | 0 | 0 | 15 |
-| fn-load-xquery-module | 141 | 0 | 0 | 0 | 0 | 141 |
+| fn-load-xquery-module | 141 | 60 | 0 | 0 | 0 | 81 |
 | fn-local-name | 61 | 42 | 0 | 0 | 0 | 19 |
 | fn-local-name-from-QName | 28 | 27 | 0 | 0 | 0 | 1 |
 | fn-location | 5 | 5 | 0 | 0 | 0 | 0 |
@@ -302,7 +269,7 @@ Not run, by the first dependency that is not met:
 | fn-nilled | 65 | 31 | 0 | 0 | 0 | 34 |
 | fn-node-name | 48 | 17 | 0 | 0 | 0 | 31 |
 | fn-node-type-annotation | 7 | 7 | 0 | 0 | 0 | 0 |
-| fn-normalize-space | 47 | 45 | 0 | 1 | 0 | 1 |
+| fn-normalize-space | 47 | 46 | 0 | 0 | 0 | 1 |
 | fn-normalize-unicode | 50 | 44 | 0 | 0 | 0 | 6 |
 | fn-not | 83 | 80 | 0 | 0 | 0 | 3 |
 | fn-number | 80 | 74 | 0 | 0 | 0 | 6 |
@@ -345,7 +312,7 @@ Not run, by the first dependency that is not met:
 | fn-seconds-from-time | 28 | 28 | 0 | 0 | 0 | 0 |
 | fn-serialize | 292 | 225 | 0 | 3 | 0 | 64 |
 | fn-siblings | 19 | 18 | 0 | 0 | 0 | 1 |
-| fn-slice | 104 | 99 | 0 | 1 | 0 | 4 |
+| fn-slice | 104 | 100 | 0 | 0 | 0 | 4 |
 | fn-some | 33 | 30 | 0 | 0 | 0 | 3 |
 | fn-sort | 50 | 40 | 0 | 0 | 0 | 10 |
 | fn-sort-by | 66 | 56 | 0 | 0 | 0 | 10 |
@@ -353,9 +320,9 @@ Not run, by the first dependency that is not met:
 | fn-starts-with | 69 | 69 | 0 | 0 | 0 | 0 |
 | fn-starts-with-subsequence | 33 | 32 | 0 | 0 | 0 | 1 |
 | fn-static-base-uri | 18 | 5 | 0 | 0 | 0 | 13 |
-| fn-string | 82 | 81 | 1 | 1 | 0 | 0 |
+| fn-string | 82 | 82 | 0 | 0 | 0 | 0 |
 | fn-string-join | 48 | 40 | 0 | 0 | 0 | 8 |
-| fn-string-length | 44 | 41 | 1 | 1 | 0 | 2 |
+| fn-string-length | 44 | 42 | 0 | 0 | 0 | 2 |
 | fn-string-to-codepoints | 44 | 44 | 0 | 0 | 0 | 0 |
 | fn-subsequence | 122 | 120 | 0 | 0 | 0 | 2 |
 | fn-substring | 74 | 74 | 0 | 0 | 0 | 0 |
@@ -413,7 +380,7 @@ Not run, by the first dependency that is not met:
 | math-sqrt | 9 | 9 | 0 | 0 | 0 | 0 |
 | math-tan | 11 | 11 | 0 | 0 | 0 | 0 |
 | math-tanh | 9 | 9 | 0 | 0 | 0 | 0 |
-| map-build | 60 | 57 | 0 | 1 | 0 | 2 |
+| map-build | 60 | 58 | 0 | 0 | 0 | 2 |
 | map-contains | 28 | 28 | 0 | 0 | 0 | 0 |
 | map-empty | 6 | 6 | 0 | 0 | 0 | 0 |
 | map-entries | 17 | 16 | 0 | 0 | 0 | 1 |
@@ -454,7 +421,7 @@ Not run, by the first dependency that is not met:
 | array-slice | 91 | 88 | 0 | 0 | 0 | 3 |
 | array-sort | 37 | 29 | 0 | 0 | 0 | 8 |
 | array-sort-by | 56 | 48 | 0 | 0 | 0 | 8 |
-| array-sort-with | 25 | 24 | 0 | 1 | 0 | 0 |
+| array-sort-with | 25 | 25 | 0 | 0 | 0 | 0 |
 | array-split | 11 | 11 | 0 | 0 | 0 | 0 |
 | array-subarray | 24 | 22 | 0 | 0 | 0 | 2 |
 | array-tail | 6 | 5 | 0 | 0 | 0 | 1 |
@@ -468,7 +435,7 @@ Not run, by the first dependency that is not met:
 | xs-duration | 11 | 11 | 0 | 0 | 0 | 0 |
 | xs-error | 63 | 44 | 0 | 0 | 0 | 19 |
 | xs-float | 12 | 11 | 0 | 0 | 0 | 1 |
-| xs-hexBinary | 6 | 3 | 0 | 1 | 0 | 2 |
+| xs-hexBinary | 6 | 4 | 0 | 0 | 0 | 2 |
 | xs-normalizedString | 7 | 6 | 0 | 0 | 0 | 1 |
 | xs-notation | 2 | 2 | 0 | 0 | 0 | 0 |
 | xs-numeric | 22 | 21 | 0 | 0 | 0 | 1 |
@@ -576,7 +543,7 @@ Not run, by the first dependency that is not met:
 | prod-AxisStep.preceding-sibling-or-self | 32 | 21 | 0 | 0 | 0 | 11 |
 | prod-AxisStep.static-typing | 15 | 0 | 0 | 0 | 0 | 15 |
 | prod-AxisStep.unabbr | 26 | 26 | 0 | 0 | 0 | 0 |
-| prod-AxisStep.J | 155 | 126 | 0 | 1 | 0 | 28 |
+| prod-AxisStep.J | 155 | 127 | 0 | 0 | 0 | 28 |
 | prod-BaseURIDecl | 38 | 0 | 0 | 0 | 0 | 38 |
 | prod-BoundarySpaceDecl | 28 | 0 | 0 | 0 | 0 | 28 |
 | prod-BracedActions | 34 | 25 | 0 | 0 | 0 | 9 |
@@ -592,7 +559,7 @@ Not run, by the first dependency that is not met:
 | prod-CompAttrConstructor | 148 | 12 | 0 | 0 | 0 | 136 |
 | prod-CompDocConstructor | 59 | 24 | 0 | 0 | 0 | 35 |
 | prod-CompCommentConstructor | 29 | 17 | 0 | 0 | 0 | 12 |
-| prod-CompElemConstructor | 114 | 42 | 0 | 1 | 0 | 71 |
+| prod-CompElemConstructor | 114 | 43 | 0 | 0 | 0 | 71 |
 | prod-CompNamespaceConstructor | 52 | 6 | 0 | 0 | 0 | 46 |
 | prod-CompPIConstructor | 66 | 29 | 0 | 0 | 0 | 37 |
 | prod-CompTextConstructor | 39 | 14 | 0 | 0 | 0 | 25 |
@@ -606,7 +573,7 @@ Not run, by the first dependency that is not met:
 | prod-CurlyArrayConstructor | 5 | 2 | 0 | 0 | 0 | 3 |
 | prod-DecimalFormatDecl | 47 | 0 | 0 | 0 | 0 | 47 |
 | prod-DefaultCollationDecl | 12 | 0 | 0 | 0 | 0 | 12 |
-| prod-DefaultNamespaceDecl | 82 | 2 | 0 | 1 | 0 | 79 |
+| prod-DefaultNamespaceDecl | 82 | 3 | 0 | 0 | 0 | 79 |
 | prod-DirAttributeList | 136 | 0 | 0 | 0 | 0 | 136 |
 | prod-DirectConstructor | 93 | 2 | 0 | 0 | 0 | 91 |
 | prod-DirElemConstructor | 73 | 0 | 0 | 0 | 0 | 73 |
@@ -615,7 +582,7 @@ Not run, by the first dependency that is not met:
 | prod-DirElemContent.whitespace | 83 | 0 | 0 | 0 | 0 | 83 |
 | prod-DynamicFunctionCall | 93 | 73 | 0 | 0 | 0 | 20 |
 | prod-EmptyOrderDecl | 38 | 0 | 0 | 0 | 0 | 38 |
-| prod-EQName | 54 | 30 | 0 | 2 | 0 | 22 |
+| prod-EQName | 54 | 32 | 0 | 0 | 0 | 22 |
 | prod-EnumerationType | 35 | 35 | 0 | 0 | 0 | 0 |
 | prod-ExtensionExpr | 81 | 0 | 0 | 0 | 0 | 81 |
 | prod-FLWORExpr | 26 | 0 | 0 | 0 | 0 | 26 |
@@ -635,7 +602,7 @@ Not run, by the first dependency that is not met:
 | prod-IfExpr | 43 | 30 | 0 | 0 | 0 | 13 |
 | prod-InlineFunctionExpr | 48 | 29 | 0 | 0 | 0 | 19 |
 | prod-InlineFunctionExpr.focus | 30 | 23 | 0 | 0 | 0 | 7 |
-| prod-InstanceofExpr | 328 | 283 | 0 | 1 | 0 | 44 |
+| prod-InstanceofExpr | 328 | 284 | 0 | 0 | 0 | 44 |
 | prod-ItemTypeDecl | 80 | 0 | 0 | 0 | 0 | 80 |
 | prod-KeywordArguments | 1 | 1 | 0 | 0 | 0 | 0 |
 | prod-LambdaExpr | 8 | 8 | 0 | 0 | 0 | 0 |
@@ -649,10 +616,10 @@ Not run, by the first dependency that is not met:
 | prod-ModuleImport | 141 | 0 | 0 | 0 | 0 | 141 |
 | prod-NamedFunctionRef | 565 | 550 | 0 | 0 | 0 | 15 |
 | prod-NamedRecordTypeDecl | 94 | 0 | 0 | 0 | 0 | 94 |
-| prod-NamespaceDecl | 55 | 26 | 0 | 1 | 0 | 28 |
+| prod-NamespaceDecl | 55 | 27 | 0 | 0 | 0 | 28 |
 | prod-NameTest | 127 | 51 | 0 | 0 | 0 | 76 |
 | prod-NameTestUnion | 37 | 27 | 0 | 0 | 0 | 10 |
-| prod-NodeTest | 84 | 32 | 0 | 2 | 0 | 50 |
+| prod-NodeTest | 84 | 34 | 0 | 0 | 0 | 50 |
 | prod-OptionDecl | 9 | 0 | 0 | 0 | 0 | 9 |
 | prod-OptionDecl.serialization | 40 | 0 | 0 | 0 | 0 | 40 |
 | prod-OrExpr | 376 | 334 | 0 | 0 | 0 | 42 |
@@ -660,7 +627,7 @@ Not run, by the first dependency that is not met:
 | prod-OrderingModeDecl | 29 | 0 | 0 | 0 | 0 | 29 |
 | prod-OtherwiseExpr | 10 | 10 | 0 | 0 | 0 | 0 |
 | prod-PathExpr | 34 | 24 | 0 | 0 | 0 | 10 |
-| prod-PathExpr.J | 186 | 174 | 0 | 1 | 0 | 11 |
+| prod-PathExpr.J | 186 | 175 | 0 | 0 | 0 | 11 |
 | prod-ParenthesizedExpr | 20 | 14 | 0 | 0 | 0 | 6 |
 | prod-PositionalVar | 34 | 0 | 0 | 0 | 0 | 34 |
 | prod-PipelineExpr | 14 | 14 | 0 | 0 | 0 | 0 |
@@ -669,7 +636,7 @@ Not run, by the first dependency that is not met:
 | prod-RecordType | 23 | 17 | 0 | 0 | 0 | 6 |
 | prod-ReturnClause | 21 | 15 | 0 | 0 | 0 | 6 |
 | prod-SchemaImport | 145 | 0 | 0 | 0 | 0 | 145 |
-| prod-SequenceType | 66 | 63 | 0 | 0 | 0 | 3 |
+| prod-SequenceType | 66 | 63 | 0 | 1 | 0 | 2 |
 | prod-SquareArrayConstructor | 7 | 2 | 0 | 0 | 0 | 5 |
 | prod-StepExpr | 70 | 9 | 0 | 0 | 0 | 61 |
 | prod-StringConstructor | 55 | 0 | 0 | 0 | 0 | 55 |
@@ -691,7 +658,7 @@ Not run, by the first dependency that is not met:
 | prod-WhereClause | 85 | 0 | 0 | 0 | 0 | 85 |
 | prod-WhileClause | 83 | 0 | 0 | 0 | 0 | 83 |
 | prod-WindowClause | 158 | 0 | 0 | 0 | 0 | 158 |
-| misc-BuiltInKeywords | 304 | 302 | 0 | 2 | 0 | 0 |
+| misc-BuiltInKeywords | 304 | 303 | 0 | 1 | 0 | 0 |
 | misc-CombinedErrorCodes | 264 | 1 | 0 | 0 | 0 | 263 |
 | misc-AnnexE | 8 | 0 | 0 | 0 | 0 | 8 |
 | misc-AppendixA4 | 9 | 9 | 0 | 0 | 0 | 0 |
@@ -733,7 +700,7 @@ Not run, by the first dependency that is not met:
 | app-UseCaseXMP | 12 | 0 | 0 | 0 | 0 | 12 |
 | app-Walmsley | 223 | 1 | 0 | 0 | 0 | 222 |
 | app-XMark | 21 | 0 | 0 | 0 | 0 | 21 |
-| app-spec-examples | 1,498 | 1,353 | 0 | 5 | 0 | 140 |
+| app-spec-examples | 1,498 | 1,354 | 0 | 4 | 0 | 140 |
 | bin-and | 11 | 11 | 0 | 0 | 0 | 0 |
 | bin-bin | 19 | 19 | 0 | 0 | 0 | 0 |
 | bin-count-bits-set | 11 | 11 | 0 | 0 | 0 | 0 |
@@ -901,28 +868,28 @@ Not run, by the first dependency that is not met:
 
 | Specification | Test cases | Run | Passed | of which wrong error | Failed | Errors | Not run | Passed of run |
 |---|--:|--:|--:|--:|--:|--:|--:|--:|
-| XQ40 | 47,313 | 46,208 | 46,017 | 53 | 191 | 0 | 1,105 | 99.6 % |
+| XQ40 | 47,313 | 46,232 | 46,158 | 44 | 74 | 0 | 1,081 | 99.8 % |
 
-Gate rate (D95): 44,252 of 44,464 in-scope test cases passed, **99.5 %** (in scope: the spec matches and no non-goal is needed; not-run cases count as not passed).
+Gate rate (D95): 44,363 of 44,464 in-scope test cases passed, **99.8 %** (in scope: the spec matches and no non-goal is needed; not-run cases count as not passed).
 
-Schema-aware (D174, area "schema-aware"): 1,416 of 1,516 test cases passed, **93.4 %** (the test cases that need schemaImport, schemaValidation or typedData, or whose environment has a schema or a validated source; outside the D95 denominator unless only their environment is schema-aware; not-run cases count as not passed).
+Schema-aware (D174, area "schema-aware"): 1,446 of 1,516 test cases passed, **95.4 %** (the test cases that need schemaImport, schemaValidation or typedData, or whose environment has a schema or a validated source; outside the D95 denominator unless only their environment is schema-aware; not-run cases count as not passed).
 
-XQ-only (run, the spec does not admit XP40): 13,338 of 13,481 passed, **98.9 %**.
+XQ-only (run, the spec does not admit XP40): 13,440 of 13,497 passed, **99.6 %**.
 
 ### XQ40 by area
 
 | Area (test-set prefix) | Test cases | Run | Passed | of which wrong error | Failed | Errors | Not run | Passed of run |
 |---|--:|--:|--:|--:|--:|--:|--:|--:|
-| Functions (F&O 4.0, fn:): `fn-*` | 17,250 | 16,897 | 16,829 | 11 | 68 | 0 | 353 | 99.6 % |
+| Functions (F&O 4.0, fn:): `fn-*` | 17,250 | 16,905 | 16,879 | 7 | 26 | 0 | 345 | 99.8 % |
 | Operators (F&O 4.0, op:): `op-*` | 4,789 | 4,692 | 4,690 | 0 | 2 | 0 | 97 | 100.0 % |
-| Grammar productions (XPath/XQuery 4.0): `prod-*` | 14,932 | 14,484 | 14,426 | 17 | 58 | 0 | 448 | 99.6 % |
-| Map functions (map:): `map-*` | 361 | 358 | 357 | 0 | 1 | 0 | 3 | 99.7 % |
-| Array functions (array:): `array-*` | 537 | 534 | 532 | 0 | 2 | 0 | 3 | 99.6 % |
+| Grammar productions (XPath/XQuery 4.0): `prod-*` | 14,932 | 14,487 | 14,476 | 13 | 11 | 0 | 445 | 99.9 % |
+| Map functions (map:): `map-*` | 361 | 358 | 358 | 0 | 0 | 0 | 3 | 100.0 % |
+| Array functions (array:): `array-*` | 537 | 534 | 534 | 0 | 0 | 0 | 3 | 100.0 % |
 | Math functions (math:): `math-*` | 181 | 181 | 181 | 0 | 0 | 0 | 0 | 100.0 % |
-| Constructor functions and types (xs:): `xs-*` | 227 | 215 | 214 | 0 | 1 | 0 | 12 | 99.5 % |
-| Miscellaneous: `misc-*` | 3,042 | 2,940 | 2,929 | 2 | 11 | 0 | 102 | 99.6 % |
-| Applications: `app-*` | 3,034 | 3,033 | 3,021 | 0 | 12 | 0 | 1 | 99.6 % |
-| Serialization methods: `method-*` | 508 | 452 | 437 | 0 | 15 | 0 | 56 | 96.7 % |
+| Constructor functions and types (xs:): `xs-*` | 227 | 215 | 215 | 0 | 0 | 0 | 12 | 100.0 % |
+| Miscellaneous: `misc-*` | 3,042 | 2,953 | 2,951 | 1 | 2 | 0 | 89 | 99.9 % |
+| Applications: `app-*` | 3,034 | 3,033 | 3,025 | 0 | 8 | 0 | 1 | 99.7 % |
+| Serialization methods: `method-*` | 508 | 452 | 448 | 0 | 4 | 0 | 56 | 99.1 % |
 | XQuery Update: `upd-*` | 825 | 795 | 787 | 0 | 8 | 0 | 30 | 99.0 % |
 | XQuery Full Text: `ft-*` | 685 | 685 | 672 | 0 | 13 | 0 | 0 | 98.1 % |
 | EXPath Binary: `bin-*` | 672 | 672 | 672 | 23 | 0 | 0 | 0 | 100.0 % |
@@ -934,60 +901,41 @@ Failed and error test cases by the error code the query raised (or the status th
 
 | Error code | Test cases |
 |---|--:|
-| (no error: wrong result) | 143 |
-| XPTY0004 | 4 |
-| XQDY0027 | 4 |
+| (no error: wrong result) | 63 |
 | XQST0059 | 4 |
-| XQST0090 | 4 |
-| FONS0004 | 3 |
-| XQDY0084 | 3 |
-| XQST0085 | 3 |
-| FODC0013 | 2 |
-| FODF1280 | 2 |
-| FOJS0006 | 2 |
-| SEPM0009 | 2 |
-| SERE0006 | 2 |
-| XPDY0002 | 2 |
-| XQDY0054 | 2 |
+| XQDY0027 | 2 |
 | FODC0002 | 1 |
-| FODC0014 | 1 |
-| FODF1310 | 1 |
-| FOQM0003 | 1 |
-| FOTY0014 | 1 |
+| FOJS0006 | 1 |
 | FOXT0002 | 1 |
 | SERE0025 | 1 |
-| XPST0051 | 1 |
-| XPST0081 | 1 |
+| XPDY0002 | 1 |
 
 The 25 most frequent reasons:
 
 | Cause | Test cases |
 |---|--:|
-| wrong result (assert-xml) | 36 |
-| wrong result (assert-true) | 15 |
-| wrong result (assert) | 14 |
-| wrong result (assert-eq) | 12 |
-| wrong result (assert-string-value) | 10 |
-| wrong result (assert-false) | 8 |
-| wrong result (serialization-matches) | 8 |
-| wrong result (assert-deep-eq) | 7 |
-| error: expected XPTY0004, got true() | 5 |
+| wrong result (assert-xml) | 32 |
+| wrong result (assert-true) | 8 |
 | XQST0059: no module is found for an imported namespace | 4 |
-| XQST0090: A character reference does not identify an XML 1.0 character (XQuery 4.0, 4.3.1.2) | 4 |
-| error: expected XPTY0004, got false() | 4 |
-| FONS0004: no namespace is bound to the prefix | 3 |
-| XQDY0084: Strict validation of an element whose name has no global element declaration among the in… | 3 |
-| XQST0085: A namespace declaration attribute binds a prefix to the zero-length URI, which XML Names… | 3 |
-| FODC0013: The XML parser does not support the requested option (XInclude) | 2 |
-| FODF1280: The static context has no decimal format of that name (F&O 4.0, section 4.9.2) | 2 |
-| FOJS0006: The node is not the XML representation of JSON (F&O 4.0, section 17.4.2) | 2 |
-| XQDY0027: cvc-id.1: the IDREF 'ID21256' names no ID of the document | 2 |
-| XQDY0054: the value of a variable depends on itself | 2 |
-| error: expected XQST0146, got 42 | 2 |
-| serialization-matches: serializing raised err:SEPM0009: omit-xml-declaration is yes while standalon… | 2 |
-| serialization-matches: serializing raised err:SERE0006: a control character is not allowed by XML 1… | 2 |
-| wrong result (assert-empty) | 2 |
-| wrong result (assert-type) | 2 |
+| wrong result (assert) | 4 |
+| wrong result (assert-deep-eq) | 3 |
+| wrong result (assert-false) | 3 |
+| wrong result (serialization-matches) | 3 |
+| error: expected XPTY0004, got false() | 2 |
+| wrong result (assert-string-value) | 2 |
+| FODC0002: The file cannot be read (scene.xml) | 1 |
+| FOJS0006: The node is not the XML representation of JSON (F&O 4.0, section 17.4.2) | 1 |
+| FOXT0002: the stylesheet or source location cannot be read (F&O 4.0, 18.3) | 1 |
+| XPDY0002: A step that selects from a JNode is evaluated with an absent focus, and this one depends… | 1 |
+| XQDY0027: cvc-id.1: the IDREF 'MMP' names no ID of the document | 1 |
+| XQDY0027: cvc-id.1: the IDREF 'P' names no ID of the document | 1 |
+| error: expected FODC0011, got <html xmlns="http://www.w3.org/1999/xhtml"><head> <title>Contains unm… | 1 |
+| error: expected XPDY0002, got 1 | 1 |
+| error: expected XPTY0004, got {"is-valid":false(),"typed-node":(),"error-details":()} | 1 |
+| serialization-matches: serializing raised err:SERE0025: the CSV method needs a parsed CSV structure… | 1 |
+| wrong result (assert-empty) | 1 |
+| wrong result (assert-eq) | 1 |
+| wrong result (assert-type) | 1 |
 
 Wrong errors (counted as passed) by the error raised:
 
@@ -998,11 +946,11 @@ Wrong errors (counted as passed) by the error raised:
 | XPST0017: no function with this name and arity is known | 3 |
 | FODC0014: Strict validation of a document whose element has no declaration in the static context (F… | 2 |
 | FORG0001: the value is not in the value space of the target type | 2 |
-| FOTY0014: A function item, map or array has no string value (F&O 4.0, fn:string) | 2 |
-| SEPM0009: omit-xml-declaration is yes while standalone is given, or while doctype-system is given w… | 2 |
-| XPST0051: the type name is not defined | 2 |
-| XQDY0054: the value of a variable depends on itself | 2 |
-| XQDY0084: Strict validation of an element whose name has no global element declaration among the in… | 2 |
+| XQDY0054: A global variable depends on itself (XQuery 4.0, section 5.16) | 2 |
+| FODC0002: The file cannot be read (:/) | 1 |
+| FODC0015: The type option names no type of the schema (F&O 4.0, 17.2.5) | 1 |
+| FODT0001: the year is beyond the range this implementation supports | 1 |
+| FOJS0005: An option has a value that is not allowed for it | 1 |
 
 Not run, by the first dependency that is not met:
 
@@ -1012,47 +960,47 @@ Not run, by the first dependency that is not met:
 | feature staticTyping | 104 |
 | xsd-version 1.0 | 59 |
 | feature fn-load-xquery-module (satisfied) | 17 |
-| feature moduleImport | 13 |
 | feature fn-transform-XSLT (satisfied) | 4 |
-| feature schema-location-hint | 3 |
 | feature typedData (satisfied) | 3 |
 | feature dtd-validation-option (satisfied) | 2 |
 | feature schemaImport (satisfied) | 2 |
 | feature serialization (satisfied) | 2 |
-| format-integer-sequence ١ | 2 |
 | unicode-normalization-form FULLY-NORMALIZED (satisfied) | 2 |
 | unicode-version 7.0 | 2 |
 | xml-version 1.0:4- | 2 |
+| feature binary (satisfied) | 1 |
+| feature directory-as-collection-uri | 1 |
+| feature expath-file (satisfied) | 1 |
 
 ### XQ40 test sets with the most failures
 
 | Test set | Test cases | Passed | Failed | Errors | Not run |
 |---|--:|--:|--:|--:|--:|
-| app-spec-examples | 1,498 | 1,488 | 10 | 0 | 0 |
-| fn-load-xquery-module | 141 | 116 | 9 | 0 | 16 |
-| method-xml | 74 | 64 | 8 | 0 | 2 |
 | fn-analyze-string | 49 | 41 | 7 | 0 | 1 |
-| fn-deep-equal | 587 | 576 | 7 | 0 | 4 |
+| app-spec-examples | 1,498 | 1,492 | 6 | 0 | 0 |
 | ft-UseCase-IGNORE | 8 | 2 | 6 | 0 | 0 |
-| method-adaptive | 140 | 94 | 6 | 0 | 40 |
 | upd-propagateNamespace | 6 | 0 | 6 | 0 | 0 |
-| fn-xsd-validator | 76 | 71 | 5 | 0 | 0 |
-| prod-ItemTypeDecl | 80 | 75 | 5 | 0 | 0 |
-| prod-NamedRecordTypeDecl | 94 | 89 | 5 | 0 | 0 |
-| fn-doc-available | 47 | 40 | 4 | 0 | 3 |
-| fn-xml-to-json | 170 | 160 | 4 | 0 | 6 |
-| misc-XMLEdition | 19 | 12 | 4 | 0 | 3 |
-| prod-ContextItemDecl | 53 | 45 | 4 | 0 | 4 |
-| prod-NameTest | 127 | 123 | 4 | 0 | 0 |
-| fn-function-name | 30 | 26 | 3 | 0 | 1 |
-| fn-idref | 54 | 51 | 3 | 0 | 0 |
-| fn-namespace-uri-from-QName | 30 | 25 | 3 | 0 | 2 |
+| fn-deep-equal | 587 | 578 | 5 | 0 | 4 |
+| prod-NamedRecordTypeDecl | 94 | 90 | 4 | 0 | 0 |
 | fn-transform | 137 | 130 | 3 | 0 | 4 |
-| misc-HigherOrderFunctions | 148 | 139 | 3 | 0 | 6 |
-| prod-EQName | 54 | 47 | 3 | 0 | 4 |
-| prod-ModuleImport | 141 | 121 | 3 | 0 | 17 |
-| prod-NodeTest | 84 | 78 | 3 | 0 | 3 |
-| fn-element-with-id | 5 | 3 | 2 | 0 | 0 |
+| fn-xsd-validator | 76 | 73 | 3 | 0 | 0 |
+| method-adaptive | 140 | 97 | 3 | 0 | 40 |
+| ft-UseCase-FULL-TEXT-COMPOSABILITY | 7 | 5 | 2 | 0 | 0 |
+| ft-UseCase-XQUERY-XPATH-COMPOSABILITY | 10 | 8 | 2 | 0 | 0 |
+| op-same-key | 30 | 27 | 2 | 0 | 1 |
+| app-CatalogCheck | 18 | 17 | 1 | 0 | 0 |
+| app-Demos | 13 | 12 | 1 | 0 | 0 |
+| fn-distinct-values | 125 | 119 | 1 | 0 | 5 |
+| fn-doc-available | 47 | 43 | 1 | 0 | 3 |
+| fn-duplicate-values | 128 | 127 | 1 | 0 | 0 |
+| fn-format-number | 308 | 301 | 1 | 0 | 6 |
+| fn-html-doc | 10 | 9 | 1 | 0 | 0 |
+| fn-json-to-xml | 104 | 97 | 1 | 0 | 6 |
+| fn-string-length | 44 | 42 | 1 | 0 | 1 |
+| fn-xml-to-json | 170 | 163 | 1 | 0 | 6 |
+| ft-FTUnitandFTBigUnit | 18 | 17 | 1 | 0 | 0 |
+| ft-FTWindow | 21 | 20 | 1 | 0 | 0 |
+| ft-UseCase-ELEMENT | 11 | 10 | 1 | 0 | 0 |
 
 ### Every XQ40 test set
 
@@ -1075,7 +1023,7 @@ Not run, by the first dependency that is not met:
 | fn-avg | 242 | 242 | 0 | 0 | 0 | 0 |
 | fn-base-uri | 83 | 82 | 0 | 0 | 0 | 1 |
 | fn-boolean | 147 | 147 | 0 | 0 | 0 | 0 |
-| fn-build-dateTime | 91 | 90 | 0 | 1 | 0 | 0 |
+| fn-build-dateTime | 91 | 91 | 0 | 0 | 0 | 0 |
 | fn-build-uri | 48 | 48 | 0 | 0 | 0 | 0 |
 | fn-ceiling | 94 | 94 | 0 | 0 | 0 | 0 |
 | fn-char | 48 | 48 | 0 | 0 | 0 | 0 |
@@ -1086,10 +1034,10 @@ Not run, by the first dependency that is not met:
 | fn-collation | 89 | 89 | 0 | 0 | 0 | 0 |
 | fn-collation-available | 8 | 8 | 0 | 0 | 0 | 0 |
 | fn-collation-key | 37 | 37 | 0 | 0 | 0 | 0 |
-| fn-collection | 33 | 31 | 0 | 1 | 0 | 1 |
+| fn-collection | 33 | 32 | 0 | 0 | 0 | 1 |
 | fn-compare | 235 | 234 | 0 | 0 | 0 | 1 |
 | fn-concat | 111 | 106 | 0 | 0 | 0 | 5 |
-| fn-contains | 82 | 81 | 0 | 1 | 0 | 0 |
+| fn-contains | 82 | 82 | 0 | 0 | 0 | 0 |
 | fn-contains-subsequence | 32 | 32 | 0 | 0 | 0 | 0 |
 | fn-contains-token | 48 | 48 | 0 | 0 | 0 | 0 |
 | fn-count | 316 | 316 | 0 | 0 | 0 | 0 |
@@ -1105,20 +1053,20 @@ Not run, by the first dependency that is not met:
 | fn-days-from-duration | 33 | 33 | 0 | 0 | 0 | 0 |
 | fn-days-in-month | 18 | 18 | 0 | 0 | 0 | 0 |
 | fn-decode-from-uri | 29 | 29 | 0 | 0 | 0 | 0 |
-| fn-deep-equal | 587 | 576 | 0 | 7 | 0 | 4 |
+| fn-deep-equal | 587 | 578 | 0 | 5 | 0 | 4 |
 | fn-default-collation | 7 | 7 | 0 | 0 | 0 | 0 |
 | fn-default-language | 6 | 6 | 0 | 0 | 0 | 0 |
 | fn-distinct-ordered-nodes | 10 | 10 | 0 | 0 | 0 | 0 |
 | fn-distinct-values | 125 | 119 | 0 | 1 | 0 | 5 |
 | fn-divide-decimals | 21 | 21 | 0 | 0 | 0 | 0 |
-| fn-doc | 75 | 73 | 3 | 1 | 0 | 1 |
-| fn-doc-available | 47 | 40 | 0 | 4 | 0 | 3 |
+| fn-doc | 75 | 74 | 3 | 0 | 0 | 1 |
+| fn-doc-available | 47 | 43 | 0 | 1 | 0 | 3 |
 | fn-document-uri | 55 | 54 | 0 | 0 | 0 | 1 |
 | fn-do-until | 25 | 25 | 0 | 0 | 0 | 0 |
 | fn-drop-while | 18 | 18 | 0 | 0 | 0 | 0 |
 | fn-duplicate-values | 128 | 127 | 0 | 1 | 0 | 0 |
 | fn-duration-to-seconds | 18 | 18 | 0 | 0 | 0 | 0 |
-| fn-element-with-id | 5 | 3 | 0 | 2 | 0 | 0 |
+| fn-element-with-id | 5 | 5 | 0 | 0 | 0 | 0 |
 | fn-element-to-map | 220 | 220 | 0 | 0 | 0 | 0 |
 | fn-element-to-map-plan | 21 | 21 | 0 | 0 | 0 | 0 |
 | fn-empty | 54 | 54 | 0 | 0 | 0 | 0 |
@@ -1142,13 +1090,13 @@ Not run, by the first dependency that is not met:
 | fn-for-each-pair | 55 | 48 | 0 | 0 | 0 | 7 |
 | fn-format-date | 138 | 137 | 0 | 0 | 0 | 1 |
 | fn-format-dateTime | 94 | 93 | 0 | 0 | 0 | 1 |
-| fn-format-integer | 102 | 94 | 0 | 0 | 0 | 8 |
+| fn-format-integer | 102 | 102 | 0 | 0 | 0 | 0 |
 | fn-format-number | 308 | 301 | 0 | 1 | 0 | 6 |
 | fn-format-time | 98 | 97 | 0 | 0 | 0 | 1 |
 | fn-function-annotations | 25 | 23 | 0 | 0 | 0 | 2 |
 | fn-function-arity | 23 | 21 | 1 | 0 | 0 | 2 |
 | fn-function-lookup | 684 | 677 | 0 | 0 | 0 | 7 |
-| fn-function-name | 30 | 26 | 1 | 3 | 0 | 1 |
+| fn-function-name | 30 | 29 | 1 | 0 | 0 | 1 |
 | fn-generate-id | 41 | 38 | 0 | 0 | 0 | 3 |
 | fn-graphemes | 1,189 | 1,189 | 0 | 0 | 0 | 0 |
 | fn-has-children | 48 | 44 | 0 | 0 | 0 | 4 |
@@ -1161,7 +1109,7 @@ Not run, by the first dependency that is not met:
 | fn-html-doc | 10 | 9 | 0 | 1 | 0 | 0 |
 | fn-id | 61 | 61 | 0 | 0 | 0 | 0 |
 | fn-identity | 5 | 5 | 0 | 0 | 0 | 0 |
-| fn-idref | 54 | 51 | 0 | 3 | 0 | 0 |
+| fn-idref | 54 | 54 | 0 | 0 | 0 | 0 |
 | fn-implicit-timezone | 27 | 27 | 0 | 0 | 0 | 0 |
 | fn-index-of | 68 | 61 | 0 | 0 | 0 | 7 |
 | fn-index-of-substring | 22 | 22 | 0 | 0 | 0 | 0 |
@@ -1170,7 +1118,7 @@ Not run, by the first dependency that is not met:
 | fn-insert-before | 51 | 51 | 0 | 0 | 0 | 0 |
 | fn-insert-separator | 13 | 13 | 0 | 0 | 0 | 0 |
 | fn-in-scope-namespaces | 13 | 13 | 0 | 0 | 0 | 0 |
-| fn-in-scope-prefixes | 62 | 61 | 0 | 1 | 0 | 0 |
+| fn-in-scope-prefixes | 62 | 62 | 0 | 0 | 0 | 0 |
 | fn-invisible-xml | 16 | 16 | 0 | 0 | 0 | 0 |
 | fn-iri-to-uri | 47 | 46 | 0 | 0 | 0 | 1 |
 | fn-is-NaN | 16 | 16 | 0 | 0 | 0 | 0 |
@@ -1182,7 +1130,7 @@ Not run, by the first dependency that is not met:
 | fn-jvalue | 16 | 16 | 0 | 0 | 0 | 0 |
 | fn-lang | 46 | 46 | 0 | 0 | 0 | 0 |
 | fn-last | 69 | 69 | 0 | 0 | 0 | 0 |
-| fn-load-xquery-module | 141 | 116 | 2 | 9 | 0 | 16 |
+| fn-load-xquery-module | 141 | 125 | 0 | 0 | 0 | 16 |
 | fn-local-name | 61 | 60 | 0 | 0 | 0 | 1 |
 | fn-local-name-from-QName | 28 | 27 | 0 | 0 | 0 | 1 |
 | fn-location | 5 | 5 | 0 | 0 | 0 | 0 |
@@ -1203,17 +1151,17 @@ Not run, by the first dependency that is not met:
 | fn-month-from-dateTime | 34 | 34 | 0 | 0 | 0 | 0 |
 | fn-name | 35 | 34 | 0 | 0 | 0 | 1 |
 | fn-namespace-uri | 34 | 34 | 0 | 0 | 0 | 0 |
-| fn-namespace-uri-for-prefix | 31 | 29 | 0 | 1 | 0 | 1 |
-| fn-namespace-uri-from-QName | 30 | 25 | 0 | 3 | 0 | 2 |
+| fn-namespace-uri-for-prefix | 31 | 30 | 0 | 0 | 0 | 1 |
+| fn-namespace-uri-from-QName | 30 | 28 | 0 | 0 | 0 | 2 |
 | fn-nilled | 65 | 64 | 0 | 0 | 0 | 1 |
 | fn-node-name | 48 | 47 | 0 | 0 | 0 | 1 |
 | fn-node-type-annotation | 7 | 7 | 0 | 0 | 0 | 0 |
-| fn-normalize-space | 47 | 45 | 0 | 1 | 0 | 1 |
+| fn-normalize-space | 47 | 46 | 0 | 0 | 0 | 1 |
 | fn-normalize-unicode | 50 | 44 | 0 | 0 | 0 | 6 |
 | fn-not | 83 | 83 | 0 | 0 | 0 | 0 |
 | fn-number | 80 | 74 | 0 | 0 | 0 | 6 |
 | fn-one-or-more | 56 | 56 | 0 | 0 | 0 | 0 |
-| fn-op | 35 | 34 | 0 | 1 | 0 | 0 |
+| fn-op | 35 | 35 | 0 | 0 | 0 | 0 |
 | fn-outermost | 62 | 54 | 0 | 0 | 0 | 8 |
 | fn-pad-string | 22 | 22 | 0 | 0 | 0 | 0 |
 | fn-parse-csv | 124 | 124 | 0 | 0 | 0 | 0 |
@@ -1222,7 +1170,7 @@ Not run, by the first dependency that is not met:
 | fn-parse-integer | 47 | 47 | 0 | 0 | 0 | 0 |
 | fn-parse-json | 203 | 191 | 1 | 0 | 0 | 12 |
 | fn-parse-QName | 19 | 19 | 0 | 0 | 0 | 0 |
-| fn-parse-xml | 57 | 53 | 0 | 1 | 0 | 3 |
+| fn-parse-xml | 57 | 54 | 0 | 0 | 0 | 3 |
 | fn-parse-xml-fragment | 41 | 40 | 0 | 0 | 0 | 1 |
 | fn-parse-uri | 74 | 74 | 0 | 0 | 0 | 0 |
 | fn-partial-apply | 17 | 17 | 0 | 0 | 0 | 0 |
@@ -1251,7 +1199,7 @@ Not run, by the first dependency that is not met:
 | fn-seconds-from-time | 28 | 28 | 0 | 0 | 0 | 0 |
 | fn-serialize | 292 | 283 | 0 | 0 | 0 | 9 |
 | fn-siblings | 19 | 18 | 0 | 0 | 0 | 1 |
-| fn-slice | 104 | 103 | 0 | 1 | 0 | 0 |
+| fn-slice | 104 | 104 | 0 | 0 | 0 | 0 |
 | fn-some | 33 | 33 | 0 | 0 | 0 | 0 |
 | fn-sort | 50 | 50 | 0 | 0 | 0 | 0 |
 | fn-sort-by | 66 | 66 | 0 | 0 | 0 | 0 |
@@ -1259,9 +1207,9 @@ Not run, by the first dependency that is not met:
 | fn-starts-with | 69 | 69 | 0 | 0 | 0 | 0 |
 | fn-starts-with-subsequence | 33 | 33 | 0 | 0 | 0 | 0 |
 | fn-static-base-uri | 18 | 18 | 0 | 0 | 0 | 0 |
-| fn-string | 82 | 80 | 1 | 1 | 0 | 1 |
+| fn-string | 82 | 81 | 0 | 0 | 0 | 1 |
 | fn-string-join | 48 | 45 | 0 | 0 | 0 | 3 |
-| fn-string-length | 44 | 41 | 1 | 2 | 0 | 1 |
+| fn-string-length | 44 | 42 | 0 | 1 | 0 | 1 |
 | fn-string-to-codepoints | 44 | 44 | 0 | 0 | 0 | 0 |
 | fn-subsequence | 122 | 122 | 0 | 0 | 0 | 0 |
 | fn-substring | 74 | 74 | 0 | 0 | 0 | 0 |
@@ -1295,8 +1243,8 @@ Not run, by the first dependency that is not met:
 | fn-uri-collection | 7 | 7 | 0 | 0 | 0 | 0 |
 | fn-void | 5 | 5 | 0 | 0 | 0 | 0 |
 | fn-while-do | 30 | 30 | 0 | 0 | 0 | 0 |
-| fn-xml-to-json | 170 | 160 | 0 | 4 | 0 | 6 |
-| fn-xsd-validator | 76 | 71 | 1 | 5 | 0 | 0 |
+| fn-xml-to-json | 170 | 163 | 0 | 1 | 0 | 6 |
+| fn-xsd-validator | 76 | 73 | 1 | 3 | 0 | 0 |
 | fn-year-from-date | 29 | 29 | 0 | 0 | 0 | 0 |
 | fn-years-from-duration | 33 | 33 | 0 | 0 | 0 | 0 |
 | fn-year-from-dateTime | 35 | 35 | 0 | 0 | 0 | 0 |
@@ -1319,7 +1267,7 @@ Not run, by the first dependency that is not met:
 | math-sqrt | 9 | 9 | 0 | 0 | 0 | 0 |
 | math-tan | 11 | 11 | 0 | 0 | 0 | 0 |
 | math-tanh | 9 | 9 | 0 | 0 | 0 | 0 |
-| map-build | 60 | 59 | 0 | 1 | 0 | 0 |
+| map-build | 60 | 60 | 0 | 0 | 0 | 0 |
 | map-contains | 28 | 28 | 0 | 0 | 0 | 0 |
 | map-empty | 6 | 6 | 0 | 0 | 0 | 0 |
 | map-entries | 17 | 17 | 0 | 0 | 0 | 0 |
@@ -1343,7 +1291,7 @@ Not run, by the first dependency that is not met:
 | array-fold-right | 12 | 12 | 0 | 0 | 0 | 0 |
 | array-foot | 9 | 9 | 0 | 0 | 0 | 0 |
 | array-for-each | 13 | 12 | 0 | 0 | 0 | 1 |
-| array-for-each-pair | 15 | 13 | 0 | 1 | 0 | 1 |
+| array-for-each-pair | 15 | 14 | 0 | 0 | 0 | 1 |
 | array-get | 25 | 25 | 0 | 0 | 0 | 0 |
 | array-head | 9 | 9 | 0 | 0 | 0 | 0 |
 | array-of-members | 6 | 6 | 0 | 0 | 0 | 0 |
@@ -1360,7 +1308,7 @@ Not run, by the first dependency that is not met:
 | array-slice | 91 | 91 | 0 | 0 | 0 | 0 |
 | array-sort | 37 | 37 | 0 | 0 | 0 | 0 |
 | array-sort-by | 56 | 56 | 0 | 0 | 0 | 0 |
-| array-sort-with | 25 | 24 | 0 | 1 | 0 | 0 |
+| array-sort-with | 25 | 25 | 0 | 0 | 0 | 0 |
 | array-split | 11 | 11 | 0 | 0 | 0 | 0 |
 | array-subarray | 24 | 24 | 0 | 0 | 0 | 0 |
 | array-tail | 6 | 6 | 0 | 0 | 0 | 0 |
@@ -1374,7 +1322,7 @@ Not run, by the first dependency that is not met:
 | xs-duration | 11 | 11 | 0 | 0 | 0 | 0 |
 | xs-error | 63 | 61 | 0 | 0 | 0 | 2 |
 | xs-float | 12 | 11 | 0 | 0 | 0 | 1 |
-| xs-hexBinary | 6 | 3 | 0 | 1 | 0 | 2 |
+| xs-hexBinary | 6 | 4 | 0 | 0 | 0 | 2 |
 | xs-normalizedString | 7 | 6 | 0 | 0 | 0 | 1 |
 | xs-notation | 2 | 2 | 0 | 0 | 0 | 0 |
 | xs-numeric | 22 | 22 | 0 | 0 | 0 | 0 |
@@ -1468,7 +1416,7 @@ Not run, by the first dependency that is not met:
 | prod-Annotation | 90 | 88 | 0 | 0 | 0 | 2 |
 | prod-ArrayType | 75 | 75 | 0 | 0 | 0 | 0 |
 | prod-ArrowExpr | 70 | 69 | 0 | 0 | 0 | 1 |
-| prod-AxisStep | 362 | 337 | 0 | 2 | 0 | 23 |
+| prod-AxisStep | 362 | 339 | 0 | 0 | 0 | 23 |
 | prod-AxisStep.abbr | 23 | 23 | 0 | 0 | 0 | 0 |
 | prod-AxisStep.ancestor | 44 | 43 | 0 | 0 | 0 | 1 |
 | prod-AxisStep.ancestor-or-self | 32 | 31 | 0 | 0 | 0 | 1 |
@@ -1482,46 +1430,46 @@ Not run, by the first dependency that is not met:
 | prod-AxisStep.preceding-sibling-or-self | 32 | 32 | 0 | 0 | 0 | 0 |
 | prod-AxisStep.static-typing | 15 | 0 | 0 | 0 | 0 | 15 |
 | prod-AxisStep.unabbr | 26 | 26 | 0 | 0 | 0 | 0 |
-| prod-AxisStep.J | 155 | 154 | 0 | 1 | 0 | 0 |
+| prod-AxisStep.J | 155 | 155 | 0 | 0 | 0 | 0 |
 | prod-BaseURIDecl | 38 | 38 | 0 | 0 | 0 | 0 |
 | prod-BoundarySpaceDecl | 28 | 28 | 0 | 0 | 0 | 0 |
 | prod-BracedActions | 34 | 34 | 0 | 0 | 0 | 0 |
 | prod-ButWithExpr | 26 | 26 | 0 | 0 | 0 | 0 |
 | prod-CastableExpr | 975 | 960 | 0 | 0 | 0 | 15 |
 | prod-CastableExpr.composite | 67 | 67 | 0 | 0 | 0 | 0 |
-| prod-CastExpr | 2,837 | 2,788 | 0 | 1 | 0 | 48 |
+| prod-CastExpr | 2,837 | 2,789 | 0 | 0 | 0 | 48 |
 | prod-CastExpr.composite | 67 | 67 | 0 | 0 | 0 | 0 |
 | prod-CastExpr.derived | 170 | 164 | 1 | 0 | 0 | 6 |
-| prod-CastExpr.schema | 130 | 129 | 0 | 1 | 0 | 0 |
+| prod-CastExpr.schema | 130 | 130 | 0 | 0 | 0 | 0 |
 | prod-ChoiceItemType | 50 | 50 | 0 | 0 | 0 | 0 |
 | prod-Comment | 45 | 45 | 0 | 0 | 0 | 0 |
-| prod-CompAttrConstructor | 148 | 145 | 0 | 1 | 0 | 2 |
+| prod-CompAttrConstructor | 148 | 146 | 0 | 0 | 0 | 2 |
 | prod-CompDocConstructor | 59 | 59 | 0 | 0 | 0 | 0 |
 | prod-CompCommentConstructor | 29 | 28 | 0 | 0 | 0 | 1 |
-| prod-CompElemConstructor | 114 | 109 | 0 | 1 | 0 | 4 |
-| prod-CompNamespaceConstructor | 52 | 50 | 0 | 1 | 0 | 1 |
+| prod-CompElemConstructor | 114 | 110 | 0 | 0 | 0 | 4 |
+| prod-CompNamespaceConstructor | 52 | 51 | 0 | 0 | 0 | 1 |
 | prod-CompPIConstructor | 66 | 62 | 0 | 0 | 0 | 4 |
 | prod-CompTextConstructor | 39 | 38 | 0 | 0 | 0 | 1 |
 | prod-ConstructionDecl | 26 | 26 | 0 | 0 | 0 | 0 |
 | prod-ConstructionDecl.schema | 4 | 4 | 0 | 0 | 0 | 0 |
-| prod-ContextItemDecl | 53 | 45 | 1 | 4 | 0 | 4 |
+| prod-ContextItemDecl | 53 | 49 | 1 | 0 | 0 | 4 |
 | prod-ContextValueDecl | 13 | 13 | 0 | 0 | 0 | 0 |
 | prod-ContextItemExpr | 45 | 45 | 0 | 0 | 0 | 0 |
 | prod-CopyNamespacesDecl | 38 | 38 | 0 | 0 | 0 | 0 |
 | prod-CountClause | 13 | 13 | 0 | 0 | 0 | 0 |
 | prod-CurlyArrayConstructor | 5 | 5 | 0 | 0 | 0 | 0 |
-| prod-DecimalFormatDecl | 47 | 45 | 0 | 1 | 0 | 1 |
+| prod-DecimalFormatDecl | 47 | 46 | 0 | 0 | 0 | 1 |
 | prod-DefaultCollationDecl | 12 | 12 | 0 | 0 | 0 | 0 |
-| prod-DefaultNamespaceDecl | 82 | 78 | 0 | 2 | 0 | 2 |
+| prod-DefaultNamespaceDecl | 82 | 80 | 0 | 0 | 0 | 2 |
 | prod-DirAttributeList | 136 | 133 | 0 | 0 | 0 | 3 |
 | prod-DirectConstructor | 93 | 93 | 0 | 0 | 0 | 0 |
-| prod-DirElemConstructor | 73 | 70 | 0 | 1 | 0 | 2 |
+| prod-DirElemConstructor | 73 | 71 | 0 | 0 | 0 | 2 |
 | prod-DirElemContent | 135 | 131 | 0 | 1 | 0 | 3 |
-| prod-DirElemContent.namespace | 138 | 137 | 0 | 1 | 0 | 0 |
+| prod-DirElemContent.namespace | 138 | 138 | 0 | 0 | 0 | 0 |
 | prod-DirElemContent.whitespace | 83 | 83 | 0 | 0 | 0 | 0 |
 | prod-DynamicFunctionCall | 93 | 93 | 2 | 0 | 0 | 0 |
 | prod-EmptyOrderDecl | 38 | 32 | 0 | 0 | 0 | 6 |
-| prod-EQName | 54 | 47 | 0 | 3 | 0 | 4 |
+| prod-EQName | 54 | 50 | 0 | 0 | 0 | 4 |
 | prod-EnumerationType | 35 | 35 | 0 | 0 | 0 | 0 |
 | prod-ExtensionExpr | 81 | 58 | 0 | 0 | 0 | 23 |
 | prod-FLWORExpr | 26 | 26 | 0 | 0 | 0 | 0 |
@@ -1530,8 +1478,8 @@ Not run, by the first dependency that is not met:
 | prod-ForClause.map | 65 | 65 | 0 | 0 | 0 | 0 |
 | prod-ForClause.member | 48 | 48 | 0 | 0 | 0 | 0 |
 | prod-FunctionCall | 226 | 196 | 1 | 0 | 0 | 30 |
-| prod-FunctionDecl | 254 | 227 | 0 | 1 | 0 | 26 |
-| prod-GeneralComp.eq | 205 | 204 | 0 | 1 | 0 | 0 |
+| prod-FunctionDecl | 254 | 228 | 0 | 0 | 0 | 26 |
+| prod-GeneralComp.eq | 205 | 205 | 0 | 0 | 0 | 0 |
 | prod-GeneralComp.ge | 112 | 112 | 0 | 0 | 0 | 0 |
 | prod-GeneralComp.gt | 150 | 150 | 0 | 0 | 0 | 0 |
 | prod-GeneralComp.le | 108 | 108 | 0 | 0 | 0 | 0 |
@@ -1541,32 +1489,32 @@ Not run, by the first dependency that is not met:
 | prod-IfExpr | 43 | 43 | 0 | 0 | 0 | 0 |
 | prod-InlineFunctionExpr | 48 | 43 | 0 | 0 | 0 | 5 |
 | prod-InlineFunctionExpr.focus | 30 | 29 | 0 | 0 | 0 | 1 |
-| prod-InstanceofExpr | 328 | 323 | 1 | 1 | 0 | 4 |
-| prod-ItemTypeDecl | 80 | 75 | 2 | 5 | 0 | 0 |
+| prod-InstanceofExpr | 328 | 324 | 1 | 0 | 0 | 4 |
+| prod-ItemTypeDecl | 80 | 80 | 0 | 0 | 0 | 0 |
 | prod-KeywordArguments | 1 | 1 | 0 | 0 | 0 | 0 |
 | prod-LambdaExpr | 8 | 8 | 0 | 0 | 0 | 0 |
 | prod-LetClause | 189 | 174 | 0 | 0 | 0 | 15 |
-| prod-Literal | 242 | 230 | 0 | 2 | 0 | 10 |
+| prod-Literal | 242 | 232 | 0 | 0 | 0 | 10 |
 | prod-Lookup | 134 | 129 | 0 | 0 | 0 | 5 |
 | prod-MapConstructor | 86 | 81 | 0 | 0 | 0 | 5 |
 | prod-MappingArrow | 67 | 67 | 0 | 0 | 0 | 0 |
 | prod-MapType | 82 | 80 | 0 | 0 | 0 | 2 |
 | prod-MethodCall | 12 | 12 | 0 | 0 | 0 | 0 |
-| prod-ModuleImport | 141 | 121 | 0 | 3 | 0 | 17 |
-| prod-NamedFunctionRef | 565 | 563 | 0 | 1 | 0 | 1 |
-| prod-NamedRecordTypeDecl | 94 | 89 | 5 | 5 | 0 | 0 |
+| prod-ModuleImport | 141 | 124 | 0 | 0 | 0 | 17 |
+| prod-NamedFunctionRef | 565 | 564 | 0 | 0 | 0 | 1 |
+| prod-NamedRecordTypeDecl | 94 | 90 | 5 | 4 | 0 | 0 |
 | prod-NamespaceDecl | 55 | 54 | 0 | 0 | 0 | 1 |
-| prod-NameTest | 127 | 123 | 0 | 4 | 0 | 0 |
+| prod-NameTest | 127 | 127 | 0 | 0 | 0 | 0 |
 | prod-NameTestUnion | 37 | 37 | 0 | 0 | 0 | 0 |
-| prod-NodeTest | 84 | 78 | 0 | 3 | 0 | 3 |
+| prod-NodeTest | 84 | 81 | 0 | 0 | 0 | 3 |
 | prod-OptionDecl | 9 | 8 | 0 | 0 | 0 | 1 |
-| prod-OptionDecl.serialization | 40 | 38 | 2 | 0 | 0 | 2 |
+| prod-OptionDecl.serialization | 40 | 38 | 0 | 0 | 0 | 2 |
 | prod-OrExpr | 376 | 376 | 0 | 0 | 0 | 0 |
 | prod-OrderByClause | 210 | 205 | 0 | 1 | 0 | 4 |
 | prod-OrderingModeDecl | 29 | 29 | 0 | 0 | 0 | 0 |
 | prod-OtherwiseExpr | 10 | 10 | 0 | 0 | 0 | 0 |
 | prod-PathExpr | 34 | 30 | 0 | 0 | 0 | 4 |
-| prod-PathExpr.J | 186 | 184 | 0 | 2 | 0 | 0 |
+| prod-PathExpr.J | 186 | 185 | 0 | 1 | 0 | 0 |
 | prod-ParenthesizedExpr | 20 | 20 | 0 | 0 | 0 | 0 |
 | prod-PositionalVar | 34 | 34 | 0 | 0 | 0 | 0 |
 | prod-PipelineExpr | 14 | 14 | 0 | 0 | 0 | 0 |
@@ -1574,7 +1522,7 @@ Not run, by the first dependency that is not met:
 | prod-QuantifiedExpr | 223 | 221 | 0 | 0 | 0 | 2 |
 | prod-RecordType | 23 | 23 | 0 | 0 | 0 | 0 |
 | prod-ReturnClause | 21 | 21 | 0 | 0 | 0 | 0 |
-| prod-SchemaImport | 145 | 124 | 0 | 1 | 0 | 20 |
+| prod-SchemaImport | 145 | 128 | 0 | 0 | 0 | 17 |
 | prod-SequenceType | 66 | 65 | 0 | 1 | 0 | 0 |
 | prod-SquareArrayConstructor | 7 | 7 | 0 | 0 | 0 | 0 |
 | prod-StepExpr | 70 | 66 | 0 | 0 | 0 | 4 |
@@ -1583,14 +1531,14 @@ Not run, by the first dependency that is not met:
 | prod-SwitchExpr | 58 | 57 | 0 | 0 | 0 | 1 |
 | prod-TraceClause | 6 | 6 | 0 | 0 | 0 | 0 |
 | prod-TreatExpr | 74 | 73 | 0 | 0 | 0 | 1 |
-| prod-TryCatchExpr | 212 | 210 | 0 | 1 | 0 | 1 |
+| prod-TryCatchExpr | 212 | 211 | 0 | 0 | 0 | 1 |
 | prod-TypeswitchExpr | 88 | 87 | 0 | 0 | 0 | 1 |
 | prod-UnorderedExpr | 31 | 29 | 0 | 0 | 0 | 2 |
 | prod-UnaryLookup | 37 | 34 | 0 | 0 | 0 | 3 |
 | prod-UnionNodeTest | 12 | 12 | 0 | 0 | 0 | 0 |
-| prod-ValidateExpr | 92 | 89 | 0 | 1 | 0 | 2 |
+| prod-ValidateExpr | 92 | 90 | 0 | 0 | 0 | 2 |
 | prod-ValueComp | 125 | 125 | 0 | 0 | 0 | 0 |
-| prod-VarDecl | 167 | 141 | 2 | 1 | 0 | 25 |
+| prod-VarDecl | 167 | 142 | 2 | 0 | 0 | 25 |
 | prod-VarDecl.external | 107 | 96 | 0 | 1 | 0 | 10 |
 | prod-VarDefaultValue | 43 | 39 | 0 | 1 | 0 | 3 |
 | prod-VersionDecl | 52 | 36 | 0 | 0 | 0 | 16 |
@@ -1598,27 +1546,27 @@ Not run, by the first dependency that is not met:
 | prod-WhileClause | 83 | 83 | 0 | 0 | 0 | 0 |
 | prod-WindowClause | 158 | 158 | 0 | 0 | 0 | 0 |
 | misc-BuiltInKeywords | 304 | 303 | 0 | 1 | 0 | 0 |
-| misc-CombinedErrorCodes | 264 | 227 | 2 | 1 | 0 | 36 |
+| misc-CombinedErrorCodes | 264 | 241 | 1 | 0 | 0 | 23 |
 | misc-AnnexE | 8 | 8 | 0 | 0 | 0 | 0 |
 | misc-AppendixA4 | 9 | 9 | 0 | 0 | 0 | 0 |
 | misc-ConstructorKeywords | 153 | 153 | 0 | 0 | 0 | 0 |
 | misc-ErrorsAndOptimization | 7 | 7 | 0 | 0 | 0 | 0 |
 | misc-FocusConstructors | 153 | 153 | 0 | 0 | 0 | 0 |
-| misc-HigherOrderFunctions | 148 | 139 | 0 | 3 | 0 | 6 |
+| misc-HigherOrderFunctions | 148 | 142 | 0 | 0 | 0 | 6 |
 | misc-HtmlTestSuite | 1,379 | 1,378 | 0 | 1 | 0 | 0 |
 | misc-JsonTestSuite | 319 | 318 | 0 | 0 | 0 | 1 |
 | misc-StaticContext | 1 | 1 | 0 | 0 | 0 | 0 |
-| misc-Subtyping | 159 | 117 | 0 | 1 | 0 | 41 |
+| misc-Subtyping | 159 | 118 | 0 | 0 | 0 | 41 |
 | misc-Surrogates | 32 | 17 | 0 | 0 | 0 | 15 |
 | misc-UCACollation | 87 | 87 | 0 | 0 | 0 | 0 |
-| misc-XMLEdition | 19 | 12 | 0 | 4 | 0 | 3 |
-| method-adaptive | 140 | 94 | 0 | 6 | 0 | 40 |
+| misc-XMLEdition | 19 | 16 | 0 | 0 | 0 | 3 |
+| method-adaptive | 140 | 97 | 0 | 3 | 0 | 40 |
 | method-csv | 48 | 47 | 0 | 1 | 0 | 0 |
 | method-html | 73 | 70 | 0 | 0 | 0 | 3 |
 | method-json | 89 | 84 | 0 | 0 | 0 | 5 |
 | method-text | 23 | 21 | 0 | 0 | 0 | 2 |
 | method-xhtml | 61 | 57 | 0 | 0 | 0 | 4 |
-| method-xml | 74 | 64 | 0 | 8 | 0 | 2 |
+| method-xml | 74 | 72 | 0 | 0 | 0 | 2 |
 | app-CatalogCheck | 18 | 17 | 0 | 1 | 0 | 0 |
 | app-Demos | 13 | 12 | 0 | 1 | 0 | 0 |
 | app-Duplicates | 14 | 14 | 0 | 0 | 0 | 0 |
@@ -1639,7 +1587,7 @@ Not run, by the first dependency that is not met:
 | app-UseCaseXMP | 12 | 12 | 0 | 0 | 0 | 0 |
 | app-Walmsley | 223 | 222 | 0 | 0 | 0 | 1 |
 | app-XMark | 21 | 21 | 0 | 0 | 0 | 0 |
-| app-spec-examples | 1,498 | 1,488 | 0 | 10 | 0 | 0 |
+| app-spec-examples | 1,498 | 1,492 | 0 | 6 | 0 | 0 |
 | bin-and | 11 | 11 | 0 | 0 | 0 | 0 |
 | bin-bin | 19 | 19 | 0 | 0 | 0 | 0 |
 | bin-count-bits-set | 11 | 11 | 0 | 0 | 0 | 0 |
@@ -1807,11 +1755,11 @@ Not run, by the first dependency that is not met:
 
 | Specification | Test cases | Run | Passed | of which wrong error | Failed | Errors | Not run | Passed of run |
 |---|--:|--:|--:|--:|--:|--:|--:|--:|
-| XT40 | 13,867 | 12,518 | 12,156 | 120 | 362 | 0 | 1,349 | 97.1 % |
+| XT40 | 13,867 | 12,518 | 12,268 | 99 | 250 | 0 | 1,349 | 98.0 % |
 
-Gate rate (D95): 8,354 of 8,728 in-scope test cases passed, **95.7 %** (in scope: the spec matches and no non-goal is needed; not-run cases count as not passed).
+Gate rate (D95): 8,444 of 8,728 in-scope test cases passed, **96.7 %** (in scope: the spec matches and no non-goal is needed; not-run cases count as not passed).
 
-Schema-aware (D174, area "schema-aware"): 928 of 971 test cases passed, **95.6 %** (the test cases that need schemaImport, schemaValidation or typedData, or whose environment has a schema or a validated source; outside the D95 denominator unless only their environment is schema-aware; not-run cases count as not passed).
+Schema-aware (D174, area "schema-aware"): 940 of 971 test cases passed, **96.8 %** (the test cases that need schemaImport, schemaValidation or typedData, or whose environment has a schema or a validated source; outside the D95 denominator unless only their environment is schema-aware; not-run cases count as not passed).
 
 ### XT40 core test sets (Phase 4 gate: 80 % each)
 
@@ -1820,30 +1768,30 @@ Schema-aware (D174, area "schema-aware"): 928 of 971 test cases passed, **95.6 %
 | apply-templates | 39 | 38 | 97.4 % |
 | mode | 165 | 151 | 91.5 % |
 | match | 194 | 183 | 94.3 % |
-| for-each-group | 86 | 81 | 94.2 % |
+| for-each-group | 86 | 83 | 96.5 % |
 | sort | 82 | 82 | 100.0 % |
-| key | 103 | 100 | 97.1 % |
+| key | 103 | 101 | 98.1 % |
 | number | 268 | 268 | 100.0 % |
-| choose | 65 | 62 | 95.4 % |
+| choose | 65 | 65 | 100.0 % |
 | copy | 146 | 141 | 96.6 % |
-| value-of | 15 | 14 | 93.3 % |
+| value-of | 15 | 15 | 100.0 % |
 | result-document | 150 | 148 | 98.7 % |
-| function | 124 | 114 | 91.9 % |
+| function | 124 | 121 | 97.6 % |
 
-XSLT slice (`tests/xslt/slice.txt`): **151/154 passed**.
+XSLT slice (`tests/xslt/slice.txt`): **153/154 passed**.
 
 ### XT40 by area
 
 | Area (group: tests/GROUP/) | Test cases | Run | Passed | of which wrong error | Failed | Errors | Not run | Passed of run |
 |---|--:|--:|--:|--:|--:|--:|--:|--:|
-| Attributes: `tests/attr/` | 1,634 | 1,578 | 1,500 | 13 | 78 | 0 | 56 | 95.1 % |
-| Declarations: `tests/decl/` | 1,497 | 1,451 | 1,388 | 29 | 63 | 0 | 46 | 95.7 % |
-| Expressions: `tests/expr/` | 739 | 733 | 725 | 0 | 8 | 0 | 6 | 98.9 % |
-| Functions: `tests/fn/` | 1,339 | 1,305 | 1,254 | 5 | 51 | 0 | 34 | 96.1 % |
-| Instructions: `tests/insn/` | 1,996 | 1,923 | 1,860 | 33 | 63 | 0 | 73 | 96.7 % |
-| Miscellaneous: `tests/misc/` | 3,123 | 2,017 | 1,986 | 26 | 31 | 0 | 1,106 | 98.5 % |
-| Streaming (out of scope, D95): `tests/strm/` | 2,564 | 2,564 | 2,523 | 4 | 41 | 0 | 0 | 98.4 % |
-| Other | 975 | 947 | 920 | 10 | 27 | 0 | 28 | 97.1 % |
+| Attributes: `tests/attr/` | 1,634 | 1,578 | 1,505 | 10 | 73 | 0 | 56 | 95.4 % |
+| Declarations: `tests/decl/` | 1,497 | 1,451 | 1,413 | 24 | 38 | 0 | 46 | 97.4 % |
+| Expressions: `tests/expr/` | 739 | 733 | 728 | 0 | 5 | 0 | 6 | 99.3 % |
+| Functions: `tests/fn/` | 1,339 | 1,305 | 1,276 | 3 | 29 | 0 | 34 | 97.8 % |
+| Instructions: `tests/insn/` | 1,996 | 1,923 | 1,883 | 29 | 40 | 0 | 73 | 97.9 % |
+| Miscellaneous: `tests/misc/` | 3,123 | 2,017 | 2,004 | 19 | 13 | 0 | 1,106 | 99.4 % |
+| Streaming (out of scope, D95): `tests/strm/` | 2,564 | 2,564 | 2,532 | 4 | 32 | 0 | 0 | 98.8 % |
+| Other | 975 | 947 | 927 | 10 | 20 | 0 | 28 | 97.9 % |
 
 ### XT40 failure causes
 
@@ -1851,22 +1799,13 @@ Failed and error test cases by the error code the query raised (or the status th
 
 | Error code | Test cases |
 |---|--:|
-| (no error: wrong result) | 229 |
+| (no error: wrong result) | 145 |
 | XTSE0340 | 48 |
 | XPTY0004 | 14 |
-| FODC0002 | 7 |
 | XTSE3000 | 7 |
-| XPST0017 | 6 |
-| XPDY0050 | 4 |
+| FODC0002 | 6 |
 | XTDE0040 | 4 |
-| FONS0004 | 3 |
-| XTDE1360 | 3 |
 | SERE0008 | 2 |
-| XPST0003 | 2 |
-| XPST0008 | 2 |
-| XTDE0560 | 2 |
-| XTDE0640 | 2 |
-| XTSE0020 | 2 |
 | XTSE0165 | 2 |
 | FOAR0001 | 1 |
 | FODC0006 | 1 |
@@ -1875,52 +1814,61 @@ Failed and error test cases by the error code the query raised (or the status th
 | FOXT0004 | 1 |
 | SERE0023 | 1 |
 | XPDY0002 | 1 |
+| XPST0003 | 1 |
+| XPST0017 | 1 |
 | XPST0051 | 1 |
+| XQDY0044 | 1 |
+| XTDE0450 | 1 |
+| XTDE0925 | 1 |
+| XTDE1030 | 1 |
+| XTDE3160 | 1 |
+| XTDE3362 | 1 |
+| XTSE0090 | 1 |
 
 The 25 most frequent reasons:
 
 | Cause | Test cases |
 |---|--:|
-| wrong result (assert) | 78 |
-| wrong result (assert-xml) | 70 |
+| wrong result (assert-xml) | 58 |
 | XTSE0340: the text is not a pattern (XSLT 4.0, 6.3.1) | 48 |
+| wrong result (assert) | 43 |
 | XPTY0004: The value does not match the required type (XPath 4.0, section 3.4, coercion rules) | 11 |
-| wrong result (serialization-matches) | 8 |
 | XTSE3000: No package of the name and version an xsl:use-package asks for is found (XSLT 4.0, 3.4.3) | 7 |
-| XPST0017: no function with this name and arity is known | 6 |
 | XTDE0040: the stylesheet has no template of the initial template's name (XSLT 4.0, 2.4.4) | 4 |
-| assert: the expected value raised err:XPDY0050: The value of a treat expression does not match its… | 4 |
+| wrong result (serialization-matches) | 4 |
 | FODC0002: No such collection | 3 |
-| FONS0004: no namespace is bound to the prefix | 3 |
-| XTDE1360: fn:current() is evaluated where the current item is absent (XSLT 4.0, 20.3.1) | 3 |
 | error: expected FORX0002, got <true/> | 3 |
-| FODC0002: The file cannot be read | 2 |
+| FODC0002: The file cannot be read (docbook-xsl-1.79.1/NEWS.xml#V1.79.1_Tools) | 2 |
 | SERE0008: a character the output encoding cannot represent is not in text or an attribute value | 2 |
-| XPST0003: a variable part of this value template is not an XPath expression | 2 |
-| XPST0008: a global variable refers to itself (XSLT 4.0, 9.9) | 2 |
 | XPTY0004: A lookup is applied to an item that is not a map or an array (XPath 4.0, section 4.7.3) | 2 |
-| XTDE0560: xsl:next-match or xsl:apply-imports is evaluated when there is no current template rule (… | 2 |
-| XTDE0640: A global variable depends on itself (XSLT 4.0, section 9.11) | 2 |
-| XTSE0020: A name-valued attribute holds no EQName (XSLT 4.0, 5.1.1) | 2 |
 | XTSE0165: The stylesheet module an xsl:include or xsl:import names cannot be read (XSLT 4.0, 3.10.1) | 2 |
 | assert-serialization: the expected file is not UTF-8 | 2 |
-| error: expected XPTY0004, got <out xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:z="http://sche… | 2 |
-| error: expected XTDE1390, got <out xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:my="http://my.… | 2 |
+| FOAR0001: division by zero (F&O 4.0, op:numeric-divide, op:numeric-integer-divide, op:numeric-mod) | 1 |
+| FODC0002: No document is available for the URI (F&O 4.0, fn:doc) | 1 |
+| FODC0006: No document can be parsed here (F&O 4.0, fn:parse-xml) | 1 |
+| FODC0014: Strict validation of a document whose element has no declaration in the static context (F… | 1 |
+| FODC0016: The document refers to an external DTD or entity, and the call does not trust external re… | 1 |
+| FOXT0004: fn:transform is not available here: in a static expression, or with delivery-format "file… | 1 |
+| SERE0023: the JSON method cannot write a sequence of more than one item | 1 |
+| XPDY0002: the focus is absent in a function body | 1 |
+| XPST0003: a variable part of this value template is not an XPath expression | 1 |
+| XPST0017: no function with this name and arity is known | 1 |
+| XPST0051: the type name is not defined | 1 |
 
 Wrong errors (counted as passed) by the error raised:
 
 | Raised instead | Test cases |
 |---|--:|
-| FODC0016: External resources are not available to an untrusted call (F&O 4.0, fn:load-xquery-module) | 7 |
+| FODC0016: External resources are not available to an untrusted call (F&O 4.0, fn:load-xquery-module) | 8 |
 | XTSE0340: the text is not a pattern (XSLT 4.0, 6.3.1) | 5 |
-| FORG0001: the value is not in the lexical space or value space of the target type | 4 |
-| XPDY0002: the focus is absent in a function body | 4 |
-| XPST0017: no function with this name and arity is known | 4 |
-| XTTE0590: The value does not match the required type of the parameter (XSLT 4.0, section 9.3) | 4 |
-| FODC0002: The QT4 driver serves only the suite's files and the environment's resources | 3 |
-| FODC0002: The file cannot be read | 3 |
-| XPDY0002: The focus or a variable of the dynamic context is absent (XPath 4.0, section 2.2.2) | 3 |
+| XPDY0002: the focus is absent in a function body | 3 |
 | XPST0003: The text is not valid XPath 4.0 syntax (XPath 4.0, Appendix A) | 3 |
+| XPST0003: a variable part of this value template is not an XPath expression | 3 |
+| XPTY0004: The context item of an axis step is not a node (XPath 4.0, section 4.7.4: XPTY0004, forme… | 3 |
+| XTDE0040: the stylesheet has no template of the initial template's name (XSLT 4.0, 2.4.4) | 3 |
+| XTTE1512: Strict validation of a node whose name has no top-level declaration in the in-scope schem… | 3 |
+| FODC0002: The QT4 driver serves only the suite's files and the environment's resources (c:\my\doc\b… | 2 |
+| Q{http://www.w3.org/2005/xqt-errors}XTTE3100: xsl:apply-templates selects an item the typed attribu… | 2 |
 
 Not run, by the first dependency that is not met:
 
@@ -1947,30 +1895,30 @@ Not run, by the first dependency that is not met:
 | Test set | Test cases | Passed | Failed | Errors | Not run |
 |---|--:|--:|--:|--:|--:|
 | priority | 40 | 6 | 34 | 0 | 0 |
-| match | 309 | 284 | 16 | 0 | 9 |
-| error | 580 | 508 | 15 | 0 | 57 |
-| document | 99 | 87 | 12 | 0 | 0 |
-| function | 148 | 130 | 10 | 0 | 8 |
-| override | 106 | 96 | 10 | 0 | 0 |
-| next-match | 58 | 44 | 9 | 0 | 5 |
+| match | 309 | 286 | 14 | 0 | 9 |
 | sf-snapshot | 24 | 15 | 9 | 0 | 0 |
-| import-schema | 218 | 209 | 7 | 0 | 2 |
-| analyze-string | 68 | 56 | 6 | 0 | 6 |
+| next-match | 58 | 46 | 7 | 0 | 5 |
 | format-number | 81 | 69 | 6 | 0 | 6 |
 | mode | 196 | 176 | 6 | 0 | 14 |
 | sx-GeneralComp-eq | 55 | 49 | 6 | 0 | 0 |
 | type-alias | 32 | 25 | 6 | 0 | 1 |
-| apply-templates-fn | 5 | 0 | 5 | 0 | 0 |
 | array | 37 | 26 | 5 | 0 | 6 |
-| arrays | 87 | 72 | 5 | 0 | 10 |
 | copy | 165 | 160 | 5 | 0 | 0 |
 | date | 139 | 125 | 5 | 0 | 9 |
+| document | 99 | 94 | 5 | 0 | 0 |
+| error | 580 | 518 | 5 | 0 | 57 |
 | output | 254 | 241 | 5 | 0 | 8 |
+| override | 106 | 101 | 5 | 0 | 0 |
 | package-location | 6 | 1 | 5 | 0 | 0 |
 | record | 47 | 40 | 5 | 0 | 2 |
-| try | 48 | 38 | 5 | 0 | 5 |
 | as | 203 | 192 | 4 | 0 | 7 |
-| collations | 43 | 39 | 4 | 0 | 0 |
+| import-schema | 218 | 212 | 4 | 0 | 2 |
+| merge | 120 | 115 | 4 | 0 | 1 |
+| use-package | 54 | 42 | 4 | 0 | 8 |
+| base-uri | 55 | 51 | 3 | 0 | 1 |
+| for-each | 6 | 3 | 3 | 0 | 0 |
+| function | 148 | 137 | 3 | 0 | 8 |
+| include | 32 | 19 | 3 | 0 | 10 |
 
 ### Every XT40 test set
 
@@ -1979,57 +1927,57 @@ Not run, by the first dependency that is not met:
 
 | Test set | Test cases | Passed | of which wrong error | Failed | Errors | Not run |
 |---|--:|--:|--:|--:|--:|--:|
-| as | 203 | 192 | 1 | 4 | 0 | 7 |
+| as | 203 | 192 | 0 | 4 | 0 | 7 |
 | avt | 34 | 34 | 0 | 0 | 0 | 0 |
 | capture | 9 | 8 | 0 | 1 | 0 | 0 |
 | declared-modes | 14 | 14 | 0 | 0 | 0 | 0 |
 | disable-output-escaping | 32 | 28 | 0 | 0 | 0 | 4 |
-| expand-text | 64 | 63 | 0 | 1 | 0 | 0 |
-| fixed-namespaces | 16 | 15 | 0 | 1 | 0 | 0 |
-| match | 309 | 284 | 1 | 16 | 0 | 9 |
+| expand-text | 64 | 64 | 0 | 0 | 0 | 0 |
+| fixed-namespaces | 16 | 16 | 0 | 0 | 0 | 0 |
+| match | 309 | 286 | 1 | 14 | 0 | 9 |
 | mode | 196 | 176 | 2 | 6 | 0 | 14 |
 | package-version | 37 | 34 | 1 | 1 | 0 | 2 |
 | priority | 40 | 6 | 0 | 34 | 0 | 0 |
 | select | 158 | 156 | 0 | 1 | 0 | 1 |
 | shadow | 10 | 10 | 0 | 0 | 0 | 0 |
-| static | 49 | 46 | 2 | 3 | 0 | 0 |
+| static | 49 | 46 | 1 | 3 | 0 | 0 |
 | streamable | 139 | 138 | 1 | 1 | 0 | 0 |
 | strip-type-annotations | 27 | 24 | 0 | 0 | 0 | 3 |
 | tunnel | 58 | 58 | 0 | 0 | 0 | 0 |
-| use-when | 105 | 99 | 2 | 3 | 0 | 3 |
-| validation | 68 | 53 | 2 | 4 | 0 | 11 |
+| use-when | 105 | 99 | 1 | 3 | 0 | 3 |
+| validation | 68 | 54 | 2 | 3 | 0 | 11 |
 | version | 40 | 36 | 1 | 2 | 0 | 2 |
 | xpath-default-namespace | 26 | 26 | 0 | 0 | 0 | 0 |
 | accept | 50 | 50 | 2 | 0 | 0 | 0 |
-| accumulator | 109 | 106 | 2 | 3 | 0 | 0 |
-| attribute-set | 50 | 46 | 0 | 3 | 0 | 1 |
+| accumulator | 109 | 107 | 2 | 2 | 0 | 0 |
+| attribute-set | 50 | 47 | 0 | 2 | 0 | 1 |
 | character-map | 33 | 32 | 0 | 1 | 0 | 0 |
-| context-item | 32 | 30 | 2 | 2 | 0 | 0 |
-| expose | 42 | 42 | 2 | 0 | 0 | 0 |
-| function | 148 | 130 | 2 | 10 | 0 | 8 |
-| global-context-item | 14 | 13 | 2 | 1 | 0 | 0 |
+| context-item | 32 | 32 | 2 | 0 | 0 | 0 |
+| expose | 42 | 42 | 1 | 0 | 0 | 0 |
+| function | 148 | 137 | 1 | 3 | 0 | 8 |
+| global-context-item | 14 | 14 | 0 | 0 | 0 | 0 |
 | import | 46 | 40 | 0 | 1 | 0 | 5 |
-| import-schema | 218 | 209 | 3 | 7 | 0 | 2 |
+| import-schema | 218 | 212 | 3 | 4 | 0 | 2 |
 | include | 32 | 19 | 0 | 3 | 0 | 10 |
 | mode.enclosing | 14 | 14 | 0 | 0 | 0 | 0 |
 | namespace-alias | 26 | 26 | 0 | 0 | 0 | 0 |
 | output | 254 | 241 | 1 | 5 | 0 | 8 |
-| override | 106 | 96 | 5 | 10 | 0 | 0 |
+| override | 106 | 101 | 5 | 5 | 0 | 0 |
 | note | 11 | 11 | 0 | 0 | 0 | 0 |
-| package | 72 | 69 | 5 | 3 | 0 | 0 |
+| package | 72 | 71 | 5 | 1 | 0 | 0 |
 | package-location | 6 | 1 | 1 | 5 | 0 | 0 |
 | param | 31 | 31 | 0 | 0 | 0 | 0 |
-| strip-space | 30 | 26 | 0 | 2 | 0 | 2 |
+| strip-space | 30 | 27 | 0 | 1 | 0 | 2 |
 | template | 6 | 6 | 0 | 0 | 0 | 0 |
 | use-package | 54 | 42 | 0 | 4 | 0 | 8 |
-| variable | 113 | 108 | 2 | 3 | 0 | 2 |
+| variable | 113 | 110 | 1 | 1 | 0 | 2 |
 | axes | 202 | 202 | 0 | 0 | 0 | 0 |
 | castable | 9 | 9 | 0 | 0 | 0 | 0 |
 | data-manipulation | 28 | 28 | 0 | 0 | 0 | 0 |
-| expression | 110 | 109 | 0 | 1 | 0 | 0 |
+| expression | 110 | 110 | 0 | 0 | 0 | 0 |
 | for | 4 | 4 | 0 | 0 | 0 | 0 |
-| higher-order-functions | 85 | 79 | 0 | 2 | 0 | 4 |
-| math | 159 | 157 | 0 | 1 | 0 | 1 |
+| higher-order-functions | 85 | 80 | 0 | 1 | 0 | 4 |
+| math | 159 | 158 | 0 | 0 | 0 | 1 |
 | nodetest | 38 | 38 | 0 | 0 | 0 | 0 |
 | path | 11 | 11 | 0 | 0 | 0 | 0 |
 | predicate | 57 | 57 | 0 | 0 | 0 | 0 |
@@ -2038,17 +1986,17 @@ Not run, by the first dependency that is not met:
 | type-functions | 10 | 7 | 0 | 2 | 0 | 1 |
 | xpath-compat | 18 | 16 | 0 | 2 | 0 | 0 |
 | accessor | 53 | 52 | 0 | 0 | 0 | 1 |
-| apply-templates-fn | 5 | 0 | 0 | 5 | 0 | 0 |
+| apply-templates-fn | 5 | 5 | 0 | 0 | 0 | 0 |
 | available-system-properties | 29 | 29 | 0 | 0 | 0 | 0 |
 | base-uri | 55 | 51 | 0 | 3 | 0 | 1 |
 | collection | 6 | 5 | 0 | 1 | 0 | 0 |
 | core-function | 90 | 90 | 0 | 0 | 0 | 0 |
-| copy-of | 13 | 12 | 0 | 1 | 0 | 0 |
+| copy-of | 13 | 13 | 0 | 0 | 0 | 0 |
 | current | 3 | 2 | 0 | 0 | 0 | 1 |
-| current-output-uri | 20 | 18 | 0 | 1 | 0 | 1 |
+| current-output-uri | 20 | 19 | 0 | 0 | 0 | 1 |
 | deep-equal | 2 | 2 | 0 | 0 | 0 | 0 |
-| document | 99 | 87 | 1 | 12 | 0 | 0 |
-| extension-functions | 7 | 5 | 0 | 2 | 0 | 0 |
+| document | 99 | 94 | 1 | 5 | 0 | 0 |
+| extension-functions | 7 | 7 | 1 | 0 | 0 | 0 |
 | format-date | 40 | 35 | 0 | 2 | 0 | 3 |
 | format-date-en | 33 | 32 | 0 | 1 | 0 | 0 |
 | format-number | 81 | 69 | 0 | 6 | 0 | 6 |
@@ -2057,16 +2005,16 @@ Not run, by the first dependency that is not met:
 | id | 43 | 42 | 0 | 0 | 0 | 1 |
 | innermost | 2 | 2 | 0 | 0 | 0 | 0 |
 | json-to-xml | 61 | 60 | 0 | 0 | 0 | 1 |
-| key | 104 | 100 | 0 | 3 | 0 | 1 |
-| load-xquery-module | 4 | 4 | 4 | 0 | 0 | 0 |
-| map-for-key | 8 | 6 | 0 | 2 | 0 | 0 |
+| key | 104 | 101 | 0 | 2 | 0 | 1 |
+| load-xquery-module | 4 | 4 | 1 | 0 | 0 | 0 |
+| map-for-key | 8 | 7 | 0 | 1 | 0 | 0 |
 | normalize-unicode | 18 | 18 | 0 | 0 | 0 | 0 |
 | outermost | 26 | 26 | 0 | 0 | 0 | 0 |
 | position | 211 | 211 | 0 | 0 | 0 | 0 |
-| resolve-uri | 24 | 21 | 0 | 3 | 0 | 0 |
+| resolve-uri | 24 | 23 | 0 | 1 | 0 | 0 |
 | root | 10 | 10 | 0 | 0 | 0 | 0 |
 | snapshot | 35 | 35 | 0 | 0 | 0 | 0 |
-| stream-available | 6 | 4 | 0 | 2 | 0 | 0 |
+| stream-available | 6 | 6 | 0 | 0 | 0 | 0 |
 | system-property | 29 | 23 | 0 | 0 | 0 | 6 |
 | transform | 12 | 10 | 0 | 2 | 0 | 0 |
 | type-available | 8 | 5 | 0 | 1 | 0 | 2 |
@@ -2074,48 +2022,48 @@ Not run, by the first dependency that is not met:
 | unparsed-text | 7 | 1 | 0 | 2 | 0 | 4 |
 | unparsed-text-lines | 6 | 6 | 0 | 0 | 0 | 0 |
 | xml-to-json | 155 | 151 | 0 | 0 | 0 | 4 |
-| analyze-string | 68 | 56 | 1 | 6 | 0 | 6 |
+| analyze-string | 68 | 62 | 1 | 0 | 0 | 6 |
 | apply-imports | 5 | 5 | 0 | 0 | 0 | 0 |
 | apply-templates | 53 | 39 | 0 | 1 | 0 | 13 |
 | array | 37 | 26 | 0 | 5 | 0 | 6 |
 | assert | 10 | 9 | 1 | 0 | 0 | 1 |
 | attribute | 30 | 28 | 2 | 2 | 0 | 0 |
 | call-template | 43 | 42 | 0 | 0 | 0 | 1 |
-| call-template-ext | 32 | 32 | 1 | 0 | 0 | 0 |
-| choose | 65 | 62 | 2 | 3 | 0 | 0 |
+| call-template-ext | 32 | 32 | 0 | 0 | 0 | 0 |
+| choose | 65 | 65 | 2 | 0 | 0 | 0 |
 | element | 29 | 29 | 0 | 0 | 0 | 0 |
 | construct-node | 35 | 34 | 0 | 0 | 0 | 1 |
 | copy | 165 | 160 | 1 | 5 | 0 | 0 |
-| evaluate | 83 | 77 | 9 | 4 | 0 | 2 |
+| evaluate | 83 | 79 | 10 | 2 | 0 | 2 |
 | for-each | 6 | 3 | 0 | 3 | 0 | 0 |
-| for-each-group | 94 | 81 | 0 | 3 | 0 | 10 |
-| iterate | 51 | 51 | 3 | 0 | 0 | 0 |
+| for-each-group | 94 | 83 | 0 | 1 | 0 | 10 |
+| iterate | 51 | 51 | 2 | 0 | 0 | 0 |
 | lre | 35 | 35 | 0 | 0 | 0 | 0 |
 | merge | 120 | 115 | 2 | 4 | 0 | 1 |
 | message | 46 | 45 | 1 | 1 | 0 | 0 |
-| next-match | 58 | 44 | 3 | 9 | 0 | 5 |
-| number | 274 | 274 | 2 | 0 | 0 | 0 |
+| next-match | 58 | 46 | 3 | 7 | 0 | 5 |
+| number | 274 | 274 | 1 | 0 | 0 | 0 |
 | on-empty | 72 | 71 | 0 | 1 | 0 | 0 |
 | on-non-empty | 14 | 12 | 0 | 2 | 0 | 0 |
 | result-document | 163 | 148 | 1 | 2 | 0 | 13 |
-| sequence | 97 | 92 | 1 | 0 | 0 | 5 |
+| sequence | 97 | 92 | 0 | 0 | 0 | 5 |
 | sort | 83 | 82 | 0 | 0 | 0 | 1 |
 | source-document | 60 | 56 | 2 | 3 | 0 | 1 |
 | switch | 12 | 10 | 0 | 0 | 0 | 2 |
-| text | 20 | 17 | 0 | 3 | 0 | 0 |
-| try | 48 | 38 | 0 | 5 | 0 | 5 |
-| value-of | 17 | 16 | 0 | 1 | 0 | 0 |
+| text | 20 | 20 | 0 | 0 | 0 | 0 |
+| try | 48 | 42 | 0 | 1 | 0 | 5 |
+| value-of | 17 | 17 | 0 | 0 | 0 | 0 |
 | where-populated | 28 | 28 | 0 | 0 | 0 | 0 |
 | xsl-document | 25 | 25 | 0 | 0 | 0 | 0 |
-| xsl-record | 18 | 18 | 1 | 0 | 0 | 0 |
+| xsl-record | 18 | 18 | 0 | 0 | 0 | 0 |
 | backwards | 47 | 46 | 0 | 1 | 0 | 0 |
 | bug | 86 | 83 | 0 | 0 | 0 | 3 |
 | built-in-templates | 6 | 5 | 0 | 0 | 0 | 1 |
 | catalog | 13 | 8 | 0 | 2 | 0 | 3 |
-| collations | 43 | 39 | 2 | 4 | 0 | 0 |
+| collations | 43 | 43 | 1 | 0 | 0 | 0 |
 | docbook | 4 | 2 | 0 | 2 | 0 | 0 |
 | embedded-stylesheet | 23 | 0 | 0 | 0 | 0 | 23 |
-| error | 580 | 508 | 23 | 15 | 0 | 57 |
+| error | 580 | 518 | 17 | 5 | 0 | 57 |
 | forwards | 23 | 23 | 0 | 0 | 0 | 0 |
 | initial-function | 35 | 35 | 0 | 0 | 0 | 0 |
 | initial-mode | 5 | 5 | 0 | 0 | 0 | 0 |
@@ -2123,10 +2071,10 @@ Not run, by the first dependency that is not met:
 | regex | 69 | 65 | 0 | 0 | 0 | 4 |
 | regex-syntax | 1,010 | 984 | 0 | 3 | 0 | 23 |
 | regex-syntax-xslt20 | 987 | 0 | 0 | 0 | 0 | 987 |
-| seqtor | 92 | 89 | 1 | 3 | 0 | 0 |
+| seqtor | 92 | 92 | 1 | 0 | 0 | 0 |
 | streaming-fallback | 6 | 6 | 0 | 0 | 0 | 0 |
 | whitespace | 28 | 28 | 0 | 0 | 0 | 0 |
-| xml-version | 42 | 41 | 0 | 1 | 0 | 0 |
+| xml-version | 42 | 42 | 0 | 0 | 0 | 0 |
 | xslt-compat | 13 | 13 | 0 | 0 | 0 | 0 |
 | sf-avg | 35 | 35 | 0 | 0 | 0 | 0 |
 | sf-boolean | 34 | 34 | 0 | 0 | 0 | 0 |
@@ -2147,7 +2095,7 @@ Not run, by the first dependency that is not met:
 | sf-head | 22 | 22 | 0 | 0 | 0 | 0 |
 | sf-innermost | 2 | 2 | 0 | 0 | 0 | 0 |
 | sf-index-of | 9 | 9 | 0 | 0 | 0 | 0 |
-| sf-insert-before | 52 | 50 | 0 | 2 | 0 | 0 |
+| sf-insert-before | 52 | 52 | 0 | 0 | 0 | 0 |
 | sf-max | 38 | 38 | 0 | 0 | 0 | 0 |
 | sf-min | 38 | 38 | 0 | 0 | 0 | 0 |
 | sf-not | 34 | 34 | 0 | 0 | 0 | 0 |
@@ -2163,7 +2111,7 @@ Not run, by the first dependency that is not met:
 | sf-trace | 22 | 22 | 0 | 0 | 0 | 0 |
 | sf-unordered | 22 | 22 | 0 | 0 | 0 | 0 |
 | sf-unparsed-entity-uri | 8 | 6 | 0 | 2 | 0 | 0 |
-| sf-xml-to-json | 7 | 4 | 0 | 3 | 0 | 0 |
+| sf-xml-to-json | 7 | 7 | 0 | 0 | 0 | 0 |
 | sf-zero-or-one | 7 | 7 | 0 | 0 | 0 | 0 |
 | si-apply-imports | 3 | 3 | 0 | 0 | 0 | 0 |
 | si-apply-templates | 13 | 13 | 0 | 0 | 0 | 0 |
@@ -2177,9 +2125,9 @@ Not run, by the first dependency that is not met:
 | si-element | 93 | 93 | 0 | 0 | 0 | 0 |
 | si-for-each | 20 | 19 | 0 | 1 | 0 | 0 |
 | si-for-each-group | 115 | 115 | 0 | 0 | 0 | 0 |
-| si-fork | 55 | 52 | 1 | 3 | 0 | 0 |
+| si-fork | 55 | 53 | 1 | 2 | 0 | 0 |
 | si-if | 11 | 11 | 0 | 0 | 0 | 0 |
-| si-iterate | 35 | 34 | 0 | 1 | 0 | 0 |
+| si-iterate | 35 | 35 | 0 | 0 | 0 | 0 |
 | si-map | 16 | 16 | 0 | 0 | 0 | 0 |
 | si-merge | 7 | 7 | 0 | 0 | 0 | 0 |
 | si-message | 11 | 11 | 0 | 0 | 0 | 0 |
@@ -2215,19 +2163,19 @@ Not run, by the first dependency that is not met:
 | sx-MapExpr | 16 | 16 | 1 | 0 | 0 | 0 |
 | sx-QuantifiedExpr | 10 | 10 | 0 | 0 | 0 | 0 |
 | sx-SimpleMappingExpr | 11 | 11 | 0 | 0 | 0 | 0 |
-| sx-SquareArrayConstructor | 56 | 54 | 0 | 2 | 0 | 0 |
+| sx-SquareArrayConstructor | 56 | 56 | 0 | 0 | 0 | 0 |
 | sx-TreatExpr | 32 | 32 | 0 | 0 | 0 | 0 |
 | sx-UnionExpr | 56 | 56 | 0 | 0 | 0 | 0 |
-| arrays | 87 | 72 | 0 | 5 | 0 | 10 |
+| arrays | 87 | 75 | 0 | 2 | 0 | 10 |
 | boolean | 112 | 112 | 0 | 0 | 0 | 0 |
 | date | 139 | 125 | 0 | 5 | 0 | 9 |
-| maps | 61 | 60 | 2 | 1 | 0 | 0 |
-| namespace | 224 | 222 | 0 | 2 | 0 | 0 |
+| maps | 61 | 61 | 2 | 0 | 0 | 0 |
+| namespace | 224 | 223 | 0 | 1 | 0 | 0 |
 | node | 32 | 32 | 0 | 0 | 0 | 0 |
 | notation | 23 | 23 | 0 | 0 | 0 | 0 |
 | record | 47 | 40 | 3 | 5 | 0 | 2 |
 | string | 136 | 136 | 0 | 0 | 0 | 0 |
-| type | 82 | 73 | 0 | 3 | 0 | 6 |
+| type | 82 | 75 | 0 | 1 | 0 | 6 |
 | type-alias | 32 | 25 | 5 | 6 | 0 | 1 |
 
 </details>
@@ -2238,17 +2186,17 @@ Not run, by the first dependency that is not met:
 
 | Specification | Test cases | Run | Passed | of which wrong error | Failed | Errors | Not run | Passed of run |
 |---|--:|--:|--:|--:|--:|--:|--:|--:|
-| XSD11 | 41,735 | 41,518 | 41,486 | 0 | 32 | 0 | 217 | 99.9 % |
+| XSD11 | 41,735 | 41,610 | 41,599 | 0 | 11 | 0 | 125 | 100.0 % |
 
-Gate rate (D95): 41,486 of 41,518 in-scope test cases passed, **99.9 %** (in scope: the spec matches and no non-goal is needed; not-run cases count as not passed).
+Gate rate (D95): 41,599 of 41,610 in-scope test cases passed, **100.0 %** (in scope: the spec matches and no non-goal is needed; not-run cases count as not passed).
 
 ### XSD11 gate groups (proposed Phase 5 gate, D165)
 
 | Group | Target | In scope | Passed | Rate |
 |---|--:|--:|--:|--:|
 | Datatypes (NIST, MS DataTypes and Regex) | 95 % | 30,598 | 30,598 | 100.0 % |
-| Structures (Microsoft, Sun, W3C WG, Oracle, Boeing) | 80 % | 8,626 | 8,600 | 99.7 % |
-| XSD 1.1 (Saxonica, IBM) | 70 % | 2,294 | 2,288 | 99.7 % |
+| Structures (Microsoft, Sun, W3C WG, Oracle, Boeing) | 80 % | 8,626 | 8,617 | 99.9 % |
+| XSD 1.1 (Saxonica, IBM) | 70 % | 2,294 | 2,292 | 99.9 % |
 
 XSD slice (`tests/xsd/slice.txt`): **147/147 passed**.
 
@@ -2257,14 +2205,14 @@ XSD slice (`tests/xsd/slice.txt`): **147/147 passed**.
 | Area (contributor: the test-set prefix) | Test cases | Run | Passed | of which wrong error | Failed | Errors | Not run | Passed of run |
 |---|--:|--:|--:|--:|--:|--:|--:|--:|
 | NIST (datatypes): `nist-*` | 23,170 | 23,170 | 23,170 | 0 | 0 | 0 | 0 | 100.0 % |
-| Microsoft: `ms-*` | 14,450 | 14,363 | 14,337 | 0 | 26 | 0 | 87 | 99.8 % |
+| Microsoft: `ms-*` | 14,450 | 14,363 | 14,354 | 0 | 9 | 0 | 87 | 99.9 % |
 | Sun: `sun-*` | 1,610 | 1,606 | 1,606 | 0 | 0 | 0 | 4 | 100.0 % |
-| Saxonica (XSD 1.1): `saxon-*` | 1,390 | 1,375 | 1,370 | 0 | 5 | 0 | 15 | 99.6 % |
+| Saxonica (XSD 1.1): `saxon-*` | 1,390 | 1,375 | 1,374 | 0 | 1 | 0 | 15 | 99.9 % |
 | IBM (XSD 1.1): `ibm-*` | 919 | 919 | 918 | 0 | 1 | 0 | 0 | 99.9 % |
 | W3C XML Schema WG: `wg-*` | 60 | 41 | 41 | 0 | 0 | 0 | 19 | 100.0 % |
 | Oracle: `oracle-*` | 26 | 26 | 26 | 0 | 0 | 0 | 0 | 100.0 % |
 | Boeing: `boeing-*` | 18 | 18 | 18 | 0 | 0 | 0 | 0 | 100.0 % |
-| Suite metadata (not run, D165): `common-*` | 92 | 0 | 0 | 0 | 0 | 0 | 92 | – |
+| Suite metadata (not run, D165): `common-*` | 92 | 92 | 92 | 0 | 0 | 0 | 0 | 100.0 % |
 
 ### XSD11 failure causes
 
@@ -2272,18 +2220,16 @@ Failed and error test cases by the error code the query raised (or the status th
 
 | Error code | Test cases |
 |---|--:|
-| (no error: wrong result) | 32 |
+| (no error: wrong result) | 11 |
 
 The 25 most frequent reasons:
 
 | Cause | Test cases |
 |---|--:|
-| schema: valid, expected invalid | 23 |
+| schema: valid, expected invalid | 4 |
 | schema: invalid src-redefine | 3 |
 | schema: invalid enumeration-required-notation | 2 |
 | schema: invalid st-props-correct.2 | 1 |
-| schema: invalid, expected valid cos-content-act-restrict | 1 |
-| schema: invalid, expected valid derivation-ok-restriction.3 | 1 |
 | schema: invalid, expected valid enumeration-required-notation | 1 |
 
 Wrong errors (counted as passed) by the error raised:
@@ -2295,7 +2241,6 @@ Not run, by the first dependency that is not met:
 
 | Reason | Test cases |
 |---|--:|
-| test set introspection (the suite's metadata) | 92 |
 | status queried | 57 |
 | version 1.0 | 50 |
 | expected indeterminate | 14 |
@@ -2307,18 +2252,11 @@ Not run, by the first dependency that is not met:
 
 | Test set | Test cases | Passed | Failed | Errors | Not run |
 |---|--:|--:|--:|--:|--:|
-| ms-Attribute_w3c | 403 | 395 | 6 | 0 | 2 |
 | ms-Particles_w3c | 1,372 | 1,364 | 4 | 0 | 4 |
-| ms-SimpleType_w3c | 443 | 432 | 4 | 0 | 7 |
-| saxon-Wild | 284 | 280 | 4 | 0 | 0 |
-| ms-ModelGroups_w3c | 598 | 595 | 3 | 0 | 0 |
 | ms-Schema_w3c | 165 | 148 | 3 | 0 | 14 |
-| ms-Annotations_w3c | 80 | 78 | 2 | 0 | 0 |
 | ibm-defaultAttributesApply | 31 | 30 | 1 | 0 | 0 |
-| ms-Additional_w3c | 445 | 431 | 1 | 0 | 13 |
-| ms-AttributeGroup_w3c | 149 | 148 | 1 | 0 | 0 |
-| ms-ComplexType_w3c | 812 | 811 | 1 | 0 | 0 |
-| ms-Notations_w3c | 119 | 118 | 1 | 0 | 0 |
+| ms-Annotations_w3c | 80 | 79 | 1 | 0 | 0 |
+| ms-SimpleType_w3c | 443 | 435 | 1 | 0 | 7 |
 | saxon-Override | 86 | 85 | 1 | 0 | 0 |
 
 ### Every XSD11 test set
@@ -2328,7 +2266,7 @@ Not run, by the first dependency that is not met:
 
 | Test set | Test cases | Passed | of which wrong error | Failed | Errors | Not run |
 |---|--:|--:|--:|--:|--:|--:|
-| common-introspection | 92 | 0 | 0 | 0 | 0 | 92 |
+| common-introspection | 92 | 92 | 0 | 0 | 0 | 0 |
 | nist-NISTXMLSchemaDatatypes | 23,170 | 23,170 | 0 | 0 | 0 | 0 |
 | sun-suntest | 263 | 261 | 0 | 0 | 0 | 2 |
 | sun-AGroupDef | 19 | 19 | 0 | 0 | 0 | 0 |
@@ -2343,22 +2281,22 @@ Not run, by the first dependency that is not met:
 | sun-SType | 338 | 338 | 0 | 0 | 0 | 0 |
 | sun-Schema | 12 | 12 | 0 | 0 | 0 | 0 |
 | sun-Wildcard | 61 | 61 | 0 | 0 | 0 | 0 |
-| ms-Additional_w3c | 445 | 431 | 0 | 1 | 0 | 13 |
-| ms-Annotations_w3c | 80 | 78 | 0 | 2 | 0 | 0 |
-| ms-AttributeGroup_w3c | 149 | 148 | 0 | 1 | 0 | 0 |
-| ms-Attribute_w3c | 403 | 395 | 0 | 6 | 0 | 2 |
-| ms-ComplexType_w3c | 812 | 811 | 0 | 1 | 0 | 0 |
+| ms-Additional_w3c | 445 | 432 | 0 | 0 | 0 | 13 |
+| ms-Annotations_w3c | 80 | 79 | 0 | 1 | 0 | 0 |
+| ms-AttributeGroup_w3c | 149 | 149 | 0 | 0 | 0 | 0 |
+| ms-Attribute_w3c | 403 | 401 | 0 | 0 | 0 | 2 |
+| ms-ComplexType_w3c | 812 | 812 | 0 | 0 | 0 | 0 |
 | ms-DataTypes_w3c | 3,434 | 3,429 | 0 | 0 | 0 | 5 |
 | ms-Element_w3c | 527 | 523 | 0 | 0 | 0 | 4 |
 | ms-Errata10_w3c | 31 | 30 | 0 | 0 | 0 | 1 |
 | ms-Group_w3c | 344 | 344 | 0 | 0 | 0 | 0 |
 | ms-IdentityConstraint_w3c | 1,072 | 1,058 | 0 | 0 | 0 | 14 |
-| ms-ModelGroups_w3c | 598 | 595 | 0 | 3 | 0 | 0 |
-| ms-Notations_w3c | 119 | 118 | 0 | 1 | 0 | 0 |
+| ms-ModelGroups_w3c | 598 | 598 | 0 | 0 | 0 | 0 |
+| ms-Notations_w3c | 119 | 119 | 0 | 0 | 0 | 0 |
 | ms-Particles_w3c | 1,372 | 1,364 | 0 | 4 | 0 | 4 |
 | ms-Regex_w3c | 4,022 | 3,999 | 0 | 0 | 0 | 23 |
 | ms-Schema_w3c | 165 | 148 | 0 | 3 | 0 | 14 |
-| ms-SimpleType_w3c | 443 | 432 | 0 | 4 | 0 | 7 |
+| ms-SimpleType_w3c | 443 | 435 | 0 | 1 | 0 | 7 |
 | ms-Wildcards_w3c | 434 | 434 | 0 | 0 | 0 | 0 |
 | boeing-BoeingXSDTestSet | 18 | 18 | 0 | 0 | 0 | 0 |
 | saxon-All | 110 | 110 | 0 | 0 | 0 | 0 |
@@ -2373,7 +2311,7 @@ Not run, by the first dependency that is not met:
 | saxon-Subsgroup | 11 | 11 | 0 | 0 | 0 | 0 |
 | saxon-TargetNS | 10 | 10 | 0 | 0 | 0 | 0 |
 | saxon-VC | 50 | 49 | 0 | 0 | 0 | 1 |
-| saxon-Wild | 284 | 280 | 0 | 4 | 0 | 0 |
+| saxon-Wild | 284 | 284 | 0 | 0 | 0 | 0 |
 | saxon-XmlVersions | 51 | 51 | 0 | 0 | 0 | 0 |
 | saxon-Zone | 74 | 74 | 0 | 0 | 0 | 0 |
 | oracle-Zone | 26 | 26 | 0 | 0 | 0 | 0 |

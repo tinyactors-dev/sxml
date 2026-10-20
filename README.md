@@ -600,20 +600,20 @@ to build it.
 ## Conformance
 
 sxml is tested against the W3C test suites. The counts are of a release
-build at commit `9c5b1ba` (2026-10-20). A test case counts as run unless
+build at commit `e74d4ad` (2026-10-20). A test case counts as run unless
 it needs a feature that sxml does not claim; a test case that expects an
 error and gets another error code counts as passed, as the QT4 catalog
 allows.
 
 | Test suite | Run | Passed | Rate |
 | --- | --: | --: | --: |
-| QT4: XPath 4.0 and F&O 4.0 (XP40) | 32,771 | 32,689 | 99.7 % |
-| QT4: XQuery 4.0 (XQ40), with Update and Full Text | 46,208 | 45,969 | 99.5 % |
-| XSLT 4.0 (XT40) | 12,518 | 12,156 | 97.1 % |
-| XSD 1.1 (W3C XSD test suite) | 41,518 | 41,486 | 99.9 % |
+| QT4: XPath 4.0 and F&O 4.0 (XP40) | 32,841 | 32,815 | 99.92 % |
+| QT4: XQuery 4.0 (XQ40), with Update and Full Text | 46,232 | 46,158 | 99.84 % |
+| XSLT 4.0 (XT40) | 12,518 | 12,268 | 98.00 % |
+| XSD 1.1 (W3C XSD test suite) | 41,610 | 41,599 | 99.97 % |
 
-The schema-aware test cases among them: XPath passes 304 of 315, XQuery
-1,397 of 1,516 and XSLT 928 of 971. Other suites:
+The schema-aware test cases among them: XPath passes 314 of 315, XQuery
+1,446 of 1,516 and XSLT 940 of 971. Other suites:
 
 | Test suite | Passed |
 | --- | --: |
@@ -622,6 +622,7 @@ The schema-aware test cases among them: XPath passes 304 of 315, XQuery
 | html5lib: tree construction | 1,749 of 1,753 |
 | html5lib: encoding | 82 of 82 |
 | Invisible XML community test suite | 886 of 886 run (21 need another Unicode version or input no xs:string holds) |
+| tree-sitter grammars' own tests (corpus and highlights) | 1,410 of 1,419 run (19 the grammars' authors mark to skip) |
 
 [docs/CONFORMANCE.md](docs/CONFORMANCE.md) has the QT4, XSLT and XSD
 results by test set.
