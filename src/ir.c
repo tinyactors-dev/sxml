@@ -2447,6 +2447,7 @@ static void write_construction_flags(text_writer *writer, uint32_t flags) {
         {(uint32_t)SXML_IR_CONSTRUCTION_CDATA_SECTION, " cdata-section"},
         {(uint32_t)SXML_IR_CONSTRUCTION_DISABLES_OUTPUT_ESCAPING, " disables-output-escaping"},
         {(uint32_t)SXML_IR_CONSTRUCTION_PRINCIPAL_RESULT, " principal-result"},
+        {(uint32_t)SXML_IR_CONSTRUCTION_OWN_NAMESPACES, " own-namespaces"},
     };
     for (size_t flag_index = 0;
          flag_index < sizeof(flag_names) / sizeof(flag_names[0]);
@@ -2831,6 +2832,9 @@ static sxml_status print_expression(text_writer *writer, print_stack *stack,
         if (expression->cast.allows_empty) {
             write_text(writer, "?");
         }
+        write_binding_list(
+            writer, (binding_list_text){.label = "namespaces",
+                                        .list = expression->cast.namespace_bindings});
         return SXML_STATUS_OK;
     case SXML_IR_EXPRESSION_KIND_INSTANCE_OF:
     case SXML_IR_EXPRESSION_KIND_TREAT:

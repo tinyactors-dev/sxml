@@ -49,6 +49,14 @@
     SXML_FUNCTION_PARAMETER(name_text, type_text,                             \
                             SXML_PARAMETER_DEFAULT_CONTEXT_VALUE)
 
+/* A parameter whose default is the string value of the context value
+   ("$value := fn:string(.)"). */
+#define SXML_CONTEXT_STRING_PARAMETER(name_text, type_text)                   \
+    {.parameter_name = SXML_BYTE_VIEW_INITIALIZER(name_text),                 \
+     .parameter_type = SXML_BYTE_VIEW_INITIALIZER(type_text),                 \
+     .parameter_default = SXML_PARAMETER_DEFAULT_CONTEXT_VALUE,               \
+     .defaults_to_string_value = true}
+
 /* A row in the fn namespace with a leaf body; parameter_array is a static
    array of parameters. */
 #define SXML_FUNCTION_ROW(name_text, parameter_array, result_text,            \

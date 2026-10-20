@@ -428,6 +428,28 @@ static const direct_element_locals *find_enclosing_element(const sxml_xpath_lowe
     return NULL;
 }
 
+/* Whether the direct element constructor of frame is written in the
+   content of the enclosing direct element constructor, not inside an
+   enclosed expression: its element has only its own in-scope namespaces
+   (XQuery 4.0, 4.12.4; SXML_IR_CONSTRUCTION_OWN_NAMESPACES). */
+static bool is_direct_content(const sxml_xpath_lowerer *state,
+                              const sxml_xpath_lowering_frame *frame) {
+    for (const sxml_xpath_lowering_frame *below = frame->below; below != NULL;
+         below = below->below) {
+        if (below->procedure != &direct_element_procedure) {
+            continue;
+        }
+        for (sxml_ast_node_index content = child_of(state, below->node, SXML_AST_FIELD_CONTENT);
+             content.value != 0; content = next_of(state, content)) {
+            if (content.value == frame->node.value) {
+                return true;
+            }
+        }
+        return false;
+    }
+    return false;
+}
+
 /* The namespace bindings an element constructor sends: the declarations
    of the enclosing direct constructors; none outside one. */
 static sxml_ir_namespace_binding_list
@@ -796,7 +818,12 @@ static sxml_status finish_direct_element(sxml_xpath_lowering_machine *machine,
                         .node_construction = {.name = locals->name,
                                               .content = content,
                                               .namespace_bindings = locals->declared_list,
-                                              .construction_flags = construction_flags_of(state)}}},
+                                              .construction_flags =
+                                                  construction_flags_of(state) |
+                                                  (is_direct_content(state, frame)
+                                                       ? (uint32_t)
+                                                             SXML_IR_CONSTRUCTION_OWN_NAMESPACES
+                                                       : 0U)}}},
             &element);
     }
     if (status != SXML_STATUS_OK) {

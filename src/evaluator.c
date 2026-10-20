@@ -2980,9 +2980,14 @@ static sxml_status sxml_make_cast_value(sxml_dynamic_context *context,
     const sxml_ir_cast *cast = &expression->cast;
     const bool is_castable = expression->expression_kind == SXML_IR_EXPRESSION_KIND_CASTABLE;
     /* A cast to xs:QName resolves prefixes with the statically known
-       namespaces (F&O 4.0, section 19.1.9; D84). */
+       namespaces (F&O 4.0, section 19.1.9; D84): the cast's own, which
+       XQuery records inside direct constructors, or the running module's
+       (D263). */
     const sxml_namespace_binding_view namespace_bindings =
-        sxml_ir_unit_get_static_namespaces(sxml_machine_top(context)->function->unit);
+        cast->namespace_bindings.namespace_binding_count != 0
+            ? sxml_ir_unit_get_namespace_bindings(sxml_machine_top(context)->function->unit,
+                                                  cast->namespace_bindings)
+            : sxml_dynamic_context_get_static_namespaces(context);
     sxml_sequence value = sxml_sequence_empty();
     sxml_sequence atomized = sxml_sequence_empty();
     sxml_type_description target;
@@ -5036,8 +5041,8 @@ static sxml_status sxml_start_static_call(sxml_dynamic_context *context,
                 &(sxml_cast_request){.value = atomized,
                                      .target_type = target.constructor_type,
                                      .allows_empty = true,
-                                     .namespace_bindings = sxml_ir_unit_get_static_namespaces(
-                                         task->function->unit),
+                                     .namespace_bindings =
+                                         sxml_dynamic_context_get_static_namespaces(context),
                                      .error_record = context->error_record},
                 &result);
             sxml_sequence_release(atomized);

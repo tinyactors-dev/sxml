@@ -456,9 +456,9 @@ static sxml_status call_substring(const sxml_function_call *call,
         result);
 }
 
-/* The string value of an "item()?" argument, as fn:string gives it, into
-   text (F&O 4.0: fn:string-length and fn:normalize-space accept any
-   item). */
+/* The argument of fn:string-length or fn:normalize-space, an
+   "xs:anyAtomicType?" (an explicit argument atomized, the default
+   fn:string(.)), cast to xs:string, into text. */
 static sxml_status read_string_value(const sxml_function_call *call, sxml_library_text *text) {
     sxml_optional_item value;
     sxml_status status = sxml_function_library_read_optional_item(call, 0, &value);
@@ -468,7 +468,7 @@ static sxml_status read_string_value(const sxml_function_call *call, sxml_librar
     return status;
 }
 
-/* fn:string-length($value := .) (F&O 4.0, section 5.4.4). */
+/* fn:string-length($value := fn:string(.)) (F&O 4.0, section 5.3.11). */
 static sxml_status call_string_length(const sxml_function_call *call,
                                       sxml_sequence *result) {
     sxml_library_text text = {.item_heap = call->item_heap};
@@ -485,7 +485,7 @@ static sxml_status call_string_length(const sxml_function_call *call,
     return status;
 }
 
-/* fn:normalize-space($value := .) (F&O 4.0, section 5.4.5). */
+/* fn:normalize-space($value := fn:string(.)) (F&O 4.0, section 5.3.12). */
 static sxml_status call_normalize_space(const sxml_function_call *call,
                                         sxml_sequence *result) {
     sxml_library_text input = {.item_heap = call->item_heap};
@@ -1551,8 +1551,10 @@ static const sxml_function_parameter codepoints_parameters[] = {
     SXML_REQUIRED_PARAMETER("values", "xs:integer*")};
 static const sxml_function_parameter optional_string_parameters[] = {
     SXML_REQUIRED_PARAMETER("value", "xs:string?")};
+/* fn:string-length and fn:normalize-space: "$value as xs:anyAtomicType?
+   := fn:string(.)" (F&O 4.0, 5.3.11 and 5.3.12). */
 static const sxml_function_parameter context_string_parameters[] = {
-    SXML_CONTEXT_PARAMETER("value", "item()?")};
+    SXML_CONTEXT_STRING_PARAMETER("value", "xs:anyAtomicType?")};
 static const sxml_function_parameter concat_parameters[] = {
     SXML_OPTIONAL_PARAMETER("values", "xs:anyAtomicType*")};
 static const sxml_function_parameter string_join_parameters[] = {

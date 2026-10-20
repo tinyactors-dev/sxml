@@ -2844,9 +2844,24 @@ static sxml_status push_error_variables(sxml_xpath_lowerer *state,
         if (node_of(state, walked)->kind != SXML_AST_KIND_VARIABLE_REFERENCE) {
             continue;
         }
+        const sxml_ast_node_index name_node = child_of(state, walked, SXML_AST_FIELD_NAME);
+        if (node_of(state, name_node)->kind == SXML_AST_KIND_PREFIXED_NAME) {
+            /* The prefix may be one a direct constructor inside the
+               handler declares (try-catch-err-code-variable-13): an error
+               variable of the local name is put in scope, and the
+               reference resolves its own name where it is. */
+            const sxml_byte_view local_name =
+                sxml_ast_get_text(state->ast, node_of(state, name_node)->payload.name.local_name);
+            for (size_t variable_index = 0; variable_index < ERROR_VARIABLE_COUNT;
+                 variable_index += 1) {
+                is_referenced[variable_index] =
+                    is_referenced[variable_index] ||
+                    sxml_byte_view_equals(error_variable_names[variable_index], local_name);
+            }
+            continue;
+        }
         sxml_name_identifier name = {0};
-        status = sxml_xpath_lowerer_resolve_variable_name(
-            state, child_of(state, walked, SXML_AST_FIELD_NAME), &name);
+        status = sxml_xpath_lowerer_resolve_variable_name(state, name_node, &name);
         for (size_t variable_index = 0; variable_index < ERROR_VARIABLE_COUNT;
              variable_index += 1) {
             is_referenced[variable_index] = is_referenced[variable_index] ||

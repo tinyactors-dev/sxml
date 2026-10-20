@@ -1099,8 +1099,10 @@ typedef struct sxml_construct_flag_pair {
 static bool sxml_construct_flags_allow_delivery(sxml_construct_flag_pair pair) {
     const uint32_t preserves = (uint32_t)SXML_IR_CONSTRUCTION_PRESERVES_TYPES;
     /* Where the receiver's tree goes is no property of its content
-       (D231). */
-    const uint32_t ignored = preserves | (uint32_t)SXML_IR_CONSTRUCTION_PRINCIPAL_RESULT;
+       (D231), nor whether an element keeps only its own namespaces, which
+       its start says (D263). */
+    const uint32_t ignored = preserves | (uint32_t)SXML_IR_CONSTRUCTION_PRINCIPAL_RESULT |
+                             (uint32_t)SXML_IR_CONSTRUCTION_OWN_NAMESPACES;
     return (pair.receiver_flags & ~ignored) == (pair.own_flags & ~ignored) &&
            ((pair.receiver_flags & preserves) != 0 || (pair.own_flags & preserves) == 0);
 }
@@ -1915,7 +1917,9 @@ static sxml_type_identifier sxml_construct_element_type(
 
 /* Starts an element; in the enclosing construction it is a child of the
    enclosing node, which inherits its namespaces unless the flags say
-   no-inherit (as its copy would, D69). */
+   no-inherit (as its copy would, D69), or that it has only its own (a
+   direct element constructor in another's content, XQuery 4.0, 4.12.4;
+   D263). */
 static sxml_status sxml_construction_start_element(sxml_construction *construction,
                                                    const sxml_construct_element_start *start) {
     const bool is_enclosed = construction->enclosing != NULL;
@@ -1934,7 +1938,8 @@ static sxml_status sxml_construction_start_element(sxml_construction *constructi
             .is_nilled = false,
             .ignores_parent_namespaces =
                 is_enclosed && (construction->construction_flags &
-                                (uint32_t)SXML_IR_CONSTRUCTION_NO_INHERIT_NAMESPACES) != 0,
+                                ((uint32_t)SXML_IR_CONSTRUCTION_NO_INHERIT_NAMESPACES |
+                                 (uint32_t)SXML_IR_CONSTRUCTION_OWN_NAMESPACES)) != 0,
             .location = sxml_construct_no_location});
     if (status == SXML_STATUS_OK) {
         status = sxml_construction_send_bindings(construction, start->bindings);

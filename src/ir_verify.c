@@ -902,6 +902,9 @@ static sxml_status visit_expression(verifier *checker,
         if (!type_is_registered(checker, expression->cast.target_type)) {
             return report(checker, "a cast's target type is not registered");
         }
+        if (!binding_list_is_in_range(checker, expression->cast.namespace_bindings)) {
+            return report(checker, "a cast's namespace bindings are out of range");
+        }
         return check_required_atom(checker, expression->cast.value);
     case SXML_IR_EXPRESSION_KIND_INSTANCE_OF:
     case SXML_IR_EXPRESSION_KIND_TREAT:

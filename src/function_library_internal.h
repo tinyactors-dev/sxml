@@ -125,6 +125,12 @@ typedef struct sxml_function_parameter {
        where the function's specification names one (XSLT 4.0, 20.2.2:
        XTDE1270); empty for XPDY0002. */
     sxml_byte_view absent_focus_error_code;
+    /* For SXML_PARAMETER_DEFAULT_CONTEXT_VALUE: the default is
+       fn:string(.), not . (F&O 4.0, fn:string-length and
+       fn:normalize-space, "$value as xs:anyAtomicType? := fn:string(.)"):
+       the caller passes the string value of the context value, so an
+       explicit argument is atomized and the default is not (D263). */
+    bool defaults_to_string_value;
 } sxml_function_parameter;
 
 typedef struct sxml_function_parameter_view {

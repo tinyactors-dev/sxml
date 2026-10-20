@@ -195,7 +195,7 @@ static const golden_case golden_cases[] = {
      "      (let $2 content (attribute-constructor #b $1)\n"
      "        (let $3 content (text-constructor _ \"x\")\n"
      "          (let $4 content (element-constructor #Q{urn:d}c _ (namespaces p=\"urn:p\" "
-     "\"\"=\"urn:d\")\n"
+     "\"\"=\"urn:d\") own-namespaces\n"
      "                            (sequence))\n"
      "            (sequence $2 $3 $4)))))))\n"},
     {"<a b=\"x{1, 2}y\">{1}{2} <![CDATA[ ]]></a>",

@@ -1591,6 +1591,48 @@ static sxml_status lower_qname_literal(sxml_xpath_lowerer *state,
  * prefix the static context does not bind (left to run time, which
  * raises its error).
  */
+/* Whether a cast to type resolves namespace prefixes: an atomic type
+   derived from xs:QName or xs:NOTATION, or a union, choice or list that
+   may have one among its members (taken to, without looking deeper). */
+static bool is_namespace_sensitive(const sxml_xpath_lowerer *state, sxml_type_identifier type) {
+    sxml_type_description description;
+    if (sxml_type_registry_describe_type(state->type_registry, type, &description) !=
+        SXML_STATUS_OK) {
+        return false;
+    }
+    if (description.variety == SXML_TYPE_VARIETY_UNION ||
+        description.variety == SXML_TYPE_VARIETY_CHOICE ||
+        description.variety == SXML_TYPE_VARIETY_LIST) {
+        return true;
+    }
+    return description.variety == SXML_TYPE_VARIETY_ATOMIC &&
+           (sxml_type_registry_is_derived_from(
+                state->type_registry,
+                (sxml_type_pair){.derived_type = type,
+                                 .base_type = sxml_builtin_type_identifier(SXML_TYPE_XS_QNAME)}) ||
+            sxml_type_registry_is_derived_from(
+                state->type_registry,
+                (sxml_type_pair){.derived_type = type,
+                                 .base_type =
+                                     sxml_builtin_type_identifier(SXML_TYPE_XS_NOTATION)}));
+}
+
+/* An XQuery cast to a namespace-sensitive type records the statically
+   known namespaces of its place: those of the module, extended by the
+   declarations of enclosing direct constructors (XQuery 4.0, 4.12.1.2;
+   F&O 4.0, 23.2; D84, D263). Other languages use the unit's or module's
+   (an empty list). */
+static sxml_status add_cast_namespaces(sxml_xpath_lowerer *state, sxml_ir_cast *cast) {
+    cast->namespace_bindings = (sxml_ir_namespace_binding_list){
+        .first_namespace_binding_index = 0, .namespace_binding_count = 0};
+    const sxml_namespace_binding_view bindings = state->static_context->namespace_bindings;
+    if (state->language != SXML_LANGUAGE_XQUERY || bindings.namespace_binding_count == 0 ||
+        !is_namespace_sensitive(state, cast->target_type)) {
+        return SXML_STATUS_OK;
+    }
+    return sxml_ir_unit_add_namespace_bindings(state->unit, bindings, &cast->namespace_bindings);
+}
+
 typedef struct qname_folding {
     bool is_folded;
     sxml_ir_atom constant;
@@ -2280,6 +2322,87 @@ static sxml_status find_function(sxml_xpath_lowerer *state, function_lookup look
     return status;
 }
 
+/* The context value read for a parameter whose default is the context
+   value: fn:string(.) when the parameter says so
+   (sxml_function_parameter.defaults_to_string_value; F&O 4.0,
+   fn:string-length and fn:normalize-space), else . itself. */
+typedef struct context_default {
+    sxml_xpath_lowering_block *block;
+    sxml_ast_node_index node;
+    const sxml_function_parameter *parameter;
+} context_default;
+
+static sxml_status read_context_default(sxml_xpath_lowerer *state, context_default request,
+                                        sxml_ir_atom *atom) {
+    sxml_ir_atom value = {0};
+    sxml_status status = sxml_xpath_lowerer_read_focus(
+        state,
+        (sxml_xpath_lowering_focus_read){.block = request.block,
+                                         .node = request.node,
+                                         .part = SXML_XPATH_LOWERING_FOCUS_PART_VALUE},
+        &value);
+    if (status != SXML_STATUS_OK || request.parameter == NULL ||
+        !request.parameter->defaults_to_string_value) {
+        *atom = value;
+        return status;
+    }
+    sxml_name_identifier string_name = {0};
+    status = sxml_name_pool_intern_name(
+        state->name_pool,
+        &(sxml_name_request){
+            .namespace_uri = sxml_well_known_namespace_identifier(SXML_NAMESPACE_FUNCTIONS),
+            .local_name = SXML_BYTE_VIEW_FROM_LITERAL("string")},
+        &string_name);
+    sxml_function_entry entry = {0};
+    if (status == SXML_STATUS_OK) {
+        status = find_function(state, (function_lookup){.function_name = string_name, .arity = 1},
+                               &entry);
+    }
+    if (status == SXML_STATUS_OK && entry.entry_kind == SXML_FUNCTION_ENTRY_KIND_NONE) {
+        status = SXML_STATUS_INVALID_ARGUMENT;
+    }
+    sxml_ir_atom argument = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_coerce_atom(
+            state,
+            (sxml_xpath_lowering_coercion_request){.block = request.block,
+                                                   .node = request.node,
+                                                   .value = value,
+                                                   .sequence_type = parameter_type_of(&entry, 0),
+                                                   .role = SXML_IR_COERCION_ROLE_FUNCTION_ARGUMENT},
+            &argument);
+    }
+    sxml_ir_atom_list arguments = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_ir_unit_add_atoms(
+            state->unit, (sxml_ir_atom_view){.atoms = &argument, .atom_count = 1}, &arguments);
+    }
+    sxml_ir_expression call = {0};
+    if (status == SXML_STATUS_OK) {
+        status = make_entry_call(state,
+                                 &(entry_call){.entry = &entry,
+                                               .arguments = arguments,
+                                               .module_number =
+                                                   state->static_context->ir_module_number},
+                                 &call);
+    }
+    sxml_ir_expression_index expression = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_add_expression(
+            state,
+            (sxml_xpath_lowering_expression_to_add){.node = request.node, .expression = call},
+            &expression);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_bind_expression(
+            state,
+            (sxml_xpath_lowering_expression_in_block){.block = request.block,
+                                                      .expression = expression},
+            atom);
+    }
+    return status;
+}
+
 /* The name identifier of a function name node, or 0 when the name was
    never interned (then no function has it). */
 static sxml_status resolve_function_name(sxml_xpath_lowerer *state,
@@ -2363,11 +2486,14 @@ static sxml_status emit_call(sxml_xpath_lowerer *state, call_emission request,
     if (call->entry.entry_kind == SXML_FUNCTION_ENTRY_KIND_CONSTRUCTOR) {
         /* XPath 4.0, section 4.5.1.3: a constructor function call is a
            cast that accepts the empty sequence. */
-        const sxml_ir_cast cast = {.value = call->arguments[0].atom,
-                                   .target_type = call->entry.constructor_type,
-                                   .allows_empty = true};
+        sxml_ir_cast cast = {.value = call->arguments[0].atom,
+                             .target_type = call->entry.constructor_type,
+                             .allows_empty = true};
         qname_folding folding = {.is_folded = false};
-        const sxml_status status = fold_qname_cast(state, &cast, &folding);
+        sxml_status status = fold_qname_cast(state, &cast, &folding);
+        if (status == SXML_STATUS_OK && !folding.is_folded) {
+            status = add_cast_namespaces(state, &cast);
+        }
         if (status != SXML_STATUS_OK) {
             return status;
         }
@@ -2578,6 +2704,7 @@ static sxml_status emit_partial_application(sxml_xpath_lowerer *state,
                 .cast = {.value = body_arguments[0],
                          .target_type = call->entry.constructor_type,
                          .allows_empty = true}};
+            status = add_cast_namespaces(state, &body.cast);
         } else {
             sxml_ir_atom_list arguments = {0};
             status = sxml_ir_unit_add_atoms(
@@ -3613,12 +3740,11 @@ lower_named_function_reference(sxml_xpath_lowerer *state,
                     .node = node},
                 &value);
         } else if (status == SXML_STATUS_OK) {
-            status = sxml_xpath_lowerer_read_focus(
+            status = read_context_default(
                 state,
-                (sxml_xpath_lowering_focus_read){
-                    .block = request.block,
-                    .node = node,
-                    .part = SXML_XPATH_LOWERING_FOCUS_PART_VALUE},
+                (context_default){.block = request.block,
+                                  .node = node,
+                                  .parameter = &entry.parameters.function_parameters[arity]},
                 &value);
         }
         if (status == SXML_STATUS_OK) {
@@ -3662,16 +3788,20 @@ lower_named_function_reference(sxml_xpath_lowerer *state,
     if (call_entry.entry_kind == SXML_FUNCTION_ENTRY_KIND_CONSTRUCTOR) {
         /* xs:T#0: a cast of the captured context value (XPath 4.0,
            section 4.5.1.3). */
+        sxml_ir_cast cast = {
+            .value = sxml_ir_slot_atom((sxml_ir_slot){.value = (uint32_t)arity + 1U}),
+            .target_type = call_entry.constructor_type,
+            .allows_empty = true};
+        status = add_cast_namespaces(state, &cast);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
         return finish_closure(
             state,
-            (closure_body){
-                .function = function,
-                .body = {.expression_kind = SXML_IR_EXPRESSION_KIND_CAST,
-                         .cast = {.value = sxml_ir_slot_atom((sxml_ir_slot){
-                                      .value = (uint32_t)arity + 1U}),
-                                  .target_type = call_entry.constructor_type,
-                                  .allows_empty = true}},
-                .node = node},
+            (closure_body){.function = function,
+                           .body = {.expression_kind = SXML_IR_EXPRESSION_KIND_CAST,
+                                    .cast = cast},
+                           .node = node},
             expression);
     }
     void *memory = NULL;
@@ -7381,16 +7511,21 @@ static sxml_status finish_function_call(sxml_xpath_lowering_machine *machine,
                         .block = locals->request.preparation_block, .expression = raise},
                     &locals->arguments[argument_index].atom);
             }
-        } else if (parameter_default == SXML_PARAMETER_DEFAULT_CONTEXT_VALUE ||
-            parameter_default == SXML_PARAMETER_DEFAULT_CURRENT_ITEM) {
+        } else if (parameter_default == SXML_PARAMETER_DEFAULT_CONTEXT_VALUE) {
+            status = read_context_default(
+                state,
+                (context_default){
+                    .block = locals->request.preparation_block,
+                    .node = call_node,
+                    .parameter = &entry->parameters.function_parameters[argument_index]},
+                &locals->arguments[argument_index].atom);
+        } else if (parameter_default == SXML_PARAMETER_DEFAULT_CURRENT_ITEM) {
             status = sxml_xpath_lowerer_read_focus(
                 state,
                 (sxml_xpath_lowering_focus_read){
                     .block = locals->request.preparation_block,
                     .node = call_node,
-                    .part = parameter_default == SXML_PARAMETER_DEFAULT_CURRENT_ITEM
-                                ? SXML_XPATH_LOWERING_FOCUS_PART_CURRENT_ITEM
-                                : SXML_XPATH_LOWERING_FOCUS_PART_VALUE},
+                    .part = SXML_XPATH_LOWERING_FOCUS_PART_CURRENT_ITEM},
                 &locals->arguments[argument_index].atom);
         } else if (parameter_default == SXML_PARAMETER_DEFAULT_REQUIRED) {
             status = sxml_xpath_lowerer_report_static_error(
@@ -9175,6 +9310,9 @@ static sxml_status continue_typed_expression(sxml_xpath_lowering_machine *machin
         if (status == SXML_STATUS_OK &&
             expression.expression_kind == SXML_IR_EXPRESSION_KIND_CAST) {
             status = fold_qname_cast(state, &expression.cast, &folding);
+        }
+        if (status == SXML_STATUS_OK && !folding.is_folded) {
+            status = add_cast_namespaces(state, &expression.cast);
         }
         if (folding.is_folded) {
             expression = (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_ATOM,

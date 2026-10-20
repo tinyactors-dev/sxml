@@ -758,11 +758,25 @@ typedef struct sxml_ir_document_order {
 
 /* CAST and CASTABLE: target_type is an atomic, list, union, enumeration
    or choice type that cast allows (4.17.1). */
+/* A run of namespace bindings in the unit (in-scope namespaces written on
+   a direct element constructor, or the namespaces a computed name or a
+   cast is resolved with), added with sxml_ir_unit_add_namespace_bindings. */
+typedef struct sxml_ir_namespace_binding_list {
+    uint32_t first_namespace_binding_index;
+    uint32_t namespace_binding_count;
+} sxml_ir_namespace_binding_list;
+
 typedef struct sxml_ir_cast {
     sxml_ir_atom value;
     sxml_type_identifier target_type;
     /* The "?" of the cast target: the empty sequence is allowed. */
     bool allows_empty;
+    /* The statically known namespaces a cast to a namespace-sensitive
+       type (xs:QName, xs:NOTATION) resolves prefixes with, where they are
+       not the module's: XQuery records those of the cast's place, which
+       enclosing direct constructors extend (D84, D263). Empty means the
+       static namespaces of the running module or unit. */
+    sxml_ir_namespace_binding_list namespace_bindings;
 } sxml_ir_cast;
 
 /* INSTANCE_OF and TREAT. */
@@ -877,14 +891,6 @@ typedef struct sxml_ir_try_catch {
     sxml_ir_expression_index finally_body;
 } sxml_ir_try_catch;
 
-/* A run of namespace bindings in the unit (in-scope namespaces written on
-   a direct element constructor, or the namespaces a computed name is
-   resolved with), added with sxml_ir_unit_add_namespace_bindings. */
-typedef struct sxml_ir_namespace_binding_list {
-    uint32_t first_namespace_binding_index;
-    uint32_t namespace_binding_count;
-} sxml_ir_namespace_binding_list;
-
 /*
  * Bits of construction_flags (D110). 0, the default, is XQuery's
  * construction strip and copy-namespaces preserve, inherit (XQuery 4.0,
@@ -919,6 +925,13 @@ typedef enum sxml_ir_construction_flag {
        D231), the constructor's value then the empty sequence; else as any
        document. Content built into it in place is not affected. */
     SXML_IR_CONSTRUCTION_PRINCIPAL_RESULT = 1U << 6U,
+    /* ELEMENT only: a direct element constructor in the content of
+       another, whose element has only its own in-scope namespaces, not
+       those of its parent (XQuery 4.0, 4.12.4: the declarations of it
+       and the enclosing direct constructors, which its namespace bindings
+       list, and namespace fixup; copy-namespaces applies to existing nodes
+       copied, D263). */
+    SXML_IR_CONSTRUCTION_OWN_NAMESPACES = 1U << 7U,
 } sxml_ir_construction_flag;
 
 /* Every bit of sxml_ir_construction_flag. */
@@ -929,7 +942,8 @@ typedef enum sxml_ir_construction_flag {
      (uint32_t)SXML_IR_CONSTRUCTION_XSLT_RULES |                              \
      (uint32_t)SXML_IR_CONSTRUCTION_CDATA_SECTION |                           \
      (uint32_t)SXML_IR_CONSTRUCTION_DISABLES_OUTPUT_ESCAPING |                \
-     (uint32_t)SXML_IR_CONSTRUCTION_PRINCIPAL_RESULT)
+     (uint32_t)SXML_IR_CONSTRUCTION_PRINCIPAL_RESULT |                       \
+     (uint32_t)SXML_IR_CONSTRUCTION_OWN_NAMESPACES)
 
 /*
  * The node constructor kinds and SHALLOW_COPY. Which fields apply:

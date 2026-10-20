@@ -2876,6 +2876,49 @@ static sxml_status bind_context_argument(const sxml_function_call *call,
     return status;
 }
 
+/* fn:string(value) by the fn:string row's own body, a leaf (no
+   evaluator call; D71), with value coerced to its parameter type. */
+static sxml_status make_string_value(const sxml_function_call *call, sxml_sequence value,
+                                     sxml_sequence *result) {
+    sxml_name_identifier string_name = {0};
+    sxml_status status = sxml_name_pool_intern_name(
+        sxml_item_heap_get_name_pool(call->item_heap),
+        &(sxml_name_request){
+            .namespace_uri = sxml_well_known_namespace_identifier(SXML_NAMESPACE_FUNCTIONS),
+            .local_name = SXML_BYTE_VIEW_FROM_LITERAL("string")},
+        &string_name);
+    const sxml_function_table table = call->dynamic_context->function_table;
+    sxml_function_entry entry = {.entry_kind = SXML_FUNCTION_ENTRY_KIND_NONE};
+    if (status == SXML_STATUS_OK) {
+        status = table.operations->find_function(
+            table.state, &(sxml_function_query){.function_name = string_name, .arity = 1},
+            &entry);
+    }
+    if (status == SXML_STATUS_OK && (entry.entry_kind != SXML_FUNCTION_ENTRY_KIND_NATIVE ||
+                                     entry.native_function->call == NULL ||
+                                     entry.parameter_types.sequence_type_count < 1)) {
+        status = SXML_STATUS_INVALID_ARGUMENT;
+    }
+    sxml_sequence coerced = sxml_sequence_empty();
+    if (status == SXML_STATUS_OK) {
+        status = sxml_evaluator_coerce(
+            call->dynamic_context,
+            &(sxml_coercion_request){.value = value,
+                                     .sequence_type = entry.parameter_types.sequence_types[0],
+                                     .role = SXML_IR_COERCION_ROLE_FUNCTION_ARGUMENT,
+                                     .error_record = call->error_record},
+            &coerced);
+    }
+    if (status == SXML_STATUS_OK) {
+        sxml_function_call string_call = *call;
+        string_call.function_item = (sxml_item){.representation = 0};
+        string_call.arguments = (sxml_sequence_view){.sequences = &coerced, .sequence_count = 1};
+        status = entry.native_function->call(&string_call, result);
+    }
+    sxml_sequence_release(coerced);
+    return status;
+}
+
 static sxml_status bind_to_caller_focus(const sxml_function_call *call, found_function found,
                                         sxml_sequence *result) {
     const sxml_function_query *query = found.query;
@@ -2919,11 +2962,26 @@ static sxml_status bind_to_caller_focus(const sxml_function_call *call, found_fu
     if (full.entry_kind != SXML_FUNCTION_ENTRY_KIND_NATIVE) {
         return SXML_STATUS_INVALID_ARGUMENT;
     }
-    return bind_context_argument(
-        call,
-        &(context_binding){.query = query, .full_query = &full_query, .full = &full,
-                           .context_value = parts[0]},
-        result);
+    if (!row->parameters.function_parameters[bound_index].defaults_to_string_value) {
+        return bind_context_argument(
+            call,
+            &(context_binding){.query = query, .full_query = &full_query, .full = &full,
+                               .context_value = parts[0]},
+            result);
+    }
+    /* "$value := fn:string(.)": the string value of the caller's context
+       value is bound (F&O 4.0, fn:string-length, fn:normalize-space). */
+    sxml_sequence string_value = sxml_sequence_empty();
+    sxml_status bound = make_string_value(call, parts[0], &string_value);
+    if (bound == SXML_STATUS_OK) {
+        bound = bind_context_argument(
+            call,
+            &(context_binding){.query = query, .full_query = &full_query, .full = &full,
+                               .context_value = string_value},
+            result);
+    }
+    sxml_sequence_release(string_value);
+    return bound;
 }
 
 static sxml_status make_entry_function(const sxml_function_call *call, found_function found,
