@@ -36,8 +36,6 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
   forest built during the parse so item sets can be freed (D283).
   (Book-first pages carry <!-- status: draft -->; check-book-examples.sh
   skips them unless --drafts.)
-- 7.23: TypeScript/TSX and Markdown built in; a public API and run-time
-  language files for tree-sitter languages (owner, 2026-10-20).
 - report-1: whole runs of every suite at one commit; CONFORMANCE.md and
   the book's conformance appendix regenerated.
 
@@ -315,6 +313,16 @@ highlights; tree-sitter/suite 630 of 639 (corpus 452/452, highlights
 (budget 10,000,000 / 2,800,000), CLI 11,289,043 / 2,288,933 (budget
 11,500,000 / 2,500,000). Owner (2026-10-20): TypeScript/TSX and Markdown
 built in, a registration API, run-time language files (7.23).
+7.23 (D288): typescript, tsx, markdown, markdown_inline built in; locals
+and injections (8 deep); public sxml_source_code_language and
+source_code_languages (tree-sitter ABI 13-15); CLI --code-language=LIBRARY
+(dlopen/LoadLibraryW in the platform layer). tree-sitter/suite 1,410 of
+1,438 (highlights 187/187; 8 markdown_inline extensions not in upstream's
+default parser, 1 upstream spec.txt error). sxml.wasm 13,425,285 /
+2,411,765 (budget 14,000,000), CLI 15,026,404 (15,500,000 / 2,900,000).
+Delayed: tree-sitter .wasm language files in JavaScript (sxml.wasm cannot
+link modules at run time), the native wasm store (wasmtime), the host
+shim and bindings (Phase 6 paused), injection.combined.
 
 7.21 (D283): Earley with lookahead, Leo items, compiled classes, grammar
 simplification. 1 MB: log 1.12 -> 0.18 s, csv 1.25 -> 0.28 s, calc 2.14 ->
