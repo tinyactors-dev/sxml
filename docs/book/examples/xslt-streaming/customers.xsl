@@ -1,6 +1,7 @@
 <xsl:stylesheet version="4.0" expand-text="yes"
     xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
-    xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    xmlns:xs="http://www.w3.org/2001/XMLSchema"
+    xmlns:map="http://www.w3.org/2005/xpath-functions/map">
   <xsl:mode streamable="yes" use-accumulators="#all"/>
   <xsl:output method="text"/>
 

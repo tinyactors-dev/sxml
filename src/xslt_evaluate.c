@@ -572,6 +572,10 @@ static sxml_status compile_target(evaluate_build *build, evaluate_state *state) 
     if (instruction_context != NULL) {
         static_context.unit_static_context = *instruction_context;
     }
+    /* 10.5.1: the instruction's applicable static namespaces, or the
+       in-scope namespaces of namespace-context; no other predeclared
+       prefix (D261). */
+    static_context.omits_predeclared_namespaces = true;
     map_argument functions = {.is_map = false};
     status = read_map_argument(call, SXML_EVALUATE_ARGUMENT_FUNCTIONS, &functions);
     if (status != SXML_STATUS_OK || !functions.is_map) {

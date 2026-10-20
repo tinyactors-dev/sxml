@@ -235,7 +235,10 @@ static sxml_status look_up_prefix(prefix_lookup lookup,
             return SXML_STATUS_OK;
         }
     }
+    /* XSLT knows only its applicable static namespaces and xml (XSLT
+       4.0, 5.3.1; D261). */
     for (size_t prefix_index = 0;
+         !lookup.static_context->omits_predeclared_namespaces &&
          prefix_index <
          sizeof(predeclared_prefixes) / sizeof(predeclared_prefixes[0]);
          prefix_index += 1) {

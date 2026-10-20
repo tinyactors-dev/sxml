@@ -26,10 +26,12 @@
 /* ------------------------------------------------------------ Fixture */
 
 #define XSL_NAMESPACE "xmlns:xsl='http://www.w3.org/1999/XSL/Transform'"
+/* XSLT predeclares no prefix but xml (5.3.1; D261). */
+#define XS_NAMESPACE "xmlns:xs='http://www.w3.org/2001/XMLSchema' exclude-result-prefixes='xs'"
 
 /* A stylesheet of declarations. */
 #define STYLESHEET(declarations)                                                                   \
-    "<xsl:stylesheet version='4.0' " XSL_NAMESPACE ">" declarations "</xsl:stylesheet>"
+    "<xsl:stylesheet version='4.0' " XSL_NAMESPACE " " XS_NAMESPACE ">" declarations "</xsl:stylesheet>"
 
 static const char source_document[] =
     "<doc><chap><fig/><fig><fig/></fig></chap><chap><fig/>text</chap></doc>";

@@ -26,7 +26,9 @@
 /* Wraps a template body in a stylesheet whose initial template it is. */
 #define STYLESHEET(body)                                                                           \
     "<xsl:stylesheet version='4.0' " XSL_NAMESPACE                                                 \
-    " xmlns:err='http://www.w3.org/2005/xqt-errors' exclude-result-prefixes='err'>"                \
+    " xmlns:err='http://www.w3.org/2005/xqt-errors' xmlns:xs='http://www.w3.org/2001/XMLSchema'"   \
+    " xmlns:map='http://www.w3.org/2005/xpath-functions/map'"                                     \
+    " exclude-result-prefixes='err xs map'>"                                                       \
     "<xsl:template name='xsl:initial-template'>" body "</xsl:template></xsl:stylesheet>"
 
 static const char source_document[] =
@@ -427,7 +429,8 @@ static void test_messages_and_others(sxml_test_state *state) {
         {STYLESHEET("<xsl:message terminate='yes' select='\"stop\"'/><a/>"), "error:XTMM9000"},
         {STYLESHEET("<xsl:message terminate='{1 = 1}'>x</xsl:message>"), "error:XTMM9000"},
         {STYLESHEET("<xsl:message terminate='{1 = 2}'>x</xsl:message>ok"), "ok"},
-        {"<xsl:stylesheet version='4.0' " XSL_NAMESPACE " xmlns:my='urn:my'>"
+        {"<xsl:stylesheet version='4.0' " XSL_NAMESPACE " xmlns:my='urn:my'"
+         " xmlns:err='http://www.w3.org/2005/xqt-errors'>"
          "<xsl:template name='xsl:initial-template'><xsl:try>"
          "<xsl:message terminate='yes' error-code='my:stop'>m</xsl:message>"
          "<xsl:catch select='namespace-uri-from-QName($err:code), string($err:value)'/>"
@@ -496,7 +499,8 @@ static void test_global_variables(sxml_test_state *state) {
          "<xsl:param name='r' required='yes'/>"
          "<xsl:template name='xsl:initial-template'>x</xsl:template></xsl:stylesheet>",
          "error:XTDE0050"},
-        {"<xsl:stylesheet version='4.0' " XSL_NAMESPACE ">"
+        {"<xsl:stylesheet version='4.0' " XSL_NAMESPACE
+         " xmlns:xs='http://www.w3.org/2001/XMLSchema'>"
          "<xsl:variable name='t' as='xs:integer' select='\"x\"'/>"
          "<xsl:template name='xsl:initial-template'><xsl:sequence select='$t'/></xsl:template>"
          "</xsl:stylesheet>",

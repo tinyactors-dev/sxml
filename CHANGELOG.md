@@ -141,6 +141,14 @@ not tagged yet, or into the next minor release.
 - XSLT's xsl:import-schema and validation attributes are supported now
   (they raised XTSE1650 and XTSE1660, D162), and fn:system-properties
   says schema-aware.
+- **XSLT stylesheets no longer see XPath's predeclared prefixes** (D261):
+  as XSLT 4.0 (5.3.1) says, a stylesheet knows the namespaces it declares
+  (natively or with fixed-namespaces) and xml, nothing else. A stylesheet
+  that writes `xs:integer`, `map:get` or `math:pi()` without declaring
+  the prefix now fails with XPST0081 (in an expression or an `as` type)
+  or XTSE0280 (in a name attribute such as `mode`); declare it
+  (`xmlns:xs="http://www.w3.org/2001/XMLSchema"`) or write
+  `fixed-namespaces="#standard"`. XPath and XQuery keep theirs.
 
 ## [0.2.0] - unreleased
 

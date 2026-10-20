@@ -86,7 +86,7 @@ typedef struct sxml_xpath_static_context {
     /* Memory for units and for scratch arrays. Not the null allocator. */
     sxml_allocator allocator;
     /* Added to the predeclared prefixes xml, xs, xsi, fn, map, array,
-       math and err; prefix 0 sets the default namespace for elements and
+       math and err (only xml with omits_predeclared_namespaces); prefix 0 sets the default namespace for elements and
        types (sxml_static_context_configuration). */
     sxml_namespace_binding_view namespace_bindings;
     /* The external variables in scope; variable n (from 1) becomes global
@@ -127,6 +127,10 @@ typedef struct sxml_xpath_static_context {
        xpath_1_compatibility_mode): lowering inserts the 1.0 conversions
        of src/xpath_compatibility.c (D197). */
     bool has_xpath_1_compatibility_mode;
+    /* Only xml and namespace_bindings are statically known, not the
+       other predeclared prefixes: XSLT's applicable static namespaces
+       (XSLT 4.0, 3.1, 5.3.1, 9.7, 10.5.1; D261). False for XPath and XQuery. */
+    bool omits_predeclared_namespaces;
 } sxml_xpath_static_context;
 
 /* Writes a static error: the error code is err:code_local_name. */

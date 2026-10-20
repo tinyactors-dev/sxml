@@ -664,8 +664,8 @@ typedef struct name_lookup {
 } name_lookup;
 
 /* The namespace of prefix among the statically known namespaces of
-   static_context (3.6.1, 5.1.1), else of the prefixes XPath 4.0
-   predeclares (fn, xs, map, array, math). */
+   static_context (3.6.1, 5.1.1, 5.3.1): its applicable static namespaces,
+   without XPath's predeclared prefixes (D261). */
 typedef struct prefix_query {
     sxml_xslt_ast_static_context_index static_context;
     sxml_byte_view prefix;
@@ -684,23 +684,6 @@ static bool resolve_prefix(const name_lookup *lookup, prefix_query query,
                                                 &binding_prefix) == SXML_STATUS_OK &&
             sxml_byte_view_equals(binding_prefix, prefix)) {
             *namespace_uri = binding.namespace_uri;
-            return true;
-        }
-    }
-    static const struct {
-        const char *prefix;
-        sxml_well_known_namespace namespace_uri;
-    } predeclared[] = {{"fn", SXML_NAMESPACE_FUNCTIONS},
-                       {"xs", SXML_NAMESPACE_XML_SCHEMA},
-                       {"map", SXML_NAMESPACE_MAP_FUNCTIONS},
-                       {"array", SXML_NAMESPACE_ARRAY_FUNCTIONS},
-                       {"math", SXML_NAMESPACE_MATH_FUNCTIONS}};
-    for (size_t entry_index = 0; entry_index < sizeof predeclared / sizeof predeclared[0];
-         entry_index += 1) {
-        const sxml_byte_view text = {.bytes = (const uint8_t *)predeclared[entry_index].prefix,
-                                     .byte_count = strlen(predeclared[entry_index].prefix)};
-        if (sxml_byte_view_equals(text, prefix)) {
-            *namespace_uri = sxml_well_known_namespace_identifier(predeclared[entry_index].namespace_uri);
             return true;
         }
     }

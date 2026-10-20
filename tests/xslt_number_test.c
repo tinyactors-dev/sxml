@@ -26,10 +26,12 @@
 /* ------------------------------------------------------------ Fixture */
 
 #define XSL_NAMESPACE "xmlns:xsl='http://www.w3.org/1999/XSL/Transform'"
+/* XSLT predeclares no prefix but xml (5.3.1; D261). */
+#define XS_NAMESPACE "xmlns:xs='http://www.w3.org/2001/XMLSchema' exclude-result-prefixes='xs'"
 
 /* Wraps templates in a stylesheet whose initial template is body. */
 #define STYLESHEET_WITH(templates, body)                                                           \
-    "<xsl:stylesheet version='4.0' " XSL_NAMESPACE ">" templates                                   \
+    "<xsl:stylesheet version='4.0' " XSL_NAMESPACE " " XS_NAMESPACE ">" templates                                   \
     "<xsl:template name='xsl:initial-template'>" body "</xsl:template></xsl:stylesheet>"
 
 #define STYLESHEET(body) STYLESHEET_WITH("", body)

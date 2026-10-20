@@ -156,7 +156,7 @@ static void test_simplified_stylesheet(sxml_test_state *state) {
 static void test_stylesheet_with_text_value_templates(sxml_test_state *state) {
     const read_case test_case = {
         .text = "<xsl:stylesheet version='4.0' expand-text='yes' " XSL_NAMESPACE
-                " xmlns:f='urn:f'>\n"
+                " xmlns:f='urn:f' xmlns:xs='http://www.w3.org/2001/XMLSchema'>\n"
                 "  <xsl:template match='item' mode='list' priority='2'>\n"
                 "    <li class='{@code}'>{f:label(.)}</li>\n"
                 "  </xsl:template>\n"
@@ -172,7 +172,8 @@ static void test_stylesheet_with_text_value_templates(sxml_test_state *state) {
             "module 1 principal precedence 1 root 1\n"
             "  uri \"file:///main.xsl\"\n"
             "context 1 parent 0 version 4.0 expand-text yes\n"
-            "  namespaces (xsl = http://www.w3.org/1999/XSL/Transform, f = urn:f)\n"
+            "  namespaces (xsl = http://www.w3.org/1999/XSL/Transform, f = urn:f, "
+            "xs = http://www.w3.org/2001/XMLSchema)\n"
             "  xpath-default-namespace none default-collation codepoint\n"
             "  default-mode #unnamed default-validation strip\n"
             "  excluded (http://www.w3.org/1999/XSL/Transform) extension ()\n"
@@ -201,7 +202,8 @@ static void test_stylesheet_with_text_value_templates(sxml_test_state *state) {
 static void test_static_expressions(sxml_test_state *state) {
     read_fixture fixture;
     const read_case test_case = {
-        .text = "<xsl:stylesheet version='3.0' " XSL_NAMESPACE ">\n"
+        .text = "<xsl:stylesheet version='3.0' " XSL_NAMESPACE
+                " xmlns:fn='http://www.w3.org/2005/xpath-functions'>\n"
                 "  <xsl:param name='mode' static='yes' select='\"b\"'/>\n"
                 "  <xsl:variable name='twice' static='yes' select='$mode || $mode'/>\n"
                 "  <xsl:template name='a' use-when='$mode = \"a\"'/>\n"
@@ -259,7 +261,8 @@ static void test_static_expressions(sxml_test_state *state) {
                 "<xsl:param name='p' static='yes' required='yes'/></xsl:stylesheet>"};
     SXML_TEST_EXPECT(state, reads_with(&required, "XTDE0050"));
     const read_case mistyped = {
-        .text = "<xsl:stylesheet version='3.0' " XSL_NAMESPACE ">"
+        .text = "<xsl:stylesheet version='3.0' " XSL_NAMESPACE
+                " xmlns:xs='http://www.w3.org/2001/XMLSchema'>"
                 "<xsl:variable name='v' static='yes' select='\"x\"' as='xs:integer'/>"
                 "</xsl:stylesheet>"};
     SXML_TEST_EXPECT(state, reads_with(&mistyped, "XTTE0570"));

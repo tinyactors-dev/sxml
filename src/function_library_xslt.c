@@ -71,7 +71,7 @@ typedef struct name_argument_request {
 } name_argument_request;
 
 /* The namespace a prefix has in the running unit: its static namespaces,
-   then the predeclared ones (XPath 4.0, 2.2.1); prefix empty is the
+   then xml (XSLT 4.0, 5.3.1; D261); prefix empty is the
    unit's default element namespace. False when it is unbound. */
 typedef struct prefix_request {
     const sxml_function_call *call;
@@ -91,19 +91,6 @@ static sxml_namespace_binding_view evaluation_bindings_of(const sxml_function_ca
 }
 
 static bool resolve_prefix(prefix_request request, sxml_namespace_uri_identifier *namespace_uri) {
-    static const struct {
-        sxml_byte_view prefix;
-        sxml_well_known_namespace namespace_uri;
-    } predeclared[] = {
-        {SXML_BYTE_VIEW_INITIALIZER("xml"), SXML_NAMESPACE_XML},
-        {SXML_BYTE_VIEW_INITIALIZER("xs"), SXML_NAMESPACE_XML_SCHEMA},
-        {SXML_BYTE_VIEW_INITIALIZER("xsi"), SXML_NAMESPACE_XML_SCHEMA_INSTANCE},
-        {SXML_BYTE_VIEW_INITIALIZER("fn"), SXML_NAMESPACE_FUNCTIONS},
-        {SXML_BYTE_VIEW_INITIALIZER("map"), SXML_NAMESPACE_MAP_FUNCTIONS},
-        {SXML_BYTE_VIEW_INITIALIZER("array"), SXML_NAMESPACE_ARRAY_FUNCTIONS},
-        {SXML_BYTE_VIEW_INITIALIZER("math"), SXML_NAMESPACE_MATH_FUNCTIONS},
-        {SXML_BYTE_VIEW_INITIALIZER("err"), SXML_NAMESPACE_ERRORS},
-    };
     const sxml_name_pool *name_pool = sxml_item_heap_get_name_pool(request.call->item_heap);
     const sxml_namespace_binding_view bindings = evaluation_bindings_of(request.call);
     for (size_t binding_index = 0; binding_index < bindings.namespace_binding_count;
@@ -124,13 +111,10 @@ static bool resolve_prefix(prefix_request request, sxml_namespace_uri_identifier
         *namespace_uri = (sxml_namespace_uri_identifier){.index = SXML_NAMESPACE_NONE};
         return true;
     }
-    for (size_t prefix_index = 0; prefix_index < sizeof(predeclared) / sizeof(predeclared[0]);
-         prefix_index += 1) {
-        if (sxml_byte_view_equals(predeclared[prefix_index].prefix, request.namespace_prefix)) {
-            *namespace_uri =
-                (sxml_namespace_uri_identifier){.index = predeclared[prefix_index].namespace_uri};
-            return true;
-        }
+    /* Of XPath's predeclared prefixes, XSLT knows only xml (5.3.1; D261). */
+    if (sxml_byte_view_equals(SXML_BYTE_VIEW_FROM_LITERAL("xml"), request.namespace_prefix)) {
+        *namespace_uri = (sxml_namespace_uri_identifier){.index = SXML_NAMESPACE_XML};
+        return true;
     }
     return false;
 }

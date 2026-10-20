@@ -130,6 +130,13 @@ This stylesheet shows several more things:
 - A template with a `name` instead of a `match` is a *named template*.
   `xsl:call-template` calls it, and `xsl:with-param` passes its
   parameters, which can have types.
+- A stylesheet declares every prefix it uses, `xs` too: here
+  `xmlns:xs="http://www.w3.org/2001/XMLSchema"` on `xsl:stylesheet`
+  makes `xs:decimal` a type, and `exclude-result-prefixes="xs"` keeps
+  the declaration out of the result. Unlike XPath and XQuery, XSLT
+  predeclares no prefix but `xml`; an undeclared one is an error
+  (XPST0081 in an expression or a type such as `as`, XTSE0280 in a name
+  such as `mode`).
 - `xsl:choose` picks the first `xsl:when` whose test is true (there is
   also `xsl:if` for a single test).
 - `xsl:text` writes text exactly, which keeps the whitespace of the

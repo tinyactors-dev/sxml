@@ -325,7 +325,9 @@ static sxml_status run_static_ast(sxml_xslt_static_scope *scope, const static_ru
         .namespace_bindings = request->namespace_bindings,
         .variable_declarations = request->declarations,
         .function_table = static_function_table(scope),
-        .static_base_uri = request->static_base_uri};
+        .static_base_uri = request->static_base_uri,
+        /* 9.7 and 5.3.1: the applicable static namespaces only (D261). */
+        .omits_predeclared_namespaces = true};
     sxml_ir_unit *unit = NULL;
     sxml_status status = sxml_xpath_lower(
         &(sxml_xpath_lowering_request){

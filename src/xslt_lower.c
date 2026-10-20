@@ -1908,7 +1908,8 @@ typedef struct context_source {
 } context_source;
 
 /* One XPath static context per static context of the AST (3.6, 5.1):
-   its namespaces (without xml, which XPath predeclares) and its
+   its namespaces (without xml, which XPath predeclares; no other
+   predeclared prefix, D261) and its
    xpath-default-namespace as prefix 0 (5.1.2.1; "##any" is not
    expressible and reads as none), its static base URI. */
 static sxml_status make_static_contexts(context_source source, lowering_storage *storage,
@@ -1989,6 +1990,10 @@ static sxml_status make_static_contexts(context_source source, lowering_storage 
            without the feature (27.4; D197). */
         storage->static_contexts[context_index].has_xpath_1_compatibility_mode =
             context->version < 2.0;
+        /* 3.1, 5.3.1: the statically known namespaces are the applicable
+           static namespaces, without XPath's other predeclared prefixes
+           (D261). */
+        storage->static_contexts[context_index].omits_predeclared_namespaces = true;
     }
     lowering->static_contexts = storage->static_contexts;
     lowering->static_context_count = context_count;

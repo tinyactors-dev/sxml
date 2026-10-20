@@ -1,5 +1,7 @@
 <xsl:stylesheet version="4.0" expand-text="yes"
-    xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
+    xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+    xmlns:xs="http://www.w3.org/2001/XMLSchema"
+    exclude-result-prefixes="xs">
   <xsl:output method="html" indent="yes"/>
   <xsl:param name="currency" select="'USD'"/>
 

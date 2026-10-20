@@ -28,7 +28,9 @@
 /* Wraps a template body in a stylesheet whose initial template it is. */
 #define STYLESHEET(body)                                                                           \
     "<xsl:stylesheet version='4.0' " XSL_NAMESPACE                                                 \
-    " xmlns:err='http://www.w3.org/2005/xqt-errors' exclude-result-prefixes='err'>"                \
+    " xmlns:err='http://www.w3.org/2005/xqt-errors' xmlns:xs='http://www.w3.org/2001/XMLSchema'"   \
+    " xmlns:map='http://www.w3.org/2005/xpath-functions/map'"                                     \
+    " exclude-result-prefixes='err xs map'>"                                                       \
     "<xsl:template name='xsl:initial-template'>" body "</xsl:template></xsl:stylesheet>"
 
 static const char source_document[] =
