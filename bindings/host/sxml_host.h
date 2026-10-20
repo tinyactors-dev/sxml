@@ -374,7 +374,8 @@ sxml_host_value *sxml_host_parse(sxml_host_processor *processor,
 
 /* Makes an xs:string value of text (UTF-8 of XML characters), or returns
    NULL with the processor's error set (SXML_STATUS_INVALID_UTF8,
-   SXML_STATUS_INVALID_ARGUMENT for a character XML does not allow). */
+   SXML_STATUS_INVALID_ARGUMENT for a character XML does not allow: XML
+   1.1 Char, as F&O 4.0 reads it, refuses U+0000, U+FFFE and U+FFFF). */
 sxml_host_value *sxml_host_string(sxml_host_processor *processor,
                                   const sxml_byte_view *text);
 

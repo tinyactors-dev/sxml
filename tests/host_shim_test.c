@@ -348,6 +348,39 @@ static void test_xquery_compile_evaluate_serialize(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, sxml_host_processor_destroy(processor) == 0);
 }
 
+/* sxml_host_string takes XML characters only (XML 1.1, production [2]
+   Char): U+0000, U+FFFE and U+FFFF are INVALID_ARGUMENT, malformed UTF-8
+   is INVALID_UTF8, and the characters around them cross intact. */
+static void test_string_refuses_characters_xml_does_not_allow(sxml_test_state *state) {
+    sxml_host_processor *processor = make_processor(NULL, 0);
+    SXML_TEST_REQUIRE(state, processor != NULL);
+    const sxml_byte_view refused[] = {
+        {.bytes = (const uint8_t *)"a\0b", .byte_count = 3},
+        TEXT("a\xEF\xBF\xBE"),
+        TEXT("\xEF\xBF\xBF"),
+    };
+    for (size_t text_index = 0; text_index < SXML_TEST_COUNT(refused); text_index += 1) {
+        SXML_TEST_EXPECT(state, sxml_host_string(processor, &refused[text_index]) == NULL);
+        SXML_TEST_EXPECT(state,
+                         sxml_host_error_of(processor)->status == SXML_STATUS_INVALID_ARGUMENT);
+    }
+    SXML_TEST_EXPECT(state, sxml_host_string(processor, &TEXT("\xC0\x80")) == NULL);
+    SXML_TEST_EXPECT(state, sxml_host_error_of(processor)->status == SXML_STATUS_INVALID_UTF8);
+    /* U+0001, U+FFFD and U+1F600 are XML 1.1 characters. */
+    sxml_host_value *control = sxml_host_string(processor, &TEXT("\x01"));
+    SXML_TEST_EXPECT(state, control != NULL);
+    sxml_host_value_release(control);
+    sxml_host_value *kept = sxml_host_string(processor, &TEXT("\xEF\xBF\xBD\xF0\x9F\x98\x80"));
+    SXML_TEST_REQUIRE(state, kept != NULL);
+    SXML_TEST_EXPECT(state, sxml_host_serialize(processor, &(sxml_host_serialize_request){
+                                                               .value = kept,
+                                                               .options = NULL}) ==
+                                SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, output_is(processor, "\"\xEF\xBF\xBD\xF0\x9F\x98\x80\""));
+    sxml_host_value_release(kept);
+    SXML_TEST_EXPECT(state, sxml_host_processor_destroy(processor) == 0);
+}
+
 /* The XPath run with each allocation failing in turn (D23): every run
    fails cleanly or succeeds, and none leaks. */
 static void test_xpath_under_every_allocation_failure(sxml_test_state *state) {
@@ -385,6 +418,8 @@ static const sxml_test_case host_shim_test_cases[] = {
      .function = test_features_are_those_of_the_full_link},
     {.name = "xquery_compile_evaluate_serialize",
      .function = test_xquery_compile_evaluate_serialize},
+    {.name = "string_refuses_characters_xml_does_not_allow",
+     .function = test_string_refuses_characters_xml_does_not_allow},
     {.name = "xpath_under_every_allocation_failure",
      .function = test_xpath_under_every_allocation_failure},
 };

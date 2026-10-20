@@ -46,6 +46,7 @@
 #include "sxml/processor.h"
 #include "sxml/serialize.h"
 #include "sxml/status.h"
+#include "sxml/string.h"
 #include "sxml/tree.h"
 #include "sxml/types.h"
 #include "sxml/version.h"
@@ -54,6 +55,7 @@
 #include "sxml/xpath.h"
 
 #include <stdalign.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
@@ -324,19 +326,46 @@ sxml_host_value *sxml_host_parse(sxml_host_processor *processor,
     return sxml_host_value_make(processor, sxml_sequence_from_item(document_node));
 }
 
+/*
+ * True when text, well-formed UTF-8, holds a character that is not an XML
+ * 1.1 character (XML 1.1, production [2] Char, as fn:codepoints-to-string
+ * reads it in F&O 4.0): U+0000, U+FFFE or U+FFFF. Well-formed UTF-8
+ * encodes each of them in one way only (RFC 3629, 3), as the bytes 00,
+ * EF BF BE and EF BF BF.
+ */
+static bool sxml_host_has_non_xml_character(sxml_byte_view text) {
+    for (size_t byte_index = 0; byte_index < text.byte_count; byte_index += 1) {
+        const uint8_t byte = text.bytes[byte_index];
+        if (byte == 0x00) {
+            return true;
+        }
+        if (byte == 0xEF && byte_index + 2 < text.byte_count &&
+            text.bytes[byte_index + 1] == 0xBF &&
+            (text.bytes[byte_index + 2] == 0xBE || text.bytes[byte_index + 2] == 0xBF)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 sxml_host_value *sxml_host_string(sxml_host_processor *processor,
                                   const sxml_byte_view *text) {
     sxml_host_begin(processor);
+    sxml_string string_text = {.utf8 = sxml_host_no_text, .codepoint_count = 0, .is_ascii = false};
+    sxml_status status = sxml_string_from_utf8(*text, &string_text);
+    if (status == SXML_STATUS_OK && sxml_host_has_non_xml_character(*text)) {
+        status = SXML_STATUS_INVALID_ARGUMENT;
+    }
     sxml_item string = {.representation = 0};
-    const sxml_status status = sxml_atomic_item_make(
-        sxml_processor_get_item_heap(processor->processor),
-        &(sxml_atomic_item_request){
-            .type = sxml_builtin_type_identifier(SXML_TYPE_XS_STRING),
-            .datum = {.datum_kind = SXML_DATUM_KIND_STRING,
-                      .datum_details = {.string = {.utf8 = *text,
-                                                   .codepoint_count = 0,
-                                                   .is_ascii = false}}}},
-        &string);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_atomic_item_make(
+            sxml_processor_get_item_heap(processor->processor),
+            &(sxml_atomic_item_request){
+                .type = sxml_builtin_type_identifier(SXML_TYPE_XS_STRING),
+                .datum = {.datum_kind = SXML_DATUM_KIND_STRING,
+                          .datum_details = {.string = string_text}}},
+            &string);
+    }
     if (status != SXML_STATUS_OK) {
         sxml_host_fail(processor, status);
         return NULL;
