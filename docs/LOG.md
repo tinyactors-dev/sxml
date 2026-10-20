@@ -4,6 +4,19 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 4.25 done (D262): XSLT sweep, XT40 12,157 to 12,187 passed (120 to
+  118 wrong error), 361 to 331 failed, 0 errors, none lost. Captured
+  groups and the cleared output URI pass through template calls (one
+  mechanism: the tunnel parameters as received context variables);
+  fn:apply-templates; XTDE1270 for fn:key; ##any as default element
+  namespace in XPath prologs and xpath-default-namespace; run-time
+  QName casts in XSLT without the predeclared prefixes (D261's
+  leftover); name checks of system-property and the *-available
+  functions; XTDE0030 for computed boolean attributes; override
+  checks of modes. Recorded as the draft's: FORG0001 in coercions,
+  XTTE0600, Sequence JNode copies, XPath 1.0 numbers. CONFORMANCE.md
+  not regenerated (another packet's uncommitted changes).
+
 - book-2 done (D270): the book's XQuery part grows from 5 to 11
   sections (grouping and windows, types and errors, inputs and
   external variables, serialization, XQuery 4.0, a report project)

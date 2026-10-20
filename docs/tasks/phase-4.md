@@ -470,3 +470,16 @@ the release driver).
   error), 362 to 361 failed, 0 errors, no case lost (namespace-6202).
   Left: run-time casts of strings to xs:QName still see the predeclared
   prefixes (`src/cast_lexical.c`, every language).
+- [x] **4.25 XSLT conformance sweep** (implementation, D255, D260,
+  D261). Owns the XSLT files a cluster's root cause is in, the XPath
+  lowering's context variables, their unit tests, and single insertions
+  in the ledgers. In order of value: D260's open list (captured groups
+  through templates, fn:apply-templates, absent-focus codes, FORG0001 in
+  coercions, Sequence JNode copies, prolog declarations in xsl:select,
+  current-output-uri in functions, stream-available-004/005, the single
+  cases), D261's run-time QName cast, then the largest clusters of a
+  fresh run.
+  **Done** 2026-10-20 (D262): XT40 12,157 to 12,187 passed (120 to 118
+  wrong error), 361 to 331 failed, 0 errors, no case lost. Left (causes
+  in D262): stream-available-004/005, casts and collations of inner
+  static contexts, fn:load-xquery-module in XSLT, D260's single cases.
