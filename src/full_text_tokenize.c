@@ -56,71 +56,6 @@ void sxml_full_text_token_list_release(sxml_full_text_token_list *list) {
     list->token_capacity = 0;
 }
 
-/* Appends bytes to output, growing it. */
-sxml_status sxml_full_text_append_text(sxml_full_text_bytes *output, sxml_byte_view bytes) {
-    if (bytes.byte_count == 0) {
-        return SXML_STATUS_OK;
-    }
-    if (output->byte_count + bytes.byte_count > output->byte_capacity) {
-        size_t capacity = output->byte_capacity == 0 ? 64U : output->byte_capacity;
-        while (capacity < output->byte_count + bytes.byte_count) {
-            if (capacity > SIZE_MAX / 2U) {
-                return SXML_STATUS_ARITHMETIC_OVERFLOW;
-            }
-            capacity *= 2U;
-        }
-        void *memory = NULL;
-        const sxml_status status = sxml_allocator_allocate(
-            output->allocator, (sxml_allocation_request){.byte_count = capacity, .alignment = 1},
-            &memory);
-        if (status != SXML_STATUS_OK) {
-            return status;
-        }
-        if (output->byte_count != 0) {
-            memcpy(memory, output->bytes, output->byte_count);
-        }
-        sxml_allocator_release(output->allocator, output->bytes);
-        output->bytes = memory;
-        output->byte_capacity = capacity;
-    }
-    memcpy(output->bytes + output->byte_count, bytes.bytes, bytes.byte_count);
-    output->byte_count += bytes.byte_count;
-    return SXML_STATUS_OK;
-}
-
-/* Appends codepoint as UTF-8. */
-sxml_status sxml_full_text_append_codepoint(sxml_full_text_bytes *output, uint32_t codepoint) {
-    uint8_t encoded[4];
-    size_t byte_count = 0;
-    if (codepoint < 0x80U) {
-        encoded[0] = (uint8_t)codepoint;
-        byte_count = 1;
-    } else if (codepoint < 0x800U) {
-        encoded[0] = (uint8_t)(0xC0U | (codepoint >> 6U));
-        encoded[1] = (uint8_t)(0x80U | (codepoint & 0x3FU));
-        byte_count = 2;
-    } else if (codepoint < 0x10000U) {
-        encoded[0] = (uint8_t)(0xE0U | (codepoint >> 12U));
-        encoded[1] = (uint8_t)(0x80U | ((codepoint >> 6U) & 0x3FU));
-        encoded[2] = (uint8_t)(0x80U | (codepoint & 0x3FU));
-        byte_count = 3;
-    } else {
-        encoded[0] = (uint8_t)(0xF0U | (codepoint >> 18U));
-        encoded[1] = (uint8_t)(0x80U | ((codepoint >> 12U) & 0x3FU));
-        encoded[2] = (uint8_t)(0x80U | ((codepoint >> 6U) & 0x3FU));
-        encoded[3] = (uint8_t)(0x80U | (codepoint & 0x3FU));
-        byte_count = 4;
-    }
-    return sxml_full_text_append_text(output, (sxml_byte_view){.bytes = encoded, .byte_count = byte_count});
-}
-
-void sxml_full_text_bytes_release(sxml_full_text_bytes *output) {
-    sxml_allocator_release(output->allocator, output->bytes);
-    output->bytes = NULL;
-    output->byte_count = 0;
-    output->byte_capacity = 0;
-}
-
 /* ------------------------------------------------------ Tokenization */
 
 /* The categories a token consists of: L, M, N and Pc (4.1, sxml's
@@ -370,14 +305,14 @@ sxml_status sxml_full_text_tokenize(const sxml_full_text_source *source,
 
 /* Appends the codepoints of word, case mapped as folding says. */
 static sxml_status fold_case(const sxml_full_text_fold_request *request,
-                             sxml_full_text_bytes *output) {
+                             sxml_xml_buffer *output) {
     const sxml_byte_view word = request->word;
     sxml_status status = SXML_STATUS_OK;
     for (size_t byte_offset = 0; status == SXML_STATUS_OK && byte_offset < word.byte_count;) {
         const sxml_xml_decoded_codepoint decoded = sxml_xml_decode_codepoint(word, byte_offset);
         byte_offset += decoded.encoded_byte_count;
         if (!request->folding.folds_case) {
-            status = sxml_full_text_append_codepoint(output, decoded.codepoint);
+            status = sxml_xml_buffer_append_codepoint(output, decoded.codepoint);
             continue;
         }
         sxml_case_mapping mapping;
@@ -390,20 +325,20 @@ static sxml_status fold_case(const sxml_full_text_fold_request *request,
         for (size_t mapped_index = 0;
              status == SXML_STATUS_OK && mapped_index < mapping.codepoint_count;
              mapped_index += 1) {
-            status = sxml_full_text_append_codepoint(output, mapping.codepoints[mapped_index]);
+            status = sxml_xml_buffer_append_codepoint(output, mapping.codepoints[mapped_index]);
         }
     }
     return status;
 }
 
 sxml_status sxml_full_text_fold(const sxml_full_text_fold_request *request,
-                                sxml_full_text_bytes *output) {
+                                sxml_xml_buffer *output) {
     if (!request->folding.strips_diacritics) {
         return fold_case(request, output);
     }
     /* 3.4.6: diacritics insensitive compares without the combining marks
        of the canonical decomposition (NFD, then every Mn dropped). */
-    sxml_full_text_bytes cased = {.allocator = output->allocator};
+    sxml_xml_buffer cased = {.allocator = output->allocator};
     sxml_status status = fold_case(request, &cased);
     sxml_unicode_normalized_text decomposed = {.allocator = output->allocator};
     sxml_string input;
@@ -425,11 +360,11 @@ sxml_status sxml_full_text_fold(const sxml_full_text_fold_request *request,
         byte_offset += decoded.encoded_byte_count;
         if (sxml_regex_get_general_category(decoded.codepoint) !=
             SXML_REGEX_GENERAL_CATEGORY_MN) {
-            status = sxml_full_text_append_codepoint(output, decoded.codepoint);
+            status = sxml_xml_buffer_append_codepoint(output, decoded.codepoint);
         }
     }
     sxml_unicode_normalized_text_release(&decomposed);
-    sxml_full_text_bytes_release(&cased);
+    sxml_xml_buffer_release(&cased);
     return status;
 }
 

@@ -51,7 +51,7 @@ static sxml_status add_word(sxml_full_text_word_list *list, sxml_byte_view word)
         list->word_capacity = capacity;
     }
     const size_t start = list->bytes.byte_count;
-    const sxml_status status = sxml_full_text_append_text(&list->bytes, word);
+    const sxml_status status = sxml_xml_buffer_append(&list->bytes, word);
     if (status == SXML_STATUS_OK && list->bytes.byte_count > UINT32_MAX) {
         return SXML_STATUS_LIMIT_EXCEEDED;
     }
@@ -71,7 +71,7 @@ sxml_byte_view sxml_full_text_word_at(const sxml_full_text_word_list *list, size
 }
 
 void sxml_full_text_word_list_release(sxml_full_text_word_list *list) {
-    sxml_full_text_bytes_release(&list->bytes);
+    sxml_xml_buffer_release(&list->bytes);
     sxml_allocator_release(list->bytes.allocator, list->words);
     list->words = NULL;
     list->word_count = 0;
@@ -113,7 +113,7 @@ typedef struct thesaurus_reader {
     sxml_tree *tree;
     const sxml_name_pool *name_pool;
     sxml_full_text_word_list *list;
-    sxml_full_text_bytes text;
+    sxml_xml_buffer text;
 } thesaurus_reader;
 
 static sxml_status describe(const thesaurus_reader *reader, uint32_t node_index,
@@ -180,7 +180,7 @@ static sxml_status read_child_text(thesaurus_reader *reader, child_text request)
                                               .namespace_number = 0},
                         &content);
                     if (status == SXML_STATUS_OK) {
-                        status = sxml_full_text_append_text(&reader->text, content);
+                        status = sxml_xml_buffer_append(&reader->text, content);
                     }
                 }
             }
@@ -280,7 +280,7 @@ static sxml_status read_thesaurus_resource(thesaurus_source source,
                                    .list = list,
                                    .text = {.allocator = list->bytes.allocator}};
         status = read_thesaurus(&reader, root);
-        sxml_full_text_bytes_release(&reader.text);
+        sxml_xml_buffer_release(&reader.text);
     }
     if (owns_document) {
         sxml_item_release(document);

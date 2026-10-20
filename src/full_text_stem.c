@@ -852,7 +852,7 @@ static sxml_status prepare_registers(stem_machine *machine) {
 }
 
 sxml_status sxml_full_text_stem(const sxml_full_text_stem_request *request,
-                                sxml_full_text_bytes *output) {
+                                sxml_xml_buffer *output) {
     if ((uint32_t)request->language >= SXML_FULL_TEXT_LANGUAGE_COUNT) {
         return SXML_STATUS_INVALID_ARGUMENT;
     }
@@ -865,7 +865,7 @@ sxml_status sxml_full_text_stem(const sxml_full_text_stem_request *request,
     }
     if (!outcome.is_stemmable) {
         /* Not stemmed: the word as it is. */
-        return sxml_full_text_append_text(output, request->word);
+        return sxml_xml_buffer_append(output, request->word);
     }
     status = prepare_registers(&machine);
     if (status != SXML_STATUS_OK) {
@@ -878,7 +878,7 @@ sxml_status sxml_full_text_stem(const sxml_full_text_stem_request *request,
     machine.signal = true;
     status = run(&machine);
     for (int32_t index = 0; status == SXML_STATUS_OK && index < machine.length; index += 1) {
-        status = sxml_full_text_append_codepoint(output, request->workspace->text[index]);
+        status = sxml_xml_buffer_append_codepoint(output, request->workspace->text[index]);
     }
     return status;
 }

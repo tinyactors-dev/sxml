@@ -90,7 +90,7 @@ typedef struct folded_token {
 typedef struct folded_variant {
     bool is_made;
     sxml_full_text_language language;
-    sxml_full_text_bytes bytes;
+    sxml_xml_buffer bytes;
     folded_token *tokens;
 } folded_variant;
 
@@ -348,7 +348,7 @@ typedef struct stem_target {
     sxml_full_text_language language;
 } stem_target;
 
-static sxml_status append_stem(matcher *state, stem_target target, sxml_full_text_bytes *output) {
+static sxml_status append_stem(matcher *state, stem_target target, sxml_xml_buffer *output) {
     return sxml_full_text_stem(&(sxml_full_text_stem_request){.word = target.folded,
                                                                .language = target.language,
                                                                .workspace = &state->stem_workspace},
@@ -370,14 +370,14 @@ static sxml_status make_variant(matcher *state, variant_choice choice) {
     if (variant->is_made && (!stems || variant->language == choice.language)) {
         return SXML_STATUS_OK;
     }
-    sxml_full_text_bytes_release(&variant->bytes);
+    sxml_xml_buffer_release(&variant->bytes);
     sxml_allocator_release(state->allocator, variant->tokens);
     variant->tokens = NULL;
     variant->is_made = false;
     variant->language = choice.language;
     const sxml_full_text_search *search = &state->request->search;
-    variant->bytes = (sxml_full_text_bytes){.allocator = state->allocator};
-    sxml_full_text_bytes folded = {.allocator = state->allocator};
+    variant->bytes = (sxml_xml_buffer){.allocator = state->allocator};
+    sxml_xml_buffer folded = {.allocator = state->allocator};
     sxml_status status = SXML_STATUS_OK;
     if (search->token_count != 0) {
         status = sxml_allocator_allocate(
@@ -415,7 +415,7 @@ static sxml_status make_variant(matcher *state, variant_choice choice) {
                                .byte_count = (uint32_t)(variant->bytes.byte_count - start)};
         }
     }
-    sxml_full_text_bytes_release(&folded);
+    sxml_xml_buffer_release(&folded);
     variant->is_made = status == SXML_STATUS_OK;
     return status;
 }
@@ -444,7 +444,7 @@ typedef struct query_token {
 /* The tokens of one FTWords. */
 typedef struct query_tokens {
     sxml_allocator allocator;
-    sxml_full_text_bytes bytes;
+    sxml_xml_buffer bytes;
     query_token *tokens;
     size_t token_count;
     size_t token_capacity;
@@ -456,7 +456,7 @@ typedef struct query_tokens {
 } query_tokens;
 
 static void release_query_tokens(query_tokens *query) {
-    sxml_full_text_bytes_release(&query->bytes);
+    sxml_xml_buffer_release(&query->bytes);
     sxml_allocator_release(query->allocator, query->tokens);
     sxml_allocator_release(query->allocator, query->string_starts);
 }
@@ -524,7 +524,7 @@ static sxml_status is_stop_word(const matcher *state, stop_word_check check, ans
         if (status == SXML_STATUS_OK) {
             status = sxml_atomic_item_get_datum(item, &datum);
         }
-        sxml_full_text_bytes folded = {.allocator = state->allocator};
+        sxml_xml_buffer folded = {.allocator = state->allocator};
         if (status == SXML_STATUS_OK) {
             status = sxml_full_text_fold(
                 &(sxml_full_text_fold_request){.word = datum.datum_details.string.utf8,
@@ -536,7 +536,7 @@ static sxml_status is_stop_word(const matcher *state, stop_word_check check, ans
                 (sxml_byte_view){.bytes = folded.bytes, .byte_count = folded.byte_count},
                 check.folded);
         }
-        sxml_full_text_bytes_release(&folded);
+        sxml_xml_buffer_release(&folded);
     }
     return status;
 }
@@ -550,7 +550,7 @@ typedef struct query_string {
 static sxml_status add_query_string(matcher *state, query_string request,
                                     query_tokens *query) {
     sxml_full_text_token_list list = {.allocator = state->allocator};
-    sxml_full_text_bytes folded = {.allocator = state->allocator};
+    sxml_xml_buffer folded = {.allocator = state->allocator};
     sxml_status status =
         sxml_full_text_tokenize(&(sxml_full_text_source){.text = request.text,
                                                          .paragraph_breaks = NULL,
@@ -601,7 +601,7 @@ static sxml_status add_query_string(matcher *state, query_string request,
                                        (stem_target){.folded = folded_word,
                                                      .language = request.words->language},
                                        &query->bytes)
-                         : sxml_full_text_append_text(&query->bytes, folded_word);
+                         : sxml_xml_buffer_append(&query->bytes, folded_word);
         }
         if (status == SXML_STATUS_OK) {
             query->tokens[query->token_count] =
@@ -616,7 +616,7 @@ static sxml_status add_query_string(matcher *state, query_string request,
     if (status == SXML_STATUS_OK) {
         query->string_starts[query->string_count] = query->token_count;
     }
-    sxml_full_text_bytes_release(&folded);
+    sxml_xml_buffer_release(&folded);
     sxml_full_text_token_list_release(&list);
     return status;
 }
@@ -858,7 +858,7 @@ typedef struct phrase_key_request {
 } phrase_key_request;
 
 static sxml_status append_phrase_key(matcher *state, phrase_key_request request,
-                                     sxml_full_text_bytes *key) {
+                                     sxml_xml_buffer *key) {
     sxml_full_text_token_list list = {.allocator = state->allocator};
     sxml_status status = sxml_full_text_tokenize(&(sxml_full_text_source){.text = request.text,
                                                                          .paragraph_breaks = NULL,
@@ -868,7 +868,7 @@ static sxml_status append_phrase_key(matcher *state, phrase_key_request request,
     for (size_t token_index = 0; status == SXML_STATUS_OK && token_index < list.token_count;
          token_index += 1) {
         if (token_index != 0) {
-            status = sxml_full_text_append_text(key, SXML_BYTE_VIEW_FROM_LITERAL(" "));
+            status = sxml_xml_buffer_append(key, SXML_BYTE_VIEW_FROM_LITERAL(" "));
         }
         const sxml_full_text_token *token = &list.tokens[token_index];
         if (status == SXML_STATUS_OK) {
@@ -904,7 +904,7 @@ typedef struct thesaurus_entry {
 
 /* The thesauri of one FTWords, read from its program member. */
 typedef struct thesaurus_table {
-    sxml_full_text_bytes keys;
+    sxml_xml_buffer keys;
     thesaurus_relation *relations;
     size_t relation_count;
     size_t relation_capacity;
@@ -914,7 +914,7 @@ typedef struct thesaurus_table {
 } thesaurus_table;
 
 static void release_thesaurus_table(matcher *state, thesaurus_table *table) {
-    sxml_full_text_bytes_release(&table->keys);
+    sxml_xml_buffer_release(&table->keys);
     sxml_allocator_release(state->allocator, table->relations);
     sxml_allocator_release(state->allocator, table->thesauri);
 }
@@ -1096,11 +1096,11 @@ static sxml_status expand(matcher *state, expansion_request request, expansion *
 
 /* The tokens first_query.. of phrase as the query wrote them, as a key. */
 static sxml_status append_written_key(matcher *state, const phrase_request *phrase,
-                                      sxml_full_text_bytes *key) {
+                                      sxml_xml_buffer *key) {
     sxml_status status = SXML_STATUS_OK;
     for (size_t offset = 0; status == SXML_STATUS_OK && offset < phrase->query_count; offset += 1) {
         if (offset != 0) {
-            status = sxml_full_text_append_text(key, SXML_BYTE_VIEW_FROM_LITERAL(" "));
+            status = sxml_xml_buffer_append(key, SXML_BYTE_VIEW_FROM_LITERAL(" "));
         }
         if (status == SXML_STATUS_OK) {
             status = append_phrase_key(
@@ -1128,7 +1128,7 @@ static sxml_status match_alternatives(matcher *state, alternatives_request reque
     if (status != SXML_STATUS_OK || request.table == NULL) {
         return status;
     }
-    sxml_full_text_bytes key = {.allocator = state->allocator};
+    sxml_xml_buffer key = {.allocator = state->allocator};
     expansion found = {0};
     status = append_written_key(state, &request.phrase, &key);
     for (size_t thesaurus = 0;
@@ -1164,7 +1164,7 @@ static sxml_status match_alternatives(matcher *state, alternatives_request reque
     }
     sxml_allocator_release(state->allocator, found.related.views);
     sxml_allocator_release(state->allocator, found.reached.views);
-    sxml_full_text_bytes_release(&key);
+    sxml_xml_buffer_release(&key);
     return status;
 }
 
@@ -2305,7 +2305,7 @@ static void release_matcher(matcher *state) {
     sxml_allocator_release(state->allocator, state->matches);
     sxml_allocator_release(state->allocator, state->stack);
     for (size_t variant = 0; variant < SXML_FULL_TEXT_VARIANT_COUNT; variant += 1) {
-        sxml_full_text_bytes_release(&state->variants[variant].bytes);
+        sxml_xml_buffer_release(&state->variants[variant].bytes);
         sxml_allocator_release(state->allocator, state->variants[variant].tokens);
     }
     sxml_full_text_stem_workspace_release(&state->stem_workspace);

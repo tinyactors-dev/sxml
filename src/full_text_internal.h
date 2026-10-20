@@ -10,6 +10,7 @@
 #include "sxml/status.h"
 #include "sxml/view.h"
 #include "sxml/xdm.h"
+#include "xml_internal.h"
 #include "xpath_ast_internal.h"
 #include "xpath_lower_internal.h"
 
@@ -258,14 +259,6 @@ typedef struct sxml_full_text_folding {
     bool uses_upper_case;
 } sxml_full_text_folding;
 
-/* Bytes in allocator memory. */
-typedef struct sxml_full_text_bytes {
-    sxml_allocator allocator;
-    uint8_t *bytes;
-    size_t byte_count;
-    size_t byte_capacity;
-} sxml_full_text_bytes;
-
 /* A word to fold and where the result goes. */
 typedef struct sxml_full_text_fold_request {
     sxml_byte_view word;
@@ -278,17 +271,7 @@ typedef struct sxml_full_text_fold_request {
  * diacritics removed. Returns the allocator's failures.
  */
 SXML_NODISCARD sxml_status sxml_full_text_fold(const sxml_full_text_fold_request *request,
-                                               sxml_full_text_bytes *output);
-
-/* Releases the bytes of output and leaves it empty. */
-void sxml_full_text_bytes_release(sxml_full_text_bytes *output);
-
-/* Appends codepoint to *output in UTF-8, or bytes as they are. Return
-   the allocator's failures. */
-SXML_NODISCARD sxml_status sxml_full_text_append_codepoint(sxml_full_text_bytes *output,
-                                                           uint32_t codepoint);
-SXML_NODISCARD sxml_status sxml_full_text_append_text(sxml_full_text_bytes *output,
-                                                      sxml_byte_view bytes);
+                                               sxml_xml_buffer *output);
 
 /* ------------------------------------------------------- Stemming */
 
@@ -434,7 +417,7 @@ typedef struct sxml_full_text_stem_request {
  * a program the generator cannot have made.
  */
 SXML_NODISCARD sxml_status sxml_full_text_stem(const sxml_full_text_stem_request *request,
-                                               sxml_full_text_bytes *output);
+                                               sxml_xml_buffer *output);
 
 /* Releases what workspace holds and leaves it empty. */
 void sxml_full_text_stem_workspace_release(sxml_full_text_stem_workspace *workspace);
@@ -474,7 +457,7 @@ typedef struct sxml_full_text_word {
 
 /* Words in allocator memory (bytes.allocator). */
 typedef struct sxml_full_text_word_list {
-    sxml_full_text_bytes bytes;
+    sxml_xml_buffer bytes;
     sxml_full_text_word *words;
     size_t word_count;
     size_t word_capacity;

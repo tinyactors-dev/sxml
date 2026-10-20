@@ -187,7 +187,7 @@ typedef struct stemming {
     sxml_full_text_stem_workspace *workspace;
 } stemming;
 
-static sxml_status stem_word(stemming request, sxml_full_text_bytes *output) {
+static sxml_status stem_word(stemming request, sxml_xml_buffer *output) {
     output->byte_count = 0;
     return sxml_full_text_stem(&(sxml_full_text_stem_request){.word = request.word,
                                                                .language = request.language,
@@ -195,7 +195,7 @@ static sxml_status stem_word(stemming request, sxml_full_text_bytes *output) {
                                output);
 }
 
-static bool output_is(const sxml_full_text_bytes *output, const char *expected) {
+static bool output_is(const sxml_xml_buffer *output, const char *expected) {
     return sxml_byte_view_equals((sxml_byte_view){.bytes = output->bytes,
                                                   .byte_count = output->byte_count},
                                  (sxml_byte_view){.bytes = (const uint8_t *)expected,
@@ -212,7 +212,7 @@ static void test_words_stem_as_snowball_stems_them(sxml_test_state *state) {
                                 &counting) == SXML_STATUS_OK);
     const sxml_allocator allocator = sxml_counting_allocator_as_allocator(counting);
     sxml_full_text_stem_workspace workspace = {.allocator = allocator};
-    sxml_full_text_bytes output = {.allocator = allocator};
+    sxml_xml_buffer output = {.allocator = allocator};
     for (size_t case_index = 0; case_index < SXML_TEST_COUNT(stem_cases); case_index += 1) {
         const stem_case *entry = &stem_cases[case_index];
         const sxml_status status = stem_word(
@@ -243,7 +243,7 @@ static void test_words_stem_as_snowball_stems_them(sxml_test_state *state) {
                                                  .workspace = &workspace},
                                       &output) == SXML_STATUS_OK &&
                                 output.byte_count == 0);
-    sxml_full_text_bytes_release(&output);
+    sxml_xml_buffer_release(&output);
     sxml_full_text_stem_workspace_release(&workspace);
     SXML_TEST_EXPECT(state, sxml_counting_allocator_read_counts(counting).live_allocation_count == 0);
     sxml_counting_allocator_destroy(counting);
