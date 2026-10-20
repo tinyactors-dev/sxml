@@ -612,7 +612,7 @@ allows.
 | --- | --: | --: | --: |
 | QT4: XPath 4.0 and F&O 4.0 (XP40) | 32,771 | 32,689 | 99.7 % |
 | QT4: XQuery 4.0 (XQ40), with Update and Full Text | 46,208 | 45,969 | 99.5 % |
-| XSLT 4.0 (XT40) | 12,518 | 12,081 | 96.5 % |
+| XSLT 4.0 (XT40) | 12,518 | 12,156 | 97.1 % |
 | XSD 1.1 (W3C XSD test suite) | 41,518 | 41,486 | 99.9 % |
 
 The schema-aware test cases among them: XPath passes 304 of 315, XQuery
