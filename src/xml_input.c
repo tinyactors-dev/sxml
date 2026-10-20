@@ -61,6 +61,11 @@ static sxml_byte_view sxml_xml_window_raw(const sxml_xml_text_window *window) {
                                 .byte_count = window->raw.byte_count};
     }
     const sxml_byte_view input = window->configuration.input;
+    if (input.bytes == NULL) {
+        /* An empty input may have no bytes at all; adding an offset to a
+           null pointer is undefined (C17 6.5.6p8). */
+        return (sxml_byte_view){.bytes = NULL, .byte_count = 0};
+    }
     return (sxml_byte_view){.bytes = input.bytes + window->raw_input_offset,
                             .byte_count = input.byte_count - window->raw_input_offset};
 }
@@ -227,8 +232,13 @@ static sxml_status sxml_xml_window_check_region(sxml_xml_text_window *window,
         sxml_xml_translate_version_1_1_line_ends(decoded, checked.translation_offset);
     }
     const size_t region_offset = checked.region_offset;
-    const sxml_byte_view region = {.bytes = decoded->bytes + region_offset,
-                                   .byte_count = decoded->byte_count - region_offset};
+    /* No bytes are decoded yet for an empty input (C17 6.5.6p8: no
+       offset to a null pointer). */
+    sxml_byte_view region = {.bytes = NULL, .byte_count = 0};
+    if (decoded->bytes != NULL) {
+        region = (sxml_byte_view){.bytes = decoded->bytes + region_offset,
+                                  .byte_count = decoded->byte_count - region_offset};
+    }
     const uint8_t *null_byte =
         region.byte_count == 0 ? NULL : memchr(region.bytes, 0, region.byte_count);
     if (null_byte != NULL) {
@@ -254,8 +264,8 @@ static sxml_status sxml_xml_window_check_region(sxml_xml_text_window *window,
         }
     }
     window->held_byte_count =
-        is_version_1_1 && !window->is_complete && decoded->byte_count > region_offset &&
-                decoded->bytes[decoded->byte_count - 1] == '\r'
+        is_version_1_1 && !window->is_complete && region.byte_count > 0 &&
+                region.bytes[region.byte_count - 1] == '\r'
             ? 1
             : 0;
     return SXML_STATUS_OK;
