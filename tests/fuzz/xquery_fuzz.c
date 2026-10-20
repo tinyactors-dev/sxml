@@ -20,14 +20,8 @@
  */
 #include "fuzz_fixture.h"
 #include "sxml/processor.h"
-#include "sxml/serialize.h"
 #include "sxml/xquery.h"
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-#define SXML_FUZZ_MAXIMUM_OUTPUT_BYTE_COUNT ((size_t)1 << 20U)
 #define SXML_FUZZ_MAXIMUM_QUERY_EVALUATION_DEPTH 1000U
 #define SXML_FUZZ_MAXIMUM_QUERY_STEP_COUNT 10000000U
 
@@ -53,56 +47,6 @@ static const sxml_resource_entry_view fuzz_resource_view = {
     .resource_entries = fuzz_resources,
     .resource_entry_count = sizeof(fuzz_resources) / sizeof(fuzz_resources[0])};
 
-/* Compiles, evaluates and serializes text on processor. */
-static void run_query(const sxml_fuzz_fixture *fixture, sxml_processor *processor,
-                      sxml_byte_view text) {
-    const sxml_allocator allocator = sxml_fuzz_fixture_allocator(fixture);
-    sxml_error_record error_record;
-    memset(&error_record, 0, sizeof(error_record));
-    sxml_xquery_query *query = NULL;
-    sxml_status status = sxml_xquery_query_create(
-        allocator,
-        &(sxml_xquery_query_configuration){
-            .processor = processor,
-            .expression_text = text,
-            .source_name = SXML_BYTE_VIEW_FROM_LITERAL("fuzz.xq"),
-            .static_context = {.static_base_uri = SXML_BYTE_VIEW_FROM_LITERAL("urn:fuzz/")},
-            .error_record = &error_record},
-        &query);
-    sxml_fuzz_check_status(status, "sxml_xquery_query_create");
-    if (status != SXML_STATUS_OK) {
-        return;
-    }
-    sxml_output_buffer *output_buffer = NULL;
-    status = sxml_output_buffer_create(
-        allocator,
-        &(sxml_output_buffer_configuration){
-            .allocator = allocator, .maximum_byte_count = SXML_FUZZ_MAXIMUM_OUTPUT_BYTE_COUNT},
-        &output_buffer);
-    sxml_fuzz_check_status(status, "sxml_output_buffer_create");
-    sxml_sequence result = sxml_sequence_empty();
-    if (status == SXML_STATUS_OK) {
-        memset(&error_record, 0, sizeof(error_record));
-        status = sxml_xquery_query_evaluate(
-            query, &(sxml_xquery_evaluation_request){.error_record = &error_record}, &result);
-        sxml_fuzz_check_status(status, "sxml_xquery_query_evaluate");
-    }
-    if (status == SXML_STATUS_OK) {
-        memset(&error_record, 0, sizeof(error_record));
-        status = sxml_serialize_sequence(
-            sxml_processor_get_item_heap(processor),
-            &(sxml_serialization_request){
-                .value = result,
-                .serialization_parameters = sxml_xquery_query_get_serialization_parameters(query),
-                .error_record = &error_record},
-            sxml_output_buffer_as_output_stream(output_buffer));
-        sxml_fuzz_check_status(status, "sxml_serialize_sequence");
-        sxml_sequence_release(result);
-    }
-    sxml_output_buffer_destroy(output_buffer);
-    sxml_xquery_query_destroy(query);
-}
-
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) { // NOLINT(readability-identifier-naming)
     sxml_fuzz_fixture fixture;
     if (sxml_fuzz_fixture_create(
@@ -124,16 +68,8 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) { // NOLINT(readabi
         &processor);
     sxml_fuzz_check_status(status, "sxml_processor_create");
     if (status == SXML_STATUS_OK) {
-        run_query(&fixture, processor, sxml_fuzz_input_view(data, size));
-        sxml_item_heap *item_heap = sxml_processor_get_item_heap(processor);
-        sxml_item_heap_clear_raised_error(item_heap);
-        if (sxml_item_heap_read_counts(item_heap).live_cell_count != 0) {
-            (void)fprintf(stderr, "leak: %llu cells in the processor's heap\n",
-                          (unsigned long long)sxml_item_heap_read_counts(item_heap)
-                              .live_cell_count);
-            abort();
-        }
-        sxml_processor_destroy(processor);
+        sxml_fuzz_run_xquery(&fixture, processor, sxml_fuzz_input_view(data, size));
+        sxml_fuzz_processor_destroy_checking_leaks(processor);
     }
     sxml_fuzz_fixture_destroy_checking_leaks(&fixture);
     return 0;

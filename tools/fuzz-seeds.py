@@ -32,6 +32,17 @@ seed, named by the SHA-1 of its content (the libFuzzer convention):
                        alone and, in the layout of tests/fuzz/schema_fuzz.c
                        (schema, zero byte, instance), with each instance
                        document of the group
+  html_parse_fuzz      the #data input of every html5lib tree-construction
+                       test (third_party/html5lib-tests), given as a
+                       string (mode byte 1, tests/fuzz/html_parse_fuzz.c)
+  ixml_fuzz            every .ixml grammar of third_party/ixml-tests,
+                       alone and, in the layout of tests/fuzz/ixml_fuzz.c
+                       (mode byte, grammar, zero byte, input), with each
+                       .inp or .txt file of its directory (three at most)
+  full_text_fuzz       what follows the first "contains text" in the
+                       inline query of every QT4 ft- test case, in the
+                       layout of tests/fuzz/full_text_fuzz.c (searched
+                       text, zero byte, selection)
 
 Seeds longer than --maximum-byte-count (default 16384) are skipped; of
 more than --maximum-seed-count (default 4000) seeds for one target, an
@@ -241,8 +252,43 @@ def main():
             if instance is not None:
                 schema_corpus.add(schema + b"\0" + instance)
 
+    html_corpus = corpus("html_parse_fuzz")
+    for path in walk_files(os.path.join(third_party, "html5lib-tests", "tree-construction"),
+                           (".dat",)):
+        content = read_bytes(path) or b""
+        for match in re.finditer(rb"(?:^|\n)#data\n(.*?)\n#errors", content, re.S):
+            html_corpus.add(b"\1" + match.group(1))
+
+    ixml_corpus = corpus("ixml_fuzz")
+    for path in walk_files(os.path.join(third_party, "ixml-tests"), (".ixml",)):
+        grammar = read_bytes(path)
+        if grammar is None or b"\0" in grammar:
+            continue
+        ixml_corpus.add(b"\0" + grammar)
+        directory = os.path.dirname(path)
+        inputs = sorted(name for name in os.listdir(directory) if name.endswith((".inp", ".txt")))
+        for name in inputs[:3]:
+            text = read_bytes(os.path.join(directory, name))
+            if text is not None and b"\0" not in text:
+                ixml_corpus.add(b"\0" + grammar + b"\0" + text)
+
+    full_text_corpus = corpus("full_text_fuzz")
+    searched = b"The quick brown fox jumps over the lazy dog. Usability testing of software."
+    for path in walk_files(qt4_directory, (".xml",)):
+        try:
+            root = element_tree.parse(path).getroot()
+        except (element_tree.ParseError, LookupError, ValueError):
+            continue
+        if root.tag != CATALOG_NAMESPACE + "test-set" or not root.get("name", "").startswith("ft-"):
+            continue
+        for test in root.iter(CATALOG_NAMESPACE + "test"):
+            if test.text and "contains text" in test.text:
+                selection = test.text.split("contains text", 1)[1].strip()
+                full_text_corpus.add(searched + b"\0" + selection.encode("utf-8"))
+
     for seeds in (xml_corpus, compile_corpus, evaluate_corpus, xquery_corpus, xslt_corpus,
-                  regex_corpus, cast_corpus, schema_corpus, dtd_corpus):
+                  regex_corpus, cast_corpus, schema_corpus, dtd_corpus, html_corpus,
+                  ixml_corpus, full_text_corpus):
         written_count, found_count = seeds.write()
         print(f"{seeds.directory}: {written_count} of {found_count} seeds")
 

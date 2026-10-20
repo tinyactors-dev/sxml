@@ -5,10 +5,16 @@
  */
 #include "fuzz_fixture.h"
 #include "function_library_parts_internal.h"
+#include "sxml/serialize.h"
+#include "sxml/xquery.h"
 #include "xpath_static_internal.h"
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+
+/* The bound on the serialized result of sxml_fuzz_run_xquery. */
+#define SXML_FUZZ_MAXIMUM_OUTPUT_BYTE_COUNT ((size_t)1 << 20U)
 
 
 sxml_status
@@ -208,4 +214,64 @@ sxml_byte_view sxml_fuzz_input_view(const uint8_t *data, size_t size) {
        this one, so that the targets meet them too. */
     return (sxml_byte_view){.bytes = size == 0 ? NULL : data,
                             .byte_count = size};
+}
+
+void sxml_fuzz_run_xquery(const sxml_fuzz_fixture *fixture, sxml_processor *processor,
+                          sxml_byte_view text) {
+    const sxml_allocator allocator = sxml_fuzz_fixture_allocator(fixture);
+    sxml_error_record error_record;
+    memset(&error_record, 0, sizeof(error_record));
+    sxml_xquery_query *query = NULL;
+    sxml_status status = sxml_xquery_query_create(
+        allocator,
+        &(sxml_xquery_query_configuration){
+            .processor = processor,
+            .expression_text = text,
+            .source_name = SXML_BYTE_VIEW_FROM_LITERAL("fuzz.xq"),
+            .static_context = {.static_base_uri = SXML_BYTE_VIEW_FROM_LITERAL("urn:fuzz/")},
+            .error_record = &error_record},
+        &query);
+    sxml_fuzz_check_status(status, "sxml_xquery_query_create");
+    if (status != SXML_STATUS_OK) {
+        return;
+    }
+    sxml_output_buffer *output_buffer = NULL;
+    status = sxml_output_buffer_create(
+        allocator,
+        &(sxml_output_buffer_configuration){
+            .allocator = allocator, .maximum_byte_count = SXML_FUZZ_MAXIMUM_OUTPUT_BYTE_COUNT},
+        &output_buffer);
+    sxml_fuzz_check_status(status, "sxml_output_buffer_create");
+    sxml_sequence result = sxml_sequence_empty();
+    if (status == SXML_STATUS_OK) {
+        memset(&error_record, 0, sizeof(error_record));
+        status = sxml_xquery_query_evaluate(
+            query, &(sxml_xquery_evaluation_request){.error_record = &error_record}, &result);
+        sxml_fuzz_check_status(status, "sxml_xquery_query_evaluate");
+    }
+    if (status == SXML_STATUS_OK) {
+        memset(&error_record, 0, sizeof(error_record));
+        status = sxml_serialize_sequence(
+            sxml_processor_get_item_heap(processor),
+            &(sxml_serialization_request){
+                .value = result,
+                .serialization_parameters = sxml_xquery_query_get_serialization_parameters(query),
+                .error_record = &error_record},
+            sxml_output_buffer_as_output_stream(output_buffer));
+        sxml_fuzz_check_status(status, "sxml_serialize_sequence");
+        sxml_sequence_release(result);
+    }
+    sxml_output_buffer_destroy(output_buffer);
+    sxml_xquery_query_destroy(query);
+}
+
+void sxml_fuzz_processor_destroy_checking_leaks(sxml_processor *processor) {
+    sxml_item_heap *item_heap = sxml_processor_get_item_heap(processor);
+    sxml_item_heap_clear_raised_error(item_heap);
+    if (sxml_item_heap_read_counts(item_heap).live_cell_count != 0) {
+        (void)fprintf(stderr, "leak: %llu cells in the processor's heap\n",
+                      (unsigned long long)sxml_item_heap_read_counts(item_heap).live_cell_count);
+        abort();
+    }
+    sxml_processor_destroy(processor);
 }

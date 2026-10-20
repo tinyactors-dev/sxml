@@ -13,6 +13,7 @@
 #include "ir_internal.h"
 #include "sxml/memory.h"
 #include "sxml/name.h"
+#include "sxml/processor.h"
 #include "sxml/status.h"
 #include "sxml/types.h"
 #include "sxml/view.h"
@@ -92,3 +93,17 @@ sxml_status sxml_fuzz_compile_xpath(const sxml_fuzz_fixture *fixture,
 
 /* The input as a byte view. */
 sxml_byte_view sxml_fuzz_input_view(const uint8_t *data, size_t size);
+
+/*
+ * Compiles text as an XQuery main module on processor (static base URI
+ * urn:fuzz/), evaluates it and serializes the result as its prolog asks
+ * into a buffer of at most 1 MB, all with the fixture's allocator. A
+ * failure that a query may not cause stops the process (the XQuery
+ * targets; golden: tests/xquery_test.c, run_query).
+ */
+void sxml_fuzz_run_xquery(const sxml_fuzz_fixture *fixture, sxml_processor *processor,
+                          sxml_byte_view text);
+
+/* Checks that no cell of processor's item heap is live (raised errors
+   cleared first), then destroys processor; a leak stops the process. */
+void sxml_fuzz_processor_destroy_checking_leaks(sxml_processor *processor);
