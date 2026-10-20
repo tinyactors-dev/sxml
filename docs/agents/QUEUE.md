@@ -32,8 +32,6 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 (bindings/kotlin/DESIGN.md, bindings/swift/DESIGN.md).
 
 
-- book-4: the codegen chapter rebuilt around a TypeScript tree and an XSLT
-  printer (owner, 2026-10-20).
 - js-2: streaming output (and input) in the JavaScript API (owner).
 - 4.31: XSLT namespace undeclarations in the tree, per-package items,
   copy-4308 (D289).
@@ -347,6 +345,12 @@ createProcessor({ codeLanguages }). +7,713 bytes. Not supported:
 pre-2021 emscripten dylink, files needing other side modules, scanner
 imports outside tree-sitter's list. A loaded language's memory is never
 freed. The Swift initializer's new field is not compiled here.
+
+book-4 (D292): the codegen chapter builds a tree of the TypeScript
+program (XQuery, a vocabulary of our own) and prints it with an XSLT
+printer (one rule per element, layout in one place, a second style by
+import); check.xq parses the printed code with sxml:parse-code. 46
+examples match, tsc --strict passes.
 
 Platform and tooling:
 - macOS, Windows and MSVC have never been built; `_getcwd` is untested.
