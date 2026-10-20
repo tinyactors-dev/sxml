@@ -16,6 +16,14 @@ not tagged yet, or into the next minor release.
 
 ### Added (Phase 7)
 
+- **Source code as XML** (D285): `sxml:parse-code` (namespace
+  `urn:sxml`, optional feature `sxml_source_code_feature()`) parses JSON,
+  JavaScript (with JSX), Python, C, CSS, HTML and Go with vendored
+  tree-sitter grammars into documents whose elements are the named
+  nodes of the syntax tree, with `field` and `highlight` attributes from
+  each grammar's highlights query, and `sxml:code-languages()`. The
+  `sxml` command binds the prefix `sxml`. `name.h` gains
+  `SXML_NAMESPACE_SXML`.
 - **Optional features** (`processor.h`, D189): a processor names the
   features it uses (`sxml_optional_feature`), so a program links only
   those; without one, the feature's single rejection place gives the

@@ -4,6 +4,21 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 7.22 done (D285): source code as XML. sxml:parse-code($source,
+  $language, $options) and sxml:code-languages() (namespace urn:sxml,
+  feature "source-code", every build): seven vendored tree-sitter
+  grammars (JSON, JavaScript with JSX, Python, C, CSS, HTML, Go) turn
+  code into a document of its syntax tree, with the captures of each
+  grammar's highlights query as highlight attributes and optional
+  line/column positions; string() of the document is the source. Book
+  first (Chapter "Source Code as XML", 18 examples, all match), then the
+  grammars' tests (tree-sitter/suite: corpus 452 of 452, highlights 178
+  of 187; 9 need locals or injections), then the implementation.
+  sxml.wasm 9,693,235 / 2,006,198 (+1,990,621 since its baseline,
+  budget 10,000,000 / 2,800,000); CLI module 11,289,043 / 2,288,933
+  (budget 11,500,000 / 2,500,000). QT4/XT40/XSD not rerun (no change to
+  their paths).
+
 - 2.27 done (D286): XPath/XQuery sweep. XInclude for fn:doc,
   fn:doc-available, fn:parse-xml and fn:document (one loop with an
   explicit stack, inclusion loops, xml:base and xml:lang fixup, text

@@ -1193,6 +1193,30 @@ some/every over 10^7 items 2 to 6 s to 0.004 s); the default step bound
 10^8 (8 s instead of 75 s; the drivers' bounds unchanged); xmark-all +1 %
 instructions; QT4 XQ40 and XT40 unchanged case by case.
 
+### 7.22 Source code as XML: tree-sitter trees with highlights (design and implementation)
+- **Order** (owner): the book first, then the grammars' own tests, then
+  the implementation.
+- **Mechanism**: tree-sitter grammars vendored with their highlights
+  queries and tests (third_party/tree-sitter-grammars, D13); one walk
+  of a TSTreeCursor with an explicit stack (D71) into tree builder
+  events; the highlights query through ts_query_* with the text
+  predicates evaluated by sxml; the step limit through the progress
+  callbacks.
+- **API**: sxml:parse-code and sxml:code-languages in urn:sxml, an
+  optional feature in every build (D189, D191, D272); no new CLI
+  command (D44).
+- **Owns**: src/source_code.c, src/source_code_internal.h,
+  src/source_code_languages.c, src/function_library_source_code.c,
+  tools/vendor-tree-sitter-grammar.sh,
+  tools/generate-source-code-languages.py, tests/tree-sitter/,
+  tests/source_code_test.c, docs/book/src/source-code.md.
+- **Done when**: the chapter's examples match; the grammars' corpus
+  and highlight tests run with a baseline; the size growth reported.
+**Done** 2026-10-20 (D285): the chapter (18 examples match); seven
+grammars (JSON, JavaScript, Python, C, CSS, HTML, Go); tree-sitter/suite
+630 of 639 (corpus 452 of 452, highlights 178 of 187: locals 7,
+injections 2); sxml.wasm +1,990,621 to 9,693,235 bytes, budgets raised.
+
 ## Proposed for the owner
 
 No phase covers these four features yet (D183 Proposed). The owner has

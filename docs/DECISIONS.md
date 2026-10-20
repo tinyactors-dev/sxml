@@ -13082,6 +13082,17 @@ Code as XML"), then the grammars' own tests, then the implementation.
   compared only when the expected tree has some), and each `<-`/`^`
   assertion against the highlight attributes covering its line and
   column. `tree-sitter/suite` keeps a baseline that only goes up.
+- **Done** (commits e29713d book, 3b52502 tests, 33c225b
+  implementation): the book's chapter, 18 examples, all match;
+  tree-sitter/suite 630 of 639: corpus 452 of 452, highlights 178 of 187
+  (7 need the locals query, 2 injections); a caret run is checked at its
+  first column (the HTML tests run carets over `onclick=`). Sizes
+  (stripped / gzipped): `sxml.wasm` 9,693,235 / 2,006,198, +1,990,621 in
+  code and data since the D272 baseline (the grammars' parse tables
+  1,770,000 of it, tree-sitter's query code 43,579, the bridge 20,083),
+  budget 8,000,000 to 10,000,000 / 2,800,000; the CLI module 11,289,043
+  / 2,288,933, budget 9,500,000 / 2,100,000 to 11,500,000 / 2,500,000;
+  the size baseline refreshed.
 
 ### D286. XPath and XQuery sweep: XInclude, ideographic numerals, place static contexts (packet 2.27)
 Recorded 2026-10-20, after D97, D162, D199, D263, D273, D275, D280, D281.
