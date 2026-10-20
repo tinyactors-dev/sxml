@@ -32,8 +32,6 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 
 - 4.30: XSLT real gaps from D281 (small and medium groups).
 - 7.21: fast Invisible XML; book first, then tests, then implementation.
-- 7.22: tree-sitter trees as XDM with highlights captures; book first,
-  then the grammars' corpus and highlight tests, then implementation.
   (Book-first pages carry <!-- status: draft -->; check-book-examples.sh
   skips them unless --drafts.)
 - 2.28: XPath/XQuery: D286's open list and the string-constructor error
@@ -288,6 +286,15 @@ book-3 (D282): Chapter 12, a code-generation project (XSD and an API
 description to TypeScript with XQuery, OpenAPI with XSLT, run with
 Node.js). Left: a syntax error inside a string constructor's enclosed
 expression is reported at 1:1 of the module, not at its own place.
+
+7.22 (D285): sxml:parse-code and sxml:code-languages (namespace urn:sxml;
+name.h SXML_NAMESPACE_SXML and processor.h sxml_source_code_feature(),
+additive); json, javascript (JSX), python, c, css, html, go vendored with
+highlights; tree-sitter/suite 630 of 639 (corpus 452/452, highlights
+178/187: 7 need locals, 2 injections). sxml.wasm 9,693,235 / 2,006,198
+(budget 10,000,000 / 2,800,000), CLI 11,289,043 / 2,288,933 (budget
+11,500,000 / 2,500,000). Owner: more languages and a registration API
+(Proposed).
 
 Platform and tooling:
 - macOS, Windows and MSVC have never been built; `_getcwd` is untested.
