@@ -11,7 +11,8 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 transform-004 needs a suspendable compiler (D71), transform-401 waits on
 4.22's newest-draft patterns (D249).
 - Passes (release, whole suites): XP40 32,716, XQ40 46,017 (2.23, D258),
-  XT40 12,156 (95.7 %, 4.23, D260), XSD in scope 41,486 of 41,518.
+  XT40 12,157 (4.24, D261: stylesheets see only declared prefixes and
+  xml, or fixed-namespaces), XSD in scope 41,486 of 41,518.
   Zero error outcomes in every suite.
 - Optional features (D189). Budgets (D202, D207, D208): core `sxml.wasm`
   2,200,000 / 770,000 (2,077,439 / 725,473 after size-2, D227: each module
@@ -29,7 +30,6 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 
 
 - perf-4: laziness and short-circuiting, the 2,000-order join, the step limit.
-- 4.24: XSLT stops inheriting XPath's predeclared prefixes (spec default, D208).
 
 ## Next
 
@@ -104,6 +104,10 @@ are not hoisted from; current-merge-group(()) per 15.5.1; globals computed
 on first read (GLOBAL_READ); typed modes and XTSE3105; XT40 11,943 at its
 last run. Left: document-4066 (fn:document's schema validation does not
 raise FODC0002); a global's side effects now happen at its first read.
+
+XSLT prefixes (4.24, D261): a run-time cast of a string to xs:QName still
+falls back on XPath's predeclared prefixes in every language (the evaluator
+does not know the language).
 
 XSLT backwards compatibility (7.4, D197): backwards_compatibility 111 of
 124; QT4 xpath-1.0-compatibility 1 of 5. 14 cases expect fn:number-style
