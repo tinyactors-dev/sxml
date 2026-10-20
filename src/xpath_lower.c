@@ -5986,6 +5986,14 @@ static sxml_status begin_axis_step(sxml_xpath_lowering_machine *machine,
             test_kind == SXML_AST_KIND_SCHEMA_ATTRIBUTE_NODE_TYPE) {
             axis = SXML_AXIS_ATTRIBUTE;
         } else if (test_kind == SXML_AST_KIND_NAMESPACE_NODE_TYPE) {
+            /* XQuery 4.0, section 4.6.5: XQuery has no namespace axis,
+               so this step is XQST0134 there (Axes112). */
+            if (state->language == SXML_LANGUAGE_XQUERY) {
+                return sxml_xpath_lowerer_report_static_error(
+                    state, node,
+                    SXML_BYTE_VIEW_FROM_LITERAL("XQST0134 XQuery has no namespace axis, the "
+                                                "default axis of a namespace-node() step"));
+            }
             axis = SXML_AXIS_NAMESPACE;
         }
     } else if (step->detail.axis == SXML_AST_AXIS_ITEM) {
