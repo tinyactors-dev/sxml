@@ -152,6 +152,12 @@ not tagged yet, or into the next minor release.
   strings to xs:QName at run time follow the same rule (D262):
   `xs:QName($name)` with `$name` = `'fn:x'` raises FONS0004 unless the
   stylesheet declares fn.
+- **QNames in instances resolve with the instance's namespaces only**
+  (D271): `xsi:type="xs:string"`, or a value of type xs:QName, in an
+  element that does not declare the prefix `xs` is invalid
+  (cvc-elt.4.1, cvc-datatype-valid), where XPath's predeclared prefixes
+  used to fill in; a defaulted attribute or element value is read with
+  the namespaces of the schema document that gives the default.
 
 ## [0.2.0] - unreleased
 

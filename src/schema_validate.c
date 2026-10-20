@@ -324,6 +324,9 @@ typedef struct declared_attribute {
     sxml_schema_attribute_declaration_index declaration;
     /* The attribute use it matched; 0 for a global declaration. */
     sxml_schema_attribute_use_index use;
+    /* A defaulted attribute: the namespace context of its default
+       (sxml_schema_value_request); 0 for an attribute of the instance. */
+    sxml_schema_namespace_context_index value_context;
 } declared_attribute;
 
 /* Keeps an inheritable attribute of the element being started for its
@@ -360,7 +363,8 @@ static sxml_status assess_declared_attribute(sxml_schema_validator *validator,
                                      .text = declared->value,
                                      .location = declared->attribute->location,
                                      .element_number = validator->attribute_element_number,
-                                     .subject = attribute_subject(declared->attribute)},
+                                     .subject = attribute_subject(declared->attribute),
+                                     .namespace_context = declared->value_context},
         &outcome);
     if (status != SXML_STATUS_OK) {
         return status;
@@ -624,7 +628,8 @@ static sxml_status add_missing_uses(sxml_schema_validator *validator, missing_us
                 .attribute = &attribute,
                 .value = sxml_schema_get_text(validator->components, value_constraint.lexical_form),
                 .declaration = use->attribute_declaration,
-                .use = {.value = uses.indexes[position]}});
+                .use = {.value = uses.indexes[position]},
+                .value_context = value_constraint.namespace_context});
     }
     return status;
 }
@@ -1555,7 +1560,11 @@ static sxml_status end_simple_content(sxml_schema_validator *validator,
                                      .location = frame->location,
                                      .element_number = parent_number_of(validator),
                                      .subject = {.subject_kind = SXML_SCHEMA_SUBJECT_ELEMENT,
-                                                 .name = frame_element(frame)}},
+                                                 .name = frame_element(frame)},
+                                     .namespace_context =
+                                         takes_value_constraint
+                                             ? value_constraint.namespace_context
+                                             : (sxml_schema_namespace_context_index){.value = 0}},
         &outcome);
     if (status != SXML_STATUS_OK) {
         return status;

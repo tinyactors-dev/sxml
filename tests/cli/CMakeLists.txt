@@ -275,6 +275,8 @@ sxml_add_cli_test(validate_missing_include EXIT_CODE 1 ARGUMENTS validate --sche
 sxml_add_cli_test(validate_two_schemas EXIT_CODE 1 ARGUMENTS validate --schema=xsd/books.xsd --schema=xsd/library.xsd xsd/books.xml)
 sxml_add_cli_test(validate_schema_not_well_formed EXIT_CODE 1 ARGUMENTS validate --schema=xsd/unclosed.xml xsd/books.xml)
 sxml_add_cli_test(validate_not_well_formed EXIT_CODE 1 ARGUMENTS validate --schema=xsd/books.xsd xsd/unclosed.xml xsd/books.xml)
+# xsi:type with a prefix the instance does not declare (cvc-elt.4.1, D271).
+sxml_add_cli_test(validate_xsi_type_undeclared_prefix EXIT_CODE 1 ARGUMENTS validate --schema=xsd/books.xsd xsd/xsi-type-prefix.xml)
 sxml_add_cli_test(validate_missing_file EXIT_CODE 3 ARGUMENTS validate --schema=xsd/books.xsd missing.xml xsd/books.xml)
 sxml_add_cli_test(validate_missing_file_json EXIT_CODE 3 ARGUMENTS validate --format=json --schema=xsd/books.xsd missing.xml)
 sxml_add_cli_test(validate_missing_schema EXIT_CODE 3 ARGUMENTS validate --schema=missing.xsd xsd/books.xml)

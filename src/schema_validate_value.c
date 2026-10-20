@@ -17,6 +17,7 @@
 #include "schema_validate_internal.h"
 
 #include "cast_internal.h"
+#include "sxml/memory.h"
 #include "sxml/name.h"
 #include "sxml/types.h"
 #include "sxml/xdm.h"
@@ -485,6 +486,39 @@ sxml_status sxml_schema_scratch_array_append_bytes(sxml_allocator allocator,
 
 /* ---------------------------------------------------------- Namespaces */
 
+/* XPath's predeclared prefixes other than xml (XPath 4.0, 2.2.1), which
+   an instance does not have unless it declares them (D271). */
+static const char *const undeclared_prefixes[] = {"xs",   "xsi",  "fn", "map",
+                                                  "array", "math", "err"};
+
+#define UNDECLARED_PREFIX_COUNT (sizeof(undeclared_prefixes) / sizeof(undeclared_prefixes[0]))
+
+/* Appends each of undeclared_prefixes bound to no namespace, which
+   undeclares it: a cast to xs:QName takes the first binding of a prefix
+   and otherwise falls back on XPath's predeclared prefixes (src/cast_
+   lexical.c), but a QName in an instance (xsi:type, a value of type
+   xs:QName) resolves its prefix with the element's in-scope namespaces
+   only (XSD 1.1 Part 2, 3.3.18; Part 1, 3.3.4.1 cvc-elt.4.1: an
+   undeclared prefix is not a valid QName). Golden file: src/xslt_lower.c,
+   undeclare_prefixes (D262). */
+static sxml_status append_undeclared_prefixes(sxml_schema_validator *validator) {
+    sxml_status status = SXML_STATUS_OK;
+    for (size_t prefix_index = 0; status == SXML_STATUS_OK && prefix_index < UNDECLARED_PREFIX_COUNT;
+         prefix_index += 1) {
+        sxml_namespace_prefix_identifier prefix = {.index = 0};
+        status = sxml_name_pool_intern_namespace_prefix(
+            validator->name_pool, sxml_byte_view_from_c_string(undeclared_prefixes[prefix_index]),
+            &prefix);
+        if (status == SXML_STATUS_OK) {
+            const sxml_namespace_binding binding = {
+                .namespace_prefix = prefix, .namespace_uri = {.index = SXML_NAMESPACE_NONE}};
+            status = sxml_schema_scratch_array_append(validator->allocator,
+                                                      &validator->cast_bindings, &binding);
+        }
+    }
+    return status;
+}
+
 sxml_status sxml_schema_validator_get_cast_bindings(sxml_schema_validator *validator,
                                                     sxml_namespace_binding_view *bindings) {
     sxml_schema_scratch_array *cast_bindings = &validator->cast_bindings;
@@ -496,6 +530,10 @@ sxml_status sxml_schema_validator_get_cast_bindings(sxml_schema_validator *valid
         status = sxml_schema_scratch_array_append(
             validator->allocator, cast_bindings,
             sxml_schema_scratch_array_at(&validator->namespace_bindings, binding_index - 1));
+    }
+    if (status == SXML_STATUS_OK) {
+        /* Last, so that a binding in scope comes first. */
+        status = append_undeclared_prefixes(validator);
     }
     if (status != SXML_STATUS_OK) {
         return status;
@@ -1012,7 +1050,16 @@ sxml_status sxml_schema_validate_simple_value(sxml_schema_validator *validator,
     }
     sxml_namespace_binding_view bindings = {.namespace_bindings = NULL,
                                             .namespace_binding_count = 0};
-    sxml_status status = sxml_schema_validator_get_cast_bindings(validator, &bindings);
+    sxml_status status = SXML_STATUS_OK;
+    if (request->namespace_context.value != 0) {
+        /* A default value: read where the schema wrote it. */
+        bindings = sxml_schema_get_namespace_bindings(
+            validator->components,
+            sxml_schema_get_namespace_context(validator->components, request->namespace_context)
+                ->namespace_bindings);
+    } else {
+        status = sxml_schema_validator_get_cast_bindings(validator, &bindings);
+    }
     if (status != SXML_STATUS_OK) {
         return status;
     }

@@ -223,8 +223,12 @@ static const query_case xquery_cases[] = {
     {IMPORT "validate type xs:untyped { validate { <s:hat size='3'/> } } instance of "
             "element(*, xs:untyped)",
      "true", NULL},
-    {"validate lax { <a xsi:type='xs:integer'>42</a> } instance of element(a, xs:integer)",
+    {"validate lax { <a xmlns:xs='http://www.w3.org/2001/XMLSchema' xsi:type='xs:integer'>42</a> "
+     "} instance of element(a, xs:integer)",
      "true", NULL},
+    /* xsi:type resolves with the element's in-scope namespaces only (cvc-elt.4.1;
+       QT4 validateexpr-34, D271). */
+    {"validate lax { <a xsi:type='xs:integer'>42</a> }", NULL, "XQDY0027"},
     {IMPORT "validate { attribute s:colour { 'red' } }", NULL, "XQTY0030"},
     /* schema-element and schema-attribute (3.2.7.3, 3.2.7.5). */
     {IMPORT "() instance of schema-element(s:shoe)", NULL, "XPST0008"},

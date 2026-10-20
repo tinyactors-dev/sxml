@@ -358,6 +358,12 @@ typedef struct sxml_schema_value_request {
     uint64_t element_number;
     /* Whose value it is, named in reports. */
     sxml_schema_subject subject;
+    /* 0 for a value of the instance, whose QNames resolve with the
+       in-scope namespaces; for a default value (text is the {value
+       constraint}'s lexical form), the namespace context of the schema
+       document that wrote it, where its {value} is resolved (XSD 1.1
+       Part 1, 3.2.2.1, 3.3.2.1; D271). */
+    sxml_schema_namespace_context_index namespace_context;
 } sxml_schema_value_request;
 
 /* What assessing a simple value gave. */
@@ -392,7 +398,9 @@ SXML_NODISCARD sxml_status sxml_schema_validate_simple_value(
     sxml_schema_value_outcome *outcome);
 
 /* The in-scope namespace bindings of the open elements (and the held-back
-   one), innermost first, in validator->cast_bindings. */
+   one), innermost first, in validator->cast_bindings, followed by XPath's
+   predeclared prefixes but xml bound to no namespace, so that a cast to
+   xs:QName does not resolve an undeclared xs: or fn: (D271). */
 SXML_NODISCARD sxml_status sxml_schema_validator_get_cast_bindings(
     sxml_schema_validator *validator, sxml_namespace_binding_view *bindings);
 
