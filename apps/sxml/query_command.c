@@ -188,6 +188,30 @@ static sxml_status sxml_query_resolve_file(void *state, const sxml_resource_requ
         resource->description = SXML_TEXT("Only local files are available");
         return SXML_STATUS_OK;
     }
+    const sxml_cli_file_reader file_reader = resolver->invocation->file_reader;
+    if (request->resource_kind == SXML_RESOURCE_KIND_XML_DOCUMENT &&
+        sxml_cli_file_reader_streams(file_reader)) {
+        /* An XML document as a byte reader (D233): a streamed document is
+           parsed as it is read, so sxml transform does not hold its input;
+           fn:doc reads it whole, as before. */
+        sxml_byte_reader byte_reader = {.state = NULL, .operations = NULL};
+        const sxml_status status = sxml_cli_file_reader_open(
+            file_reader,
+            &(sxml_cli_file_read_request){.path = path,
+                                          .allocator = resolver->invocation->allocator},
+            &byte_reader);
+        if (status == SXML_STATUS_INPUT_OUTPUT_FAILED) {
+            resource->resource_form = SXML_RESOURCE_FORM_NONE;
+            resource->description = SXML_TEXT("The file cannot be read");
+            return SXML_STATUS_OK;
+        }
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        resource->resource_form = SXML_RESOURCE_FORM_BYTE_READER;
+        resource->byte_reader = byte_reader;
+        return SXML_STATUS_OK;
+    }
     sxml_byte_view contents = {.bytes = NULL, .byte_count = 0};
     const sxml_status status = sxml_cli_file_reader_read(
         resolver->invocation->file_reader,
@@ -210,6 +234,8 @@ static void sxml_query_release_file(void *state, const sxml_resource *resource) 
     const sxml_query_file_resolver *resolver = state;
     if (resource->resource_form == SXML_RESOURCE_FORM_BYTES) {
         sxml_allocator_release(resolver->invocation->allocator, (void *)resource->content.bytes);
+    } else if (resource->resource_form == SXML_RESOURCE_FORM_BYTE_READER) {
+        sxml_cli_file_reader_close(resolver->invocation->file_reader, resource->byte_reader);
     }
 }
 

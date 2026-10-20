@@ -1287,6 +1287,95 @@ static sxml_status sxml_loader_parse_resource(sxml_processor_document_loader *lo
     return status;
 }
 
+/* Reads a byte reader to its end into allocator memory, which *content
+   then holds (the caller releases content->bytes). */
+typedef struct sxml_byte_reader_drain {
+    sxml_allocator allocator;
+    sxml_byte_reader byte_reader;
+} sxml_byte_reader_drain;
+
+static sxml_status sxml_loader_drain_reader(const sxml_byte_reader_drain *drain,
+                                            sxml_byte_view *content) {
+    uint8_t *bytes = NULL;
+    size_t byte_count = 0;
+    size_t capacity = 0;
+    sxml_status status = SXML_STATUS_OK;
+    for (;;) {
+        if (byte_count == capacity) {
+            size_t grown_capacity = 0;
+            status = sxml_size_multiply(capacity == 0 ? 32768 : capacity, 2, &grown_capacity);
+            void *grown = NULL;
+            if (status == SXML_STATUS_OK) {
+                status = sxml_allocator_allocate(
+                    drain->allocator,
+                    (sxml_allocation_request){.byte_count = grown_capacity, .alignment = 1},
+                    &grown);
+            }
+            if (status != SXML_STATUS_OK) {
+                break;
+            }
+            if (byte_count != 0) {
+                memcpy(grown, bytes, byte_count);
+            }
+            sxml_allocator_release(drain->allocator, bytes);
+            bytes = grown;
+            capacity = grown_capacity;
+        }
+        sxml_byte_reading reading = {.byte_count = 0, .is_end = false};
+        status = drain->byte_reader.operations->read(
+            drain->byte_reader.state,
+            (sxml_memory_view){.bytes = bytes + byte_count, .byte_count = capacity - byte_count},
+            &reading);
+        if (status == SXML_STATUS_OK && reading.byte_count > capacity - byte_count) {
+            status = SXML_STATUS_INVALID_ARGUMENT;
+        }
+        if (status != SXML_STATUS_OK) {
+            break;
+        }
+        byte_count += reading.byte_count;
+        if (reading.is_end || reading.byte_count == 0) {
+            *content = (sxml_byte_view){.bytes = bytes, .byte_count = byte_count};
+            return SXML_STATUS_OK;
+        }
+    }
+    sxml_allocator_release(drain->allocator, bytes);
+    return status;
+}
+
+/* A document a byte reader delivers, read whole first: fn:doc builds its
+   tree, which holds the document anyway (D233). */
+static sxml_status sxml_loader_parse_reader(sxml_processor_document_loader *loader,
+                                            const sxml_resolution_exchange *exchange,
+                                            sxml_item *document_node) {
+    const sxml_allocator allocator =
+        loader->configuration.evaluation_environment.processor->allocator;
+    if (exchange->resource->byte_reader.operations == NULL ||
+        exchange->resource->byte_reader.operations->read == NULL) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    sxml_resource read = *exchange->resource;
+    sxml_status status = sxml_loader_drain_reader(
+        &(sxml_byte_reader_drain){.allocator = allocator,
+                                  .byte_reader = exchange->resource->byte_reader},
+        &read.content);
+    if (status == SXML_STATUS_INPUT_OUTPUT_FAILED) {
+        return sxml_loader_report_not_available(
+            loader, exchange->request, SXML_BYTE_VIEW_FROM_LITERAL("The resource cannot be read"));
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    read.resource_form = SXML_RESOURCE_FORM_BYTES;
+    status = sxml_loader_parse_resource(
+        loader,
+        &(sxml_resolution_exchange){.request = exchange->request,
+                                    .absolute_uri = exchange->absolute_uri,
+                                    .resource = &read},
+        document_node);
+    sxml_allocator_release(allocator, (void *)read.content.bytes);
+    return status;
+}
+
 /* Turns a resource the resolver delivered into a document node, owned. */
 static sxml_status sxml_loader_take_resource(sxml_processor_document_loader *loader,
                                              const sxml_resolution_exchange *exchange,
@@ -1308,6 +1397,8 @@ static sxml_status sxml_loader_take_resource(sxml_processor_document_loader *loa
         /* Not a form of an XML document (include/sxml/processor.h). */
         sxml_sequence_release(resource->items);
         return SXML_STATUS_INVALID_ARGUMENT;
+    case SXML_RESOURCE_FORM_BYTE_READER:
+        return sxml_loader_parse_reader(loader, exchange, document_node);
     case SXML_RESOURCE_FORM_BYTES:
         break;
     }
@@ -1452,7 +1543,11 @@ sxml_status sxml_processor_document_loader_open_streamed(
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    if (document->resource.resource_form != SXML_RESOURCE_FORM_BYTES) {
+    const bool reads_bytes =
+        document->resource.resource_form == SXML_RESOURCE_FORM_BYTE_READER &&
+        document->resource.byte_reader.operations != NULL &&
+        document->resource.byte_reader.operations->read != NULL;
+    if (document->resource.resource_form != SXML_RESOURCE_FORM_BYTES && !reads_bytes) {
         status = sxml_loader_take_resource(
             loader,
             &(sxml_resolution_exchange){.request = &document_request,
@@ -1474,6 +1569,9 @@ sxml_status sxml_processor_document_loader_open_streamed(
     }
     document->holds_resource = true;
     document->is_streamed = true;
+    document->byte_reader = reads_bytes
+                                ? document->resource.byte_reader
+                                : (sxml_byte_reader){.state = NULL, .operations = NULL};
     sxml_byte_view document_uri = document->resource.resource_uri;
     if (document_uri.byte_count == 0) {
         document_uri = absolute_uri.byte_count > 0 ? absolute_uri : request->uri_reference;
@@ -1485,7 +1583,8 @@ sxml_status sxml_processor_document_loader_open_streamed(
         .was_refused = false,
         .holds_resource = false};
     document->parse_request = (sxml_xml_parse_request){
-        .input = document->resource.content,
+        .input = reads_bytes ? (sxml_byte_view){.bytes = NULL, .byte_count = 0}
+                             : document->resource.content,
         .source_name = document_uri,
         .document_uri = document_uri,
         .base_uri = document_uri,
@@ -1720,6 +1819,8 @@ static sxml_status sxml_loader_take_bytes(sxml_retrieved_resource *retrieved) {
     case SXML_RESOURCE_FORM_SEQUENCE:
         sxml_sequence_release(resource->items);
         return SXML_STATUS_INVALID_ARGUMENT;
+    case SXML_RESOURCE_FORM_BYTE_READER:
+        return SXML_STATUS_INVALID_ARGUMENT;
     }
     return SXML_STATUS_INVALID_ARGUMENT;
 }
@@ -1869,6 +1970,7 @@ static sxml_status sxml_loader_resolve_collection(sxml_processor_document_loader
         status = SXML_STATUS_INVALID_ARGUMENT;
         break;
     case SXML_RESOURCE_FORM_BYTES:
+    case SXML_RESOURCE_FORM_BYTE_READER:
         status = SXML_STATUS_INVALID_ARGUMENT;
         break;
     }

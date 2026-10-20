@@ -392,6 +392,9 @@ typedef struct sxml_streamed_document {
        document is document_node, owned, the node fn:doc gives. */
     bool is_streamed;
     sxml_xml_parse_request parse_request;
+    /* When is_streamed and its operations are not NULL: the input,
+       which parse_request then does not hold (a BYTE_READER, D233). */
+    sxml_byte_reader byte_reader;
     sxml_item document_node;
     /* What fn:doc applies to each document it loads (XSLT's whitespace
        stripping, 4.2); a streamed document's windows go through it. */

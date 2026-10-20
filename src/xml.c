@@ -169,7 +169,6 @@ struct sxml_xml_parser {
     sxml_xml_parser_configuration configuration;
     /* The allocator of sxml_xml_parser_create; null otherwise. */
     sxml_allocator owning_allocator;
-    sxml_xml_buffer transcoded_text;
     sxml_xml_buffer attribute_values;
     sxml_xml_buffer scratch_text;
     sxml_xml_dtd dtd;
@@ -197,11 +196,12 @@ struct sxml_xml_parser {
     sxml_xml_array schema_documents;
     sxml_xml_array schema_views;
     sxml_xml_array prefix_bindings;
-    /* The qualified names of the open elements (sxml_byte_view), for the
-       start tags written before a content segment (D222). Read only
-       between segments, when every open element was started in the
-       document's own text, so that the views point into it. */
+    /* The qualified names of the open elements (sxml_byte_range in
+       open_element_name_text), for the start tags written before a
+       content segment (D222); copied, since the text window moves
+       (D233). */
     sxml_xml_array open_element_names;
+    sxml_xml_buffer open_element_name_text;
     /* The marker and those start tags while a content segment is parsed. */
     sxml_xml_buffer segment_prefix;
 };
@@ -234,8 +234,10 @@ typedef struct sxml_xml_document {
     sxml_tree_builder builder;
     TSParser *syntax_parser;
     TSTree *syntax_tree;
-    /* The document as UTF-8. */
-    sxml_byte_view text;
+    /* The document as UTF-8, the part the parser holds (D233). */
+    sxml_xml_text_window window;
+    /* Where the input comes from when not request->input. */
+    sxml_byte_reader byte_reader;
     sxml_xml_position_tracker tracker;
     sxml_xml_encoding_detection detection;
     bool has_doctype;
@@ -546,7 +548,6 @@ sxml_xml_parser_initialize(sxml_memory_view memory,
     *placed = (sxml_xml_parser){
         .configuration = *configuration,
         .owning_allocator = {.state = NULL, .operations = NULL},
-        .transcoded_text = sxml_xml_buffer_empty(allocator),
         .attribute_values = sxml_xml_buffer_empty(allocator),
         .scratch_text = sxml_xml_buffer_empty(allocator),
         .dtd = sxml_xml_dtd_empty(allocator),
@@ -570,7 +571,8 @@ sxml_xml_parser_initialize(sxml_memory_view memory,
         .prefix_bindings =
             sxml_xml_parser_array(allocator, sizeof(sxml_dtd_prefix_binding)),
         .open_element_names =
-            sxml_xml_parser_array(allocator, sizeof(sxml_byte_view)),
+            sxml_xml_parser_array(allocator, sizeof(sxml_byte_range)),
+        .open_element_name_text = sxml_xml_buffer_empty(allocator),
         .segment_prefix = sxml_xml_buffer_empty(allocator),
     };
     *parser = placed;
@@ -581,7 +583,6 @@ void sxml_xml_parser_finalize(sxml_xml_parser *parser) {
     if (parser == NULL) {
         return;
     }
-    sxml_xml_buffer_release(&parser->transcoded_text);
     sxml_xml_buffer_release(&parser->attribute_values);
     sxml_xml_buffer_release(&parser->scratch_text);
     sxml_xml_dtd_release(&parser->dtd);
@@ -599,6 +600,7 @@ void sxml_xml_parser_finalize(sxml_xml_parser *parser) {
     sxml_xml_array_release(&parser->schema_views);
     sxml_xml_array_release(&parser->prefix_bindings);
     sxml_xml_array_release(&parser->open_element_names);
+    sxml_xml_buffer_release(&parser->open_element_name_text);
     sxml_xml_buffer_release(&parser->segment_prefix);
 }
 
@@ -725,6 +727,8 @@ static sxml_status sxml_xml_fail_resource(const sxml_xml_document *document,
     const sxml_byte_view description =
         status == SXML_STATUS_LIMIT_EXCEEDED
             ? SXML_XML_TEXT("a limit of the configuration was exceeded")
+        : status == SXML_STATUS_INPUT_OUTPUT_FAILED
+            ? SXML_XML_TEXT("the document's bytes could not be read")
             : SXML_XML_TEXT("the parser could not allocate memory");
     return sxml_xml_fail(
         document,
@@ -4487,6 +4491,14 @@ static sxml_status sxml_xml_resolve_attributes(sxml_xml_document *document,
     return status;
 }
 
+/* Where the name of the innermost open element ends in
+   open_element_name_text; there is one. */
+static size_t sxml_xml_open_element_name_end(const sxml_xml_parser *parser) {
+    const sxml_xml_array *names = &parser->open_element_names;
+    const sxml_byte_range *range = sxml_xml_array_at(names, names->element_count - 1);
+    return range->byte_offset + range->byte_count;
+}
+
 static sxml_status sxml_xml_end_element(sxml_xml_document *document) {
     sxml_xml_parser *parser = document->parser;
     sxml_xml_array *scopes = &parser->element_scopes;
@@ -4495,6 +4507,10 @@ static sxml_status sxml_xml_end_element(sxml_xml_document *document) {
     parser->namespace_bindings.element_count = *scope_start;
     scopes->element_count -= 1;
     parser->open_element_names.element_count -= 1;
+    parser->open_element_name_text.byte_count =
+        parser->open_element_names.element_count == 0
+            ? 0
+            : sxml_xml_open_element_name_end(parser);
     document->element_depth -= 1;
     if (document->tracks_contents && parser->open_contents.element_count != 0) {
         parser->open_contents.element_count -= 1;
@@ -4549,11 +4565,17 @@ static sxml_status sxml_xml_start_element(sxml_xml_document *document,
         return sxml_xml_fail_resource(document, status);
     }
     *(size_t *)element = scope_start;
-    status = sxml_xml_array_push(&parser->open_element_names, &element);
+    const sxml_byte_range name_range = {
+        .byte_offset = parser->open_element_name_text.byte_count,
+        .byte_count = element_name.byte_count};
+    status = sxml_xml_buffer_append(&parser->open_element_name_text, element_name);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xml_array_push(&parser->open_element_names, &element);
+    }
     if (status != SXML_STATUS_OK) {
         return sxml_xml_fail_resource(document, status);
     }
-    *(sxml_byte_view *)element = element_name;
+    *(sxml_byte_range *)element = name_range;
     document->element_depth += 1;
     if (document->tracks_contents) {
         const sxml_xml_dtd *dtd = &parser->dtd;
@@ -5085,6 +5107,132 @@ static const sxml_byte_view sxml_xml_document_head_marker =
 static const sxml_byte_view sxml_xml_content_segment_marker =
     SXML_BYTE_VIEW_INITIALIZER("\001C");
 
+/* The diagnostic of a failure of the text window (1: encodings, 4.3.3;
+   2.2, [2] Char; XML 1.1, 2.2). */
+static sxml_status sxml_xml_fail_window(sxml_xml_document *document) {
+    const sxml_xml_window_failure *failure = &document->window.failure;
+    sxml_byte_view description = {.bytes = NULL, .byte_count = 0};
+    switch (failure->failure_kind) {
+    case SXML_XML_WINDOW_FAILURE_NONE:
+    case SXML_XML_WINDOW_FAILURE_RESOURCE:
+        return sxml_xml_fail_resource(document, failure->status);
+    case SXML_XML_WINDOW_FAILURE_ENCODING:
+        return sxml_xml_fail(
+            document,
+            (sxml_xml_failure){
+                .status = SXML_STATUS_UNSUPPORTED_FEATURE,
+                .description = SXML_XML_TEXT(
+                    "the document's encoding is not one sxml reads: UTF-8, UTF-16, "
+                    "ISO-8859-1 or US-ASCII (XML 1.0, section 4.3.3)"),
+                .location = {.source_name = document->request->source_name,
+                             .line_number = 1,
+                             .column_number = 1,
+                             .byte_offset = 0}});
+    case SXML_XML_WINDOW_FAILURE_UTF8:
+        description = SXML_XML_TEXT(
+            "the bytes are not well-formed UTF-8 (XML 1.0, section 4.3.3)");
+        break;
+    case SXML_XML_WINDOW_FAILURE_UTF16:
+        description = SXML_XML_TEXT(
+            "the bytes are not well-formed UTF-16 (XML 1.0, section 4.3.3)");
+        break;
+    case SXML_XML_WINDOW_FAILURE_ASCII:
+        description = SXML_XML_TEXT(
+            "a byte is not US-ASCII, the declared encoding (XML 1.0, section "
+            "4.3.3)");
+        break;
+    case SXML_XML_WINDOW_FAILURE_NUL:
+        description = SXML_XML_TEXT("U+0000 is not a character of XML 1.0 ([2] Char)");
+        break;
+    case SXML_XML_WINDOW_FAILURE_RESTRICTED:
+        description = SXML_XML_TEXT(
+            "a control character must be written as a character "
+            "reference in XML 1.1 ([2a] RestrictedChar, XML 1.1, "
+            "section 2.2)");
+        break;
+    }
+    sxml_source_location location = sxml_xml_location_at(document, failure->text_offset);
+    if (failure->has_input_byte_offset) {
+        location.byte_offset = failure->input_byte_offset;
+    }
+    return sxml_xml_fail(document, (sxml_xml_failure){.status = failure->status,
+                                                      .description = description,
+                                                      .location = location});
+}
+
+/* Points the tracker at the window's text after the window changed;
+   floor_offset becomes its floor (16). */
+static void sxml_xml_follow_window(sxml_xml_document *document, size_t floor_offset) {
+    sxml_xml_position_tracker_rebase(
+        &document->tracker,
+        &(sxml_xml_position_tracker_window){.text = document->window.text,
+                                            .base_offset = document->window.start_offset,
+                                            .floor_offset = floor_offset});
+}
+
+/* Decodes more of the input into the window (D233). */
+static sxml_status sxml_xml_extend_window(sxml_xml_document *document) {
+    const sxml_status status = sxml_xml_text_window_extend(&document->window);
+    sxml_xml_follow_window(document, document->tracker.floor.text_offset);
+    return status == SXML_STATUS_OK ? status : sxml_xml_fail_window(document);
+}
+
+/* Gives up the text before text_offset when no frame reads it: the
+   tracker's floor moves there first. */
+static void sxml_xml_discard_window(sxml_xml_document *document, size_t text_offset) {
+    if (!sxml_xml_text_window_should_discard(&document->window, text_offset)) {
+        return;
+    }
+    sxml_xml_follow_window(document, text_offset);
+    sxml_xml_text_window_discard(&document->window, text_offset);
+    sxml_xml_follow_window(document, text_offset);
+}
+
+/*
+ * Where the content segment of request (its text unused) ends in the
+ * window: the window is extended until the scan ends before the text
+ * held, or the input ends. Each extension at least doubles what the
+ * window holds, so the scans cost linear time in all.
+ */
+static sxml_status sxml_xml_find_window_segment(sxml_xml_document *document,
+                                                sxml_xml_segment_request request,
+                                                size_t *end_offset) {
+    sxml_xml_discard_window(document, request.start_offset);
+    for (;;) {
+        const sxml_xml_text_window *window = &document->window;
+        const size_t base_offset = window->start_offset;
+        const size_t relative_end = sxml_xml_find_segment_end(&(sxml_xml_segment_request){
+            .text = window->text,
+            .start_offset = request.start_offset - base_offset,
+            .target_byte_count = request.target_byte_count});
+        if (relative_end < window->text.byte_count || window->is_complete) {
+            *end_offset = base_offset + relative_end;
+            return SXML_STATUS_OK;
+        }
+        const sxml_status status = sxml_xml_extend_window(document);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+    }
+}
+
+/* Where the head ends (D222), extending the window as for a segment. */
+static sxml_status sxml_xml_find_window_head(sxml_xml_document *document,
+                                             size_t *end_offset) {
+    for (;;) {
+        const sxml_xml_text_window *window = &document->window;
+        const size_t head_end = sxml_xml_find_head_end(window->text);
+        if (head_end < window->text.byte_count || window->is_complete) {
+            *end_offset = head_end;
+            return SXML_STATUS_OK;
+        }
+        const sxml_status status = sxml_xml_extend_window(document);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+    }
+}
+
 /* Parses a document segment, wrapped->text a part of the document's text
    at frame->document_offset, into *syntax_tree, reporting a syntax error
    at its place in the document. */
@@ -5142,7 +5290,9 @@ static sxml_status sxml_xml_push_next_segment(sxml_xml_document *document) {
         status = sxml_xml_buffer_append_byte(prefix, '<');
         if (status == SXML_STATUS_OK) {
             status = sxml_xml_buffer_append(
-                prefix, *(const sxml_byte_view *)sxml_xml_array_at(names, name_index));
+                prefix, sxml_xml_buffer_view(
+                            &parser->open_element_name_text,
+                            *(const sxml_byte_range *)sxml_xml_array_at(names, name_index)));
         }
         if (status == SXML_STATUS_OK) {
             status = sxml_xml_buffer_append_byte(prefix, '>');
@@ -5155,18 +5305,26 @@ static sxml_status sxml_xml_push_next_segment(sxml_xml_document *document) {
         return sxml_xml_fail_resource(document, SXML_STATUS_LIMIT_EXCEEDED);
     }
     const size_t start_offset = document->segment_end_offset;
-    const size_t end_offset = sxml_xml_find_segment_end(&(sxml_xml_segment_request){
-        .text = document->text,
-        .start_offset = start_offset,
-        .target_byte_count = prefix->byte_count > SXML_XML_SEGMENT_BYTE_COUNT / 2
-                                 ? prefix->byte_count * 2
-                                 : SXML_XML_SEGMENT_BYTE_COUNT});
+    size_t end_offset = 0;
+    status = sxml_xml_find_window_segment(
+        document,
+        (sxml_xml_segment_request){
+            .text = {.bytes = NULL, .byte_count = 0},
+            .start_offset = start_offset,
+            .target_byte_count = prefix->byte_count > SXML_XML_SEGMENT_BYTE_COUNT / 2
+                                     ? prefix->byte_count * 2
+                                     : SXML_XML_SEGMENT_BYTE_COUNT},
+        &end_offset);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
     document->segment_end_offset = end_offset;
+    const sxml_xml_text_window *window = &document->window;
     const sxml_xml_frame pushed = {
         .frame_kind = SXML_XML_FRAME_KIND_DOCUMENT,
         .syntax_tree = NULL,
         .cursor = {.tree = NULL, .id = NULL, .context = {0, 0, 0}},
-        .text = {.bytes = document->text.bytes + start_offset,
+        .text = {.bytes = window->text.bytes + (start_offset - window->start_offset),
                  .byte_count = end_offset - start_offset},
         .prefix_byte_count = (uint32_t)prefix->byte_count,
         .document_offset = start_offset,
@@ -5202,9 +5360,21 @@ static sxml_status sxml_xml_push_next_segment(sxml_xml_document *document) {
 }
 
 /* Whether content segments are left, after the frames of the content
-   walk have ended. */
-static bool sxml_xml_has_next_segment(const sxml_xml_document *document) {
-    return document->segment_end_offset < document->text.byte_count;
+   walk have ended: text after the last segment, decoded or not yet. */
+static sxml_status sxml_xml_has_next_segment(sxml_xml_document *document,
+                                             bool *has_next_segment) {
+    while (document->segment_end_offset == sxml_xml_text_window_end(&document->window) &&
+           !document->window.is_complete) {
+        /* No frame reads the text before the next segment. */
+        sxml_xml_discard_window(document, document->segment_end_offset);
+        const sxml_status status = sxml_xml_extend_window(document);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+    }
+    *has_next_segment =
+        document->segment_end_offset < sxml_xml_text_window_end(&document->window);
+    return SXML_STATUS_OK;
 }
 
 /* After the last content segment: fails when the text ends inside an
@@ -5220,7 +5390,8 @@ static sxml_status sxml_xml_check_content_end(sxml_xml_document *document) {
             .description = SXML_XML_TEXT(
                 "not well-formed: the document ends or breaks off before a "
                 "construct is complete (XML 1.0, section 2.1)"),
-            .location = sxml_xml_location_at(document, document->text.byte_count)});
+            .location = sxml_xml_location_at(document,
+                                             sxml_xml_text_window_end(&document->window))});
 }
 
 /* Which walk the frames serve. */
@@ -5242,11 +5413,16 @@ static sxml_status sxml_xml_run_frames(sxml_xml_document *document,
             if (walk.walks_declarations) {
                 return SXML_STATUS_OK;
             }
-            if (!sxml_xml_has_next_segment(document)) {
+            bool has_next_segment = false;
+            sxml_status status = sxml_xml_has_next_segment(document, &has_next_segment);
+            if (status != SXML_STATUS_OK) {
+                return status;
+            }
+            if (!has_next_segment) {
                 return sxml_xml_check_content_end(document);
             }
             /* The content goes on in the next document segment (D222). */
-            const sxml_status status = sxml_xml_push_next_segment(document);
+            status = sxml_xml_push_next_segment(document);
             if (status != SXML_STATUS_OK) {
                 return status;
             }
@@ -5794,149 +5970,26 @@ static sxml_status sxml_xml_prepare_validation(sxml_xml_document *document,
  * translation shrinks the text, so it is done in the parser's copy;
  * diagnostics then give positions in the translated text.
  */
-static sxml_status sxml_xml_apply_version(sxml_xml_document *document) {
-    const sxml_xml_declared_version declared =
-        sxml_xml_read_declared_version(document->text);
-    document->version = declared.version;
-    if (declared.version != SXML_XML_VERSION_1_1) {
-        return SXML_STATUS_OK;
-    }
-    const size_t restricted_offset =
-        sxml_xml_find_restricted_character(document->text);
-    if (restricted_offset != document->text.byte_count) {
-        return sxml_xml_fail(
-            document,
-            (sxml_xml_failure){
-                .status = SXML_STATUS_MALFORMED_INPUT,
-                .description = SXML_XML_TEXT(
-                    "a control character must be written as a character "
-                    "reference in XML 1.1 ([2a] RestrictedChar, XML 1.1, "
-                    "section 2.2)"),
-                .location = sxml_xml_location_at(document, restricted_offset)});
-    }
-    const sxml_byte_view after_declaration = {
-        .bytes = document->text.bytes + declared.declaration_end_offset,
-        .byte_count =
-            document->text.byte_count - declared.declaration_end_offset};
-    if (!sxml_xml_has_version_1_1_line_end(after_declaration)) {
-        return SXML_STATUS_OK;
-    }
-    sxml_xml_buffer *copy = &document->parser->transcoded_text;
-    if (document->text.bytes != copy->bytes) {
-        copy->byte_count = 0;
-        const sxml_status status =
-            sxml_xml_buffer_append(copy, document->text);
-        if (status != SXML_STATUS_OK) {
-            return sxml_xml_fail_resource(document, status);
-        }
-    }
-    sxml_xml_translate_version_1_1_line_ends(copy,
-                                             declared.declaration_end_offset);
-    document->text = (sxml_byte_view){.bytes = copy->bytes,
-                                      .byte_count = copy->byte_count};
-    document->tracker = sxml_xml_position_tracker_start(
-        (sxml_xml_position_tracker_configuration){
-            .text = document->text,
-            .input_encoding = document->detection.encoding,
-            .has_byte_order_mark =
-                document->detection.has_utf8_byte_order_mark ||
-                document->detection.has_utf16_byte_order_mark});
-    return SXML_STATUS_OK;
-}
-
-/* Decodes the input into document->text (1: encodings, 4.3.3). */
+/* Opens the text window over the input (1: encodings, 4.3.3), which
+   reads the XML declaration's version (15) and decodes the first part. */
 static sxml_status sxml_xml_decode(sxml_xml_document *document) {
     const sxml_xml_parse_request *request = document->request;
-    sxml_xml_failure failure = {
-        .status = SXML_STATUS_UNSUPPORTED_FEATURE,
-        .description = SXML_XML_TEXT(
-            "the document's encoding is not one sxml reads: UTF-8, UTF-16, "
-            "ISO-8859-1 or US-ASCII (XML 1.0, section 4.3.3)"),
-        .location = {.source_name = request->source_name,
-                     .line_number = 1,
-                     .column_number = 1,
-                     .byte_offset = 0}};
-    sxml_status status = sxml_xml_detect_encoding(
-        &(sxml_xml_encoding_request){.input = request->input,
-                                     .encoding_name = request->encoding_name},
-        &document->detection);
-    if (status != SXML_STATUS_OK) {
-        return sxml_xml_fail(document, failure);
-    }
-    const sxml_xml_encoding encoding = document->detection.encoding;
-    sxml_xml_buffer *transcoded = &document->parser->transcoded_text;
-    transcoded->byte_count = 0;
-    sxml_xml_transcoding_failure transcoding_failure = {.input_byte_offset = 0};
-    size_t failed_text_offset = 0;
-    switch (encoding) {
-    case SXML_XML_ENCODING_UTF8: {
-        document->text = request->input;
-        sxml_utf8_validation validation = {
-            .valid_byte_count = 0, .codepoint_count = 0, .is_ascii = false};
-        status = sxml_utf8_validate(request->input, &validation);
-        failed_text_offset = validation.valid_byte_count;
-        failure.description = SXML_XML_TEXT(
-            "the bytes are not well-formed UTF-8 (XML 1.0, section 4.3.3)");
-        break;
-    }
-    case SXML_XML_ENCODING_US_ASCII:
-        document->text = request->input;
-        status = sxml_xml_check_ascii(request->input, &transcoding_failure);
-        failed_text_offset = transcoding_failure.input_byte_offset;
-        failure.description = SXML_XML_TEXT(
-            "a byte is not US-ASCII, the declared encoding (XML 1.0, section "
-            "4.3.3)");
-        break;
-    case SXML_XML_ENCODING_UTF16_LITTLE_ENDIAN:
-    case SXML_XML_ENCODING_UTF16_BIG_ENDIAN:
-    case SXML_XML_ENCODING_ISO_8859_1:
-        status = sxml_xml_transcode(
-            &(sxml_xml_transcoding_request){.input = request->input,
-                                            .encoding = encoding},
-            transcoded, &transcoding_failure);
-        document->text = (sxml_byte_view){.bytes = transcoded->bytes,
-                                          .byte_count = transcoded->byte_count};
-        failed_text_offset = transcoded->byte_count;
-        failure.description = SXML_XML_TEXT(
-            "the bytes are not well-formed UTF-16 (XML 1.0, section 4.3.3)");
-        break;
-    }
+    const sxml_status status = sxml_xml_text_window_open(
+        &(sxml_xml_text_window_configuration){
+            .allocator = document->parser->configuration.allocator,
+            .input = request->input,
+            .byte_reader = document->byte_reader,
+            .encoding_name = request->encoding_name},
+        &document->window);
+    document->detection = document->window.detection;
+    document->version = document->window.declared.version;
     document->tracker = sxml_xml_position_tracker_start((
         sxml_xml_position_tracker_configuration){
-        .text = document->text,
-        .input_encoding = encoding,
+        .text = document->window.text,
+        .input_encoding = document->detection.encoding,
         .has_byte_order_mark = document->detection.has_utf8_byte_order_mark ||
                                document->detection.has_utf16_byte_order_mark});
-    if (status == SXML_STATUS_OUT_OF_MEMORY ||
-        status == SXML_STATUS_ARITHMETIC_OVERFLOW) {
-        return sxml_xml_fail_resource(document, SXML_STATUS_OUT_OF_MEMORY);
-    }
-    if (status != SXML_STATUS_OK) {
-        failure.status = status;
-        failure.location = sxml_xml_location_at(document, failed_text_offset);
-        if (encoding != SXML_XML_ENCODING_UTF8) {
-            failure.location.byte_offset =
-                transcoding_failure.input_byte_offset;
-        }
-        return sxml_xml_fail(document, failure);
-    }
-    if (document->text.byte_count > UINT32_MAX - 64) {
-        return sxml_xml_fail_resource(document, SXML_STATUS_LIMIT_EXCEEDED);
-    }
-    /* U+0000 is no [2] Char; tree-sitter would also read it as the end. */
-    const uint8_t *null_byte =
-        document->text.byte_count == 0
-            ? NULL
-            : memchr(document->text.bytes, 0, document->text.byte_count);
-    if (null_byte != NULL) {
-        failure.status = SXML_STATUS_MALFORMED_INPUT;
-        failure.description =
-            SXML_XML_TEXT("U+0000 is not a character of XML 1.0 ([2] Char)");
-        failure.location = sxml_xml_location_at(
-            document, (size_t)(null_byte - document->text.bytes));
-        return sxml_xml_fail(document, failure);
-    }
-    return sxml_xml_apply_version(document);
+    return status == SXML_STATUS_OK ? status : sxml_xml_fail_window(document);
 }
 
 /*
@@ -6256,12 +6309,16 @@ static sxml_status sxml_xml_walk_document(sxml_xml_document *document) {
         return status;
     }
     /* The head frame's template: its cursor is made when pushed. */
-    const size_t head_end_offset = sxml_xml_find_head_end(document->text);
+    size_t head_end_offset = 0;
+    status = sxml_xml_find_window_head(document, &head_end_offset);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
     const sxml_xml_frame frame = {
         .frame_kind = SXML_XML_FRAME_KIND_DOCUMENT,
         .syntax_tree = NULL,
         .cursor = {.tree = NULL, .id = NULL, .context = {0, 0, 0}},
-        .text = {.bytes = document->text.bytes, .byte_count = head_end_offset},
+        .text = {.bytes = document->window.text.bytes, .byte_count = head_end_offset},
         .prefix_byte_count = (uint32_t)sxml_xml_document_head_marker.byte_count,
         .document_offset = 0,
         .is_content_segment = false,
@@ -6335,6 +6392,8 @@ typedef struct sxml_xml_document_start {
     sxml_xml_parser *parser;
     const sxml_xml_parse_request *request;
     sxml_tree_builder builder;
+    /* The input when its operations are not NULL (D233). */
+    sxml_byte_reader byte_reader;
 } sxml_xml_document_start;
 
 static void sxml_xml_start_document(const sxml_xml_document_start *start,
@@ -6349,13 +6408,43 @@ static void sxml_xml_start_document(const sxml_xml_document_start *start,
     parser->expansions.element_count = 0;
     parser->child_nodes.element_count = 0;
     parser->open_element_names.element_count = 0;
+    parser->open_element_name_text.byte_count = 0;
     *document = (sxml_xml_document){
         .parser = parser,
         .request = request,
         .builder = builder,
         .syntax_parser = NULL,
         .syntax_tree = NULL,
-        .text = {.bytes = NULL, .byte_count = 0},
+        .window = {.configuration = {.allocator = {.state = NULL, .operations = NULL},
+                                     .input = {.bytes = NULL, .byte_count = 0},
+                                     .byte_reader = {.state = NULL, .operations = NULL},
+                                     .encoding_name = {.bytes = NULL, .byte_count = 0}},
+                   .detection = {.has_utf8_byte_order_mark = false,
+                                 .has_utf16_byte_order_mark = false,
+                                 .encoding = SXML_XML_ENCODING_UTF8,
+                                 .declared_encoding_name = {.bytes = NULL, .byte_count = 0}},
+                   .declared = {.version = SXML_XML_VERSION_1_0, .declaration_end_offset = 0},
+                   .text = {.bytes = NULL, .byte_count = 0},
+                   .start_offset = 0,
+                   .is_complete = false,
+                   .failure = {.failure_kind = SXML_XML_WINDOW_FAILURE_NONE,
+                               .status = SXML_STATUS_OK,
+                               .text_offset = 0,
+                               .input_byte_offset = 0,
+                               .has_input_byte_offset = false},
+                   .copies = false,
+                   .decoded = {.allocator = {.state = NULL, .operations = NULL},
+                               .bytes = NULL,
+                               .byte_count = 0,
+                               .byte_capacity = 0},
+                   .raw = {.allocator = {.state = NULL, .operations = NULL},
+                           .bytes = NULL,
+                           .byte_count = 0,
+                           .byte_capacity = 0},
+                   .raw_input_offset = 0,
+                   .is_raw_end = false,
+                   .held_byte_count = 0},
+        .byte_reader = start->byte_reader,
         .tracker = sxml_xml_position_tracker_start(
             (sxml_xml_position_tracker_configuration){
                 .text = {.bytes = NULL, .byte_count = 0},
@@ -6446,6 +6535,7 @@ static void sxml_xml_release_document(sxml_xml_document *document) {
         ts_parser_delete(document->syntax_parser);
         document->syntax_parser = NULL;
     }
+    sxml_xml_text_window_close(&document->window);
 }
 
 static sxml_status
@@ -6453,9 +6543,12 @@ sxml_xml_parse_document(sxml_xml_parser *parser,
                         const sxml_xml_parse_request *request,
                         sxml_tree_builder builder) {
     sxml_xml_document document;
-    sxml_xml_start_document(
-        &(sxml_xml_document_start){.parser = parser, .request = request, .builder = builder},
-        &document);
+    sxml_xml_start_document(&(sxml_xml_document_start){.parser = parser,
+                                                       .request = request,
+                                                       .builder = builder,
+                                                       .byte_reader = {.state = NULL,
+                                                                       .operations = NULL}},
+                            &document);
     const sxml_status status = sxml_xml_read_document(&document);
     sxml_xml_release_document(&document);
     return status;
@@ -6476,7 +6569,10 @@ sxml_xml_incremental_parse_create(const sxml_xml_incremental_parse_request *requ
     if (request == NULL || parse == NULL || request->parser == NULL ||
         request->parse_request == NULL || request->builder.operations == NULL ||
         sxml_allocator_is_null(request->allocator) ||
-        (request->parse_request->input.bytes == NULL &&
+        (request->byte_reader.operations != NULL &&
+         request->byte_reader.operations->read == NULL) ||
+        (request->byte_reader.operations == NULL &&
+         request->parse_request->input.bytes == NULL &&
          request->parse_request->input.byte_count != 0)) {
         return SXML_STATUS_INVALID_ARGUMENT;
     }
@@ -6499,7 +6595,8 @@ sxml_xml_incremental_parse_create(const sxml_xml_incremental_parse_request *requ
     new_parse->is_finished = false;
     sxml_xml_start_document(&(sxml_xml_document_start){.parser = request->parser,
                                                        .request = &new_parse->request,
-                                                       .builder = request->builder},
+                                                       .builder = request->builder,
+                                                       .byte_reader = request->byte_reader},
                             &new_parse->document);
     new_parse->document.is_incremental = true;
     status = sxml_xml_read_document(&new_parse->document);

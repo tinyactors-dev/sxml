@@ -122,7 +122,7 @@ SXML_NODISCARD SXML_EXPORT sxml_status sxml_clock_read(
 typedef enum sxml_resource_kind {
     /* An XML document for fn:doc and fn:doc-available (F&O 4.0,
        "fn:doc"), and in XSLT for fn:document and xsl:source-document.
-       Forms: BYTES, DOCUMENT_NODE. */
+       Forms: BYTES, DOCUMENT_NODE, BYTE_READER. */
     SXML_RESOURCE_KIND_XML_DOCUMENT,
     /* A text resource for fn:unparsed-text, fn:unparsed-text-lines,
        fn:unparsed-text-available and fn:json-doc (F&O 4.0,
@@ -257,6 +257,36 @@ typedef struct sxml_resource_request {
     sxml_byte_view package_version;
 } sxml_resource_request;
 
+/*
+ * A reader of a resource's bytes, read a part at a time (glossary
+ * `byte_reader`, D233): sxml lends it a buffer and it fills the front of
+ * it. Tables are static const.
+ */
+typedef struct sxml_byte_reading {
+    /* How many bytes read wrote to the front of the buffer, at most its
+       size; 0 only at the end. */
+    size_t byte_count;
+    /* True when no bytes follow those written. */
+    bool is_end;
+} sxml_byte_reading;
+
+typedef struct sxml_byte_reader_operations {
+    /* Reads the next bytes into buffer and says how many and whether they
+       are the last (*reading is zeroed by sxml before the call). After
+       is_end, sxml does not call read again. A failed read returns
+       SXML_STATUS_INPUT_OUTPUT_FAILED, which stops the parse as a
+       resource that is not available (fn:doc: FODC0002); any other status
+       stops the evaluation with that status. */
+    sxml_status (*read)(void *state, sxml_memory_view buffer,
+                        sxml_byte_reading *reading);
+} sxml_byte_reader_operations;
+
+/* Passed by value. */
+typedef struct sxml_byte_reader {
+    void *state;
+    const sxml_byte_reader_operations *operations;
+} sxml_byte_reader;
+
 /* How a resolver delivers a resource. */
 typedef enum sxml_resource_form {
     /* There is no such resource, or it cannot be retrieved: fn:doc raises
@@ -272,6 +302,12 @@ typedef enum sxml_resource_form {
        in the order fn:collection returns them, or the URIs of a URI
        collection. */
     SXML_RESOURCE_FORM_SEQUENCE,
+    /* The resource's bytes through a byte reader, for an XML document
+       (D233): a document streamed by XSLT (xsl:source-document
+       streamable="yes", a streamed principal source) is decoded and parsed
+       as its bytes arrive, so its size does not bound the memory; fn:doc
+       and the other uses read the whole document first, as for BYTES. */
+    SXML_RESOURCE_FORM_BYTE_READER,
 } sxml_resource_form;
 
 /*
@@ -282,12 +318,14 @@ typedef struct sxml_resource {
     sxml_resource_form resource_form;
     /* BYTES: the content. Borrowed until release is called. */
     sxml_byte_view content;
-    /* BYTES: the encoding named outside the content (an HTTP charset);
-       empty to detect it from the content. Borrowed until release. */
+    /* BYTES, BYTE_READER: the encoding named outside the content (an
+       HTTP charset); empty to detect it from the content. Borrowed until
+       release. */
     sxml_byte_view encoding_name;
-    /* BYTES: the URI the resource was found at, after any redirection; it
-       becomes the document URI and base URI of the document node. Empty
-       means request->absolute_uri. Borrowed until release. */
+    /* BYTES, BYTE_READER: the URI the resource was found at, after any
+       redirection; it becomes the document URI and base URI of the
+       document node. Empty means request->absolute_uri. Borrowed until
+       release. */
     sxml_byte_view resource_uri;
     /* DOCUMENT_NODE: the node, owned: sxml takes the reference. */
     sxml_item document_node;
@@ -298,6 +336,10 @@ typedef struct sxml_resource {
        their document URIs (F&O 4.0, "fn:collection": they need not be
        distinct or present). */
     sxml_sequence items;
+    /* BYTE_READER: the reader, borrowed until release is called; sxml
+       reads it at most to its end, and may stop before. encoding_name and
+       resource_uri are read as for BYTES. */
+    sxml_byte_reader byte_reader;
 } sxml_resource;
 
 /*

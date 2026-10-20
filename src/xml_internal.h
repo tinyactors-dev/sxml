@@ -15,11 +15,15 @@
  *   and parameter entities, attribute definitions.
  * - src/xml_segment.c: where a document is cut into document segments
  *   (D222).
+ * - src/xml_input.c: the text window, the part of a document's decoded
+ *   text the parser holds, decoded from the input as segments need it
+ *   (D233).
  *
  * Everything here allocates through the allocator stored in the buffer or
  * table, never through the tree-sitter runtime.
  */
 #include "sxml/memory.h"
+#include "sxml/processor.h"
 #include "sxml/status.h"
 #include "sxml/tree.h"
 #include "sxml/view.h"
@@ -324,19 +328,30 @@ bool sxml_xml_text_next_token(sxml_byte_view *rest, sxml_byte_view *token);
  * shorter), plus the start of its line when a line end lies between.
  * Line ends are LF, CR LF and lone CR (XML 1.0, section 2.11).
  */
+typedef struct sxml_xml_position_tracker_place {
+    size_t text_offset;
+    size_t input_offset;
+    uint32_t line_number;
+    uint32_t column_number;
+    bool follows_carriage_return;
+} sxml_xml_position_tracker_place;
+
 typedef struct sxml_xml_position_tracker {
+    /* The part of the text held (a text window, D233): text.bytes[0] is
+       the byte at base_offset. */
     sxml_byte_view text;
+    size_t base_offset;
     sxml_xml_encoding input_encoding;
     /* Byte offset of the first character after the byte order mark, in
        the text and in the input. */
     size_t text_start_offset;
     size_t input_start_offset;
     /* Where the tracker is. */
-    size_t text_offset;
-    size_t input_offset;
-    uint32_t line_number;
-    uint32_t column_number;
-    bool follows_carriage_return;
+    sxml_xml_position_tracker_place place;
+    /* The earliest offset the tracker can still reach, at or after
+       base_offset: the start, or where sxml_xml_position_tracker_rebase
+       last moved it; offsets before it are located there. */
+    sxml_xml_position_tracker_place floor;
 } sxml_xml_position_tracker;
 
 /* The text, in which encoding its input was, and whether a byte order
@@ -360,6 +375,18 @@ typedef struct sxml_xml_position {
 sxml_xml_position
 sxml_xml_position_tracker_locate(sxml_xml_position_tracker *tracker,
                                  size_t text_offset);
+
+/* The text a tracker reads after its text window moved: text.bytes[0] is
+   the byte at base_offset, and floor_offset, at or after base_offset and
+   inside both the old and the new text, becomes the tracker's floor. */
+typedef struct sxml_xml_position_tracker_window {
+    sxml_byte_view text;
+    size_t base_offset;
+    size_t floor_offset;
+} sxml_xml_position_tracker_window;
+
+void sxml_xml_position_tracker_rebase(sxml_xml_position_tracker *tracker,
+                                      const sxml_xml_position_tracker_window *window);
 
 /* --------------------------------------------------- Document segments */
 
@@ -387,6 +414,104 @@ typedef struct sxml_xml_segment_request {
 } sxml_xml_segment_request;
 
 size_t sxml_xml_find_segment_end(const sxml_xml_segment_request *request);
+
+/* ------------------------------------------------------ Text windows */
+
+/*
+ * The text window of a document (glossary `text_window`, D233): the part
+ * of its decoded UTF-8 text the parser holds. The input, given whole or
+ * through a byte reader, is decoded a window at a time as document
+ * segments need it, and the text before the segment being parsed is given
+ * up, so a document read through a byte reader takes memory in proportion
+ * to its largest segment, not to its size. A whole input in UTF-8 or
+ * US-ASCII is its own text (checked at once, no copy), as before D233.
+ * Offsets are in the document's whole text.
+ */
+typedef struct sxml_xml_text_window_configuration {
+    sxml_allocator allocator;
+    /* The whole input, when byte_reader has no operations. */
+    sxml_byte_view input;
+    sxml_byte_reader byte_reader;
+    /* As sxml_xml_parse_request.encoding_name. */
+    sxml_byte_view encoding_name;
+} sxml_xml_text_window_configuration;
+
+/* Why decoding stopped, for the parser's diagnostic. */
+typedef enum sxml_xml_window_failure_kind {
+    SXML_XML_WINDOW_FAILURE_NONE,
+    /* An encoding sxml does not read (4.3.3, Appendix F). */
+    SXML_XML_WINDOW_FAILURE_ENCODING,
+    /* Bytes that are not well-formed in the input's encoding. */
+    SXML_XML_WINDOW_FAILURE_UTF8,
+    SXML_XML_WINDOW_FAILURE_UTF16,
+    SXML_XML_WINDOW_FAILURE_ASCII,
+    /* U+0000 ([2] Char). */
+    SXML_XML_WINDOW_FAILURE_NUL,
+    /* A [2a] RestrictedChar of XML 1.1 written literally. */
+    SXML_XML_WINDOW_FAILURE_RESTRICTED,
+    /* The allocator's or the byte reader's failure, or a text over the
+       parser's 4 GB. */
+    SXML_XML_WINDOW_FAILURE_RESOURCE,
+} sxml_xml_window_failure_kind;
+
+typedef struct sxml_xml_window_failure {
+    sxml_xml_window_failure_kind failure_kind;
+    sxml_status status;
+    /* Where in the text: the end of what decoded. */
+    size_t text_offset;
+    /* For an input not in UTF-8: the offset of the bad bytes in the
+       input; has_input_byte_offset false otherwise. */
+    size_t input_byte_offset;
+    bool has_input_byte_offset;
+} sxml_xml_window_failure;
+
+typedef struct sxml_xml_text_window {
+    sxml_xml_text_window_configuration configuration;
+    sxml_xml_encoding_detection detection;
+    /* What the XML declaration says (15), read from the first window. */
+    sxml_xml_declared_version declared;
+    /* The text held: text.bytes[0] is the byte at start_offset. Moves
+       when the window is extended or text is given up. */
+    sxml_byte_view text;
+    size_t start_offset;
+    /* The whole input is decoded: text ends where the document does. */
+    bool is_complete;
+    sxml_xml_window_failure failure;
+    /* Private to src/xml_input.c. */
+    bool copies;
+    sxml_xml_buffer decoded;
+    sxml_xml_buffer raw;
+    size_t raw_input_offset;
+    bool is_raw_end;
+    size_t held_byte_count;
+} sxml_xml_text_window;
+
+/*
+ * Detects the encoding (4.3.3, Appendix F), reads the XML declaration's
+ * version and decodes the first window. On failure returns its status
+ * and describes it in window->failure. Close the window on every path.
+ */
+SXML_NODISCARD sxml_status sxml_xml_text_window_open(
+    const sxml_xml_text_window_configuration *configuration,
+    sxml_xml_text_window *window);
+
+/* Decodes at least as much again as the window holds (and at least one
+   read); the window must not be complete. Fails as open. */
+SXML_NODISCARD sxml_status sxml_xml_text_window_extend(sxml_xml_text_window *window);
+
+/* Whether giving up the text before text_offset, which lies in the
+   window, is worth a move; never for a window over the whole input. */
+bool sxml_xml_text_window_should_discard(const sxml_xml_text_window *window,
+                                         size_t text_offset);
+
+/* Gives up the text before text_offset, which lies in the window. */
+void sxml_xml_text_window_discard(sxml_xml_text_window *window, size_t text_offset);
+
+/* The offset just after the text held. */
+size_t sxml_xml_text_window_end(const sxml_xml_text_window *window);
+
+/* Releases the window's buffers; accepts a closed or zeroed window. */
+void sxml_xml_text_window_close(sxml_xml_text_window *window);
 
 /* ------------------------------------------------- DTD tables */
 
@@ -682,9 +807,12 @@ typedef struct sxml_xml_incremental_parse_request {
        validator is SXML_STATUS_UNSUPPORTED_FEATURE. */
     const sxml_xml_parse_request *parse_request;
     sxml_tree_builder builder;
+    /* When its operations are not NULL, the input is read through it, a
+       window at a time (D233), and parse_request->input is not read. */
+    sxml_byte_reader byte_reader;
 } sxml_xml_incremental_parse_request;
 
-/* Checks and decodes the document, parses its head (the prolog and the
+/* Decodes the document's first window, parses its head (the prolog and the
    start tag of the document element, D222) and sends start_document and
    the unparsed entities; the content follows at each resume, which also
    finds the errors of the content segments. Fails as

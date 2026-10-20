@@ -778,7 +778,7 @@ static const sxml_tree_builder_operations sxml_stream_builder_operations = {
 /* ------------------------------------------------------- Reading events */
 
 /* Resumes the parse once; its failures become FODC0002 when they say the
-   document is not well-formed. */
+   document is not well-formed or its bytes cannot be read. */
 static sxml_status sxml_stream_resume(sxml_dynamic_context *dynamic_context,
                                       sxml_stream_document *document) {
     if (document->is_finished) {
@@ -787,7 +787,10 @@ static sxml_status sxml_stream_resume(sxml_dynamic_context *dynamic_context,
     const sxml_status status =
         sxml_xml_incremental_parse_resume(document->parse, &document->is_finished);
     if (status == SXML_STATUS_MALFORMED_INPUT || status == SXML_STATUS_INVALID_UTF8 ||
-        status == SXML_STATUS_UNSUPPORTED_FEATURE) {
+        status == SXML_STATUS_UNSUPPORTED_FEATURE ||
+        status == SXML_STATUS_INPUT_OUTPUT_FAILED) {
+        /* A byte reader's failed read: the document is not available
+           (include/sxml/processor.h, D233). */
         return sxml_evaluator_machine_raise(dynamic_context, &sxml_stream_not_well_formed_error);
     }
     return status;
@@ -1120,11 +1123,13 @@ static sxml_status sxml_stream_document_open(sxml_dynamic_context *dynamic_conte
                     .parser = new_document->parser,
                     .parse_request = &new_document->source.parse_request,
                     .builder = {.state = new_document,
-                                .operations = &sxml_stream_builder_operations}},
+                                .operations = &sxml_stream_builder_operations},
+                    .byte_reader = new_document->source.byte_reader},
                 &new_document->parse);
         }
         if (status == SXML_STATUS_MALFORMED_INPUT || status == SXML_STATUS_INVALID_UTF8 ||
-            status == SXML_STATUS_UNSUPPORTED_FEATURE) {
+            status == SXML_STATUS_UNSUPPORTED_FEATURE ||
+            status == SXML_STATUS_INPUT_OUTPUT_FAILED) {
             status =
                 sxml_evaluator_machine_raise(dynamic_context, &sxml_stream_not_well_formed_error);
         }

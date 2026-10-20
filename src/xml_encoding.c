@@ -745,16 +745,21 @@ sxml_xml_position_tracker sxml_xml_position_tracker_start(
             configuration.input_encoding == SXML_XML_ENCODING_UTF8 ? 3 : 2;
     }
     const size_t text_start = text_has_mark ? sizeof utf8_mark : 0;
-    return (sxml_xml_position_tracker){
-        .text = configuration.text,
-        .input_encoding = configuration.input_encoding,
-        .text_start_offset = text_start,
-        .input_start_offset = input_mark_byte_count,
+    const sxml_xml_position_tracker_place start = {
         .text_offset = text_start,
         .input_offset = input_mark_byte_count,
         .line_number = 1,
         .column_number = 1,
         .follows_carriage_return = false,
+    };
+    return (sxml_xml_position_tracker){
+        .text = configuration.text,
+        .base_offset = 0,
+        .input_encoding = configuration.input_encoding,
+        .text_start_offset = text_start,
+        .input_start_offset = input_mark_byte_count,
+        .place = start,
+        .floor = start,
     };
 }
 
@@ -774,62 +779,78 @@ static size_t sxml_xml_input_byte_count(sxml_xml_encoding encoding,
     return 1;
 }
 
+/* The byte at text_offset, which lies in the tracker's text. */
+static uint8_t sxml_xml_tracker_byte(const sxml_xml_position_tracker *tracker,
+                                     size_t text_offset) {
+    return tracker->text.bytes[text_offset - tracker->base_offset];
+}
+
+/* Whether the character before text_offset (at or after the floor) is a
+   CR: at the floor, as the floor remembers. */
+static bool
+sxml_xml_tracker_follows_carriage_return(const sxml_xml_position_tracker *tracker,
+                                         size_t text_offset) {
+    if (text_offset <= tracker->floor.text_offset) {
+        return tracker->floor.follows_carriage_return;
+    }
+    return sxml_xml_tracker_byte(tracker, text_offset - 1) == '\r';
+}
+
 /*
- * Moves the tracker back to text_offset, which lies between the start of
- * the text and the tracker, undoing what the forward walk counted: the
- * parser asks for an element's position after its attributes' (P8), and a
- * restart from the beginning there made every parse quadratic. Costs the
- * distance moved, plus the start of the line when a line end is crossed.
+ * Moves the tracker back to text_offset, which lies between the floor
+ * and the tracker, undoing what the forward walk counted: the parser asks
+ * for an element's position after its attributes' (P8), and a restart
+ * from the beginning there made every parse quadratic. Costs the distance
+ * moved, plus the start of the line when a line end is crossed.
  */
 static void
 sxml_xml_position_tracker_move_back(sxml_xml_position_tracker *tracker,
                                     size_t text_offset) {
-    const uint8_t *bytes = tracker->text.bytes;
+    sxml_xml_position_tracker_place *place = &tracker->place;
     bool crosses_line_end = false;
-    for (size_t byte_offset = text_offset; byte_offset < tracker->text_offset;
+    for (size_t byte_offset = text_offset; byte_offset < place->text_offset;
          byte_offset++) {
-        const uint8_t byte = bytes[byte_offset];
+        const uint8_t byte = sxml_xml_tracker_byte(tracker, byte_offset);
         if ((byte & 0xC0) == 0x80) {
             continue;
         }
-        tracker->input_offset -=
+        place->input_offset -=
             sxml_xml_input_byte_count(tracker->input_encoding, byte);
         /* XML 1.0, section 2.11: the LF of CR LF ended no line of its own. */
         if (byte == '\r') {
-            tracker->line_number -= 1;
+            place->line_number -= 1;
             crosses_line_end = true;
         } else if (byte == '\n') {
-            const bool follows_carriage_return =
-                byte_offset > tracker->text_start_offset &&
-                bytes[byte_offset - 1] == '\r';
-            if (!follows_carriage_return) {
-                tracker->line_number -= 1;
+            if (!sxml_xml_tracker_follows_carriage_return(tracker, byte_offset)) {
+                place->line_number -= 1;
             }
             crosses_line_end = true;
         } else {
-            tracker->column_number -= 1;
+            place->column_number -= 1;
         }
     }
     if (crosses_line_end) {
-        /* The column counts the codepoints since the last line end. */
+        /* The column counts the codepoints since the last line end, or
+           since the floor, whose column is known. */
         size_t line_start = text_offset;
-        while (line_start > tracker->text_start_offset &&
-               bytes[line_start - 1] != '\r' &&
-               bytes[line_start - 1] != '\n') {
+        while (line_start > tracker->floor.text_offset &&
+               sxml_xml_tracker_byte(tracker, line_start - 1) != '\r' &&
+               sxml_xml_tracker_byte(tracker, line_start - 1) != '\n') {
             line_start -= 1;
         }
-        tracker->column_number = 1;
+        place->column_number = line_start == tracker->floor.text_offset
+                                   ? tracker->floor.column_number
+                                   : 1;
         for (size_t byte_offset = line_start; byte_offset < text_offset;
              byte_offset++) {
-            if ((bytes[byte_offset] & 0xC0) != 0x80) {
-                tracker->column_number += 1;
+            if ((sxml_xml_tracker_byte(tracker, byte_offset) & 0xC0) != 0x80) {
+                place->column_number += 1;
             }
         }
     }
-    tracker->follows_carriage_return =
-        text_offset > tracker->text_start_offset &&
-        bytes[text_offset - 1] == '\r';
-    tracker->text_offset = text_offset;
+    place->follows_carriage_return =
+        sxml_xml_tracker_follows_carriage_return(tracker, text_offset);
+    place->text_offset = text_offset;
 }
 
 /*
@@ -841,22 +862,21 @@ sxml_xml_position_tracker_move_back(sxml_xml_position_tracker *tracker,
  */
 static void
 sxml_xml_position_tracker_advance_in_place(sxml_xml_position_tracker *tracker,
-                                           size_t text_offset) {
-    const size_t end_offset = text_offset < tracker->text.byte_count
-                                  ? text_offset
-                                  : tracker->text.byte_count;
-    if (tracker->text_offset >= end_offset) {
+                                           size_t end_offset) {
+    sxml_xml_position_tracker_place *place = &tracker->place;
+    if (place->text_offset >= end_offset) {
         return;
     }
     const bool is_utf8 = tracker->input_encoding == SXML_XML_ENCODING_UTF8;
     const uint8_t *bytes = tracker->text.bytes;
-    size_t input_offset = tracker->input_offset;
-    uint32_t line_number = tracker->line_number;
-    uint32_t column_number = tracker->column_number;
-    bool follows_carriage_return = tracker->follows_carriage_return;
-    for (size_t byte_offset = tracker->text_offset; byte_offset < end_offset;
-         byte_offset++) {
-        const uint8_t byte = bytes[byte_offset];
+    const size_t base_offset = tracker->base_offset;
+    size_t input_offset = place->input_offset;
+    uint32_t line_number = place->line_number;
+    uint32_t column_number = place->column_number;
+    bool follows_carriage_return = place->follows_carriage_return;
+    for (size_t byte_index = place->text_offset - base_offset;
+         byte_index < end_offset - base_offset; byte_index++) {
+        const uint8_t byte = bytes[byte_index];
         if (byte >= 0x80) {
             if ((byte & 0xC0) != 0x80) {
                 input_offset +=
@@ -883,11 +903,42 @@ sxml_xml_position_tracker_advance_in_place(sxml_xml_position_tracker *tracker,
             follows_carriage_return = false;
         }
     }
-    tracker->input_offset = input_offset;
-    tracker->text_offset = end_offset;
-    tracker->line_number = line_number;
-    tracker->column_number = column_number;
-    tracker->follows_carriage_return = follows_carriage_return;
+    place->input_offset = input_offset;
+    place->text_offset = end_offset;
+    place->line_number = line_number;
+    place->column_number = column_number;
+    place->follows_carriage_return = follows_carriage_return;
+}
+
+/* The general forward walk, for texts decoded from another encoding. */
+static void
+sxml_xml_position_tracker_advance(sxml_xml_position_tracker *tracker,
+                                  size_t end_offset) {
+    sxml_xml_position_tracker_place *place = &tracker->place;
+    while (place->text_offset < end_offset) {
+        const uint8_t byte = sxml_xml_tracker_byte(tracker, place->text_offset);
+        place->text_offset += 1;
+        if ((byte & 0xC0) == 0x80) {
+            continue;
+        }
+        place->input_offset +=
+            sxml_xml_input_byte_count(tracker->input_encoding, byte);
+        /* XML 1.0, section 2.11: CR LF, CR and LF each end a line. */
+        if (byte == '\r') {
+            place->line_number += 1;
+            place->column_number = 1;
+            place->follows_carriage_return = true;
+        } else if (byte == '\n') {
+            if (!place->follows_carriage_return) {
+                place->line_number += 1;
+                place->column_number = 1;
+            }
+            place->follows_carriage_return = false;
+        } else {
+            place->column_number += 1;
+            place->follows_carriage_return = false;
+        }
+    }
 }
 
 sxml_xml_position
@@ -897,50 +948,39 @@ sxml_xml_position_tracker_locate(sxml_xml_position_tracker *tracker,
         return (sxml_xml_position){
             .line_number = 1, .column_number = 1, .input_byte_offset = 0};
     }
-    if (text_offset < tracker->text_offset) {
+    /* Text given up before the floor is located at the floor. */
+    const size_t floor_offset = tracker->floor.text_offset;
+    const size_t text_end = tracker->base_offset + tracker->text.byte_count;
+    size_t target_offset = text_offset < floor_offset ? floor_offset : text_offset;
+    target_offset = target_offset > text_end ? text_end : target_offset;
+    if (target_offset < tracker->place.text_offset) {
         /* Going back from where the tracker is costs the distance; going
-           forward from the start costs text_offset: take the shorter. */
-        if (tracker->text_offset - text_offset <=
-            text_offset - tracker->text_start_offset) {
-            sxml_xml_position_tracker_move_back(tracker, text_offset);
+           forward from the floor costs the distance from it: take the
+           shorter. */
+        if (tracker->place.text_offset - target_offset <=
+            target_offset - floor_offset) {
+            sxml_xml_position_tracker_move_back(tracker, target_offset);
         } else {
-            *tracker = sxml_xml_position_tracker_start(
-                (sxml_xml_position_tracker_configuration){
-                    .text = tracker->text,
-                    .input_encoding = tracker->input_encoding,
-                    .has_byte_order_mark = tracker->input_start_offset != 0});
+            tracker->place = tracker->floor;
         }
     }
     if (tracker->input_encoding == SXML_XML_ENCODING_UTF8 ||
         tracker->input_encoding == SXML_XML_ENCODING_US_ASCII) {
-        sxml_xml_position_tracker_advance_in_place(tracker, text_offset);
+        sxml_xml_position_tracker_advance_in_place(tracker, target_offset);
+    } else {
+        sxml_xml_position_tracker_advance(tracker, target_offset);
     }
-    while (tracker->text_offset < text_offset &&
-           tracker->text_offset < tracker->text.byte_count) {
-        const uint8_t byte = tracker->text.bytes[tracker->text_offset];
-        tracker->text_offset += 1;
-        if ((byte & 0xC0) == 0x80) {
-            continue;
-        }
-        tracker->input_offset +=
-            sxml_xml_input_byte_count(tracker->input_encoding, byte);
-        /* XML 1.0, section 2.11: CR LF, CR and LF each end a line. */
-        if (byte == '\r') {
-            tracker->line_number += 1;
-            tracker->column_number = 1;
-            tracker->follows_carriage_return = true;
-        } else if (byte == '\n') {
-            if (!tracker->follows_carriage_return) {
-                tracker->line_number += 1;
-                tracker->column_number = 1;
-            }
-            tracker->follows_carriage_return = false;
-        } else {
-            tracker->column_number += 1;
-            tracker->follows_carriage_return = false;
-        }
+    return (sxml_xml_position){.line_number = tracker->place.line_number,
+                               .column_number = tracker->place.column_number,
+                               .input_byte_offset = tracker->place.input_offset};
+}
+
+void sxml_xml_position_tracker_rebase(sxml_xml_position_tracker *tracker,
+                                      const sxml_xml_position_tracker_window *window) {
+    if (window->floor_offset > tracker->floor.text_offset) {
+        (void)sxml_xml_position_tracker_locate(tracker, window->floor_offset);
+        tracker->floor = tracker->place;
     }
-    return (sxml_xml_position){.line_number = tracker->line_number,
-                               .column_number = tracker->column_number,
-                               .input_byte_offset = tracker->input_offset};
+    tracker->text = window->text;
+    tracker->base_offset = window->base_offset;
 }

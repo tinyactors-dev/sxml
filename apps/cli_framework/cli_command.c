@@ -239,3 +239,23 @@ sxml_status sxml_cli_file_reader_read(sxml_cli_file_reader reader,
     }
     return reader.operations->read_file(reader.state, request, contents);
 }
+
+bool sxml_cli_file_reader_streams(sxml_cli_file_reader reader) {
+    return reader.operations != NULL && reader.operations->open_file != NULL &&
+           reader.operations->close_file != NULL;
+}
+
+sxml_status sxml_cli_file_reader_open(sxml_cli_file_reader reader,
+                                      const sxml_cli_file_read_request *request,
+                                      sxml_byte_reader *byte_reader) {
+    if (!sxml_cli_file_reader_streams(reader)) {
+        return SXML_STATUS_INPUT_OUTPUT_FAILED;
+    }
+    return reader.operations->open_file(reader.state, request, byte_reader);
+}
+
+void sxml_cli_file_reader_close(sxml_cli_file_reader reader, sxml_byte_reader byte_reader) {
+    if (sxml_cli_file_reader_streams(reader)) {
+        reader.operations->close_file(reader.state, byte_reader);
+    }
+}

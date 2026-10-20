@@ -1649,6 +1649,505 @@ static void test_large_documents_parse_in_bounded_memory(sxml_test_state *state)
     sxml_allocator_release(allocator, memory);
 }
 
+/* ------------------------------------------------------- Byte readers */
+
+/*
+ * A builder that folds every event, its names, text and the location of
+ * each start tag into a digest (FNV-1a, 64 bits), and pauses an
+ * incremental parse after each end tag: two parses that send the same
+ * events give the same digest. Adjacent text is folded byte by byte, so a
+ * text cut in two digests as the whole.
+ */
+typedef struct event_digest {
+    sxml_xml_incremental_parse *parse;
+    uint64_t digest;
+    size_t element_count;
+} event_digest;
+
+static event_digest *digest_from_state(void *state) { return state; }
+
+static void digest_bytes(event_digest *digest, sxml_byte_view bytes) {
+    for (size_t byte_index = 0; byte_index < bytes.byte_count; byte_index++) {
+        digest->digest = (digest->digest ^ bytes.bytes[byte_index]) * UINT64_C(1099511628211);
+    }
+}
+
+static void digest_number(event_digest *digest, uint64_t number) {
+    uint8_t bytes[8];
+    for (size_t byte_index = 0; byte_index < sizeof bytes; byte_index++) {
+        bytes[byte_index] = (uint8_t)(number >> (8U * byte_index));
+    }
+    digest_bytes(digest, (sxml_byte_view){.bytes = bytes, .byte_count = sizeof bytes});
+}
+
+static void digest_mark(event_digest *digest, const char *mark) {
+    digest_bytes(digest, sxml_byte_view_from_c_string(mark));
+}
+
+static sxml_status digest_start_document(void *state, const sxml_document_start_event *event) {
+    (void)event;
+    digest_mark(digest_from_state(state), "D");
+    return SXML_STATUS_OK;
+}
+
+static sxml_status digest_end_document(void *state) {
+    digest_mark(digest_from_state(state), "/D");
+    return SXML_STATUS_OK;
+}
+
+static sxml_status digest_start_element(void *state, const sxml_element_start_event *event) {
+    event_digest *digest = digest_from_state(state);
+    digest_mark(digest, "<");
+    digest_number(digest, event->element_name.index);
+    digest_number(digest, event->location.line_number);
+    digest_number(digest, event->location.column_number);
+    digest_number(digest, event->location.byte_offset);
+    digest->element_count += 1;
+    return SXML_STATUS_OK;
+}
+
+static sxml_status digest_namespace_binding(void *state,
+                                            const sxml_namespace_binding *namespace_binding) {
+    event_digest *digest = digest_from_state(state);
+    digest_mark(digest, "ns");
+    digest_number(digest, namespace_binding->namespace_uri.index);
+    return SXML_STATUS_OK;
+}
+
+static sxml_status digest_attribute(void *state, const sxml_attribute_event *event) {
+    event_digest *digest = digest_from_state(state);
+    digest_mark(digest, "@");
+    digest_number(digest, event->attribute_name.index);
+    digest_bytes(digest, event->attribute_value);
+    return SXML_STATUS_OK;
+}
+
+static sxml_status digest_end_element(void *state) {
+    event_digest *digest = digest_from_state(state);
+    digest_mark(digest, "</");
+    if (digest->parse != NULL) {
+        sxml_xml_incremental_parse_pause(digest->parse);
+    }
+    return SXML_STATUS_OK;
+}
+
+static sxml_status digest_text(void *state, const sxml_text_event *event) {
+    digest_bytes(digest_from_state(state), event->text);
+    return SXML_STATUS_OK;
+}
+
+static sxml_status digest_comment(void *state, const sxml_comment_event *event) {
+    event_digest *digest = digest_from_state(state);
+    digest_mark(digest, "!");
+    digest_bytes(digest, event->comment);
+    return SXML_STATUS_OK;
+}
+
+static sxml_status digest_processing_instruction(void *state,
+                                                 const sxml_processing_instruction_event *event) {
+    event_digest *digest = digest_from_state(state);
+    digest_mark(digest, "?");
+    digest_bytes(digest, event->target);
+    digest_bytes(digest, event->data);
+    return SXML_STATUS_OK;
+}
+
+static sxml_status digest_unparsed_entity(void *state, const sxml_unparsed_entity *entity) {
+    (void)entity;
+    digest_mark(digest_from_state(state), "U");
+    return SXML_STATUS_OK;
+}
+
+static const sxml_tree_builder_operations digest_operations = {
+    .start_document = digest_start_document,
+    .end_document = digest_end_document,
+    .start_element = digest_start_element,
+    .add_namespace_binding = digest_namespace_binding,
+    .add_attribute = digest_attribute,
+    .end_element = digest_end_element,
+    .add_text = digest_text,
+    .add_comment = digest_comment,
+    .add_processing_instruction = digest_processing_instruction,
+    .add_unparsed_entity = digest_unparsed_entity,
+};
+
+/* A byte reader over bytes in memory that gives at most a few bytes at a
+   time, the counts cycling from 1 to 97, so reads end inside characters,
+   tags and line ends. */
+typedef struct chunk_reader {
+    sxml_byte_view input;
+    size_t byte_offset;
+    size_t next_byte_count;
+    size_t read_count;
+} chunk_reader;
+
+static sxml_status chunk_read(void *state, sxml_memory_view buffer, sxml_byte_reading *reading) {
+    chunk_reader *reader = state;
+    size_t byte_count = reader->next_byte_count;
+    reader->next_byte_count = reader->next_byte_count % 97U + 1U;
+    if (byte_count > buffer.byte_count) {
+        byte_count = buffer.byte_count;
+    }
+    if (byte_count > reader->input.byte_count - reader->byte_offset) {
+        byte_count = reader->input.byte_count - reader->byte_offset;
+    }
+    if (byte_count != 0) {
+        memcpy(buffer.bytes, reader->input.bytes + reader->byte_offset, byte_count);
+    }
+    reader->byte_offset += byte_count;
+    reader->read_count += 1;
+    reading->byte_count = byte_count;
+    reading->is_end = reader->byte_offset == reader->input.byte_count;
+    return SXML_STATUS_OK;
+}
+
+static const sxml_byte_reader_operations chunk_reader_operations = {.read = chunk_read};
+
+/* What one way of parsing a document gave. */
+typedef struct digested_parse {
+    sxml_status status;
+    uint64_t digest;
+    size_t element_count;
+    sxml_diagnostic diagnostic;
+} digested_parse;
+
+/* How to parse: whole (sxml_xml_parser_parse), or incrementally over the
+   input or through a chunk reader. */
+typedef enum parse_way {
+    SXML_TEST_PARSE_WAY_WHOLE,
+    SXML_TEST_PARSE_WAY_INCREMENTAL,
+    SXML_TEST_PARSE_WAY_READER,
+} parse_way;
+
+typedef struct digest_request {
+    sxml_allocator allocator;
+    sxml_xml_parser *parser;
+    sxml_byte_view input;
+} digest_request;
+
+static digested_parse parse_digested(const digest_request *request, parse_way way) {
+    digested_parse outcome = {.status = SXML_STATUS_OK,
+                              .digest = UINT64_C(14695981039346656037),
+                              .element_count = 0,
+                              .diagnostic = empty_diagnostic()};
+    event_digest digest = {.parse = NULL, .digest = outcome.digest, .element_count = 0};
+    sxml_xml_parse_request parse_request = request_for(
+        way == SXML_TEST_PARSE_WAY_READER ? (sxml_byte_view){.bytes = NULL, .byte_count = 0}
+                                : request->input,
+        &outcome.diagnostic);
+    const sxml_tree_builder builder = {.state = &digest, .operations = &digest_operations};
+    if (way == SXML_TEST_PARSE_WAY_WHOLE) {
+        outcome.status = sxml_xml_parser_parse(request->parser, &parse_request, builder);
+    } else {
+        chunk_reader reader = {.input = request->input,
+                               .byte_offset = 0,
+                               .next_byte_count = 1,
+                               .read_count = 0};
+        sxml_xml_incremental_parse *parse = NULL;
+        outcome.status = sxml_xml_incremental_parse_create(
+            &(sxml_xml_incremental_parse_request){
+                .allocator = request->allocator,
+                .parser = request->parser,
+                .parse_request = &parse_request,
+                .builder = builder,
+                .byte_reader = way == SXML_TEST_PARSE_WAY_READER
+                                   ? (sxml_byte_reader){.state = &reader,
+                                                        .operations = &chunk_reader_operations}
+                                   : (sxml_byte_reader){.state = NULL, .operations = NULL}},
+            &parse);
+        bool is_finished = false;
+        if (outcome.status == SXML_STATUS_OK) {
+            digest.parse = parse;
+            while (outcome.status == SXML_STATUS_OK && !is_finished) {
+                outcome.status = sxml_xml_incremental_parse_resume(parse, &is_finished);
+            }
+            sxml_xml_incremental_parse_destroy(parse);
+        }
+    }
+    outcome.digest = digest.digest;
+    outcome.element_count = digest.element_count;
+    return outcome;
+}
+
+/* Appends codepoint to bytes in the encoding the test writes. */
+typedef enum test_encoding {
+    SXML_TEST_ENCODING_UTF8,
+    SXML_TEST_ENCODING_UTF16_LITTLE_ENDIAN,
+    SXML_TEST_ENCODING_UTF16_BIG_ENDIAN,
+    SXML_TEST_ENCODING_LATIN1,
+} test_encoding;
+
+typedef struct encoded_text {
+    uint8_t *bytes;
+    size_t byte_count;
+    size_t byte_capacity;
+    test_encoding encoding;
+} encoded_text;
+
+static void encode_unit(encoded_text *text, uint32_t unit) {
+    const bool is_big_endian = text->encoding == SXML_TEST_ENCODING_UTF16_BIG_ENDIAN;
+    text->bytes[text->byte_count] = (uint8_t)(is_big_endian ? unit >> 8U : unit & 0xFFU);
+    text->bytes[text->byte_count + 1] = (uint8_t)(is_big_endian ? unit & 0xFFU : unit >> 8U);
+    text->byte_count += 2;
+}
+
+static void encode_codepoint(encoded_text *text, uint32_t codepoint) {
+    if (text->byte_count + 4 > text->byte_capacity) {
+        return;
+    }
+    switch (text->encoding) {
+    case SXML_TEST_ENCODING_LATIN1:
+        text->bytes[text->byte_count] = (uint8_t)codepoint;
+        text->byte_count += 1;
+        return;
+    case SXML_TEST_ENCODING_UTF16_LITTLE_ENDIAN:
+    case SXML_TEST_ENCODING_UTF16_BIG_ENDIAN:
+        if (codepoint >= 0x10000U) {
+            encode_unit(text, 0xD800U + ((codepoint - 0x10000U) >> 10U));
+            encode_unit(text, 0xDC00U + ((codepoint - 0x10000U) & 0x3FFU));
+        } else {
+            encode_unit(text, codepoint);
+        }
+        return;
+    case SXML_TEST_ENCODING_UTF8:
+        break;
+    }
+    if (codepoint < 0x80U) {
+        text->bytes[text->byte_count++] = (uint8_t)codepoint;
+    } else if (codepoint < 0x800U) {
+        text->bytes[text->byte_count++] = (uint8_t)(0xC0U | (codepoint >> 6U));
+        text->bytes[text->byte_count++] = (uint8_t)(0x80U | (codepoint & 0x3FU));
+    } else if (codepoint < 0x10000U) {
+        text->bytes[text->byte_count++] = (uint8_t)(0xE0U | (codepoint >> 12U));
+        text->bytes[text->byte_count++] = (uint8_t)(0x80U | ((codepoint >> 6U) & 0x3FU));
+        text->bytes[text->byte_count++] = (uint8_t)(0x80U | (codepoint & 0x3FU));
+    } else {
+        text->bytes[text->byte_count++] = (uint8_t)(0xF0U | (codepoint >> 18U));
+        text->bytes[text->byte_count++] = (uint8_t)(0x80U | ((codepoint >> 12U) & 0x3FU));
+        text->bytes[text->byte_count++] = (uint8_t)(0x80U | ((codepoint >> 6U) & 0x3FU));
+        text->bytes[text->byte_count++] = (uint8_t)(0x80U | (codepoint & 0x3FU));
+    }
+}
+
+/* Appends the ASCII text, with "~" written as the codepoint wide. */
+typedef struct encoded_piece {
+    const char *ascii;
+    uint32_t wide;
+} encoded_piece;
+
+static void encode_piece(encoded_text *text, encoded_piece piece) {
+    for (const char *character = piece.ascii; *character != '\0'; character++) {
+        encode_codepoint(text, *character == '~' ? piece.wide : (uint8_t)*character);
+    }
+}
+
+/* One document of the byte reader test: a prolog, then records whose
+   text holds wide (a codepoint the encoding has), with CR LF, CR and,
+   in XML 1.1, NEL and CR NEL line ends. */
+typedef struct reader_case {
+    test_encoding encoding;
+    bool has_byte_order_mark;
+    const char *prolog;
+    uint32_t wide;
+    bool is_version_1_1;
+} reader_case;
+
+static void test_documents_are_read_through_byte_readers(sxml_test_state *state) {
+    enum { SXML_TEST_READER_RECORD_COUNT = 3000 };
+    static const reader_case cases[] = {
+        {.encoding = SXML_TEST_ENCODING_UTF8,
+         .has_byte_order_mark = false,
+         .prolog = "<?xml version='1.0'?>",
+         .wide = 0x1D11EU,
+         .is_version_1_1 = false},
+        {.encoding = SXML_TEST_ENCODING_UTF8,
+         .has_byte_order_mark = true,
+         .prolog = "",
+         .wide = 0xE9U,
+         .is_version_1_1 = false},
+        {.encoding = SXML_TEST_ENCODING_UTF16_LITTLE_ENDIAN,
+         .has_byte_order_mark = true,
+         .prolog = "",
+         .wide = 0x1F600U,
+         .is_version_1_1 = false},
+        {.encoding = SXML_TEST_ENCODING_UTF16_BIG_ENDIAN,
+         .has_byte_order_mark = false,
+         .prolog = "<?xml version='1.0' encoding='UTF-16BE'?>",
+         .wide = 0x20ACU,
+         .is_version_1_1 = false},
+        {.encoding = SXML_TEST_ENCODING_LATIN1,
+         .has_byte_order_mark = false,
+         .prolog = "<?xml version='1.0' encoding='ISO-8859-1'?>",
+         .wide = 0xE9U,
+         .is_version_1_1 = false},
+        {.encoding = SXML_TEST_ENCODING_UTF8,
+         .has_byte_order_mark = false,
+         .prolog = "<?xml version='1.1'?>",
+         .wide = 0x85U,
+         .is_version_1_1 = true},
+        {.encoding = SXML_TEST_ENCODING_UTF16_LITTLE_ENDIAN,
+         .has_byte_order_mark = true,
+         .prolog = "<?xml version='1.1' encoding='UTF-16'?>",
+         .wide = 0x2028U,
+         .is_version_1_1 = true},
+    };
+    const sxml_allocator allocator = sxml_default_allocator();
+    parser_fixture fixture;
+    SXML_TEST_REQUIRE(state, fixture_create(&fixture, no_limits) == SXML_STATUS_OK);
+    const size_t capacity = (size_t)SXML_TEST_READER_RECORD_COUNT * 512U + 1024U;
+    void *memory = NULL;
+    SXML_TEST_REQUIRE(state,
+                      sxml_allocator_allocate(
+                          allocator, (sxml_allocation_request){.byte_count = capacity, .alignment = 1},
+                          &memory) == SXML_STATUS_OK);
+    for (size_t case_index = 0; case_index < SXML_TEST_COUNT(cases); case_index++) {
+        const reader_case *document_case = &cases[case_index];
+        encoded_text text = {.bytes = memory,
+                             .byte_count = 0,
+                             .byte_capacity = capacity,
+                             .encoding = document_case->encoding};
+        if (document_case->has_byte_order_mark) {
+            encode_codepoint(&text, 0xFEFFU);
+        }
+        encode_piece(&text, (encoded_piece){.ascii = document_case->prolog, .wide = 0});
+        encode_piece(&text, (encoded_piece){.ascii = "\n<records>\r\n", .wide = 0});
+        for (int record_index = 0; record_index < SXML_TEST_READER_RECORD_COUNT; record_index++) {
+            char record[256];
+            (void)snprintf(record, sizeof record,
+                           "<record n='%d' w='~'>~%d &amp; ~~<b>x</b>\r\r\n"
+                           "<!-- ~ --><?p ~?><![CDATA[~ %d]]></record>%s",
+                           record_index, record_index, record_index,
+                           document_case->is_version_1_1 ? "\r~\n~" : "\r\n");
+            encode_piece(&text, (encoded_piece){.ascii = record, .wide = document_case->wide});
+        }
+        encode_piece(&text, (encoded_piece){.ascii = "</records>\n", .wide = 0});
+        const digest_request request = {
+            .allocator = allocator,
+            .parser = fixture.parser,
+            .input = {.bytes = text.bytes, .byte_count = text.byte_count}};
+        const digested_parse whole = parse_digested(&request, SXML_TEST_PARSE_WAY_WHOLE);
+        const digested_parse incremental = parse_digested(&request, SXML_TEST_PARSE_WAY_INCREMENTAL);
+        const digested_parse read = parse_digested(&request, SXML_TEST_PARSE_WAY_READER);
+        if (whole.status != SXML_STATUS_OK || whole.digest != read.digest ||
+            whole.digest != incremental.digest) {
+            printf("    case %zu: %s %s %s (%.*s at %u:%u)\n", case_index,
+                   (const char *)sxml_status_name(whole.status).bytes,
+                   (const char *)sxml_status_name(incremental.status).bytes,
+                   (const char *)sxml_status_name(read.status).bytes,
+                   (int)read.diagnostic.description.byte_count,
+                   (const char *)read.diagnostic.description.bytes,
+                   read.diagnostic.location.line_number, read.diagnostic.location.column_number);
+        }
+        SXML_TEST_EXPECT(state, whole.status == SXML_STATUS_OK);
+        SXML_TEST_EXPECT(state, incremental.status == SXML_STATUS_OK);
+        SXML_TEST_EXPECT(state, read.status == SXML_STATUS_OK);
+        SXML_TEST_EXPECT(state,
+                         whole.element_count == (size_t)SXML_TEST_READER_RECORD_COUNT * 2 + 1);
+        SXML_TEST_EXPECT(state, whole.digest == incremental.digest);
+        SXML_TEST_EXPECT(state, whole.digest == read.digest);
+
+        /* A bad character late in the document is found at the same place
+           whichever way the document is read. */
+        const size_t bad_offset = text.byte_count / 4U * 3U;
+        text.bytes[bad_offset] = 0;
+        if (document_case->encoding == SXML_TEST_ENCODING_UTF16_LITTLE_ENDIAN ||
+            document_case->encoding == SXML_TEST_ENCODING_UTF16_BIG_ENDIAN) {
+            /* U+0000, or a high surrogate without its low one. */
+            text.bytes[bad_offset & ~(size_t)1] = 0;
+            text.bytes[(bad_offset & ~(size_t)1) + 1] = 0;
+        }
+        const digested_parse bad_whole = parse_digested(&request, SXML_TEST_PARSE_WAY_WHOLE);
+        const digested_parse bad_read = parse_digested(&request, SXML_TEST_PARSE_WAY_READER);
+        SXML_TEST_EXPECT(state, bad_whole.status != SXML_STATUS_OK);
+        SXML_TEST_EXPECT(state, bad_read.status == bad_whole.status);
+        SXML_TEST_EXPECT(state, bad_read.diagnostic.location.byte_offset ==
+                                    bad_whole.diagnostic.location.byte_offset);
+        SXML_TEST_EXPECT(state, bad_read.diagnostic.location.line_number ==
+                                    bad_whole.diagnostic.location.line_number);
+        SXML_TEST_EXPECT(state, bad_read.diagnostic.location.column_number ==
+                                    bad_whole.diagnostic.location.column_number);
+    }
+    sxml_allocator_release(allocator, memory);
+    fixture_destroy(&fixture);
+}
+
+/*
+ * A document of 3 to 6 MB read through a byte reader takes the parser's
+ * memory under 512 KB (141 KB in UTF-8 and 273 KB in UTF-16 when this
+ * was written) and tree-sitter's under 2 MB: the input is decoded a
+ * window at a time and given up as segments end (D233).
+ */
+static void test_read_documents_parse_in_bounded_memory(sxml_test_state *state) {
+    enum { SXML_TEST_RECORD_COUNT = 40000 };
+    const sxml_allocator allocator = sxml_default_allocator();
+    const size_t capacity = (size_t)SXML_TEST_RECORD_COUNT * 256U + 256U;
+    void *memory = NULL;
+    SXML_TEST_REQUIRE(state,
+                      sxml_allocator_allocate(
+                          allocator, (sxml_allocation_request){.byte_count = capacity, .alignment = 1},
+                          &memory) == SXML_STATUS_OK);
+    for (int encoding_index = 0; encoding_index < 2; encoding_index++) {
+        encoded_text text = {.bytes = memory,
+                             .byte_count = 0,
+                             .byte_capacity = capacity,
+                             .encoding = encoding_index == 0 ? SXML_TEST_ENCODING_UTF8
+                                                             : SXML_TEST_ENCODING_UTF16_LITTLE_ENDIAN};
+        if (encoding_index == 1) {
+            encode_codepoint(&text, 0xFEFFU);
+        }
+        encode_piece(&text, (encoded_piece){.ascii = "<catalog xmlns='urn:example'>\n", .wide = 0});
+        for (int record_index = 0; record_index < SXML_TEST_RECORD_COUNT; record_index++) {
+            char record[256];
+            (void)snprintf(record, sizeof record,
+                           "<record id='r%d'><title>Title ~ %d &amp; more</title>"
+                           "<!-- comment %d --><empty/></record>\r\n",
+                           record_index, record_index, record_index);
+            encode_piece(&text, (encoded_piece){.ascii = record, .wide = 0xE9U});
+        }
+        encode_piece(&text, (encoded_piece){.ascii = "</catalog>\n", .wide = 0});
+        limited_memory limited = {.limit_byte_count = (size_t)512 << 10U,
+                                  .live_byte_count = 0,
+                                  .peak_byte_count = 0};
+        const sxml_allocator limited_allocator = {.state = &limited,
+                                                  .operations = &limited_operations};
+        sxml_name_pool *name_pool = NULL;
+        SXML_TEST_REQUIRE(state, sxml_name_pool_create(
+                                     limited_allocator,
+                                     &(sxml_name_pool_configuration){
+                                         .allocator = limited_allocator, .maximum_byte_count = 0},
+                                     &name_pool) == SXML_STATUS_OK);
+        sxml_xml_parser *parser = NULL;
+        SXML_TEST_REQUIRE(state, sxml_xml_parser_create(
+                                     limited_allocator,
+                                     &(sxml_xml_parser_configuration){.allocator = limited_allocator,
+                                                                      .name_pool = name_pool,
+                                                                      .limits = no_limits},
+                                     &parser) == SXML_STATUS_OK);
+        counted_runtime_memory = (runtime_memory){.live_byte_count = 0, .peak_byte_count = 0};
+        ts_set_allocator(runtime_allocate, runtime_allocate_zeroed, runtime_grow, runtime_release);
+        const digested_parse read = parse_digested(
+            &(digest_request){.allocator = limited_allocator,
+                              .parser = parser,
+                              .input = {.bytes = text.bytes, .byte_count = text.byte_count}},
+            SXML_TEST_PARSE_WAY_READER);
+        ts_set_allocator(NULL, NULL, NULL, NULL);
+        SXML_TEST_EXPECT(state, read.status == SXML_STATUS_OK);
+        SXML_TEST_EXPECT(state, read.element_count == 1 + (size_t)SXML_TEST_RECORD_COUNT * 3);
+        SXML_TEST_EXPECT(state, text.byte_count > (size_t)3 << 20U);
+        SXML_TEST_EXPECT(state, limited.peak_byte_count < limited.limit_byte_count);
+        SXML_TEST_EXPECT(state, counted_runtime_memory.peak_byte_count < (size_t)2 << 20U);
+        if (read.status != SXML_STATUS_OK) {
+            printf("    %s: %.*s\n", (const char *)sxml_status_name(read.status).bytes,
+                   (int)read.diagnostic.description.byte_count,
+                   (const char *)read.diagnostic.description.bytes);
+        }
+        sxml_xml_parser_destroy(parser);
+        sxml_name_pool_destroy(name_pool);
+        SXML_TEST_EXPECT(state, limited.live_byte_count == 0);
+    }
+    sxml_allocator_release(allocator, memory);
+}
+
 static const sxml_test_case xml_test_cases[] = {
     {.name = "parser_lifecycle", .function = test_parser_lifecycle},
     {.name = "events_follow_the_document",
@@ -1682,6 +2181,10 @@ static const sxml_test_case xml_test_cases[] = {
      .function = test_large_documents_parse_in_linear_time},
     {.name = "large_documents_parse_in_bounded_memory",
      .function = test_large_documents_parse_in_bounded_memory},
+    {.name = "documents_are_read_through_byte_readers",
+     .function = test_documents_are_read_through_byte_readers},
+    {.name = "read_documents_parse_in_bounded_memory",
+     .function = test_read_documents_parse_in_bounded_memory},
 };
 
 int main(int argument_count, char **arguments) {

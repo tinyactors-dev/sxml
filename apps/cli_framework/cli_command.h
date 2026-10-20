@@ -192,6 +192,16 @@ typedef struct sxml_cli_file_reader_operations {
     sxml_status (*read_file)(void *state,
                              const sxml_cli_file_read_request *request,
                              sxml_byte_view *contents);
+    /* Optional. Opens a named file (not standard input) to be read a part
+       at a time (D233) through *byte_reader, valid until close_file, its
+       state from request->allocator. Returns
+       SXML_STATUS_INPUT_OUTPUT_FAILED when the file cannot be opened, and
+       the allocator's failures; *byte_reader is then untouched. */
+    sxml_status (*open_file)(void *state,
+                             const sxml_cli_file_read_request *request,
+                             sxml_byte_reader *byte_reader);
+    /* Closes a file open_file opened and releases what it holds. */
+    void (*close_file)(void *state, sxml_byte_reader byte_reader);
 } sxml_cli_file_reader_operations;
 
 /* Passed by value; operations NULL means no file can be read. */
@@ -208,6 +218,22 @@ typedef struct sxml_cli_file_reader {
 SXML_NODISCARD sxml_status sxml_cli_file_reader_read(
     sxml_cli_file_reader reader, const sxml_cli_file_read_request *request,
     sxml_byte_view *contents);
+
+/* Whether reader opens files to be read a part at a time. */
+bool sxml_cli_file_reader_streams(sxml_cli_file_reader reader);
+
+/*
+ * Opens a file through reader to be read a part at a time. Returns
+ * SXML_STATUS_INPUT_OUTPUT_FAILED for a reader that does not open files,
+ * and the reader's failures; *byte_reader is untouched on failure.
+ */
+SXML_NODISCARD sxml_status sxml_cli_file_reader_open(
+    sxml_cli_file_reader reader, const sxml_cli_file_read_request *request,
+    sxml_byte_reader *byte_reader);
+
+/* Closes a file sxml_cli_file_reader_open opened through reader. */
+void sxml_cli_file_reader_close(sxml_cli_file_reader reader,
+                                sxml_byte_reader byte_reader);
 
 /* ---------------------------------------------------------- File writer */
 

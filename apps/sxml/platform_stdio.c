@@ -115,21 +115,18 @@ static sxml_status sxml_platform_read_stream(FILE *file,
     return SXML_STATUS_OK;
 }
 
-static sxml_status sxml_platform_read_file(
-    void *state, const sxml_cli_file_read_request *request,
-    sxml_byte_view *contents) {
-    (void)state;
-    if (sxml_byte_view_equals(request->path, SXML_BYTE_VIEW_FROM_LITERAL("-"))) {
-        return sxml_platform_read_stream(stdin, request->allocator, contents);
-    }
+/* Opens the file at path in binary mode; NULL in *file when it cannot be
+   opened. */
+static sxml_status sxml_platform_open(const sxml_cli_file_read_request *request, FILE **file) {
+    *file = NULL;
     /* fopen needs a NUL-terminated name; a name with a NUL byte names no
        file. */
     if (request->path.byte_count == 0 ||
         memchr(request->path.bytes, 0, request->path.byte_count) != NULL) {
-        return SXML_STATUS_INPUT_OUTPUT_FAILED;
+        return SXML_STATUS_OK;
     }
     void *memory = NULL;
-    sxml_status status = sxml_allocator_allocate(
+    const sxml_status status = sxml_allocator_allocate(
         request->allocator,
         (sxml_allocation_request){.byte_count = request->path.byte_count + 1,
                                   .alignment = alignof(char)},
@@ -140,8 +137,23 @@ static sxml_status sxml_platform_read_file(
     char *name = memory;
     memcpy(name, request->path.bytes, request->path.byte_count);
     name[request->path.byte_count] = '\0';
-    FILE *file = fopen(name, "rb");
+    *file = fopen(name, "rb");
     sxml_allocator_release(request->allocator, memory);
+    return SXML_STATUS_OK;
+}
+
+static sxml_status sxml_platform_read_file(
+    void *state, const sxml_cli_file_read_request *request,
+    sxml_byte_view *contents) {
+    (void)state;
+    if (sxml_byte_view_equals(request->path, SXML_BYTE_VIEW_FROM_LITERAL("-"))) {
+        return sxml_platform_read_stream(stdin, request->allocator, contents);
+    }
+    FILE *file = NULL;
+    sxml_status status = sxml_platform_open(request, &file);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
     if (file == NULL) {
         return SXML_STATUS_INPUT_OUTPUT_FAILED;
     }
@@ -153,8 +165,71 @@ static sxml_status sxml_platform_read_file(
     return status;
 }
 
+/* An open file read a part at a time (D233): the byte reader's state. */
+typedef struct sxml_platform_file_stream {
+    FILE *file;
+    sxml_allocator allocator;
+} sxml_platform_file_stream;
+
+static sxml_status sxml_platform_read_part(void *state, sxml_memory_view buffer,
+                                           sxml_byte_reading *reading) {
+    sxml_platform_file_stream *stream = state;
+    const size_t read_count = fread(buffer.bytes, 1, buffer.byte_count, stream->file);
+    if (read_count < buffer.byte_count && ferror(stream->file) != 0) {
+        return SXML_STATUS_INPUT_OUTPUT_FAILED;
+    }
+    reading->byte_count = read_count;
+    reading->is_end = feof(stream->file) != 0;
+    return SXML_STATUS_OK;
+}
+
+static const sxml_byte_reader_operations sxml_platform_part_reader_operations = {
+    .read = sxml_platform_read_part,
+};
+
+static sxml_status sxml_platform_open_file(void *state,
+                                           const sxml_cli_file_read_request *request,
+                                           sxml_byte_reader *byte_reader) {
+    (void)state;
+    if (sxml_byte_view_equals(request->path, SXML_BYTE_VIEW_FROM_LITERAL("-"))) {
+        return SXML_STATUS_INPUT_OUTPUT_FAILED;
+    }
+    void *memory = NULL;
+    sxml_status status = sxml_allocator_allocate(
+        request->allocator,
+        (sxml_allocation_request){.byte_count = sizeof(sxml_platform_file_stream),
+                                  .alignment = alignof(sxml_platform_file_stream)},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    FILE *file = NULL;
+    status = sxml_platform_open(request, &file);
+    if (status != SXML_STATUS_OK || file == NULL) {
+        sxml_allocator_release(request->allocator, memory);
+        return status != SXML_STATUS_OK ? status : SXML_STATUS_INPUT_OUTPUT_FAILED;
+    }
+    sxml_platform_file_stream *opened = memory;
+    *opened = (sxml_platform_file_stream){.file = file, .allocator = request->allocator};
+    *byte_reader = (sxml_byte_reader){.state = opened,
+                                      .operations = &sxml_platform_part_reader_operations};
+    return SXML_STATUS_OK;
+}
+
+static void sxml_platform_close_file(void *state, sxml_byte_reader byte_reader) {
+    (void)state;
+    sxml_platform_file_stream *opened = byte_reader.state;
+    if (opened == NULL) {
+        return;
+    }
+    (void)fclose(opened->file);
+    sxml_allocator_release(opened->allocator, opened);
+}
+
 static const sxml_cli_file_reader_operations sxml_platform_file_reader_operations = {
     .read_file = sxml_platform_read_file,
+    .open_file = sxml_platform_open_file,
+    .close_file = sxml_platform_close_file,
 };
 
 sxml_cli_file_reader sxml_platform_file_reader(void) {
