@@ -11460,6 +11460,20 @@ the release driver before and after, case by case.
 - **Left**: nothing for 4.22. When qtspecs or xslt40-test next move,
   refresh both together (D245) and run this classification again.
 
+### D255. Bindings paused; priorities are conformance, CLI builds, the book (owner)
+Recorded 2026-10-20 on the owner's word: "Pause the swift and kotlin work
+by documenting the next steps/full intended design in the respective
+subdirectories. Priorities now are: 1. conformance, 2. a mise task to get
+the CLI compiled for all supported platforms for installation, 3.
+user-facing documentation in book form (think: Rust book in style)."
+- Phase 6 is paused. `bindings/kotlin/DESIGN.md` and
+  `bindings/swift/DESIGN.md` hold the full intended design and the exact
+  next steps, so a later session can resume from them.
+- Work goes, in this order, to conformance sweeps; a `mise` task that
+  builds the `sxml` CLI for every supported platform as installable
+  archives; and a user-facing book in the style of "The Rust Programming
+  Language", in `docs/book/`.
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): the license (there is

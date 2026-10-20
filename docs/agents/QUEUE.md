@@ -23,8 +23,17 @@ transform-004 needs a suspendable compiler (D71), transform-401 waits on
 
 ## Running
 
+Priorities (D255): 1. conformance, 2. a mise task building the CLI for
+every supported platform, 3. the user-facing book. Phase 6 is paused
+(bindings/kotlin/DESIGN.md, bindings/swift/DESIGN.md).
+
+
 - 2.23: XPath/XQuery sweep on the largest remaining failure clusters.
-- 6.3: the Android build (NDK, four ABIs, minSdk 24 fallbacks).
+- 6.3: wrapping up for the pause; writes bindings/kotlin/DESIGN.md.
+- Swift pause document (bindings/swift/DESIGN.md).
+- 4.23: XSLT sweep on the largest failure clusters.
+- dist-1: `mise run dist`, the CLI for every supported platform.
+- book-1: the sxml book in docs/book/.
 
 ## Next
 
