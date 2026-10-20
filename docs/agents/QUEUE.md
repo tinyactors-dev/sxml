@@ -36,8 +36,8 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
   then the grammars' corpus and highlight tests, then implementation.
   (Book-first pages carry <!-- status: draft -->; check-book-examples.sh
   skips them unless --drafts.)
-- 2.27: XPath/XQuery sweep (D280's open list; XInclude for fn:doc, CJK
-  numerals in format-integer).
+- 2.28: XPath/XQuery: D286's open list and the string-constructor error
+  location (D282).
 
 ## Next
 
@@ -80,6 +80,15 @@ does not (6.12 to compare).
 Swift (6.7/6.8 done, D241, D248): 55 tests on Linux; the bundled DUCET is a
 copy of third_party/unicode-collation/allkeys.txt that must be updated with
 it.
+
+XPath and XQuery (2.27, D286): XInclude for fn:doc, fn:parse-xml and
+fn:document (no xpointer); Japanese ideographic numerals; element() no
+longer selects JNodes. XP40 32,809 -> 32,815 (26 failed), XQ40 46,138 ->
+46,154 (78 failed). Left: xqhof18/19 (run-time closures carrying module
+and focus), modules-43 (types imported in a cycle), function-decl-40-060,
+record-003/-005/-016 (draft rejects surplus entries), fn-string-length-26
+(contradicts XDM 7.5.2.4), 4 XP40 cases relying on XQuery-only character
+references.
 
 XPath and XQuery (2.26, D280): XP40 32,797 -> 32,809 (31 failed), XQ40
 46,101 -> 46,138 (90 failed). A resolver may answer a module import with
