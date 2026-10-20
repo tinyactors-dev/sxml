@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <style>
+      .total { font-weight: bold; }
+    </style>
+  </head>
+  <body>
+    <p class="total" id="total"></p>
+    <script>
+      const prices = [3, 4.5];
+      document.getElementById("total").textContent = prices.reduce((sum, price) => sum + price);
+    </script>
+  </body>
+</html>

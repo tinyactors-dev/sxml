@@ -1,13 +1,16 @@
 # Source Code as XML
 
 <!-- examples: source-code -->
+<!-- status: draft -->
 
 Program source code has a grammar too, and for many languages the
 grammar is already written: [tree-sitter](https://tree-sitter.github.io)
 grammars power the syntax highlighting and code navigation of many
 editors. sxml includes the tree-sitter grammars of JSON, JavaScript (with
-JSX), Python, C, CSS, HTML and Go, and `sxml:parse-code` turns code in any
-of them into an XML document. Then XPath, XQuery and XSLT can answer
+JSX), TypeScript, TSX, Python, C, CSS, HTML, Go and Markdown, and
+`sxml:parse-code` turns code in any of them into an XML document. Other
+tree-sitter grammars can be added when sxml runs (see
+[Supplying your own language](#supplying-your-own-language)). Then XPath, XQuery and XSLT can answer
 questions about the code: where a function is called, which functions a
 module exports, which comments say TODO. The examples are in
 `docs/book/examples/source-code`.
@@ -52,9 +55,13 @@ true()
 - The `highlight` attribute is what the language's highlighting query
   (the `queries/highlights.scm` of its grammar) says about the node:
   `keyword`, `function`, `string`, `comment`, `variable.parameter` and so
-  on. A token that has a highlight or a field becomes an `sxml:token`
-  element, so that it can carry the attribute; with the option
-  `{ "highlights": false() }` most tokens stay plain text.
+  on. Where the grammar has a locals query (`queries/locals.scm`), a name
+  that refers to a parameter or variable gets the highlight of its
+  definition: the `name` in `return "Hello, " + name` is a
+  `variable.parameter`, like the parameter it names. A token that has a
+  highlight or a field becomes an `sxml:token` element, so that it can
+  carry the attribute; with the option `{ "highlights": false() }` most
+  tokens stay plain text.
 
 The prefix `sxml` is bound to the namespace `urn:sxml` in the `sxml`
 command's XPath and XQuery; a stylesheet declares it. The elements of
@@ -66,6 +73,7 @@ The third argument takes options:
 | --- | --- | --- |
 | `highlights` | `true()` | Run the language's highlighting query and write `highlight` attributes |
 | `positions` | `false()` | Write `line` and `column` attributes (where each element starts, from 1, columns counted in characters) and `end-line` and `end-column` (where it ends) |
+| `injections` | `true()` | Parse code inside code (a Markdown code block, an HTML `script` element) with its own language; see [Code inside code](#code-inside-code) |
 
 `sxml:code-languages()` lists the languages:
 
@@ -77,7 +85,11 @@ $ sxml xpath 'sxml:code-languages()'
 "html"
 "javascript"
 "json"
+"markdown"
+"markdown_inline"
 "python"
+"tsx"
+"typescript"
 ```
 
 ## Which functions does a module export?
@@ -201,6 +213,125 @@ cart.js:16: formatPrice(item.price)
 money.js:6: formatPrice(amounts.reduce((sum, amount) => sum + amount, 0))
 ```
 
+## TypeScript and TSX
+
+`shapes.ts`:
+
+```typescript
+{{#include ../examples/source-code/shapes.ts}}
+```
+
+The TypeScript grammar has the nodes of JavaScript and the types on top
+of them. The properties of each interface:
+
+```console
+$ sxml xpath 'sxml:parse-code(unparsed-text("shapes.ts"), "typescript")//interface_declaration ! `{type_identifier}: {string-join(.//property_signature/property_identifier, ", ")}`'
+"Circle: kind, radius"
+"Rectangle: kind, width, height"
+```
+
+The signature of each exported function, with the types written as in
+the source:
+
+```console
+$ sxml xpath 'sxml:parse-code(unparsed-text("shapes.ts"), "typescript")//export_statement/function_declaration ! `{identifier}({string-join(formal_parameters/* ! string(), ", ")}){return_type}`'
+"area(shape: Shape): number"
+"describe(shape: Shape, digits?: number): string"
+```
+
+TSX is TypeScript with JSX, and has a grammar of its own, `tsx`.
+`Profile.tsx`:
+
+```tsx
+{{#include ../examples/source-code/Profile.tsx}}
+```
+
+The components the file uses, and the properties that are optional:
+
+```console
+$ sxml xpath 'sxml:parse-code(unparsed-text("Profile.tsx"), "tsx")//(jsx_opening_element | jsx_self_closing_element)/identifier[@highlight = "constructor"] ! string()'
+"Avatar"
+"Markdown"
+$ sxml xpath 'sxml:parse-code(unparsed-text("Profile.tsx"), "tsx")//property_signature[contains(., "?")]/property_identifier ! string()'
+"avatar"
+"bio"
+```
+
+## Markdown
+
+Markdown has two grammars: `markdown` for the blocks (headings,
+paragraphs, lists, code blocks) and `markdown_inline` for what is inside
+a paragraph or a heading (emphasis, links, code spans). `notes.md`:
+
+````markdown
+{{#include ../examples/source-code/notes.md}}
+````
+
+The headings and their levels:
+
+```console
+$ sxml xpath 'sxml:parse-code(unparsed-text("notes.md"), "markdown")//atx_heading ! `{string-length(*[1])}: {normalize-space(inline)}`'
+"1: Release notes"
+"2: Fixed"
+"2: Example"
+```
+
+`sxml:parse-code` parses the text of each block with the inline grammar
+(see the next section), so the links are there too:
+
+```console
+$ sxml xpath 'sxml:parse-code(unparsed-text("notes.md"), "markdown")//inline_link ! `{link_text}: {link_destination}`'
+"issue 12: https://example.com/issues/12"
+"the guide: guide.md"
+```
+
+## Code inside code
+
+A Markdown code block holds code in another language, and so does an
+HTML `script` element. The grammar's injections query
+(`queries/injections.scm`) says which nodes hold code and in which
+language: the info string after the fence, `javascript` for a `script`
+element, the inline grammar for Markdown's paragraphs. `sxml:parse-code`
+parses each such node with that language, when it knows the language,
+and puts the tree inside the node's element. The tree's document element
+names its language in a `language` attribute:
+
+```console
+$ sxml xpath --method=xml 'sxml:parse-code("Some *text*.", "markdown")'
+<document xmlns:sxml="urn:sxml"><section><paragraph><inline><inline language="markdown_inline">Some <emphasis><emphasis_delimiter>*</emphasis_delimiter>text<emphasis_delimiter>*</emphasis_delimiter></emphasis>.</inline></inline></paragraph></section></document>
+```
+
+So the Python function in the release notes is a `function_definition`
+like any other:
+
+```console
+$ sxml xpath 'sxml:parse-code(unparsed-text("notes.md"), "markdown")//*[@language = "python"]//function_definition/identifier ! string()'
+"greet"
+$ sxml xpath 'sxml:parse-code(unparsed-text("notes.md"), "markdown")//fenced_code_block ! `{info_string}: {*[@language]/name()}`'
+"python: module"
+"javascript: program"
+```
+
+and the script and style sheet of an HTML page are JavaScript and CSS,
+highlighted as such. `page.html`:
+
+```html
+{{#include ../examples/source-code/page.html}}
+```
+
+```console
+$ sxml xpath 'sxml:parse-code(unparsed-text("page.html"), "html")//*[@language] ! `{@language}: {count(.//*[@highlight])} highlighted`'
+"css: 6 highlighted"
+"javascript: 21 highlighted"
+$ sxml xpath 'sxml:parse-code(unparsed-text("page.html"), "html")//*[@language = "javascript"]//*[@highlight = "function.method"] ! string()'
+"getElementById"
+"reduce"
+```
+
+The text is still the source text: the string value of the document is
+the page, and the option `{ "injections": false() }` leaves the code
+inside code as text.
+
 ## Highlighted HTML with XSLT
 
 Because the highlighting query has already named each part of the code,
@@ -255,3 +386,90 @@ A language sxml does not have is an error:
 $ sxml xpath 'sxml:parse-code("IDENTIFICATION DIVISION.", "cobol")'
 expression:1:1: sxml:unknown-language: the language is not one that sxml:parse-code knows; sxml:code-languages() lists them
 ```
+
+## Supplying your own language
+
+sxml includes a dozen grammars, and tree-sitter has hundreds more. A
+grammar that sxml does not include can be added when sxml runs: tree-sitter
+compiles each grammar to C, and the C compiles to a shared library
+(`libtree-sitter-rust.so` on Linux, `.dylib` on macOS, `.dll` on Windows)
+that exports one function, `tree_sitter_rust()`. The grammar's
+repository also has its queries, `queries/highlights.scm` and often
+`locals.scm` and `injections.scm`. With the
+[tree-sitter command](https://tree-sitter.github.io/tree-sitter/cli/build.html):
+
+```sh
+git clone https://github.com/tree-sitter/tree-sitter-rust
+cd tree-sitter-rust
+tree-sitter build        # writes rust.so (rust.dylib, rust.dll)
+```
+
+The `sxml` command's option `--code-language=LIBRARY` loads such a
+library for `sxml xpath`, `sxml xquery` and `sxml transform`. It may be
+given more than once:
+
+```sh
+sxml xpath --code-language=tree-sitter-rust/rust.so \
+  'sxml:parse-code(unparsed-text("main.rs"), "rust")//function_item/identifier ! string()'
+```
+
+- The language's name comes from the file name: the extension and the
+  prefixes `lib` and `tree-sitter-` are dropped, and `-` becomes `_`. So
+  `libtree-sitter-c-sharp.so` is `c_sharp`, and the library's function
+  must be `tree_sitter_c_sharp()`.
+- The queries come from the directory `queries` beside the library, as
+  in a grammar's repository after `tree-sitter build`, or else from
+  `../queries/NAME` (the layout of Neovim's parsers and queries).
+  Without queries, the language parses but has no highlights.
+- A language with the name of one that sxml includes replaces it, so a
+  newer version of a grammar can be used.
+- The grammar must be generated for tree-sitter's language ABI 13 to 15
+  (tree-sitter 0.20 and later); sxml says so when it is not, and when a
+  query does not fit the grammar.
+
+To try it without a network, build the JSON grammar from sxml's own
+sources, and give it queries of your own. `queries/highlights.scm`:
+
+```scheme
+{{#include ../examples/source-code/queries/highlights.scm}}
+```
+
+```console
+$ cc -shared -fPIC -O1 -o json.so "$SXML/third_party/tree-sitter-grammars/json/src/parser.c"
+$ sxml xpath --code-language=json.so --method=xml 'sxml:parse-code("[1, true]", "json")'
+<document xmlns:sxml="urn:sxml"><array>[<number highlight="number.json">1</number>, <true highlight="boolean">true</true>]</array></document>
+```
+
+A file that is not a tree-sitter language is an error:
+
+```console
+$ sxml xpath --code-language=queries/highlights.scm 'sxml:code-languages()'
+sxml xpath: --code-language=queries/highlights.scm: cannot load the library: queries/highlights.scm: invalid ELF header
+```
+
+A program that uses sxml's C API registers a language the same way: it
+has the grammar's `TSLanguage` (from a library it loaded, or one it links)
+and the text of its queries, and lists them in the processor's
+configuration, in `source_code_languages`.
+`sxml_source_code_check_language` says what is wrong with a language
+before the processor is made:
+
+```c
+#include "sxml/processor.h"
+
+const struct TSLanguage *tree_sitter_rust(void);
+
+static const sxml_source_code_language languages[] = {
+    {.language_name = SXML_BYTE_VIEW_INITIALIZER("rust"),
+     .grammar = NULL, /* set at run time: tree_sitter_rust() */
+     .highlights_query = SXML_BYTE_VIEW_INITIALIZER("(function_item name: (identifier) @function)"),
+     .locals_query = SXML_BYTE_VIEW_INITIALIZER(""),
+     .injections_query = SXML_BYTE_VIEW_INITIALIZER(""),
+     .injection_regex = SXML_BYTE_VIEW_INITIALIZER("^rust$")},
+};
+```
+
+The languages, their grammars and the query texts must outlive the
+processor. The JavaScript package cannot load languages yet: tree-sitter's
+WebAssembly language files (`tree-sitter-rust.wasm`) need a module that
+links them at run time, which `sxml.wasm` is not.
