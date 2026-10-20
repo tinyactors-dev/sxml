@@ -11525,6 +11525,56 @@ user-facing documentation in book form (think: Rust book in style)."
   archives; and a user-facing book in the style of "The Rust Programming
   Language", in `docs/book/`.
 
+### D256. Distribution archives: mise, zig cc, seven targets (packet dist-1)
+Recorded 2026-10-20, after D10, D44, D209, D255. `mise run dist` builds
+the `sxml` command for every supported platform as installable archives
+(`docs/tasks/distribution.md`; README.md, "Install").
+- **Tools**: `mise.toml` pins cmake 3.31.9, ninja 1.13.1, zig 0.15.2,
+  node 22.22.0 and the WASI SDK 34 (`github:WebAssembly/wasi-sdk`). The
+  tasks are `dist`, `dist:<target>`, `dist:checksums`, `dist:verify` and
+  `install [-- PREFIX]` (default `~/.local`: `bin/sxml`,
+  `share/doc/sxml/`); `tools/dist.sh` is the one implementation.
+- **Cross-compiling**: one toolchain file, `cmake/toolchains/zig.cmake`,
+  for every native target, chosen by `SXML_ZIG_TARGET`. Zig carries the
+  C library headers and link stubs for musl, macOS and MinGW-w64, so no
+  sysroot or SDK is downloaded. CMake wants one program per tool and its
+  platform modules rewrite the archiver rules after the toolchain file,
+  so `zig cc`, `zig ar` and `zig ranlib` get two-line shell wrappers in
+  the build tree; the build machine is Linux or macOS. CMake 3.27's
+  `--dependency-file` link option is turned off (zig's linker rejects
+  it). wasm32-wasi uses `cmake/wasi-sdk.cmake` with the SDK mise
+  installed. Native builds are Release, wasm32-wasi MinSizeRel (the
+  presets' types), all linked with `-s`.
+- **Targets**: x86_64-linux and aarch64-linux (static musl executables,
+  any distribution), x86_64-macos and aarch64-macos (macOS 11 and
+  later, libSystem only; zig signs the arm64 one ad hoc), x86_64-windows
+  and aarch64-windows (MinGW-w64; only KERNEL32 and the Universal C
+  Runtime, which Windows 10 and later include), wasm32-wasi (the CLI
+  module). Every target builds the library and the CLI with `-Werror` as
+  they are: no portability fix was needed (the platform layer already
+  had its `_WIN32` paths, `_getcwd` among them).
+- **Archives**: `sxml-<version>-<target>.tar.gz`, `.zip` for Windows, the
+  version from `include/sxml/version.h`. Each holds one directory with the
+  program (`sxml`, `sxml.exe`, `sxml.wasm`), LICENSE, README.md and
+  USAGE.md (`apps/sxml/README.md`, renamed so the two READMEs do not
+  collide). Owners and times are fixed, so the same tree gives the same
+  SHA-256; `SHA256SUMS` is in sha256sum's format.
+- **Verified here** (`mise run dist:verify`: `sxml --version` and an
+  `sxml xpath` query over a small document): x86_64-linux natively,
+  aarch64-linux under qemu-user 8.2, x86_64-windows under wine 9.0,
+  wasm32-wasi under Node.js with `tools/run-wasi.mjs`. `file` reports
+  Mach-O x86_64 and arm64 for the macOS programs and PE32+ Aarch64 for
+  aarch64-windows, which nothing here runs.
+- **The owner's machine**: running the macOS programs (and aarch64-windows)
+  at all; Developer ID signing and notarization of the macOS programs, as
+  Gatekeeper quarantines an unsigned download (`xattr -d
+  com.apple.quarantine` works around it); Authenticode signing of the
+  Windows programs if wanted; publishing the archives with a release
+  (`docs/RELEASE.md`). The macOS programs keep their symbol table (zig's
+  `-s` does not strip Mach-O; stripping afterwards would break the arm64
+  signature). The time zones come from `/usr/share/zoneinfo` (D209),
+  which Windows does not have.
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): the license (there is
