@@ -1165,6 +1165,28 @@ fields by number, node types by symbol. Parse-only 14.9 to 25.2 MB/s,
 the tree 13.4 to 21.3 MB/s (6.71 to 3.90 x 10^9 instructions at 10 MB);
 XMark-All 9.87 to 8.88; QT4 and XT40 unchanged case by case.
 
+### perf-4 Laziness, joins and the step limit (implementation)
+After D224, D229, D232 and D257 (writing the book's performance chapter
+found three things): `head(filter(1 to 1e9, ...))` and `exists((1 to
+1e9)[. = 999])` read the whole range; the chapter's join of 2,000
+orders takes 12 s although D224's filter index exists for it; the
+default step limit takes about 75 s to trigger.
+- **Mechanism**: one general mechanism for stopping early (head,
+  exists, empty, `[1]`, some/every, boolean()), on the one IR and
+  evaluator, with D71, honest step counts and the errors XPath 4.0,
+  2.4.3 lets be skipped; the filter index extended in general to the
+  join's shape; the step rate measured and the default limit decided
+  without touching the drivers' budgets (D166, D178).
+- **Owns**: `src/evaluator.c`, `src/evaluator_index.c`,
+  `src/ir_loop_passes.c`, `src/ir.c` (the pass list, the text form),
+  `src/ir_internal.h` and `src/ir_pass_internal.h` (their LET and pass
+  parts), the traversal of `src/function_library_higher_order.c`,
+  `tests/bench/`, `tests/ir_loop_passes_test.c`,
+  `docs/book/src/performance.md` and its examples.
+- **Done when**: each change measured before and after, in a D-record
+  and the commit messages; no QT4 XQ40 or XT40 outcome changes, case by
+  case; the book's chapter true (D257).
+
 ## Proposed for the owner
 
 No phase covers these four features yet (D183 Proposed). The owner has

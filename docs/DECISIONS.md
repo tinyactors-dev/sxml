@@ -11691,6 +11691,66 @@ kind added.
   applications and of closures with folded constants
   (deep-equal-40-function-items-092/106/119/120).
 
+### D259. Laziness, joins and the step limit (packet perf-4)
+Recorded 2026-10-20, after D71, D89, D166, D178, D224, D229, D232,
+D257. In progress; completed when the packet ends. Measured with the
+benchmarks of D224 (`tests/bench/run-bench.py`, processor seconds,
+release, fastest of three) and instructions under callgrind; each
+milestone against its base commit built the same way.
+- **Why the book's join was slow** (docs/book/examples/performance,
+  2,000 orders, 12 s): `//order[@id = $order/@id + 1]` is
+  `/descendant-or-self::node()/child::order[...]` (XPath 4.0, 4.6.7):
+  one FILTER per node of the document over that node's children, inside
+  the for clause's body (it reads $order), so it was never hoisted and
+  only the root's FILTER had 16 items; and its keys are
+  xs:untypedAtomic while the probe is an xs:double, two classes the
+  index of D229 does not compare.
+- **Descendant paths** (glossary `descendant_path`; the descendant pass,
+  `src/ir_loop_passes.c`, a standard pass after verify): `E//T[P]...`
+  is `E/descendant::T[P]...` when the step is to the children, T selects
+  XNodes only (`node()` matches JNodes too), every predicate selects by
+  the item alone (it reads neither the position nor the size, and its
+  value is no number: comparisons, quantified expressions, instance of,
+  castable, natives of xs:boolean or xs:string results, paths,
+  constants without a leading number, through LETs, conditionals and
+  filters), the path after it goes on from each node alone (by-item
+  filters, path steps whose bodies give nodes, document order), and the
+  intermediate values are read once (a slot census of each function's
+  body). One FILTER then runs over every T below E, and its input no
+  longer depends on the loop, so the hoist pass computes it once and the
+  filter index finds the same input each time. `E//T[1]`, `[last()]`,
+  `[$n]` and `E//@a` are left as they were. Steps are fewer.
+- **The number view** (glossary `number_view`, `src/evaluator_index.c`):
+  "=" casts an xs:untypedAtomic against a number to the number's type,
+  or to xs:double when that fails (4.11.2). An index of strings whose
+  keys are all untyped answers a numeric probe value from its number
+  view: the keys cast to xs:decimal (else xs:double) by nearest double,
+  made at the first numeric probe value (a step per key) and stored with
+  the index in the memo. A key's xs:decimal and xs:double casts have one
+  nearest double, so xs:decimal, integer and xs:double probe values find
+  their keys; the predicate decides among the candidates. An xs:float
+  probe value, a key of xs:string (XPTY0004) or one that cannot be cast
+  (FORG0001) leave every item tested, so values and errors are those
+  without the index. NaN is left out. An untyped probe value against an
+  index of numbers is cast the same way, unless a key is an xs:float.
+- **Probes that are no constant first**: of the necessary comparisons
+  that split, the filter-index pass indexes one whose probe is no
+  constant before one whose probe is: a where over two for clauses
+  (`where $b/@id = $a/@id + 1 and $b/customer = "c3"`) indexed the
+  constant test and kept the join a scan.
+- **Measured** (at c48ba8e, without and with): descendant-join (new
+  benchmark: the book's join over a constructed document) 10.28 to 0.18
+  (0.17 of it parsing the XMark document every benchmark is given); the
+  book's slow-join.xq over 2,000 orders 12.9 to 0.045; the where over
+  two for clauses 1.79 to 0.03; paths 0.64 to 0.21; xmark-all 1.27 to
+  1.10; predicate-join 1.79 to 1.54 x 10^9 instructions; xmark-q8, q9,
+  q11 and numeric-join the same instructions. Every benchmark's output
+  is the same byte for byte. QT4 XQ40 and XT40 whole, release, case by
+  case: 0 outcomes differ.
+- **Left**: two filters in a row (`$s[customer = $c][@id = $i]`) index
+  the first only, and the second tests the first's candidates (1.4 s for
+  2,000 x 2,000).
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): tagging and
