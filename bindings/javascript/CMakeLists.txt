@@ -84,7 +84,10 @@ if(SXML_BUILD_TESTS AND SXML_NODE_EXECUTABLE)
     # feature: 9,000,000 / 2,000,000 (D208); 9,500,000 / 2,100,000 since
     # D235, for the same parser; 11,500,000 / 2,500,000 since D285, and the
     # module 10,000,000 / 2,800,000, for the seven tree-sitter grammars of
-    # sxml:parse-code (+1,927,000 in the module, 96 % parse tables).
+    # sxml:parse-code (+1,927,000 in the module, 96 % parse tables);
+    # 15,500,000 / 2,900,000 since D288, and the module 14,000,000 /
+    # 2,800,000, for TypeScript, TSX and Markdown (+3,700,000 in the
+    # module, 95 % parse tables).
     # test/size-baseline/sxml.txt is the module's code and data per object
     # at the last audit or budget raise (D225, D272): the test prints the
     # largest growths since then, and names twenty when the module is over
@@ -92,7 +95,7 @@ if(SXML_BUILD_TESTS AND SXML_NODE_EXECUTABLE)
     if(TARGET sxml_cli)
         add_test(NAME javascript/size_budget
             COMMAND "${SXML_NODE_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test/size-budget.mjs"
-                "$<TARGET_FILE:sxml_cli>" 11500000 2500000
-                "$<TARGET_FILE:sxml_javascript_module>" 10000000 2800000)
+                "$<TARGET_FILE:sxml_cli>" 15500000 2900000
+                "$<TARGET_FILE:sxml_javascript_module>" 14000000 2800000)
     endif()
 endif()
