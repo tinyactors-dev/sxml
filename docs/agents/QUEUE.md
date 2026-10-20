@@ -277,6 +277,11 @@ document URI. Left: XTTE errors from XSLT validation have no line number
 cvc-complex-type.2.4 rejection is not checked; the CLI ignores
 xsi:schemaLocation.
 
+book-3 (D282): Chapter 12, a code-generation project (XSD and an API
+description to TypeScript with XQuery, OpenAPI with XSLT, run with
+Node.js). Left: a syntax error inside a string constructor's enclosed
+expression is reported at 1:1 of the module, not at its own place.
+
 Platform and tooling:
 - macOS, Windows and MSVC have never been built; `_getcwd` is untested.
 - CI is disabled (D123).
