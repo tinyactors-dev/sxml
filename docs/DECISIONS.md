@@ -11147,6 +11147,70 @@ API of `docs/tasks/phase-6.md`, XPath half) and `tools/run-kotlin-tests.sh`.
   `sxml_kotlin` from an Android preset (`ANDROID` takes jni.h from the
   sysroot), and adds the DUCET resource.
 
+### D248. The Swift full surface: XQuery, XSLT, XSD and the DUCET resource (packet 6.8)
+Recorded 2026-10-20, after D213, D216, D238, D241. Packet 6.8 added the
+rest of the task file's Swift API to module `Sxml`, over the host shim's
+full-module entry points. No C changed.
+- **API** (defaults under D208):
+  - `compileQuery(_:namespaces:baseURI:)` gives an `XQuery` with
+    `evaluate(context:variables:updates:messages:)`, `serialize(_:)`,
+    `run(...)` and `isUpdating`.
+  - `UpdateSink` is a struct of two optional throwing closures,
+    `updatedTree` and `putDocument`. `PutDocument.serialize()` uses
+    method xml without parameters, as in JavaScript.
+  - `compileStylesheet(_:baseURI:staticParameters:)` (a `String`, or
+    `[UInt8]`) gives a `Stylesheet`. `transform(...)` takes JavaScript's
+    options as labels; `args` is `arguments:`. It returns a
+    `TransformResult` (`output`, `value`, `resultDocuments`).
+  - `InitialMode` is `.named(String)` or `.unnamed`, and a string literal
+    names a mode. It replaces JavaScript's `'#unnamed'`, as Kotlin's
+    `InitialMode.Unnamed` does.
+  - `ResultDelivery`, `ValidationMode` and `Validity` are enums. Their raw
+    values are those of `sxml_xslt_result_delivery` and
+    `sxml_validation_mode` (sxml_host.h does not include xslt.h or
+    schema.h) and, for `Validity`, the JavaScript names.
+  - `compileSchema(_:baseURI:)` takes a `String`, one `SchemaDocument`
+    or an array of them (`.text(_:uri:)`, `.bytes(_:uri:)`,
+    `.resolved(_:)`). `Schema.validate(_:mode:type:uri:)` takes a
+    `String`, `[UInt8]` or a `Value` (a node takes no `uri:`).
+  - `SchemaError` is a struct (`error: SxmlError`, `reports`), as the
+    task file says, not a subtype of `SxmlError`. So a caller that
+    catches `SxmlError` does not catch a schema that fails to compile.
+  - The `messages` closure and the sink's closures run after the call,
+    with the failure read first, so they may use the processor (D216).
+    An error a closure throws replaces the call's own failure.
+- **DUCET**: `CollationData.bundled` serves
+  `bindings/swift/Sources/Sxml/Resources/allkeys.txt`, a `.copy` resource
+  read through `Bundle.module` once per process, when a UCA collation
+  first asks for it.
+  - **Deviation:** the resource is a copy of
+    `third_party/unicode-collation/allkeys.txt`, not a symbolic link.
+    SwiftPM copies a link into the bundle as a link, which then dangles.
+    The copy has the same git blob, so the repository does not grow. A
+    test checks that the two files are equal. Whoever updates the DUCET
+    updates both.
+- **Tests**: `FullTests.swift` has 28 Swift Testing tests.
+  - 24 have the names, inputs and expected text of `full.test.ts`: 10
+    XQuery, 8 XSLT, 5 XSD, and the full allocation-failure loop.
+  - Two tests of `full.test.ts` have no counterpart. The core-module
+    refusal does not apply, because the native library has every
+    language. The disposal test is replaced by "queries, stylesheets and
+    schemas keep their processor alive" (ARC).
+  - 3 resource data tests: the bundled DUCET, `timezone-data` served from
+    `third_party/tzdata/zoneinfo`, and `locale-data` served from
+    `third_party/cldr/common`.
+  - ctest `swift/linux` (debug preset, ASan): 55 tests pass with 0 leaks
+    (was 27), both allocation-failure loops included. The run takes 69 s.
+- **Task file**: its Swift example ends with
+  `result.serialize(["method": "json"])` on a two-item result, which
+  raises SERE0023. The READMEs use other examples.
+- **For 6.9 (Apple)**: the resource needs nothing more. `Bundle.module`
+  finds it in the package's bundle on Apple platforms too. Check
+  `CollationData.bundled` there with the test "the bundled DUCET is the
+  vendored one, and UCA collations use it". A package that depends on
+  `Sxml` links the XCFramework, and the resource still comes from the
+  Sxml target.
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): the license (there is

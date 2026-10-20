@@ -4,6 +4,20 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 6.8 done (D248): the Swift full surface. Module `Sxml` gains
+  `compileQuery` (`XQuery`, `UpdateSink`, `UpdatedTree`, `PutDocument`,
+  `Message`), `compileStylesheet` (`Stylesheet.transform`, `InitialMode`,
+  `ResultDelivery`, `TransformResult`) and `compileSchema` (`Schema.validate`,
+  `ValidationResult`, `SchemaError`), over the host shim's side results.
+  `CollationData.bundled` serves the DUCET from a SwiftPM resource, a copy
+  of `third_party/unicode-collation/allkeys.txt` with the same git blob
+  (SwiftPM copies a symbolic link as a dangling link). ctest `swift/linux`
+  (debug, ASan) passes 55 tests with 0 leaks (was 27): 24 by the names
+  of `full.test.ts`, the full allocation-failure loop among them, an ARC
+  test, and 3 resource data tests (DUCET, tzdata, CLDR). There is a Swift
+  section in README.md, and a new `bindings/swift/README.md` with real
+  output. Next: 6.9 on the owner's Mac.
+
 - 6.4 done (D247): the Kotlin core on the JVM. `bindings/kotlin/`
   (package `dev.tinyactors.sxml`) over `libsxml_kotlin.so`: the library,
   the host shim and one JNI glue file, exporting `Java_*` and

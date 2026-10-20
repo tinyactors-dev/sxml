@@ -434,6 +434,9 @@ when `swift/linux` passes the XPath half of the parity list and the ARC
 tests with 0 leaks. Golden: `src/index.ts`; the probe's module map.
 
 ### 6.8 Swift: XQuery, XSLT, XSD and resource data (implementation, here)
+**Done** 2026-10-20 (D248): `compileQuery`, `compileStylesheet`,
+`compileSchema`, the DUCET as a SwiftPM resource; `swift/linux` passes 55
+tests (the whole parity list) with 0 leaks.
 After 6.7. As 6.5 for Swift. The DUCET is a SwiftPM resource. Done when
 `swift/linux` passes the whole parity list with 0 leaks.
 
