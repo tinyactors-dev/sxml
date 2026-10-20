@@ -4,7 +4,7 @@
 
 Results of the W3C QT4 test suite (`third_party/qt4tests`, D13) under `sxml-qt4 run` (D92), a release build, one process per test set. *Passed* counts passes and wrong errors (a wrong error code counts as a pass, catalog-schema.xsd); *not run* means not applicable to sxml or using an unsupported feature; *run* is test cases minus not run.
 
-- Code under test: commit `e4ea880dc037` of 2026-10-20
+- Code under test: commit `9c5b1ba366c6` of 2026-10-20
 - Regenerate: `cmake --preset release && cmake --build --preset release && tools/run-qt4.sh --program build/release/tests/qt4/driver/sxml-qt4 && tools/run-qt4.sh --program build/release/tests/qt4/driver/sxml-qt4 --spec XQ40 && tools/conformance-report.py build/qt4-run` (XQ40 is reported when its run is in the directory; XT40 and XSD11 when `tools/run-xslt.sh` and `tools/run-xsd.sh` ran into it too)
 
 ## Torture slice
@@ -1811,11 +1811,11 @@ Not run, by the first dependency that is not met:
 
 | Specification | Test cases | Run | Passed | of which wrong error | Failed | Errors | Not run | Passed of run |
 |---|--:|--:|--:|--:|--:|--:|--:|--:|
-| XT40 | 13,867 | 12,513 | 12,053 | 135 | 460 | 0 | 1,354 | 96.3 % |
+| XT40 | 13,867 | 12,513 | 12,075 | 130 | 438 | 0 | 1,354 | 96.5 % |
 
-Gate rate (D95): 8,266 of 8,728 in-scope test cases passed, **94.7 %** (in scope: the spec matches and no non-goal is needed; not-run cases count as not passed).
+Gate rate (D95): 8,275 of 8,728 in-scope test cases passed, **94.8 %** (in scope: the spec matches and no non-goal is needed; not-run cases count as not passed).
 
-Schema-aware (D174, area "schema-aware"): 920 of 971 test cases passed, **94.7 %** (the test cases that need schemaImport, schemaValidation or typedData, or whose environment has a schema or a validated source; outside the D95 denominator unless only their environment is schema-aware; not-run cases count as not passed).
+Schema-aware (D174, area "schema-aware"): 928 of 971 test cases passed, **95.6 %** (the test cases that need schemaImport, schemaValidation or typedData, or whose environment has a schema or a validated source; outside the D95 denominator unless only their environment is schema-aware; not-run cases count as not passed).
 
 ### XT40 core test sets (Phase 4 gate: 80 % each)
 
@@ -1829,7 +1829,7 @@ Schema-aware (D174, area "schema-aware"): 920 of 971 test cases passed, **94.7 %
 | key | 103 | 100 | 97.1 % |
 | number | 268 | 268 | 100.0 % |
 | choose | 65 | 62 | 95.4 % |
-| copy | 146 | 132 | 90.4 % |
+| copy | 146 | 133 | 91.1 % |
 | value-of | 15 | 14 | 93.3 % |
 | result-document | 150 | 143 | 95.3 % |
 | function | 124 | 113 | 91.1 % |
@@ -1840,14 +1840,14 @@ XSLT slice (`tests/xslt/slice.txt`): **149/154 passed**.
 
 | Area (group: tests/GROUP/) | Test cases | Run | Passed | of which wrong error | Failed | Errors | Not run | Passed of run |
 |---|--:|--:|--:|--:|--:|--:|--:|--:|
-| Attributes: `tests/attr/` | 1,634 | 1,578 | 1,475 | 13 | 103 | 0 | 56 | 93.5 % |
-| Declarations: `tests/decl/` | 1,497 | 1,451 | 1,375 | 30 | 76 | 0 | 46 | 94.8 % |
+| Attributes: `tests/attr/` | 1,634 | 1,578 | 1,478 | 13 | 100 | 0 | 56 | 93.7 % |
+| Declarations: `tests/decl/` | 1,497 | 1,451 | 1,377 | 29 | 74 | 0 | 46 | 94.9 % |
 | Expressions: `tests/expr/` | 739 | 733 | 724 | 0 | 9 | 0 | 6 | 98.8 % |
-| Functions: `tests/fn/` | 1,339 | 1,304 | 1,237 | 6 | 67 | 0 | 35 | 94.9 % |
-| Instructions: `tests/insn/` | 1,996 | 1,919 | 1,835 | 35 | 84 | 0 | 77 | 95.6 % |
-| Miscellaneous: `tests/misc/` | 3,123 | 2,017 | 1,977 | 31 | 40 | 0 | 1,106 | 98.0 % |
-| Streaming (out of scope, D95): `tests/strm/` | 2,564 | 2,564 | 2,513 | 6 | 51 | 0 | 0 | 98.0 % |
-| Other | 975 | 947 | 917 | 14 | 30 | 0 | 28 | 96.8 % |
+| Functions: `tests/fn/` | 1,339 | 1,304 | 1,241 | 5 | 63 | 0 | 35 | 95.2 % |
+| Instructions: `tests/insn/` | 1,996 | 1,919 | 1,837 | 34 | 82 | 0 | 77 | 95.7 % |
+| Miscellaneous: `tests/misc/` | 3,123 | 2,017 | 1,979 | 29 | 38 | 0 | 1,106 | 98.1 % |
+| Streaming (out of scope, D95): `tests/strm/` | 2,564 | 2,564 | 2,521 | 6 | 43 | 0 | 0 | 98.3 % |
+| Other | 975 | 947 | 918 | 14 | 29 | 0 | 28 | 96.9 % |
 
 ### XT40 failure causes
 
@@ -1855,11 +1855,10 @@ Failed and error test cases by the error code the query raised (or the status th
 
 | Error code | Test cases |
 |---|--:|
-| (no error: wrong result) | 307 |
+| (no error: wrong result) | 294 |
 | XTSE0340 | 48 |
 | XPTY0004 | 14 |
 | XPST0017 | 12 |
-| XPDY0002 | 8 |
 | XTSE3000 | 8 |
 | FODC0002 | 7 |
 | XTDE0040 | 5 |
@@ -1869,9 +1868,8 @@ Failed and error test cases by the error code the query raised (or the status th
 | SERE0008 | 2 |
 | XPST0003 | 2 |
 | XPST0008 | 2 |
-| XQDY0054 | 2 |
 | XTDE0560 | 2 |
-| XTDE3052 | 2 |
+| XTDE0640 | 2 |
 | XTSE0020 | 2 |
 | XTSE0165 | 2 |
 | FOAR0001 | 1 |
@@ -1880,19 +1878,20 @@ Failed and error test cases by the error code the query raised (or the status th
 | FODC0016 | 1 |
 | FOXT0004 | 1 |
 | SERE0023 | 1 |
+| XPDY0002 | 1 |
+| XPST0051 | 1 |
 
 The 25 most frequent reasons:
 
 | Cause | Test cases |
 |---|--:|
-| wrong result (assert) | 103 |
-| wrong result (assert-xml) | 94 |
+| wrong result (assert) | 94 |
+| wrong result (assert-xml) | 92 |
 | XTSE0340: the text is not a pattern (XSLT 4.0, 6.3.1) | 48 |
 | XPST0017: no function with this name and arity is known | 12 |
 | XPTY0004: The value does not match the required type (XPath 4.0, section 3.4, coercion rules) | 11 |
 | wrong result (serialization-matches) | 9 |
 | XTSE3000: No package of the name and version an xsl:use-package asks for is found (XSLT 4.0, 3.4.3) | 8 |
-| XPDY0002: The focus or a variable of the dynamic context is absent (XPath 4.0, section 2.2.2) | 7 |
 | XTDE0040: the stylesheet has no template of the initial template's name (XSLT 4.0, 2.4.4) | 5 |
 | assert: the expected value raised err:XPDY0050: The value of a treat expression does not match its… | 4 |
 | FODC0002: No such collection | 3 |
@@ -1904,12 +1903,13 @@ The 25 most frequent reasons:
 | XPST0003: a variable part of this value template is not an XPath expression | 2 |
 | XPST0008: a global variable refers to itself (XSLT 4.0, 9.9) | 2 |
 | XPTY0004: A lookup is applied to an item that is not a map or an array (XPath 4.0, section 4.7.3) | 2 |
-| XQDY0054: A global variable depends on itself (XQuery 4.0, section 5.16) | 2 |
 | XTDE0560: xsl:next-match or xsl:apply-imports is evaluated when there is no current template rule (… | 2 |
-| XTDE3052: an abstract variable no package overrides is read (XSLT 4.0, 3.4.5.2) | 2 |
+| XTDE0640: A global variable depends on itself (XSLT 4.0, section 9.11) | 2 |
 | XTSE0020: A name-valued attribute holds no EQName (XSLT 4.0, 5.1.1) | 2 |
 | XTSE0165: The stylesheet module an xsl:include or xsl:import names cannot be read (XSLT 4.0, 3.10.1) | 2 |
 | assert-serialization: the expected file is not UTF-8 | 2 |
+| error: expected XPTY0004, got <out xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:z="http://sche… | 2 |
+| error: expected XTDE1390, got <out xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:my="http://my.… | 2 |
 
 Wrong errors (counted as passed) by the error raised:
 
@@ -1919,12 +1919,12 @@ Wrong errors (counted as passed) by the error raised:
 | XQDY0102: an element binds one prefix to two namespace URIs | 5 |
 | XTSE0340: the text is not a pattern (XSLT 4.0, 6.3.1) | 5 |
 | FORG0001: the value is not in the lexical space or value space of the target type | 4 |
-| XPDY0002: The focus or a variable of the dynamic context is absent (XPath 4.0, section 2.2.2) | 4 |
 | XPDY0002: the focus is absent in a function body | 4 |
 | XPST0017: no function with this name and arity is known | 4 |
 | XTTE0590: The value does not match the required type of the parameter (XSLT 4.0, section 9.3) | 4 |
 | FODC0002: The QT4 driver serves only the suite's files and the environment's resources | 3 |
 | FODC0002: The file cannot be read | 3 |
+| XPDY0002: The focus or a variable of the dynamic context is absent (XPath 4.0, section 2.2.2) | 3 |
 
 Not run, by the first dependency that is not met:
 
@@ -1951,10 +1951,10 @@ Not run, by the first dependency that is not met:
 | Test set | Test cases | Passed | Failed | Errors | Not run |
 |---|--:|--:|--:|--:|--:|
 | priority | 40 | 6 | 34 | 0 | 0 |
-| error | 580 | 503 | 20 | 0 | 57 |
-| match | 309 | 281 | 19 | 0 | 9 |
-| document | 99 | 83 | 16 | 0 | 0 |
-| copy | 165 | 151 | 14 | 0 | 0 |
+| error | 580 | 505 | 18 | 0 | 57 |
+| match | 309 | 284 | 16 | 0 | 9 |
+| copy | 165 | 152 | 13 | 0 | 0 |
+| document | 99 | 87 | 12 | 0 | 0 |
 | function | 148 | 129 | 11 | 0 | 8 |
 | mode | 196 | 171 | 11 | 0 | 14 |
 | override | 106 | 95 | 11 | 0 | 0 |
@@ -1967,13 +1967,13 @@ Not run, by the first dependency that is not met:
 | import-schema | 218 | 209 | 7 | 0 | 2 |
 | seqtor | 92 | 85 | 7 | 0 | 0 |
 | analyze-string | 68 | 56 | 6 | 0 | 6 |
-| arrays | 87 | 71 | 6 | 0 | 10 |
 | format-number | 81 | 69 | 6 | 0 | 6 |
 | stream-available | 6 | 0 | 6 | 0 | 0 |
 | sx-GeneralComp-eq | 55 | 49 | 6 | 0 | 0 |
 | type-alias | 32 | 25 | 6 | 0 | 1 |
 | use-when | 105 | 96 | 6 | 0 | 3 |
 | apply-templates-fn | 5 | 0 | 5 | 0 | 0 |
+| arrays | 87 | 72 | 5 | 0 | 10 |
 | date | 139 | 125 | 5 | 0 | 9 |
 
 ### Every XT40 test set
@@ -1990,7 +1990,7 @@ Not run, by the first dependency that is not met:
 | disable-output-escaping | 32 | 28 | 0 | 0 | 0 | 4 |
 | expand-text | 64 | 63 | 0 | 1 | 0 | 0 |
 | fixed-namespaces | 16 | 15 | 0 | 1 | 0 | 0 |
-| match | 309 | 281 | 1 | 19 | 0 | 9 |
+| match | 309 | 284 | 1 | 16 | 0 | 9 |
 | mode | 196 | 171 | 2 | 11 | 0 | 14 |
 | package-version | 37 | 34 | 1 | 1 | 0 | 2 |
 | priority | 40 | 6 | 0 | 34 | 0 | 0 |
@@ -2004,8 +2004,8 @@ Not run, by the first dependency that is not met:
 | validation | 68 | 53 | 2 | 4 | 0 | 11 |
 | version | 40 | 36 | 1 | 2 | 0 | 2 |
 | xpath-default-namespace | 26 | 22 | 0 | 4 | 0 | 0 |
-| accept | 50 | 48 | 2 | 2 | 0 | 0 |
-| accumulator | 109 | 106 | 3 | 3 | 0 | 0 |
+| accept | 50 | 50 | 2 | 0 | 0 | 0 |
+| accumulator | 109 | 106 | 2 | 3 | 0 | 0 |
 | attribute-set | 50 | 46 | 0 | 3 | 0 | 1 |
 | character-map | 33 | 32 | 0 | 1 | 0 | 0 |
 | context-item | 32 | 30 | 2 | 2 | 0 | 0 |
@@ -2051,7 +2051,7 @@ Not run, by the first dependency that is not met:
 | current | 3 | 2 | 0 | 0 | 0 | 1 |
 | current-output-uri | 20 | 10 | 0 | 9 | 0 | 1 |
 | deep-equal | 2 | 2 | 0 | 0 | 0 | 0 |
-| document | 99 | 83 | 2 | 16 | 0 | 0 |
+| document | 99 | 87 | 1 | 12 | 0 | 0 |
 | extension-functions | 7 | 5 | 0 | 2 | 0 | 0 |
 | format-date | 40 | 35 | 0 | 2 | 0 | 3 |
 | format-date-en | 33 | 32 | 0 | 1 | 0 | 0 |
@@ -2089,13 +2089,13 @@ Not run, by the first dependency that is not met:
 | choose | 65 | 62 | 3 | 3 | 0 | 0 |
 | element | 29 | 29 | 0 | 0 | 0 | 0 |
 | construct-node | 35 | 30 | 0 | 4 | 0 | 1 |
-| copy | 165 | 151 | 1 | 14 | 0 | 0 |
+| copy | 165 | 152 | 1 | 13 | 0 | 0 |
 | evaluate | 83 | 77 | 9 | 4 | 0 | 2 |
 | for-each | 6 | 3 | 0 | 3 | 0 | 0 |
 | for-each-group | 94 | 81 | 0 | 3 | 0 | 10 |
 | iterate | 51 | 51 | 3 | 0 | 0 | 0 |
 | lre | 35 | 35 | 0 | 0 | 0 | 0 |
-| merge | 120 | 114 | 3 | 5 | 0 | 1 |
+| merge | 120 | 115 | 2 | 4 | 0 | 1 |
 | message | 46 | 45 | 1 | 1 | 0 | 0 |
 | next-match | 58 | 44 | 3 | 9 | 0 | 5 |
 | number | 274 | 274 | 2 | 0 | 0 | 0 |
@@ -2119,7 +2119,7 @@ Not run, by the first dependency that is not met:
 | collations | 43 | 39 | 2 | 4 | 0 | 0 |
 | docbook | 4 | 2 | 0 | 2 | 0 | 0 |
 | embedded-stylesheet | 23 | 0 | 0 | 0 | 0 | 23 |
-| error | 580 | 503 | 28 | 20 | 0 | 57 |
+| error | 580 | 505 | 26 | 18 | 0 | 57 |
 | forwards | 23 | 23 | 0 | 0 | 0 | 0 |
 | initial-function | 35 | 35 | 0 | 0 | 0 | 0 |
 | initial-mode | 5 | 5 | 0 | 0 | 0 | 0 |
@@ -2140,7 +2140,7 @@ Not run, by the first dependency that is not met:
 | sf-current | 12 | 12 | 0 | 0 | 0 | 0 |
 | sf-deep-equal | 35 | 35 | 0 | 0 | 0 | 0 |
 | sf-distinct-values | 12 | 12 | 0 | 0 | 0 | 0 |
-| sf-distinct-ordered-nodes | 25 | 21 | 0 | 4 | 0 | 0 |
+| sf-distinct-ordered-nodes | 25 | 25 | 0 | 0 | 0 | 0 |
 | sf-empty | 29 | 29 | 0 | 0 | 0 | 0 |
 | sf-exists | 29 | 29 | 0 | 0 | 0 | 0 |
 | sf-exactly-one | 8 | 8 | 0 | 0 | 0 | 0 |
@@ -2221,8 +2221,8 @@ Not run, by the first dependency that is not met:
 | sx-SimpleMappingExpr | 11 | 11 | 0 | 0 | 0 | 0 |
 | sx-SquareArrayConstructor | 56 | 54 | 0 | 2 | 0 | 0 |
 | sx-TreatExpr | 32 | 32 | 0 | 0 | 0 | 0 |
-| sx-UnionExpr | 56 | 52 | 0 | 4 | 0 | 0 |
-| arrays | 87 | 71 | 0 | 6 | 0 | 10 |
+| sx-UnionExpr | 56 | 56 | 0 | 0 | 0 | 0 |
+| arrays | 87 | 72 | 0 | 5 | 0 | 10 |
 | boolean | 112 | 112 | 0 | 0 | 0 | 0 |
 | date | 139 | 125 | 0 | 5 | 0 | 9 |
 | maps | 61 | 60 | 2 | 1 | 0 | 0 |
