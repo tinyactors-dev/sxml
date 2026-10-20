@@ -31,7 +31,6 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 
 - 4.26: XSLT sweep (D262's and D260's open lists).
 - 2.24: XPath/XQuery sweep (D258's open list; a static-typing estimate).
-- cli-2: the CLI bugs book-2 found (D270).
 - size-3: one build with everything (D272): one WebAssembly module,
   fn:load-xquery-module in XSLT, budgets raised.
 
@@ -192,14 +191,13 @@ FILTER/MAP over MAP not fused; demands do not enter function bodies;
 if/boolean read one extra item.
 
 book-2 (D270): XQuery part 5 -> 11 sections, XSD part 2 -> 9; 387
-examples checked. CLI bugs found (cli-2 takes them): a relative
-collection("x.xml") exits 4 with SXML_STATUS_INVALID_ARGUMENT instead of
-FODC0002; a library module's dynamic error is reported with the main
-module's file name; xsi:type="xs:string" with an undeclared prefix is
-accepted (cvc-elt.4.1); no trace sink, so fn:trace and fn:message print
-nothing. Smaller: content after a cvc-complex-type.2.4 rejection is not
-checked; the --context-item document has no document-uri; XTTE errors
-have no line number; the CLI has no fn:collection and ignores
+examples checked. cli-2 (D271) fixed its four CLI bugs (collection ->
+FODC0002, library-module error file names, undeclared xsi:type prefixes
+-> cvc-elt.4.1 with defaults read in the schema's namespaces, fn:trace
+and fn:message to standard error) and gave --context-item documents a
+document URI. Left: XTTE errors from XSLT validation have no line number
+(src/xslt_lower*.c gives no source span); content after a
+cvc-complex-type.2.4 rejection is not checked; the CLI ignores
 xsi:schemaLocation.
 
 Platform and tooling:
