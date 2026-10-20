@@ -21,7 +21,8 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 
 ## Running
 
-- 6.2: the host shim (bindings/host/), shared by JavaScript, Kotlin and Swift.
+- 6.4: Kotlin core on the JVM (dev.tinyactors.sxml).
+- 6.7: Swift core on Linux (module Sxml).
 - 7.20: sweep (7.11's transform-004/401/009, the larger duplicates of D237).
 
 ## Next
