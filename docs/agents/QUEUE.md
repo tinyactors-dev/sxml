@@ -14,8 +14,8 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
   scope 41,486 of 41,518. Zero error outcomes in every suite.
 - Optional features (D189). Budgets (D202, D207, D208): core `sxml.wasm`
   2,200,000 / 770,000 (2,077,439 / 725,473 after size-2, D227: each module
-  links only its languages' parts), `sxml-full.wasm` 7,500,000 /
-  2,625,000, CLI 9,000,000 / 2,000,000. The size test compares the core's
+  links only its languages' parts), `sxml-full.wasm` 8,000,000 /
+  2,800,000, CLI 9,500,000 / 2,100,000 (D235: XPath Full Text grammar). The size test compares the core's
   linker map with a baseline and prints the top growths (D225).
 - EXPath Binary (D198) 646 of 646 and File (D200) 270 of 270 in XQ40; File
   needs `--allow-file-access` in the CLI and has no Windows implementation.
@@ -23,7 +23,6 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 ## Running
 
 - 7.6g: streamed xsl:merge and capture="yes" (designs in D233).
-- 7.12d: XPath Full Text; EXPath prefixes bound in the JavaScript package.
 
 ## Next
 
@@ -34,8 +33,7 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 ## Leftovers no packet owns yet
 
 XPath and XQuery (after 2.22, D226):
-- Full Text works in XQuery only; XPath Full Text gives XPST0003.
-- The `bin:` prefix is not bound by default in the JavaScript package.
+- XSLT's own expressions have no Full Text (they use grammars/xpath; D235).
 - `{ E }` map constructors over JNodes (MapConstructor-500..511).
 - NCName vs `Q{}N` name tests (sxml_name_test is frozen); the item axis's
   JNode parent (D113); a declared function's `$a := .` via function-lookup.
