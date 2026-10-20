@@ -55,6 +55,25 @@ static sxml_status call_jvalue(const sxml_function_call *call, sxml_sequence *re
     return SXML_STATUS_OK;
 }
 
+/* The JNode J the item axis selects from an origin G whose ·jvalue· is
+   one item (XPath 4.0, section 4.7.5.1): ·jkey· 1, ·jvalue· ·jvalue·(G),
+   ·jparent· G, not a child of G. The step lowers to a call of this
+   internal row only for such an origin (src/xpath_lower.c). */
+static sxml_status call_item_node(const sxml_function_call *call, sxml_sequence *result) {
+    sxml_optional_item input;
+    sxml_status status = sxml_function_library_read_optional_item(call, 0, &input);
+    *result = sxml_sequence_empty();
+    if (status != SXML_STATUS_OK || !input.has_item) {
+        return status;
+    }
+    sxml_item json_node = {.representation = 0};
+    status = sxml_json_node_make_item_node(call->item_heap, input.item, &json_node);
+    if (status == SXML_STATUS_OK) {
+        *result = sxml_sequence_from_item(json_node);
+    }
+    return status;
+}
+
 /* ------------------------------------------------------------------ Rows */
 
 static const sxml_function_parameter jnode_parameters[] = {
@@ -65,6 +84,13 @@ static const sxml_native_function jnode_functions[] = {
     SXML_FUNCTION_ROW("jkey", jnode_parameters, "xs:anyAtomicType?", 0, call_jkey),
     SXML_FUNCTION_ROW("jvalue", jnode_parameters, "item()*", 0, call_jvalue),
 };
+
+static const sxml_function_parameter item_node_parameters[] = {
+    SXML_REQUIRED_PARAMETER("origin", "jnode()"),
+};
+
+const sxml_native_function sxml_item_node_function =
+    SXML_FUNCTION_ROW("item-node", item_node_parameters, "jnode()", 0, call_item_node);
 
 const sxml_native_function_view sxml_function_library_jnode =
     SXML_LIBRARY_PART(jnode_functions);

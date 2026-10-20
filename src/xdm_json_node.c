@@ -327,6 +327,24 @@ sxml_status sxml_json_node_make_child(sxml_item_heap *item_heap,
         child);
 }
 
+sxml_status sxml_json_node_make_item_node(sxml_item_heap *item_heap,
+                                          sxml_item origin,
+                                          sxml_item *json_node) {
+    if (!sxml_item_is_json_node(origin)) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    const sxml_json_node_cell *parent = sxml_json_node_cell_of_item(origin);
+    return sxml_json_node_make(
+        item_heap,
+        &(sxml_json_node_request){.parent = origin,
+                                  .json_key = sxml_json_position_key(0),
+                                  .json_value = parent->json_value,
+                                  .child_index = parent->child_count,
+                                  .depth = parent->depth + 1,
+                                  .json_tree = parent->json_tree},
+        json_node);
+}
+
 /* ---------------------------------------------- Identity and document order */
 
 /* The ancestor of json_node at depth (at most its own depth). */
@@ -347,6 +365,15 @@ static sxml_ordering sxml_ordering_of_numbers(uint64_t first,
         return SXML_ORDERING_LESS;
     }
     return first > second ? SXML_ORDERING_GREATER : SXML_ORDERING_EQUAL;
+}
+
+/* The place of a JNode among its parent's: 0 for the JNode of the item
+   axis (child_index past the parent's children), which comes directly
+   after its parent, before the parent's children; the child_index plus 1
+   for a child. */
+static uint64_t sxml_json_node_place(const sxml_json_node_cell *json_node) {
+    const sxml_json_node_cell *parent = sxml_json_node_cell_of_item(json_node->parent);
+    return json_node->child_index >= parent->child_count ? 0 : json_node->child_index + 1;
 }
 
 /* Two JNodes. */
@@ -376,8 +403,8 @@ sxml_json_node_compare_in_tree(sxml_json_node_pair pair) {
     sxml_ordering ordering = SXML_ORDERING_EQUAL;
     while (first->depth > 0) {
         if (first->child_index != second->child_index) {
-            ordering = sxml_ordering_of_numbers(first->child_index,
-                                                second->child_index);
+            ordering = sxml_ordering_of_numbers(sxml_json_node_place(first),
+                                                sxml_json_node_place(second));
         }
         first = sxml_json_node_cell_of_item(first->parent);
         second = sxml_json_node_cell_of_item(second->parent);

@@ -789,8 +789,13 @@ static sxml_status sxml_step_json_preceding(const sxml_step_output *output,
             break;
         }
         const sxml_item json_node = walk_step.item;
-        if (sxml_generic_node_is_same_node(
-                (sxml_item_pair){.first = json_node, .second = origin})) {
+        /* The walk ends at the first node not before origin: origin, or,
+           for a JNode of the item axis (no child of its parent) and its
+           descendants, the node after it. */
+        sxml_ordering ordering = SXML_ORDERING_LESS;
+        status = sxml_generic_node_compare_document_order(
+            (sxml_item_pair){.first = json_node, .second = origin}, &ordering);
+        if (status != SXML_STATUS_OK || ordering != SXML_ORDERING_LESS) {
             sxml_item_release(json_node);
             break;
         }
@@ -927,18 +932,24 @@ static sxml_status sxml_step_json_node(const sxml_step_output *output,
     case SXML_AXIS_FOLLOWING_SIBLING_OR_SELF:
     case SXML_AXIS_PRECEDING_SIBLING:
     case SXML_AXIS_PRECEDING_SIBLING_OR_SELF: {
-        if (!description.has_parent) {
+        sxml_json_node_description parent_description = {.has_parent = false};
+        if (description.has_parent) {
+            status = sxml_json_node_describe(description.parent, &parent_description);
+            if (status != SXML_STATUS_OK) {
+                return status;
+            }
+        }
+        /* A root, and the JNode of the item axis, which is not a child of
+           its parent (XPath 4.0, section 4.7.5.1; its child_index is past
+           the parent's children), have no siblings. */
+        if (!description.has_parent ||
+            description.child_index >= parent_description.child_count) {
             if (axis == SXML_AXIS_FOLLOWING_SIBLING_OR_SELF ||
                 axis == SXML_AXIS_PRECEDING_SIBLING_OR_SELF) {
                 sxml_item_retain(origin);
                 return sxml_step_output_take_json_node(output, origin);
             }
             return SXML_STATUS_OK;
-        }
-        sxml_json_node_description parent_description;
-        status = sxml_json_node_describe(description.parent, &parent_description);
-        if (status != SXML_STATUS_OK) {
-            return status;
         }
         const bool includes_self = axis == SXML_AXIS_FOLLOWING_SIBLING_OR_SELF ||
                                    axis == SXML_AXIS_PRECEDING_SIBLING_OR_SELF;

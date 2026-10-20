@@ -2018,6 +2018,8 @@ typedef struct call_argument {
 typedef struct prepared_call {
     sxml_ast_node_index node;
     sxml_function_entry entry;
+    /* The function's name as the call gives it; 0 when not known. */
+    sxml_name_identifier function_name;
     call_argument *arguments;
     size_t argument_count;
     size_t placeholder_count;
@@ -2374,10 +2376,11 @@ static sxml_status emit_call(sxml_xpath_lowerer *state, call_emission request,
 }
 
 /*
- * A partial application of a known function (XPath 4.0, section 4.5.2.5):
+ * A partial application of a known function (XPath 4.0, section 4.6.4):
  * the supplied arguments are coerced now and captured by a closure whose
  * parameters are the placeholders, in order, and whose body calls the
- * function.
+ * function. The closure has the function's name when every parameter maps
+ * to a placeholder (no supplied or defaulted parameter), else none.
  */
 static sxml_status emit_partial_application(sxml_xpath_lowerer *state,
                                             call_emission request,
@@ -2464,6 +2467,12 @@ static sxml_status emit_partial_application(sxml_xpath_lowerer *state,
             state,
             (closure_request){
                 .node = call->node,
+                .function_name =
+                    supplied_count == 0 &&
+                            call->placeholder_count ==
+                                call->entry.parameters.function_parameter_count
+                        ? call->function_name
+                        : (sxml_name_identifier){0},
                 .signature = signature,
                 .parameter_count = (uint32_t)call->placeholder_count,
                 .captured_atoms = {.atoms = captured_atoms,
@@ -4953,13 +4962,12 @@ static sxml_status add_integer_atom(sxml_xpath_lowerer *state, int64_t value,
 }
 
 /*
- * "item::T" from each origin G (XPath 4.0, section 4.7.4, "Axes"): the
+ * "item::T" from each origin G (XPath 4.0, section 4.7.5.1, "Axes"): the
  * JNodes of the child axis when ·jvalue·(G) has two or more items, none
  * when it is empty, else one JNode J with ·jkey· 1 and ·jvalue·
- * ·jvalue·(G). fn:jvalue raises the type error for an XNode origin. J is
- * made as the child of the array [·jvalue·(G)] (a map or array origin of
- * a step is a JTree root, section 4.7.5), so its parent is that array's
- * JNode, not G (D113; the IR has no axis that makes such a JNode).
+ * ·jvalue·(G) and ·jparent· G, which is not a child of G: the internal row
+ * sxml_item_node_function makes it, and a self step applies the node test.
+ * fn:jvalue raises the type error for an XNode origin.
  */
 static sxml_status add_item_axis_step(sxml_xpath_lowerer *state, step_request request,
                                       sxml_ir_expression_index *expression) {
@@ -5045,13 +5053,13 @@ static sxml_status add_item_axis_step(sxml_xpath_lowerer *state, step_request re
         status = sxml_xpath_lowerer_add_empty_sequence(state, request.node, &empty);
     }
     sxml_xpath_lowering_block single_block = {{0}, {0}};
-    sxml_ir_atom_list members = {0};
+    sxml_ir_atom_list arguments = {0};
     if (status == SXML_STATUS_OK) {
         status = sxml_ir_unit_add_atoms(
-            state->unit, (sxml_ir_atom_view){.atoms = &value, .atom_count = 1},
-            &members);
+            state->unit, (sxml_ir_atom_view){.atoms = &origin_atom, .atom_count = 1},
+            &arguments);
     }
-    sxml_ir_atom wrapper = {0};
+    sxml_ir_atom item_node = {0};
     if (status == SXML_STATUS_OK) {
         status = bind_new_expression(
             state,
@@ -5059,18 +5067,20 @@ static sxml_status add_item_axis_step(sxml_xpath_lowerer *state, step_request re
                 .block = &single_block,
                 .node = request.node,
                 .expression = {
-                    .expression_kind = SXML_IR_EXPRESSION_KIND_ARRAY_CONSTRUCTOR,
-                    .array_constructor = {.array_form = SXML_IR_ARRAY_FORM_SQUARE,
-                                          .members = members}}},
-            &wrapper);
+                    .expression_kind = SXML_IR_EXPRESSION_KIND_STATIC_CALL,
+                    .static_call = {.target = {.target_kind =
+                                                   SXML_IR_FUNCTION_TARGET_KIND_NATIVE,
+                                               .native_function = &sxml_item_node_function},
+                                    .arguments = arguments}}},
+            &item_node);
     }
     sxml_ir_expression_index single = {0};
     if (status == SXML_STATUS_OK) {
         status = add_step(state,
                           (step_request){.block = &single_block,
                                          .node = request.node,
-                                         .origin = wrapper,
-                                         .axis = SXML_AXIS_CHILD,
+                                         .origin = item_node,
+                                         .axis = SXML_AXIS_SELF,
                                          .node_test = request.node_test},
                           &single);
     }
@@ -6630,6 +6640,8 @@ typedef struct function_call_locals {
     /* fn:current-merge-group($source): a dynamic call of the merge's
        function item (the first argument) with $source (below). */
     bool calls_merge_sources;
+    /* The name the call resolves to. */
+    sxml_name_identifier function_name;
 } function_call_locals;
 
 static sxml_status push_function_call(sxml_xpath_lowering_machine *machine,
@@ -6744,6 +6756,7 @@ static sxml_status begin_function_call(sxml_xpath_lowering_machine *machine,
                                        .arity = 2},
             &entry);
     } else {
+        locals->function_name = name;
         status = find_function(
             state, (function_lookup){.function_name = name, .arity = arity}, &entry);
     }
@@ -7014,6 +7027,7 @@ static sxml_status finish_function_call(sxml_xpath_lowering_machine *machine,
     }
     const prepared_call call = {.node = call_node,
                                 .entry = locals->entry,
+                                .function_name = locals->function_name,
                                 .arguments = locals->arguments,
                                 .argument_count = locals->arity,
                                 .placeholder_count = locals->placeholder_count};

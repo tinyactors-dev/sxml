@@ -664,7 +664,7 @@ static sxml_status make_step(const sxml_function_call *call, generic_step step,
 
 /* fn:siblings($node := .) (F&O 4.0, section 12.2.11): the children of
    the parent, in document order, $node included; $node alone when it is
-   parentless, an attribute or a namespace node. */
+   parentless, an attribute, a namespace node or no child of its parent. */
 static sxml_status call_siblings(const sxml_function_call *call, sxml_sequence *result) {
     sxml_optional_item argument;
     sxml_status status = sxml_function_library_read_optional_item(call, 0, &argument);
@@ -683,6 +683,18 @@ static sxml_status call_siblings(const sxml_function_call *call, sxml_sequence *
         is_child = status == SXML_STATUS_OK &&
                    description.node_kind != SXML_NODE_KIND_ATTRIBUTE &&
                    description.node_kind != SXML_NODE_KIND_NAMESPACE;
+    } else if (sxml_item_get_kind(argument.item) == SXML_ITEM_KIND_JSON_NODE) {
+        /* The JNode the item axis selects is not a child of its parent
+           (XPath 4.0, 4.7.5.1): its child_index is past the parent's
+           children (src/xdm_internal.h). */
+        sxml_json_node_description description;
+        status = sxml_json_node_describe(argument.item, &description);
+        sxml_json_node_description parent_description = {.child_count = 0};
+        if (status == SXML_STATUS_OK && description.has_parent) {
+            status = sxml_json_node_describe(description.parent, &parent_description);
+        }
+        is_child = status == SXML_STATUS_OK && description.has_parent &&
+                   description.child_index < parent_description.child_count;
     }
     generic_parent parent = {.has_parent = false};
     if (status == SXML_STATUS_OK && is_child) {

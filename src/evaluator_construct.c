@@ -73,6 +73,14 @@ static const sxml_static_error sxml_construct_name_type_error = {
         "the name of a computed constructor is not one xs:QName or xs:string"),
 };
 
+static const sxml_static_error sxml_construct_namespace_sensitive_copy_error = {
+    .error_status = SXML_STATUS_TYPE_ERROR,
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XQTY0086"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(
+        "a copied node has a namespace-sensitive typed value under construction "
+        "preserve, without its namespaces (XQuery 4.0, 4.12.1.3)"),
+};
+
 static const sxml_static_error sxml_construct_invalid_name_error = {
     .error_status = SXML_STATUS_DYNAMIC_ERROR,
     .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XQDY0074"),
@@ -1132,6 +1140,87 @@ static sxml_status sxml_construction_add_atomic(sxml_construction *construction,
     return status;
 }
 
+/* True when the typed value of an element or attribute has an xs:QName
+   or xs:NOTATION item (namespace-sensitive); false for an untyped node or
+   one without a typed value. */
+static sxml_status sxml_node_is_namespace_sensitive(sxml_construction *construction,
+                                                    sxml_node_reference node,
+                                                    bool *is_namespace_sensitive) {
+    *is_namespace_sensitive = false;
+    sxml_node_description description;
+    sxml_status status = sxml_node_describe(node, &description);
+    if (status != SXML_STATUS_OK ||
+        (description.node_kind != SXML_NODE_KIND_ELEMENT &&
+         description.node_kind != SXML_NODE_KIND_ATTRIBUTE) ||
+        description.type_annotation.index == SXML_TYPE_XS_UNTYPED ||
+        description.type_annotation.index == SXML_TYPE_XS_UNTYPED_ATOMIC) {
+        return status;
+    }
+    sxml_sequence typed_value = sxml_sequence_empty();
+    status = sxml_node_make_typed_value(
+        construction->dynamic_context->item_heap,
+        &(sxml_node_value_request){.node = node, .error_record = NULL}, &typed_value);
+    if (status == SXML_STATUS_TYPE_ERROR) {
+        /* No typed value (element-only content). */
+        return SXML_STATUS_OK;
+    }
+    sxml_sequence_iterator iterator = sxml_sequence_iterator_start(typed_value);
+    while (status == SXML_STATUS_OK && !*is_namespace_sensitive) {
+        sxml_iteration_step step;
+        status = sxml_sequence_iterator_next(&iterator, NULL, &step);
+        if (status != SXML_STATUS_OK || !step.has_item) {
+            break;
+        }
+        const sxml_type_identifier primitive = sxml_atomic_item_get_primitive_type(step.item);
+        *is_namespace_sensitive = primitive.index == SXML_TYPE_XS_QNAME ||
+                                  primitive.index == SXML_TYPE_XS_NOTATION;
+    }
+    sxml_sequence_release(typed_value);
+    return status;
+}
+
+/* XQTY0086 (XQuery 4.0, 4.12.1.3, step 1d) under construction preserve: a
+   copied attribute (without its element) whose typed value is
+   namespace-sensitive, or, with copy-namespaces no-preserve, a copied
+   element whose typed value or an attribute's is (each element of the
+   copied subtree is copied). XSLT's rules do not apply it. */
+static sxml_status sxml_construction_check_copy(sxml_construction *construction,
+                                                sxml_node_reference node,
+                                                const sxml_node_description *description) {
+    const uint32_t flags = construction->construction_flags;
+    if ((flags & (uint32_t)SXML_IR_CONSTRUCTION_PRESERVES_TYPES) == 0 ||
+        (flags & (uint32_t)SXML_IR_CONSTRUCTION_XSLT_RULES) != 0 ||
+        node.namespace_number != 0) {
+        return SXML_STATUS_OK;
+    }
+    uint32_t last_index = node.node_index.index;
+    if (description->node_kind == SXML_NODE_KIND_ELEMENT) {
+        if ((flags & (uint32_t)SXML_IR_CONSTRUCTION_NO_PRESERVE_NAMESPACES) == 0) {
+            return SXML_STATUS_OK;
+        }
+        last_index = description->last_descendant.index;
+    } else if (description->node_kind != SXML_NODE_KIND_ATTRIBUTE) {
+        return SXML_STATUS_OK;
+    }
+    sxml_status status = SXML_STATUS_OK;
+    bool is_namespace_sensitive = false;
+    for (uint32_t node_index = node.node_index.index;
+         status == SXML_STATUS_OK && !is_namespace_sensitive && node_index <= last_index;
+         node_index += 1) {
+        status = sxml_node_is_namespace_sensitive(
+            construction,
+            (sxml_node_reference){.tree = node.tree,
+                                  .node_index = {.index = node_index},
+                                  .namespace_number = 0},
+            &is_namespace_sensitive);
+    }
+    if (status == SXML_STATUS_OK && is_namespace_sensitive) {
+        return sxml_evaluator_machine_raise(construction->dynamic_context,
+                                            &sxml_construct_namespace_sensitive_copy_error);
+    }
+    return status;
+}
+
 /* Copies node (and its subtree) into the tree being built with the
    construction's copy-namespaces and construction modes (XQuery 4.0,
    4.12.1.3, step 1d: copied as by the copy-namespaces mode; untyped
@@ -1145,6 +1234,9 @@ static sxml_status sxml_construction_copy(sxml_construction *construction,
     }
     sxml_status status =
         sxml_dynamic_context_charge_steps(construction->dynamic_context, node_count);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_construction_check_copy(construction, node, description);
+    }
     if (status == SXML_STATUS_OK) {
         const uint32_t flags = construction->construction_flags;
         status = sxml_tree_builder_copy_node(

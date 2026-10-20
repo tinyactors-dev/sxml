@@ -52,8 +52,9 @@
  *   entry whose value is empty is not significant), values deep equal, in
  *   the same order with map-order;
  * - arrays: same size, members deep equal in order;
- * - other function items: the same item, or the same body, arity, name
- *   and signature with deep-equal captured values, where two IR functions
+ * - other function items: the same item, or the same body, arity,
+ *   signature and implementation name (implementation_name_of) with
+ *   deep-equal captured values, where two IR functions
  *   with the same static form are the same body (so two references to a
  *   function, two partial applications of it to equal arguments and two
  *   inline functions written alike up to their variable names are equal;
@@ -1643,6 +1644,25 @@ static sxml_status compare_nodes(deep_comparison *comparison, node_pair pair) {
     return SXML_STATUS_INVALID_ARGUMENT;
 }
 
+/* The name that tells implementations apart where bodies are shared. The
+   static form is "compared ignoring the function's name and annotations"
+   (F&O 4.0, 1.9.5), so a declared function's name (a top-level IR
+   function, whose body is its static form) does not count; the name of a
+   native row (fn:last#0 and fn:position#0 share one body, D143) and of a
+   closure that lowering made for a named reference or a partial
+   application (whose name is the implementation it calls) does. 0 for
+   none. */
+static sxml_name_identifier
+implementation_name_of(const sxml_function_item_description *description) {
+    if (description->body.operations == &sxml_evaluator_function_body_operations) {
+        const sxml_ir_function *function = description->body.state;
+        if (function->defining_function.value == 0) {
+            return (sxml_name_identifier){.index = 0};
+        }
+    }
+    return description->function_name;
+}
+
 /* Two function items that are neither maps nor arrays: equal when they are
    the same item, or have the same body (or IR functions of the same
    static form), arity, name and signature and deep-equal captured values
@@ -1680,7 +1700,8 @@ static sxml_status compare_functions(deep_comparison *comparison, sxml_item firs
     if (!has_same_body ||
         first_description.body.operations != second_description.body.operations ||
         first_description.arity != second_description.arity ||
-        first_description.function_name.index != second_description.function_name.index ||
+        implementation_name_of(&first_description).index !=
+            implementation_name_of(&second_description).index ||
         first_description.signature.index != second_description.signature.index ||
         first_description.captured_values.sequence_count !=
             second_description.captured_values.sequence_count) {

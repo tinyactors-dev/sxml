@@ -1313,7 +1313,7 @@ static const feature_case feature_cases[] = {
      .expected_text =
          "(function 1 main (parameters 0) (captures) (slots 0)\n"
          "  (function-definition 2))\n"
-         "(function 2 anonymous (parameters 1) (captures) (slots 1)\n"
+         "(function 2 xs:int (parameters 1) (captures) (slots 1)\n"
          "  (cast $1 xs:int?))\n"},
     {.compile = {.expression_text = "concat(?, 'b', ?)"},
      .expected_text =
@@ -1431,8 +1431,8 @@ static const feature_case feature_cases[] = {
      "              (let $7 (binary value-equal $5 0)\n"
      "                (conditional $7\n"
      "                  (sequence)\n"
-     "                  (let $8 (array-constructor square $4)\n"
-     "                    (step $8 child element())))))))))))\n"},
+     "                  (let $8 (static-call fn:item-node#1 $2)\n"
+     "                    (step $8 self element())))))))))))\n"},
     {.compile = {.expression_text = "xs:integer(value := '1')"},
      .expected_text =
      "(function 1 main (parameters 0) (captures) (slots 0)\n"

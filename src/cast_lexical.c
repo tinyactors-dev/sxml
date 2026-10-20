@@ -1416,6 +1416,8 @@ sxml_cast_make_item_from_lexical_form(sxml_item_heap *item_heap,
 typedef struct sxml_text_sink {
     sxml_memory_view output;
     size_t byte_count;
+    /* sxml_canonical_text_request.uses_schema_mapping. */
+    bool uses_schema_mapping;
 } sxml_text_sink;
 
 static void sxml_sink_put(sxml_text_sink *sink, uint8_t byte) {
@@ -1699,6 +1701,9 @@ static void sxml_sink_put_binary(sxml_text_sink *sink, sxml_binary_text text) {
 typedef struct sxml_binary_number_text {
     bool is_float;
     double double_number;
+    /* XSD 1.1 Part 2, E.1.3 (doubleCanonicalMap): the exponent form for
+       every finite value. */
+    bool uses_exponent_form;
 } sxml_binary_number_text;
 
 /*
@@ -1706,7 +1711,9 @@ typedef struct sxml_binary_number_text {
  * then the shortest decimal that reads back as the value (D57); written as
  * that decimal when it is from 1.0E-6 up to 1.0E6 (exclusive), otherwise
  * with one nonzero digit before the point, at least one digit after it, and
- * an exponent without "+" and leading zeros.
+ * an exponent without "+" and leading zeros. With uses_exponent_form
+ * (XSD 1.1's canonical mapping) every finite value takes the second form,
+ * zero as "0.0E0" or "-0.0E0".
  */
 static sxml_status sxml_sink_put_binary_number(sxml_item_heap *item_heap,
                                                sxml_text_sink *sink,
@@ -1720,6 +1727,12 @@ static sxml_status sxml_sink_put_binary_number(sxml_item_heap *item_heap,
         sxml_sink_put_bytes(sink, value < 0
                                       ? SXML_BYTE_VIEW_FROM_LITERAL("-INF")
                                       : SXML_BYTE_VIEW_FROM_LITERAL("INF"));
+        return SXML_STATUS_OK;
+    }
+    if (value == 0.0 && text.uses_exponent_form) {
+        sxml_sink_put_bytes(sink, signbit(value)
+                                      ? SXML_BYTE_VIEW_FROM_LITERAL("-0.0E0")
+                                      : SXML_BYTE_VIEW_FROM_LITERAL("0.0E0"));
         return SXML_STATUS_OK;
     }
     if (value == 0.0) {
@@ -1780,7 +1793,9 @@ static sxml_status sxml_sink_put_binary_number(sxml_item_heap *item_heap,
     while (digit_count > 1 && digits[digit_count - 1] == '0') {
         digit_count -= 1;
     }
-    if (exponent >= -6 && exponent < 6) {
+    /* A nonzero value has a significant digit; without one the decimal
+       text stands. */
+    if (digit_count == 0 || (!text.uses_exponent_form && exponent >= -6 && exponent < 6)) {
         sxml_sink_put_bytes(sink, decimal_text);
         return SXML_STATUS_OK;
     }
@@ -1852,13 +1867,14 @@ static sxml_status sxml_sink_put_datum(sxml_item_heap *item_heap,
             item_heap, sink,
             (sxml_binary_number_text){
                 .is_float = true,
-                .double_number = (double)datum.datum_details.float_number});
+                .double_number = (double)datum.datum_details.float_number,
+                .uses_exponent_form = sink->uses_schema_mapping});
     case SXML_DATUM_KIND_DOUBLE:
         return sxml_sink_put_binary_number(
             item_heap, sink,
             (sxml_binary_number_text){.is_float = false,
-                                      .double_number =
-                                          datum.datum_details.double_number});
+                                      .double_number = datum.datum_details.double_number,
+                                      .uses_exponent_form = sink->uses_schema_mapping});
     case SXML_DATUM_KIND_STRING:
         sxml_sink_put_bytes(sink, datum.datum_details.string.utf8);
         return SXML_STATUS_OK;
@@ -1926,7 +1942,9 @@ sxml_cast_write_canonical_text(sxml_item_heap *item_heap,
             .text = text, .required_byte_count = text.byte_count};
         return SXML_STATUS_OK;
     }
-    sxml_text_sink sink = {.output = request->output, .byte_count = 0};
+    sxml_text_sink sink = {.output = request->output,
+                           .byte_count = 0,
+                           .uses_schema_mapping = request->uses_schema_mapping};
     sxml_status status = sxml_sink_put_datum(item_heap, &sink, request->item);
     if (status != SXML_STATUS_OK) {
         return status;

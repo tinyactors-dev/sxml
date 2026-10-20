@@ -1183,7 +1183,8 @@ static void test_arithmetic_and_comparison_slice_lines(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, evaluates_to("2 = (1, 2, 3)", "true"));  /* K-GenCompEq-40 */
     SXML_TEST_EXPECT(state, evaluates_to("() < ()", "false"));  /* generalexpression199 */
     SXML_TEST_EXPECT(state, evaluates_to("-(3) + +4 || 'x' || ()", "1x"));
-    SXML_TEST_EXPECT(state, fails_with("(1, 2) || 'x'", "XPTY0004"));
+    /* XPath 4.0, 4.10.1: "$a || $b is equivalent to fn:concat($a, $b)". */
+    SXML_TEST_EXPECT(state, evaluates_to("(1, 2) || 'x'", "12x"));
 }
 
 /* ------------------------------------------- Sequences, filters, maps */

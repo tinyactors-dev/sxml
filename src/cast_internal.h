@@ -134,6 +134,13 @@ typedef struct sxml_canonical_text_request {
     sxml_item item;
     /* Where text that the item does not hold is written. */
     sxml_memory_view output;
+    /* The canonical mapping of XSD 1.1 Part 2 (appendix E) in place of
+       F&O 4.0's cast to xs:string, where they differ: xs:float and
+       xs:double always in the exponent form ("9.37E1", "0.0E0"). For the
+       pattern facets of a cast from a non-string type (F&O 4.0, 23.3.5:
+       "the canonical representation of the value, as defined for the
+       source type"). */
+    bool uses_schema_mapping;
 } sxml_canonical_text_request;
 
 /* Where the canonical text ended up. */

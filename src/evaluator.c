@@ -123,8 +123,8 @@ static const sxml_static_error sxml_map_merge_error = {
     .error_status = SXML_STATUS_TYPE_ERROR,
     .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XPTY0004"),
     .description = SXML_BYTE_VIEW_INITIALIZER(
-        "A map constructor entry without a value is not a map (XPath 4.0, "
-        "section 4.7.1)"),
+        "A map constructor entry without a value is not a map or a JNode of "
+        "maps (XPath 4.0, section 4.15.1.1)"),
 };
 
 static const sxml_static_error sxml_range_operand_error = {
@@ -141,14 +141,6 @@ static const sxml_static_error sxml_range_overflow_error = {
     .description = SXML_BYTE_VIEW_INITIALIZER(
         "A range bound is beyond the integers sxml can count (XPath 4.0, "
         "section 4.8.2)"),
-};
-
-static const sxml_static_error sxml_concatenation_operand_error = {
-    .error_status = SXML_STATUS_TYPE_ERROR,
-    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XPTY0004"),
-    .description = SXML_BYTE_VIEW_INITIALIZER(
-        "An operand of \"||\" has more than one item (XPath 4.0, section "
-        "4.10)"),
 };
 
 static const sxml_static_error sxml_sort_key_error = {
@@ -2077,7 +2069,9 @@ static sxml_status sxml_text_buffer_append_item(sxml_dynamic_context *context,
     return status;
 }
 
-/* "||" (XPath 4.0, section 4.10) over atomized operands. */
+/* "||" (XPath 4.0, section 4.10.1) over atomized operands: "$a || $b is
+   equivalent to fn:concat($a, $b)", which joins every item of each
+   operand (F&O 4.0, 5.4.1, xs:anyAtomicType* arguments). */
 static sxml_status sxml_make_concatenation_value(sxml_dynamic_context *context,
                                                  const sxml_sequence *operands,
                                                  sxml_sequence *result) {
@@ -2088,15 +2082,14 @@ static sxml_status sxml_make_concatenation_value(sxml_dynamic_context *context,
     sxml_status status = SXML_STATUS_OK;
     for (size_t operand_index = 0; status == SXML_STATUS_OK && operand_index < 2;
          operand_index += 1) {
-        sxml_single_operand single;
-        status = sxml_operator_read_single_operand(operands[operand_index],
-                                                   context->error_record, &single);
-        if (status == SXML_STATUS_TYPE_ERROR) {
-            status = sxml_error_record_report(context->error_record,
-                                              &sxml_concatenation_operand_error);
-        }
-        if (status == SXML_STATUS_OK && single.has_item) {
-            status = sxml_text_buffer_append_item(context, &buffer, single.item);
+        sxml_sequence_iterator iterator = sxml_sequence_iterator_start(operands[operand_index]);
+        while (status == SXML_STATUS_OK) {
+            sxml_iteration_step step;
+            status = sxml_sequence_iterator_next(&iterator, context->error_record, &step);
+            if (status != SXML_STATUS_OK || !step.has_item) {
+                break;
+            }
+            status = sxml_text_buffer_append_item(context, &buffer, step.item);
         }
     }
     sxml_item item = {.representation = 0};
@@ -2712,8 +2705,26 @@ static void sxml_entry_list_finalize(sxml_entry_list *list) {
     }
 }
 
-/* Adds the entries of every map in maps (a constructor entry without a
-   value, XPath 4.0, section 4.7.1). */
+/* Adds the entries of one map. */
+static sxml_status sxml_entry_list_add_map_entries(sxml_entry_list *list, sxml_item map) {
+    size_t entry_count = 0;
+    sxml_status status = sxml_map_get_size(map, &entry_count);
+    for (size_t entry_index = 0; status == SXML_STATUS_OK && entry_index < entry_count;
+         entry_index += 1) {
+        sxml_map_entry entry;
+        status = sxml_map_get_entry(map, entry_index, &entry);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_entry_list_add(list, entry);
+        }
+    }
+    return status;
+}
+
+/* Adds the maps a constructor entry without a value delivers (XPath 4.0,
+   section 4.15.1.1): each item is a map, or a JNode converted to maps; a
+   JNode with a ·jkey· (every JNode but a root) is the single-entry map of
+   its ·jkey· and ·jvalue·, any other its ·jvalue·, which must be maps.
+   Anything else is XPTY0004. */
 static sxml_status sxml_entry_list_add_maps(sxml_dynamic_context *context,
                                             sxml_entry_list *list, sxml_sequence maps) {
     sxml_sequence_iterator iterator = sxml_sequence_iterator_start(maps);
@@ -2724,19 +2735,40 @@ static sxml_status sxml_entry_list_add_maps(sxml_dynamic_context *context,
         if (status != SXML_STATUS_OK || !step.has_item) {
             break;
         }
-        if (sxml_item_get_kind(step.item) != SXML_ITEM_KIND_MAP) {
+        const sxml_item_kind kind = sxml_item_get_kind(step.item);
+        if (kind == SXML_ITEM_KIND_MAP) {
+            status = sxml_entry_list_add_map_entries(list, step.item);
+            continue;
+        }
+        if (kind != SXML_ITEM_KIND_JSON_NODE) {
             return sxml_error_record_report(context->error_record,
                                             &sxml_map_merge_error);
         }
-        size_t entry_count = 0;
-        status = sxml_map_get_size(step.item, &entry_count);
-        for (size_t entry_index = 0; status == SXML_STATUS_OK && entry_index < entry_count;
-             entry_index += 1) {
-            sxml_map_entry entry;
-            status = sxml_map_get_entry(step.item, entry_index, &entry);
-            if (status == SXML_STATUS_OK) {
-                status = sxml_entry_list_add(list, entry);
+        sxml_json_node_description description;
+        status = sxml_json_node_describe(step.item, &description);
+        if (status != SXML_STATUS_OK) {
+            break;
+        }
+        if (description.has_parent) {
+            status = sxml_entry_list_add(
+                list, (sxml_map_entry){.key = description.json_key,
+                                       .value = description.json_value});
+            continue;
+        }
+        sxml_sequence_iterator value_iterator =
+            sxml_sequence_iterator_start(description.json_value);
+        while (status == SXML_STATUS_OK) {
+            sxml_iteration_step value_step;
+            status = sxml_sequence_iterator_next(&value_iterator, context->error_record,
+                                                 &value_step);
+            if (status != SXML_STATUS_OK || !value_step.has_item) {
+                break;
             }
+            if (sxml_item_get_kind(value_step.item) != SXML_ITEM_KIND_MAP) {
+                return sxml_error_record_report(context->error_record,
+                                                &sxml_map_merge_error);
+            }
+            status = sxml_entry_list_add_map_entries(list, value_step.item);
         }
     }
     return status;

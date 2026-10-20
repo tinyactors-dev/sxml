@@ -346,6 +346,10 @@ extern const sxml_native_function_view sxml_function_library_map;
 /* The internal row "A but with B" lowers to (XPath 4.0, 4.15.4;
    src/function_library_map.c); in no function table. */
 extern const sxml_native_function sxml_but_with_function;
+/* The internal row the item axis lowers to for an origin whose ·jvalue·
+   is one item (XPath 4.0, 4.7.5.1; src/function_library_jnode.c); in no
+   function table. */
+extern const sxml_native_function sxml_item_node_function;
 extern const sxml_native_function_view sxml_function_library_array;
 extern const sxml_native_function_view sxml_function_library_json;
 /* fn:static-base-uri and fn:resolve-uri (src/function_library_uri.c,

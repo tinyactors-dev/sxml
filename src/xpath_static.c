@@ -670,10 +670,11 @@ static sxml_status find_named_type(const type_resolver *resolver,
    up (and accepts the type). */
 #define PURE_UNION_STACK_CAPACITY 32U
 
-/* True when a union type's transitive members are all atomic: a pure
-   union, a generalized atomic type (XPath 4.0, section 3.2.3; a union with
-   a list member is not one). Walks the members with an explicit stack
-   (D71). */
+/* True when a union type is a pure union, a generalized atomic type
+   (XPath 4.0, section 3.2.3): it and every union in its transitive
+   membership have no facets (an own restriction step's, or a union base
+   type's, from which the facets are inherited), and no member is a list.
+   Walks the members and union bases with an explicit stack (D71). */
 static bool is_pure_union(const type_resolver *resolver, sxml_type_identifier type) {
     sxml_type_identifier stack[PURE_UNION_STACK_CAPACITY];
     size_t depth = 1;
@@ -688,8 +689,19 @@ static bool is_pure_union(const type_resolver *resolver, sxml_type_identifier ty
         if (description.variety == SXML_TYPE_VARIETY_ATOMIC) {
             continue;
         }
-        if (description.variety != SXML_TYPE_VARIETY_UNION) {
+        if (description.variety != SXML_TYPE_VARIETY_UNION ||
+            description.facets.facet_count != 0) {
             return false;
+        }
+        sxml_type_description base;
+        if (sxml_type_registry_describe_type(resolver->type_registry, description.base_type,
+                                             &base) == SXML_STATUS_OK &&
+            base.variety == SXML_TYPE_VARIETY_UNION) {
+            if (depth == PURE_UNION_STACK_CAPACITY) {
+                return true;
+            }
+            stack[depth] = description.base_type;
+            depth += 1;
         }
         const sxml_type_identifier_view members = description.variety_details.member_types;
         for (size_t member_index = 0; member_index < members.type_identifier_count;
@@ -724,8 +736,8 @@ static sxml_status resolve_type_name(const type_resolver *resolver,
     if (description.variety == SXML_TYPE_VARIETY_UNION && !is_pure_union(resolver, type)) {
         return report_at(site_of(resolver, name_node), SXML_BYTE_VIEW_FROM_LITERAL("XPST0051"),
                          SXML_BYTE_VIEW_FROM_LITERAL(
-                             "the union type has a list member, so it is not a generalized "
-                             "atomic type"));
+                             "the union type has a list member or facets, so it is not a "
+                             "generalized atomic type"));
     }
     switch (description.variety) {
     case SXML_TYPE_VARIETY_ATOMIC:

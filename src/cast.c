@@ -756,9 +756,17 @@ typedef struct sxml_canonical_scratch {
     sxml_scratch_text scratch;
 } sxml_canonical_scratch;
 
+/* An item whose canonical text is wanted, and which mapping
+   (sxml_canonical_text_request). */
+typedef struct sxml_canonical_scratch_request {
+    sxml_item item;
+    bool uses_schema_mapping;
+} sxml_canonical_scratch_request;
+
 static sxml_status
-sxml_write_canonical_scratch(sxml_item_heap *item_heap, sxml_item item,
+sxml_write_canonical_scratch(sxml_item_heap *item_heap, sxml_canonical_scratch_request request,
                              sxml_canonical_scratch *canonical) {
+    const sxml_item item = request.item;
     canonical->scratch =
         (sxml_scratch_text){.text = {.bytes = NULL, .byte_count = 0},
                             .bytes = {.memory = NULL, .byte_count = 0}};
@@ -768,7 +776,8 @@ sxml_write_canonical_scratch(sxml_item_heap *item_heap, sxml_item item,
         &(sxml_canonical_text_request){
             .item = item,
             .output = {.bytes = canonical->bytes,
-                       .byte_count = sizeof(canonical->bytes)}},
+                       .byte_count = sizeof(canonical->bytes)},
+            .uses_schema_mapping = request.uses_schema_mapping},
         &text);
     if (status == SXML_STATUS_CAPACITY_EXCEEDED) {
         void *memory = NULL;
@@ -787,7 +796,8 @@ sxml_write_canonical_scratch(sxml_item_heap *item_heap, sxml_item item,
             &(sxml_canonical_text_request){
                 .item = item,
                 .output = {.bytes = memory,
-                           .byte_count = text.required_byte_count}},
+                           .byte_count = text.required_byte_count},
+                .uses_schema_mapping = request.uses_schema_mapping},
             &text);
         if (status != SXML_STATUS_OK) {
             sxml_scratch_text_release(item_heap, &canonical->scratch);
@@ -849,12 +859,17 @@ static sxml_status sxml_cast_text(const sxml_atomic_cast *cast,
 
 /* Checks the facets of a schema type against an item cast from another
    type than the string types, matching patterns against its canonical
-   text; releases the item on failure. */
+   text, XSD's canonical mapping (F&O 4.0, 23.3.5: "the canonical
+   representation of the value, as defined for the source type");
+   releases the item on failure. */
 static sxml_status sxml_cast_check_item_facets(sxml_item_heap *item_heap,
                                                const sxml_facet_check_request *request) {
     sxml_canonical_scratch canonical;
-    sxml_status status =
-        sxml_write_canonical_scratch(item_heap, request->items.items[0], &canonical);
+    sxml_status status = sxml_write_canonical_scratch(
+        item_heap,
+        (sxml_canonical_scratch_request){.item = request->items.items[0],
+                                         .uses_schema_mapping = true},
+        &canonical);
     if (status == SXML_STATUS_OK) {
         sxml_facet_check_request check = *request;
         check.lexical_form = canonical.scratch.text;
@@ -902,8 +917,11 @@ static sxml_status sxml_cast_to_atomic_target(const sxml_atomic_cast *cast,
         /* F&O 4.0, section 19.1.2, then the facets of a derived string
            type (19.3.1). */
         sxml_canonical_scratch canonical;
-        sxml_status status =
-            sxml_write_canonical_scratch(item_heap, source.item, &canonical);
+        sxml_status status = sxml_write_canonical_scratch(
+            item_heap,
+            (sxml_canonical_scratch_request){.item = source.item,
+                                             .uses_schema_mapping = false},
+            &canonical);
         if (status != SXML_STATUS_OK) {
             return status;
         }

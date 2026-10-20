@@ -341,6 +341,21 @@ static inline sxml_sequence sxml_sequence_from_cell(
 SXML_NODISCARD sxml_status sxml_sequence_make_vector_taking(
     sxml_item_heap *item_heap, sxml_item_view items, sxml_sequence *sequence);
 
+/* -------------------------------------------------------------- JNodes */
+
+/*
+ * Makes the JNode J that the item axis selects from a JNode origin G whose
+ * ·jvalue· is a single item (XPath 4.0, section 4.7.5.1, "the item axis"):
+ * ·jkey· 1, ·jvalue· ·jvalue·(G), ·jparent· G, and J is not a child of G.
+ * It is written, owned, to *json_node. Its child_index is G's child count,
+ * one past G's children, so J is the same node each time it is made, sorts
+ * directly after G in document order (with its subtree), before G's
+ * children, and has no siblings (src/evaluator_path.c, fn:siblings). Returns SXML_STATUS_INVALID_ARGUMENT
+ * when origin is not a JNode, and the heap's failures.
+ */
+SXML_NODISCARD sxml_status sxml_json_node_make_item_node(
+    sxml_item_heap *item_heap, sxml_item origin, sxml_item *json_node);
+
 /* --------------------------------------------------------- Heap memory */
 
 /*
