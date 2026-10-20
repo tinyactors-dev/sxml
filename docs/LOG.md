@@ -4,6 +4,15 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 4.24 done (D261): XSLT stylesheets no longer see XPath's predeclared
+  prefixes; as XSLT 4.0 5.3.1 says, a stylesheet knows its applicable
+  static namespaces (native or fixed-namespaces) and xml. A behaviour
+  change for users: undeclared xs:, map:, math: in a stylesheet raise
+  XPST0081 (expressions, as types) or XTSE0280 (names). The book's
+  page.xsl and customers.xsl, five unit-test files and the bindings'
+  tests declare theirs; CHANGELOG says so. XT40 12,156 to 12,157 passed
+  (namespace-6202), 361 failed, 0 errors, no case lost.
+
 - 4.23 done (D260): an XSLT sweep by root-cause clusters. assert-xml
   ignores whitespace around a result document; enclosing modes (6.9.6);
   XTSE0545 for name lists and types; initial-mode eligibility; xsl:copy

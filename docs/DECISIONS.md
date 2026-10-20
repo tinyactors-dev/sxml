@@ -11829,6 +11829,51 @@ and prod-MapConstructor give the same outcomes in XP40 and XQ40.
   namespace-2606, docbook-004, document-4066, fn-transform-27/-82e/
   -94 (causes as D230 and D234 give them).
 
+### D261. XSLT without XPath's predeclared prefixes (packet 4.24)
+Recorded 2026-10-20, after D208, D245, D260. **A behaviour change for
+users.** D260 found that stylesheets saw XPath's predeclared prefixes
+(xs, xsi, fn, map, array, math, err) through sxml's XPath static
+context. The newest XSLT 4.0 draft (qt4cg, fetched 2026-10-20) gives an
+XPath expression in a stylesheet the *applicable static namespaces* of
+its containing element as its statically known namespaces (5.3.1, for
+static expressions too, 9.7, and xsl:evaluate's target expression,
+10.5.1): the module's fixed namespace bindings when its root has
+fixed-namespaces, else the element's native namespace bindings (3.1).
+xml is always in scope. The 4.0 addition is fixed-namespaces (3.6.1):
+`#standard` or a conventional prefix (xsl, xml, xs, xsi, fn, math, map,
+array, err) binds the reserved namespace, but only when the stylesheet
+says so; nothing is predeclared. As D208 and D245 direct, the draft is
+the default:
+- The internal XPath static context has `omits_predeclared_namespaces`
+  (`src/xpath_static_internal.h`; no public header changes); XSLT's
+  static contexts, static expressions and xsl:evaluate set it, and
+  prefix lookup then knows only the configured bindings and xml. XPath
+  and XQuery keep their predeclared prefixes (XPath 4.0, 2.2.1; XQuery
+  4.0, 2.1.4). The XSLT functions taking names as strings
+  (function-available, element-available, type-available,
+  system-property) and the streamability analysis resolve likewise.
+- **For users**: a stylesheet that writes `xs:integer`, `map:get` or
+  `math:pi()` without declaring the prefix now fails with XPST0081 (in
+  an expression or an `as` sequence type) or XTSE0280 (in a name
+  attribute such as `mode`); before, it ran. Declare the prefix
+  (`xmlns:xs="http://www.w3.org/2001/XMLSchema"`, with
+  `exclude-result-prefixes="xs"` where literal result elements would
+  copy it) or write `fixed-namespaces="#standard"`. CHANGELOG says so.
+- Every stylesheet sxml ships declares what it uses: the book's page.xsl
+  and customers.xsl (and its templates chapter explains it), five
+  unit-test files, the bindings' test stylesheets. README,
+  apps/sxml/README.md, the CLI goldens and tests/cli already did.
+- **Left**: a cast of a string to xs:QName at run time
+  (`src/cast_lexical.c`) still falls back on the predeclared prefixes in
+  every language, because the evaluator does not know the language of
+  the code running; in XSLT `xs:QName('fn:x')` resolves where the draft
+  would raise FONS0004. No suite case tests it.
+- Verified (D181): the debug preset, the xslt, cli and xpath_static
+  tests, clang-tidy, the book check, and the whole XT40 suite with the
+  release driver, case by case: **12,156 to 12,157 passed (120 wrong
+  error), 362 to 361 failed, 0 errors**, namespace-6202 from failure to
+  pass, no case lost.
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): tagging and

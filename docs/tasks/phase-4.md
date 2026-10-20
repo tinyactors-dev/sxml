@@ -457,3 +457,16 @@ the release driver).
   current-output-uri in templates called from functions,
   fn:apply-templates, absent-focus codes, Sequence JNode copies, XSLT
   without XPath's predeclared prefixes (a decision), and D230's.
+- [x] **4.24 XSLT without XPath's predeclared prefixes** (implementation,
+  D208, D245, D260). Owns the XSLT static contexts (`src/xslt_lower.c`,
+  `src/xslt_static.c`, `src/xslt_evaluate.c`), prefix lookup in
+  `src/xpath_static.c`, the XSLT functions' and the streamability
+  analysis's name lookup, the stylesheets sxml ships that relied on the
+  old behaviour (unit tests, the book, the bindings' tests, READMEs, CLI
+  inputs), CHANGELOG, and single insertions in the ledgers. Take the
+  draft's rule (5.3.1, 3.6.1) as the default and record the change for
+  users.
+  **Done** 2026-10-20 (D261): XT40 12,156 to 12,157 passed (120 wrong
+  error), 362 to 361 failed, 0 errors, no case lost (namespace-6202).
+  Left: run-time casts of strings to xs:QName still see the predeclared
+  prefixes (`src/cast_lexical.c`, every language).
