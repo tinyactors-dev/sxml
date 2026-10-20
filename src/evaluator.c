@@ -2132,6 +2132,8 @@ typedef struct sxml_binary_operands {
     sxml_ir_binary_operator binary_operator;
     /* Borrowed, as evaluated. */
     sxml_sequence raw_operands[2];
+    /* What a general comparison casts xs:untypedAtomic to xs:QName with. */
+    sxml_namespace_binding_view namespace_bindings;
 } sxml_binary_operands;
 
 /* Charges one step per pair of items of two atomized operands (D89). A
@@ -2437,7 +2439,7 @@ static sxml_status sxml_make_binary_value(sxml_dynamic_context *context,
                     .left_operand = operands[0],
                     .right_operand = operands[1],
                     .implicit_timezone_offset_minutes = timezone,
-                    .namespace_bindings = sxml_dynamic_context_get_static_namespaces(context),
+                    .namespace_bindings = binary->namespace_bindings,
                     .error_record = context->error_record,
                     .collation = default_collation},
                 &item);
@@ -5320,7 +5322,12 @@ static sxml_status sxml_make_leaf_value(sxml_dynamic_context *context,
     case SXML_IR_EXPRESSION_KIND_BINARY: {
         sxml_binary_operands binary = {
             .binary_operator = expression->binary.operator,
-            .raw_operands = {sxml_sequence_empty(), sxml_sequence_empty()}};
+            .raw_operands = {sxml_sequence_empty(), sxml_sequence_empty()},
+            .namespace_bindings =
+                expression->binary.namespace_bindings.namespace_binding_count != 0
+                    ? sxml_ir_unit_get_namespace_bindings(sxml_machine_top(context)->function->unit,
+                                                          expression->binary.namespace_bindings)
+                    : sxml_dynamic_context_get_static_namespaces(context)};
         status = sxml_machine_read_atom(context, expression->binary.left_operand,
                                         &binary.raw_operands[0]);
         if (status == SXML_STATUS_OK) {

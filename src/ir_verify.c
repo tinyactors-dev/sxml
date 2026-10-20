@@ -727,6 +727,9 @@ static sxml_status visit_expression(verifier *checker,
             (uint32_t)SXML_IR_BINARY_OPERATOR_CONCATENATE) {
             return report(checker, "a binary operator is unknown");
         }
+        if (!binding_list_is_in_range(checker, expression->binary.namespace_bindings)) {
+            return report(checker, "a comparison's namespace bindings are out of range");
+        }
         status = check_required_atom(checker, expression->binary.left_operand);
         if (status == SXML_STATUS_OK) {
             status =

@@ -547,11 +547,24 @@ typedef struct sxml_ir_conditional {
     sxml_ir_expression_index else_branch;
 } sxml_ir_conditional;
 
+/* A run of namespace bindings in the unit (in-scope namespaces written on
+   a direct element constructor, or the namespaces a computed name or a
+   cast is resolved with), added with sxml_ir_unit_add_namespace_bindings. */
+typedef struct sxml_ir_namespace_binding_list {
+    uint32_t first_namespace_binding_index;
+    uint32_t namespace_binding_count;
+} sxml_ir_namespace_binding_list;
+
 /* BINARY. */
 typedef struct sxml_ir_binary {
     sxml_ir_binary_operator operator;
     sxml_ir_atom left_operand;
     sxml_ir_atom right_operand;
+    /* GENERAL_* only: the statically known namespaces an xs:untypedAtomic
+       operand cast to xs:QName resolves prefixes with, where they are not
+       the module's (as sxml_ir_cast.namespace_bindings, D263); empty
+       means the running module's or unit's. */
+    sxml_ir_namespace_binding_list namespace_bindings;
 } sxml_ir_binary;
 
 /* UNARY. */
@@ -758,14 +771,6 @@ typedef struct sxml_ir_document_order {
 
 /* CAST and CASTABLE: target_type is an atomic, list, union, enumeration
    or choice type that cast allows (4.17.1). */
-/* A run of namespace bindings in the unit (in-scope namespaces written on
-   a direct element constructor, or the namespaces a computed name or a
-   cast is resolved with), added with sxml_ir_unit_add_namespace_bindings. */
-typedef struct sxml_ir_namespace_binding_list {
-    uint32_t first_namespace_binding_index;
-    uint32_t namespace_binding_count;
-} sxml_ir_namespace_binding_list;
-
 typedef struct sxml_ir_cast {
     sxml_ir_atom value;
     sxml_type_identifier target_type;

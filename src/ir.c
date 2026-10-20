@@ -2584,6 +2584,9 @@ static sxml_status print_expression(text_writer *writer, print_stack *stack,
         write_atom(writer, expression->binary.left_operand);
         write_text(writer, " ");
         write_atom(writer, expression->binary.right_operand);
+        write_binding_list(
+            writer, (binding_list_text){.label = "namespaces",
+                                        .list = expression->binary.namespace_bindings});
         return SXML_STATUS_OK;
     case SXML_IR_EXPRESSION_KIND_UNARY:
         write_text(writer, expression->unary.operator ==

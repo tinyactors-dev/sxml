@@ -1617,20 +1617,30 @@ static bool is_namespace_sensitive(const sxml_xpath_lowerer *state, sxml_type_id
                                      sxml_builtin_type_identifier(SXML_TYPE_XS_NOTATION)}));
 }
 
-/* An XQuery cast to a namespace-sensitive type records the statically
-   known namespaces of its place: those of the module, extended by the
-   declarations of enclosing direct constructors (XQuery 4.0, 4.12.1.2;
-   F&O 4.0, 23.2; D84, D263). Other languages use the unit's or module's
+/* A cast to a namespace-sensitive type records the statically known
+   namespaces of its place: in XQuery those of the module, extended by
+   the declarations of enclosing direct constructors (XQuery 4.0,
+   4.12.1.2), in XSLT those of the stylesheet element the expression is
+   on (XSLT 4.0, 5.1.1); F&O 4.0, 23.2; D84, D263. XPath uses the unit's
    (an empty list). */
-static sxml_status add_cast_namespaces(sxml_xpath_lowerer *state, sxml_ir_cast *cast) {
-    cast->namespace_bindings = (sxml_ir_namespace_binding_list){
-        .first_namespace_binding_index = 0, .namespace_binding_count = 0};
+static sxml_status add_place_namespaces(sxml_xpath_lowerer *state,
+                                        sxml_ir_namespace_binding_list *list) {
+    *list = (sxml_ir_namespace_binding_list){.first_namespace_binding_index = 0,
+                                             .namespace_binding_count = 0};
     const sxml_namespace_binding_view bindings = state->static_context->namespace_bindings;
-    if (state->language != SXML_LANGUAGE_XQUERY || bindings.namespace_binding_count == 0 ||
-        !is_namespace_sensitive(state, cast->target_type)) {
+    if (state->language == SXML_LANGUAGE_XPATH || bindings.namespace_binding_count == 0) {
         return SXML_STATUS_OK;
     }
-    return sxml_ir_unit_add_namespace_bindings(state->unit, bindings, &cast->namespace_bindings);
+    return sxml_ir_unit_add_namespace_bindings(state->unit, bindings, list);
+}
+
+static sxml_status add_cast_namespaces(sxml_xpath_lowerer *state, sxml_ir_cast *cast) {
+    if (!is_namespace_sensitive(state, cast->target_type)) {
+        cast->namespace_bindings = (sxml_ir_namespace_binding_list){
+            .first_namespace_binding_index = 0, .namespace_binding_count = 0};
+        return SXML_STATUS_OK;
+    }
+    return add_place_namespaces(state, &cast->namespace_bindings);
 }
 
 typedef struct qname_folding {
@@ -2666,6 +2676,19 @@ static sxml_status emit_partial_application(sxml_xpath_lowerer *state,
                 .result_type = call->entry.result_type},
             &signature);
     }
+    /* The function's own name: a native row's, whatever namespace the
+       call's lexical name was looked up in first (XQuery's unprefixed
+       names, 5.14.2). */
+    sxml_name_identifier function_name = call->function_name;
+    if (status == SXML_STATUS_OK && call->entry.entry_kind == SXML_FUNCTION_ENTRY_KIND_NATIVE &&
+        call->entry.native_function != NULL) {
+        status = sxml_name_pool_intern_name(
+            state->name_pool,
+            &(sxml_name_request){.namespace_uri = sxml_well_known_namespace_identifier(
+                                     call->entry.native_function->function_namespace),
+                                 .local_name = call->entry.native_function->local_name},
+            &function_name);
+    }
     sxml_ir_function_index function = {0};
     if (status == SXML_STATUS_OK) {
         status = add_closure_function(
@@ -2676,7 +2699,7 @@ static sxml_status emit_partial_application(sxml_xpath_lowerer *state,
                     supplied_count == 0 &&
                             call->placeholder_count ==
                                 call->entry.parameters.function_parameter_count
-                        ? call->function_name
+                        ? function_name
                         : (sxml_name_identifier){0},
                 .signature = signature,
                 .parameter_count = (uint32_t)call->placeholder_count,
@@ -6504,14 +6527,26 @@ static sxml_status continue_binary_link(sxml_xpath_lowering_machine *machine,
             return sxml_xpath_lowering_finish_frame(machine, frame, operation.result);
         }
     }
+    sxml_ir_binary binary = {
+        .operator = operator, .left_operand = locals->left, .right_operand = locals->right};
+    if (state->language == SXML_LANGUAGE_XSLT &&
+        operator >= SXML_IR_BINARY_OPERATOR_GENERAL_EQUAL &&
+        operator <= SXML_IR_BINARY_OPERATOR_GENERAL_GREATER_OR_EQUAL) {
+        /* An xs:untypedAtomic compared with an xs:QName is cast with the
+           namespaces of the comparison's place (XPath 4.0, 4.8.2): in
+           XSLT those of its stylesheet element (5.1.1); XQuery's are the
+           module's. */
+        status = add_place_namespaces(state, &binary.namespace_bindings);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+    }
     status = sxml_xpath_lowerer_add_expression(
         state,
         (sxml_xpath_lowering_expression_to_add){
             .node = frame->node,
             .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_BINARY,
-                           .binary = {.operator = operator,
-                                      .left_operand = locals->left,
-                                      .right_operand = locals->right}}},
+                           .binary = binary}},
         &result);
     if (status != SXML_STATUS_OK) {
         return status;

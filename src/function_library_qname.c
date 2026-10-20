@@ -640,8 +640,10 @@ static const sxml_function_parameter parse_qname_parameters[] = {
 static const sxml_function_parameter resolve_qname_parameters[] = {
     SXML_REQUIRED_PARAMETER("value", "xs:string?"),
     SXML_REQUIRED_PARAMETER("element", "element()")};
+/* F&O 4.0, 12.2.8: "$value as (xs:NCName | enum(''))?"; a string that is
+   neither is a type error. */
 static const sxml_function_parameter namespace_uri_for_prefix_parameters[] = {
-    SXML_REQUIRED_PARAMETER("value", "xs:string?"),
+    SXML_REQUIRED_PARAMETER("value", "(xs:NCName | enum(''))?"),
     SXML_REQUIRED_PARAMETER("element", "element()")};
 
 static const sxml_native_function qname_functions[] = {
