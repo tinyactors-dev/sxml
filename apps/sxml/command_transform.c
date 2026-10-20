@@ -168,9 +168,11 @@ static const sxml_output_stream_operations sxml_transform_output_operations = {
 /* ------------------------------------------------------------- Messages */
 
 /* xsl:message output: each message as the text method writes it, on a
-   line of its own on standard error. */
+   line of its own on standard error; fn:trace and fn:message go to the
+   run's trace sink (query_command.h), as in sxml xquery. */
 typedef struct sxml_transform_messages {
     sxml_cli_writer *writer;
+    sxml_trace_sink trace_sink;
 } sxml_transform_messages;
 
 static sxml_status sxml_transform_write_message(void *state, sxml_byte_view bytes) {
@@ -186,7 +188,7 @@ static const sxml_output_stream_operations sxml_transform_message_operations = {
 static sxml_status sxml_transform_receive(void *state, const sxml_trace_event *event) {
     sxml_transform_messages *messages = state;
     if (event->trace_event_kind != SXML_TRACE_EVENT_KIND_XSLT_MESSAGE) {
-        return SXML_STATUS_OK;
+        return messages->trace_sink.operations->receive(messages->trace_sink.state, event);
     }
     sxml_serialization_parameters parameters;
     memset(&parameters, 0, sizeof(parameters));
@@ -664,7 +666,8 @@ static sxml_cli_exit_code sxml_transform_run(sxml_query_run *run, sxml_transform
     sxml_transform_output output = {.writer = run->result_writer,
                                     .has_written = false,
                                     .ends_with_line_feed = false};
-    sxml_transform_messages messages = {.writer = invocation->standard_error};
+    sxml_transform_messages messages = {.writer = invocation->standard_error,
+                                        .trace_sink = sxml_query_run_trace_sink(run)};
     sxml_cli_exit_code input_exit_code = SXML_CLI_EXIT_SUCCESS;
     sxml_byte_view streamed_source_uri = {.bytes = NULL, .byte_count = 0};
     if (status == SXML_STATUS_OK) {

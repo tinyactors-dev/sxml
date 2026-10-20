@@ -305,6 +305,9 @@ adaptive output method writes the result, one item on each line.
   `[Calendar: AD]`.
 - `fn:collection` and `fn:uri-collection` raise `err:FODC0002`: the
   program has no collections.
+- `fn:trace` and `fn:message` write to standard error, one line for each
+  call: the label and `: ` when there is one, then the value in the
+  adaptive method.
 - An EXPRESSION that starts with `-` must come after `--`.
 - An error is reported on standard error as
   `expression:LINE:COLUMN: err:CODE: description`.
@@ -479,7 +482,8 @@ The principal result goes to standard output, or to the file that
 serialization. A final line feed is added when the result does not end
 with one. An `xsl:result-document` without `href` is part of the
 principal result. `xsl:message` output goes to standard error, one message
-on each line.
+on each line, and so do `fn:trace` and `fn:message`, as for
+[sxml xpath](#sxml-xpath).
 
 Result documents with an `href` are written only with
 `--result-directory=DIR`:

@@ -1069,6 +1069,10 @@ sxml_cli_exit_code sxml_query_run_start(sxml_query_run *run) {
         features[feature_count] = sxml_expath_file_feature();
         feature_count += 1;
     }
+    /* F&O 4.0, fn:trace and fn:message: the output goes where the
+       implementation decides; like other processors, to standard error. */
+    run->trace_stream = (sxml_output_stream){.state = invocation->standard_error,
+                                             .operations = &sxml_query_output_operations};
     const sxml_status status = sxml_processor_create(
         invocation->allocator,
         &(sxml_processor_configuration){
@@ -1079,6 +1083,7 @@ sxml_cli_exit_code sxml_query_run_start(sxml_query_run *run) {
             .resource_resolver = {.state = &run->resolver,
                                   .operations = &sxml_query_file_resolver_operations},
             .clock = sxml_system_clock(),
+            .trace_sink = sxml_query_run_trace_sink(run),
             .optional_features = {.optional_features = features,
                                   .optional_feature_count = feature_count},
             .file_system = allows_file_access
@@ -1128,6 +1133,10 @@ sxml_cli_exit_code sxml_query_run_finish(sxml_query_run *run, sxml_cli_exit_code
         sxml_processor_destroy(run->processor);
     }
     return exit_code;
+}
+
+sxml_trace_sink sxml_query_run_trace_sink(const sxml_query_run *run) {
+    return sxml_stream_trace_sink(&run->trace_stream);
 }
 
 sxml_static_context_configuration sxml_query_run_static_context(const sxml_query_run *run) {

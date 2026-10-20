@@ -154,6 +154,9 @@ typedef struct sxml_query_run {
     sxml_byte_view output_path;
     /* --force: files that exist may be replaced. */
     bool replaces_existing;
+    /* Standard error as the library's stream, for the processor's trace
+       sink (fn:trace, fn:message): sxml_query_run_trace_sink. */
+    sxml_output_stream trace_stream;
     /* The files being written, in allocator memory. */
     sxml_query_file *files;
     size_t file_count;
@@ -191,6 +194,11 @@ sxml_cli_exit_code sxml_query_run_parse_document(sxml_query_run *run, sxml_byte_
    exits 3); otherwise abandons them, so that a failed command leaves no
    file behind. Releases what the run holds and returns the exit code. */
 sxml_cli_exit_code sxml_query_run_finish(sxml_query_run *run, sxml_cli_exit_code exit_code);
+
+/* The run's trace sink: fn:trace and fn:message write each event to
+   standard error as one line, "LABEL: VALUE" (include/sxml/processor.h,
+   sxml_stream_trace_sink). The processor of the run has it. */
+sxml_trace_sink sxml_query_run_trace_sink(const sxml_query_run *run);
 
 /* The static context with the --param declarations (none for BIND). */
 sxml_static_context_configuration sxml_query_run_static_context(const sxml_query_run *run);

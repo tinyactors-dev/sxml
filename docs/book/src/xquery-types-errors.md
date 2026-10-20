@@ -267,6 +267,19 @@ help:
 - Catch only the errors you expect, by their codes, and let the others
   through.
 
-`fn:trace` and `fn:message` are for debugging output. The `sxml`
-command doesn't show their output; a program that embeds sxml receives
-it through a trace sink of its own.
+`fn:trace` and `fn:message` are for debugging output. `trace` returns
+its input unchanged and writes it, after its label, to standard error;
+`message` writes its input and returns nothing. The values are written
+as the adaptive method shows them, so strings are in quotes:
+
+```console
+$ sxml xquery --method=adaptive --expression='
+    let $total := trace(sum((3, 4)), "total")
+    return (message("halfway"), $total * 2)'
+total: 7
+"halfway"
+14
+```
+
+A program that embeds sxml receives the same output through a trace
+sink of its own.

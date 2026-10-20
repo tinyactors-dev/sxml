@@ -163,6 +163,8 @@ not tagged yet, or into the next minor release.
   with exit 4 and `SXML_STATUS_INVALID_ARGUMENT`; D271).
 - `sxml xquery`: a dynamic error raised in a library module names the
   module's file, as a static error does (D271).
+- `sxml xpath`, `sxml xquery` and `sxml transform` write fn:trace and
+  fn:message output to standard error (D271); it was dropped.
 
 ## [0.2.0] - unreleased
 

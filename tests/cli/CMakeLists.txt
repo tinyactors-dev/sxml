@@ -221,6 +221,9 @@ sxml_add_cli_test(xquery_module_dynamic_error EXIT_CODE 1 ARGUMENTS xquery impor
 # The program has no collections: FODC0002 for any URI (D271).
 sxml_add_cli_test(xquery_collection_relative EXIT_CODE 1 ARGUMENTS xquery "--expression=collection('books.xml')")
 sxml_add_cli_test(xpath_uri_collection_relative EXIT_CODE 1 ARGUMENTS xpath "uri-collection('books.xml')")
+# fn:trace and fn:message write to standard error (D271).
+sxml_add_cli_test(xquery_trace EXIT_CODE 0 ARGUMENTS xquery "--expression=trace(1 + 1, 'sum'), message(('a', 'b'))")
+sxml_add_cli_test(xpath_trace EXIT_CODE 0 ARGUMENTS xpath "trace(//book/@id/string(), 'ids')" --context-item=books.xml)
 sxml_add_cli_test(xquery_both_texts EXIT_CODE 2 ARGUMENTS xquery --expression=1 titles.xq)
 sxml_add_cli_test(xquery_no_text EXIT_CODE 2 ARGUMENTS xquery)
 sxml_add_cli_test(xquery_help EXIT_CODE 0 ARGUMENTS xquery --help)
@@ -243,6 +246,8 @@ sxml_add_cli_test(transform_version_1 EXIT_CODE 0 ARGUMENTS transform xslt/versi
 # xsl:evaluate of an expression given on the command line (packet 7.3, D196).
 sxml_add_cli_test(transform_evaluate EXIT_CODE 0 ARGUMENTS transform "--param=expression=sum(//*:price) * (1 + $tax)" xslt/evaluate.xsl books.xml)
 sxml_add_cli_test(transform_missing_param EXIT_CODE 1 ARGUMENTS transform xslt/required.xsl)
+# fn:trace and fn:message beside xsl:message on standard error (D271).
+sxml_add_cli_test(transform_trace EXIT_CODE 0 ARGUMENTS transform xslt/trace.xsl)
 sxml_add_cli_test(transform_static_error EXIT_CODE 1 ARGUMENTS transform xslt/broken.xsl books.xml)
 sxml_add_cli_test(transform_terminate EXIT_CODE 1 ARGUMENTS transform xslt/terminate.xsl)
 sxml_add_cli_test(transform_parent_document EXIT_CODE 0 ARGUMENTS transform xslt/parent-document.xsl)
