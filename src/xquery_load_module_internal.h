@@ -6,11 +6,13 @@
 
 /*
  * The functions XQuery adds to the host's library (docs/DECISIONS.md,
- * D154; packet 3.14): fn:load-xquery-module (F&O 4.0, 18.2), which
- * compiles a library module at run time and so needs the XQuery front end.
- * Its row lives in src/xquery_load_module.c, not in a library part, so
- * only a program that compiles XQuery links the XQuery grammar (the
- * JavaScript package's sxml.wasm does not, D146). Internal to sxml.
+ * D154, D205): fn:put (XQUF 3.0, 6.1), which only XQuery has. Internal to
+ * sxml.
+ *
+ * fn:load-xquery-module (F&O 4.0, 18.2) is not among them: its row is the
+ * library part xquery_module (src/function_library_xquery_module.c), which
+ * serves every language, and its body is sxml_xquery_load_module_body
+ * below (src/xquery_load_module.c). Every build links XQuery (D272).
  *
  * sxml_xquery_compile_module puts this table in front of the host's
  * table for one compilation: the host's functions first, then these.
@@ -18,6 +20,10 @@
  *
  * Thread safety: the thread of the item heap (D35).
  */
+
+/* The resumable body of fn:load-xquery-module: compiles the module, asks
+   the machine for a unit evaluation and returns the module record. */
+extern const sxml_resumable_native_body sxml_xquery_load_module_body;
 
 /* The host's table and the library of the XQuery-only rows. */
 typedef struct sxml_xquery_function_table {

@@ -311,6 +311,36 @@ static sxml_status sxml_xslt_test_resolve(void *state,
         forwarded.resource_kind = SXML_RESOURCE_KIND_XML_DOCUMENT;
         return table.operations->resolve(table.state, &forwarded, resource);
     }
+    if (request->resource_kind == SXML_RESOURCE_KIND_XQUERY_MODULE &&
+        request->uri_reference.byte_count == 0) {
+        /* fn:load-xquery-module (D272): the environment's <resource> whose
+           uri is the module's namespace (media-type application/xquery),
+           served as its suite file. */
+        const sxml_qt4_resource_view resources =
+            context->test_case->environment.shared.resources;
+        for (size_t resource_index = 0; resource_index < resources.resource_count;
+             resource_index += 1) {
+            const sxml_qt4_resource *served = &resources.resources[resource_index];
+            if (!sxml_byte_view_equals(served->uri, request->target_namespace_uri)) {
+                continue;
+            }
+            sxml_byte_view file_uri = sxml_xslt_test_empty_text;
+            sxml_status status = sxml_xslt_test_suite_uri(context, served->file_path, &file_uri);
+            if (status != SXML_STATUS_OK) {
+                return status;
+            }
+            forwarded.resource_kind = SXML_RESOURCE_KIND_XML_DOCUMENT;
+            forwarded.uri_reference = file_uri;
+            forwarded.absolute_uri = file_uri;
+            status = table.operations->resolve(table.state, &forwarded, resource);
+            if (status == SXML_STATUS_OK && resource->resource_form == SXML_RESOURCE_FORM_BYTES &&
+                resource->resource_uri.byte_count == 0) {
+                resource->resource_uri = file_uri;
+            }
+            return status;
+        }
+        return table.operations->resolve(table.state, request, resource);
+    }
     if (request->resource_kind != SXML_RESOURCE_KIND_XSLT_PACKAGE) {
         return table.operations->resolve(table.state, request, resource);
     }

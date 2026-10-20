@@ -6,8 +6,9 @@
  * declarations left out), values for external variables and the context
  * value, functions of the loaded module reading its globals after the
  * load, a module loaded twice, the FOQM errors, a dynamic error raised as
- * it is, and an allocation-failure loop (D23). Every case checks for
- * leaked cells and allocations.
+ * it is, the function called from XPath and from XSLT (the library part
+ * xquery_module serves every language, D272), and an allocation-failure
+ * loop (D23). Every case checks for leaked cells and allocations.
  *
  * Golden file: tests/xquery_module_test.c.
  */
@@ -19,6 +20,7 @@
 #include "sxml/xdm.h"
 #include "sxml/xpath.h"
 #include "sxml/xquery.h"
+#include "sxml/xslt.h"
 #include "test_runner.h"
 
 #include <string.h>
@@ -323,6 +325,163 @@ static void test_modules_load(sxml_test_state *state) {
     }
 }
 
+/* ------------------------------------------------------- XPath and XSLT */
+
+/* Evaluates expression_text as XPath without a context value and
+   serializes the value (method xml) into the fixture's buffer. */
+static sxml_status run_xpath(fixture *test_fixture, query_run *run) {
+    memset(&run->error_record, 0, sizeof(run->error_record));
+    sxml_output_buffer_clear(test_fixture->output_buffer);
+    sxml_xpath_expression *expression = NULL;
+    sxml_status status = sxml_xpath_expression_create(
+        fixture_allocator(test_fixture),
+        &(sxml_xpath_expression_configuration){
+            .processor = test_fixture->processor,
+            .expression_text = run->expression_text,
+            .source_name = TEXT("main.xpath"),
+            .static_context = {.static_base_uri = TEXT("http://example.com/m/")},
+            .error_record = &run->error_record},
+        &expression);
+    sxml_sequence value = sxml_sequence_empty();
+    if (status == SXML_STATUS_OK) {
+        sxml_xpath_evaluation_request request;
+        memset(&request, 0, sizeof(request));
+        request.error_record = &run->error_record;
+        status = sxml_xpath_expression_evaluate(expression, &request, &value);
+    }
+    if (status == SXML_STATUS_OK) {
+        sxml_serialization_parameters parameters;
+        memset(&parameters, 0, sizeof(parameters));
+        parameters.serialization_method = SXML_SERIALIZATION_METHOD_XML;
+        status = sxml_serialize_sequence(
+            sxml_processor_get_item_heap(test_fixture->processor),
+            &(sxml_serialization_request){.value = value,
+                                          .serialization_parameters = parameters,
+                                          .error_record = &run->error_record},
+            sxml_output_buffer_as_output_stream(test_fixture->output_buffer));
+    }
+    sxml_sequence_release(value);
+    sxml_xpath_expression_destroy(expression);
+    return status;
+}
+
+/* Compiles expression_text as a stylesheet, calls its template "main"
+   and serializes the principal result into the fixture's buffer. */
+static sxml_status run_xslt(fixture *test_fixture, query_run *run) {
+    memset(&run->error_record, 0, sizeof(run->error_record));
+    sxml_output_buffer_clear(test_fixture->output_buffer);
+    sxml_xslt_stylesheet *stylesheet = NULL;
+    sxml_status status = sxml_xslt_stylesheet_create(
+        fixture_allocator(test_fixture),
+        &(sxml_xslt_stylesheet_configuration){
+            .processor = test_fixture->processor,
+            .principal_module_text = run->expression_text,
+            .static_context = {.static_base_uri = TEXT("http://example.com/m/main.xsl")},
+            .principal_module_source = SXML_XSLT_PRINCIPAL_MODULE_SOURCE_TEXT,
+            .error_record = &run->error_record},
+        &stylesheet);
+    sxml_name_identifier main_name = {.index = 0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_name_pool_intern_name(
+            sxml_processor_get_name_pool(test_fixture->processor),
+            &(sxml_name_request){.namespace_uri = {.index = SXML_NAMESPACE_NONE},
+                                 .local_name = TEXT("main")},
+            &main_name);
+    }
+    if (status == SXML_STATUS_OK) {
+        sxml_dynamic_context_configuration dynamic_context;
+        memset(&dynamic_context, 0, sizeof(dynamic_context));
+        sxml_sequence principal_result = sxml_sequence_empty();
+        status = sxml_xslt_stylesheet_transform(
+            stylesheet,
+            &(sxml_xslt_transformation_request){
+                .dynamic_context = dynamic_context,
+                .base_output_uri = TEXT("http://example.com/out/main.xml"),
+                .output_definition = NULL,
+                .output_stream = sxml_output_buffer_as_output_stream(test_fixture->output_buffer),
+                .error_record = &run->error_record,
+                .initial_template_name = main_name,
+                .invocation_kind = SXML_XSLT_INVOCATION_KIND_CALL_TEMPLATE,
+                .result_delivery = SXML_XSLT_RESULT_DELIVERY_SERIALIZED},
+            &principal_result);
+        sxml_sequence_release(principal_result);
+    }
+    sxml_xslt_stylesheet_destroy(stylesheet);
+    return status;
+}
+
+#define LIBRARY_CALL                                                                       \
+    "load-xquery-module('urn:lib', {'variables': {QName('urn:lib', 'input'): 'in'}})"     \
+    "?functions(QName('urn:lib', 'add'))?1(5)"
+
+#define STYLESHEET(body)                                                                   \
+    "<xsl:stylesheet version='3.0' xmlns:xsl='http://www.w3.org/1999/XSL/Transform'>"     \
+    "<xsl:output method='text'/><xsl:template name='main'>" body                          \
+    "</xsl:template></xsl:stylesheet>"
+
+/* F&O 4.0, 18.2 in the other host languages (D272): XPath and XSLT find
+   fn:load-xquery-module, load the module through the processor's
+   resolver, and raise its errors. */
+static void test_other_languages_load(sxml_test_state *state) {
+    static const struct {
+        const char *name;
+        bool is_stylesheet;
+        sxml_byte_view text;
+        sxml_byte_view expected_output;
+        sxml_byte_view expected_error_code;
+    } cases[] = {
+        {"xpath-call", false, SXML_BYTE_VIEW_INITIALIZER(LIBRARY_CALL),
+         SXML_BYTE_VIEW_INITIALIZER("17"), {.bytes = NULL, .byte_count = 0}},
+        {"xpath-function-lookup", false,
+         SXML_BYTE_VIEW_INITIALIZER("exists(function-lookup(QName("
+                                    "'http://www.w3.org/2005/xpath-functions', "
+                                    "'load-xquery-module'), 2))"),
+         SXML_BYTE_VIEW_INITIALIZER("true"), {.bytes = NULL, .byte_count = 0}},
+        {"xpath-no-module", false, SXML_BYTE_VIEW_INITIALIZER("load-xquery-module('urn:none')"),
+         {.bytes = NULL, .byte_count = 0}, SXML_BYTE_VIEW_INITIALIZER("FOQM0002")},
+        {"xslt-call", true,
+         SXML_BYTE_VIEW_INITIALIZER(STYLESHEET("<xsl:value-of select=\"" LIBRARY_CALL "\"/>")),
+         SXML_BYTE_VIEW_INITIALIZER("17"), {.bytes = NULL, .byte_count = 0}},
+        {"xslt-variable", true,
+         SXML_BYTE_VIEW_INITIALIZER(STYLESHEET(
+             "<xsl:value-of select=\"load-xquery-module('urn:lib', {'variables': "
+             "{QName('urn:lib', 'input'): 1}})?variables(QName('urn:lib', 'base'))\"/>")),
+         SXML_BYTE_VIEW_INITIALIZER("10"), {.bytes = NULL, .byte_count = 0}},
+        {"xslt-function-available", true,
+         SXML_BYTE_VIEW_INITIALIZER(STYLESHEET(
+             "<xsl:value-of select=\"function-available('load-xquery-module', 1)\"/>")),
+         SXML_BYTE_VIEW_INITIALIZER("true"), {.bytes = NULL, .byte_count = 0}},
+        {"xslt-static-error", true,
+         SXML_BYTE_VIEW_INITIALIZER(
+             STYLESHEET("<xsl:value-of select=\"load-xquery-module('urn:broken')\"/>")),
+         {.bytes = NULL, .byte_count = 0}, SXML_BYTE_VIEW_INITIALIZER("FOQM0003")},
+    };
+    for (size_t case_index = 0; case_index < sizeof(cases) / sizeof(cases[0]); case_index += 1) {
+        fixture test_fixture;
+        sxml_status status = fixture_create(0, &test_fixture);
+        query_run run = {.expression_text = cases[case_index].text};
+        if (status == SXML_STATUS_OK) {
+            status = cases[case_index].is_stylesheet ? run_xslt(&test_fixture, &run)
+                                                     : run_xpath(&test_fixture, &run);
+        }
+        const bool passed =
+            cases[case_index].expected_error_code.byte_count > 0
+                ? status != SXML_STATUS_OK &&
+                      error_code_is(&run, cases[case_index].expected_error_code)
+                : status == SXML_STATUS_OK &&
+                      output_is(&test_fixture, cases[case_index].expected_output);
+        (void)sxml_test_record_check(state, (sxml_test_check){.passed = passed,
+                                                              .expression = cases[case_index].name,
+                                                              .file_name = __FILE__,
+                                                              .line_number = __LINE__});
+        (void)sxml_test_record_check(
+            state, (sxml_test_check){.passed = fixture_destroy(&test_fixture),
+                                     .expression = cases[case_index].name,
+                                     .file_name = __FILE__,
+                                     .line_number = __LINE__});
+    }
+}
+
 static sxml_status run_with_failure(sxml_test_state *state, uint64_t failing_number) {
     fixture test_fixture;
     sxml_status status = fixture_create(failing_number, &test_fixture);
@@ -355,6 +514,7 @@ static void test_load_survives_every_allocation_failure(sxml_test_state *state) 
 
 static const sxml_test_case xquery_load_module_test_cases[] = {
     {.name = "modules_load", .function = test_modules_load},
+    {.name = "other_languages_load", .function = test_other_languages_load},
     {.name = "load_survives_every_allocation_failure",
      .function = test_load_survives_every_allocation_failure},
 };

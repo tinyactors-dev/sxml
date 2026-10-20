@@ -279,9 +279,9 @@ test_dependency_table_lists_what_sxml_supports(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, !is_supported(TEXT("unknown-type"), TEXT("en")));
     SXML_TEST_EXPECT(state, !is_supported(TEXT("language"), TEXT("")));
     SXML_TEST_EXPECT(state, is_supported(TEXT("language"), TEXT(" en ")));
-    /* fn:load-xquery-module is XQuery's (D154). */
+    /* fn:load-xquery-module serves XPath too (D272). */
     SXML_TEST_EXPECT(state,
-                     !is_supported(TEXT("feature"), TEXT("fn-load-xquery-module")));
+                     is_supported(TEXT("feature"), TEXT("fn-load-xquery-module")));
     SXML_TEST_EXPECT(state, sxml_qt4_dependency_is_supported((sxml_qt4_dependency_value){
                                 .dependency_type = TEXT("feature"),
                                 .value = TEXT("fn-load-xquery-module"),

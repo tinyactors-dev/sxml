@@ -44,8 +44,8 @@ typedef struct sxml_qt4_supported_dependency {
  *   cases run and fail, which the D95 denominator counts anyway.
  * - serialization: the serializers of packets 3.3 and 3.4, which the
  *   serialization assertions use (packet 3.13).
- * - fn-load-xquery-module, for XQuery only: the function is XQuery's
- *   (src/xquery_load_module.c, D154).
+ * - fn-load-xquery-module: the function serves every language
+ *   (src/function_library_xquery_module.c, D154, D272).
  * - schemaImport, schemaValidation and typedData: schema awareness
  *   (packet 5.11, D174); they stay non-goals of the D95 denominators
  *   below, so the Phase 2 to 4 gate rates keep their meaning, and the
@@ -69,6 +69,9 @@ typedef struct sxml_qt4_supported_dependency {
 static const sxml_qt4_supported_dependency sxml_qt4_supported_dependencies[] = {
     {SXML_BYTE_VIEW_INITIALIZER("feature"),
      SXML_BYTE_VIEW_INITIALIZER("higherOrderFunctions")},
+    /* fn:load-xquery-module, in XPath too (D272). */
+    {SXML_BYTE_VIEW_INITIALIZER("feature"),
+     SXML_BYTE_VIEW_INITIALIZER("fn-load-xquery-module")},
     {SXML_BYTE_VIEW_INITIALIZER("feature"),
      SXML_BYTE_VIEW_INITIALIZER("namespace-axis")},
     {SXML_BYTE_VIEW_INITIALIZER("xml-version"),
@@ -182,8 +185,6 @@ static const sxml_byte_view sxml_qt4_schema_aware_features[] = {
 
 /* Supported only when the run targets XQuery. */
 static const sxml_qt4_supported_dependency sxml_qt4_xquery_dependencies[] = {
-    {SXML_BYTE_VIEW_INITIALIZER("feature"),
-     SXML_BYTE_VIEW_INITIALIZER("fn-load-xquery-module")},
     /* The XQuery Update Facility 3.0 (packet 7.7a, D187), with
        every revalidation mode (packet 7.7c, D205). */
     {SXML_BYTE_VIEW_INITIALIZER("feature"),

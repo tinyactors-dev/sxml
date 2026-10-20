@@ -1,7 +1,8 @@
 /*
  * fn:load-xquery-module (F&O 4.0, 18.2; docs/DECISIONS.md, D154): the
- * XQuery-only function table of src/xquery_load_module_internal.h and the
- * function's resumable body.
+ * function's resumable body, whose row is the library part xquery_module
+ * (src/function_library_xquery_module.c, D272), and the XQuery-only
+ * function table of src/xquery_load_module_internal.h.
  *
  * The body never nests the evaluator in C (D71, D75). Its first step
  * compiles, which evaluates nothing, then asks the machine for a unit
@@ -976,31 +977,12 @@ static sxml_status step_load_xquery_module(const sxml_native_step_request *reque
     return SXML_STATUS_OK;
 }
 
-static const sxml_resumable_native_body load_xquery_module_body = {
+/* The body of the row in src/function_library_xquery_module.c. */
+const sxml_resumable_native_body sxml_xquery_load_module_body = {
     .step = step_load_xquery_module,
     .release_state = release_load_state,
     .state_byte_count = sizeof(load_state),
     .state_alignment = alignof(load_state)};
-
-static const sxml_function_parameter load_parameters[] = {
-    SXML_REQUIRED_PARAMETER("module-uri", "xs:string"),
-    SXML_OPTIONAL_PARAMETER("options", "map(*)?")};
-
-static const sxml_native_function load_rows[] = {
-    {.function_namespace = SXML_NAMESPACE_FUNCTIONS,
-     .properties = SXML_NATIVE_FUNCTION_USES_DYNAMIC_CONTEXT |
-                   SXML_NATIVE_FUNCTION_IS_NONDETERMINISTIC |
-                   SXML_NATIVE_FUNCTION_CALLS_FUNCTION_ITEMS,
-     .local_name = SXML_BYTE_VIEW_INITIALIZER("load-xquery-module"),
-     .parameters = {load_parameters, 2},
-     .result_type = SXML_BYTE_VIEW_INITIALIZER("fn:load-xquery-module-record"),
-     .call = NULL,
-     .resumable_body = &load_xquery_module_body},
-};
-
-static const sxml_native_function_view load_functions = {
-    .native_functions = load_rows,
-    .native_function_count = sizeof load_rows / sizeof load_rows[0]};
 
 /* ------------------------------------------------------ Function table */
 
@@ -1021,8 +1003,7 @@ static const sxml_function_table_operations xquery_function_table_operations = {
 sxml_status sxml_xquery_function_table_initialize(sxml_xquery_function_table *table,
                                                   const sxml_xpath_static_context *host) {
     /* fn:put is XQuery's, of the Update Facility (XQUF 3.0, 6.1). */
-    static const sxml_native_function_view *const parts[] = {&load_functions,
-                                                              &sxml_xquery_put_functions};
+    static const sxml_native_function_view *const parts[] = {&sxml_xquery_put_functions};
     *table = (sxml_xquery_function_table){.host_table = host->function_table, .library = NULL};
     return sxml_function_library_create(
         host->allocator,

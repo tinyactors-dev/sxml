@@ -1921,7 +1921,7 @@ sxml_status sxml_xquery_compile_module(const sxml_xquery_lowering_request *reque
     if (request == NULL || request->static_context == NULL) {
         return SXML_STATUS_INVALID_ARGUMENT;
     }
-    /* XQuery's own functions after the host's (fn:load-xquery-module,
+    /* XQuery's own functions after the host's (fn:put,
        src/xquery_load_module_internal.h, D154). */
     sxml_xquery_function_table functions = {.host_table = {.state = NULL, .operations = NULL},
                                             .library = NULL};

@@ -52,7 +52,7 @@ struct sxml_xquery_query {
        declares no serialization parameter. */
     sxml_serialization_parameter_reader *parameter_reader;
     sxml_serialization_parameters serialization_parameters;
-    /* XQuery's functions (fn:load-xquery-module) after the processor's,
+    /* XQuery's functions (fn:put) after the processor's,
        as compilation saw them, and the table over them that evaluations
        give fn:function-lookup and fn:system-properties (F&O 4.0, 17.1.9;
        D161). */
