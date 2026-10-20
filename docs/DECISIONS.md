@@ -12274,6 +12274,75 @@ already exist."
     parser stays a grammar of its own (D235): structure, every build
     has it. fn:put stays XQuery's (XQUF 3.0).
 
+### D273. XSLT conformance sweep: streamed availability, fn:document's options, the driver's tree delivery (packet 4.26)
+Recorded 2026-10-20, after D234, D245, D252, D260, D262. Verified as D181
+asks: the debug preset (the xslt*, xslt_driver, function_library*,
+json, xpath, evaluator_stream and cli tests), clang-tidy on the changed
+files, the call-cycle check, the book examples (D257), QT4 XP40/XQ40
+sets of the changed functions, and the whole XT40 suite with the
+release driver after each change, case by case. **XT40 12,191 to
+12,209 passed (118 wrong error), 327 to 309 failed, 0 errors**, run at
+5a855ca plus 2.24's commits (D262's 12,187 was before them). Commits
+4e0ffdb, 3d97421, 564d293, e1188ef, 9024849, 2ff5431, 67f7ad2.
+- **fn:stream-available** (18.2) opens the document as
+  xsl:source-document streamable="yes" does and reads only its head
+  (`sxml_evaluator_stream_check_available`, src/evaluator_stream.c, the
+  incremental parse of D219/D222): stream-available-004/005 pass.
+- **fn:document's options map** (20.1) is fn:doc's
+  (`sxml_function_library_read_document_options`): trust-external
+  (FODC0016), dtd-validation (FODC0007, also without DOCTYPE),
+  strip-space "all", xinclude (FODC0013), xsd-validation.
+  **Deviation**: the draft's default trust-external false applies only
+  to a call with a map; a node or no second argument (the 3.0 forms)
+  still reads external DTDs through the resolver, as the "explicitly
+  enabled" access of 20.1 allows: the draft's default for them lost
+  base-uri-051b, catalog-004/006/012 and docbook-001/002, which
+  rely on 3.0's behaviour. strip-space "none" is not done (the loader
+  applies xsl:strip-space to every document it caches; document-4031).
+- **Untrusted text functions**: fn:unparsed-text-available and
+  fn:json-doc check trust as fn:unparsed-text does (FODC0016, false).
+- **Self-reference of globals** (9.5, PR 1544): no longer XPST0008; a
+  needed self-reference is XTDE0640 when read. variable-0120 (3.0's
+  XPST0008) goes to wrong error as the draft decides; variable-4901 and
+  higher-order-functions-070a still fail because XSLT's inline
+  functions capture globals by value (src/xpath_lower.c, the capture of
+  free variables: XQuery reads its globals at call time, D154; XSLT
+  could too).
+- **The XSLT driver** delivers the principal result as a tree unless
+  `<output tree="no">`, as the reference runner does (fn:transform's
+  default delivery-format "document"); json and adaptive outputs'
+  "/out" assertions had raised XPDY0050 (4 cases).
+- **Smaller**: FODC0002 from the document loader names the URI reference
+  (try-018/019; the CLI's message and the book's files.md change); a
+  library package's xsl:global-context-item is ignored unless
+  use="required" (XTTE0590), XTSE3087 compares within one package;
+  fn:resolve-uri refuses a second "#" (FORG0002).
+- **The draft decides, left** (D245): array:members gives JNodes, not
+  value records (for-each-array-001 to -003); XQDY0137 for duplicate map
+  constructor keys (sx-MapExpr-007, si-fork-814: XTDE3365 is
+  xsl:map's); an initial named template must be public or final (2.4.4,
+  XTDE0040: accumulator-038, su-filter-101/102 in xsl:package
+  principals); FODC0016, not FODC0002, for fn:doc in untrusted
+  xsl:evaluate (evaluate-450, -457, -458; QT4 fn-load-xquery-module-521
+  agrees); the suite's XXXX9999 (evaluate-453, -455, -456, -459).
+- **Found for the XPath sweep (2.25)**: "E//S/T/f()" lowers "//" as
+  E/descendant-or-self::node()/(S/T/f()), right-nested, so S/T is not
+  in document order without duplicates before the non-node last step:
+  `//PRICE/ancestor::*/name()` gives every ancestor once per PRICE
+  (src/xpath_lower.c, begin_absolute_path and the RELATIVE_PATH link
+  with DOUBLE_SLASH; "/descendant-or-self::node()/PRICE/..." is right).
+  It fails sx-square-array-035/-135, sf-insert-before-035/-135,
+  square-array-035, and affects XQuery alike.
+- **Left, with causes**: CDATA text nodes merge with adjacent text
+  (text-012/-019/-020, value-of-012; 11.4.3 makes it
+  implementation-defined); static XTSE0020 for a fixed invalid
+  start-at (number-0109, error-1001a: read_fixed_text is private to
+  src/xslt_lower_construct.c); key match patterns over namespace nodes
+  (key-087/-090); D262's casts and collations of inner static contexts;
+  the rest of D260's single cases.
+- The XT40 section of `docs/CONFORMANCE.md` was not regenerated: the
+  file has another packet's uncommitted changes.
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): tagging and

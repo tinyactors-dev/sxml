@@ -483,3 +483,16 @@ the release driver).
   wrong error), 361 to 331 failed, 0 errors, no case lost. Left (causes
   in D262): stream-available-004/005, casts and collations of inner
   static contexts, fn:load-xquery-module in XSLT, D260's single cases.
+- [x] **4.26 XSLT conformance sweep** (implementation, D245, D262). Owns
+  the XSLT files a cluster's root cause is in, the XSLT driver, the
+  function library and loader files a cluster needs when no other
+  packet has them open, their unit tests, and single insertions in the
+  ledgers. From a fresh XT40 run at HEAD, the failures and wrong-error
+  passes clustered by root cause, largest first; stream-available-004/005
+  and D260's single cases; casts and collations of inner static
+  contexts and src/xpath_lower.c stay with 2.24.
+  **Done** 2026-10-20 (D273): XT40 12,191 to 12,209 passed (118 wrong
+  error), 327 to 309 failed, 0 errors, no case lost (variable-0120 to
+  wrong error as the draft decides). Left (causes in D273): "//"
+  lowered right-nested (for 2.25), globals captured by XSLT's inline
+  functions, CDATA text merging, fn:document strip-space "none".

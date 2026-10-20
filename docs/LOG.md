@@ -4,6 +4,17 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 4.26 done (D273): XSLT sweep, XT40 12,191 to 12,209 passed (118
+  wrong error), 327 to 309 failed, 0 errors. fn:stream-available by a
+  streamed open of the document's head; fn:document's options map as
+  fn:doc's (3.0 forms keep reading external DTDs, a recorded
+  deviation); untrusted fn:unparsed-text-available and fn:json-doc;
+  globals in scope in their own declarations; the XSLT driver builds a
+  tree unless tree="no"; FODC0002 names the URI (CLI and book);
+  library packages' xsl:global-context-item; resolve-uri and "##".
+  Found for 2.25: "//" lowered right-nested (E//S/T/f() repeats S/T's
+  nodes). CONFORMANCE.md not regenerated (another packet's changes).
+
 - 2.24 done (D263): XPath/XQuery sweep. XP40 32,716 to 32,731 passed
   (55 to 40 failed, 32 to 30 wrong errors), XQ40 46,017 to 46,070 (191
   to 138, 53 to 49), about eight of them from 4.25, 4.26 and cli-2; no
