@@ -937,7 +937,7 @@ static void test_large_merge_streams_in_bounded_memory(sxml_test_state *state) {
 }
 
 /* Streamed paths over the large document: counted, atomized and
-   attribute values stream under the limit (D222), which the same
+   attribute values stream under the limit (D223), which the same
    expressions unstreamed exceed. */
 typedef struct large_path_case {
     const char *streamed_text;

@@ -3,7 +3,7 @@
 /*
  * The HTML parser behind fn:parse-html and fn:html-doc (F&O 4.0, 17.3;
  * HTML Living Standard, 13.2 "Parsing HTML documents"; packet 7.10a,
- * D192). Internal to sxml; an optional feature (D189): only a program
+ * D201). Internal to sxml; an optional feature (D189): only a program
  * that names sxml_html_parser_feature() links it.
  *
  * - src/html_tokenizer.c: the tokenizer (13.2.5), a loop over a state

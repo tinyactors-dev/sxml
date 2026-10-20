@@ -1,6 +1,6 @@
 /*
  * HTML tree construction (src/html_internal.h; HTML Living Standard,
- * 13.2.6 "Tree construction"; D192) on the HTML working tree (glossary
+ * 13.2.6 "Tree construction"; D201) on the HTML working tree (glossary
  * `html_working_tree`): a node table whose links tree construction
  * rewrites when the adoption agency algorithm and foster parenting move
  * nodes that are already built.

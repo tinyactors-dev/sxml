@@ -134,7 +134,7 @@ typedef struct sxml_xpath_lowering_function {
 } sxml_xpath_lowering_function;
 
 /*
- * A lowering override (glossary `lowering_override`, D222): one node of
+ * A lowering override (glossary `lowering_override`, D223): one node of
  * one AST that a procedure of the caller lowers instead of the rule of the
  * node's kind, wherever the node is lowered. The procedure's frame is
  * pushed as the kind's frame would be (the node, block, body and

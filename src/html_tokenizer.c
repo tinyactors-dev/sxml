@@ -1,6 +1,6 @@
 /*
  * The HTML tokenizer (src/html_internal.h; HTML Living Standard, 13.2.5
- * "Tokenization"; D192): the state machine of the specification as one
+ * "Tokenization"; D201): the state machine of the specification as one
  * loop over a state variable, which runs until a token other than
  * characters is ready. Characters accumulate in a run that is handed out
  * before that token, so tree construction sees every token in order and

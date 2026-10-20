@@ -125,7 +125,7 @@ SXML_NODISCARD sxml_status sxml_xslt_assess_sweep(const sxml_xslt_sweep_query *q
 
 /*
  * The mode of an xsl:apply-templates, for streamed paths
- * (src/xslt_lower_stream.c, D222): whether every template rule applicable
+ * (src/xslt_lower_stream.c, D223): whether every template rule applicable
  * to it is guaranteed-streamable, none uncertain (6.6.4), so a selected
  * node's subtree is all the rules read of it.
  */
