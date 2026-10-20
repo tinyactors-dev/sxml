@@ -9,8 +9,9 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 - Phase 5 (XSD 1.1, schema awareness) closed by agent review (D182); four
   gate boxes wait for full runs and fuzzing on the owner's machine (D181).
   All public headers are stable.
-- Passes: XP40 32,655, XQ40 45,914, XT40 12,048, XSD in scope 41,483 of
-  41,518. Zero error outcomes in every suite.
+- Passes (release, whole suites at e4ea880, counting wrong error codes as
+  docs/CONFORMANCE.md does): XP40 32,689, XQ40 45,969, XT40 12,053, XSD in
+  scope 41,486 of 41,518. Zero error outcomes in every suite.
 - Optional features (D189). Budgets (D202, D207, D208): core `sxml.wasm`
   2,200,000 / 770,000 (2,077,439 / 725,473 after size-2, D227: each module
   links only its languages' parts), `sxml-full.wasm` 7,500,000 /
@@ -33,6 +34,8 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 ## Leftovers no packet owns yet
 
 XPath and XQuery (after 2.22, D226):
+- Full Text works in XQuery only; XPath Full Text gives XPST0003.
+- The `bin:` prefix is not bound by default in the JavaScript package.
 - `{ E }` map constructors over JNodes (MapConstructor-500..511).
 - NCName vs `Q{}N` name tests (sxml_name_test is frozen); the item axis's
   JNode parent (D113); a declared function's `$a := .` via function-lookup.
