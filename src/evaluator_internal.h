@@ -517,6 +517,27 @@ typedef struct sxml_streamed_accumulator_values {
 SXML_NODISCARD sxml_status sxml_evaluator_stream_find_accumulator_values(
     sxml_dynamic_context *dynamic_context, sxml_item node, sxml_streamed_accumulator_values *values);
 
+/* What a streamed open of a document finds (XSLT 4.0, 18.2,
+   fn:stream-available). */
+typedef enum sxml_stream_availability {
+    /* The evaluation has no processor's document loader to open it. */
+    SXML_STREAM_AVAILABILITY_UNKNOWN,
+    /* Retrieved, with a well-formed prolog and document element start tag
+       (or delivered by the resolver as a node). */
+    SXML_STREAM_AVAILABILITY_AVAILABLE,
+    /* fn:doc's errors, or not well-formed that far. */
+    SXML_STREAM_AVAILABILITY_UNAVAILABLE
+} sxml_stream_availability;
+
+/* Opens the document at uri_reference (resolved against the static base
+   URI) as xsl:source-document streamable="yes" would, reads it to the end
+   of the document element's start tag, closes it and writes what it found
+   to *availability. Defined in src/evaluator_stream.c; fails only for the
+   resolver's and allocator's failures. */
+SXML_NODISCARD sxml_status sxml_evaluator_stream_check_available(
+    sxml_dynamic_context *dynamic_context, sxml_byte_view uri_reference,
+    sxml_stream_availability *availability);
+
 /* SXML_STATUS_OK when the running unit may access external resources;
    else FODC0016 in error_record (F&O 4.0, 18.2: the functions of a module
    fn:load-xquery-module loaded without trust are untrusted). */

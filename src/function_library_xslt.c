@@ -602,33 +602,29 @@ static sxml_status read_document_reference(const sxml_function_call *call, sxml_
     return status;
 }
 
-/* The xsd-validation option of fn:document's options map (4.0, as
-   fn:doc's, F&O 4.0, 17.2.1; D179) into *validation (owned); empty
-   without one. */
-static sxml_status read_xsd_validation(const sxml_function_call *call, sxml_sequence *validation) {
-    *validation = sxml_sequence_empty();
-    sxml_optional_item options = {.has_item = false};
+/* fn:document's options (XSLT 4.0, 20.1): a map's are fn:doc's
+   (sxml_function_library_read_document_options, trust-external false by
+   default; base-uri is read with the URI references). A node or no second
+   argument, the XSLT 3.0 forms, keeps 3.0's reading of external DTDs and
+   entities through the resolver, which access "explicitly enabled" may
+   allow (D273); no DTD validation, strip-space "conditional" (the
+   stylesheet's xsl:strip-space, which the loader applies). */
+static sxml_status read_document_function_options(const sxml_function_call *call,
+                                                  sxml_document_options *options) {
+    *options = (sxml_document_options){.strips_space = false,
+                                       .validates_dtd = false,
+                                       .trusts_external = true,
+                                       .xsd_validation = sxml_sequence_empty()};
+    sxml_optional_item argument = {.has_item = false};
     sxml_status status = SXML_STATUS_OK;
     if (call->arguments.sequence_count > 1) {
-        status = sxml_function_library_read_optional_item(call, 1, &options);
+        status = sxml_function_library_read_optional_item(call, 1, &argument);
     }
-    if (status != SXML_STATUS_OK || !options.has_item ||
-        sxml_item_get_kind(options.item) != SXML_ITEM_KIND_MAP) {
+    if (status != SXML_STATUS_OK || !argument.has_item ||
+        sxml_item_get_kind(argument.item) != SXML_ITEM_KIND_MAP) {
         return status;
     }
-    sxml_sequence key = sxml_sequence_empty();
-    status = sxml_function_library_make_string(
-        call->item_heap, SXML_BYTE_VIEW_FROM_LITERAL("xsd-validation"), &key);
-    sxml_map_lookup lookup = {.is_found = false};
-    if (status == SXML_STATUS_OK) {
-        status = sxml_map_find(options.item, key.content, &lookup);
-    }
-    sxml_sequence_release(key);
-    if (status == SXML_STATUS_OK && lookup.is_found) {
-        sxml_sequence_retain(lookup.entry.value);
-        *validation = lookup.entry.value;
-    }
-    return status;
+    return sxml_function_library_read_document_options(call, 1, options);
 }
 
 /* fn:document($uri-sequence, $options?) (XSLT 4.0, 20.1; $options a node
@@ -638,18 +634,20 @@ static sxml_status read_xsd_validation(const sxml_function_call *call, sxml_sequ
    same node for the same URI within an evaluation), in document order
    without duplicates. A fragment identifier is ignored (20.1 leaves its
    meaning to the media type; sxml supports none): the whole document is
-   returned. The xsd-validation option validates each document as fn:doc's
-   would (F&O 4.0, 17.2.1; D179). */
+   returned. An options map's options are fn:doc's: an external DTD or
+   entity is FODC0016 without trust-external, dtd-validation and
+   strip-space "all" and xsd-validation act as for fn:doc (F&O 4.0,
+   17.1.1, 17.2.1; D179). */
 static sxml_status call_document(const sxml_function_call *call, sxml_sequence *result) {
     if (call->dynamic_context == NULL) {
         return SXML_STATUS_INVALID_ARGUMENT;
     }
-    sxml_sequence validation = sxml_sequence_empty();
-    sxml_status status = read_xsd_validation(call, &validation);
+    sxml_document_options options;
+    sxml_status status = read_document_function_options(call, &options);
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    const sxml_byte_view xsd_validation = text_of(validation);
+    const sxml_byte_view xsd_validation = text_of(options.xsd_validation);
     sxml_sequence_builder *builder = NULL;
     status = sxml_sequence_builder_create(
         sxml_item_heap_as_allocator(call->item_heap),
@@ -687,10 +685,19 @@ static sxml_status call_document(const sxml_function_call *call, sxml_sequence *
                 call->dynamic_context,
                 &(sxml_document_request){.uri_reference = uri_reference,
                                          .base_uri = base_uri,
-                                         .error_record = call->error_record},
+                                         .error_record = call->error_record,
+                                         .blocks_external_resources = !options.trusts_external,
+                                         .validates_dtd = options.validates_dtd},
                 &document_node);
         }
         release_document_reference(&reference);
+        if (status == SXML_STATUS_OK && options.strips_space) {
+            sxml_sequence stripped = sxml_sequence_empty();
+            status = sxml_function_library_strip_document(call, document_node, &stripped);
+            sxml_item_release(document_node);
+            document_node =
+                status == SXML_STATUS_OK ? stripped.content : (sxml_item){.representation = 0};
+        }
         if (status == SXML_STATUS_OK && xsd_validation.byte_count > 0) {
             status = sxml_schema_scope_validate_document(call, xsd_validation, &document_node);
         }
@@ -707,7 +714,7 @@ static sxml_status call_document(const sxml_function_call *call, sxml_sequence *
         status = sxml_sequence_builder_finish(builder, &documents);
     }
     sxml_sequence_builder_destroy(builder);
-    sxml_sequence_release(validation);
+    sxml_sequence_release(options.xsd_validation);
     if (status == SXML_STATUS_OK) {
         status = sxml_evaluator_make_document_order_value(
             call->dynamic_context,
@@ -1022,12 +1029,13 @@ static const sxml_function_parameter regex_group_parameters[] = {
 };
 
 /* fn:stream-available($uri as xs:string?) as xs:boolean (XSLT 4.0,
-   18.2): true only when the document at $uri can be retrieved and read
-   as XML, which here means as fn:doc reads it, the whole of it (the
-   function "determines, as far as possible": a true result must promise
-   a well-formed prolog and first start tag, which a well-formed document
-   has; a document well-formed only that far gives false). A relative
-   URI is resolved against the static base URI; () gives false. */
+   18.2): true when the document at $uri can be retrieved and its prolog
+   and the start tag of its document element are well-formed, as a
+   streamed open reads them (xsl:source-document streamable="yes"); the
+   rest is not read ("it is not necessary to check that the entire
+   document is well-formed"). Without a processor's document loader, the
+   answer is whether fn:doc reads it. A relative URI is resolved against
+   the static base URI; () gives false. */
 static sxml_status call_stream_available(const sxml_function_call *call, sxml_sequence *result) {
     sxml_optional_item uri;
     sxml_status status = sxml_function_library_read_optional_item(call, 0, &uri);
@@ -1035,8 +1043,14 @@ static sxml_status call_stream_available(const sxml_function_call *call, sxml_se
     if (status == SXML_STATUS_OK && uri.has_item && call->dynamic_context != NULL) {
         sxml_string uri_reference;
         status = sxml_function_library_read_string_argument(call, 0, &uri_reference);
-        sxml_item document_node = {.representation = 0};
+        sxml_stream_availability availability = SXML_STREAM_AVAILABILITY_UNKNOWN;
         if (status == SXML_STATUS_OK) {
+            status = sxml_evaluator_stream_check_available(call->dynamic_context,
+                                                           uri_reference.utf8, &availability);
+        }
+        is_available = availability == SXML_STREAM_AVAILABILITY_AVAILABLE;
+        if (status == SXML_STATUS_OK && availability == SXML_STREAM_AVAILABILITY_UNKNOWN) {
+            sxml_item document_node = {.representation = 0};
             status = sxml_dynamic_context_load_document(
                 call->dynamic_context,
                 &(sxml_document_request){
@@ -1044,14 +1058,14 @@ static sxml_status call_stream_available(const sxml_function_call *call, sxml_se
                     .base_uri = sxml_dynamic_context_get_static_base_uri(call->dynamic_context),
                     .error_record = NULL},
                 &document_node);
-        }
-        if (status == SXML_STATUS_OK) {
-            is_available = true;
-            sxml_item_release(document_node);
-        } else if (status == SXML_STATUS_DYNAMIC_ERROR) {
-            /* What fn:doc would raise is the answer false. */
-            sxml_item_heap_clear_raised_error(call->item_heap);
-            status = SXML_STATUS_OK;
+            if (status == SXML_STATUS_OK) {
+                is_available = true;
+                sxml_item_release(document_node);
+            } else if (status == SXML_STATUS_DYNAMIC_ERROR) {
+                /* What fn:doc would raise is the answer false. */
+                sxml_item_heap_clear_raised_error(call->item_heap);
+                status = SXML_STATUS_OK;
+            }
         }
     }
     if (status == SXML_STATUS_OK) {

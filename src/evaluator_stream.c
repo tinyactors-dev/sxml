@@ -1262,6 +1262,29 @@ static sxml_status sxml_stream_document_open(sxml_dynamic_context *dynamic_conte
     return SXML_STATUS_OK;
 }
 
+sxml_status sxml_evaluator_stream_check_available(sxml_dynamic_context *dynamic_context,
+                                                  sxml_byte_view uri_reference,
+                                                  sxml_stream_availability *availability) {
+    *availability = SXML_STREAM_AVAILABILITY_UNKNOWN;
+    /* The errors of the open are the answer, not the evaluation's: they
+       go unreported, as fn:doc-available's do. */
+    sxml_error_record *error_record = dynamic_context->error_record;
+    dynamic_context->error_record = NULL;
+    sxml_stream_document *document = NULL;
+    sxml_status status = sxml_stream_document_open(dynamic_context, uri_reference, &document);
+    dynamic_context->error_record = error_record;
+    if (status == SXML_STATUS_DYNAMIC_ERROR) {
+        sxml_item_heap_clear_raised_error(dynamic_context->item_heap);
+        *availability = SXML_STREAM_AVAILABILITY_UNAVAILABLE;
+        return SXML_STATUS_OK;
+    }
+    if (status == SXML_STATUS_OK && document != NULL) {
+        *availability = SXML_STREAM_AVAILABILITY_AVAILABLE;
+        sxml_stream_document_destroy(document);
+    }
+    return status;
+}
+
 /* Makes item the open node at depth (owned). */
 static void sxml_stream_set_open_node(sxml_stream_document *document, sxml_item item,
                                       size_t depth) {
