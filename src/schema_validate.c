@@ -447,6 +447,82 @@ static sxml_byte_view pending_value(const sxml_schema_validator *validator,
                             .byte_count = attribute->value_byte_count};
 }
 
+/* The global component of the name {namespace}local_name, 0 when the
+   pool or the schema has none. */
+typedef struct well_known_component {
+    sxml_schema_symbol_space symbol_space;
+    sxml_well_known_namespace namespace_uri;
+    sxml_byte_view local_name;
+} well_known_component;
+
+static uint32_t find_well_known(const sxml_schema_validator *validator,
+                                well_known_component component) {
+    sxml_name_identifier name = {.index = 0};
+    if (!sxml_name_pool_find_name(
+            validator->name_pool,
+            &(sxml_name_request){
+                .namespace_uri = sxml_well_known_namespace_identifier(component.namespace_uri),
+                .local_name = component.local_name},
+            &name)) {
+        return 0;
+    }
+    return find_global(validator, (sxml_schema_name_key){.symbol_space = component.symbol_space,
+                                                         .name = name});
+}
+
+/* xml:id without a declaration (xml:id 1.0, section 4: an xml:id
+   attribute is of type ID; XDM 4.0, 6.3.2: its is-id property): assessed
+   against xs:ID, as the xml namespace's schema declares it. *is_assessed
+   false for another attribute. */
+static sxml_status assess_undeclared_xml_id(sxml_schema_validator *validator,
+                                            const sxml_schema_pending_attribute *attribute,
+                                            bool *is_assessed) {
+    *is_assessed = false;
+    sxml_name_identifier xml_id = {.index = 0};
+    if (!sxml_name_pool_find_name(
+            validator->name_pool,
+            &(sxml_name_request){.namespace_uri =
+                                     sxml_well_known_namespace_identifier(SXML_NAMESPACE_XML),
+                                 .local_name = TEXT("id")},
+            &xml_id) ||
+        xml_id.index != attribute->attribute_name.index) {
+        return SXML_STATUS_OK;
+    }
+    const uint32_t id_type = find_well_known(
+        validator, (well_known_component){.symbol_space = SXML_SCHEMA_SYMBOL_SPACE_TYPE_DEFINITION,
+                                          .namespace_uri = SXML_NAMESPACE_XML_SCHEMA,
+                                          .local_name = TEXT("ID")});
+    if (id_type == 0) {
+        return SXML_STATUS_OK;
+    }
+    *is_assessed = true;
+    const sxml_schema_type_definition_index simple_type = {.value = id_type};
+    sxml_schema_value_outcome outcome;
+    sxml_status status = sxml_schema_validate_simple_value(
+        validator,
+        &(sxml_schema_value_request){.simple_type = simple_type,
+                                     .text = pending_value(validator, attribute),
+                                     .location = attribute->location,
+                                     .element_number = validator->attribute_element_number,
+                                     .subject = attribute_subject(attribute),
+                                     .namespace_context = {0}},
+        &outcome);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    status = send_attribute(validator,
+                            &(sxml_attribute_event){.attribute_name = attribute->attribute_name,
+                                                    .namespace_prefix = attribute->namespace_prefix,
+                                                    .attribute_value = outcome.normalized_value,
+                                                    .type_annotation =
+                                                        annotation_of(validator, simple_type),
+                                                    .is_id = outcome.is_id,
+                                                    .is_idrefs = outcome.is_idrefs,
+                                                    .location = attribute->location});
+    sxml_sequence_release(outcome.value);
+    return status;
+}
+
 /* An attribute laxly: by its global declaration where there is one. */
 static sxml_status assess_lax_attribute(sxml_schema_validator *validator,
                                         const sxml_schema_pending_attribute *attribute) {
@@ -456,6 +532,11 @@ static sxml_status assess_lax_attribute(sxml_schema_validator *validator,
         (sxml_schema_name_key){.symbol_space = SXML_SCHEMA_SYMBOL_SPACE_ATTRIBUTE_DECLARATION,
                                .name = attribute->attribute_name});
     if (declaration == 0) {
+        bool is_assessed = false;
+        const sxml_status status = assess_undeclared_xml_id(validator, attribute, &is_assessed);
+        if (status != SXML_STATUS_OK || is_assessed) {
+            return status;
+        }
         return send_unassessed_attribute(validator, attribute, value);
     }
     return assess_declared_attribute(validator,

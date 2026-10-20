@@ -229,6 +229,12 @@ static const query_case xquery_cases[] = {
     /* xsi:type resolves with the element's in-scope namespaces only (cvc-elt.4.1;
        QT4 validateexpr-34, D271). */
     {"validate lax { <a xsi:type='xs:integer'>42</a> }", NULL, "XQDY0027"},
+    /* xml:id is of type ID without the xml namespace's schema (xml:id
+       1.0, 4), so an IDREF may name it (D275). */
+    {"let $d := validate lax { document { <r><e xml:id=' i1 '/><f xmlns:xs='http://www.w3.org/"
+     "2001/XMLSchema' xsi:type='xs:IDREF'>i1</f></r> } } "
+     "return (data($d//e/@xml:id) instance of xs:ID, name(id('i1', $d)), name(idref('i1', $d)))",
+     "true e f", NULL},
     {IMPORT "validate { attribute s:colour { 'red' } }", NULL, "XQTY0030"},
     /* schema-element and schema-attribute (3.2.7.3, 3.2.7.5). */
     {IMPORT "() instance of schema-element(s:shoe)", NULL, "XPST0008"},
