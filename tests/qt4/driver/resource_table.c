@@ -320,8 +320,8 @@ sxml_qt4_serve_module(const sxml_qt4_table_request *table_request,
     return status;
 }
 
-/* SCHEMA_DOCUMENT: a suite file, else the environment's schema of the
-   target namespace. */
+/* SCHEMA_DOCUMENT: a suite file, else the environment's source of the
+   URI, else the environment's schema of the target namespace. */
 static sxml_status
 sxml_qt4_serve_schema(const sxml_qt4_table_request *table_request,
                       sxml_resource *resource) {
@@ -331,6 +331,18 @@ sxml_qt4_serve_schema(const sxml_qt4_table_request *table_request,
     if (status != SXML_STATUS_OK ||
         resource->resource_form != SXML_RESOURCE_FORM_NONE) {
         return status;
+    }
+    const sxml_qt4_served_resource_view sources = table->served_sources;
+    for (size_t source_index = 0; source_index < sources.served_resource_count;
+         source_index += 1) {
+        const sxml_qt4_served_resource *source = &sources.served_resources[source_index];
+        if (sxml_byte_view_equals(source->uri, table_request->uri)) {
+            return sxml_qt4_serve_file(
+                table,
+                (sxml_qt4_served_file){.file_path = source->file_path,
+                                       .encoding = sxml_qt4_empty_text},
+                resource);
+        }
     }
     const sxml_qt4_served_schema_view schemas = table->served_schemas;
     for (size_t schema_index = 0; schema_index < schemas.served_schema_count;

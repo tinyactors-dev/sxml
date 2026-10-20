@@ -149,6 +149,13 @@ typedef struct sxml_builtin_schemas_feature_operations {
     /* sxml_processor_get_function_namespace_schema. */
     sxml_status (*get_function_namespace_schema)(sxml_processor *processor,
                                                  const sxml_schema **schema);
+    /* sxml_schema_create and sxml_schema_destroy: a schema compiled while
+       a query runs, from the schema documents fn:xsd-validator's options
+       name (F&O 4.0, 17.2.5). */
+    sxml_status (*create_schema)(sxml_allocator allocator,
+                                 const sxml_schema_configuration *configuration,
+                                 sxml_schema **schema);
+    void (*destroy_schema)(sxml_schema *schema);
 } sxml_builtin_schemas_feature_operations;
 
 /* An instant as seconds and nanoseconds since 1970-01-01T00:00:00Z. */

@@ -13,12 +13,14 @@
 
 #include "evaluator_internal.h"
 #include "function_library_core_internal.h"
+#include "memory_internal.h"
 #include "processor_internal.h"
 #include "sxml/schema.h"
 #include "sxml/tree.h"
 #include "sxml/xdm.h"
 #include "xdm_internal.h"
 
+#include <stdalign.h>
 #include <string.h>
 
 /* ------------------------------------------------------- Validation */
@@ -48,6 +50,9 @@ typedef struct scope_validation {
     sxml_node_reference node;
     sxml_schema_validate_mode mode;
     sxml_name_identifier type_name;
+    /* The schemas to validate with: the in-scope schemas, or those
+       fn:xsd-validator assembled. */
+    sxml_schema_view schemas;
 } scope_validation;
 
 /* The in-scope schemas the call's code was compiled with. */
@@ -103,7 +108,7 @@ static sxml_status validation_root_name(sxml_node_reference node, sxml_name_iden
    sxml_builtin_schemas_feature (D225). */
 static sxml_status plan_validation(const sxml_function_call *call,
                                    const scope_validation *validation, scope_plan *plan) {
-    const sxml_schema_view schemas = in_scope_schemas(call);
+    const sxml_schema_view schemas = validation->schemas;
     *plan = (scope_plan){.plan_kind = SXML_SCOPE_PLAN_VALIDATE,
                          .schema = NULL,
                          .governing_type = {.index = SXML_TYPE_NONE}};
@@ -714,8 +719,10 @@ static sxml_status validate_xslt_item(const sxml_function_call *call, const xslt
         is_untyped_atomic_name(call, request->type_name)) {
         return copy_untyped_atomic(call, node, validated);
     }
-    const scope_validation validation = {
-        .node = node, .mode = request->mode, .type_name = request->type_name};
+    const scope_validation validation = {.node = node,
+                                         .mode = request->mode,
+                                         .type_name = request->type_name,
+                                         .schemas = in_scope_schemas(call)};
     scope_plan plan;
     if (status == SXML_STATUS_OK) {
         status = plan_validation(call, &validation, &plan);
@@ -899,7 +906,8 @@ static sxml_status call_validate(const sxml_function_call *call, sxml_sequence *
         .node = single.node,
         .mode = (sxml_schema_validate_mode)mode_datum.datum_details.integer,
         .type_name = has_type ? type_datum.datum_details.qname.expanded_name
-                              : (sxml_name_identifier){.index = 0}};
+                              : (sxml_name_identifier){.index = 0},
+        .schemas = in_scope_schemas(call)};
     scope_plan plan;
     status = plan_validation(call, &validation, &plan);
     if (status != SXML_STATUS_OK) {
@@ -1016,7 +1024,8 @@ sxml_status sxml_schema_scope_validate_document(const sxml_function_call *call,
                                                 sxml_byte_view xsd_validation,
                                                 sxml_item *document_node) {
     scope_validation validation = {.mode = SXML_SCHEMA_VALIDATE_MODE_STRICT,
-                                   .type_name = {.index = 0}};
+                                   .type_name = {.index = 0},
+                                   .schemas = in_scope_schemas(call)};
     const sxml_byte_view type_keyword = SXML_BYTE_VIEW_FROM_LITERAL("type ");
     sxml_status status = SXML_STATUS_OK;
     if (sxml_byte_view_equals(xsd_validation, SXML_BYTE_VIEW_FROM_LITERAL("skip"))) {
@@ -1175,12 +1184,21 @@ sxml_status sxml_schema_scope_validate_by_function_namespace(
 
 /* The captured values of a validator V: the mode (an xs:integer), the
    type name (an xs:QName, or empty), return-typed-node and
-   return-error-details (xs:boolean). */
+   return-error-details (xs:boolean), and the schema it assembles: the
+   schema, schema-location and target-namespace options as given,
+   use-imported-schema (xs:boolean) and the static base URI of the call
+   of fn:xsd-validator (an xs:string), against which schema-location is
+   resolved. */
 enum {
     SXML_VALIDATOR_CAPTURE_MODE = 0,
     SXML_VALIDATOR_CAPTURE_TYPE,
     SXML_VALIDATOR_CAPTURE_TYPED_NODE,
     SXML_VALIDATOR_CAPTURE_ERROR_DETAILS,
+    SXML_VALIDATOR_CAPTURE_SCHEMA_NODES,
+    SXML_VALIDATOR_CAPTURE_SCHEMA_LOCATIONS,
+    SXML_VALIDATOR_CAPTURE_TARGET_NAMESPACES,
+    SXML_VALIDATOR_CAPTURE_USES_IMPORTED_SCHEMA,
+    SXML_VALIDATOR_CAPTURE_BASE_URI,
     SXML_VALIDATOR_CAPTURE_COUNT,
 };
 
@@ -1221,9 +1239,16 @@ static const sxml_static_error validator_schema_error = {
     .error_status = SXML_STATUS_DYNAMIC_ERROR,
     .code_local_name = SXML_BYTE_VIEW_INITIALIZER("FODC0009"),
     .description = SXML_BYTE_VIEW_INITIALIZER(
-        "sxml's fn:xsd-validator validates with the in-scope schema definitions only: the "
-        "schema, schema-location, target-namespace and use-xsi-schema-location options "
-        "need schema documents read while the query runs"),
+        "sxml's fn:xsd-validator does not read xsi:schemaLocation attributes "
+        "(use-xsi-schema-location)"),
+};
+
+static const sxml_static_error validator_compiler_error = {
+    .error_status = SXML_STATUS_DYNAMIC_ERROR,
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("FODC0009"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(
+        "compiling the schema documents fn:xsd-validator's options name needs the "
+        "builtin-schemas feature (sxml_builtin_schemas_feature)"),
 };
 
 static const sxml_static_error validator_mode_error = {
@@ -1448,7 +1473,8 @@ static sxml_status read_validator_validation(const sxml_function_item_descriptio
     }
     *validation = (scope_validation){.node = target->node,
                                      .mode = (sxml_schema_validate_mode)mode.datum_details.integer,
-                                     .type_name = {.index = 0}};
+                                     .type_name = {.index = 0},
+                                     .schemas = {.schemas = NULL, .schema_count = 0}};
     const sxml_sequence type = description->captured_values.sequences[SXML_VALIDATOR_CAPTURE_TYPE];
     sxml_atomic_datum type_name;
     if (sxml_sequence_get_representation(type) != SXML_SEQUENCE_REPRESENTATION_EMPTY &&
@@ -1457,6 +1483,209 @@ static sxml_status read_validator_validation(const sxml_function_item_descriptio
         validation->type_name = type_name.datum_details.qname.expanded_name;
     }
     return SXML_STATUS_OK;
+}
+
+/* The schemas V validates with (17.2.5): one compiled from the schema
+   documents its schema, schema-location and target-namespace options
+   name, when they name any, then, with use-imported-schema, the in-scope
+   schemas of its caller. The compiled schema lives for the call: trees
+   validated with it stay valid (include/sxml/schema.h), and 17.2.5 adds
+   nothing to the static context. */
+typedef struct validator_schemas {
+    const sxml_builtin_schemas_feature_operations *compiler;
+    sxml_schema *compiled;
+    /* Allocated when there is a compiled schema; else NULL. */
+    const sxml_schema **schemas;
+    sxml_schema_view view;
+} validator_schemas;
+
+/* The number of items of a captured sequence; 0 when counting fails. */
+static size_t captured_count(const sxml_function_item_description *description,
+                             size_t capture_index) {
+    uint64_t item_count = 0;
+    if (sxml_sequence_count(description->captured_values.sequences[capture_index], NULL,
+                            &item_count) != SXML_STATUS_OK) {
+        return 0;
+    }
+    return (size_t)item_count;
+}
+
+/* Item item_index of a captured sequence, borrowed. */
+typedef struct captured_item_request {
+    size_t capture_index;
+    size_t item_index;
+} captured_item_request;
+
+static sxml_status captured_item(const sxml_function_item_description *description,
+                                 captured_item_request request, sxml_item *item) {
+    return sxml_sequence_get_item(description->captured_values.sequences[request.capture_index],
+                                  (sxml_item_request){.item_index = request.item_index,
+                                                      .error_record = NULL},
+                                  item);
+}
+
+/* The text of a string or xs:anyURI item, borrowed. */
+static sxml_byte_view item_text(sxml_item item) {
+    sxml_atomic_datum datum;
+    if (sxml_atomic_item_get_datum(item, &datum) != SXML_STATUS_OK ||
+        datum.datum_kind != SXML_DATUM_KIND_STRING) {
+        return (sxml_byte_view){.bytes = NULL, .byte_count = 0};
+    }
+    return datum.datum_details.string.utf8;
+}
+
+/* The schema documents of V's options, in *documents (count entries):
+   the schema nodes as they are, the locations resolved by the
+   resolver against the base URI, the target namespaces by namespace
+   alone ("implementation-defined": the resolver's schema of that
+   namespace). */
+typedef struct validator_documents {
+    sxml_schema_document *documents;
+    size_t document_count;
+} validator_documents;
+
+static sxml_status read_validator_documents(const sxml_function_item_description *description,
+                                            validator_documents *documents) {
+    static const size_t captures[3] = {SXML_VALIDATOR_CAPTURE_SCHEMA_NODES,
+                                       SXML_VALIDATOR_CAPTURE_SCHEMA_LOCATIONS,
+                                       SXML_VALIDATOR_CAPTURE_TARGET_NAMESPACES};
+    sxml_status status = SXML_STATUS_OK;
+    for (size_t capture_index = 0; status == SXML_STATUS_OK && capture_index < 3;
+         capture_index += 1) {
+        const size_t capture = captures[capture_index];
+        const size_t item_count = captured_count(description, capture);
+        for (size_t item_index = 0; status == SXML_STATUS_OK && item_index < item_count;
+             item_index += 1) {
+            sxml_item item = {.representation = SXML_ITEM_REPRESENTATION_NONE};
+            status = captured_item(
+                description,
+                (captured_item_request){.capture_index = capture, .item_index = item_index},
+                &item);
+            sxml_schema_document *document = &documents->documents[documents->document_count];
+            *document = (sxml_schema_document){
+                .document_source = SXML_SCHEMA_DOCUMENT_SOURCE_RESOLVED,
+                .document_text = {.bytes = NULL, .byte_count = 0},
+                .document_node = {.representation = SXML_ITEM_REPRESENTATION_NONE},
+                .document_uri = {.bytes = NULL, .byte_count = 0},
+                .checks_target_namespace = false,
+                .target_namespace_uri = {.bytes = NULL, .byte_count = 0}};
+            if (capture == SXML_VALIDATOR_CAPTURE_SCHEMA_NODES) {
+                document->document_source = SXML_SCHEMA_DOCUMENT_SOURCE_NODE;
+                document->document_node = item;
+            } else if (capture == SXML_VALIDATOR_CAPTURE_SCHEMA_LOCATIONS) {
+                document->document_uri = item_text(item);
+            } else {
+                document->checks_target_namespace = true;
+                document->target_namespace_uri = item_text(item);
+            }
+            documents->document_count += status == SXML_STATUS_OK ? 1U : 0U;
+        }
+    }
+    return status;
+}
+
+static sxml_status assemble_validator_schemas(const sxml_function_call *call,
+                                              const sxml_function_item_description *description,
+                                              validator_schemas *assembled) {
+    const sxml_schema_view in_scope =
+        captured_is_true(description, SXML_VALIDATOR_CAPTURE_USES_IMPORTED_SCHEMA)
+            ? in_scope_schemas(call)
+            : (sxml_schema_view){.schemas = NULL, .schema_count = 0};
+    *assembled = (validator_schemas){
+        .compiler = NULL, .compiled = NULL, .schemas = NULL, .view = in_scope};
+    const size_t document_count =
+        captured_count(description, SXML_VALIDATOR_CAPTURE_SCHEMA_NODES) +
+        captured_count(description, SXML_VALIDATOR_CAPTURE_SCHEMA_LOCATIONS) +
+        captured_count(description, SXML_VALIDATOR_CAPTURE_TARGET_NAMESPACES);
+    if (document_count == 0) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_evaluation_environment *environment =
+        call->dynamic_context == NULL
+            ? NULL
+            : sxml_processor_get_evaluation_environment(call->dynamic_context);
+    assembled->compiler = environment == NULL
+                              ? NULL
+                              : sxml_processor_find_optional_feature(
+                                    environment->processor,
+                                    SXML_OPTIONAL_FEATURE_KIND_BUILTIN_SCHEMAS);
+    if (assembled->compiler == NULL) {
+        return sxml_function_library_report(call, &validator_compiler_error);
+    }
+    const sxml_allocator allocator = sxml_item_heap_as_allocator(call->item_heap);
+    void *document_memory = NULL;
+    sxml_status status = sxml_allocator_allocate_array(
+        allocator,
+        (sxml_array_allocation_request){.element_count = document_count,
+                                        .element_size = sizeof(sxml_schema_document),
+                                        .element_alignment = alignof(sxml_schema_document)},
+        &document_memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    validator_documents documents = {.documents = document_memory, .document_count = 0};
+    status = read_validator_documents(description, &documents);
+    sxml_error_record schema_error;
+    memset(&schema_error, 0, sizeof schema_error);
+    if (status == SXML_STATUS_OK) {
+        status = assembled->compiler->create_schema(
+            allocator,
+            &(sxml_schema_configuration){
+                .processor = environment->processor,
+                .schema_documents = {.schema_documents = documents.documents,
+                                     .schema_document_count = documents.document_count},
+                .base_uri = item_text(
+                    description->captured_values.sequences[SXML_VALIDATOR_CAPTURE_BASE_URI]
+                        .content),
+                .report_sink = {.state = NULL, .operations = NULL},
+                .maximum_content_model_state_count = 0,
+                .error_record = &schema_error},
+            &assembled->compiled);
+    }
+    sxml_allocator_release(allocator, document_memory);
+    if (status == SXML_STATUS_STATIC_ERROR) {
+        /* FODC0015: "not possible to assemble a valid and consistent
+           schema" (17.2.5). */
+        status = raise_schema_error(call, &schema_error, SXML_BYTE_VIEW_FROM_LITERAL("FODC0015"));
+    }
+    void *schema_memory = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_allocator_allocate_array(
+            allocator,
+            (sxml_array_allocation_request){.element_count = in_scope.schema_count + 1U,
+                                            .element_size = sizeof(const sxml_schema *),
+                                            .element_alignment = alignof(const sxml_schema *)},
+            &schema_memory);
+    }
+    if (status != SXML_STATUS_OK) {
+        if (assembled->compiled != NULL) {
+            assembled->compiler->destroy_schema(assembled->compiled);
+            assembled->compiled = NULL;
+        }
+        return status;
+    }
+    /* The compiled schema first, then the in-scope ones. */
+    const sxml_schema **schemas = (const sxml_schema **)schema_memory;
+    schemas[0] = assembled->compiled;
+    for (size_t schema_index = 0; schema_index < in_scope.schema_count; schema_index += 1) {
+        schemas[schema_index + 1U] = in_scope.schemas[schema_index];
+    }
+    assembled->schemas = schemas;
+    assembled->view = (sxml_schema_view){.schemas = schemas,
+                                         .schema_count = in_scope.schema_count + 1U};
+    return SXML_STATUS_OK;
+}
+
+static void release_validator_schemas(const sxml_function_call *call,
+                                      validator_schemas *assembled) {
+    if (assembled->compiled != NULL) {
+        assembled->compiler->destroy_schema(assembled->compiled);
+    }
+    if (assembled->schemas != NULL) {
+        sxml_allocator_release(sxml_item_heap_as_allocator(call->item_heap),
+                               (void *)assembled->schemas);
+    }
+    *assembled = (validator_schemas){.compiled = NULL, .schemas = NULL};
 }
 
 /* V($target) (17.2.5): the empty sequence for an empty $target, else a
@@ -1482,6 +1711,11 @@ static sxml_status call_validator(const sxml_function_call *call, sxml_sequence 
     }
     scope_validation validation;
     status = read_validator_validation(&description, &target, &validation);
+    validator_schemas assembled = {.compiled = NULL, .schemas = NULL};
+    if (status == SXML_STATUS_OK) {
+        status = assemble_validator_schemas(call, &description, &assembled);
+        validation.schemas = assembled.view;
+    }
     document_form form = {.is_well_formed = true};
     if (status == SXML_STATUS_OK && target.node_kind == SXML_NODE_KIND_DOCUMENT) {
         status = is_well_formed_document(target.node, &form);
@@ -1491,13 +1725,14 @@ static sxml_status call_validator(const sxml_function_call *call, sxml_sequence 
     if (status == SXML_STATUS_OK && is_well_formed) {
         status = plan_validation(call, &validation, &plan);
     }
+    if (status == SXML_STATUS_OK && plan.plan_kind == SXML_SCOPE_PLAN_NO_TYPE) {
+        status = sxml_function_library_report(call, &validator_type_error);
+    }
     if (status != SXML_STATUS_OK) {
+        release_validator_schemas(call, &assembled);
         return status;
     }
-    if (plan.plan_kind == SXML_SCOPE_PLAN_NO_TYPE) {
-        return sxml_function_library_report(call, &validator_type_error);
-    }
-    const sxml_schema_view schemas = in_scope_schemas(call);
+    const sxml_schema_view schemas = validation.schemas;
     if (plan.plan_kind == SXML_SCOPE_PLAN_NO_DECLARATION && schemas.schema_count > 0) {
         /* No declaration of the root's name: the validator says why it
            is invalid (cvc-elt.1), or assesses it by its xsi:type. */
@@ -1540,6 +1775,7 @@ static sxml_status call_validator(const sxml_function_call *call, sxml_sequence 
         sxml_item_release(answer.typed_node);
     }
     release_error_details(&details);
+    release_validator_schemas(call, &assembled);
     return status;
 }
 
@@ -1589,23 +1825,9 @@ static sxml_status read_validator_mode(const sxml_function_call *call,
     return SXML_STATUS_OK;
 }
 
-/* True when an option asks for schema documents beyond the in-scope
-   schemas: schema, schema-location, target-namespace not empty, or
-   use-xsi-schema-location true. */
-static bool needs_other_schemas(const sxml_option_values *values) {
-    const size_t sequence_options[3] = {SXML_VALIDATOR_OPTION_SCHEMA, SXML_VALIDATOR_OPTION_SCHEMA_LOCATION,
-                                        SXML_VALIDATOR_OPTION_TARGET_NAMESPACE};
-    for (size_t option_index = 0; option_index < 3; option_index += 1) {
-        const size_t option = sequence_options[option_index];
-        if (values->is_present[option] &&
-            sxml_sequence_get_representation(values->values[option]) !=
-                SXML_SEQUENCE_REPRESENTATION_EMPTY) {
-            return true;
-        }
-    }
-    return sxml_function_library_option_is_true(
-        (sxml_option_lookup){.values = values,
-                             .option_index = SXML_VALIDATOR_OPTION_USE_XSI_SCHEMA_LOCATION});
+/* The value of a sequence option; empty when absent. */
+static sxml_sequence option_sequence(const sxml_option_values *values, size_t option) {
+    return values->is_present[option] ? values->values[option] : sxml_sequence_empty();
 }
 
 /* fn:xsd-validator($options as map(*)? := {}) as fn((document-node(*) |
@@ -1620,8 +1842,20 @@ static sxml_status call_xsd_validator(const sxml_function_call *call, sxml_seque
                                .definitions = {validator_options, SXML_VALIDATOR_OPTION_COUNT}},
         &values);
     sxml_schema_validate_mode mode = SXML_SCHEMA_VALIDATE_MODE_STRICT;
-    if (status == SXML_STATUS_OK && needs_other_schemas(&values)) {
+    if (status == SXML_STATUS_OK &&
+        sxml_function_library_option_is_true(
+            (sxml_option_lookup){.values = &values,
+                                 .option_index = SXML_VALIDATOR_OPTION_USE_XSI_SCHEMA_LOCATION})) {
         status = sxml_function_library_report(call, &validator_schema_error);
+    }
+    sxml_sequence base_uri = sxml_sequence_empty();
+    if (status == SXML_STATUS_OK) {
+        status = sxml_function_library_make_string(
+            call->item_heap,
+            call->dynamic_context == NULL
+                ? (sxml_byte_view){.bytes = NULL, .byte_count = 0}
+                : sxml_dynamic_context_get_static_base_uri(call->dynamic_context),
+            &base_uri);
     }
     if (status == SXML_STATUS_OK) {
         status = read_validator_mode(call, &values, &mode);
@@ -1645,7 +1879,16 @@ static sxml_status call_xsd_validator(const sxml_function_call *call, sxml_seque
             sxml_function_library_make_boolean(
                 (sxml_boolean_result){.is_true = returns_typed_node}),
             sxml_function_library_make_boolean(
-                (sxml_boolean_result){.is_true = returns_error_details})};
+                (sxml_boolean_result){.is_true = returns_error_details}),
+            option_sequence(&values, SXML_VALIDATOR_OPTION_SCHEMA),
+            option_sequence(&values, SXML_VALIDATOR_OPTION_SCHEMA_LOCATION),
+            option_sequence(&values, SXML_VALIDATOR_OPTION_TARGET_NAMESPACE),
+            sxml_function_library_make_boolean((sxml_boolean_result){
+                .is_true = !sxml_function_library_option_is_false(
+                    (sxml_option_lookup){.values = &values,
+                                         .option_index =
+                                             SXML_VALIDATOR_OPTION_USE_IMPORTED_SCHEMA})}),
+            base_uri};
         status = sxml_function_item_make(
             call->item_heap,
             &(sxml_function_item_request){
@@ -1659,6 +1902,7 @@ static sxml_status call_xsd_validator(const sxml_function_call *call, sxml_seque
                          .operations = &sxml_native_function_body_operations}},
             &validator);
     }
+    sxml_sequence_release(base_uri);
     sxml_function_library_release_options(&values);
     if (status == SXML_STATUS_OK) {
         *result = sxml_sequence_from_item(validator);

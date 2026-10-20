@@ -673,6 +673,36 @@ static sxml_status sxml_qt4_serve_resources(sxml_qt4_test_context *context) {
                 .served_resources = served.served_resources,
                 .served_resource_count = served.served_resource_count};
     }
+    /* The sources with a URI, which SCHEMA_DOCUMENT serves too. */
+    const sxml_qt4_source_view sources = environment->sources;
+    void *source_memory = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_qt4_allocate_array(
+            context,
+            (sxml_qt4_array_request){
+                .element_count = sources.source_count,
+                .element_byte_count = sizeof(sxml_qt4_served_resource),
+                .alignment = alignof(sxml_qt4_served_resource)},
+            &source_memory);
+    }
+    sxml_qt4_served_resource *served_sources = source_memory;
+    size_t served_source_count = 0;
+    for (size_t source_index = 0;
+         status == SXML_STATUS_OK && served_sources != NULL &&
+         source_index < sources.source_count;
+         source_index += 1) {
+        const sxml_qt4_source *source = &sources.sources[source_index];
+        if (source->uri.byte_count == 0) {
+            continue;
+        }
+        served_sources[served_source_count] = (sxml_qt4_served_resource){
+            .uri = source->uri, .file_path = source->file_path, .encoding = sxml_qt4_empty_text};
+        served_source_count += 1;
+    }
+    if (status == SXML_STATUS_OK) {
+        context->resource_table->served_sources = (sxml_qt4_served_resource_view){
+            .served_resources = served_sources, .served_resource_count = served_source_count};
+    }
     return status;
 }
 

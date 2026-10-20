@@ -30,6 +30,9 @@
  *   file:///SUITE-PATH is the module's base URI;
  * - SCHEMA_DOCUMENT with a suite file for a file:///SUITE-PATH URI (the
  *   includes and imports of a schema document), else with the file of the
+ *   environment's <source> of that URI (a schema document the query
+ *   names by the URI the environment gives it, fn:xsd-validator's
+ *   schema-location, packet 2.23), else with the file of the
  *   environment's first <schema> whose uri is the request's target
  *   namespace, whatever the location hint says (an XQuery "import
  *   schema", D174); its URI file:///SUITE-PATH is the document's base
@@ -124,6 +127,9 @@ typedef struct sxml_qt4_resource_table {
     sxml_qt4_served_collection_view served_collections;
     sxml_qt4_served_module_view served_modules;
     sxml_qt4_served_schema_view served_schemas;
+    /* The environment's sources with a URI, as SCHEMA_DOCUMENT serves
+       them (uri and file_path; encoding empty). */
+    sxml_qt4_served_resource_view served_sources;
 } sxml_qt4_resource_table;
 
 /* The resolver over *table, as described above. */

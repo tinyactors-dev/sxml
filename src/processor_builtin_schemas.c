@@ -2,7 +2,8 @@
  * The optional feature sxml_builtin_schemas_feature (include/sxml/schema.h;
  * packet health-3, docs/DECISIONS.md D225): the processor's built-in
  * schemas for XPath's functions, made by sxml_processor_get_builtin_schema
- * and sxml_processor_get_function_namespace_schema (src/processor.c).
+ * and sxml_processor_get_function_namespace_schema (src/processor.c), and
+ * the schema compiler for fn:xsd-validator's schema options.
  * XPath's function library reaches them only through this table, so the
  * schema compiler is linked only into a program that names the feature
  * (or links XQuery, XSLT or the schema API, which call the compiler
@@ -18,6 +19,8 @@
 static const sxml_builtin_schemas_feature_operations sxml_builtin_schemas_operations = {
     .get_builtin_schema = sxml_processor_get_builtin_schema,
     .get_function_namespace_schema = sxml_processor_get_function_namespace_schema,
+    .create_schema = sxml_schema_create,
+    .destroy_schema = sxml_schema_destroy,
 };
 
 const sxml_optional_feature_definition sxml_builtin_schemas_feature_definition = {
