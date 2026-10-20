@@ -29,6 +29,8 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 (bindings/kotlin/DESIGN.md, bindings/swift/DESIGN.md).
 
 
+- 4.25: XSLT sweep (D260's open list, the run-time QName cast).
+- 2.24: XPath/XQuery sweep (D258's open list; a static-typing estimate).
 - perf-4: laziness and short-circuiting, the 2,000-order join, the step limit.
 
 ## Next
