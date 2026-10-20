@@ -31,7 +31,6 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 
 - 4.25: XSLT sweep (D260's open list, the run-time QName cast).
 - 2.24: XPath/XQuery sweep (D258's open list; a static-typing estimate).
-- perf-4: laziness and short-circuiting, the 2,000-order join, the step limit.
 
 ## Next
 
@@ -176,7 +175,8 @@ perf-4 (D259): the book's join 12.9 s -> 0.045 s (descendant pass, the
 filter index's number view, probe order); early exit through item demands
 and quantifier fusion (10^7 items: seconds -> 4 ms); default step bound
 10^8 (about 8 s). Left: two filters in a row index only the first;
-FILTER/MAP over MAP not fused; demands do not enter function bodies.
+FILTER/MAP over MAP not fused; demands do not enter function bodies;
+if/boolean read one extra item.
 
 Platform and tooling:
 - macOS, Windows and MSVC have never been built; `_getcwd` is untested.
