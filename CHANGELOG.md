@@ -16,6 +16,13 @@ not tagged yet, or into the next minor release.
 
 ### Added (Phase 7)
 
+- **Fast Invisible XML** (D283): the Earley parser of `fn:invisible-xml`
+  uses one character of lookahead, Leo items for right recursion and
+  compiled codepoint classes, and simplifies grammars when compiling, so
+  unambiguous grammars parse in linear time (1 MB in under 0.6 s);
+  grammar errors give line and column or name the rule; failure
+  documents list expected sets once, sorted. The book has a part on
+  Invisible XML.
 - **Source code as XML** (D285): `sxml:parse-code` (namespace
   `urn:sxml`, optional feature `sxml_source_code_feature()`) parses JSON,
   JavaScript (with JSX), Python, C, CSS, HTML and Go with vendored

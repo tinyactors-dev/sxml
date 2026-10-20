@@ -12960,9 +12960,9 @@ remote functions.
   type-checks with `tsc --strict`.
 
 ### D283. Fast Invisible XML: Earley with lookahead sets and Leo items (packet 7.21)
-Recorded 2026-10-20, after D12, D53, D71, D189, D215, D224, D272. In
-progress; completed when the packet ends. The owner: a high-performance
-Invisible XML, book first, then the tests, then the implementation.
+Recorded 2026-10-20, after D12, D53, D71, D189, D215, D224, D272. The
+owner: a high-performance Invisible XML, book first, then the tests,
+then the implementation. Done (commits ec3fd42, 4818dd3, 7a93dc7).
 - **Book** (ec3fd42): the part "Parsing Text with Invisible XML", five
   chapters; the errors and performance chapters are drafts whose
   examples are the acceptance test. **Tests** (4818dd3):
@@ -12985,6 +12985,55 @@ Invisible XML, book first, then the tests, then the implementation.
   Aycock and Horspool ("Practical Earley Parsing", 2002) merges items
   into states but makes the first derivation, which sxml reads the tree
   from, harder to keep.
+  Two notes from the orchestrator for the record: the "tables per call"
+  objection is weaker than stated, since fn:invisible-xml returns a
+  parse function and tables would be built once per grammar; and the
+  largest constant factor left is lexical (regular nonterminals compiled
+  to DFAs and matched in one step, not one Earley set per character).
+- **Grammar simplification** (`src/ixml.c`, before productions are
+  sorted): a hidden use of a rule of one production of one symbol uses
+  that symbol in place (`-digit: ["0"-"9"]`, `-s: " "*`), and groups and
+  options the compiler made, used once and hidden, are written out where
+  used (at most 8 productions from one, alternatives in order). Parses,
+  XML and ambiguity are unchanged; items per character fall by half to
+  two thirds (Markdown-like text 5.6 to about 2).
+- **Parser** (`src/ixml_earley.c`, `src/ixml_tables.c`): items of 16
+  bytes (dotted rule with the ambiguous and through-Leo flags, origin,
+  predecessor, child) in blocks of 2^14 that never move; lookahead sets
+  from FIRST/FOLLOW over distinct terminals plus end of input, tested
+  against the next character's codepoint class (ASCII from a table,
+  others computed once and cached); an item is made only when its set
+  meets the class. Items left out are in no parse of the whole input, so
+  the tree, its marks and the failure position are those without
+  lookahead; the failing set is made again without lookahead for its
+  expected terminals. Leo items only where one item waits as its last
+  symbol and started earlier (no cycles), found down the chain and back
+  without recursion; the chain's items are made when the tree reaches
+  them. Tree nodes in blocks too. Steps: one per item, Leo item, chain
+  item and tree node, as before; fewer items means fewer steps.
+- **Errors**: FOIX0001 for grammar text says line, column and the
+  character (or the end); S02 and S03 name the rule; D02 names the
+  attribute and element, D03 the name. Failure documents list each
+  expected set once, sorted by notation; a quote is written '"'.
+- **Numbers** (release, 1 MB inputs, processor s / MB, before -> after):
+  log 1.12/372 -> 0.18/91; csv 1.25/456 -> 0.28/120; calc 2.14/756 ->
+  0.53/204; markdown 3.21/1460 -> 0.30/125; right recursion fails at
+  the step limit after 5.4 GB -> 0.30/136; nesting 200 KB 0.16/64 ->
+  0.05/27; compiling a 5,800-rule grammar 1.07/410 -> 0.18/68; the
+  ambiguous sum of 2,000 characters 2.41 -> 1.4 to 1.8 (cubic; its
+  book bound became 2 s). The book's targets are met (`--check`
+  passes); linear benchmarks grow 3.8 to 4.2 times for 4 times the
+  input; a 10 MB log takes 2.1 s within the default step limit. iXML
+  suite 886 of 907 unchanged (21 not run: 17 Unicode versions, 4 inputs
+  with C0 controls that no xs:string holds; none decided by the
+  specification for sxml; the vendored copy d1f37f6 is Codeberg's
+  head); QT4 iXML sets unchanged. Native code +25 KB.
+- **Memory** stays about 90 to 200 bytes per input character: every
+  item set is kept until the tree is read out of the first derivations.
+  An incrementally built shared packed forest, freeing sets behind the
+  parse, would bound it by the forest; lexical DFAs for regular
+  nonterminals would cut items per character further. Both are left for
+  a later packet.
 
 ### D285. Source code as XML: tree-sitter trees with highlights captures (packet 7.22)
 Recorded 2026-10-20, after D12, D13, D44, D71, D99, D162, D189, D191,
@@ -13183,6 +13232,84 @@ Recorded 2026-10-20, after D285; in progress. The owner's answer to
 D285's proposal: TypeScript, TSX and Markdown built in; a public API to
 register tree-sitter languages; languages loaded at run time from files
 by the host.
+
+### D289. XSLT real gaps: split-when, deterministic functions, atomic-equal keys, adaptive character maps, schema roles, override signatures (packet 4.30)
+Recorded 2026-10-20, after D245, D252, D262, D272 to D281, D286.
+Verified as D181 asks: the debug preset (xslt*, serialize*, cli,
+function_library* tests), clang-tidy on the changed files, the
+call-cycle check, the book examples (no output the book shows
+changed), the QT4 serializer sets of the changed serializer
+(XQ40/XP40 method-adaptive, fn-serialize, method-xml/-text/-json/-html,
+OptionDecl.serialization: no new failure), and the whole XT40 suite
+with the release driver after each change, case by case. **XT40
+12,261 to 12,268 passed (99 wrong error), 257 to 250 failed, 0
+errors**, from a whole run at 384040b. Commits 89aa625, 46ba9b9,
+dad90fb.
+- **One closure mechanism**: xsl:iterate's step function became
+  `sxml_xslt_closure` (src/xslt_lower_internal.h): fn($first, $item,
+  $position) capturing every variable in scope (D126) and globals by
+  reference (D275), its body lowered with the focus of $item.
+  **split-when** (14.1) is fn:partition over the population with a
+  closure of the expression ($group, $next, the focus of $next) and
+  each partition a keyless group array (for-each-group-401, -402).
+  merge-when stays the one unsupported place (no suite case; sketch:
+  singleton groups, then a pairwise loop with the same closure shape
+  over fn:fold-left, medium).
+- **new-each-time="no"** (10.3.6) is always cached by the cached-call
+  row (10.3.7, D163) (function-1025, -1026).
+- **Keys by fn:atomic-equal** (20.2.2 and its note): key values other
+  than strings are map keys as they are, no longer cast to xs:double
+  (map-for-key-007). **Lost key-004 by the draft**: key('k', 3.7) no
+  longer finds number('3.7'); the note names this incompatibility.
+- **Adaptive character maps** (Serialization 4.0, 11 and 12): nodes
+  (the XML method) and string literals (the Text method) are mapped.
+  character-map-026 still fails on the suite's 3.1 map{...} syntax.
+- **Static codes**: XTSE4045 (3.13.1, a schema-role naming no role of
+  its package; import-schema-210), XTSE3070 for new-each-time,
+  streamability and streamable attribute sets (3.4.5.3;
+  override-f-021), XTSE0165 for an included or imported xsl:package
+  (3.10.1; package-910). fn:document validates before strip-space
+  "all", as fn:doc does since D286 (no case).
+- **Not done, with causes and sizes**: map-for-key-005 ($top empty
+  means the context node's document: the context parameter's absent
+  focus is raised eagerly in src/xpath_lower.c, which 2.27 and 2.28
+  held; a parameter default "context value or empty" there, small);
+  copy-4308 (call-template from a global reads the absent global
+  context item at the call; passing an absent focus needs an absent
+  marker in slots, medium); function-lookup-004 (run-time lookup
+  scans the unit's named functions without packages: an IR function
+  package number and the caller's visibility table, medium);
+  accumulators per package (override-misc-005, -007, medium);
+  per-package xsl:strip-space for fn:document (document-2401: one
+  document preparation per package and a loader key of URI and package,
+  medium); D276's current rule in an attribute set inside
+  xsl:for-each (an evaluator operation, no case); schema roles kept
+  apart (import-schema-216: per-element in-scope schemas, medium).
+- **The draft, the suite or the environment decides**: xsl:evaluate's
+  12 (008a needs a Java extension function; 042 XTDE3160 is the
+  draft's; 048, 450 to 460-untrusted are D273's trust codes;
+  460-trusted needs EXPath File with a file system in the XSLT driver);
+  output-0196 (HTML5 writes PIs as comments), output-0707 and
+  result-document-1407 (adaptive's "no error" is an aim, Serialization
+  11), result-document-0304 (3.1 map syntax), output-0721 (expects an
+  XML declaration per node by 11.1.1's note; left), docbook-003/004
+  (fragment identifiers of xsl:source-document are
+  implementation-defined, 18.1 is fn:doc's process).
+- **Design sketches for later packets**: *streaming* (about 20 single
+  causes: streamability analysis misses XTSE3430 in sf-filter-001 and
+  si-fork-953, unparsed entities of streamed documents
+  sf-unparsed-entity-03/-04, si-document-113/-114, absorbing and
+  grouping details; each small to medium in src/xslt_streamability.c
+  and src/evaluator_stream.c, about a week in all); *namespace
+  undeclarations* (namespace-2606, inherit-namespaces="no"): the tree
+  gives an element its parent's namespaces implicitly, so a child that
+  does not inherit cannot be stored; an additive tree.h record (an
+  undeclaring binding, URI empty, in an element's own bindings, D99),
+  honoured by in-scope namespace reads, copies and the serializer's
+  existing undeclare-prefixes path; medium, one substrate record.
+- **Records**: the first commit's message lost the words "$group,
+  $next" to the shell; this record is the account. The XT40 section of
+  `docs/CONFORMANCE.md` was not regenerated.
 
 ## Proposed
 

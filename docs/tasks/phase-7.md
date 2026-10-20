@@ -1193,6 +1193,22 @@ some/every over 10^7 items 2 to 6 s to 0.004 s); the default step bound
 10^8 (8 s instead of 75 s; the drivers' bounds unchanged); xmark-all +1 %
 instructions; QT4 XQ40 and XT40 unchanged case by case.
 
+### 7.21 Fast Invisible XML (book, tests, implementation)
+After D215 (7.18: the Earley parser, right recursion quadratic, every
+item a step). The owner: high performance; book first, then
+conformance and benchmarks, then the implementation.
+- **Owns**: `docs/book/src/ixml*.md`, `docs/book/examples/ixml/`,
+  `tests/bench/run-ixml-bench.py`, `tests/bench/ixml/`, `src/ixml.c`,
+  `src/ixml_earley.c`, `src/ixml_tables.c`, `src/ixml_internal.h`,
+  `src/function_library_ixml.c`, `tests/ixml_test.c`.
+- **Done when**: the book's performance chapter passes
+  (`run-ixml-bench.py --check` and its examples); no iXML suite or QT4
+  iXML case lost; D71, allocator memory, honest steps.
+**Done** 2026-10-20 (D283): the part "Parsing Text with Invisible XML";
+the benchmark suite; lookahead sets, Leo items, codepoint classes,
+grammar simplification. 1 MB in 0.18 to 0.53 s (was 1.1 to 3.2 s),
+right recursion linear; suite 886/907 and QT4 unchanged.
+
 ### 7.22 Source code as XML: tree-sitter trees with highlights (design and implementation)
 - **Order** (owner): the book first, then the grammars' own tests, then
   the implementation.

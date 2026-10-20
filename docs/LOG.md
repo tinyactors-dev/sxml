@@ -4,6 +4,26 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 7.21 done (D283): fast Invisible XML. Book first (part "Parsing Text
+  with Invisible XML", five chapters, 52 examples, all match), then
+  tests/bench/run-ixml-bench.py whose --check holds the book's numbers,
+  then the parser: lookahead sets, Leo items, codepoint classes, grammar
+  simplification, items and nodes in blocks, errors that say where.
+  1 MB inputs 0.18 to 0.53 s and 91 to 204 MB (were 1.1 to 3.2 s and
+  372 to 1,460 MB); right recursion linear (was quadratic, failing at
+  250 KB). iXML suite 886/907 and QT4 iXML sets unchanged.
+
+- 4.30 done (D289): XSLT real gaps, XT40 12,261 to 12,268 passed (99
+  wrong error), 257 to 250 failed, 0 errors. split-when through
+  fn:partition and one closure mechanism shared with xsl:iterate;
+  new-each-time="no" cached; keys compared by fn:atomic-equal (key-004
+  lost by the draft's 20.2.2 note); adaptive character maps; XTSE4045,
+  XTSE3070 for new-each-time, XTSE0165 for an included package;
+  fn:document validates before stripping. Left with sizes (D289):
+  map-for-key-005 (xpath_lower.c), copy-4308, function-lookup and
+  accumulators per package, per-package strip-space, schema roles,
+  streaming and namespace undeclarations (sketches in D289).
+
 - 7.22 done (D285): source code as XML. sxml:parse-code($source,
   $language, $options) and sxml:code-languages() (namespace urn:sxml,
   feature "source-code", every build): seven vendored tree-sitter
