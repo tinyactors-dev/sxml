@@ -48,6 +48,14 @@ not tagged yet, or into the next minor release.
   `sxml_source_code_check_language`; tree-sitter language ABI 13 to 15),
   and `sxml xpath`, `xquery` and `transform` load one from a shared
   library with `--code-language=LIBRARY`.
+- **tree-sitter WebAssembly languages in JavaScript** (D293):
+  `Sxml.loadCodeLanguage({ wasm, name, highlights, locals, injections,
+  injectionRegex })` loads a grammar's `tree-sitter-NAME.wasm`, as
+  `tree-sitter build --wasm` writes it, into the package's `sxml.wasm`,
+  and `createProcessor({ codeLanguages })` gives it to processors.
+  `sxml.wasm` exports its function table, stack pointer and the C
+  functions tree-sitter allows external scanners. The package binds the
+  prefix `sxml`.
 - **Optional features** (`processor.h`, D189): a processor names the
   features it uses (`sxml_optional_feature`), so a program links only
   those; without one, the feature's single rejection place gives the

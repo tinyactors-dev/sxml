@@ -13579,7 +13579,108 @@ Recorded 2026-10-20, after D99, D245, D289; in progress.
 Recorded 2026-10-20, after D257, D282, D285, D288; in progress.
 
 ### D293. tree-sitter's WebAssembly language files in the JavaScript package (packet 7.25)
-Recorded 2026-10-20, after D138, D189, D225, D272, D285, D288; in progress.
+Recorded 2026-10-20, after D138, D189, D225, D272, D285, D288. Carries
+out what D288 delayed as (a); the owner's order: the book (a24417c), the
+tests (ef6af16), the implementation (913f60b). D288's "Delayed (a)" is done by this
+record; (b), the native wasm store, stays rejected and (c), Kotlin and
+Swift, waits for 6.12 (the host shim now passes languages, below).
+- **The files** (glossary `language_module`, `side_module`):
+  tree-sitter 0.27's `tree-sitter build --wasm` runs the WASI SDK's
+  clang: `--target=wasm32-wasip1 -fPIC -shared --no-wasm-opt -Os
+  -Wl,--export=tree_sitter_NAME -Wl,--allow-undefined -Wl,--no-entry
+  -nostdlib -fno-exceptions -fvisibility=hidden` over parser.c and
+  scanner.c (read from its verbose output). The result is a side module
+  of the tool conventions' dynamic linking: a `dylink.0` section (memory
+  size and alignment, table size and alignment, needed libraries);
+  imports env.memory, env.__indirect_function_table, env.__memory_base,
+  env.__table_base, often env.__stack_pointer, and the C functions its
+  scanner calls; exports tree_sitter_NAME and __wasm_apply_data_relocs.
+  Measured on the eleven vendored grammars: JSON, Go and C import no
+  functions; Python malloc, calloc, realloc, free; JavaScript,
+  TypeScript and CSS iswspace, iswalpha, iswalnum; HTML and Markdown
+  also towupper, towlower, strlen, strcmp, strncpy, memcmp and
+  __assert_fail. tree-sitter's own loader (lib/src/wasm_store.c) reads
+  the same files and allows the functions of
+  lib/src/wasm-stdlib/imports.txt (25: calloc, free, malloc, realloc,
+  the mem*/str* subset, isw*, towlower, towupper) plus abort,
+  __assert_fail and a few WASI no-ops; web-tree-sitter (emscripten's
+  loader) reads them too.
+- **sxml.wasm** (`bindings/javascript/CMakeLists.txt`): links with
+  `--export-table --growable-table --export=__stack_pointer` and
+  `--export=` each function of imports.txt, read from the vendored file
+  at configure time (one list). The module's memory was exported
+  already. So a side module shares sxml.wasm's memory, heap (sxml's
+  malloc), function table and shadow stack; sxml's tree-sitter calls the
+  grammar's lexer and scanner through the table as it calls a compiled-in
+  grammar's, and the scanner calls sxml's lexer callbacks the same way.
+  No PIC main module and no second runtime: the static module only
+  exports what a side module imports.
+- **The module linker** (glossary `module_linker`,
+  `bindings/javascript/src/linker.ts`): reads `dylink.0`
+  (WebAssembly.Module.customSections) and refuses a module without one,
+  one with needed libraries, and one with any import outside env.memory,
+  the table, the stack pointer, the two bases, abort and __assert_fail
+  (JavaScript functions that throw a RuntimeError, as the wasm store's
+  trap) and the functions sxml.wasm exports for scanners, naming every
+  such import (GOT.mem/GOT.func imports of emscripten files with
+  preemptible symbols, C++ runtime functions of old C++ scanners, and
+  `--reuse-allocator` files' ts_current_* are refused this way); the
+  error names the reason. It reserves the module's memory with
+  sxml.wasm's malloc (aligned, zeroed for the bss), grows the table by
+  its size after the last slot (aligned), instantiates with the bases,
+  runs __wasm_apply_data_relocs, __wasm_call_ctors and _initialize when
+  exported, and calls tree_sitter_NAME (NAME the host's name with `-`
+  made `_`, else the module's only tree_sitter_* export). Nothing is
+  ever released: an instance cannot be unloaded while the table holds
+  its functions.
+- **Registration**: the host shim's `sxml_host_processor_configuration`
+  gains `source_code_languages` (appended; zero is none; passed to
+  `sxml_processor_configuration`). The JavaScript shim:
+  `sxml_javascript_processor_create` takes a third argument, a
+  `sxml_source_code_language_view *` (NULL none), and
+  `sxml_javascript_check_code_language` exports
+  `sxml_source_code_check_language`; the shim static-asserts the wasm32
+  layout the package writes (44-byte language, 8-byte view, 12-byte
+  report). Swift's memberwise initializer names the new field (not
+  compiled here: no Swift toolchain); Kotlin's designated initializer
+  needs nothing. No public header changes.
+- **API** (`src/index.ts`): `Sxml.loadCodeLanguage({ wasm, name,
+  highlights, locals, injections, injectionRegex })` returns a
+  `CodeLanguage` (`name`, `abiVersion`) after the shim's check, whose
+  problems become an Error worded as the sxml command words them
+  ("the grammar's ABI is 12; sxml reads 13 to 15", "the highlights query
+  does not fit the grammar at byte 1", a bad name); `wasm` is any
+  WasmSource, as for load(). `createProcessor({ codeLanguages })`
+  copies the languages into a view made with malloc, freed with the
+  processor; a language of another Sxml or two of one name throw. A
+  language and its texts live as long as its Sxml, so processor leak
+  counts stay 0. The package now binds the prefix `sxml` to `urn:sxml`
+  wherever the source-code feature is present, as the sxml command does
+  (D285).
+- **Not supported**: emscripten's older `dylink` section (before
+  dylink.0, 2021); files that need other side modules; scanner imports
+  outside the list above.
+- **Tests**: `javascript/code_languages` builds JSON, Python and CSS
+  from the vendored grammars with tree-sitter's command line above
+  (custom commands, the wasm preset's compiler, no network) and checks
+  that the loaded Python and CSS give the built-in grammars' documents
+  exactly, highlights included, JSON's highlights and names, several
+  processors per language, and the refusals on modules made byte by
+  byte (no dylink.0, a needed library, env.fopen, no tree_sitter_NAME,
+  ABI 12) and of a query, a name and another module's language: 12 of
+  12. javascript/package and javascript/languages pass unchanged. The
+  book's JavaScript chapter: 5 examples, all match (with
+  WASI_SDK_PREFIX, which builds the JSON file).
+- **Sizes**: `sxml.wasm` 13,448,586 bytes stripped / 2,420,734 gzipped
+  at this change (budget 14,000,000 / 2,800,000, not raised); its code
+  and data grow by 7,713 bytes for this change (the linker map against
+  the D225 baseline: the libc functions exported for scanners 6,995, of
+  them iswpunct's table 4,000, memmove 1,325, memcpy 1,031, memset 408;
+  sxml_source_code_check 392 now reachable from an export; the shim 56;
+  export data 270); the rest of the map's +22,892 since the baseline is
+  other packets' (ixml_tokens, ixml_earley, XSLT). Baseline not
+  refreshed. The CLI module is unchanged by this packet (15,041,890 /
+  2,704,138).
 
 ## Proposed
 

@@ -4,6 +4,18 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 7.25 done (D293): tree-sitter's WebAssembly language files in the
+  JavaScript package. Sxml.loadCodeLanguage links a file as `tree-sitter
+  build --wasm` writes it (a dylink.0 side module) into the running
+  sxml.wasm, which now exports its growable function table, its stack
+  pointer and tree-sitter's 25 scanner C functions; src/linker.ts reads
+  dylink.0, reserves memory with sxml's malloc and table slots, runs the
+  relocations and registers the language with
+  createProcessor({ codeLanguages }). javascript/code_languages 12/12
+  (JSON, Python and CSS built from the vendored grammars, no network;
+  loaded Python and CSS equal the built-in ones); the JavaScript chapter
+  5/5. sxml.wasm 13,448,586 bytes (+7,713 code and data; budget 14 MB).
+
 - 7.24 done (D290): Invisible XML for large inputs. Regular
   nonterminals whose XML is their text are compiled once into automata
   that count paths (ambiguity kept) and read in one step, every end a

@@ -1269,6 +1269,23 @@ nodes and with text runs. Log 1 MB 0.20 s / 90 MB to 0.06 s / 21 MB
 100 MB 6.2 s / 1.17 GB within the default step limit; suite 886/907 and
 QT4 fn-invisible-xml 16/16 unchanged.
 
+### 7.25 tree-sitter WebAssembly language files in the JavaScript package (book, tests, implementation)
+After D288's delayed (a). The owner (2026-10-20): an easy fix; the
+book, the tests, then the implementation.
+- **Owns**: `bindings/javascript` (the shim's code language exports,
+  `src/linker.ts`, `src/index.ts`'s code languages, the test and the
+  language modules' build), the host shim's `source_code_languages`.
+- **Done when**: a section of the JavaScript chapter passes; a Node.js
+  test loads grammars built from the vendored sources with the pinned
+  WASI SDK (one with an external scanner), parses and checks highlights;
+  the size test passes.
+**Done** 2026-10-20 (D293): the module linker and loadCodeLanguage /
+codeLanguages; javascript/code_languages 12 of 12 (JSON, Python, CSS;
+refusals); the chapter 5 of 5; sxml.wasm 13,448,586 / 2,420,734 bytes,
++7,713 code and data, budget unchanged. Not supported: emscripten's
+pre-2021 `dylink` section, needed side modules, scanner imports outside
+tree-sitter's list.
+
 ## Proposed for the owner
 
 No phase covers these four features yet (D183 Proposed). The owner has
