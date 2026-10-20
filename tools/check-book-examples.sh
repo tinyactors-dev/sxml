@@ -24,7 +24,14 @@
 # node_modules/@tinyactors/sxml. Without SXML_JAVASCRIPT those chapters
 # are skipped, and the summary says so.
 #
-# Usage: tools/check-book-examples.sh [--update] [BUILD-DIRECTORY] [CHAPTER.md...]
+# A chapter file with the comment <!-- status: draft --> describes a
+# feature before it is built: the book comes first, its examples show the
+# output the feature will give, and they become the feature's acceptance
+# test. Draft chapters are skipped (the summary names them) unless
+# --drafts is given; the commit that makes a draft's examples pass removes
+# the comment.
+#
+# Usage: tools/check-book-examples.sh [--update] [--drafts] [BUILD-DIRECTORY] [CHAPTER.md...]
 #   BUILD-DIRECTORY defaults to build/release; it must hold apps/sxml.
 #   CHAPTER.md files (paths below docs/book/src) limit the check to them.
 #   --update writes the actual outputs into the chapter files instead of
@@ -44,8 +51,12 @@ import tempfile
 repository_root = sys.argv[1]
 arguments = sys.argv[2:]
 update = False
-if arguments and arguments[0] == "--update":
-    update = True
+check_drafts = False
+while arguments and arguments[0] in ("--update", "--drafts"):
+    if arguments[0] == "--update":
+        update = True
+    else:
+        check_drafts = True
     arguments = arguments[1:]
 build_directory = os.path.join(repository_root, "build", "release")
 if arguments and not arguments[0].endswith(".md"):
@@ -128,6 +139,10 @@ def requires_javascript(lines):
     return any(line.strip() == "<!-- requires: javascript -->" for line in lines)
 
 
+def is_draft(lines):
+    return any(line.strip() == "<!-- status: draft -->" for line in lines)
+
+
 def examples_directory_of(lines):
     for line in lines:
         stripped = line.strip()
@@ -139,6 +154,7 @@ def examples_directory_of(lines):
 failures = 0
 command_count = 0
 skipped_chapters = []
+draft_chapters = []
 javascript_package = os.environ.get("SXML_JAVASCRIPT", "")
 for chapter_file in chapter_files:
     with open(chapter_file, encoding="utf-8") as chapter:
@@ -147,6 +163,9 @@ for chapter_file in chapter_files:
     if not examples:
         continue
     relative_chapter = os.path.relpath(chapter_file, repository_root)
+    if is_draft(lines) and not check_drafts:
+        draft_chapters.append(relative_chapter)
+        continue
     needs_javascript = requires_javascript(lines)
     if needs_javascript and not javascript_package:
         skipped_chapters.append(relative_chapter)
@@ -204,6 +223,8 @@ for chapter_file in chapter_files:
             chapter.writelines(lines)
         print(f"{relative_chapter}: updated {len(replacements)} outputs")
 
+for chapter in draft_chapters:
+    print(f"check-book-examples: {chapter} is a draft; --drafts checks it")
 for chapter in skipped_chapters:
     print(f"check-book-examples: {chapter} skipped; set SXML_JAVASCRIPT to check it")
 if failures:
