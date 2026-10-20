@@ -794,6 +794,14 @@ SXML_NODISCARD sxml_status sxml_xslt_lower_templates(sxml_xslt_lowering *lowerin
 /* Releases lowering->templates and sets it NULL; NULL is allowed. */
 void sxml_xslt_release_templates(sxml_xslt_lowering *lowering);
 
+/* Marks focus as the focus of the attribute set body being lowered (NULL
+   when none is): xsl:next-match and xsl:apply-imports lowered directly
+   in it override the current template rule of the invoking instruction,
+   which invoking an attribute set does not change (XSLT 4.0, 6.11, 10.2).
+   After sxml_xslt_lower_templates. */
+void sxml_xslt_lowering_set_attribute_set_focus(const sxml_xslt_lowering *lowering,
+                                                const sxml_xpath_lowering_focus *focus);
+
 /* The modes fn:apply-templates may select by name (XSLT 4.0, 6.9.3.1):
    the position-th (from 0) named mode that an xsl:mode of package
    declares. */

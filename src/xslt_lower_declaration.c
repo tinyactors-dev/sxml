@@ -2114,6 +2114,14 @@ static sxml_status lower_component_function(const sxml_xslt_lowering *lowering,
         /* 26.3.1: no current output URI in a stylesheet function. */
         status = sxml_xpath_lowerer_clear_output_uri(lowerer);
     }
+    /* 6.11, 10.2: with a focus, xsl:next-match in an attribute set reads
+       the current template rule; without one (invoked where the focus is
+       absent, as in a stylesheet function) there is none. */
+    const bool is_attribute_set_body = request->procedure == &attribute_set_procedure &&
+                                       request->focus.kind == SXML_XPATH_LOWERING_FOCUS_KIND_SLOTS;
+    if (is_attribute_set_body) {
+        sxml_xslt_lowering_set_attribute_set_focus(lowering, &function_frame.focus);
+    }
     if (status == SXML_STATUS_OK) {
         status = sxml_xpath_lowerer_run_procedure(
         lowerer, &(sxml_xpath_lowering_procedure_call){
@@ -2130,6 +2138,9 @@ static sxml_status lower_component_function(const sxml_xslt_lowering *lowering,
     if (status == SXML_STATUS_OK) {
         status = sxml_xpath_lowerer_finish_block(
             lowerer, (sxml_xpath_lowering_block_result){.block = block, .result = body}, &body);
+    }
+    if (is_attribute_set_body) {
+        sxml_xslt_lowering_set_attribute_set_focus(lowering, NULL);
     }
     sxml_xpath_lowerer_leave_function(lowerer, &function_frame);
     if (status != SXML_STATUS_OK) {

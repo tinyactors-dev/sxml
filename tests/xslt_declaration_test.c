@@ -520,6 +520,20 @@ static void test_attribute_sets(sxml_test_state *state) {
                     "<xsl:attribute-set name='s' use-attribute-sets='t'/>"
                     "<xsl:attribute-set name='t' use-attribute-sets='s'/>"),
          "error:XTSE0720"},
+        /* 6.11, 10.2: an attribute set leaves the current template rule
+           as it was, so xsl:next-match in it overrides the invoking rule;
+           a template with context-item use="absent" has none. */
+        {STYLESHEET("<xsl:template match='/'><xsl:apply-templates select='//b'/></xsl:template>"
+                    "<xsl:template match='b' priority='2'><x xsl:use-attribute-sets='n'/>"
+                    "</xsl:template><xsl:template match='b'>low</xsl:template>"
+                    "<xsl:attribute-set name='n'><xsl:attribute name='a'><xsl:next-match/>"
+                    "</xsl:attribute></xsl:attribute-set>"),
+         "<x a=\"low\"/>"},
+        {STYLESHEET("<xsl:template match='/'><xsl:apply-templates select='//b'/></xsl:template>"
+                    "<xsl:template match='b'><xsl:call-template name='t'/></xsl:template>"
+                    "<xsl:template name='t'><xsl:context-item use='absent'/><xsl:next-match/>"
+                    "</xsl:template>"),
+         "error:XTDE0560"},
     };
     CHECK(state, cases);
 }

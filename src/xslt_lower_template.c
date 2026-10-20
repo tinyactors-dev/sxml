@@ -218,6 +218,9 @@ struct sxml_xslt_template_lowering {
        function do not (6.11, 10.1.6). */
     sxml_ir_function_index current_function;
     const sxml_xpath_lowering_focus *current_focus;
+    /* The focus of the attribute set body being lowered (NULL: none);
+       see sxml_xslt_lowering_set_attribute_set_focus. */
+    const sxml_xpath_lowering_focus *attribute_set_focus;
     /* The signature of template functions. */
     sxml_type_identifier template_signature;
 };
@@ -590,6 +593,22 @@ static bool is_in_template_body(const sxml_xslt_lowering *lowering) {
            lowerer->function != NULL &&
            lowerer->function->function_index.value == templates->current_function.value &&
            lowerer->function->focus == templates->current_focus;
+}
+
+void sxml_xslt_lowering_set_attribute_set_focus(const sxml_xslt_lowering *lowering,
+                                                const sxml_xpath_lowering_focus *focus) {
+    if (lowering->templates != NULL) {
+        lowering->templates->attribute_set_focus = focus;
+    }
+}
+
+/* True when the instruction is directly in the body of an attribute set
+   being lowered with a focus (no changed focus, no inline function). */
+static bool is_in_attribute_set_body(const sxml_xslt_lowering *lowering) {
+    const sxml_xslt_template_lowering *templates = lowering->templates;
+    const sxml_xpath_lowerer *lowerer = lowering->lowerer;
+    return templates != NULL && templates->attribute_set_focus != NULL &&
+           lowerer->function != NULL && lowerer->function->focus == templates->attribute_set_focus;
 }
 
 /* True when the instruction is in a template's function (any focus). */
@@ -2011,7 +2030,15 @@ static sxml_status continue_overriding(sxml_xpath_lowering_machine *machine,
     sxml_xpath_lowerer *lowerer = machine->state;
     overriding_locals *locals = frame->locals;
     const sxml_xslt_lowering *lowering = locals->head.lowering;
-    if (!is_in_template_body(lowering)) {
+    /* 6.11: a template with <xsl:context-item use="absent"/> has no
+       current template rule either. */
+    const bool is_in_template =
+        is_in_template_body(lowering) &&
+        lowering->templates->current_focus->kind != SXML_XPATH_LOWERING_FOCUS_KIND_ABSENT;
+    /* 6.11, 10.2: an attribute set leaves the current template rule as
+       the invoking instruction had it, so the evaluator's current rule
+       is read; it has no parameter maps of its own to pass on. */
+    if (!is_in_template && !is_in_attribute_set_body(lowering)) {
         /* 6.11: the current template rule is absent in a changed focus
            (xsl:for-each and the like) and outside templates. */
         sxml_ir_expression_index raise = {0};
@@ -2039,11 +2066,13 @@ static sxml_status continue_overriding(sxml_xpath_lowering_machine *machine,
             machine, &(parameter_maps_request){.head = &locals->head,
                                                .frame = frame,
                                                .base_parameters =
-                                                   version >= 4.0
+                                                   version >= 4.0 && is_in_template
                                                        ? sxml_ir_slot_atom(parameters_slot)
                                                        : lowering->templates->empty_map,
                                                .base_tunnel_parameters =
-                                                   sxml_ir_slot_atom(tunnel_parameters_slot),
+                                                   is_in_template
+                                                       ? sxml_ir_slot_atom(tunnel_parameters_slot)
+                                                       : lowering->templates->empty_map,
                                                .parameters = &locals->parameters,
                                                .tunnel_parameters = &locals->tunnel_parameters});
     }
@@ -2053,23 +2082,29 @@ static sxml_status continue_overriding(sxml_xpath_lowering_machine *machine,
        window, with the rule's position; a guaranteed-streamable rule
        reads no size (19.8.9.14). */
     const sxml_xpath_lowering_focus *current = lowering->templates->current_focus;
-    const bool is_grounded = current != NULL &&
+    const bool is_grounded = is_in_template && current != NULL &&
                              current->kind == SXML_XPATH_LOWERING_FOCUS_KIND_SLOTS &&
                              current->slots.context_value.value != item_slot.value;
+    /* An attribute set's function has its invoker's focus in its focus
+       slots (src/xslt_lower_declaration.c). */
+    const sxml_xpath_lowering_focus *attribute_set = lowering->templates->attribute_set_focus;
+    sxml_ir_focus focus = {.context_value = {0}, .context_position = {0}, .context_size = {0}};
+    if (is_grounded) {
+        focus = (sxml_ir_focus){.context_value = current->slots.context_value,
+                                .context_position = position_slot,
+                                .context_size = {0}};
+    } else if (!is_in_template) {
+        focus = (sxml_ir_focus){.context_value = attribute_set->slots.context_value,
+                                .context_position = attribute_set->slots.context_position,
+                                .context_size = {0}};
+    }
     sxml_ir_expression_index apply = {0};
     const sxml_status status = sxml_xslt_lowering_add_expression(
         lowerer,
         (sxml_ir_expression){
             .expression_kind = SXML_IR_EXPRESSION_KIND_APPLY_TEMPLATES,
             .apply_templates = {.select = {.atom_kind = SXML_IR_ATOM_KIND_NONE},
-                                .focus = is_grounded
-                                             ? (sxml_ir_focus){.context_value =
-                                                                   current->slots.context_value,
-                                                               .context_position = position_slot,
-                                                               .context_size = {0}}
-                                             : (sxml_ir_focus){.context_value = {0},
-                                                               .context_position = {0},
-                                                               .context_size = {0}},
+                                .focus = focus,
                                 .mode = {.value = 0},
                                 .rule_search = is_next_match
                                                    ? SXML_IR_RULE_SEARCH_AFTER_CURRENT_RULE
