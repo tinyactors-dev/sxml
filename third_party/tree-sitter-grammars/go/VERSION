@@ -6,7 +6,11 @@ Directory:  .
 Tag:        none
 Commit:     2346a3ab1bb3857b48b29d779a1ef9799a248cd7
 Highlights: queries/highlights.scm
+Locals:    
+Injections:
+Injection-regex: 
+External:  
 Copied:     LICENSE, src/ (parser.c, any scanner.c and its headers,
-            tree_sitter/), the highlights queries above in the order of
-            tree-sitter.json, test/corpus and any test/highlight;
-            unmodified.
+            tree_sitter/), the external C files above, the queries above
+            in the order of tree-sitter.json, test/corpus and any
+            test/highlight; unmodified.

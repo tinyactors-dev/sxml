@@ -17,7 +17,8 @@ xquery version "4.0";
  : The document's S-expression is written from its elements (the named
  : nodes): sxml:token elements are tokens, an element with missing="true"
  : is (MISSING kind), an sxml:node element is named by its kind attribute.
- : Both sides are normalized as tree-sitter does: comment lines (";")
+ : The document is parsed without injections (D288), as tree-sitter's
+ : test command parses one grammar. Both sides are normalized as tree-sitter does: comment lines (";")
  : dropped, runs of whitespace made one space, no space before ")", and
  : field names dropped from the document's when the expected tree has none.
  : A test with ":error" passes when the document has an ERROR element or
@@ -143,7 +144,8 @@ declare function local:run-corpus-test($test as map(*)) as map(*) {
       map { "outcome": "not-run", "why": "language " || $test-language }
     else
       try {
-        let $document := sxml:parse-code($test?input, $test-language, { "highlights": false() })
+        let $document := sxml:parse-code($test?input, $test-language,
+                                        { "highlights": false(), "injections": false() })
         let $root := $document/*
         return
           if (string($document) ne $test?input) then

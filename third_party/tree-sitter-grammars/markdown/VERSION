@@ -1,0 +1,16 @@
+tree-sitter grammar for markdown, vendored for sxml:parse-code
+(docs/DECISIONS.md, D285) by tools/vendor-tree-sitter-grammar.sh.
+
+Upstream:   https://github.com/tree-sitter-grammars/tree-sitter-markdown
+Directory:  tree-sitter-markdown
+Tag:        none
+Commit:     a0a00f817d02412bd92c54d316f164d827b57b5c
+Highlights: queries/highlights.scm
+Locals:    
+Injections: queries/injections.scm
+Injection-regex: ^(markdown|md)$
+External:  
+Copied:     LICENSE, src/ (parser.c, any scanner.c and its headers,
+            tree_sitter/), the external C files above, the queries above
+            in the order of tree-sitter.json, test/corpus and any
+            test/highlight; unmodified.
