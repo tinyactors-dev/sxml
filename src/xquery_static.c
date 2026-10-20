@@ -1976,13 +1976,60 @@ static sxml_status read_item_types(const static_reader *reader, const prolog_sur
     return status;
 }
 
+/* Whether an in-scope schema defines a type of name: a generalized
+   atomic type's name, which no named item type may take (5.19). */
+static bool names_schema_type(const sxml_xquery_static_context *context,
+                              sxml_name_identifier name) {
+    const sxml_schema_view schemas = context->xpath.unit_static_context.in_scope_schemas;
+    for (size_t schema_index = 0; schema_index < schemas.schema_count; schema_index += 1) {
+        sxml_type_identifier type = {0};
+        if (sxml_schema_find_type(schemas.schemas[schema_index], name, &type)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/* The names of the module's own named item and record types: none in a
+   reserved namespace (XQST0045), none the name of an in-scope schema
+   type (XQST0146; 5.19, 5.20). */
+static sxml_status check_own_type_names(const static_reader *reader,
+                                        const sxml_xquery_static_context *context) {
+    const size_t alias_count = context->named_item_type_count;
+    const size_t type_count = alias_count + context->declared_record_count;
+    sxml_status status = SXML_STATUS_OK;
+    for (size_t type_index = context->imported_item_type_count;
+         status == SXML_STATUS_OK && type_index < type_count; type_index += 1) {
+        const bool is_alias = type_index < alias_count;
+        const sxml_name_identifier name =
+            is_alias ? context->named_item_types[type_index].type_name
+                     : context->declared_records[type_index - alias_count].record_name;
+        const sxml_ast_node_index declaration =
+            is_alias ? first_declaration(reader->ast)
+                     : context->declared_records[type_index - alias_count].declaration;
+        sxml_name_parts parts;
+        status = sxml_name_pool_get_name_parts(reader->name_pool, name, &parts);
+        if (status == SXML_STATUS_OK && is_reserved_namespace(parts.namespace_uri)) {
+            status = report(reader, declaration,
+                            SXML_BYTE_VIEW_FROM_LITERAL(
+                                "XQST0045 a named item type is in a reserved namespace"));
+        } else if (status == SXML_STATUS_OK && names_schema_type(context, name)) {
+            status = report(reader, declaration,
+                            SXML_BYTE_VIEW_FROM_LITERAL(
+                                "XQST0146 a named item type has the name of a schema type"));
+        }
+    }
+    return status;
+}
+
 /* XQST0146: two named item or record types of one name (5.19, 5.20). */
 static sxml_status check_type_names(const static_reader *reader,
                                     const sxml_xquery_static_context *context) {
     const size_t alias_count = context->named_item_type_count;
     const size_t type_count = alias_count + context->declared_record_count;
-    if (type_count < 2) {
-        return SXML_STATUS_OK;
+    const sxml_status own_status = check_own_type_names(reader, context);
+    if (own_status != SXML_STATUS_OK || type_count < 2) {
+        return own_status;
     }
     void *memory = NULL;
     sxml_status status = allocate_array(
@@ -2585,11 +2632,21 @@ static sxml_status read_function(const static_reader *reader, function_source so
 
 /* XQST0034: two declared functions of one name whose arity ranges overlap
    (5.18). */
+typedef struct alias_search alias_search;
+static sxml_status find_alias_constructor(alias_search search, sxml_function_entry *entry);
+
+/* XQST0034: a declared function of arity 1 with the name of a named item
+   type whose constructor function it would be (5.19: the constructor's
+   arity range must not overlap another function's of its name). */
+static sxml_status check_constructor_names(const static_reader *reader,
+                                           const sxml_xquery_static_context *context);
+
 static sxml_status check_function_names(const static_reader *reader,
                                         const sxml_xquery_static_context *context) {
     const size_t function_count = context->declared_function_count;
-    if (function_count < 2) {
-        return SXML_STATUS_OK;
+    const sxml_status constructor_status = check_constructor_names(reader, context);
+    if (constructor_status != SXML_STATUS_OK || function_count < 2) {
+        return constructor_status;
     }
     void *memory = NULL;
     sxml_status status = allocate_array(
@@ -2756,11 +2813,35 @@ static sxml_name_identifier rename_function(const sxml_xquery_static_context *co
    declaration also declares a constructor function"): a cast. */
 /* The named item types a constructor is searched among: all of a
    module's, or an imported module's public ones. */
-typedef struct alias_search {
+struct alias_search {
     const sxml_xquery_static_context *module;
     const sxml_function_query *query;
     bool is_imported;
-} alias_search;
+};
+
+static sxml_status check_constructor_names(const static_reader *reader,
+                                           const sxml_xquery_static_context *context) {
+    sxml_status status = SXML_STATUS_OK;
+    for (size_t function_index = 0;
+         status == SXML_STATUS_OK && function_index < context->declared_function_count;
+         function_index += 1) {
+        const sxml_xquery_declared_function *function = &context->declared_functions[function_index];
+        if (function->required_count > 1 || function->parameter_count < 1) {
+            continue;
+        }
+        const sxml_function_query query = {.function_name = function->function_name, .arity = 1};
+        sxml_function_entry entry = {.entry_kind = SXML_FUNCTION_ENTRY_KIND_NONE};
+        status = find_alias_constructor(
+            (alias_search){.module = context, .query = &query, .is_imported = false}, &entry);
+        if (status == SXML_STATUS_OK && entry.entry_kind == SXML_FUNCTION_ENTRY_KIND_CONSTRUCTOR) {
+            status = report(reader, function->declaration,
+                            SXML_BYTE_VIEW_FROM_LITERAL(
+                                "XQST0034 a declared function has the name of a named item "
+                                "type's constructor function and arity 1"));
+        }
+    }
+    return status;
+}
 
 static sxml_status find_alias_constructor(alias_search search, sxml_function_entry *entry) {
     const sxml_xquery_static_context *context = search.module;

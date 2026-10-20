@@ -2813,6 +2813,69 @@ static sxml_status make_plain_entry_function(const sxml_function_call *call,
  * is the next arity partially applied to the captured context value
  * (XPath 4.0, 4.5.4), keeping its name.
  */
+/* The function full of arity full_query->arity with its last parameter
+   bound to the caller's context value: what fn:function-lookup returns
+   for query, of one arity less (F&O 4.0, 13.1; the context value is
+   captured when the function is found, as for a named function
+   reference, XPath 4.0, 4.5.4). */
+typedef struct context_binding {
+    const sxml_function_query *query;
+    const sxml_function_query *full_query;
+    const sxml_function_entry *full;
+    /* Borrowed. */
+    sxml_sequence context_value;
+} context_binding;
+
+static sxml_status bind_context_argument(const sxml_function_call *call,
+                                         const context_binding *request,
+                                         sxml_sequence *result) {
+    const sxml_function_query *query = request->query;
+    const size_t bound_index = query->arity;
+    sxml_sequence full_function = sxml_sequence_empty();
+    sxml_status status = make_plain_entry_function(
+        call, (found_function){.query = request->full_query, .entry = request->full, .focus = NULL},
+        &full_function);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_call_signature signature;
+    partial_binding binding = {.allocator = call_allocator(call),
+                               .parameter_count = bound_index + 1};
+    status = sxml_evaluator_describe_call_signature(call->dynamic_context,
+                                                    full_function.content, &signature);
+    if (status == SXML_STATUS_OK && (!signature.has_function_type ||
+                                     signature.parameter_types.sequence_type_count <=
+                                         bound_index)) {
+        status = SXML_STATUS_INVALID_ARGUMENT;
+    }
+    if (status == SXML_STATUS_OK) {
+        status = allocate_partial_binding(&binding);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_evaluator_coerce(
+            call->dynamic_context,
+            &(sxml_coercion_request){
+                .value = request->context_value,
+                .sequence_type = signature.parameter_types.sequence_types[bound_index],
+                .role = SXML_IR_COERCION_ROLE_FUNCTION_ARGUMENT,
+                .error_record = call->error_record},
+            &binding.bound_values[bound_index]);
+        binding.is_bound[bound_index] = status == SXML_STATUS_OK;
+    }
+    if (status == SXML_STATUS_OK) {
+        status = make_partial_application(
+            call,
+            &(partial_application_parts){.function_item = full_function.content,
+                                         .function_name = query->function_name,
+                                         .signature = &signature,
+                                         .binding = &binding},
+            result);
+    }
+    release_partial_binding(&binding);
+    sxml_sequence_release(full_function);
+    return status;
+}
+
 static sxml_status bind_to_caller_focus(const sxml_function_call *call, found_function found,
                                         sxml_sequence *result) {
     const sxml_function_query *query = found.query;
@@ -2849,55 +2912,18 @@ static sxml_status bind_to_caller_focus(const sxml_function_call *call, found_fu
     const sxml_function_query full_query = {.function_name = query->function_name,
                                             .arity = bound_index + 1};
     sxml_function_entry full = {.entry_kind = SXML_FUNCTION_ENTRY_KIND_NONE};
-    sxml_status status = table.operations->find_function(table.state, &full_query, &full);
-    if (status == SXML_STATUS_OK && full.entry_kind != SXML_FUNCTION_ENTRY_KIND_NATIVE) {
-        return SXML_STATUS_INVALID_ARGUMENT;
-    }
-    sxml_sequence full_function = sxml_sequence_empty();
-    if (status == SXML_STATUS_OK) {
-        status = make_plain_entry_function(
-            call, (found_function){.query = &full_query, .entry = &full, .focus = NULL},
-            &full_function);
-    }
+    const sxml_status status = table.operations->find_function(table.state, &full_query, &full);
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    sxml_call_signature signature;
-    partial_binding binding = {.allocator = call_allocator(call),
-                               .parameter_count = bound_index + 1};
-    status = sxml_evaluator_describe_call_signature(call->dynamic_context,
-                                                    full_function.content, &signature);
-    if (status == SXML_STATUS_OK && (!signature.has_function_type ||
-                                     signature.parameter_types.sequence_type_count <=
-                                         bound_index)) {
-        status = SXML_STATUS_INVALID_ARGUMENT;
+    if (full.entry_kind != SXML_FUNCTION_ENTRY_KIND_NATIVE) {
+        return SXML_STATUS_INVALID_ARGUMENT;
     }
-    if (status == SXML_STATUS_OK) {
-        status = allocate_partial_binding(&binding);
-    }
-    if (status == SXML_STATUS_OK) {
-        status = sxml_evaluator_coerce(
-            call->dynamic_context,
-            &(sxml_coercion_request){
-                .value = parts[0],
-                .sequence_type = signature.parameter_types.sequence_types[bound_index],
-                .role = SXML_IR_COERCION_ROLE_FUNCTION_ARGUMENT,
-                .error_record = call->error_record},
-            &binding.bound_values[bound_index]);
-        binding.is_bound[bound_index] = status == SXML_STATUS_OK;
-    }
-    if (status == SXML_STATUS_OK) {
-        status = make_partial_application(
-            call,
-            &(partial_application_parts){.function_item = full_function.content,
-                                         .function_name = query->function_name,
-                                         .signature = &signature,
-                                         .binding = &binding},
-            result);
-    }
-    release_partial_binding(&binding);
-    sxml_sequence_release(full_function);
-    return status;
+    return bind_context_argument(
+        call,
+        &(context_binding){.query = query, .full_query = &full_query, .full = &full,
+                           .context_value = parts[0]},
+        result);
 }
 
 static sxml_status make_entry_function(const sxml_function_call *call, found_function found,
@@ -2940,6 +2966,48 @@ static sxml_status make_plain_entry_function(const sxml_function_call *call,
         *result = sxml_sequence_from_item(item);
     }
     return status;
+}
+
+/* A constructor function looked up with arity 0: found with arity 1
+   (through the table, then the in-scope schema types), and bound to the
+   caller's focus; the empty sequence when there is none, XPDY0002 when
+   the lookup has no focus. */
+typedef struct constructor_lookup {
+    const sxml_function_query *query;
+    const caller_focus *focus;
+} constructor_lookup;
+
+static sxml_status find_focused_constructor(const sxml_function_call *call,
+                                            const constructor_lookup *lookup,
+                                            sxml_sequence *result) {
+    const sxml_function_query full_query = {.function_name = lookup->query->function_name,
+                                            .arity = 1};
+    const sxml_function_table table = call->dynamic_context->function_table;
+    sxml_function_entry full = {.entry_kind = SXML_FUNCTION_ENTRY_KIND_NONE};
+    sxml_status status = table.operations->find_function(table.state, &full_query, &full);
+    const sxml_ir_static_context *static_context =
+        sxml_dynamic_context_get_static_context(call->dynamic_context);
+    if (status == SXML_STATUS_OK && full.entry_kind == SXML_FUNCTION_ENTRY_KIND_NONE &&
+        static_context != NULL) {
+        status = sxml_schema_scope_find_constructor(
+            &(sxml_schema_scope_constructor_request){
+                .schemas = static_context->in_scope_schemas,
+                .type_registry = sxml_item_heap_get_type_registry(call->item_heap),
+                .query = &full_query},
+            &full);
+    }
+    if (status != SXML_STATUS_OK || full.entry_kind != SXML_FUNCTION_ENTRY_KIND_CONSTRUCTOR) {
+        return status;
+    }
+    if (!lookup->focus->has_focus) {
+        return sxml_error_record_report(call->error_record, &lookup_focus_error);
+    }
+    return bind_context_argument(call,
+                                 &(context_binding){.query = lookup->query,
+                                                    .full_query = &full_query,
+                                                    .full = &full,
+                                                    .context_value = lookup->focus->parts[0]},
+                                 result);
 }
 
 /* fn:function-lookup($name, $arity) (F&O 4.0, 13.1): through the
@@ -2997,6 +3065,14 @@ static sxml_status call_function_lookup(const sxml_function_call *call,
                 .type_registry = sxml_item_heap_get_type_registry(call->item_heap),
                 .query = &query},
             &entry);
+    }
+    if (status == SXML_STATUS_OK && entry.entry_kind == SXML_FUNCTION_ENTRY_KIND_NONE &&
+        query.arity == 0) {
+        /* xs:T#0, $value := . (XPath 4.0, 4.5.1.3): the constructor of
+           arity 1 bound to the caller's context value. */
+        return find_focused_constructor(call, &(constructor_lookup){.query = &query,
+                                                                    .focus = &focus},
+                                        result);
     }
     if (status != SXML_STATUS_OK) {
         return status;

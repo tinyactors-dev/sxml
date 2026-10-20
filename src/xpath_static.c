@@ -1146,7 +1146,8 @@ static sxml_status resolve_processing_instruction_test(
            sxml_xml_byte_is_whitespace(target.bytes[target.byte_count - 1])) {
         target.byte_count -= 1;
     }
-    if (target.byte_count == 0) {
+    if (!sxml_xml_text_is_ncname(target)) {
+        /* "123ncname" and "prefix:b" are no NCNames either. */
         return report_at(site_of(resolver, name_node), SXML_BYTE_VIEW_FROM_LITERAL("XPTY0004"),
                          SXML_BYTE_VIEW_FROM_LITERAL("a processing-instruction target is not an NCName"));
     }

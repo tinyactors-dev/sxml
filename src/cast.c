@@ -1244,8 +1244,15 @@ static bool sxml_cast_begin_members(sxml_cast_machine *machine,
     const sxml_type_registry *registry =
         sxml_item_heap_get_type_registry(item_heap);
     sxml_type_identifier_view members = frame->members;
+    /* F&O 4.0, 23.3.7: the first condition that applies decides. An
+       xs:string or xs:untypedAtomic is cast from its text (23.2), even when
+       its type is a member; any other instance of a member stays as it
+       is. */
+    const bool is_string_source =
+        frame->source.is_text ||
+        sxml_primitive_is_string_source(sxml_source_primitive_type(frame->source));
     for (size_t member_index = 0;
-         !frame->source.is_text && member_index < members.type_identifier_count;
+         !is_string_source && member_index < members.type_identifier_count;
          member_index += 1) {
         sxml_type_identifier member = members.type_identifiers[member_index];
         sxml_type_description description;

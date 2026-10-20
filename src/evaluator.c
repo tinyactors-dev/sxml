@@ -2427,6 +2427,9 @@ static sxml_status sxml_make_binary_value(sxml_dynamic_context *context,
             if (status != SXML_STATUS_OK) {
                 break;
             }
+            /* An xs:untypedAtomic compared with an xs:QName is cast to
+               xs:QName with the statically known namespaces (XPath 4.0,
+               4.8.2; F&O 4.0, 23.1.2.5). */
             status = sxml_operator_make_general_comparison(
                 context->item_heap,
                 &(sxml_comparison_request){
@@ -2434,8 +2437,7 @@ static sxml_status sxml_make_binary_value(sxml_dynamic_context *context,
                     .left_operand = operands[0],
                     .right_operand = operands[1],
                     .implicit_timezone_offset_minutes = timezone,
-                    .namespace_bindings = {.namespace_bindings = NULL,
-                                           .namespace_binding_count = 0},
+                    .namespace_bindings = sxml_dynamic_context_get_static_namespaces(context),
                     .error_record = context->error_record,
                     .collation = default_collation},
                 &item);
