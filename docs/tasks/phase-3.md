@@ -424,3 +424,19 @@ place default collations, library static contexts, load-xquery-module's
 variables, vendor-options and trust, context-dependent references, lax
 xml:id, XML 1.1 query text; XP40 32,793 to 32,797 passed, XQ40 46,070
 to 46,101, XT40 +13, none lost. Open: D275's "Not done".
+
+### 2.26 XPath and XQuery conformance sweep (implementation)
+After 2.25. From fresh whole runs (XP40 36 failed and 30 wrong-error
+passes, XQ40 107 and 44), with D275's open list: Q{}N name tests on
+JNodes (sxml_name_test frozen), named item type constructors and
+function items made by fn:function-lookup at run time, eqname-007, two
+modules of one namespace without a location hint, serialization
+singletons; a review of the not-run categories (static typing excluded,
+D263). Verification as D181 says.
+**Done** 2026-10-20 (D280): JNode Q{}N and p:N tests, modules a resolver
+lists for an import without hints (additive contract), run-time type
+constructors, option conventions in deep-equal and collation, fn:slice
+limits, fn:op collations, XQST0134, adaptive INF/NaN, the driver's
+moduleImport and format-integer sequences; XP40 32,797 to 32,809
+passed, XQ40 46,101 to 46,138, none lost. Open: D280's "Not done"
+(xqhof18, eqname-007, modules-43).

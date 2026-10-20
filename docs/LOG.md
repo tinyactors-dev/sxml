@@ -4,6 +4,23 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 2.26 done (D280): XPath/XQuery sweep. XP40 32,797 to 32,809 passed
+  (36 to 31 failed, 14,480 to 14,473 not run), XQ40 46,101 to 46,138
+  (107 to 90 failed, 1,105 to 1,085 not run; xml-to-json-057 is
+  4.29's); XT40 unchanged by it; no case lost. Q{}N and p:N select
+  QName keys of JNodes (an IR step flag; sxml_name_test stays frozen);
+  an import without hints loads every module a resolver lists
+  (SEQUENCE answer, processor.h and xquery.h, additive); fn:function-lookup
+  finds named atomic types' constructors; deep-equal and collation
+  options by the option conventions; fn:slice at the int64 limits;
+  fn:op under the default collation; XQST0134; adaptive INF/NaN as
+  fn:string (book example updated); the driver runs moduleImport and
+  six format-integer sequences, assert-eq takes [42]. D276's xs:numeric
+  in 1.0 mode not done: the draft keeps xs:double only (D197). Left:
+  xqhof18, eqname-007, modules-43; cheap not-run features in D280.
+  The assert-eq commit's message counts array-for-each-pair-420, which
+  fn:op's commit fixed.
+
 - 5.13 sweep 3 done (D277): XSD11 41,486 to 41,507 of 41,518 in scope
   (32 to 11 failed), none lost. XSD 1.1 rules added: src-attribute.5,
   src-redefine.1, simple attribute types, required uses kept by
