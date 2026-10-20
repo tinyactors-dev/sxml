@@ -31,7 +31,8 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 
 
 - 4.26: XSLT sweep (D262's and D260's open lists).
-- 2.24: XPath/XQuery sweep (D258's open list; a static-typing estimate).
+- 2.25: XPath/XQuery sweep (D263's open list; XSLT's per-element default
+  collation, choose-0107 and collations-0121..0124).
 
 ## Next
 
@@ -75,7 +76,16 @@ Swift (6.7/6.8 done, D241, D248): 55 tests on Linux; the bundled DUCET is a
 copy of third_party/unicode-collation/allkeys.txt that must be updated with
 it.
 
-XPath and XQuery (after 2.23, D258; XP40 32,716, XQ40 46,017 passed):
+XPath and XQuery (2.24, D263): XP40 32,716 -> 32,731, XQ40 46,017 ->
+46,070 passed. tree.h gained the optional set_element_identity operation
+(additive, D99). Static typing: XQuery 4.0 dropped the feature (PR 1344);
+about 4,000-6,000 lines for 3.1's rules; default (D208): not done. Left:
+XQuery's XML 1.1 lexing (13), whitespace-only assert-xml, Q{}N name tests
+on JNodes, named item type constructors found by fn:function-lookup at
+run time, xml:id under lax validation, IDREF checks at a validation root,
+serialization singletons.
+
+Older (after 2.23, D258; XP40 32,716, XQ40 46,017 passed):
 - XSLT's own expressions have no Full Text (they use grammars/xpath; D235).
 - NCName vs `Q{}N` name tests (sxml_name_test is frozen).
 - A library module's context value type checked against the context value
