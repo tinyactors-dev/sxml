@@ -1424,16 +1424,26 @@ static sxml_status sxml_xpath_build_tree(sxml_ast_front_end *front_end,
 /* ------------------------------------------------------------ Entry */
 
 /*
- * The first ERROR or MISSING node in source order, or a null node when the
- * tree has none. Iterative, so a deep tree cannot exhaust the stack.
+ * The first ERROR or MISSING node in source order below root (root itself
+ * included when include_root), or a null node when there is none.
+ * Iterative, so a deep tree cannot exhaust the stack.
  */
-static TSNode sxml_xpath_find_error(TSNode root) {
+typedef struct sxml_xpath_error_search {
+    TSNode root;
+    bool include_root;
+} sxml_xpath_error_search;
+
+static TSNode sxml_xpath_find_error_below(sxml_xpath_error_search search) {
     TSNode found = {.context = {0, 0, 0, 0}, .id = NULL, .tree = NULL};
-    if (!ts_node_has_error(root)) {
+    if (!search.include_root) {
+        if (ts_node_child_count(search.root) == 0U) {
+            return found;
+        }
+    } else if (!ts_node_has_error(search.root)) {
         return found;
     }
-    TSTreeCursor cursor = ts_tree_cursor_new(root);
-    bool is_searching = true;
+    TSTreeCursor cursor = ts_tree_cursor_new(search.root);
+    bool is_searching = search.include_root || ts_tree_cursor_goto_first_child(&cursor);
     while (is_searching) {
         const TSNode node = ts_tree_cursor_current_node(&cursor);
         if (ts_node_is_error(node) || ts_node_is_missing(node)) {
@@ -1445,17 +1455,44 @@ static TSNode sxml_xpath_find_error(TSNode root) {
             continue;
         }
         while (!ts_tree_cursor_goto_next_sibling(&cursor)) {
-            if (!ts_tree_cursor_goto_parent(&cursor)) {
+            if (!ts_tree_cursor_goto_parent(&cursor) ||
+                ts_node_eq(ts_tree_cursor_current_node(&cursor), search.root)) {
                 is_searching = false;
                 break;
             }
         }
     }
     ts_tree_cursor_delete(&cursor);
+    return found;
+}
+
+/*
+ * The node a syntax error is reported at: the first ERROR or MISSING node
+ * in source order and, while that is an ERROR holding another, the first
+ * one it holds. Tree-sitter's recovery wraps a wide region in one ERROR,
+ * often from the start of the enclosing clause or of the module, and marks
+ * the token it could not take with an ERROR inside it (D287: a syntax
+ * error in a string constructor's `{ }` was reported at line 1, column 1).
+ * A null node when the tree has none.
+ */
+static TSNode sxml_xpath_find_error(TSNode root) {
+    TSNode found = sxml_xpath_find_error_below(
+        (sxml_xpath_error_search){.root = root, .include_root = true});
     if (ts_node_is_null(found)) {
-        /* has_error without an ERROR or MISSING descendant: report the
-           root rather than accept the text. */
-        return root;
+        if (ts_node_has_error(root)) {
+            /* has_error without an ERROR or MISSING descendant: report the
+               root rather than accept the text. */
+            return root;
+        }
+        return found;
+    }
+    while (ts_node_is_error(found)) {
+        const TSNode inner = sxml_xpath_find_error_below(
+            (sxml_xpath_error_search){.root = found, .include_root = false});
+        if (ts_node_is_null(inner)) {
+            break;
+        }
+        found = inner;
     }
     return found;
 }

@@ -219,6 +219,11 @@ sxml_add_cli_test(xquery_external_missing EXIT_CODE 1 ARGUMENTS xquery double.xq
 sxml_add_cli_test(xquery_static_error EXIT_CODE 1 ARGUMENTS xquery broken.xq)
 sxml_add_cli_test(xquery_output_declaration_error EXIT_CODE 1 ARGUMENTS xquery unsupported-option.xq)
 sxml_add_cli_test(xquery_syntax_error EXIT_CODE 1 ARGUMENTS xquery "--expression=for $x in")
+# A syntax error in an enclosed expression of a string constructor or a
+# string template is reported at its own place, not where tree-sitter's
+# recovery begins (D287).
+sxml_add_cli_test(xquery_string_constructor_syntax_error EXIT_CODE 1 ARGUMENTS xquery string-constructor-error.xq)
+sxml_add_cli_test(xpath_string_template_syntax_error EXIT_CODE 1 ARGUMENTS xpath "for $a in (1, 2) return `[{ $a + }]`")
 sxml_add_cli_test(xquery_dynamic_error EXIT_CODE 1 ARGUMENTS xquery "--expression=1 div 0")
 sxml_add_cli_test(xquery_missing_file EXIT_CODE 3 ARGUMENTS xquery missing.xq)
 sxml_add_cli_test(xquery_module_import EXIT_CODE 0 ARGUMENTS xquery --method=text area.xq)
