@@ -121,9 +121,16 @@ static const sxml_function_parameter map_for_key_with_context_parameters[] = {
      .absent_focus_error_code = SXML_BYTE_VIEW_INITIALIZER("XTDE1270")},
 };
 
+/* 20.2.3: $top may be empty, which selects the document of the context
+   node; the caller's context value is passed after it (the empty
+   sequence where the focus is statically absent, D287). */
 static const sxml_function_parameter map_for_key_with_top_parameters[] = {
     SXML_FUNCTION_PARAMETER("key-name", "xs:anyAtomicType", SXML_PARAMETER_DEFAULT_REQUIRED),
-    SXML_FUNCTION_PARAMETER("top", "node()", SXML_PARAMETER_DEFAULT_REQUIRED),
+    SXML_FUNCTION_PARAMETER("top", "node()?", SXML_PARAMETER_DEFAULT_REQUIRED),
+    {.parameter_name = SXML_BYTE_VIEW_INITIALIZER("context"),
+     .parameter_type = SXML_BYTE_VIEW_INITIALIZER("item()?"),
+     .parameter_default = SXML_PARAMETER_DEFAULT_CONTEXT_VALUE,
+     .is_empty_without_focus = true},
 };
 
 /* fn:apply-templates (XSLT 4.0, 6.9.3.1). The last parameter is the
@@ -183,7 +190,7 @@ static const stylesheet_function_rule stylesheet_function_rules[SXML_STYLESHEET_
          .result_type = SXML_BYTE_VIEW_INITIALIZER("map(xs:anyAtomicType, node()*)")},
     [SXML_STYLESHEET_FUNCTION_MAP_FOR_KEY_WITH_TOP] =
         {.local_name = SXML_BYTE_VIEW_INITIALIZER("map-for-key"),
-         .parameters = {map_for_key_with_top_parameters, 2},
+         .parameters = {map_for_key_with_top_parameters, 3},
          .named_arity = 2,
          .result_type = SXML_BYTE_VIEW_INITIALIZER("map(xs:anyAtomicType, node()*)")},
     [SXML_STYLESHEET_FUNCTION_APPLY_TEMPLATES] =
@@ -1454,6 +1461,15 @@ static void write_key_text(const sxml_xslt_function_table *table, function_ident
                            sxml_xslt_snippet_text *text) {
     const stylesheet_function_kind kind = identity.kind;
     const bool with_context = is_with_context(kind);
+    if (kind == SXML_STYLESHEET_FUNCTION_MAP_FOR_KEY_WITH_TOP) {
+        /* 20.2.3: "If the argument is omitted or empty, the selected
+           subtree is the document containing the context node." */
+        SXML_XSLT_SNIPPET_APPEND(
+            text, "let $top := if (exists($top)) then $top else if ($context instance of node()) "
+                  "then root($context) else error(QName(\"http://www.w3.org/2005/xqt-errors\", "
+                  "\"XTDE1270\"), \"fn:map-for-key is called with an empty $top where there is "
+                  "no context node (XSLT 4.0, 20.2.3)\") return ");
+    }
     SXML_XSLT_SNIPPET_APPEND(text, "let $name := Q{}key-name($key-name), $root := root(");
     sxml_xslt_snippet_text_append(text, with_context ? SXML_BYTE_VIEW_FROM_LITERAL("$context")
                                                      : SXML_BYTE_VIEW_FROM_LITERAL("$top"));
@@ -1509,8 +1525,8 @@ static sxml_status lower_key_function(sxml_xslt_function_table *table,
         SXML_SNIPPET_VARIABLE_KEY_NAME, SXML_SNIPPET_VARIABLE_KEY_VALUE, SXML_SNIPPET_VARIABLE_TOP};
     static const snippet_variable map_context_variables[] = {SXML_SNIPPET_VARIABLE_KEY_NAME,
                                                              SXML_SNIPPET_VARIABLE_CONTEXT};
-    static const snippet_variable map_top_variables[] = {SXML_SNIPPET_VARIABLE_KEY_NAME,
-                                                         SXML_SNIPPET_VARIABLE_TOP};
+    static const snippet_variable map_top_variables[] = {
+        SXML_SNIPPET_VARIABLE_KEY_NAME, SXML_SNIPPET_VARIABLE_TOP, SXML_SNIPPET_VARIABLE_CONTEXT};
     const snippet_variable *variables = NULL;
     switch (kind) {
     case SXML_STYLESHEET_FUNCTION_KEY_WITH_CONTEXT:
@@ -1540,7 +1556,10 @@ static sxml_status lower_key_function(sxml_xslt_function_table *table,
             table, (snippet_function){.function = function_of(table, identity),
                                       .text = sxml_xslt_snippet_text_view(&text),
                                       .variables = variables,
-                                      .variable_count = is_map_for_key(kind) ? 2 : 3});
+                                      .variable_count =
+                                          kind == SXML_STYLESHEET_FUNCTION_MAP_FOR_KEY_WITH_CONTEXT
+                                              ? 2
+                                              : 3});
     }
     sxml_xslt_snippet_text_release(&text);
     return status;

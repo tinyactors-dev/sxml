@@ -2291,6 +2291,82 @@ static const template_entry *bound_template(const sxml_xslt_lowering *lowering,
     return find_template_entry(lowering->templates, binding.declaration);
 }
 
+/* 3.4.9: the global context item, which a global's focus reads, may be
+   absent only when it runs; reading it then raises XPDY0002, which this
+   mapping turns into the empty sequence. */
+static const sxml_xslt_error_mapping absent_global_focus_mapping = {
+    .caught_code = SXML_BYTE_VIEW_INITIALIZER("XPDY0002"),
+    .raised_status = SXML_STATUS_OK,
+    .raised_code = SXML_BYTE_VIEW_INITIALIZER(""),
+    .description = SXML_BYTE_VIEW_INITIALIZER("")};
+
+/*
+ * A call from a global, whose focus is the global context item (10.1.2:
+ * the focus does not change): the template's function with that item
+ * when there is one, else its absent-focus function, so an instruction
+ * that needs the focus raises its own error there (XTTE0945 for
+ * xsl:copy, 11.9.1) instead of the call raising XPDY0002:
+ *
+ *     let $item := try { global-context-item } catch err:XPDY0002 { () }
+ *     return if (exists($item)) then template($item, 1, 1, ...)
+ *            else template-absent((), 0, 0, ...)
+ */
+typedef struct global_focus_call {
+    const template_call *call;
+    sxml_ir_function_index absent_function;
+} global_focus_call;
+
+static sxml_status add_global_focus_call(sxml_xpath_lowerer *lowerer, global_focus_call request,
+                                         sxml_ir_expression_index *expression) {
+    const template_call *call = request.call;
+    template_call present = *call;
+    sxml_status status = sxml_xslt_lowering_bind_mapped_expression(
+        lowerer,
+        &(sxml_xslt_mapped_expression){
+            .block = call->block,
+            .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_ATOM,
+                           .atom = call->focus.item},
+            .mappings = {.mappings = &absent_global_focus_mapping, .mapping_count = 1}},
+        &present.focus.item);
+    sxml_ir_atom is_present = {0};
+    if (status == SXML_STATUS_OK) {
+        status = bind_call(lowerer,
+                           (library_call){.block = call->block,
+                                          .function_namespace = SXML_NAMESPACE_FUNCTIONS,
+                                          .local_name = "exists",
+                                          .arguments = &present.focus.item,
+                                          .argument_count = 1},
+                           &is_present);
+    }
+    template_call absent = *call;
+    absent.function = request.absent_function;
+    if (status == SXML_STATUS_OK) {
+        status = bind_empty_sequence(lowerer, call->block, &absent.focus.item);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = add_integer_constant(lowerer, 0, &absent.focus.position);
+    }
+    absent.focus.size = absent.focus.position;
+    sxml_ir_expression_index then_branch = {0};
+    sxml_ir_expression_index else_branch = {0};
+    if (status == SXML_STATUS_OK) {
+        status = add_template_call(lowerer, &present, &then_branch);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = add_template_call(lowerer, &absent, &else_branch);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_xslt_lowering_add_expression(
+        lowerer,
+        (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_CONDITIONAL,
+                             .conditional = {.condition = is_present,
+                                             .then_branch = then_branch,
+                                             .else_branch = else_branch}},
+        expression);
+}
+
 static sxml_status continue_call_template(sxml_xpath_lowering_machine *machine,
                                           sxml_xpath_lowering_frame *frame) {
     sxml_xpath_lowerer *lowerer = machine->state;
@@ -2327,15 +2403,21 @@ static sxml_status continue_call_template(sxml_xpath_lowering_machine *machine,
     if (status == SXML_STATUS_OK) {
         const bool is_focus_absent =
             lowerer->function->focus->kind == SXML_XPATH_LOWERING_FOCUS_KIND_ABSENT;
-        status = add_template_call(lowerer,
-                                   &(template_call){.block = frame->block,
-                                                    .function = is_focus_absent
-                                                                    ? locals->target->absent_function
-                                                                    : locals->target->function,
-                                                    .focus = focus,
-                                                    .parameters = locals->parameters,
-                                                    .tunnel_parameters = locals->tunnel_parameters},
-                                   &call);
+        const template_call template_call_request = {
+            .block = frame->block,
+            .function = is_focus_absent ? locals->target->absent_function
+                                        : locals->target->function,
+            .focus = focus,
+            .parameters = locals->parameters,
+            .tunnel_parameters = locals->tunnel_parameters};
+        status = focus.item.atom_kind == SXML_IR_ATOM_KIND_GLOBAL_VARIABLE &&
+                         locals->target->absent_function.value != 0
+                     ? add_global_focus_call(
+                           lowerer,
+                           (global_focus_call){.call = &template_call_request,
+                                               .absent_function = locals->target->absent_function},
+                           &call)
+                     : add_template_call(lowerer, &template_call_request, &call);
     }
     if (status != SXML_STATUS_OK) {
         return status;

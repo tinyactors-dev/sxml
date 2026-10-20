@@ -238,6 +238,9 @@ static sxml_status add_mapping_clause(sxml_xpath_lowerer *lowerer,
     if (status == SXML_STATUS_OK) {
         status = sxml_xpath_lowerer_add_slot(lowerer, &clause->error_details);
     }
+    if (status == SXML_STATUS_OK && mapping->raised_code.byte_count == 0) {
+        return sxml_xpath_lowerer_add_empty_sequence(lowerer, no_ast_node, &clause->handler);
+    }
     if (status == SXML_STATUS_OK) {
         status = sxml_xpath_lowerer_add_raise(
             lowerer,

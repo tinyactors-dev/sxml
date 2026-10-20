@@ -507,7 +507,8 @@ SXML_NODISCARD sxml_status sxml_xslt_lowering_bind_validation(
 /* ----------------------------------------------------------- Error codes */
 
 /* A dynamic error of the evaluator replaced by XSLT's (both in the err
-   namespace, static ASCII such as "XQDY0137"). */
+   namespace, static ASCII such as "XQDY0137"); with raised_code empty the
+   error is caught and the value is the empty sequence instead. */
 typedef struct sxml_xslt_error_mapping {
     sxml_byte_view caught_code;
     sxml_status raised_status;

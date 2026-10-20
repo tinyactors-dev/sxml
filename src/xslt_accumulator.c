@@ -60,7 +60,10 @@
  *                 then accumulator-values(1, $root, build-1#1)?b?($id)
  *                 else ... else error(XTDE3340)
  *
- * and fn:accumulator-after the same with ?a. Copies keep the values of
+ * and fn:accumulator-after the same with ?a. Accumulators are local to
+ * their package (3.5.3.1, 19.8): each package has its own pair of
+ * functions, which test the names of its accumulators only, and
+ * use-accumulators names those of its element's package. Copies keep the values of
  * what they copy (19.10): fn:copy-of, fn:snapshot and xsl:copy-of with
  * copy-accumulators="yes" link each copy to its original
  * (sxml_xslt_bind_accumulator_link). The main function binds
@@ -111,6 +114,9 @@ typedef struct table_function {
        passes the context value itself; 0 for the private functions. */
     sxml_type_identifier short_signature;
     sxml_ir_function_index function;
+    /* Its body is lowered or being lowered (fn:accumulator-before and
+       -after, which a rule may name). */
+    bool is_lowered;
 } table_function;
 
 /* The two accumulator functions (19.6, 19.7). */
@@ -177,6 +183,10 @@ typedef struct accumulator_rule {
 typedef struct accumulator_definition {
     sxml_xslt_ast_node_index node;
     sxml_name_identifier accumulator_name;
+    /* Its package: accumulators are local to a package (3.5.3.1: an
+       accumulator is a component whose visibility is always private;
+       override-misc-005). */
+    uint32_t package;
     table_function initial;
     table_function start;
     table_function end;
@@ -216,6 +226,9 @@ static const char *const snippet_variable_names[SXML_SNIPPET_VARIABLE_COUNT] = {
 typedef struct accumulator_layer {
     const struct sxml_xslt_accumulator_table *table;
     sxml_function_table inner_table;
+    /* The package of the static context, whose accumulators its
+       fn:accumulator-before and -after see. */
+    uint32_t package;
 } accumulator_layer;
 
 struct sxml_xslt_accumulator_table {
@@ -226,7 +239,10 @@ struct sxml_xslt_accumulator_table {
     accumulator_layer *layers;
     /* The internal rows. */
     sxml_function_library *library;
-    table_function functions[SXML_ACCUMULATOR_FUNCTION_COUNT];
+    /* fn:accumulator-before and -after of package p (from 1) are
+       functions[(p - 1) * SXML_ACCUMULATOR_FUNCTION_COUNT + kind]. */
+    table_function *functions;
+    uint32_t package_count;
     accumulator_definition *accumulators;
     size_t accumulator_count;
     accumulator_rule *rules;
@@ -442,6 +458,20 @@ static sxml_status find_in_table(sxml_function_table table, const sxml_function_
     return sxml_function_table_find(table, query, entry);
 }
 
+/* Package's fn:accumulator-before or -after. */
+typedef struct function_identity {
+    accumulator_function_kind kind;
+    uint32_t package;
+} function_identity;
+
+static table_function *function_of(const sxml_xslt_accumulator_table *table,
+                                   function_identity identity) {
+    const uint32_t package =
+        identity.package == 0 || identity.package > table->package_count ? 1U : identity.package;
+    return &table->functions[(size_t)(package - 1U) * SXML_ACCUMULATOR_FUNCTION_COUNT +
+                             (size_t)identity.kind];
+}
+
 /* The accumulator function a query names, or SXML_ACCUMULATOR_FUNCTION_COUNT. */
 static accumulator_function_kind find_kind(const sxml_xslt_accumulator_table *table,
                                            const sxml_function_query *query) {
@@ -465,7 +495,8 @@ static sxml_status find_accumulator_function(void *state, const sxml_function_qu
     sxml_xslt_accumulator_table *table = (sxml_xslt_accumulator_table *)layer->table;
     const accumulator_function_kind kind = find_kind(table, query);
     if (kind != SXML_ACCUMULATOR_FUNCTION_COUNT) {
-        table_function *function = &table->functions[kind];
+        table_function *function =
+            function_of(table, (function_identity){.kind = kind, .package = layer->package});
         const sxml_status status = declare_function(table, function);
         if (status != SXML_STATUS_OK) {
             return status;
@@ -704,17 +735,21 @@ static sxml_status prepare_accumulator(sxml_xslt_accumulator_table *table,
     return status;
 }
 
-/* The declaration of name that wins (19.8): the highest import
-   precedence; XTSE3350 for two at it. */
-static sxml_status find_winner(const sxml_xslt_lowering *lowering, sxml_name_identifier name,
+/* The declaration of declared's name in its package that wins (19.8):
+   the highest import precedence; XTSE3350 for two at it. */
+static sxml_status find_winner(const sxml_xslt_lowering *lowering,
+                               sxml_xslt_ast_node_index declared,
                                sxml_xslt_ast_node_index *winner) {
     const sxml_xslt_ast *ast = lowering->ast;
+    const sxml_name_identifier name = name_of(lowering, declared);
+    const uint32_t package = sxml_xslt_package_of_node(lowering, declared);
     *winner = (sxml_xslt_ast_node_index){.value = 0};
     bool is_tied = false;
     for (uint32_t order = 1; sxml_xslt_ast_get_declaration(ast, order).value != 0; order += 1) {
         const sxml_xslt_ast_node_index node = sxml_xslt_ast_get_declaration(ast, order);
         if (node_of(lowering, node)->kind != SXML_XSLT_AST_KIND_ACCUMULATOR ||
-            name_of(lowering, node).index != name.index) {
+            name_of(lowering, node).index != name.index ||
+            sxml_xslt_package_of_node(lowering, node) != package) {
             continue;
         }
         if (winner->value == 0 || precedence_of(lowering, node) > precedence_of(lowering, *winner)) {
@@ -778,24 +813,32 @@ static sxml_status collect_accumulators(sxml_xslt_accumulator_table *table) {
             continue;
         }
         sxml_xslt_ast_node_index winner = {.value = 0};
-        status = find_winner(lowering, name_of(lowering, node), &winner);
+        status = find_winner(lowering, node, &winner);
         if (status != SXML_STATUS_OK || winner.value != node.value) {
             continue;
         }
         table->accumulators[table->accumulator_count] =
-            (accumulator_definition){.node = node, .accumulator_name = name_of(lowering, node)};
+            (accumulator_definition){.node = node,
+                                     .accumulator_name = name_of(lowering, node),
+                                     .package = sxml_xslt_package_of_node(lowering, node)};
         table->accumulator_count += 1;
         status = prepare_accumulator(table, table->accumulator_count - 1);
     }
     return status;
 }
 
-/* The number (from 1) of the accumulator name; 0 when none. */
+/* The number (from 1) of the accumulator name of package; 0 when none. */
+typedef struct accumulator_query {
+    sxml_name_identifier name;
+    uint32_t package;
+} accumulator_query;
+
 static size_t accumulator_number(const sxml_xslt_accumulator_table *table,
-                                 sxml_name_identifier name) {
+                                 accumulator_query query) {
     for (size_t accumulator_index = 0; accumulator_index < table->accumulator_count;
          accumulator_index += 1) {
-        if (table->accumulators[accumulator_index].accumulator_name.index == name.index) {
+        if (table->accumulators[accumulator_index].accumulator_name.index == query.name.index &&
+            table->accumulators[accumulator_index].package == query.package) {
             return accumulator_index + 1;
         }
     }
@@ -817,7 +860,10 @@ static sxml_status check_use_accumulators(const sxml_xslt_accumulator_table *tab
     for (size_t token_index = 0; token_index < tokens.name_token_count; token_index += 1) {
         const sxml_xslt_ast_name_token *token = &tokens.name_tokens[token_index];
         bool is_valid = token->kind == SXML_XSLT_AST_NAME_TOKEN_KIND_NAME
-                            ? accumulator_number(table, token->name) != 0
+                            ? accumulator_number(
+                                  table, (accumulator_query){
+                                             .name = token->name,
+                                             .package = sxml_xslt_package_of_node(lowering, node)}) != 0
                             : token->kind == SXML_XSLT_AST_NAME_TOKEN_KIND_ALL &&
                                   tokens.name_token_count == 1;
         for (size_t earlier = 0; is_valid && earlier < token_index; earlier += 1) {
@@ -900,24 +946,44 @@ static sxml_status prepare_table(sxml_xslt_accumulator_table *table) {
             lowerer->name_pool, SXML_BYTE_VIEW_FROM_LITERAL(ACCUMULATOR_FUNCTION_NAMESPACE_URI),
             &table->private_namespace);
     }
-    for (uint32_t kind_number = 0;
-         status == SXML_STATUS_OK && kind_number < (uint32_t)SXML_ACCUMULATOR_FUNCTION_COUNT;
-         kind_number += 1) {
-        sxml_name_identifier name = {.index = 0};
-        status = sxml_name_pool_intern_name(
-            lowerer->name_pool,
-            &(sxml_name_request){.namespace_uri =
-                                     sxml_well_known_namespace_identifier(SXML_NAMESPACE_FUNCTIONS),
-                                 .local_name = accumulator_function_names[kind_number]},
-            &name);
-        if (status == SXML_STATUS_OK) {
-            status = prepare_function(
-                table,
-                (table_function_shape){.function_name = name,
-                                       .parameters = {accumulator_function_parameters, 2},
-                                       .result_type = SXML_BYTE_VIEW_INITIALIZER("item()*"),
-                                       .has_short_signature = true},
-                &table->functions[kind_number]);
+    table->package_count = sxml_xslt_package_count(table->lowering);
+    if (table->package_count == 0) {
+        table->package_count = 1;
+    }
+    void *memory = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = allocate_zeroed(
+            table->allocator,
+            (zeroed_request){.element_count = (size_t)table->package_count *
+                                              SXML_ACCUMULATOR_FUNCTION_COUNT,
+                             .element = {.byte_count = sizeof(table_function),
+                                         .alignment = alignof(table_function)}},
+            &memory);
+        table->functions = memory;
+    }
+    for (uint32_t package = 1; status == SXML_STATUS_OK && package <= table->package_count;
+         package += 1) {
+        for (uint32_t kind_number = 0;
+             status == SXML_STATUS_OK && kind_number < (uint32_t)SXML_ACCUMULATOR_FUNCTION_COUNT;
+             kind_number += 1) {
+            sxml_name_identifier name = {.index = 0};
+            status = sxml_name_pool_intern_name(
+                lowerer->name_pool,
+                &(sxml_name_request){.namespace_uri = sxml_well_known_namespace_identifier(
+                                         SXML_NAMESPACE_FUNCTIONS),
+                                     .local_name = accumulator_function_names[kind_number]},
+                &name);
+            if (status == SXML_STATUS_OK) {
+                status = prepare_function(
+                    table,
+                    (table_function_shape){.function_name = name,
+                                           .parameters = {accumulator_function_parameters, 2},
+                                           .result_type = SXML_BYTE_VIEW_INITIALIZER("item()*"),
+                                           .has_short_signature = true},
+                    function_of(table,
+                                (function_identity){.kind = (accumulator_function_kind)kind_number,
+                                                    .package = package}));
+            }
         }
     }
     if (status == SXML_STATUS_OK) {
@@ -975,7 +1041,13 @@ sxml_status sxml_xslt_declare_accumulators(sxml_xslt_lowering *lowering,
         } else if (lowering->static_context_count > 1) {
             inner_table = static_contexts[1].function_table;
         }
-        made->layers[context] = (accumulator_layer){.table = made, .inner_table = inner_table};
+        uint32_t package =
+            context == 0 ? 1U
+                         : sxml_xslt_package_of_static_context(
+                               lowering, (sxml_xslt_ast_static_context_index){.value =
+                                                                                  (uint32_t)context});
+        made->layers[context] =
+            (accumulator_layer){.table = made, .inner_table = inner_table, .package = package};
     }
     made->snippet_context = *lowering->lowerer->static_context;
     made->snippet_context.namespace_bindings =
@@ -1015,6 +1087,7 @@ void sxml_xslt_release_accumulators(sxml_xslt_accumulator_table *table) {
     sxml_allocator_release(table->allocator, table->accumulators);
     sxml_allocator_release(table->allocator, table->rules);
     sxml_allocator_release(table->allocator, table->layers);
+    sxml_allocator_release(table->allocator, table->functions);
     sxml_allocator_release(table->allocator, table->stream_initials);
     sxml_allocator_release(table->allocator, table);
 }
@@ -1679,7 +1752,8 @@ static sxml_status lower_all_accumulators(sxml_xslt_accumulator_table *table) {
 /* The text of fn:accumulator-before or fn:accumulator-after (see the file
    comment). */
 static void write_function_text(const sxml_xslt_accumulator_table *table,
-                                accumulator_function_kind kind, sxml_xslt_snippet_text *text) {
+                                function_identity identity, sxml_xslt_snippet_text *text) {
+    const accumulator_function_kind kind = identity.kind;
     SXML_XSLT_SNIPPET_APPEND(
         text, "if (not($context instance of node()) or $context instance of attribute() "
               "or $context instance of namespace-node()) then "
@@ -1697,6 +1771,9 @@ static void write_function_text(const sxml_xslt_accumulator_table *table,
               "$root := root($node), $id := generate-id($node) return ");
     for (size_t accumulator_index = 0; accumulator_index < table->accumulator_count;
          accumulator_index += 1) {
+        if (table->accumulators[accumulator_index].package != identity.package) {
+            continue;
+        }
         SXML_XSLT_SNIPPET_APPEND(text, "if ($name eq ");
         sxml_xslt_snippet_text_append_qname(
             text, table->lowering->lowerer->name_pool,
@@ -1731,7 +1808,7 @@ static void write_function_text(const sxml_xslt_accumulator_table *table,
 }
 
 static sxml_status lower_accumulator_function(sxml_xslt_accumulator_table *table,
-                                              accumulator_function_kind kind) {
+                                              function_identity identity) {
     static const snippet_variable name_context[] = {SXML_SNIPPET_VARIABLE_NAME,
                                                     SXML_SNIPPET_VARIABLE_CONTEXT};
     sxml_status status = lower_all_accumulators(table);
@@ -1739,8 +1816,8 @@ static sxml_status lower_accumulator_function(sxml_xslt_accumulator_table *table
         return status;
     }
     sxml_xslt_snippet_text text = {.allocator = table->allocator, .status = SXML_STATUS_OK};
-    write_function_text(table, kind, &text);
-    return lower_text(table, (accumulator_text){.function = &table->functions[kind],
+    write_function_text(table, identity, &text);
+    return lower_text(table, (accumulator_text){.function = function_of(table, identity),
                                                 .text = &text,
                                                 .parameters = {name_context, 2}});
 }
@@ -1750,12 +1827,19 @@ static sxml_status lower_accumulator_function(sxml_xslt_accumulator_table *table
    one declared streamable="yes". */
 typedef struct scope_test {
     sxml_xslt_ast_name_token_view tokens;
+    /* The element of the use-accumulators attribute, which names
+       accumulators of its package; 0 for none. */
+    sxml_xslt_ast_node_index scope;
     size_t accumulator_index;
     bool is_streamed;
 } scope_test;
 
 static bool is_in_scope(const sxml_xslt_accumulator_table *table, scope_test test) {
     const accumulator_definition *accumulator = &table->accumulators[test.accumulator_index];
+    if (test.scope.value != 0 &&
+        sxml_xslt_package_of_node(table->lowering, test.scope) != accumulator->package) {
+        return false;
+    }
     if (test.is_streamed &&
         !is_true_attribute(table->lowering, accumulator->node, SXML_XSLT_AST_ATTRIBUTE_STREAMABLE)) {
         return false;
@@ -1796,6 +1880,7 @@ static void write_stream_initial_text(const sxml_xslt_accumulator_table *table,
     for (size_t accumulator_index = 0; accumulator_index < table->accumulator_count;
          accumulator_index += 1) {
         if (!is_in_scope(table, (scope_test){.tokens = tokens,
+                                             .scope = initial->scope,
                                              .accumulator_index = accumulator_index,
                                              .is_streamed = true})) {
             continue;
@@ -1878,23 +1963,28 @@ sxml_status sxml_xslt_lower_accumulators(sxml_xslt_accumulator_table *table) {
         /* Before the accumulator functions: a rule may name them. */
         status = lower_stream_functions(table);
     }
-    bool is_lowered[SXML_ACCUMULATOR_FUNCTION_COUNT] = {false, false};
-    /* A rule may name the other function: until none is left unlowered. */
+    /* A rule may name another function: until none is left unlowered. */
     bool has_lowered = true;
+    const size_t function_count = (size_t)table->package_count * SXML_ACCUMULATOR_FUNCTION_COUNT;
     while (status == SXML_STATUS_OK && has_lowered) {
         has_lowered = false;
-        for (uint32_t kind_number = 0;
-             status == SXML_STATUS_OK && kind_number < (uint32_t)SXML_ACCUMULATOR_FUNCTION_COUNT;
-             kind_number += 1) {
-            const table_function *function = &table->functions[kind_number];
-            if (function->function.value == 0 || is_lowered[kind_number] ||
+        for (size_t function_index = 0; status == SXML_STATUS_OK && function_index < function_count;
+             function_index += 1) {
+            table_function *function = &table->functions[function_index];
+            if (function->function.value == 0 || function->is_lowered ||
                 sxml_ir_unit_get_function(table->lowering->lowerer->unit, function->function)
                         ->body.value != 0) {
                 continue;
             }
-            is_lowered[kind_number] = true;
+            function->is_lowered = true;
             has_lowered = true;
-            status = lower_accumulator_function(table, (accumulator_function_kind)kind_number);
+            status = lower_accumulator_function(
+                table, (function_identity){
+                           .kind = (accumulator_function_kind)(function_index %
+                                                               SXML_ACCUMULATOR_FUNCTION_COUNT),
+                           .package = (uint32_t)(function_index /
+                                                 SXML_ACCUMULATOR_FUNCTION_COUNT) +
+                                      1U});
         }
     }
     return status;
@@ -2043,6 +2133,7 @@ static sxml_status bind_scope(sxml_xpath_lowerer *lowerer, scope_source source,
          status == SXML_STATUS_OK && accumulator_index < table->accumulator_count;
          accumulator_index += 1) {
         if (is_in_scope(table, (scope_test){.tokens = tokens,
+                                            .scope = source.node,
                                             .accumulator_index = accumulator_index,
                                             .is_streamed = source.is_streamed})) {
             status = sxml_xpath_lowerer_add_item_constant(
@@ -2229,6 +2320,7 @@ sxml_status sxml_xslt_prepare_streamed_accumulators(
          !is_any_applicable && accumulator_index < table->accumulator_count;
          accumulator_index += 1) {
         is_any_applicable = is_in_scope(table, (scope_test){.tokens = tokens,
+                                                            .scope = scope,
                                                             .accumulator_index = accumulator_index,
                                                             .is_streamed = true});
     }
