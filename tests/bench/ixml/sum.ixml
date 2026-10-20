@@ -1,0 +1,3 @@
+{An ambiguous grammar: a sum of terms with no rule for how they group.}
+sum: sum, -"+", sum; number.
+number: ["0"-"9"]+.

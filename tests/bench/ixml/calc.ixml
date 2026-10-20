@@ -1,0 +1,19 @@
+ixml version "1.1".
+{A small language: statements end with ";", "let" names a value,
+ "print" prints one. Products bind tighter than sums.}
+program: s, (statement, s, -";", s)*.
+-statement: let; print.
+let: -"let", S, @name, s, -"=", s, expression.
+print: -"print", S, expression.
+-expression: sum; -term.
+sum: expression, s, @add>op, s, term.
+-term: product; -factor.
+product: term, s, @multiply>op, s, factor.
+-factor: number; variable; -"(", s, expression, s, -")".
+number: ["0"-"9"]+.
+variable: @name.
+@name: ["a"-"z"]+.
+add: ["+-"].
+multiply: ["*/"].
+-s: -[" "; #a]*.
+-S: -[" "; #a]+.

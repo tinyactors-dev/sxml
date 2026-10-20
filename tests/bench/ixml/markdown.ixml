@@ -1,0 +1,15 @@
+ixml version "1.1".
+{A little Markdown: headings, lists and paragraphs, separated by blank
+ lines, with *emphasis* and `code` inside. The names are HTML's.}
+document>body: block++(-#a, -#a+), -#a*.
+-block: h1; h2; ul; p.
+h1: -"# ", inline.
+h2: -"## ", inline.
+ul: li++-#a.
+li: -"- ", inline.
+p: line++(-#a, +" ").
+-line: ~["#-*`"; #a], inline?.
+-inline: (char; em; code)+.
+-char: ~["*`"; #a].
+em: -"*", ~["*"; #a]+, -"*".
+code: -"`", ~["`"; #a]+, -"`".

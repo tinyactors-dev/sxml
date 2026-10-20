@@ -1,0 +1,8 @@
+{Semicolon-separated values: a header line, then rows. A field in
+ double quotes may hold semicolons; "" in it is one quote.}
+table: header, -#a, (row, -#a)+.
+header: field++-";".
+row: field++-";".
+field: quoted; plain.
+-plain: ~[";"; '"'; #a]*.
+-quoted: -'"', (~['"']; -'"', '"')*, -'"'.

@@ -1,0 +1,5 @@
+{A list of numbers written right-recursively, as people often write
+ lists: each "rest" holds the remainder of the list.}
+numbers: number, rest?, -#a?.
+-rest: -",", number, rest?.
+number: ["0"-"9"]+.
