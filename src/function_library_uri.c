@@ -47,6 +47,57 @@ static const sxml_static_error relative_base_uri_error = {
         "The base URI is not an absolute URI (F&O 4.0, fn:resolve-uri)"),
 };
 
+static const sxml_static_error invalid_reference_error = {
+    .error_status = SXML_STATUS_DYNAMIC_ERROR,
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("FORG0002"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(
+        "The reference or the base URI is not a valid IRI reference: a percent sign "
+        "without two hexadecimal digits, or a colon before the first slash that ends no "
+        "scheme (RFC 3987; F&O 4.0, fn:resolve-uri)"),
+};
+
+static bool is_hexadecimal_digit(uint8_t byte) {
+    return (byte >= '0' && byte <= '9') || (byte >= 'A' && byte <= 'F') ||
+           (byte >= 'a' && byte <= 'f');
+}
+
+/* False for text that no IRI reference (RFC 3987, 2.2) can be, whatever
+   characters LEIRI also allows: a "%" not followed by two hexadecimal
+   digits (pct-encoded), or a ":" before any "/", "?" or "#" whose prefix
+   is no scheme (ALPHA *( ALPHA / DIGIT / "+" / "-" / "." ); a relative
+   reference's first segment has no colon, RFC 3986, 4.2). */
+static bool is_iri_reference(sxml_byte_view text) {
+    bool is_in_first_segment = true;
+    for (size_t byte_index = 0; byte_index < text.byte_count; byte_index += 1) {
+        const uint8_t byte = text.bytes[byte_index];
+        if (byte == '%' &&
+            (byte_index + 2 >= text.byte_count || !is_hexadecimal_digit(text.bytes[byte_index + 1]) ||
+             !is_hexadecimal_digit(text.bytes[byte_index + 2]))) {
+            return false;
+        }
+        if (byte == '/' || byte == '?' || byte == '#') {
+            is_in_first_segment = false;
+        } else if (byte == ':' && is_in_first_segment) {
+            if (byte_index == 0) {
+                return false;
+            }
+            for (size_t scheme_index = 0; scheme_index < byte_index; scheme_index += 1) {
+                const uint8_t scheme_byte = text.bytes[scheme_index];
+                const bool is_letter = (scheme_byte >= 'A' && scheme_byte <= 'Z') ||
+                                       (scheme_byte >= 'a' && scheme_byte <= 'z');
+                const bool is_other = (scheme_byte >= '0' && scheme_byte <= '9') ||
+                                      scheme_byte == '+' || scheme_byte == '-' ||
+                                      scheme_byte == '.';
+                if (!is_letter && (scheme_index == 0 || !is_other)) {
+                    return false;
+                }
+            }
+            is_in_first_segment = false;
+        }
+    }
+    return true;
+}
+
 /* Makes an xs:anyURI item of text, owned, as a singleton sequence. */
 static sxml_status make_any_uri(sxml_item_heap *item_heap, sxml_byte_view text,
                                 sxml_sequence *result) {
@@ -104,6 +155,9 @@ static sxml_status call_resolve_uri(const sxml_function_call *call, sxml_sequenc
     if (status != SXML_STATUS_OK) {
         return status;
     }
+    if (!is_iri_reference(href.utf8)) {
+        return sxml_function_library_report(call, &invalid_reference_error);
+    }
     if (sxml_uri_has_scheme(href.utf8)) {
         return make_any_uri(call->item_heap, href.utf8, result);
     }
@@ -128,6 +182,9 @@ static sxml_status call_resolve_uri(const sxml_function_call *call, sxml_sequenc
     }
     if (!sxml_uri_has_scheme(base_uri)) {
         return sxml_function_library_report(call, &relative_base_uri_error);
+    }
+    if (!is_iri_reference(base_uri)) {
+        return sxml_function_library_report(call, &invalid_reference_error);
     }
     const sxml_allocator allocator = sxml_item_heap_as_allocator(call->item_heap);
     sxml_uri_resolution resolution = {.uri = {.bytes = NULL, .byte_count = 0},
@@ -276,10 +333,6 @@ static bool is_ascii_letter(uint8_t byte) {
 
 static bool is_ascii_digit(uint8_t byte) {
     return byte >= '0' && byte <= '9';
-}
-
-static bool is_hexadecimal_digit(uint8_t byte) {
-    return is_ascii_digit(byte) || (byte >= 'A' && byte <= 'F') || (byte >= 'a' && byte <= 'f');
 }
 
 static uint8_t hexadecimal_value(uint8_t byte) {
