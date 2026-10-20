@@ -71,3 +71,27 @@ Comments that start with `(:~` document the declaration after them:
 ```xquery
 (: A comment. (: A nested one. :) :)
 ```
+
+## What's in this chapter
+
+- [FLWOR Expressions](xquery-flwor.md): `for`, `let`, `where`,
+  `order by`, `group by`, `count` and `while`;
+- [Grouping and Windows](xquery-grouping-windows.md): putting items
+  together, by key or by position;
+- [Building XML](xquery-constructors.md): constructors and namespaces;
+- [Conditions, Types and Errors](xquery-types-errors.md): `switch`,
+  `typeswitch`, sequence types, `try` and `catch`;
+- [Functions and Modules](xquery-modules.md): declared functions,
+  library modules and private helpers;
+- [Documents, Parameters and the Context](xquery-inputs.md): the input
+  of a query, and external variables;
+- [Writing Results](xquery-serialization.md): output methods and
+  serialization parameters;
+- [Updating Documents](xquery-updates.md): the XQuery Update Facility;
+- [What's New in XQuery 4.0](xquery-4.md): a tour for readers who know
+  XQuery 3.1;
+- [Project: A Report on the Loans](xquery-project.md): all of it in a
+  small application.
+
+Full-text search, with `contains text`, is part of XQuery in sxml too;
+it is in Chapter 7, with the other ways of working with text.

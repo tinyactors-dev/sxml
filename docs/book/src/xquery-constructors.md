@@ -127,4 +127,5 @@ $ sxml xquery --context-item=library.xml --expression='
 The output declarations are `output:method`, `output:indent`,
 `output:item-separator`, `output:omit-xml-declaration` and the other
 parameters of *XSLT and XQuery Serialization 4.0*. On the command line,
-`--method` overrides the method.
+`--method` overrides the method. [Writing Results](xquery-serialization.md)
+goes through them.

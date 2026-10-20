@@ -1,0 +1,5 @@
+{
+  "ada": { "name": "Ada Lovelace", "since": "2024-03-01" },
+  "alan": { "name": "Alan Turing", "since": "2025-01-15" },
+  "grace": { "name": "Grace Hopper", "since": "2026-06-30" }
+}

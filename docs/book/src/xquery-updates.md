@@ -106,6 +106,55 @@ $ sxml xquery --context-item=shelf.xml --expression='//book ! (. transform with 
 <book id="dune" year="1965"><title>Dune</title></book><book id="lhod" year="1969"><title>The Left Hand of Darkness</title></book>
 ```
 
+## Updating functions
+
+A function whose body is an updating expression must say so, with
+`declare updating function`. It returns no value; calling it adds its
+changes to the pending update list:
+
+```console
+$ sxml xquery --context-item=shelf.xml --expression='
+    declare updating function local:lend($book as element(book), $member as xs:string) {
+      insert node attribute lent-to { $member } into $book
+    };
+    local:lend(//book[@id = "dune"], "ada")'
+<shelf name="Fiction">
+  <book id="dune" year="1965" lent-to="ada"><title>Dune</title><price>9.99</price></book>
+  <book id="lhod" year="1969"><title>The Left Hand of Darkness</title><price>11.50</price></book>
+</shelf>
+```
+
+## Mistakes the processor catches
+
+Updating and ordinary expressions don't mix: a query either makes
+changes or computes a value, and the processor checks which before it
+runs anything. An updating expression in a function that isn't declared
+updating is a static error:
+
+```console
+$ sxml xquery --context-item=shelf.xml --expression='
+    declare function local:no-prices() { delete node //price };
+    local:no-prices()'
+expression:2:40: err:XUST0001: an updating expression is used where only a simple expression is allowed (XQuery Update Facility 3.0, 2.2.2)
+```
+
+The target of `insert ... into`, `replace` and `rename` must be exactly
+one node. `//book` is two books, so this fails when it runs:
+
+```console
+$ sxml xquery --context-item=shelf.xml --expression='insert node <note/> into //book'
+expression:1:1: err:XUTY0005: the target of insert into is not one element or document node (5.4.1)
+```
+
+Write `for $book in //book return insert node <note/> into $book` to
+change each one. And two changes to the same node that can't both
+happen are found when the changes are applied:
+
+```console
+$ sxml xquery --context-item=shelf.xml --expression='rename node /shelf as "a", rename node /shelf as "b"'
+expression: err:XUDY0015: a node is renamed twice (3.2.2)
+```
+
 ## Storing documents
 
 `fn:put` stores a node as a document at a URI. sxml never writes a file
@@ -131,17 +180,3 @@ expression: err:FOUP0002: fn:put has no location to store at: the host's update 
 A program that embeds sxml receives the stored documents and the updated
 trees through callbacks, and decides itself what to do with them
 (Chapter 9).
-
-## Summary
-
-XQuery adds to XPath what you need to write programs:
-
-- FLWOR expressions iterate, filter, sort, group, number and window;
-- constructors build XML, and the output declarations write it as XML,
-  HTML, text or JSON;
-- functions, which can be recursive, and library modules organize a
-  program;
-- updates change documents, or copies of them.
-
-Next, a different way to think about turning documents into other
-documents: XSLT.

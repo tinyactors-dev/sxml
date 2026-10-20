@@ -125,42 +125,8 @@ $ sxml xquery --context-item=library.xml --method=adaptive --expression='
 "sicp"
 ```
 
-## Windows
+## More clauses
 
-A *window clause* binds a variable to runs of consecutive items, which
-is useful for batches, moving averages and documents with structure
-hidden in a flat list. A tumbling window starts a new window when the
-previous one ends:
-
-```console
-$ sxml xquery --method=adaptive --expression='
-    for tumbling window $batch in 1 to 10
-        start at $start when true()
-        end at $end when $end - $start = 2
-    return array { $batch }'
-[1,2,3]
-[4,5,6]
-[7,8,9]
-[10]
-```
-
-`start at $start` and `end at $end` bind the positions where a window
-starts and ends, and the `when` conditions decide where the boundaries
-are. Here, each window ends two items after it starts. A `sliding`
-window starts a window at every item where the start condition holds,
-so its windows overlap. `only end` drops a last window that never met
-its end condition:
-
-```console
-$ sxml xquery --method=adaptive --expression='
-    for sliding window $pair in (3, 5, 4, 8, 6)
-        start at $start when true()
-        only end at $end when $end - $start = 1
-    return avg($pair)'
-4
-4.5
-6
-7
-```
-
-That's a moving average of each pair of neighbours.
+FLWOR expressions have two more powerful tools: `group by` with several
+keys and aggregates, and *window clauses*, which bind a variable to runs
+of consecutive items. The next section is about both.

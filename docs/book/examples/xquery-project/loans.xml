@@ -1,0 +1,10 @@
+<loans>
+  <loan book="dune" member="ada" date="2026-09-02" returned="2026-09-20"/>
+  <loan book="geb" member="alan" date="2026-09-05"/>
+  <loan book="dune" member="grace" date="2026-09-21" returned="2026-10-08"/>
+  <loan book="sicp" member="ada" date="2026-09-20"/>
+  <loan book="lhod" member="ada" date="2026-10-01"/>
+  <loan book="dune" member="alan" date="2026-10-09"/>
+  <loan book="taocp" member="grace" date="2026-10-12"/>
+  <loan book="emma" member="grace" date="2026-10-14"/>
+</loans>

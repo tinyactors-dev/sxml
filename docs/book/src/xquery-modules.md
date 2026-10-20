@@ -93,6 +93,9 @@ describe.xq:8:1: err:XPTY0004: The value does not match the required type (XPath
 There is no book with the id `nothing`, so `catalog:book` returns the
 empty sequence, and `catalog:describe` requires exactly one book.
 
+[Documents, Parameters and the Context](xquery-inputs.md) has more on
+external variables and their types.
+
 ## Typed functions catch mistakes
 
 The signatures in `catalog.xqm` say exactly what each function takes
@@ -110,3 +113,74 @@ $ sxml xquery --expression='
     local:greet("Ada"), local:greet("Alan", greeting := "Hi")'
 Hello, Ada! Hi, Alan!
 ```
+
+## Private functions and module variables
+
+A library module can declare variables as well as functions, and it can
+keep helpers to itself. `%private` is an *annotation*: it makes a
+function or variable visible only inside its own module. This module
+computes when loans are due:
+
+`loans.xqm`:
+
+```xquery
+{{#include ../examples/xquery/loans.xqm}}
+```
+
+The importing query sees `loans:due` and `$loans:days`, but not the
+private helpers:
+
+```console
+$ sxml xquery --method=adaptive --expression='
+    import module namespace loans = "https://example.org/loans" at "loans.xqm";
+    loans:due(<loan date="2026-10-01"/>), $loans:days'
+xs:date("2026-10-22")
+21
+$ sxml xquery --method=adaptive --expression='
+    import module namespace loans = "https://example.org/loans" at "loans.xqm";
+    loans:start(<loan date="2026-10-01"/>)'
+expression:3:5: err:XPST0017: no function with this name and arity is known
+```
+
+Keeping helpers private lets you change them later without breaking the
+queries that import the module.
+
+## Functions as values
+
+A declared function is a value too. `loans:due#1` is a reference to the
+function `loans:due` with one parameter, which you can pass to a
+higher-order function such as `for-each`. Parameters can have function
+types, written `fn(...) as ...`:
+
+```console
+$ sxml xquery --method=adaptive --expression='
+    declare function local:twice($f as fn(xs:integer) as xs:integer, $x as xs:integer) as xs:integer {
+      $f($f($x))
+    };
+    local:twice(fn($n) { $n * 3 }, 2)'
+18
+```
+
+Chapter 2's [Functions as Values](xpath-higher-order.md) explains inline
+functions, partial application and the higher-order functions of the
+library; all of it works in XQuery.
+
+## When an import fails
+
+The namespace in `import module` must be the one that the module
+declares, and the file must exist. Both mistakes are static errors,
+found before the query runs:
+
+```console
+$ sxml xquery --expression='
+    import module namespace loans = "https://example.org/loans" at "lending.xqm";
+    1'
+expression:2:5: err:XQST0059: no module is found for an imported namespace
+$ sxml xquery --expression='
+    import module namespace loans = "https://example.org/lending" at "loans.xqm";
+    1'
+expression:2:5: err:XQST0059: the module found is not a library module of the imported namespace
+```
+
+An error inside a module is reported with the module's own file name,
+line and column, so you know where to look.
