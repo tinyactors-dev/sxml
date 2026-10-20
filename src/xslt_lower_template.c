@@ -3722,8 +3722,13 @@ static sxml_status get_built_in_template(const sxml_xslt_lowering *lowering,
         .focus = {.kind = SXML_XPATH_LOWERING_FOCUS_KIND_SLOTS, .slots = focus_slots},
     };
     sxml_xpath_lowerer_enter_function(lowerer, &function_frame);
-    /* 6.10.2, 6.10.3: copy-namespaces of the mode. */
+    /* 6.10.2, 6.10.3: copy-namespaces of the mode; 6.10.2's
+       xsl:copy-of validation="preserve": deep copies keep their type
+       annotations. */
     const uint32_t flags = (uint32_t)SXML_IR_CONSTRUCTION_XSLT_RULES |
+                           (request.rule == SXML_IR_BUILT_IN_RULE_DEEP_COPY
+                                ? (uint32_t)SXML_IR_CONSTRUCTION_PRESERVES_TYPES
+                                : 0U) |
                            (request.copies_namespaces
                                 ? 0U
                                 : (uint32_t)SXML_IR_CONSTRUCTION_NO_PRESERVE_NAMESPACES);
