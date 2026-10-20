@@ -425,6 +425,8 @@ Owner: `connectedAndroidTest` on an x86_64 emulator at API 24 and 35 and
 on one arm64 device.
 
 ### 6.7 Swift core (implementation, here)
+**Paused** 2026-10-20 (D255): done as below; the Swift line (6.7 to 6.9)
+resumes from `bindings/swift/DESIGN.md`.
 **Done** 2026-10-20 (D241): `Package.swift`, `bindings/swift/` (module
 map, `Sources/Sxml`, 27 tests), ctest `swift/linux` over a merged
 `libsxml_host.a`; Swift 6.2 on Linux, 0 leaks.
@@ -445,6 +447,8 @@ when `swift/linux` passes the XPath half of the parity list and the ARC
 tests with 0 leaks. Golden: `src/index.ts`; the probe's module map.
 
 ### 6.8 Swift: XQuery, XSLT, XSD and resource data (implementation, here)
+**Paused** 2026-10-20 (D255): done as below; resume from
+`bindings/swift/DESIGN.md`.
 **Done** 2026-10-20 (D248): `compileQuery`, `compileStylesheet`,
 `compileSchema`, the DUCET as a SwiftPM resource; `swift/linux` passes 55
 tests (the whole parity list) with 0 leaks.
@@ -452,6 +456,8 @@ After 6.7. As 6.5 for Swift. The DUCET is a SwiftPM resource. Done when
 `swift/linux` passes the whole parity list with 0 leaks.
 
 ### 6.9 Apple builds and iOS tests (owner's machine)
+**Paused** 2026-10-20 (D255): not started. The steps, in order, are in
+`bindings/swift/DESIGN.md`, section 3.1.
 After 6.8. Owns:
 - `cmake/apple.cmake` (CMake's `CMAKE_SYSTEM_NAME` iOS with
   `CMAKE_OSX_SYSROOT` iphoneos and iphonesimulator, and macOS);
