@@ -267,8 +267,87 @@ static sxml_byte_view sxml_qt4_last_segment(sxml_byte_view reference) {
                             .byte_count = reference.byte_count - start};
 }
 
+/* The most modules of one namespace an import without hints is answered
+   with as a list (the suite has two). */
+#define SXML_QT4_LISTED_MODULE_LIMIT 8
+
+/* XQUERY_MODULE without a hint, when the test case has several modules of
+   the namespace: their file URIs, as a SEQUENCE of xs:anyURI items
+   (include/sxml/processor.h), which sxml asks for one by one; false in
+   *is_listed when there are fewer than two. */
+static sxml_status
+sxml_qt4_list_modules(const sxml_qt4_table_request *table_request,
+                      sxml_resource *resource, bool *is_listed) {
+    const sxml_resource_request *request = table_request->request;
+    const sxml_qt4_served_module_view modules =
+        table_request->table->served_modules;
+    sxml_item items[SXML_QT4_LISTED_MODULE_LIMIT];
+    size_t item_count = 0;
+    *is_listed = false;
+    if (request->processor == NULL) {
+        return SXML_STATUS_OK;
+    }
+    sxml_item_heap *item_heap = sxml_processor_get_item_heap(request->processor);
+    sxml_status status = SXML_STATUS_OK;
+    size_t module_count = 0;
+    for (size_t module_index = 0; module_index < modules.served_module_count;
+         module_index += 1) {
+        module_count += sxml_byte_view_equals(
+                            modules.served_modules[module_index].namespace_uri,
+                            request->target_namespace_uri)
+                            ? 1U
+                            : 0U;
+    }
+    if (module_count < 2 || module_count > SXML_QT4_LISTED_MODULE_LIMIT ||
+        item_heap == NULL) {
+        return SXML_STATUS_OK;
+    }
+    for (size_t module_index = 0;
+         status == SXML_STATUS_OK && module_index < modules.served_module_count;
+         module_index += 1) {
+        const sxml_qt4_served_module *module = &modules.served_modules[module_index];
+        if (!sxml_byte_view_equals(module->namespace_uri,
+                                   request->target_namespace_uri)) {
+            continue;
+        }
+        sxml_string string = {.utf8 = sxml_qt4_empty_text,
+                              .codepoint_count = 0,
+                              .is_ascii = true};
+        status = sxml_string_from_utf8(module->file_uri, &string);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_atomic_item_make(
+                item_heap,
+                &(sxml_atomic_item_request){
+                    .type = {.index = SXML_TYPE_XS_ANY_URI},
+                    .datum = {.datum_kind = SXML_DATUM_KIND_STRING,
+                              .datum_details = {.string = string}}},
+                &items[item_count]);
+        }
+        if (status == SXML_STATUS_OK) {
+            item_count += 1;
+        }
+    }
+    sxml_sequence locations = sxml_sequence_empty();
+    if (status == SXML_STATUS_OK) {
+        status = sxml_sequence_make_vector(
+            item_heap, (sxml_item_view){.items = items, .item_count = item_count},
+            &locations);
+    }
+    for (size_t item_index = 0; item_index < item_count; item_index += 1) {
+        sxml_item_release(items[item_index]);
+    }
+    if (status == SXML_STATUS_OK) {
+        /* sxml takes the reference (processor.h, sxml_resource). */
+        resource->resource_form = SXML_RESOURCE_FORM_SEQUENCE;
+        resource->items = locations;
+        *is_listed = true;
+    }
+    return status;
+}
+
 /* XQUERY_MODULE: the module of the target namespace that the location
-   hint picks out best. */
+   hint picks out best; without a hint, every module of the namespace
+   when there are several. */
 static sxml_status
 sxml_qt4_serve_module(const sxml_qt4_table_request *table_request,
                       sxml_resource *resource) {
@@ -276,6 +355,14 @@ sxml_qt4_serve_module(const sxml_qt4_table_request *table_request,
     const sxml_qt4_served_module_view modules =
         table_request->table->served_modules;
     const sxml_byte_view hint = request->uri_reference;
+    if (hint.byte_count == 0) {
+        bool is_listed = false;
+        const sxml_status status =
+            sxml_qt4_list_modules(table_request, resource, &is_listed);
+        if (status != SXML_STATUS_OK || is_listed) {
+            return status;
+        }
+    }
     const sxml_byte_view hint_name = sxml_qt4_last_segment(hint);
     const sxml_qt4_served_module *chosen = NULL;
     /* 0: the first of the namespace, 1: by file name, 2: by location. */

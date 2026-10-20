@@ -294,41 +294,55 @@ static sxml_status add_module(const module_loader *loader, const import_request 
     return SXML_STATUS_OK;
 }
 
-/* Asks the resolver for one hint (or none) of an import and adds what it
-   delivers, unless its module URI is loaded already. */
-static sxml_status request_module(const module_loader *loader, const import_request *request) {
+/* Asks the resolver for one location of an import (a hint, or none) and
+   writes its answer to *resource; a resource of form NONE when there is
+   no resolver. */
+static sxml_status resolve_module(const module_loader *loader, const import_request *request,
+                                  sxml_resource *resource) {
     const sxml_resource_resolver resolver = loader->request->resource_resolver;
-    sxml_resource resource;
-    memset(&resource, 0, sizeof(resource));
-    sxml_status status = SXML_STATUS_OK;
-    if (resolver.operations != NULL && resolver.operations->resolve != NULL) {
-        sxml_byte_view namespace_text = {.bytes = NULL, .byte_count = 0};
-        status = sxml_name_pool_get_namespace_uri(loader->name_pool, request->namespace_uri,
-                                                  &namespace_text);
-        if (status == SXML_STATUS_OK) {
-            status = resolver.operations->resolve(
-                resolver.state,
-                &(sxml_resource_request){.resource_kind = SXML_RESOURCE_KIND_XQUERY_MODULE,
-                                         .uri_reference = request->hint,
-                                         .absolute_uri = request->absolute_hint,
-                                         .processor = loader->request->processor,
-                                         .target_namespace_uri = namespace_text},
-                &resource);
-        }
-        if (status != SXML_STATUS_OK) {
-            return status;
-        }
+    memset(resource, 0, sizeof(*resource));
+    if (resolver.operations == NULL || resolver.operations->resolve == NULL) {
+        return SXML_STATUS_OK;
     }
-    if (resource.resource_form == SXML_RESOURCE_FORM_NONE) {
+    sxml_byte_view namespace_text = {.bytes = NULL, .byte_count = 0};
+    const sxml_status status =
+        sxml_name_pool_get_namespace_uri(loader->name_pool, request->namespace_uri,
+                                         &namespace_text);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return resolver.operations->resolve(
+        resolver.state,
+        &(sxml_resource_request){.resource_kind = SXML_RESOURCE_KIND_XQUERY_MODULE,
+                                 .uri_reference = request->hint,
+                                 .absolute_uri = request->absolute_hint,
+                                 .processor = loader->request->processor,
+                                 .target_namespace_uri = namespace_text},
+        resource);
+}
+
+static void release_module_resource(const module_loader *loader, sxml_resource *resource) {
+    const sxml_resource_resolver resolver = loader->request->resource_resolver;
+    if (resolver.operations != NULL && resolver.operations->release != NULL) {
+        resolver.operations->release(resolver.state, resource);
+    }
+}
+
+/* Adds the module a resolver delivered for one location of an import,
+   unless its module URI is loaded already. */
+static sxml_status deliver_module(const module_loader *loader, const import_request *request,
+                                  const sxml_resource *resource) {
+    sxml_status status = SXML_STATUS_OK;
+    if (resource->resource_form == SXML_RESOURCE_FORM_NONE) {
         status = report(loader, (module_error){.ast = request->ast,
                                                 .node = request->declaration,
                                                 .code_and_description = SXML_BYTE_VIEW_FROM_LITERAL(
                                                     "XQST0059 no module is found for an "
                                                     "imported namespace")});
-    } else if (resource.resource_form != SXML_RESOURCE_FORM_BYTES) {
+    } else if (resource->resource_form != SXML_RESOURCE_FORM_BYTES) {
         status = SXML_STATUS_INVALID_ARGUMENT;
     }
-    sxml_byte_view module_uri = resource.resource_uri;
+    sxml_byte_view module_uri = resource->resource_uri;
     if (module_uri.byte_count == 0) {
         module_uri = request->absolute_hint.byte_count > 0 ? request->absolute_hint : request->hint;
     }
@@ -340,7 +354,7 @@ static sxml_status request_module(const module_loader *loader, const import_requ
         const size_t known = find_module(loader->set, module_uri);
         if (known == SIZE_MAX) {
             status = add_module(loader, request,
-                                (delivered_module){.content = resource.content,
+                                (delivered_module){.content = resource->content,
                                                    .module_uri = module_uri});
         } else if (loader->set->modules[known].target_namespace.index !=
                    request->namespace_uri.index) {
@@ -352,9 +366,70 @@ static sxml_status request_module(const module_loader *loader, const import_requ
                                             "of the imported namespace")});
         }
     }
-    if (resolver.operations != NULL && resolver.operations->release != NULL) {
-        resolver.operations->release(resolver.state, &resource);
+    return status;
+}
+
+/* Each location of a resolver's SEQUENCE answer to an import without
+   hints (include/sxml/xquery.h): an xs:string or xs:anyURI item, asked
+   for as a hint. */
+static sxml_status request_listed_modules(const module_loader *loader,
+                                          const import_request *request, sxml_sequence locations) {
+    sxml_sequence_iterator iterator = sxml_sequence_iterator_start(locations);
+    sxml_status status = SXML_STATUS_OK;
+    for (;;) {
+        sxml_iteration_step step;
+        status = sxml_sequence_iterator_next(&iterator, loader->request->error_record, &step);
+        if (status != SXML_STATUS_OK || !step.has_item) {
+            break;
+        }
+        sxml_atomic_datum datum;
+        if (sxml_item_get_kind(step.item) != SXML_ITEM_KIND_ATOMIC ||
+            sxml_atomic_item_get_datum(step.item, &datum) != SXML_STATUS_OK ||
+            datum.datum_kind != SXML_DATUM_KIND_STRING || datum.datum_details.string.utf8.byte_count == 0) {
+            status = SXML_STATUS_INVALID_ARGUMENT;
+            break;
+        }
+        const sxml_byte_view location = datum.datum_details.string.utf8;
+        const import_request located = {
+            .ast = request->ast,
+            .declaration = request->declaration,
+            .namespace_uri = request->namespace_uri,
+            .hint = location,
+            .absolute_hint = sxml_uri_has_scheme(location)
+                                 ? location
+                                 : (sxml_byte_view){.bytes = NULL, .byte_count = 0}};
+        sxml_resource resource;
+        status = resolve_module(loader, &located, &resource);
+        if (status == SXML_STATUS_OK) {
+            status = deliver_module(loader, &located, &resource);
+        }
+        release_module_resource(loader, &resource);
+        if (status != SXML_STATUS_OK) {
+            break;
+        }
     }
+    return status;
+}
+
+/* Asks the resolver for one hint (or none) of an import and adds what it
+   delivers: one module, or for an import without hints possibly several
+   (XQuery 4.0, 5.12: a module is a set of module resources of one target
+   namespace; modules-collide-var-001). */
+static sxml_status request_module(const module_loader *loader, const import_request *request) {
+    sxml_resource resource;
+    sxml_status status = resolve_module(loader, request, &resource);
+    if (status == SXML_STATUS_OK) {
+        status = resource.resource_form == SXML_RESOURCE_FORM_SEQUENCE &&
+                         request->hint.byte_count == 0
+                     ? request_listed_modules(loader, request, resource.items)
+                     : deliver_module(loader, request, &resource);
+    }
+    if (resource.resource_form == SXML_RESOURCE_FORM_SEQUENCE) {
+        /* sxml owns a SEQUENCE answer's items (processor.h). */
+        sxml_sequence_release(resource.items);
+        resource.items = sxml_sequence_empty();
+    }
+    release_module_resource(loader, &resource);
     return status;
 }
 

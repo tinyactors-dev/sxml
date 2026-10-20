@@ -143,7 +143,10 @@ typedef enum sxml_resource_kind {
     /* An XQuery library module for "import module" (XQuery 4.0, "Module
        Import"): uri_reference is one location hint, or empty when the
        import has none, and target_namespace_uri the module's namespace.
-       Form: BYTES, the module's text. */
+       Form: BYTES, the module's text; for an import without hints also
+       SEQUENCE of xs:string or xs:anyURI items, the locations of the
+       namespace's modules, each then asked for as a hint (a module may
+       be several module resources, XQuery 4.0, "Module Import"). */
     SXML_RESOURCE_KIND_XQUERY_MODULE,
     /* An XSLT stylesheet module for xsl:include and xsl:import (XSLT 4.0,
        "Stylesheet Inclusion", "Stylesheet Import"). Form: BYTES. */

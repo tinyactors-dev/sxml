@@ -121,6 +121,44 @@ typedef struct module_resolver {
     size_t request_count;
 } module_resolver;
 
+/* An import of urn:two without hints: the locations of both of its
+   modules, as a SEQUENCE of xs:anyURI items (include/sxml/processor.h). */
+static sxml_status list_modules(const sxml_resource_request *request, sxml_resource *resource) {
+    static const sxml_byte_view locations[2] = {
+        SXML_BYTE_VIEW_INITIALIZER("http://example.com/m/two-1.xq"),
+        SXML_BYTE_VIEW_INITIALIZER("http://example.com/m/two-2.xq")};
+    sxml_item_heap *item_heap = sxml_processor_get_item_heap(request->processor);
+    sxml_item items[2] = {{.representation = 0}, {.representation = 0}};
+    sxml_status status = SXML_STATUS_OK;
+    for (size_t location_index = 0; status == SXML_STATUS_OK && location_index < 2;
+         location_index += 1) {
+        sxml_string string = {.utf8 = locations[location_index],
+                              .codepoint_count = 0,
+                              .is_ascii = true};
+        status = sxml_string_from_utf8(locations[location_index], &string);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_atomic_item_make(
+                item_heap,
+                &(sxml_atomic_item_request){.type = {.index = SXML_TYPE_XS_ANY_URI},
+                                            .datum = {.datum_kind = SXML_DATUM_KIND_STRING,
+                                                      .datum_details = {.string = string}}},
+                &items[location_index]);
+        }
+    }
+    sxml_sequence listed = sxml_sequence_empty();
+    if (status == SXML_STATUS_OK) {
+        status = sxml_sequence_make_vector(
+            item_heap, (sxml_item_view){.items = items, .item_count = 2}, &listed);
+    }
+    sxml_item_release(items[0]);
+    sxml_item_release(items[1]);
+    if (status == SXML_STATUS_OK) {
+        resource->resource_form = SXML_RESOURCE_FORM_SEQUENCE;
+        resource->items = listed;
+    }
+    return status;
+}
+
 static sxml_status resolve_module(void *state, const sxml_resource_request *request,
                                   sxml_resource *resource) {
     module_resolver *resolver = state;
@@ -128,6 +166,10 @@ static sxml_status resolve_module(void *state, const sxml_resource_request *requ
         return SXML_STATUS_OK;
     }
     resolver->request_count += 1;
+    if (request->uri_reference.byte_count == 0 &&
+        sxml_byte_view_equals(request->target_namespace_uri, TEXT("urn:two"))) {
+        return list_modules(request, resource);
+    }
     for (size_t module_index = 0; module_index < SERVED_MODULE_COUNT; module_index += 1) {
         const served_module *module = &served_modules[module_index];
         const bool is_match =
@@ -338,6 +380,9 @@ static const query_case query_cases[] = {
                 "import module namespace t = 'urn:two' at 'two-1.xq', 'two-2.xq'; t:one() + "
                 "t:two()",
                 "3"),
+    /* Without hints, a resolver may list a namespace's modules. */
+    QUERY_VALUE("listed-modules-of-one-namespace",
+                "import module namespace t = 'urn:two'; t:one() + t:two()", "3"),
     QUERY_VALUE("import-without-hints", "import module namespace n = 'urn:nohint'; $n:value",
                 "default"),
     /* One module reached twice is one module: its variable is one node. */

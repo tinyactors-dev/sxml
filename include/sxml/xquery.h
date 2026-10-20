@@ -66,7 +66,9 @@
  * SXML_RESOURCE_KIND_XQUERY_MODULE, the hint as uri_reference resolved
  * against the importing module's static base URI, and the module's
  * namespace as target_namespace_uri; an import without hints asks once
- * with an empty uri_reference. A module that no hint delivers, or whose
+ * with an empty uri_reference, and the resolver may answer with the
+ * locations of several modules of the namespace (SEQUENCE), each then
+ * asked for as a hint. A module that no hint delivers, or whose
  * namespace is not the one imported, is XQST0059. A module imported twice
  * is compiled once; cyclic imports are allowed (XQuery 4.0, "Module
  * Import"). Compilation reads nothing else, except the parameter document
