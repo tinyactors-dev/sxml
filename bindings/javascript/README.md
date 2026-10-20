@@ -29,6 +29,7 @@ result.toString(); // '"XPath"\n2.027e3', the adaptive method
 - [XQuery](#xquery)
 - [XSLT](#xslt)
 - [XSD validation](#xsd-validation)
+- [Code languages](#code-languages)
 - [Resources](#resources)
 - [Errors](#errors)
 - [Memory](#memory)
@@ -70,7 +71,7 @@ not exist (`err:XPST0017`), or the specification's fallback applies.
 | `full-text` | XQuery and XPath Full Text 3.0: `contains text` and score variables in XPath and XQuery, with stemming, stop words and thesauri |
 | `dtd-validation` | The `dtd-validation` option of `fn:doc` and `fn:parse-xml` |
 | `builtin-schemas` | The schemas that `fn:json-to-xml` with `validate`, the typed results of `fn:analyze-string`, and lax validation without an in-scope schema use |
-| `source-code` | `sxml:parse-code` and `sxml:code-languages` (namespace `urn:sxml`): source code in JSON, JavaScript, TypeScript, TSX, Python, C, CSS, HTML, Go or Markdown as a document of its syntax tree, with highlights and code inside code (a host language cannot be loaded at run time here yet, D288) |
+| `source-code` | `sxml:parse-code` and `sxml:code-languages` (namespace `urn:sxml`): source code in JSON, JavaScript, TypeScript, TSX, Python, C, CSS, HTML, Go or Markdown as a document of its syntax tree, with highlights and code inside code, and any other tree-sitter language from its WebAssembly file (see [Code languages](#code-languages)) |
 | `uca-collation` | UCA collation URIs (Unicode Collation Algorithm 16.0) over the DUCET, which the package ships; the CLDR root collation and the CLDR tailorings by language when the resolver gives their files (resource kind `'collation-data'`) |
 | `timezone-database` | IANA time zone names in `fn:civil-timezone` and in the `$place` argument of `fn:format-dateTime` (resource kind `'timezone-data'`) |
 | `localization` | Month and day names, calendars and number words in other languages in `fn:format-date`, `fn:format-integer` and `xsl:number` (resource kind `'locale-data'`) |
@@ -270,6 +271,41 @@ processor.evaluate('/book/@year instance of attribute(*, xs:gYear)', { context: 
 // 'true()'
 ```
 
+## Code languages
+
+`sxml:parse-code` (the `source-code` feature; the prefix `sxml` is bound
+to `urn:sxml`) parses a dozen languages built in. Any other tree-sitter
+grammar can be loaded from its WebAssembly language file,
+`tree-sitter-NAME.wasm`, as `tree-sitter build --wasm` writes it (many
+grammar repositories ship it with their releases), together with the
+texts of its queries:
+
+```js
+const rust = await sxml.loadCodeLanguage({
+  wasm: await fetch('/grammars/tree-sitter-rust.wasm'),
+  highlights: await (await fetch('/grammars/rust/highlights.scm')).text(),
+  // locals, injections and injectionRegex are optional, as is name
+});
+rust.name; // 'rust', from the file's tree_sitter_rust()
+const processor = sxml.createProcessor({ codeLanguages: [rust] });
+processor.evaluate('sxml:parse-code("fn main() {}", "rust")//function_item/identifier ! string()');
+```
+
+`loadCodeLanguage` links the file into the running `sxml.wasm`: the
+file is a WebAssembly side module (its `dylink.0` section), which shares
+the module's memory, function table, stack and C library, so sxml's
+tree-sitter runs its lexer and external scanner directly. It then checks
+the grammar's ABI (13 to 15, tree-sitter 0.20 and later) and that each
+query fits the grammar, and rejects with an `Error` that says what is
+wrong: a file without `dylink.0`, one that needs other WebAssembly
+libraries, one whose scanner imports a C function outside tree-sitter's
+list for language files (`malloc`, `calloc`, `realloc`, `free`, the
+`mem*` and `str*` functions, `isw*`, `towlower`, `towupper`; `abort` and
+`__assert_fail` trap), another ABI, a query that does not fit (with its
+byte offset), or a bad name. A loaded language stays in memory as long
+as its `Sxml` and can be given to any number of its processors; one with
+the name of a built-in language replaces it there.
+
 ## Resources
 
 `fn:doc`, `fn:unparsed-text` and the other resource functions ask the
@@ -339,7 +375,8 @@ documents) are yours to dispose.
 | --- | --- |
 | `load({ wasm, collationData })` | Loads a module; returns an `Sxml` |
 | `Sxml.version`, `Sxml.features` | The library version and the module's optional features |
-| `Sxml.createProcessor({ resolver, features })` | A new `Processor` |
+| `Sxml.createProcessor({ resolver, features, codeLanguages })` | A new `Processor` |
+| `Sxml.loadCodeLanguage({ wasm, name, highlights, locals, injections, injectionRegex })` | A `CodeLanguage` (`name`, `abiVersion`) from a tree-sitter WebAssembly language file |
 | `Processor.parse(xml, { uri })` | A document node |
 | `Processor.compile(expression, options)` | An `XPathExpression`, with `evaluate(options)` and `variables` |
 | `Processor.evaluate(expression, options)` | Compiles and evaluates an XPath expression once |

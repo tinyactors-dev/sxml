@@ -18,6 +18,7 @@
 // garbage collected (FinalizationRegistry). The C side is the shim in
 // ../sxml_javascript.c; the word offsets below follow its structs.
 
+import { linkLanguageModule } from './linker.ts';
 import { wasiImports } from './wasi.ts';
 
 // ------------------------------------------------------------------ Types
@@ -99,8 +100,34 @@ export interface ProcessorOptions {
    *  feature, sxml behaves as the specifications say a processor without
    *  it does. */
   features?: string[];
+  /** tree-sitter languages for sxml:parse-code beside the built-in ones,
+   *  loaded with Sxml.loadCodeLanguage; one with a built-in language's
+   *  name replaces it. Default: none. */
+  codeLanguages?: CodeLanguage[];
   /** For tests: fail this allocation (counted from 1) with out of memory. */
   failingAllocationNumber?: number;
+}
+
+/** A tree-sitter language file to load (Sxml.loadCodeLanguage). */
+export interface CodeLanguageOptions {
+  /** The language file, as `tree-sitter build --wasm` writes it
+   *  (tree-sitter-NAME.wasm): a URL or path, the bytes, a compiled
+   *  module, or a fetch Response. */
+  wasm: WasmSource;
+  /** The language's name in sxml:parse-code: ASCII letters, digits, '_',
+   *  '-', '+' and '.'. Default: NAME of the file's tree_sitter_NAME
+   *  function. */
+  name?: string;
+  /** The text of the grammar's queries/highlights.scm; default none, so
+   *  no highlight attributes. */
+  highlights?: string;
+  /** The text of queries/locals.scm; default none. */
+  locals?: string;
+  /** The text of queries/injections.scm; default none. */
+  injections?: string;
+  /** tree-sitter.json's injection-regex, which other languages'
+   *  injections match to mean this one; default: only its name. */
+  injectionRegex?: string;
 }
 
 /** JSON-like data, converted to XDM as fn:parse-json converts its JSON text
@@ -393,7 +420,14 @@ export class SchemaError extends SxmlError {
 interface Exports {
   memory: WebAssembly.Memory;
   _initialize(): void;
-  sxml_javascript_processor_create(failingAllocationNumber: number, featureMask: number): number;
+  sxml_javascript_processor_create(failingAllocationNumber: number, featureMask: number, codeLanguages: number): number;
+  sxml_javascript_check_code_language(language: number, report: number): number;
+  // For language modules (src/linker.ts, D293): the function table, the
+  // stack pointer and the C library functions of external scanners.
+  __indirect_function_table: WebAssembly.Table;
+  __stack_pointer: WebAssembly.Global;
+  malloc(byteCount: number): number;
+  free(address: number): void;
   sxml_javascript_feature_count(): number;
   sxml_javascript_feature_name_bytes(featureIndex: number): number;
   sxml_javascript_feature_name_byte_count(featureIndex: number): number;
@@ -472,6 +506,7 @@ interface Held {
  *  D235): feature name, prefix, namespace URI. */
 const featurePrefixes: readonly (readonly [string, string, string])[] = [
   ['expath-binary', 'bin', 'http://expath.org/ns/binary'],
+  ['source-code', 'sxml', 'urn:sxml'],
   ['expath-file', 'file', 'http://expath.org/ns/file'],
 ];
 
@@ -488,6 +523,9 @@ class ProcessorState {
   jsonExpression = 0;
   /** What sxml_javascript_processor_destroy found still allocated. */
   leakedAllocationCount = 0;
+  /** The processor's sxml_source_code_language_view and its array, made
+   *  with malloc, which must outlive it; 0 for none. */
+  codeLanguageView = 0;
   /** The prefixes of the processor's features' namespaces (D235). */
   readonly featureNamespaces: Readonly<Record<string, string>>;
 
@@ -556,6 +594,10 @@ class ProcessorState {
       this.address,
     );
     this.address = 0;
+    if (this.codeLanguageView !== 0) {
+      this.module.exports.free(this.codeLanguageView);
+      this.codeLanguageView = 0;
+    }
   }
 }
 
@@ -745,18 +787,128 @@ export class Sxml {
       }
       featureMask |= 1 << index;
     }
+    const codeLanguageView = this.codeLanguageView(options.codeLanguages ?? []);
     const address = this.exports.sxml_javascript_processor_create(
       options.failingAllocationNumber ?? 0,
       featureMask >>> 0,
+      codeLanguageView,
     );
     if (address === 0) {
+      if (codeLanguageView !== 0) {
+        this.exports.free(codeLanguageView);
+      }
       throw outOfMemory();
     }
     const state = new ProcessorState(this, address, options.resolver, options.features ?? this.features);
+    state.codeLanguageView = codeLanguageView;
     this.processors.set(address, state);
     const processor = new Processor(state);
     this.track(processor, { processor: state, kind: 'processor', address });
     return processor;
+  }
+
+  /**
+   * Loads a tree-sitter language file (tree-sitter-NAME.wasm, as
+   * `tree-sitter build --wasm` writes it) into this module for
+   * sxml:parse-code: links it into sxml.wasm (src/linker.ts) and checks
+   * its ABI and queries. Give it to processors with createProcessor({
+   * codeLanguages }). It stays loaded as long as this Sxml. Rejects with
+   * an Error that says what is wrong with the file, the name or a query.
+   */
+  async loadCodeLanguage(options: CodeLanguageOptions): Promise<CodeLanguage> {
+    const exports = this.exports;
+    const module = await compileModule(options.wasm);
+    const functions = new Map<string, Function>();
+    for (const [name, value] of Object.entries(exports)) {
+      // The C library functions the build exports for external scanners
+      // (bindings/javascript/CMakeLists.txt); sxml's own are sxml_.
+      if (typeof value === 'function' && !name.startsWith('sxml_') && !name.startsWith('_')) {
+        functions.set(name, value);
+      }
+    }
+    const linked = await linkLanguageModule(
+      module,
+      {
+        memory: exports.memory,
+        table: exports.__indirect_function_table,
+        stackPointer: exports.__stack_pointer,
+        functions,
+        reserve: (byteCount, alignment) => {
+          const address = this.reserve(byteCount + alignment - 1);
+          const aligned = Math.ceil(address / alignment) * alignment;
+          this.bytes().fill(0, aligned, aligned + byteCount);
+          return aligned;
+        },
+      },
+      options.name,
+    );
+    const name = options.name ?? linked.functionName;
+    // sxml_source_code_language (processor.h): six byte views but the
+    // grammar, eleven words; the texts stay with the language.
+    const view = (text: string | undefined): [number, number] => {
+      const bytes = encoder.encode(text ?? '');
+      const address = this.reserve(bytes.byteLength);
+      this.bytes().set(bytes, address);
+      return [address, bytes.byteLength];
+    };
+    const words = [
+      ...view(name),
+      linked.languageAddress,
+      ...view(options.highlights),
+      ...view(options.locals),
+      ...view(options.injections),
+      ...view(options.injectionRegex),
+    ];
+    const language = this.reserve(code_language_byte_count);
+    this.words().set(words, language / 4);
+    // sxml_source_code_language_report: problem, abi_version, byte_offset.
+    const report = this.reserve(12);
+    const status = exports.sxml_javascript_check_code_language(language, report);
+    const [problem = 0, abiVersion = 0, byteOffset = 0] = this.words().subarray(report / 4, report / 4 + 3);
+    exports.free(report);
+    if (status === status_out_of_memory) {
+      throw outOfMemory();
+    }
+    if (status !== status_ok) {
+      throw new Error(codeLanguageProblem(problem, { name, abiVersion, byteOffset }));
+    }
+    return new CodeLanguage(this, language, name, abiVersion);
+  }
+
+  /** malloc of sxml.wasm, for memory that outlives processors.
+   *  @internal */
+  reserve(byteCount: number): number {
+    const address = this.exports.malloc(Math.max(byteCount, 1));
+    if (address === 0) {
+      throw outOfMemory();
+    }
+    return address;
+  }
+
+  /** A processor's sxml_source_code_language_view: the view, then a copy
+   *  of each language; 0 for none. @internal */
+  codeLanguageView(languages: readonly CodeLanguage[]): number {
+    if (languages.length === 0) {
+      return 0;
+    }
+    const names = new Set<string>();
+    for (const language of languages) {
+      if (language.module !== this) {
+        throw new Error('sxml: this code language was loaded by another sxml module');
+      }
+      if (names.has(language.name)) {
+        throw new Error(`sxml: two code languages are named '${language.name}'`);
+      }
+      names.add(language.name);
+    }
+    const view = this.reserve(8 + languages.length * code_language_byte_count);
+    const bytes = this.bytes();
+    languages.forEach((language, index) => {
+      const at = view + 8 + index * code_language_byte_count;
+      bytes.copyWithin(at, language.address, language.address + code_language_byte_count);
+    });
+    this.words().set([view + 8, languages.length], view / 4);
+    return view;
   }
 
   /** The resolver import (sxml_javascript_host_resolve). @internal */
@@ -801,6 +953,47 @@ export class Sxml {
     this.bytes().set(bytes, address);
     this.words().set([1, address, bytes.byteLength], resourceAddress / 4);
     return status_ok;
+  }
+}
+
+/** The size of sxml_source_code_language in sxml.wasm (checked by the
+ *  shim, sxml_javascript_exports.c). */
+const code_language_byte_count = 44;
+
+/** sxml_source_code_language_problem, as the sxml command words it
+ *  (apps/sxml/code_languages.c). */
+function codeLanguageProblem(
+  problem: number,
+  { name, abiVersion, byteOffset }: { name: string; abiVersion: number; byteOffset: number },
+): string {
+  const queries = ['highlights', 'locals', 'injections'];
+  if (problem === 1) {
+    return `sxml: '${name}' is no language name (ASCII letters, digits, '_', '-', '+' and '.')`;
+  }
+  if (problem === 2) {
+    return `sxml: the grammar's ABI is ${abiVersion}; sxml reads 13 to 15`;
+  }
+  return `sxml: the ${queries[problem - 3] ?? 'highlights'} query does not fit the grammar at byte ${byteOffset}`;
+}
+
+/** A tree-sitter language loaded by Sxml.loadCodeLanguage, for
+ *  createProcessor({ codeLanguages }). */
+export class CodeLanguage {
+  /** @internal */
+  readonly module: Sxml;
+  /** @internal Its sxml_source_code_language in the module's memory. */
+  readonly address: number;
+  /** Its name in sxml:parse-code. */
+  readonly name: string;
+  /** The grammar's tree-sitter language ABI, 13 to 15. */
+  readonly abiVersion: number;
+
+  /** @internal Use Sxml.loadCodeLanguage(). */
+  constructor(module: Sxml, address: number, name: string, abiVersion: number) {
+    this.module = module;
+    this.address = address;
+    this.name = name;
+    this.abiVersion = abiVersion;
   }
 }
 

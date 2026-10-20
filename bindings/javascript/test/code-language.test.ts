@@ -22,8 +22,8 @@ if (wasmPath === undefined || languageDirectory === undefined) {
 }
 const sxml = await load({ wasm: pathToFileURL(wasmPath) });
 
-function languageFile(name: string): Uint8Array {
-  return readFileSync(`${languageDirectory}/${name}`);
+function languageFile(name: string): Uint8Array<ArrayBuffer> {
+  return new Uint8Array(readFileSync(`${languageDirectory}/${name}`));
 }
 
 function vendoredQuery(language: string, query: string): string {
@@ -73,7 +73,7 @@ function section(id: number, body: number[]): number[] {
 /** A module with a dylink.0 section (tool conventions, "Dynamic linking":
  *  WASM_DYLINK_MEM_INFO 1, WASM_DYLINK_NEEDED 2) and, optionally, needed
  *  libraries and one imported function env.NAME of type () -> (). */
-function sideModule(options: { needed?: string[]; importedFunction?: string; dylink?: boolean }): Uint8Array {
+function sideModule(options: { needed?: string[]; importedFunction?: string; dylink?: boolean }): Uint8Array<ArrayBuffer> {
   const bytes = [0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00];
   if (options.dylink !== false) {
     const dylink = [...wasmName('dylink.0'), 1, ...leb128(4), 0, 0, 0, 0];
@@ -95,7 +95,7 @@ function sideModule(options: { needed?: string[]; importedFunction?: string; dyl
  *  TSLanguage of ABI 12, which sxml does not read: its first field is
  *  the ABI version (tree_sitter/parser.h). Its data is placed at
  *  __memory_base. */
-function oldAbiModule(): Uint8Array {
+function oldAbiModule(): Uint8Array<ArrayBuffer> {
   const i32 = 0x7f;
   const globalGetMemoryBase = [0x23, 0];
   return new Uint8Array([
@@ -143,8 +143,8 @@ describe('tree-sitter language modules', () => {
     });
     assert.equal(named.name, 'my-json');
     assert.equal(
-      run([named, compiled], 'sxml:code-languages()[ends-with(., "-json")] => string-join(",")'),
-      'my-json,compiled-json',
+      run([named, compiled], 'sxml:code-languages()[ends-with(., "-json")] => sort() => string-join(",")'),
+      'compiled-json,my-json',
     );
     // Without queries there are no highlights.
     assert.equal(

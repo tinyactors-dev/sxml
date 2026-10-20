@@ -45,6 +45,22 @@ set_target_properties(sxml_javascript_module PROPERTIES OUTPUT_NAME sxml SUFFIX 
 # javascript/size_budget's growth guard (D225).
 target_link_options(sxml_javascript_module PRIVATE -mexec-model=reactor -Wl,--strip-all
     "-Wl,-Map=${CMAKE_CURRENT_BINARY_DIR}/sxml.map")
+# tree-sitter's WebAssembly language files link into the module at run
+# time (D293; src/linker.ts): each is a side module that imports the
+# module's memory, its function table (exported, and growable for the
+# side module's functions), its stack pointer, and the C library
+# functions tree-sitter allows external scanners
+# (third_party/tree-sitter/lib/src/wasm-stdlib/imports.txt, the list
+# tree-sitter's own wasm store provides).
+file(STRINGS "${PROJECT_SOURCE_DIR}/third_party/tree-sitter/lib/src/wasm-stdlib/imports.txt"
+    sxml_scanner_imports REGEX "^\"[a-z_]+\",$")
+set(sxml_scanner_exports)
+foreach(sxml_scanner_import IN LISTS sxml_scanner_imports)
+    string(REGEX REPLACE "^\"([a-z_]+)\",$" "\\1" sxml_scanner_function "${sxml_scanner_import}")
+    list(APPEND sxml_scanner_exports "-Wl,--export=${sxml_scanner_function}")
+endforeach()
+target_link_options(sxml_javascript_module PRIVATE -Wl,--export-table -Wl,--growable-table
+    -Wl,--export=__stack_pointer ${sxml_scanner_exports})
 sxml_apply_project_flags(sxml_javascript_module)
 
 if(SXML_BUILD_TESTS AND SXML_NODE_EXECUTABLE)

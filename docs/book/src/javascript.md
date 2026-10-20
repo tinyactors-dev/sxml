@@ -2,7 +2,6 @@
 
 <!-- examples: javascript -->
 <!-- requires: javascript -->
-<!-- status: draft -->
 
 The `@tinyactors/sxml` package runs the sxml library in Node.js and in
 browsers, compiled to WebAssembly, with a small TypeScript wrapper and

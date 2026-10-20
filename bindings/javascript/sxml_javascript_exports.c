@@ -10,6 +10,8 @@
 
 #include "sxml_host.h"
 
+#include "sxml/processor.h"
+#include "sxml/status.h"
 #include "sxml/view.h"
 
 #include <stddef.h>
@@ -30,13 +32,34 @@ uint32_t sxml_javascript_feature_name_byte_count(uint32_t feature_index) {
     return sxml_host_feature_name_byte_count(feature_index);
 }
 
+/* The package writes these structs itself (src/linker.ts and
+   src/index.ts, D293): wasm32 sizes and offsets. */
+#if defined(__wasm__)
+_Static_assert(sizeof(sxml_source_code_language) == 44, "language words in src/index.ts");
+_Static_assert(offsetof(sxml_source_code_language, grammar) == 8, "language words");
+_Static_assert(offsetof(sxml_source_code_language, injection_regex) == 36, "language words");
+_Static_assert(sizeof(sxml_source_code_language_view) == 8, "view words");
+_Static_assert(sizeof(sxml_source_code_language_report) == 12, "report words");
+#endif
+
 SXML_JAVASCRIPT_EXPORT("sxml_javascript_processor_create")
-sxml_host_processor *sxml_javascript_processor_create(uint32_t failing_allocation_number,
-                                                      uint32_t feature_mask) {
+sxml_host_processor *sxml_javascript_processor_create(
+    uint32_t failing_allocation_number, uint32_t feature_mask,
+    const sxml_source_code_language_view *code_languages) {
     return sxml_host_processor_create(&(sxml_host_processor_configuration){
         .failing_allocation_number = failing_allocation_number,
         .feature_mask = feature_mask,
-        .resolver = sxml_javascript_resolver()});
+        .resolver = sxml_javascript_resolver(),
+        .source_code_languages =
+            code_languages == NULL
+                ? (sxml_source_code_language_view){.languages = NULL, .language_count = 0}
+                : *code_languages});
+}
+
+SXML_JAVASCRIPT_EXPORT("sxml_javascript_check_code_language")
+uint32_t sxml_javascript_check_code_language(const sxml_source_code_language *language,
+                                             sxml_source_code_language_report *report) {
+    return (uint32_t)sxml_source_code_check_language(language, report);
 }
 
 SXML_JAVASCRIPT_EXPORT("sxml_javascript_processor_destroy")

@@ -233,7 +233,8 @@ sxml_host_processor *sxml_host_processor_create(
                 .clock = sxml_system_clock(),
                 .optional_features =
                     sxml_host_select_features(configuration->feature_mask,
-                                              selected_features)},
+                                              selected_features),
+                .source_code_languages = configuration->source_code_languages},
             &processor->processor);
     }
     if (status == SXML_STATUS_OK) {

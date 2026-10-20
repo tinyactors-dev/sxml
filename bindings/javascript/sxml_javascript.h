@@ -17,6 +17,7 @@
  */
 #include "sxml_host.h"
 
+#include "sxml/processor.h"
 #include "sxml/view.h"
 
 #include <stddef.h>
@@ -39,9 +40,15 @@ sxml_host_resolver sxml_javascript_resolver(void);
 uint32_t sxml_javascript_feature_count(void);
 const uint8_t *sxml_javascript_feature_name_bytes(uint32_t feature_index);
 uint32_t sxml_javascript_feature_name_byte_count(uint32_t feature_index);
-/* sxml_host_processor_create with sxml_javascript_resolver(). */
-sxml_host_processor *sxml_javascript_processor_create(uint32_t failing_allocation_number,
-                                                      uint32_t feature_mask);
+/* sxml_host_processor_create with sxml_javascript_resolver() and the
+   languages of *code_languages (NULL for none), which the package's
+   module linker loaded (src/linker.ts, D293). */
+sxml_host_processor *sxml_javascript_processor_create(
+    uint32_t failing_allocation_number, uint32_t feature_mask,
+    const sxml_source_code_language_view *code_languages);
+/* sxml_source_code_check_language, as a status number. */
+uint32_t sxml_javascript_check_code_language(const sxml_source_code_language *language,
+                                             sxml_source_code_language_report *report);
 uint32_t sxml_javascript_processor_destroy(sxml_host_processor *processor);
 void *sxml_javascript_allocate(sxml_host_processor *processor, size_t byte_count);
 void sxml_javascript_release(sxml_host_processor *processor, void *memory);

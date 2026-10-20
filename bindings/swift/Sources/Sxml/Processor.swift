@@ -87,7 +87,8 @@ public final class Processor {
             failing_allocation_number: UInt32(clamping: failingAllocationNumber),
             feature_mask: featureMask,
             resolver: sxml_host_resolver(
-                state: Unmanaged.passUnretained(state).toOpaque(), resolve: resolveResource))
+                state: Unmanaged.passUnretained(state).toOpaque(), resolve: resolveResource),
+            source_code_languages: sxml_source_code_language_view(languages: nil, language_count: 0))
         guard let handle = sxml_host_processor_create(&configuration) else {
             throw SxmlError.outOfMemory
         }
