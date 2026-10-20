@@ -110,16 +110,43 @@ vocabularies that don't import each other.
 ## Schema hints in documents
 
 Documents often name their schema with `xsi:schemaLocation` (pairs of a
-namespace and a location) or `xsi:noNamespaceSchemaLocation`. `sxml
-validate` doesn't follow these hints: a document doesn't get to choose
-the schema it's checked against. Name the schema with `--schema`:
+namespace and a location) or `xsi:noNamespaceSchemaLocation` (a location
+for names in no namespace). `hinted-fines.xml` is `fines.xml` with such a
+hint on its document element:
+
+```xml
+<fines xmlns="https://example.org/lending"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="https://example.org/lending lending.xsd">
+```
+
+By default `sxml validate` doesn't follow these hints: a document
+doesn't get to choose the schema it's checked against, so you name the
+schema with `--schema`. Without one, there is nothing to validate
+against:
 
 ```console
-$ sxml validate fines.xml
-sxml validate: missing option '--schema'
-Usage: sxml validate --schema=SCHEMA [--schema=SCHEMA]... [--mode=MODE] [--format=FORMAT] FILE...
+$ sxml validate hinted-fines.xml
+sxml validate: missing option '--schema' (or give --use-schema-location)
+Usage: sxml validate [--schema=SCHEMA]... [--use-schema-location] [--mode=MODE] [--format=FORMAT] FILE...
 Try 'sxml validate --help'.
 ```
+
+`--use-schema-location` asks for the hints to be followed. The hinted
+documents are local files, relative to the document that names them,
+and they join the `--schema` documents, if you give any, in one schema
+for that document:
+
+```console
+$ sxml validate --use-schema-location hinted-fines.xml
+$ sxml validate --use-schema-location --schema=lending.xsd hinted-fines.xml
+```
+
+A hint only adds a namespace the schema doesn't have yet: with
+`--schema=lending.xsd`, the hint for the lending namespace is ignored, so
+a document can't swap the schema you chose for one of its own. A hinted
+file that doesn't exist isn't an error by itself (XSD 1.1 Part 1, 4.3.2);
+the elements it would have declared are then simply undeclared.
 
 ## Namespaces in queries
 

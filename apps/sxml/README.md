@@ -706,7 +706,7 @@ $ sxml check --validate-dtd --external-entities --format=json article.xml invali
 Validate XML documents against an XSD 1.1 schema.
 
 ```
-sxml validate --schema=SCHEMA [--schema=SCHEMA]... [--mode=MODE] [--format=FORMAT] FILE...
+sxml validate [--schema=SCHEMA]... [--use-schema-location] [--mode=MODE] [--format=FORMAT] FILE...
 ```
 
 `sxml validate` validates each FILE against the XSD 1.1 schema that the
@@ -745,7 +745,8 @@ besides its `line`, `column`, `byte_offset` and `message`.
 
 | Option | Description |
 | --- | --- |
-| `--schema=SCHEMA` | An XSD schema document; `-` reads standard input. Required; repeatable: all of them make one schema. |
+| `--schema=SCHEMA` | An XSD schema document; `-` reads standard input. Repeatable: all of them make one schema. Required unless `--use-schema-location` is given. |
+| `--use-schema-location` | Also read the schema documents that each FILE's `xsi:schemaLocation` and `xsi:noNamespaceSchemaLocation` attributes name |
 | `--mode=MODE` | `strict` (default): the schema must have a global declaration for the document element of each FILE. `lax`: a document element without a declaration is assessed laxly, and the validity of the FILE is "not known". |
 | `--format=FORMAT` | Report format: `text` (default) or `json` |
 
@@ -753,10 +754,23 @@ besides its `line`, `column`, `byte_offset` and `message`.
   are validated, wherever they are. A FILE whose validity is not known is
   reported on standard error as `FILE: validity not known: ...`, but it
   does not fail.
-- `sxml validate` does not follow `xsi:schemaLocation` and
-  `xsi:noNamespaceSchemaLocation` hints in a FILE: the schema is the one
-  that `--schema` names. To use a hinted document, name it with
-  `--schema`.
+- Without `--use-schema-location`, `sxml validate` does not follow
+  `xsi:schemaLocation` and `xsi:noNamespaceSchemaLocation` hints in a
+  FILE: the schema is the one that `--schema` names (XSD 1.1 Part 1,
+  4.3.2: a document does not choose the schema it is checked against).
+- With `--use-schema-location`, each FILE is parsed once for its hints,
+  wherever they are, and the documents they name are read as local
+  files, relative to the FILE (for standard input, to the working
+  directory), never from the network. They join the SCHEMA documents in
+  the schema of that FILE, and then the FILE is validated. A hint for a
+  namespace that the schema has already, from a SCHEMA or an earlier
+  hint, is ignored, so hints add namespaces but never replace one. A
+  hinted document that cannot be read is not an error: its elements are
+  then undeclared. Errors in a hinted document are reported for the
+  FILE, as `DOCUMENT:LINE:COLUMN: CONSTRAINT: description` (in JSON
+  among the FILE's `errors`, with `document`), and make it invalid; a
+  hinted document of another namespace than its hint's is
+  `schema_reference`.
 - Standard input is read at most once. `-` given two times, as a SCHEMA
   and a FILE or as two of either, is a usage error.
 
@@ -798,6 +812,21 @@ $ echo '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"><xs:element name=
 -:1:56: src-resolve: A QName value names no component of its kind: catalog
 $ sxml validate --schema=books.xsd missing.xml
 sxml validate: cannot read 'missing.xml'
+```
+
+With hints (the files of `tests/cli/input/xsd/`): `hinted-books.xml`
+names `books.xsd` with `xsi:noNamespaceSchemaLocation`; `hinted-price.xml`
+names `prices.xsd` for its namespace and has a price that is not a
+number; `hinted-offers.xml` names `broken.xsd`, which has no target
+namespace, for the namespace of prices.
+
+```console
+$ sxml validate --use-schema-location hinted-books.xml
+$ sxml validate --use-schema-location hinted-price.xml
+hinted-price.xml:1:1: cvc-datatype-valid.1.2.1: element 'p:price' has the value 'cheap', which is not valid for type 'xs:decimal'
+$ sxml validate --use-schema-location hinted-offers.xml
+broken.xsd: schema_reference: A schema document has another target namespace than the one it is referred to with: urn:example:prices
+$ sxml validate --use-schema-location --schema=offers.xsd hinted-offers.xml
 ```
 
 ## sxml version

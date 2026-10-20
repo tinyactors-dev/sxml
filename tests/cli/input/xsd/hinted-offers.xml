@@ -1,0 +1,4 @@
+<offers xmlns:p="urn:example:prices" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="urn:example:prices broken.xsd">
+  <p:price currency="EUR">22.50</p:price>
+</offers>

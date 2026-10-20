@@ -506,6 +506,10 @@ static const char *const namespace_constraints[] = {
     [SXML_DOCUMENT_RELATION_HINT] = "schema_reference",
 };
 
+static sxml_status namespace_text(const sxml_schema_assembly *assembly,
+                                  sxml_namespace_uri_identifier namespace_uri,
+                                  sxml_byte_view *text);
+
 /* Adds the document source describes, unless it was read already, and
    writes its position in the list (or SIZE_MAX when it was not added) to
    *position. */
@@ -573,15 +577,20 @@ static sxml_status add_document(sxml_schema_assembly *assembly, const document_s
     const namespace_decision decision = decide_namespace(source, own_namespace);
     if (status == SXML_STATUS_OK && !decision.is_allowed) {
         const bool is_hint = source->relation == SXML_DOCUMENT_RELATION_HINT;
+        /* A hinted document is the place itself: the subject is the
+           namespace its hint is for. */
+        sxml_byte_view subject = source->uri;
+        if (is_hint && namespace_text(assembly, source->expected_namespace, &subject) !=
+                           SXML_STATUS_OK) {
+            subject = SXML_TEXT("");
+        }
         status = report_document(
             assembly, (document_error){.constraint_name = namespace_constraints[source->relation],
                                        .description = "A schema document has another target "
                                                       "namespace than the one it is referred "
                                                       "to with",
-                                       .subject = source->uri,
+                                       .subject = subject,
                                        .position = source->position,
-                                       /* A hinted document has no referring
-                                          element: it is the place. */
                                        .document_uri = is_hint ? source->uri : SXML_TEXT(""),
                                        .configured_uri =
                                            is_hint ? source->configured_uri : SXML_TEXT("")});

@@ -1,0 +1,2 @@
+<p:price xmlns:p="urn:example:prices" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="urn:example:prices prices.xsd" currency="EUR">cheap</p:price>

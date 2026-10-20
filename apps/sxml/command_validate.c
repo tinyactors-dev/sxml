@@ -2,7 +2,8 @@
  * sxml validate --schema=SCHEMA [--schema=SCHEMA]... [--mode=MODE]
  * [--format=FORMAT] FILE...: validates every FILE against the XSD 1.1
  * schema the SCHEMA documents form (apps/sxml/README.md; docs/tasks/phase-5.md,
- * "sxml validate"; include/sxml/schema.h, D165, D173).
+ * "sxml validate"; include/sxml/schema.h, D165, D173), with
+ * --use-schema-location also the documents each FILE's hints name (D278).
  *
  * Golden file: command_check.c, whose report shapes, statuses and exit
  * codes it extends; the processor and its local-file resolver are
@@ -20,8 +21,12 @@
  *   as "FILE:LINE:COLUMN: CONSTRAINT: description". The validation root is
  *   the document element, assessed strictly or laxly as --mode says (Part
  *   1, 5.2). xsi:schemaLocation and xsi:noNamespaceSchemaLocation hints are
- *   not followed (Part 1, 4.3.2 leaves it to the processor; schema.h): the
- *   schema is the one the command line names.
+ *   followed only with --use-schema-location (Part 1, 4.3.2: "an option to
+ *   control whether they do so"; D44, D278): the FILE is parsed once for
+ *   its hints, the SCHEMA documents are compiled again with them
+ *   (schema.h, schema_location_hint_node) through the local-file
+ *   resolver, and the FILE is validated against that schema. Errors of a
+ *   hinted document are reported as schema errors of the FILE.
  * - JSON format: one object on standard output,
  *
  *     {"schema":{"documents":["po.xsd"],"status":"valid"},
@@ -73,8 +78,19 @@ static const sxml_cli_option sxml_validate_options[] = {
         .value_name = SXML_BYTE_VIEW_INITIALIZER("SCHEMA"),
         .choices = {.texts = NULL, .text_count = 0},
         .default_value = {.bytes = NULL, .byte_count = 0},
-        .multiplicity = SXML_CLI_OPTION_AT_LEAST_ONCE,
+        .multiplicity = SXML_CLI_OPTION_REPEATABLE,
         .summary = SXML_BYTE_VIEW_INITIALIZER("XSD schema document; - reads standard input"),
+    },
+    {
+        .long_name = SXML_BYTE_VIEW_INITIALIZER("use-schema-location"),
+        .short_name = 0,
+        .value_kind = SXML_CLI_VALUE_KIND_NONE,
+        .value_name = {.bytes = NULL, .byte_count = 0},
+        .choices = {.texts = NULL, .text_count = 0},
+        .default_value = {.bytes = NULL, .byte_count = 0},
+        .multiplicity = SXML_CLI_OPTION_AT_MOST_ONCE,
+        .summary = SXML_BYTE_VIEW_INITIALIZER(
+            "Also read the schema documents a FILE's xsi:schemaLocation names"),
     },
     {
         .long_name = SXML_BYTE_VIEW_INITIALIZER("mode"),
@@ -112,6 +128,7 @@ static const sxml_byte_view sxml_validate_examples[] = {
     SXML_BYTE_VIEW_INITIALIZER("sxml validate --schema=books.xsd books.xml"),
     SXML_BYTE_VIEW_INITIALIZER("sxml validate --schema=books.xsd bad-books.xml"),
     SXML_BYTE_VIEW_INITIALIZER("sxml validate --schema=books.xsd --format=json books.xml"),
+    SXML_BYTE_VIEW_INITIALIZER("sxml validate --use-schema-location hinted-books.xml"),
 };
 
 /* What happened to the schema or to one file. */
@@ -155,6 +172,14 @@ typedef struct sxml_validate_run {
     sxml_query_run query;
     sxml_validate_schema_files schema_files;
     sxml_schema *schema;
+    /* --use-schema-location: each FILE's hints join the schema (D278). */
+    bool uses_hints;
+    /* The schema of the FILE being validated with its hints; NULL for
+       run->schema. */
+    sxml_schema *file_schema;
+    /* The hinted documents of a FILE are being compiled: their errors are
+       schema errors, reported with the document's name. */
+    bool is_compiling_hints;
     sxml_xml_parser *parser;
     sxml_validation_mode validation_mode;
     bool writes_json;
@@ -319,7 +344,7 @@ static sxml_status sxml_validate_receive_report(void *state, const sxml_schema_r
     sxml_validate_run *run = state;
     run->error_count += 1;
     const sxml_byte_view description = sxml_validate_description(report);
-    const bool is_schema_error = run->file.byte_count == 0;
+    const bool is_schema_error = run->file.byte_count == 0 || run->is_compiling_hints;
     const sxml_byte_view name = is_schema_error
                                     ? sxml_validate_document_name(run, report->location.source_name)
                                     : run->file;
@@ -647,7 +672,7 @@ static void sxml_validate_parse(sxml_validate_run *run, sxml_byte_view contents,
     result->status = sxml_schema_validator_create(
         run->invocation->allocator,
         &(sxml_schema_validator_configuration){
-            .schema = run->schema,
+            .schema = run->file_schema != NULL ? run->file_schema : run->schema,
             .validation_mode = run->validation_mode,
             .governing_type = {.index = 0},
             .result_builder = {.state = NULL, .operations = NULL},
@@ -711,6 +736,75 @@ static sxml_validate_outcome sxml_validate_outcome_of(sxml_validate_parse_result
     return sxml_validate_failure_outcome(result->status);
 }
 
+/* With --use-schema-location: parses the FILE once for its schema
+   location hints and compiles the SCHEMA documents with the documents
+   they name into run->file_schema (include/sxml/schema.h,
+   schema_location_hint_node; D278). Errors of the hinted documents go to
+   the report sink as schema errors. Returns VALID to go on (a FILE that
+   does not parse is left to the validating parse, which reports it),
+   INVALID or FAILED, with *diagnostic filled, otherwise. */
+static sxml_validate_outcome sxml_validate_compile_hints(sxml_validate_run *run,
+                                                         sxml_byte_view contents,
+                                                         sxml_diagnostic *diagnostic) {
+    sxml_byte_view uri = {.bytes = NULL, .byte_count = 0};
+    if (!sxml_byte_view_equals(run->file, SXML_TEXT("-")) &&
+        sxml_query_make_file_uri(run->invocation, run->file, &uri) != SXML_STATUS_OK) {
+        return SXML_VALIDATE_OUTCOME_VALID;
+    }
+    sxml_item document_node = {.representation = 0};
+    sxml_status status = sxml_processor_parse_document(
+        run->query.processor,
+        &(sxml_xml_parse_request){.input = contents,
+                                  .source_name = run->file,
+                                  .document_uri = uri,
+                                  .base_uri = uri,
+                                  .encoding_name = {.bytes = NULL, .byte_count = 0},
+                                  .diagnostic = NULL},
+        &document_node);
+    if (status != SXML_STATUS_OK) {
+        sxml_allocator_release(run->invocation->allocator, (void *)uri.bytes);
+        return SXML_VALIDATE_OUTCOME_VALID;
+    }
+    sxml_error_record error_record;
+    memset(&error_record, 0, sizeof(error_record));
+    run->is_compiling_hints = true;
+    const size_t error_count = run->error_count;
+    status = sxml_schema_create(
+        run->invocation->allocator,
+        &(sxml_schema_configuration){
+            .processor = run->query.processor,
+            .schema_documents = {.schema_documents = run->schema_files.documents,
+                                 .schema_document_count = run->schema_files.file_count},
+            .base_uri = {.bytes = NULL, .byte_count = 0},
+            .report_sink = {.state = run, .operations = &sxml_validate_report_sink_operations},
+            .maximum_content_model_state_count = 0,
+            .error_record = &error_record,
+            .schema_location_hint_node = document_node},
+        &run->file_schema);
+    sxml_validate_outcome outcome = SXML_VALIDATE_OUTCOME_VALID;
+    if (status == SXML_STATUS_STATIC_ERROR) {
+        outcome = SXML_VALIDATE_OUTCOME_INVALID;
+        if (run->error_count == error_count &&
+            sxml_validate_receive_report(
+                run, &(sxml_schema_report){.code = error_record.code,
+                                           .description = error_record.diagnostic.description,
+                                           .location = error_record.diagnostic.location}) !=
+                SXML_STATUS_OK) {
+            outcome = SXML_VALIDATE_OUTCOME_FAILED;
+        }
+    } else if (status != SXML_STATUS_OK) {
+        outcome = SXML_VALIDATE_OUTCOME_FAILED;
+        diagnostic->description = error_record.diagnostic.description.byte_count > 0
+                                      ? error_record.diagnostic.description
+                                      : sxml_status_name(status);
+        diagnostic->location.line_number = 0;
+    }
+    run->is_compiling_hints = false;
+    sxml_item_release(document_node);
+    sxml_allocator_release(run->invocation->allocator, (void *)uri.bytes);
+    return outcome;
+}
+
 /* Reads, validates and reports one file. */
 static void sxml_validate_file(sxml_validate_run *run, sxml_byte_view file) {
     const sxml_allocator allocator = run->invocation->allocator;
@@ -735,8 +829,15 @@ static void sxml_validate_file(sxml_validate_run *run, sxml_byte_view file) {
     sxml_validate_parse_result result;
     memset(&result, 0, sizeof(result));
     result.diagnostic.location.source_name = file;
-    sxml_validate_parse(run, contents, &result);
-    const sxml_validate_outcome outcome = sxml_validate_outcome_of(&result);
+    sxml_validate_outcome outcome =
+        run->uses_hints ? sxml_validate_compile_hints(run, contents, &result.diagnostic)
+                        : SXML_VALIDATE_OUTCOME_VALID;
+    if (outcome == SXML_VALIDATE_OUTCOME_VALID) {
+        sxml_validate_parse(run, contents, &result);
+        outcome = sxml_validate_outcome_of(&result);
+    }
+    sxml_schema_destroy(run->file_schema);
+    run->file_schema = NULL;
     sxml_validate_submit_report(run, &(sxml_validate_report){
                                   .file = file,
                                   .outcome = outcome,
@@ -762,25 +863,42 @@ static sxml_cli_exit_code sxml_validate_read_command_line(sxml_validate_run *run
             &match) != SXML_STATUS_OK) {
         return SXML_CLI_EXIT_INTERNAL_ERROR;
     }
-    /* At least one: the option table says so. */
     const size_t schema_count = match.occurrence_count;
+    sxml_cli_option_match hint_match = {.is_present = false, .occurrence_count = 0};
+    if (sxml_cli_arguments_find_option(
+            invocation->arguments,
+            (sxml_cli_option_lookup){.long_name = SXML_TEXT("use-schema-location"),
+                                     .occurrence_index = 0},
+            &hint_match) != SXML_STATUS_OK) {
+        return SXML_CLI_EXIT_INTERNAL_ERROR;
+    }
+    run->uses_hints = hint_match.is_present;
+    if (schema_count == 0 && !run->uses_hints) {
+        /* The schema is the SCHEMA documents, or what each FILE's hints
+           name: one of them must be asked for (D44, D278). */
+        return sxml_cli_invocation_report_usage_error(
+            invocation, SXML_TEXT("missing option '--schema' (or give --use-schema-location)"));
+    }
     sxml_validate_schema_files *files = &run->schema_files;
     void *name_memory = NULL;
     void *uri_memory = NULL;
     void *document_memory = NULL;
-    sxml_status status = sxml_allocator_allocate(
-        invocation->allocator,
-        (sxml_allocation_request){.byte_count = schema_count * sizeof(sxml_byte_view),
-                                  .alignment = alignof(sxml_byte_view)},
-        &name_memory);
-    if (status == SXML_STATUS_OK) {
+    sxml_status status = SXML_STATUS_OK;
+    if (schema_count > 0) {
+        status = sxml_allocator_allocate(
+            invocation->allocator,
+            (sxml_allocation_request){.byte_count = schema_count * sizeof(sxml_byte_view),
+                                      .alignment = alignof(sxml_byte_view)},
+            &name_memory);
+    }
+    if (status == SXML_STATUS_OK && schema_count > 0) {
         status = sxml_allocator_allocate(
             invocation->allocator,
             (sxml_allocation_request){.byte_count = schema_count * sizeof(sxml_byte_view),
                                       .alignment = alignof(sxml_byte_view)},
             &uri_memory);
     }
-    if (status == SXML_STATUS_OK) {
+    if (status == SXML_STATUS_OK && schema_count > 0) {
         status = sxml_allocator_allocate(
             invocation->allocator,
             (sxml_allocation_request){.byte_count = schema_count * sizeof(sxml_schema_document),
@@ -793,8 +911,10 @@ static sxml_cli_exit_code sxml_validate_read_command_line(sxml_validate_run *run
     if (status != SXML_STATUS_OK) {
         return SXML_CLI_EXIT_INTERNAL_ERROR;
     }
-    memset(uri_memory, 0, schema_count * sizeof(sxml_byte_view));
-    memset(document_memory, 0, schema_count * sizeof(sxml_schema_document));
+    if (schema_count > 0) {
+        memset(uri_memory, 0, schema_count * sizeof(sxml_byte_view));
+        memset(document_memory, 0, schema_count * sizeof(sxml_schema_document));
+    }
     files->file_count = schema_count;
     size_t standard_input_count = 0;
     for (size_t schema_index = 0; schema_index < schema_count; schema_index += 1) {
@@ -931,8 +1051,14 @@ const sxml_cli_command sxml_validate_command = {
         "documents form, together with every document they include, import,\n"
         "redefine or override (local files, relative to the document that\n"
         "refers to them). Each FILE is parsed and validated in one pass; no\n"
-        "document is written. xsi:schemaLocation hints in a FILE are not\n"
-        "followed: the schema is the one --schema names.\n"
+        "document is written.\n"
+        "\n"
+        "With --use-schema-location, the schema documents that a FILE's\n"
+        "xsi:schemaLocation and xsi:noNamespaceSchemaLocation attributes\n"
+        "name (local files, relative to the FILE) join the SCHEMA documents\n"
+        "in the schema of that FILE, for the namespaces those do not have;\n"
+        "--schema may then be left out. Without it, such hints are not\n"
+        "followed. Errors in a hinted document are reported for the FILE.\n"
         "\n"
         "The schema is compiled first. Each of its errors is reported on\n"
         "standard error as\n"

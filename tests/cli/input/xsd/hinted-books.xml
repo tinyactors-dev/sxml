@@ -1,0 +1,3 @@
+<books xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="books.xsd">
+  <book year="1979"><title>Godel, Escher, Bach</title><price>22.50</price></book>
+</books>

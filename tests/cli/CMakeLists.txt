@@ -299,6 +299,17 @@ sxml_add_cli_test(validate_missing_schema EXIT_CODE 3 ARGUMENTS validate --schem
 sxml_add_cli_test(validate_missing_schema_json EXIT_CODE 3 ARGUMENTS validate --format=json --schema=missing.xsd xsd/books.xml)
 sxml_add_cli_test(validate_entity_limit EXIT_CODE 4 ARGUMENTS validate --schema=xsd/books.xsd billion-laughs.xml)
 sxml_add_cli_test(validate_no_schema EXIT_CODE 2 ARGUMENTS validate xsd/books.xml)
+# --use-schema-location (D278): each FILE's xsi:schemaLocation and
+# xsi:noNamespaceSchemaLocation hints, relative to the FILE; a hint for a
+# namespace the --schema documents have is ignored; a missing document is
+# no error; errors of a hinted document are the FILE's schema errors.
+sxml_add_cli_test(validate_hints EXIT_CODE 0 ARGUMENTS validate --use-schema-location xsd/hinted-books.xml)
+sxml_add_cli_test(validate_hints_invalid EXIT_CODE 1 ARGUMENTS validate --use-schema-location xsd/hinted-price.xml xsd/hinted-books.xml)
+sxml_add_cli_test(validate_hints_not_followed EXIT_CODE 1 ARGUMENTS validate --schema=xsd/books.xsd xsd/hinted-price.xml)
+sxml_add_cli_test(validate_hints_namespace_known EXIT_CODE 0 ARGUMENTS validate --use-schema-location --schema=xsd/offers.xsd xsd/hinted-offers.xml)
+sxml_add_cli_test(validate_hints_broken EXIT_CODE 1 ARGUMENTS validate --use-schema-location xsd/hinted-offers.xml xsd/hinted-books.xml)
+sxml_add_cli_test(validate_hints_broken_json EXIT_CODE 1 ARGUMENTS validate --use-schema-location --format=json xsd/hinted-offers.xml xsd/hinted-books.xml)
+sxml_add_cli_test(validate_hints_missing EXIT_CODE 1 ARGUMENTS validate --use-schema-location xsd/hinted-missing.xml)
 sxml_add_cli_test(validate_no_file EXIT_CODE 2 ARGUMENTS validate --schema=xsd/books.xsd)
 sxml_add_cli_test(validate_standard_input_twice EXIT_CODE 2 ARGUMENTS validate --schema=- -)
 sxml_add_cli_test(validate_bad_mode EXIT_CODE 2 ARGUMENTS validate --mode=loose --schema=xsd/books.xsd xsd/books.xml)

@@ -1,0 +1,1 @@
+xsd/broken.xsd: schema_reference: A schema document has another target namespace than the one it is referred to with: urn:example:prices

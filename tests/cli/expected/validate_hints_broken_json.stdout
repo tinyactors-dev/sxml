@@ -1,0 +1,1 @@
+{"schema":{"documents":[],"status":"valid"},"files":[{"file":"xsd/hinted-offers.xml","status":"invalid","errors":[{"document":"xsd/broken.xsd","code":"schema_reference","message":"A schema document has another target namespace than the one it is referred to with: urn:example:prices"}]},{"file":"xsd/hinted-books.xml","status":"valid"}]}

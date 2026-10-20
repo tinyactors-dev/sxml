@@ -1,13 +1,19 @@
 sxml validate - Validate XML documents against an XSD 1.1 schema
 
-Usage: sxml validate --schema=SCHEMA [--schema=SCHEMA]... [--mode=MODE] [--format=FORMAT] FILE...
+Usage: sxml validate [--schema=SCHEMA]... [--use-schema-location] [--mode=MODE] [--format=FORMAT] FILE...
 
 Validates each FILE against the XSD 1.1 schema that the SCHEMA
 documents form, together with every document they include, import,
 redefine or override (local files, relative to the document that
 refers to them). Each FILE is parsed and validated in one pass; no
-document is written. xsi:schemaLocation hints in a FILE are not
-followed: the schema is the one --schema names.
+document is written.
+
+With --use-schema-location, the schema documents that a FILE's
+xsi:schemaLocation and xsi:noNamespaceSchemaLocation attributes
+name (local files, relative to the FILE) join the SCHEMA documents
+in the schema of that FILE, for the namespaces those do not have;
+--schema may then be left out. Without it, such hints are not
+followed. Errors in a hinted document are reported for the FILE.
 
 The schema is compiled first. Each of its errors is reported on
 standard error as
@@ -34,10 +40,11 @@ limit is exceeded or validation needs a feature sxml does not have
 yet.
 
 Options:
-  -h, --help           Show this help and exit
-      --schema=SCHEMA  XSD schema document; - reads standard input (required; repeatable)
-      --mode=MODE      Assessment of the document element (one of: strict, lax; default: strict)
-      --format=FORMAT  Report format (one of: text, json; default: text)
+  -h, --help                 Show this help and exit
+      --schema=SCHEMA        XSD schema document; - reads standard input (repeatable)
+      --use-schema-location  Also read the schema documents a FILE's xsi:schemaLocation names
+      --mode=MODE            Assessment of the document element (one of: strict, lax; default: strict)
+      --format=FORMAT        Report format (one of: text, json; default: text)
 
 Arguments:
   FILE  XML document to validate; - reads standard input
@@ -46,3 +53,4 @@ Examples:
   sxml validate --schema=books.xsd books.xml
   sxml validate --schema=books.xsd bad-books.xml
   sxml validate --schema=books.xsd --format=json books.xml
+  sxml validate --use-schema-location hinted-books.xml

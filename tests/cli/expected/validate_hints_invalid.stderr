@@ -1,0 +1,1 @@
+xsd/hinted-price.xml:1:1: cvc-datatype-valid.1.2.1: element 'p:price' has the value 'cheap', which is not valid for type 'xs:decimal'

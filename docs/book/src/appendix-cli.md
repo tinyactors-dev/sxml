@@ -13,7 +13,7 @@ At a glance:
 | `sxml xpath [OPTIONS] EXPRESSION` | Evaluates an XPath 4.0 expression | [2](xpath.md) |
 | `sxml xquery [OPTIONS] [QUERY-FILE]` | Runs an XQuery 4.0 query, from a file or `--expression` | [3](xquery.md) |
 | `sxml transform [OPTIONS] STYLESHEET [INPUT]` | Runs an XSLT 4.0 transformation | [4](xslt.md) |
-| `sxml validate --schema=SCHEMA... FILE...` | Validates documents against an XSD 1.1 schema | [5](xsd.md) |
+| `sxml validate [--schema=SCHEMA]... FILE...` | Validates documents against an XSD 1.1 schema | [5](xsd.md) |
 | `sxml check [OPTIONS] FILE...` | Checks that documents are well-formed, or valid against their DTD | [1](the-sxml-command.md) |
 | `sxml serialize [OPTIONS] FILE` | Parses a document and writes it again | [1](the-sxml-command.md) |
 | `sxml version` | Prints the version | |
@@ -35,6 +35,7 @@ The options you'll use most:
 | `--allow-file-access` | `xpath`, `xquery` | Makes the EXPath File functions available |
 | `--external-entities`, `--validate-dtd` | `check` | Reads external DTDs and entities; validates against the DTD |
 | `--schema=SCHEMA` | `validate` | A schema document; repeat it to combine several into one schema |
+| `--use-schema-location` | `validate` | Also reads the schema documents a document's `xsi:schemaLocation` names |
 | `--mode=lax` | `validate` | Lax validation |
 | `--format=json` | `check`, `validate`, `version` | A report as JSON, for programs |
 
