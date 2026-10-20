@@ -3,8 +3,7 @@
 // test/full.test.ts by the same names, inputs and expected text, plus the
 // package's own tests of ARC and of the resource data. Every test ends with
 // its processor destroyed and 0 allocations left (D23). The native library
-// has every language, so full.test.ts's test of the core module, which
-// refuses them, has no counterpart. Golden:
+// has every language (D272). Golden:
 // bindings/javascript/test/full.test.ts.
 import Foundation
 import Testing

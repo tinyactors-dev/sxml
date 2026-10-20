@@ -11,9 +11,8 @@
  *
  * The productions are those of grammars/xpath/full_text.js, which
  * grammars/xquery shares. This grammar is a parser of its own so that
- * grammars/xpath, and with it the core sxml.wasm, does not carry Full
- * Text's tables: only the optional feature full-text links it (D208,
- * D235). Its keywords are not reserved words, as in grammars/xquery.
+ * grammars/xpath does not carry Full Text's tables: only the optional
+ * feature full-text names it (D208, D235). Its keywords are not reserved words, as in grammars/xquery.
  */
 
 const xpath = require('../xpath/grammar');

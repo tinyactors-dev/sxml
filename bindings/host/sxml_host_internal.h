@@ -3,11 +3,10 @@
 /*
  * What the files of the host shim share (docs/GLOSSARY.md, "host_shim"):
  * the processor and value handles and the helpers every operation uses.
- * sxml_host.c (every link) and the files linked only into the full links
- * (sxml_host_full.c, sxml_host_xquery.c, sxml_host_xslt.c,
- * sxml_host_schema.c; D189's two links) include it. The helpers are
- * static, as they were in the JavaScript shim, so the core module
- * compiles to the same bytes (an inline hint on all of them made
+ * sxml_host.c and the files of XQuery, XSLT and XSD (sxml_host_full.c,
+ * sxml_host_xquery.c, sxml_host_xslt.c, sxml_host_schema.c) include it.
+ * The helpers are static, as they were in the JavaScript shim, so
+ * sxml_host.c compiles to the same bytes (an inline hint on all of them made
  * sxml.wasm 1,609 bytes larger); each file that includes this one uses
  * every helper but sxml_host_begin, which alone is static inline so the
  * files that do not use it do not warn.

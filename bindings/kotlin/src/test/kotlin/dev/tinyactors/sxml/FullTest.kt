@@ -10,8 +10,7 @@ import kotlin.test.assertTrue
  * The XQuery, XSLT and XSD half of the parity list (D238): the cases of
  * the JavaScript package's test/full.test.ts, with the same names, inputs
  * and expected text. Every case ends with its processor's live allocation
- * count 0. libsxml_kotlin.so links all three (D238), so the case of the
- * core module, which refuses them, has no counterpart here.
+ * count 0. libsxml_kotlin.so links all three (D238, D272).
  *
  * Golden file: bindings/javascript/test/full.test.ts.
  */

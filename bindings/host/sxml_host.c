@@ -6,9 +6,9 @@
  * apps/sxml/command_xpath.c, which drives the same public API for the
  * CLI: one processor, a resource resolver, compile, evaluate, serialize.
  *
- * The full links add the XQuery, XSLT and schema entry points
- * (sxml_host_xquery.c, sxml_host_xslt.c, sxml_host_schema.c; D189's two
- * links): the core module sxml.wasm has none of them. The handles and
+ * The XQuery, XSLT and schema entry points are in sxml_host_xquery.c,
+ * sxml_host_xslt.c and sxml_host_schema.c, which every link has (D272).
+ * The handles and
  * helpers they share are in sxml_host_internal.h.
  *
  * Only the public API (include/sxml/) is used. Every object a host holds

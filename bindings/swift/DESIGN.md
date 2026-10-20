@@ -487,7 +487,7 @@ with `actionlint` here; do not run it.
 7. **The DUCET is in the repository twice** (one git blob). Updating
    `third_party/unicode-collation/allkeys.txt` without the copy fails the
    test, by design.
-8. **EXPath File** is not in the native library, as in `sxml-full.wasm`;
+8. **EXPath File** is not in the native library, as in `sxml.wasm`;
    a host that wants it needs a feature flag and its own file access
    decision, not planned.
 9. **No core-only variant** (D238): added only when a host asks.

@@ -423,8 +423,8 @@ const struct TSLanguage *
 tree_sitter_xpath_full_text(void); // NOLINT(readability-identifier-naming)
 
 /* XPath with Full Text (Appendix B; D235): the XPath front end's tables
-   and hooks, and Full Text's as the extension. Only the feature links its
-   grammar, so the core sxml.wasm keeps grammars/xpath alone. */
+   and hooks, and Full Text's as the extension. Only the feature names its
+   grammar; grammars/xpath stays without Full Text's productions. */
 static const sxml_ast_parser_part xpath_parser_part = {
     .language = tree_sitter_xpath_full_text,
     .root_node_type = SXML_BYTE_VIEW_INITIALIZER("xpath"),

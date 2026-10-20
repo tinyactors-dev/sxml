@@ -4,6 +4,14 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- size-3 done (D272): every build has everything. fn:load-xquery-module
+  is a library part for every language, so XSLT and XPath have it (QT4
+  XP40 fn-load-xquery-module 0 to 56, fn-function-lookup 657 to 661;
+  XT40 load-xquery-module wrong errors 4 to 1). JavaScript ships one
+  module, sxml.wasm, 7,701,002 bytes (the full module's size; budget
+  8,000,000 kept); ./sxml-full.wasm is an alias. The CLI and sxml_host
+  already linked every feature. BRIEF's size rule rewritten.
+
 - cli-2 done (D271): the CLI bugs book-2 found. A relative
   collection() raises FODC0002 (the resolver gave a file's bytes for a
   collection: exit 4); a dynamic error in a library module names the

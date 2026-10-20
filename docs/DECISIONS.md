@@ -12162,6 +12162,36 @@ already exist."
 - **XSLT gets fn:load-xquery-module** (XSLT 4.0 and F&O 4.0), and any
   other function a language left out only for size is added.
 - Packet size-3 carries this out.
+- **Done by size-3** (commits 4f5a8bf, a62058e, and the records):
+  - fn:load-xquery-module's row is the library part `xquery_module`
+    (`src/function_library_xquery_module.c`, D101) serving every
+    language: XSLT and XPath too (F&O 4.0, 18.2 leaves the host
+    language to decide; the QT4 sets are XP31+ XQ31+). Its body stays
+    in `src/xquery_load_module.c`; XQuery's own table keeps fn:put
+    only. No header change. QT4 XP40 fn-load-xquery-module 0 to 56
+    passed (4 failed, 81 not run), fn-function-lookup 657 to 661; XQ40
+    sets unchanged; XT40 load-xquery-module wrong errors 4 to 1 (001:
+    F&O 4.0's FOQM0002 for a missing module, the suite wants XQST0059
+    or FOQM0006).
+  - JavaScript: one module, `sxml.wasm`, 7,701,002 / 1,713,241 bytes
+    (was 2,135,535 / 744,728; `sxml-full.wasm` was 7,700,970 /
+    1,713,185) under the full module's budget 8,000,000 / 2,800,000,
+    not raised; the D225 baseline is the one module's map. The export
+    `./sxml-full.wasm` names `dist/sxml.wasm`; Sxml.features and
+    createProcessor({ features }) are unchanged; load() refuses a module
+    without the XQuery, XSLT and XSD exports. sxml_host_core_features.c
+    is gone.
+  - Already everything: the sxml command (one processor creation,
+    `sxml_query_run_start`, with sxml_all_optional_features() and
+    EXPath File under --allow-file-access), the native `sxml_host`
+    (sxml_host_full_features.c) that the Kotlin and Swift bindings link,
+    and the QT4, XSLT and XSD drivers. In the C library itself a host
+    still names the features it wants (D189's view stays).
+  - Other size-only exclusions searched (DECISIONS, QUEUE, `src/`): none
+    left. EXPath File stays out of sxml_all_optional_features() and the
+    JavaScript module for access, not size (D200). XPath's Full Text
+    parser stays a grammar of its own (D235): structure, every build
+    has it. fn:put stays XQuery's (XQUF 3.0).
 
 ## Proposed
 

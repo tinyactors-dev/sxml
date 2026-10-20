@@ -1,6 +1,6 @@
 import { load } from '@tinyactors/sxml';
 
-// Load the core module: XML, XPath 4.0 and serialization.
+// Load the module, which has every language and feature.
 const sxml = await load();
 const processor = sxml.createProcessor();
 
