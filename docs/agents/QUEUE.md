@@ -38,8 +38,8 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
   skips them unless --drafts.)
 - 7.23: TypeScript/TSX and Markdown built in; a public API and run-time
   language files for tree-sitter languages (owner, 2026-10-20).
-- 2.28: XPath/XQuery: D286's open list and the string-constructor error
-  location (D282).
+- report-1: whole runs of every suite at one commit; CONFORMANCE.md and
+  the book's conformance appendix regenerated.
 
 ## Next
 
@@ -82,6 +82,13 @@ does not (6.12 to compare).
 Swift (6.7/6.8 done, D241, D248): 55 tests on Linux; the bundled DUCET is a
 copy of third_party/unicode-collation/allkeys.txt that must be updated with
 it.
+
+XPath and XQuery (2.28, D287): syntax errors reported at the inner ERROR
+node (string constructors no longer 1:1); run-time closures carry module
+and focus (one mechanism for XQuery and XSLT); D154's limit lifted (a
+fresh global table after the evaluation ends); focus-free defaults
+computed once; item types across module cycles. XQ40 46,154 -> 46,158 (74
+failed). What is left is kept on purpose (D286) or singletons.
 
 XPath and XQuery (2.27, D286): XInclude for fn:doc, fn:parse-xml and
 fn:document (no xpointer); Japanese ideographic numerals; element() no
