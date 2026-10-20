@@ -306,7 +306,7 @@ error instead of writing them:
 ```console
 $ sed 's/round(price \* \$rate, 2)/price * $rate/' prices.xsl > unrounded.xsl
 $ sxml transform --param=rate=1.234 unrounded.xsl library.xml
-unrounded.xsl: err:XTTE1540: cvc-fractionDigits-valid: element 'price' has the value '27.765', which is not valid for type 'amount': the value has more fraction digits than the fractionDigits facet (XSD 1.1 Part 2, 4.3.12.4); the fractionDigits facet is '2'
+unrounded.xsl:28:5: err:XTTE1540: cvc-fractionDigits-valid: element 'price' has the value '27.765', which is not valid for type 'amount': the value has more fraction digits than the fractionDigits facet (XSD 1.1 Part 2, 4.3.12.4); the fractionDigits facet is '2'
 ```
 
 And an input that isn't valid is stopped at the door, by the
@@ -314,7 +314,7 @@ And an input that isn't valid is stopped at the door, by the
 
 ```console
 $ sxml transform prices.xsl damaged.xml
-prices.xsl: err:XTTE1510: cvc-enumeration-valid: attribute 'currency' has the value 'GBP', which is not valid for type 'currency': the value is not one of the enumeration facets (XSD 1.1 Part 2, 4.3.5.4); the enumeration facets are 'EUR', 'USD'
+prices.xsl:14:7: err:XTTE1510: cvc-enumeration-valid: attribute 'currency' has the value 'GBP', which is not valid for type 'currency': the value is not one of the enumeration facets (XSD 1.1 Part 2, 4.3.5.4); the enumeration facets are 'EUR', 'USD'
 ```
 
 A schema-aware stylesheet can also validate its *output*, with

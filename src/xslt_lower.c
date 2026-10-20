@@ -1694,7 +1694,51 @@ typedef struct sequence_constructor_locals {
        1], and the block's open LET before its lowering. */
     bool has_pending_child;
     sxml_ir_expression_index open_let_before;
+    /* The child lowered last and the unit's expression count before it:
+       the expressions it added from there get its location. */
+    sxml_xslt_ast_node_index located_child;
+    uint32_t located_from;
 } sequence_constructor_locals;
+
+/*
+ * Gives the expressions the child lowered last added without a location
+ * the source span of the child's start tag, so that a dynamic error they
+ * raise names the instruction's module and line ($err:module and
+ * $err:line-number, XSLT 4.0, 8.4.1; the evaluator reads the span of the
+ * failing expression). Expressions of XPath text keep their own spans,
+ * and those of a nested instruction got the nested one's span first.
+ */
+static sxml_status locate_child_expressions(sxml_xpath_lowerer *lowerer,
+                                            sequence_constructor_locals *locals) {
+    const sxml_xslt_ast_node_index child = locals->located_child;
+    locals->located_child = (sxml_xslt_ast_node_index){.value = 0};
+    if (child.value == 0) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_ast_source_span span = node_of(locals->lowering, child)->source_span;
+    if (span.line_number == 0) {
+        return SXML_STATUS_OK;
+    }
+    sxml_status status = SXML_STATUS_OK;
+    for (uint32_t index = locals->located_from;
+         status == SXML_STATUS_OK && index < lowerer->unit->expression_count; index += 1) {
+        const sxml_ir_expression_index expression = {.value = index};
+        const sxml_ir_expression *existing = sxml_ir_unit_get_expression(lowerer->unit, expression);
+        if (existing->source_span.line_number != 0 ||
+            existing->expression_kind == SXML_IR_EXPRESSION_KIND_NONE) {
+            continue;
+        }
+        sxml_ir_expression_replacement replacement = {.index = expression,
+                                                      .expression = *existing};
+        replacement.expression.source_span =
+            (sxml_ir_source_span){.byte_offset = span.byte_offset,
+                                  .byte_count = span.byte_count,
+                                  .line_number = span.line_number,
+                                  .column_number = span.column_number};
+        status = sxml_ir_unit_replace_expression(lowerer->unit, &replacement);
+    }
+    return status;
+}
 
 /* Marks the LET of the child lowered last as a content LET (D166). */
 static sxml_status mark_content_child(sxml_xpath_lowerer *lowerer,
@@ -1904,12 +1948,17 @@ static sxml_status continue_sequence_constructor(sxml_xpath_lowering_machine *ma
         locals->next = locals->first;
     }
     while (locals->next.value != 0) {
-        const sxml_status mark_status = mark_content_child(lowerer, frame);
+        sxml_status mark_status = locate_child_expressions(lowerer, locals);
+        if (mark_status == SXML_STATUS_OK) {
+            mark_status = mark_content_child(lowerer, frame);
+        }
         if (mark_status != SXML_STATUS_OK) {
             return mark_status;
         }
         const sxml_xslt_ast_node_index child = locals->next;
         locals->next = next_of(lowering, child);
+        locals->located_child = child;
+        locals->located_from = lowerer->unit->expression_count;
         locals->open_let_before = frame->block->open_let;
         child_outcome outcome = {.has_atom = false, .has_pushed_frame = false};
         const sxml_status status = lower_child(
@@ -1929,7 +1978,10 @@ static sxml_status continue_sequence_constructor(sxml_xpath_lowering_machine *ma
                                           kind == SXML_XSLT_AST_KIND_ON_EMPTY ||
                                           kind == SXML_XSLT_AST_KIND_ON_NON_EMPTY;
     }
-    const sxml_status mark_status = mark_content_child(lowerer, frame);
+    sxml_status mark_status = locate_child_expressions(lowerer, locals);
+    if (mark_status == SXML_STATUS_OK) {
+        mark_status = mark_content_child(lowerer, frame);
+    }
     if (mark_status != SXML_STATUS_OK) {
         return mark_status;
     }

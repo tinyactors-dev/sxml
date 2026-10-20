@@ -386,6 +386,11 @@ static void test_try(sxml_test_state *state) {
         {STYLESHEET("<xsl:try select='1 div 0'><xsl:catch errors='*:FOAR0001'>"
                     "<xsl:sequence select='map:size($err:map) gt 0'/></xsl:catch></xsl:try>"),
          "true()"},
+        /* 8.4.1: an error an instruction raises has the instruction's
+           module and line. */
+        {STYLESHEET("<xsl:try><xsl:element name='{\"1x\"}'/><xsl:catch "
+                    "select='$err:line-number, exists($err:module)'/></xsl:try>"),
+         "1 true()"},
     };
     check_cases(state, (case_list){.cases = cases,
                                    .case_count = SXML_TEST_COUNT(cases),

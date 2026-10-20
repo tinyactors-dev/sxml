@@ -1,1 +1,1 @@
-xslt/streamed.xsl: err:FODC0002: A streamed document (of xsl:source-document or the principal source) is not a well-formed XML document (XSLT 4.0, 18.1; F&O 4.0, fn:doc)
+xslt/streamed.xsl:11:7: err:FODC0002: A streamed document (of xsl:source-document or the principal source) is not a well-formed XML document (XSLT 4.0, 18.1; F&O 4.0, fn:doc)
