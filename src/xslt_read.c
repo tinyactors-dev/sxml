@@ -61,6 +61,8 @@ typedef enum value_syntax {
     SXML_VALUE_SYNTAX_KEYWORD_OR_NAME,
     /* A keyword, or any other NMTOKEN (normalization-form). */
     SXML_VALUE_SYNTAX_KEYWORD_OR_TEXT,
+    /* A keyword, or "~" and an ItemType (typed of xsl:mode, 6.9.4). */
+    SXML_VALUE_SYNTAX_KEYWORD_OR_ITEM_TYPE,
     SXML_VALUE_SYNTAX_EQNAME,
     SXML_VALUE_SYNTAX_NCNAME,
     SXML_VALUE_SYNTAX_EQNAMES,
@@ -714,7 +716,7 @@ static const attribute_rule attribute_rules[] = {
      .value_syntax = SXML_VALUE_SYNTAX_BOOLEAN, .is_required = false,
      .keyword_mask = 0},
     {.attribute_name = SXML_BYTE_VIEW_INITIALIZER("typed"), .attribute_kind = SXML_XSLT_AST_ATTRIBUTE_TYPED,
-     .value_syntax = SXML_VALUE_SYNTAX_KEYWORD, .is_required = false,
+     .value_syntax = SXML_VALUE_SYNTAX_KEYWORD_OR_ITEM_TYPE, .is_required = false,
      .keyword_mask = 
          KEYWORD_BIT(SXML_XSLT_AST_KEYWORD_LAX) |
          KEYWORD_BIT(SXML_XSLT_AST_KEYWORD_NO) |
@@ -3492,10 +3494,21 @@ static bool find_keyword(sxml_byte_view text, sxml_xslt_ast_keyword *keyword) {
 
 static sxml_status read_value(stylesheet_reader *reader, const value_request *request,
                               sxml_xslt_ast_value *value) {
-    const sxml_byte_view text = request->attribute->value;
+    sxml_byte_view text = request->attribute->value;
     const sxml_byte_view trimmed = sxml_xml_text_trim_whitespace(text);
     sxml_xslt_ast_value_kind expression_kind = SXML_XSLT_AST_VALUE_KIND_NONE;
-    switch (request->rule->value_syntax) {
+    value_syntax syntax = request->rule->value_syntax;
+    if (syntax == SXML_VALUE_SYNTAX_KEYWORD_OR_ITEM_TYPE) {
+        /* 6.9.4: "~" followed by an ItemType; otherwise a keyword. */
+        if (trimmed.byte_count > 0 && trimmed.bytes[0] == '~') {
+            syntax = SXML_VALUE_SYNTAX_ITEM_TYPE;
+            text = (sxml_byte_view){.bytes = trimmed.bytes + 1,
+                                    .byte_count = trimmed.byte_count - 1};
+        } else {
+            syntax = SXML_VALUE_SYNTAX_KEYWORD;
+        }
+    }
+    switch (syntax) {
     case SXML_VALUE_SYNTAX_EXPRESSION:
         expression_kind = SXML_XSLT_AST_VALUE_KIND_EXPRESSION;
         break;
@@ -3569,6 +3582,7 @@ static sxml_status read_value(stylesheet_reader *reader, const value_request *re
         return SXML_STATUS_OK;
     }
     case SXML_VALUE_SYNTAX_KEYWORD:
+    case SXML_VALUE_SYNTAX_KEYWORD_OR_ITEM_TYPE:
     case SXML_VALUE_SYNTAX_KEYWORD_OR_NAME:
     case SXML_VALUE_SYNTAX_KEYWORD_OR_TEXT: {
         sxml_xslt_ast_keyword keyword = SXML_XSLT_AST_KEYWORD_NONE;

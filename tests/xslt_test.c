@@ -395,6 +395,23 @@ static const transformation_case transformation_cases[] = {
     APPLY("mode", STYLESHEET(OMIT "<xsl:mode on-no-match='shallow-copy'/>"
                                   "<xsl:template match='c'/>"),
           SOURCE, "<doc><b>1</b><b>3</b></doc>"),
+    /* typed="~T" (6.9.4): every item the mode processes is a T, else
+       XTTE3100. */
+    CALL("mode-typed-item-type",
+         STYLESHEET("<xsl:output method='text'/><xsl:mode name='m' typed='~xs:integer'/>"
+                    "<xsl:template match='atomic(xs:integer)' mode='m'>[<xsl:value-of "
+                    "select='.'/>]</xsl:template><xsl:template name='xsl:initial-template'>"
+                    "<xsl:apply-templates select='1, 2' mode='m'/></xsl:template>"),
+         "", "[1][2]"),
+    FAILS("mode-typed-item-type-refused",
+          STYLESHEET("<xsl:mode name='m' typed=' ~ xs:integer'/><xsl:template "
+                     "name='xsl:initial-template'><xsl:apply-templates select='1, \"x\"' "
+                     "mode='m'/></xsl:template>"),
+          "", SXML_XSLT_INVOCATION_KIND_CALL_TEMPLATE, "XTTE3100"),
+    FAILS("mode-typed-unknown-type",
+          STYLESHEET("<xsl:mode name='m' typed='~xs:nothing'/><xsl:template match='.' "
+                     "mode='m'/>"),
+          "", SXML_XSLT_INVOCATION_KIND_CALL_TEMPLATE, "XPST0051"),
     APPLY("priority", STYLESHEET(OMIT "<xsl:template match='/'><xsl:apply-templates "
                                       "select='//b'/></xsl:template><xsl:template match='b'>"
                                       "<low/></xsl:template><xsl:template match='b[. = 3]'>"

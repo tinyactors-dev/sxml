@@ -117,11 +117,13 @@ typedef struct mode_entry {
     mode_property on_no_match;
     mode_property fails_on_multiple_match;
     mode_property copies_namespaces;
-    /* typed (6.9.4): 1 for yes, strict and lax, 2 for no; typed_names
-       the sxml_xslt_pattern_typed_names of strict and lax (NONE else),
-       how its rules' patterns read element names. */
+    /* typed (6.9.4): 1 for yes, strict and lax, 2 for no, 3 for "~"
+       and an ItemType, which typed_declaration's attribute holds;
+       typed_names the sxml_xslt_pattern_typed_names of strict and lax
+       (NONE else), how its rules' patterns read element names. */
     mode_property typed;
     mode_property typed_names;
+    sxml_xslt_ast_node_index typed_declaration;
     /* The xsl:mode of highest precedence with an as attribute (6.9.5);
        0 for none. */
     sxml_xslt_ast_node_index as_declaration;
@@ -2417,6 +2419,19 @@ static sxml_status read_mode_declaration(const sxml_xslt_lowering *lowering,
     }
     const sxml_xslt_ast_attribute *typed =
         find_attribute(lowering, declaration, SXML_XSLT_AST_ATTRIBUTE_TYPED);
+    if (typed->value.kind == SXML_XSLT_AST_VALUE_KIND_ITEM_TYPE) {
+        /* 6.9.4: "~" and an ItemType; element names stay names. */
+        if (!mode->typed.is_set || precedence > mode->typed.import_precedence) {
+            mode->typed_declaration = declaration;
+        }
+        set_property(&mode->typed, (property_setting){.value = 3U,
+                                                      .import_precedence = precedence,
+                                                      .node = declaration});
+        set_property(&mode->typed_names,
+                     (property_setting){.value = (uint32_t)SXML_XSLT_PATTERN_TYPED_NAMES_NONE,
+                                        .import_precedence = precedence,
+                                        .node = declaration});
+    }
     if (typed->value.kind == SXML_XSLT_AST_VALUE_KIND_KEYWORD &&
         typed->value.payload.keyword != SXML_XSLT_AST_KEYWORD_UNSPECIFIED) {
         set_property(&mode->typed,
@@ -3623,14 +3638,53 @@ static sxml_status priority_of(const sxml_xslt_lowering *lowering, const templat
 typedef struct snippet_function {
     snippet_kind kind;
     bool is_match_function;
+    /* With kind SXML_SNIPPET_COUNT: a match function whose body is
+       not(. instance of allowed_type), for typed="~T" (6.9.4). */
+    const sxml_sequence_type *allowed_type;
 } snippet_function;
+
+/* The body not(. instance of allowed_type) of a match function. */
+static sxml_status lower_type_refusal(sxml_xpath_lowerer *lowerer,
+                                      const sxml_sequence_type *allowed_type,
+                                      sxml_ir_expression_index *body) {
+    sxml_xpath_lowering_block block = {.first = {0}, .open_let = {0}};
+    sxml_ir_atom is_allowed = {0};
+    sxml_status status = bind_expression(
+        lowerer,
+        (expression_binding){.block = &block,
+                             .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_INSTANCE_OF,
+                                            .type_test = {.value = sxml_ir_slot_atom(item_slot),
+                                                          .sequence_type = *allowed_type}}},
+        &is_allowed);
+    sxml_ir_atom is_refused = {0};
+    if (status == SXML_STATUS_OK) {
+        status = bind_call(lowerer,
+                           (library_call){.block = &block,
+                                          .function_namespace = SXML_NAMESPACE_FUNCTIONS,
+                                          .local_name = "not",
+                                          .arguments = &is_allowed,
+                                          .argument_count = 1},
+                           &is_refused);
+    }
+    sxml_ir_expression_index result = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xslt_lowering_add_expression(lowerer, atom_expression(is_refused), &result);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_xpath_lowerer_finish_block(
+        lowerer, (sxml_xpath_lowering_block_result){.block = block, .result = result}, body);
+}
 
 static sxml_status add_snippet_function(const sxml_xslt_lowering *lowering,
                                         snippet_function request,
                                         sxml_ir_function_index *function) {
     sxml_xslt_template_lowering *templates = lowering->templates;
     sxml_xpath_lowerer *lowerer = lowering->lowerer;
-    sxml_status status = ensure_snippet(lowering, request.kind);
+    sxml_status status = request.kind == SXML_SNIPPET_COUNT
+                             ? SXML_STATUS_OK
+                             : ensure_snippet(lowering, request.kind);
     sxml_type_identifier signature = templates->template_signature;
     if (status == SXML_STATUS_OK && request.is_match_function) {
         /* function(item()) as xs:boolean (src/ir_internal.h, template
@@ -3673,13 +3727,17 @@ static sxml_status add_snippet_function(const sxml_xslt_lowering *lowering,
     };
     sxml_xpath_lowerer_enter_function(lowerer, &function_frame);
     sxml_ir_expression_index body = {0};
-    status = sxml_xpath_lowerer_lower_embedded(
-        lowerer,
-        &(sxml_xpath_lowering_embedding){.ast = templates->snippets[request.kind],
-                                         .node = {.value = 0},
-                                         .static_context = NULL,
-                                         .focus = NULL},
-        &body);
+    if (request.kind == SXML_SNIPPET_COUNT) {
+        status = lower_type_refusal(lowerer, request.allowed_type, &body);
+    } else {
+        status = sxml_xpath_lowerer_lower_embedded(
+            lowerer,
+            &(sxml_xpath_lowering_embedding){.ast = templates->snippets[request.kind],
+                                             .node = {.value = 0},
+                                             .static_context = NULL,
+                                             .focus = NULL},
+            &body);
+    }
     sxml_xpath_lowerer_leave_function(lowerer, &function_frame);
     if (status != SXML_STATUS_OK) {
         return status;
@@ -3698,25 +3756,59 @@ static sxml_status add_snippet_function(const sxml_xslt_lowering *lowering,
     return status;
 }
 
+/* The type typed="~T" of a mode allows (6.9.4): T, exactly one. */
+static sxml_status resolve_typed_type(const sxml_xslt_lowering *lowering, const mode_entry *mode,
+                                      sxml_sequence_type *allowed_type) {
+    const sxml_xslt_ast_attribute *typed =
+        find_attribute(lowering, mode->typed_declaration, SXML_XSLT_AST_ATTRIBUTE_TYPED);
+    const sxml_xslt_ast_expression *expression =
+        sxml_xslt_ast_get_expression(lowering->ast, typed->value.payload.expression);
+    const sxml_xpath_static_context *context =
+        sxml_xslt_lowering_expression_context(lowering, typed->value.payload.expression);
+    if (expression->ast == NULL || context == NULL) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    return sxml_xpath_resolve_sequence_type(
+        &(sxml_xpath_type_request){.ast = expression->ast,
+                                   .type_node = expression->ast->root,
+                                   .static_context = context,
+                                   .error_record = lowering->error_record},
+        allowed_type);
+}
+
 /* The rule a typed mode tries first (6.9.4, D179): it matches what the
    mode's typed value does not allow, before every template rule, and
-   raises XTTE3100. typed is 1 (yes, strict, lax) or 2 (no); made once. */
-static sxml_status get_typed_rule(const sxml_xslt_lowering *lowering, uint32_t typed,
+   raises XTTE3100. typed 1 (yes, strict, lax) and 2 (no) are made once;
+   typed 3 ("~T") is made for each mode. */
+static sxml_status get_typed_rule(const sxml_xslt_lowering *lowering, const mode_entry *mode,
                                   sxml_ir_template_rule *rule) {
     sxml_xslt_template_lowering *templates = lowering->templates;
-    sxml_ir_template_rule *made = &templates->typed_rules[typed - 1U];
+    const uint32_t typed = mode->typed.value;
+    sxml_ir_template_rule item_type_rule = {0};
+    sxml_ir_template_rule *made =
+        typed == 3U ? &item_type_rule : &templates->typed_rules[typed - 1U];
     sxml_status status = SXML_STATUS_OK;
     if (made->match_function.value == 0) {
         sxml_ir_template_rule new_rule = {.priority = HUGE_VAL,
                                           .import_precedence = INT32_MAX,
                                           .lowest_imported_precedence = INT32_MAX,
                                           .declaration_order = UINT32_MAX};
-        status = add_snippet_function(
-            lowering,
-            (snippet_function){.kind = typed == 1U ? SXML_SNIPPET_BREAKS_TYPED
-                                                   : SXML_SNIPPET_BREAKS_UNTYPED,
-                               .is_match_function = true},
-            &new_rule.match_function);
+        sxml_sequence_type allowed_type = {
+            .item_type = sxml_builtin_type_identifier(SXML_TYPE_ITEM),
+            .occurrence = SXML_OCCURRENCE_EXACTLY_ONE};
+        if (typed == 3U) {
+            status = resolve_typed_type(lowering, mode, &allowed_type);
+        }
+        if (status == SXML_STATUS_OK) {
+            status = add_snippet_function(
+                lowering,
+                (snippet_function){.kind = typed == 1U   ? SXML_SNIPPET_BREAKS_TYPED
+                                           : typed == 2U ? SXML_SNIPPET_BREAKS_UNTYPED
+                                                         : SXML_SNIPPET_COUNT,
+                                   .is_match_function = true,
+                                   .allowed_type = &allowed_type},
+                &new_rule.match_function);
+        }
         if (status == SXML_STATUS_OK) {
             status = add_snippet_function(
                 lowering,
@@ -3858,7 +3950,7 @@ static sxml_status add_rules_and_modes(const sxml_xslt_lowering *lowering) {
            of them), after the typed rule of a typed mode. */
         size_t typed_count = 0;
         if (mode->typed.is_set) {
-            status = get_typed_rule(lowering, mode->typed.value, &ir_rules[0]);
+            status = get_typed_rule(lowering, mode, &ir_rules[0]);
             typed_count = 1;
         }
         if (status != SXML_STATUS_OK) {
