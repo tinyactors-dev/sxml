@@ -488,9 +488,12 @@ static void test_global_variables(sxml_test_state *state) {
          "<xsl:template name='xsl:initial-template'>x</xsl:template></xsl:stylesheet>",
          "error:XTDE0640"},
         {"<xsl:stylesheet version='4.0' " XSL_NAMESPACE ">"
+         /* 4.0 (9.5, PR 1544): in scope in its own declaration, so a
+            circularity when read (9.11). */
          "<xsl:variable name='a' select='$a + 1'/>"
-         "<xsl:template name='xsl:initial-template'>x</xsl:template></xsl:stylesheet>",
-         "error:XPST0008"},
+         "<xsl:template name='xsl:initial-template'><xsl:sequence select='$a'/></xsl:template>"
+         "</xsl:stylesheet>",
+         "error:XTDE0640"},
         {"<xsl:stylesheet version='4.0' " XSL_NAMESPACE ">"
          "<xsl:variable name='a' select='1'/><xsl:variable name='a' select='2'/>"
          "<xsl:template name='xsl:initial-template'>x</xsl:template></xsl:stylesheet>",

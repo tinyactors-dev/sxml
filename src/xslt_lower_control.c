@@ -5323,13 +5323,14 @@ static sxml_status order_globals(order_request request, size_t *order) {
             const size_t target = graph->targets[top->next_edge];
             top->next_edge += 1;
             if (target == top->global_index) {
-                /* 9.9: a global variable is not in scope in its own
-                   declaration (nor is one it overrides). */
-                status = report_static(lowering, lowering->global_nodes[target],
-                                       SXML_BYTE_VIEW_FROM_LITERAL(
-                                           "XPST0008 a global variable refers to itself (XSLT 4.0, "
-                                           "9.9)"));
-            } else if (colors[target] == SXML_XSLT_WALK_COLOR_OPEN) {
+                /* 9.5 (4.0, PR 1544): a global variable is in scope in its
+                   own declaration, as the value of a recursive inline
+                   function needs; a self-reference that its value does
+                   need is a circularity found when it is read (9.11,
+                   XTDE0640, the global being computed). */
+                continue;
+            }
+            if (colors[target] == SXML_XSLT_WALK_COLOR_OPEN) {
                 status =
                     report_static(lowering, lowering->global_nodes[target],
                                   SXML_BYTE_VIEW_FROM_LITERAL(
