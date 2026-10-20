@@ -68,7 +68,7 @@
    arenas, D163). */
 #define SXML_ARENA_TREE_INLINE_BYTE_COUNT 768U
 /* Text store blocks start at the minimum and double up to the maximum,
-   unless one pending run needs more. */
+   unless one pending run needs more: then twice what it holds. */
 #define SXML_ARENA_TREE_MINIMUM_TEXT_BLOCK_BYTE_COUNT 64U
 #define SXML_ARENA_TREE_MAXIMUM_TEXT_BLOCK_BYTE_COUNT 1048576U
 /* Above this many attributes an element's duplicate check uses a hash
@@ -634,7 +634,18 @@ static sxml_status sxml_arena_tree_grow_text_store(sxml_arena_tree *arena_tree,
         block_byte_count = SXML_ARENA_TREE_MAXIMUM_TEXT_BLOCK_BYTE_COUNT;
     }
     if (block_byte_count < needed_byte_count) {
+        /* A run longer than the largest block gets room for as much again
+           as it holds: it is copied once per doubling, so a run of n
+           bytes costs O(n) copying and at most about 4n bytes of blocks
+           (the arena keeps the ones it left). Room for only what it
+           needs copied the run at each event: quadratic time and memory
+           (D295). */
         block_byte_count = needed_byte_count;
+        size_t grown_byte_count = 0;
+        if (sxml_size_add(needed_byte_count, pending_byte_count, &grown_byte_count) ==
+            SXML_STATUS_OK) {
+            block_byte_count = grown_byte_count;
+        }
     }
     void *memory = NULL;
     status = sxml_arena_tree_allocate(

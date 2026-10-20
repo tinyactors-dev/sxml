@@ -2498,11 +2498,11 @@ static sxml_status raise_dynamic(sxml_error_record *error_record, sxml_byte_view
  * `principal_stream`, D231): the main function builds its result tree into
  * the stream's tree builder (src/evaluator_construct.c). Until the first
  * element or non-whitespace text of the tree, its top-level nodes are
- * kept in a tree; then the method is known (26.1.2): the xml method whose
- * parameters a streamed serialization accepts (src/serialize_internal.h)
- * writes the kept nodes and every later event as it comes; any other
- * keeps building the tree, which is serialized after the evaluation, as
- * before.
+ * kept in a tree; then the method is known (26.1.2): the xml or text
+ * method whose parameters a streamed serialization accepts
+ * (src/serialize_internal.h, D295) writes the kept nodes and every later
+ * event as it comes; any other keeps building the tree, which is
+ * serialized after the evaluation, as before.
  */
 typedef enum principal_stream_state {
     SXML_PRINCIPAL_STREAM_UNDECIDED,
@@ -2585,8 +2585,9 @@ static sxml_status replay_kept_nodes(principal_stream *stream) {
     return status;
 }
 
-/* The method is known from evidence (26.1.2): streamed for the xml method
-   with parameters a streamed serialization takes; built otherwise. */
+/* The method is known from evidence (26.1.2): streamed for the xml and
+   text methods with parameters a streamed serialization takes; built
+   otherwise. */
 static sxml_status decide_stream(principal_stream *stream, method_evidence evidence) {
     sxml_serialization_parameters parameters = stream->definition.serialization_parameters;
     if (!stream->definition.has_serialization_method) {
@@ -2734,6 +2735,7 @@ sxml_status sxml_xslt_result_writer_start_principal_stream(
         return SXML_STATUS_INVALID_ARGUMENT;
     }
     sxml_xslt_output_definition definition;
+    memset(&definition, 0, sizeof(definition));
     sxml_status status = SXML_STATUS_OK;
     if (request->output_definition != NULL) {
         definition = *request->output_definition;

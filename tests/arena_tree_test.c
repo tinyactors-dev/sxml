@@ -1499,6 +1499,63 @@ static void test_large_trees_grow_in_segments(sxml_test_state *state) {
     tree_fixture_destroy(&fixture);
 }
 
+/* Text events of a long text node, and the bytes of each. */
+#define TEST_LONG_TEXT_EVENT_COUNT 2000U
+#define TEST_LONG_TEXT_EVENT_BYTE_COUNT 1000U
+
+/* A text node made of many text events, longer than the largest text
+   block, takes memory and copying linear in its length (D295): its run
+   moved to a block of exactly the size it needed at each event, so 2,000
+   events of a kilobyte allocated about 1.5 GB. */
+static void test_long_text_runs_grow_linearly(sxml_test_state *state) {
+    tree_fixture fixture;
+    SXML_TEST_REQUIRE(state, tree_fixture_create(&fixture) == SXML_STATUS_OK);
+    sxml_counting_allocator *counting = NULL;
+    SXML_TEST_REQUIRE(state, sxml_counting_allocator_create(
+                                 sxml_default_allocator(),
+                                 &(sxml_counting_allocator_configuration){
+                                     .backing_allocator = sxml_default_allocator(),
+                                     .failing_allocation_number = 0},
+                                 &counting) == SXML_STATUS_OK);
+    sxml_arena_tree_configuration configuration = arena_configuration(&fixture);
+    configuration.allocator = sxml_counting_allocator_as_allocator(counting);
+    built_tree built = {.arena_tree = NULL, .tree = NULL};
+    SXML_TEST_REQUIRE(state, sxml_arena_tree_create(sxml_default_allocator(), &configuration,
+                                                    &built.arena_tree) == SXML_STATUS_OK);
+    char event_text[TEST_LONG_TEXT_EVENT_BYTE_COUNT + 1U];
+    memset(event_text, 'x', TEST_LONG_TEXT_EVENT_BYTE_COUNT);
+    event_text[TEST_LONG_TEXT_EVENT_BYTE_COUNT] = '\0';
+    event_writer writer = writer_for(&fixture, &built);
+    write_start_document(&writer);
+    write_element(&writer, "root");
+    for (uint32_t event_number = 0; event_number < TEST_LONG_TEXT_EVENT_COUNT;
+         event_number += 1) {
+        write_text(&writer, event_text);
+    }
+    write_end_element(&writer);
+    write_end_document(&writer);
+    SXML_TEST_REQUIRE(state, writer.status == SXML_STATUS_OK);
+    SXML_TEST_REQUIRE(state, sxml_arena_tree_finish(built.arena_tree, &built.tree) ==
+                                 SXML_STATUS_OK);
+    const size_t text_byte_count =
+        (size_t)TEST_LONG_TEXT_EVENT_COUNT * TEST_LONG_TEXT_EVENT_BYTE_COUNT;
+    sxml_byte_view content = {.bytes = NULL, .byte_count = 0};
+    SXML_TEST_EXPECT(state, sxml_tree_get_node_count(built.tree) == 3);
+    SXML_TEST_EXPECT(state, sxml_node_get_content(node_of(&built, 2), &content) ==
+                                SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, content.byte_count == text_byte_count);
+    const uint64_t allocated_byte_count =
+        sxml_counting_allocator_read_counts(counting).allocated_byte_count;
+    printf("  a text node of %zu bytes from %u events: %llu bytes allocated\n", text_byte_count,
+           TEST_LONG_TEXT_EVENT_COUNT, (unsigned long long)allocated_byte_count);
+    SXML_TEST_EXPECT(state, allocated_byte_count < 5U * (uint64_t)text_byte_count);
+    built_tree_destroy(&built);
+    SXML_TEST_EXPECT(state,
+                     sxml_counting_allocator_read_counts(counting).live_allocation_count == 0);
+    sxml_counting_allocator_destroy(counting);
+    tree_fixture_destroy(&fixture);
+}
+
 /* D23: fail each allocation in turn; every failure is reported and leaks
    nothing. */
 static void test_building_survives_every_allocation_failure(
@@ -1588,6 +1645,7 @@ static const sxml_test_case arena_tree_test_cases[] = {
     {.name = "element_identity_is_revised", .function = test_element_identity_is_revised},
     {.name = "large_trees_grow_in_segments",
      .function = test_large_trees_grow_in_segments},
+    {.name = "long_text_runs_grow_linearly", .function = test_long_text_runs_grow_linearly},
     {.name = "building_survives_every_allocation_failure",
      .function = test_building_survives_every_allocation_failure},
 };

@@ -2229,6 +2229,10 @@ sxml_status sxml_serializer_write_adaptive_node(sxml_serializer *serializer,
 
 /* ------------------------------------------------- Streamed serialization */
 
+/* The joined text a streamed serialization writes in parts when it may
+   (sxml_streamed_on_text): 64 KiB. */
+#define SXML_STREAMED_TEXT_PART_BYTE_COUNT 65536U
+
 /* An attribute of the element whose start tag waits; its value is in the
    serialization's attribute text. */
 typedef struct sxml_streamed_attribute {
@@ -2244,9 +2248,11 @@ typedef struct sxml_streamed_attribute {
  * tree (a window) with the in-scope namespaces of its parent's window,
  * and written by sxml_xml_writer_open_element as the tree walk would
  * write it; its end tag by sxml_xml_writer_close_top. Text events are
- * joined into one text node before they are written. So what is written
- * is what serializing the whole tree would write, and the memory held is
- * the windows of the open elements.
+ * joined into one text node before they are written, in parts of 64 KiB
+ * where that writes the same. So what is written is what serializing the
+ * whole tree would write, and the memory held is the windows of the open
+ * elements. With the text method only the text events are written, as
+ * they come (D295).
  */
 struct sxml_streamed_serialization {
     sxml_allocator allocator;
@@ -2269,6 +2275,13 @@ struct sxml_streamed_serialization {
 };
 
 bool sxml_serialization_streams(const sxml_serialization_parameters *parameters) {
+    /* The text method writes the string values of the text nodes in
+       document order (Serialization 4.0, 8): each text event as it comes,
+       unless Unicode normalization, which this serializer applies to a
+       whole text node, could join characters of two events (D295). */
+    if (parameters->serialization_method == SXML_SERIALIZATION_METHOD_TEXT) {
+        return parameters->normalization_form == SXML_NORMALIZATION_FORM_NONE;
+    }
     /* Indentation and Canonical XML look at an element's children before
        its start tag; a document type declaration, standalone and
        SEPM0004 at the whole tree (Serialization 4.0, 5.1.4, 5.1.7). */
@@ -2602,7 +2615,81 @@ static sxml_status sxml_streamed_on_text(void *state, const sxml_text_event *eve
     serialization->is_text_cdata_section =
         (is_cdata_parent && serialization->is_text_cdata_section) || event->is_cdata_section;
     serialization->is_text_unescaped = event->disables_output_escaping;
-    return sxml_xml_buffer_append(&serialization->text, event->text);
+    status = sxml_xml_buffer_append(&serialization->text, event->text);
+    /* A long text node is written in parts when that writes the same
+       characters: escaping and character maps go character by character,
+       a CDATA section and Unicode normalization do not (D295). So the
+       memory held stays bounded when text after text makes one node. */
+    if (status == SXML_STATUS_OK &&
+        serialization->text.byte_count >= SXML_STREAMED_TEXT_PART_BYTE_COUNT &&
+        !serialization->is_text_cdata_section && !is_cdata_parent &&
+        !serialization->serializer.is_normalizing) {
+        status = sxml_streamed_flush_text(serialization);
+    }
+    return status;
+}
+
+/* The text method (Serialization 4.0, 8): the text events' characters, as
+   they come; elements, attributes, comments and processing instructions
+   write nothing (they are not in the string value), and text whose
+   escaping is disabled is the same, since the method escapes nothing
+   (XSLT 4.0, 26.1.8). */
+static sxml_status sxml_streamed_text_on_start_document(void *state,
+                                                        const sxml_document_start_event *event) {
+    (void)state;
+    (void)event;
+    return SXML_STATUS_OK;
+}
+
+static sxml_status sxml_streamed_text_on_nothing(void *state) {
+    (void)state;
+    return SXML_STATUS_OK;
+}
+
+static sxml_status sxml_streamed_text_on_start_element(void *state,
+                                                       const sxml_element_start_event *event) {
+    (void)state;
+    (void)event;
+    return SXML_STATUS_OK;
+}
+
+static sxml_status sxml_streamed_text_on_namespace_binding(void *state,
+                                                           const sxml_namespace_binding *binding) {
+    (void)state;
+    (void)binding;
+    return SXML_STATUS_OK;
+}
+
+static sxml_status sxml_streamed_text_on_attribute(void *state,
+                                                   const sxml_attribute_event *event) {
+    (void)state;
+    (void)event;
+    return SXML_STATUS_OK;
+}
+
+static sxml_status sxml_streamed_text_on_text(void *state, const sxml_text_event *event) {
+    sxml_streamed_serialization *serialization = sxml_streamed_from_state(state);
+    if (event->text.byte_count == 0) {
+        return SXML_STATUS_OK;
+    }
+    return sxml_serializer_write_character_data(
+        &serialization->serializer,
+        &(sxml_character_data){.text = event->text,
+                               .character_context = SXML_CHARACTER_CONTEXT_TEXT});
+}
+
+static sxml_status sxml_streamed_text_on_comment(void *state, const sxml_comment_event *event) {
+    (void)state;
+    (void)event;
+    return SXML_STATUS_OK;
+}
+
+static sxml_status
+sxml_streamed_text_on_processing_instruction(void *state,
+                                             const sxml_processing_instruction_event *event) {
+    (void)state;
+    (void)event;
+    return SXML_STATUS_OK;
 }
 
 static sxml_status sxml_streamed_on_comment(void *state, const sxml_comment_event *event) {
@@ -2648,6 +2735,19 @@ static const sxml_tree_builder_operations sxml_streamed_builder_operations = {
     .add_unparsed_entity = sxml_streamed_on_unparsed_entity,
 };
 
+static const sxml_tree_builder_operations sxml_streamed_text_builder_operations = {
+    .start_document = sxml_streamed_text_on_start_document,
+    .end_document = sxml_streamed_text_on_nothing,
+    .start_element = sxml_streamed_text_on_start_element,
+    .add_namespace_binding = sxml_streamed_text_on_namespace_binding,
+    .add_attribute = sxml_streamed_text_on_attribute,
+    .end_element = sxml_streamed_text_on_nothing,
+    .add_text = sxml_streamed_text_on_text,
+    .add_comment = sxml_streamed_text_on_comment,
+    .add_processing_instruction = sxml_streamed_text_on_processing_instruction,
+    .add_unparsed_entity = sxml_streamed_on_unparsed_entity,
+};
+
 static sxml_xml_array sxml_streamed_array(sxml_allocator allocator, size_t element_byte_count) {
     return sxml_xml_array_empty((sxml_xml_array_configuration){
         .allocator = allocator, .element_byte_count = element_byte_count});
@@ -2687,7 +2787,8 @@ sxml_status sxml_streamed_serialization_create(sxml_allocator allocator,
                                  .error_record = request->error_record},
         &made->serializer);
     sxml_xml_writer_start(&made->serializer, &made->writer);
-    if (status == SXML_STATUS_OK) {
+    if (status == SXML_STATUS_OK &&
+        made->parameters.serialization_method == SXML_SERIALIZATION_METHOD_XML) {
         status = sxml_xml_writer_check_parameters(&made->writer);
     }
     if (status != SXML_STATUS_OK) {
@@ -2700,8 +2801,12 @@ sxml_status sxml_streamed_serialization_create(sxml_allocator allocator,
 
 sxml_tree_builder
 sxml_streamed_serialization_as_tree_builder(sxml_streamed_serialization *serialization) {
-    return (sxml_tree_builder){.state = serialization,
-                               .operations = &sxml_streamed_builder_operations};
+    return (sxml_tree_builder){
+        .state = serialization,
+        .operations = serialization->parameters.serialization_method ==
+                              SXML_SERIALIZATION_METHOD_TEXT
+                          ? &sxml_streamed_text_builder_operations
+                          : &sxml_streamed_builder_operations};
 }
 
 sxml_status sxml_streamed_serialization_finish(sxml_streamed_serialization *serialization) {

@@ -1133,6 +1133,22 @@ static const principal_case principal_cases[] = {
                    "<xsl:template match='/'><out><xsl:apply-templates/></out></xsl:template>"
                    "<xsl:template match='name'><n><xsl:value-of select='.'/></n></xsl:template>",
                    NULL),
+    /* Text after text, more than the limit (D295): with the text
+       method each text event is written as it comes; with the xml method
+       one text node of 1.6 MB under one element is written in parts. Both
+       built the principal result's tree before, and its text run was
+       copied at each event (quadratic). */
+    PRINCIPAL_CASE("shallow-skip",
+                   "<xsl:output method='text'/>"
+                   "<xsl:template match='/'><xsl:for-each select='records/record'>"
+                   "<xsl:value-of select='name'/><xsl:text> is a record of the document&#10;"
+                   "</xsl:text></xsl:for-each></xsl:template>",
+                   NULL),
+    PRINCIPAL_CASE("shallow-skip",
+                   "<xsl:template match='/'><out><xsl:for-each select='records/record'>"
+                   "<xsl:value-of select='name'/><xsl:text> is a record of the document&#10;"
+                   "</xsl:text></xsl:for-each></out></xsl:template>",
+                   NULL),
     /* An aggregate over the document from the rule for "/". */
     PRINCIPAL_CASE("shallow-skip",
                    "<xsl:template match='/'><n><xsl:value-of "
