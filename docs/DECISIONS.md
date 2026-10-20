@@ -12502,6 +12502,76 @@ public header changed additively (processor.h, below); one IR field
   singletons (adaptive 6, csv 1); deep-equal of partial applications
   (4); fn:transform 3; static typing (D263: not done).
 
+### D276. XSLT conformance sweep: instruction locations, next-match in attribute sets, parameter and static error codes (packet 4.28)
+Recorded 2026-10-20, after D245, D271, D273, D274. Verified as D181
+asks: the debug preset (the xslt*, xslt_declaration, xslt_key,
+xslt_read, xslt_lower_control and cli tests), clang-tidy on the changed
+files, the call-cycle check, the book examples (D257, 397 match), and
+the whole XT40 suite with the release driver after each change, case by
+case. **XT40 12,239 to 12,250 passed (107 to 104 wrong error), 279 to
+268 failed, 0 errors, no case lost**, from a whole run at c238bc6 (with
+2.25's commits up to it). Commits 8ea4281, 47981ac, d02aba3, ff27d21.
+- **Locations of instruction errors** (D271's open item): the sequence
+  constructor gives the expressions a child's lowering added without a
+  span the span of the child's start tag (src/xslt_lower.c,
+  locate_child_expressions); XPath text keeps its spans. A dynamic or
+  type error an instruction raises (validation XTTE errors, XTDE1490,
+  xsl:message terminate, streamed reads) now has its module and line:
+  $err:module and $err:line-number in xsl:catch (try-004, try-021) and
+  "file.xsl:LINE:COLUMN" in the CLI; the book's two XTTE examples
+  (xsd-typed-data.md) and two CLI tests changed with it.
+- **xsl:next-match and xsl:apply-imports in attribute sets** (6.11,
+  10.2: invoking an attribute set leaves the current template rule):
+  lowered directly in a set's body with a focus, they apply templates
+  to the set's focus slots with empty parameter maps, and the evaluator
+  reads its current rule (next-match-012, attribute-set-0108). A
+  template with context-item use="absent" has none: XTDE0560
+  (next-match-029). **Deviation**: a set invoked inside xsl:for-each (or
+  another changed focus) of a template rule still sees that rule, which
+  6.11 clears; the lowering clears it lexically and the set is a
+  function of its own. Fixing it would take a third variant of each
+  attribute set function or an evaluator operation that clears the rule.
+- **Parameter codes** (9.3, 7.2): an explicit default (select or
+  content) that cannot be coerced is XTTE0600 for template and function
+  parameters (sxml_xslt_default_value_mapping; error-0600a,
+  function-40-903); the implicit () keeps XPTY0004 (function-40-904); an
+  implicitly mandatory xsl:iterate parameter is XTSE3520 (error-3520a,
+  iterate-902).
+- **Static checks**: XTSE3088 (context-item as with use="absent"),
+  XTSE1210 (unknown key collation), XTSE0500 (visibility without name),
+  XTSE0085 (extension-element-prefixes on a reserved namespace; the
+  suite's XTSE0800 for extension-functions-0105 is not in the draft),
+  XTSE0010 for an xsl:fallback after the text of xsl:select (10.4.2).
+- **Found for the XPath sweep** (src/xpath_lower.c,
+  compatible_argument_row): XPath 1.0 compatibility mode converts
+  arguments by fn:number only for xs:double parameters (XPath 4.0,
+  3.4.1), but F&O 4.0 types the XPath 1.0 number parameters as
+  xs:numeric (fn:round, fn:floor, fn:substring, fn:format-number), so
+  format-number('foo', ...) in a 1.0 stylesheet is XPTY0004. Treating
+  xs:numeric and xs:numeric? like xs:double, measured in a private
+  build only, passes 8 cases (format-number-014, -035, -038 to -041,
+  backwards-022, xpath-compat-0401) and is the reading the suite takes.
+- **The draft decides, left** (D245): numerics compare exactly in 4.0
+  (sx-gc-eq-016, -020, -021, -116, -120, -121); union patterns take
+  the lowest priority and predicates +0.5 (next-match-025a, -026a,
+  priority-002, -124, -141, -163, conflict-resolution-1901a); XPDY0002
+  for unparsed-entity functions without a focus (error-1370a, -1380a,
+  context-item-016); XTDE0050, not XTDE0700, for a global parameter
+  (error-0610d).
+- **Left, with causes**: suite inconsistencies (package-location-001 to
+  -005 read a missing file and assert @q where @p is written;
+  next-match-017 leaves out an xsl:text newline; whitespace-only
+  assert-xml in sf-snapshot-0201 to -0209, attribute-set-1508/-1509);
+  date-094e/f and 095e/f assume no processor supports years past 2^32
+  (sxml does); FORG0001 where a cast in a binding's coercion fails
+  (as-1602, sequence-0132, variable-0115, call-template-ext-2102: a
+  mapping would also catch FORG0001 of lazily evaluated values);
+  XTTE0945 for xsl:copy with a dynamically absent focus (copy-4308,
+  glob-cxt-item-013); D274's per-package strip-space for fn:document,
+  fragment identifiers of xsl:source-document (implementation-defined),
+  strip-space "none" of an available document, namespace-2606.
+- The XT40 section of `docs/CONFORMANCE.md` was not regenerated.
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): tagging and

@@ -4,6 +4,15 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 4.28 done (D276): XSLT sweep, XT40 12,239 to 12,250 passed (107 to
+  104 wrong error), 279 to 268 failed, 0 errors, none lost. Errors an
+  instruction raises name its module and line ($err:line-number, CLI
+  "file.xsl:L:C"; book and CLI tests updated); xsl:next-match in
+  attribute sets; XTTE0600 for explicit parameter defaults, XTSE3520;
+  XTSE3088, XTSE1210, XTSE0500, XTSE0085, xsl:select's fallback order.
+  Found for the XPath sweep: 1.0 compatibility treats xs:numeric
+  parameters as xs:double (8 cases). CONFORMANCE.md not regenerated.
+
 - 2.25 done (D275): XPath/XQuery sweep. XP40 32,793 to 32,797 passed
   (40 to 36 failed), XQ40 46,070 to 46,101 (138 to 107 failed, 49 to
   44 wrong errors), XT40 +13 from this packet; no case lost. "//E1/E2"

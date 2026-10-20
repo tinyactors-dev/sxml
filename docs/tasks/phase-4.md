@@ -510,3 +510,15 @@ the release driver).
   in D274): xsl:next-match in attribute sets, per-package strip-space
   for fn:document, xsl:source-document fragment identifiers, XTTE
   errors without a line (D271).
+- [x] **4.28 XSLT conformance sweep** (implementation, D245, D274). Owns
+  the XSLT files a cluster's root cause is in, their unit tests and CLI
+  expectations, the book chapter whose output changes, and single
+  insertions in the ledgers. From a fresh XT40 run at HEAD, failures and
+  wrong-error passes by root cause, largest first; D274's open list.
+  src/xpath_lower.c stays with the XPath sweep.
+  **Done** 2026-10-20 (D276): XT40 12,239 to 12,250 passed (107 to 104
+  wrong error), 279 to 268 failed, 0 errors, no case lost. Left (causes
+  in D276): attribute sets in a changed focus see the enclosing rule,
+  FORG0001 of failed coercion casts, dynamic XTTE0945, D274's
+  fn:document and xsl:source-document items; xs:numeric in XPath 1.0
+  compatibility for the XPath sweep.
