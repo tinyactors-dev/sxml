@@ -1,5 +1,8 @@
 3 <internal>
 74177 <internal> [data]
+5092 __/host/sxml_host
+8 __/host/sxml_host [data]
+10 __/host/sxml_host_core_features
 50 crt1-reactor.o
 4 crt1-reactor.o [data]
 4 libc.a(CLOCK_REALTIME) [data]
@@ -339,6 +342,3 @@
 1890 libsxml_mpdecimal.a(transpose)
 69643 libsxml_tree_sitter.a(lib)
 101 libsxml_tree_sitter.a(lib) [data]
-5092 sxml_javascript
-8 sxml_javascript [data]
-10 sxml_javascript_core_features

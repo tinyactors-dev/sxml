@@ -1,36 +1,34 @@
-# The JavaScript package (D10, D138): the shim sxml_javascript.c, linked
-# with the library into the WebAssembly modules, and the TypeScript package
-# in src/ that loads them.
+# The JavaScript package (D10, D138): the host shim (bindings/host, D238)
+# under the export names of the JavaScript shim, linked with the library
+# into the WebAssembly modules, and the TypeScript package in src/ that
+# loads them.
 #
-#   sxml_javascript              the shim as a library, in every build, so
-#                                that -Werror and the lint gates see it.
+#   sxml_javascript              the export files as a library, in every
+#                                build, so that -Werror and the lint gates
+#                                see them.
 #   sxml_javascript_module       under WASI only: sxml.wasm, the core module,
 #                                a reactor (no main) exporting the shim's
-#                                functions, with no optional feature
-#                                (sxml_javascript_core_features.c, D189).
+#                                functions (sxml_javascript_exports.c), with
+#                                no optional feature
+#                                (sxml_host_core_features.c, D189).
 #   sxml_javascript_full_module  under WASI only: sxml-full.wasm, the same
-#                                shim with every optional feature
-#                                (sxml_javascript_full_features.c) and the
-#                                XQuery, XSLT and XSD entry points
-#                                (sxml_javascript_full.c and the files
-#                                below; packet js-1).
+#                                exports with every optional feature
+#                                (sxml_host_full_features.c) and the XQuery,
+#                                XSLT and XSD entry points
+#                                (sxml_javascript_full_exports.c and the host
+#                                shim's full sources; packet js-1).
+#
+# sxml_javascript_host.c is the resolver the package's processors use: it
+# calls the import sxml_host.resolve.
 #
 # Tests (WASI only, Node.js): javascript/package and javascript/package_full
 # run test/package.test.ts on each module; javascript/typecheck runs tsc
 # (after `npm ci` here); javascript/size_budget checks the size budgets of
 # D93, D138 and D189.
 
-# The entry points only the full module links (D189's two links): XQuery,
-# XSLT and XSD stay out of the core module.
-set(sxml_javascript_full_sources
-    sxml_javascript_full.c
-    sxml_javascript_xquery.c
-    sxml_javascript_xslt.c
-    sxml_javascript_schema.c)
-
-add_library(sxml_javascript STATIC sxml_javascript.c sxml_javascript_core_features.c
-    ${sxml_javascript_full_sources})
-target_link_libraries(sxml_javascript PUBLIC sxml)
+add_library(sxml_javascript STATIC sxml_javascript_exports.c sxml_javascript_full_exports.c
+    sxml_javascript_host.c)
+target_link_libraries(sxml_javascript PUBLIC sxml_host)
 sxml_apply_project_flags(sxml_javascript)
 
 if(NOT CMAKE_SYSTEM_NAME STREQUAL "WASI")
@@ -48,10 +46,12 @@ foreach(variant IN ITEMS core full)
     else()
         set(module_target sxml_javascript_full_module)
         set(module_name sxml-full)
-        set(module_sources ${sxml_javascript_full_sources})
+        set(module_sources sxml_javascript_full_exports.c ${SXML_HOST_FULL_SOURCES})
     endif()
-    add_executable(${module_target} sxml_javascript.c sxml_javascript_${variant}_features.c
+    add_executable(${module_target} sxml_javascript_exports.c sxml_javascript_host.c
+        ${SXML_HOST_CORE_SOURCES} "${SXML_HOST_INCLUDE_DIRECTORY}/sxml_host_${variant}_features.c"
         ${module_sources})
+    target_include_directories(${module_target} PRIVATE "${SXML_HOST_INCLUDE_DIRECTORY}")
     target_link_libraries(${module_target} PRIVATE sxml)
     set_target_properties(${module_target} PROPERTIES OUTPUT_NAME ${module_name} SUFFIX ".wasm")
     # The linker map beside the module names what each object adds, for

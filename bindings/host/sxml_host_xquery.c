@@ -2,14 +2,14 @@
  * The full module's XQuery entry points (include/sxml/xquery.h): compile a
  * main module once, evaluate it many times, serialize a result with the
  * query's output declarations, and hand the trees an updating query
- * changed, the documents fn:put stores and the trace output to the package
- * as side results. Linked into sxml-full.wasm only (D189's two links).
+ * changed, the documents fn:put stores and the trace output to the host
+ * as side results. Linked into the full links only (D189's two links).
  *
- * Golden files: sxml_javascript.c (compile, evaluate, serialize for XPath)
+ * Golden files: sxml_host.c (compile, evaluate, serialize for XPath)
  * and apps/sxml/command_xquery.c (the same public API for the CLI, with
  * its update sink).
  */
-#include "sxml_javascript_internal.h"
+#include "sxml_host_internal.h"
 
 #include "sxml/memory.h"
 #include "sxml/name.h"
@@ -27,38 +27,37 @@
 #include <string.h>
 
 /* A compiled query and the side results of its last evaluation. */
-struct sxml_javascript_query {
-    sxml_javascript_processor *owner;
+struct sxml_host_query {
+    sxml_host_processor *owner;
     sxml_xquery_query *query;
-    sxml_javascript_side_results side_results;
+    sxml_host_side_results side_results;
 };
 
 /* The query's list, for adding to it. */
-static sxml_javascript_side_result_target sxml_javascript_query_target(
-    sxml_javascript_query *query) {
-    return (sxml_javascript_side_result_target){.processor = query->owner,
+static sxml_host_side_result_target sxml_host_query_target(
+    sxml_host_query *query) {
+    return (sxml_host_side_result_target){.processor = query->owner,
                                                 .side_results = &query->side_results};
 }
 
-SXML_JAVASCRIPT_EXPORT("sxml_javascript_query_destroy")
-void sxml_javascript_query_destroy(sxml_javascript_query *query) {
+void sxml_host_query_destroy(sxml_host_query *query) {
     if (query == NULL) {
         return;
     }
-    const sxml_javascript_side_result_target target = sxml_javascript_query_target(query);
-    sxml_javascript_side_results_finalize(&target);
+    const sxml_host_side_result_target target = sxml_host_query_target(query);
+    sxml_host_side_results_finalize(&target);
     sxml_xquery_query_destroy(query->query);
     sxml_allocator_release(query->owner->allocator, query);
 }
 
 /* Interns request's namespaces into an array the caller releases. */
-static sxml_status sxml_javascript_query_namespaces(
-    sxml_javascript_processor *processor, const sxml_javascript_query_compile_request *request,
+static sxml_status sxml_host_query_namespaces(
+    sxml_host_processor *processor, const sxml_host_query_compile_request *request,
     sxml_namespace_binding **namespace_bindings) {
     void *memory = NULL;
-    sxml_status status = sxml_javascript_allocate_array(
+    sxml_status status = sxml_host_allocate_array(
         processor->allocator,
-        (sxml_javascript_array_request){
+        (sxml_host_array_request){
             .element = {.byte_count = sizeof(sxml_namespace_binding),
                         .alignment = alignof(sxml_namespace_binding)},
             .element_count = request->namespace_count},
@@ -68,7 +67,7 @@ static sxml_status sxml_javascript_query_namespaces(
     for (size_t namespace_index = 0;
          status == SXML_STATUS_OK && namespace_index < request->namespace_count;
          namespace_index += 1) {
-        const sxml_javascript_namespace *source = &request->namespaces[namespace_index];
+        const sxml_host_namespace *source = &request->namespaces[namespace_index];
         status = sxml_name_pool_intern_namespace_prefix(name_pool, source->namespace_prefix,
                                                         &bindings[namespace_index].namespace_prefix);
         if (status == SXML_STATUS_OK) {
@@ -85,22 +84,21 @@ static sxml_status sxml_javascript_query_namespaces(
  * returns it, or NULL with the processor's error set (a static or type
  * error, a module the resolver does not deliver, a limit, out of memory).
  */
-SXML_JAVASCRIPT_EXPORT("sxml_javascript_query_compile")
-sxml_javascript_query *sxml_javascript_query_compile(
-    sxml_javascript_processor *processor, const sxml_javascript_query_compile_request *request) {
-    sxml_javascript_begin(processor);
-    sxml_javascript_query *query = sxml_javascript_allocate_bytes(
-        processor->allocator, sizeof(sxml_javascript_query), alignof(sxml_javascript_query));
+sxml_host_query *sxml_host_query_compile(
+    sxml_host_processor *processor, const sxml_host_query_compile_request *request) {
+    sxml_host_begin(processor);
+    sxml_host_query *query = sxml_host_allocate_bytes(
+        processor->allocator, sizeof(sxml_host_query), alignof(sxml_host_query));
     if (query == NULL) {
-        sxml_javascript_fail(processor, SXML_STATUS_OUT_OF_MEMORY);
+        sxml_host_fail(processor, SXML_STATUS_OUT_OF_MEMORY);
         return NULL;
     }
-    *query = (sxml_javascript_query){
+    *query = (sxml_host_query){
         .owner = processor,
         .query = NULL,
         .side_results = {.side_results = NULL, .side_result_count = 0, .side_result_capacity = 0}};
     sxml_namespace_binding *namespace_bindings = NULL;
-    sxml_status status = sxml_javascript_query_namespaces(processor, request, &namespace_bindings);
+    sxml_status status = sxml_host_query_namespaces(processor, request, &namespace_bindings);
     if (status == SXML_STATUS_OK) {
         status = sxml_xquery_query_create(
             processor->allocator,
@@ -117,15 +115,14 @@ sxml_javascript_query *sxml_javascript_query_compile(
     }
     sxml_allocator_release(processor->allocator, namespace_bindings);
     if (status != SXML_STATUS_OK) {
-        sxml_javascript_query_destroy(query);
-        sxml_javascript_fail(processor, status);
+        sxml_host_query_destroy(query);
+        sxml_host_fail(processor, status);
         return NULL;
     }
     return query;
 }
 
-SXML_JAVASCRIPT_EXPORT("sxml_javascript_query_is_updating")
-uint32_t sxml_javascript_query_is_updating(const sxml_javascript_query *query) {
+uint32_t sxml_host_query_is_updating(const sxml_host_query *query) {
     return sxml_xquery_query_is_updating(query->query) ? 1 : 0;
 }
 
@@ -133,27 +130,27 @@ uint32_t sxml_javascript_query_is_updating(const sxml_javascript_query *query) {
 
 /* An updated tree as an UPDATED_TREE side result (XQUF 3.0, 3.2.2
    upd:applyUpdates; include/sxml/xquery.h): both roots, retained. */
-static sxml_status sxml_javascript_receive_updated_tree(
+static sxml_status sxml_host_receive_updated_tree(
     void *state, const sxml_xquery_updated_tree *updated_tree) {
-    const sxml_javascript_side_result_target *target = state;
-    sxml_javascript_value *original_root = sxml_javascript_value_retain(
+    const sxml_host_side_result_target *target = state;
+    sxml_host_value *original_root = sxml_host_value_retain(
         target->processor, sxml_sequence_from_item(updated_tree->original_root));
-    sxml_javascript_value *updated_root =
+    sxml_host_value *updated_root =
         original_root == NULL
             ? NULL
-            : sxml_javascript_value_retain(target->processor,
-                                           sxml_sequence_from_item(updated_tree->updated_root));
+            : sxml_host_value_retain(target->processor,
+                                     sxml_sequence_from_item(updated_tree->updated_root));
     if (updated_root == NULL) {
-        sxml_javascript_value_release(original_root);
+        sxml_host_value_release(original_root);
         return SXML_STATUS_OUT_OF_MEMORY;
     }
-    return sxml_javascript_side_results_add(
+    return sxml_host_side_results_add(
         target,
-        &(sxml_javascript_side_result){.side_result_kind =
-                                           SXML_JAVASCRIPT_SIDE_RESULT_KIND_UPDATED_TREE,
-                                       .uri = sxml_javascript_no_text,
-                                       .text = sxml_javascript_no_text,
-                                       .code = sxml_javascript_no_text,
+        &(sxml_host_side_result){.side_result_kind =
+                                           SXML_HOST_SIDE_RESULT_KIND_UPDATED_TREE,
+                                       .uri = sxml_host_no_text,
+                                       .text = sxml_host_no_text,
+                                       .code = sxml_host_no_text,
                                        .first_value = original_root,
                                        .second_value = updated_root,
                                        .line_number = 0,
@@ -163,37 +160,37 @@ static sxml_status sxml_javascript_receive_updated_tree(
 
 /* A document fn:put stores as a PUT_DOCUMENT side result (XQUF 3.0, 6.1):
    the host decides where it goes. */
-static sxml_status sxml_javascript_receive_put_document(
+static sxml_status sxml_host_receive_put_document(
     void *state, const sxml_xquery_put_document *put_document) {
-    const sxml_javascript_side_result_target *target = state;
-    sxml_javascript_value *node = sxml_javascript_value_retain(
+    const sxml_host_side_result_target *target = state;
+    sxml_host_value *node = sxml_host_value_retain(
         target->processor, sxml_sequence_from_item(put_document->node));
     if (node == NULL) {
         return SXML_STATUS_OUT_OF_MEMORY;
     }
-    sxml_javascript_value *parameters = NULL;
+    sxml_host_value *parameters = NULL;
     sxml_emptiness emptiness = {.is_empty = true};
     const sxml_status status =
         sxml_sequence_test_emptiness(put_document->serialization_parameters, NULL, &emptiness);
     if (status != SXML_STATUS_OK) {
-        sxml_javascript_value_release(node);
+        sxml_host_value_release(node);
         return status;
     }
     if (!emptiness.is_empty) {
         parameters =
-            sxml_javascript_value_retain(target->processor, put_document->serialization_parameters);
+            sxml_host_value_retain(target->processor, put_document->serialization_parameters);
         if (parameters == NULL) {
-            sxml_javascript_value_release(node);
+            sxml_host_value_release(node);
             return SXML_STATUS_OUT_OF_MEMORY;
         }
     }
-    return sxml_javascript_side_results_add(
+    return sxml_host_side_results_add(
         target,
-        &(sxml_javascript_side_result){.side_result_kind =
-                                           SXML_JAVASCRIPT_SIDE_RESULT_KIND_PUT_DOCUMENT,
+        &(sxml_host_side_result){.side_result_kind =
+                                           SXML_HOST_SIDE_RESULT_KIND_PUT_DOCUMENT,
                                        .uri = put_document->uri,
-                                       .text = sxml_javascript_no_text,
-                                       .code = sxml_javascript_no_text,
+                                       .text = sxml_host_no_text,
+                                       .code = sxml_host_no_text,
                                        .first_value = node,
                                        .second_value = parameters,
                                        .line_number = 0,
@@ -201,14 +198,14 @@ static sxml_status sxml_javascript_receive_put_document(
                                        .is_terminating = 0});
 }
 
-static const sxml_xquery_update_sink_operations sxml_javascript_update_operations = {
-    .receive_updated_tree = sxml_javascript_receive_updated_tree,
-    .receive_put_document = sxml_javascript_receive_put_document,
+static const sxml_xquery_update_sink_operations sxml_host_update_operations = {
+    .receive_updated_tree = sxml_host_receive_updated_tree,
+    .receive_put_document = sxml_host_receive_put_document,
 };
 
 /* Without receive_put_document, fn:put fails with FOUP0002 (xquery.h). */
-static const sxml_xquery_update_sink_operations sxml_javascript_tree_update_operations = {
-    .receive_updated_tree = sxml_javascript_receive_updated_tree,
+static const sxml_xquery_update_sink_operations sxml_host_tree_update_operations = {
+    .receive_updated_tree = sxml_host_receive_updated_tree,
     .receive_put_document = NULL,
 };
 
@@ -219,16 +216,15 @@ static const sxml_xquery_update_sink_operations sxml_javascript_tree_update_oper
  * request, and returns its result, or NULL with the processor's error
  * set. Writes the side results into request, also on failure.
  */
-SXML_JAVASCRIPT_EXPORT("sxml_javascript_query_evaluate")
-sxml_javascript_value *sxml_javascript_query_evaluate(
-    sxml_javascript_query *query, sxml_javascript_query_evaluate_request *request) {
-    sxml_javascript_processor *processor = query->owner;
-    sxml_javascript_begin(processor);
-    sxml_javascript_side_result_target target = sxml_javascript_query_target(query);
-    sxml_javascript_side_results_clear(&target);
+sxml_host_value *sxml_host_query_evaluate(
+    sxml_host_query *query, sxml_host_query_evaluate_request *request) {
+    sxml_host_processor *processor = query->owner;
+    sxml_host_begin(processor);
+    sxml_host_side_result_target target = sxml_host_query_target(query);
+    sxml_host_side_results_clear(&target);
     sxml_variable_binding *bindings = NULL;
-    sxml_status status = sxml_javascript_read_bindings(processor, &request->variables, &bindings);
-    const sxml_javascript_value *context = request->context_value;
+    sxml_status status = sxml_host_read_bindings(processor, &request->variables, &bindings);
+    const sxml_host_value *context = request->context_value;
     sxml_sequence result = sxml_sequence_empty();
     if (status == SXML_STATUS_OK) {
         status = sxml_xquery_query_evaluate(
@@ -240,21 +236,21 @@ sxml_javascript_value *sxml_javascript_query_evaluate(
                      .variable_bindings = {.variable_bindings = bindings,
                                            .variable_binding_count =
                                                request->variables.binding_count},
-                     .trace_sink = sxml_javascript_message_sink(&target)},
+                     .trace_sink = sxml_host_message_sink(&target)},
                 .error_record = &processor->error_record,
                 .update_sink = {.state = &target,
                                 .operations = request->accepts_put_documents != 0
-                                                  ? &sxml_javascript_update_operations
-                                                  : &sxml_javascript_tree_update_operations}},
+                                                  ? &sxml_host_update_operations
+                                                  : &sxml_host_tree_update_operations}},
             &result);
     }
     sxml_allocator_release(processor->allocator, bindings);
-    request->side_results = sxml_javascript_side_results_view(&query->side_results);
+    request->side_results = sxml_host_side_results_view(&query->side_results);
     if (status != SXML_STATUS_OK) {
-        sxml_javascript_fail(processor, status);
+        sxml_host_fail(processor, status);
         return NULL;
     }
-    return sxml_javascript_value_make(processor, result);
+    return sxml_host_value_make(processor, result);
 }
 
 /*
@@ -263,13 +259,12 @@ sxml_javascript_value *sxml_javascript_query_evaluate(
  * name another). Returns the status; on failure the processor's error is
  * set.
  */
-SXML_JAVASCRIPT_EXPORT("sxml_javascript_query_serialize")
-uint32_t sxml_javascript_query_serialize(sxml_javascript_query *query,
-                                         const sxml_javascript_value *value) {
-    sxml_javascript_processor *processor = query->owner;
-    sxml_javascript_begin(processor);
+uint32_t sxml_host_query_serialize(sxml_host_query *query,
+                                   const sxml_host_value *value) {
+    sxml_host_processor *processor = query->owner;
+    sxml_host_begin(processor);
     sxml_output_buffer_clear(processor->output_buffer);
-    processor->output = sxml_javascript_no_text;
+    processor->output = sxml_host_no_text;
     const sxml_status status = sxml_serialize_sequence(
         sxml_processor_get_item_heap(processor->processor),
         &(sxml_serialization_request){
@@ -278,7 +273,7 @@ uint32_t sxml_javascript_query_serialize(sxml_javascript_query *query,
             .error_record = &processor->error_record},
         sxml_output_buffer_as_output_stream(processor->output_buffer));
     if (status != SXML_STATUS_OK) {
-        sxml_javascript_fail(processor, status);
+        sxml_host_fail(processor, status);
         return (uint32_t)status;
     }
     processor->output = sxml_output_buffer_get_bytes(processor->output_buffer);

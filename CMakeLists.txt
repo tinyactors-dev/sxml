@@ -120,9 +120,14 @@ if(SXML_BUILD_APPS)
     add_subdirectory(apps)
 endif()
 
-# The JavaScript package (D10, D138): the shim in every build, sxml.wasm and
-# its Node.js tests under WASI. After apps/: its size test also measures the
-# CLI module.
+# The host shim (D238) under the bindings, in every build; before the
+# JavaScript package, whose modules link its sources, and after tests/,
+# whose host_shim test links it.
+add_subdirectory(bindings/host)
+
+# The JavaScript package (D10, D138): the export files in every build,
+# sxml.wasm and its Node.js tests under WASI. After apps/: its size test
+# also measures the CLI module.
 add_subdirectory(bindings/javascript)
 
 # The QT4 test-suite driver (D44, D45): a developer tool built on the CLI
