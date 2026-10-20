@@ -1360,10 +1360,16 @@ static declared_type declared_type_of(const sxml_xslt_lowering *lowering,
                           .occurrence = SXML_OCCURRENCE_ZERO_OR_MORE}};
     const sxml_xslt_ast_attribute *as_attribute =
         find_attribute(lowering, node, SXML_XSLT_AST_ATTRIBUTE_AS);
-    if (as_attribute->value.kind != SXML_XSLT_AST_VALUE_KIND_SEQUENCE_TYPE) {
+    /* An item type (xsl:context-item) is read as a SEQUENCE_TYPE of
+       occurrence one (D139). */
+    if (as_attribute->value.kind != SXML_XSLT_AST_VALUE_KIND_SEQUENCE_TYPE &&
+        as_attribute->value.kind != SXML_XSLT_AST_VALUE_KIND_ITEM_TYPE) {
         return type;
     }
     type.has_type = true;
+    if (as_attribute->value.kind == SXML_XSLT_AST_VALUE_KIND_ITEM_TYPE) {
+        type.sequence_type.occurrence = SXML_OCCURRENCE_EXACTLY_ONE;
+    }
     const sxml_xslt_ast_expression *expression =
         sxml_xslt_ast_get_expression(lowering->ast, as_attribute->value.payload.expression);
     const uint32_t context = expression->static_context.value;
@@ -1697,6 +1703,53 @@ static uint32_t package_used_by(const sxml_xslt_package_table *table,
     return 0;
 }
 
+/* A template rule among the overriding declarations of an
+   xsl:use-package of package used. */
+typedef struct overriding_rule {
+    sxml_xslt_ast_node_index rule;
+    uint32_t used;
+} overriding_rule;
+
+/* XTSE3060 (3.4.5.3, 3.4.6): a template rule in xsl:override adds rules
+   to modes of the used package, which must be public there (a final mode
+   takes no new rules; a private one is not visible). */
+static sxml_status check_overriding_modes(const sxml_xslt_lowering *lowering,
+                                          overriding_rule request) {
+    const sxml_xslt_package_table *table = lowering->packages;
+    const package_entry *package = &table->packages[request.used];
+    if (node_of(lowering, request.rule)->kind != SXML_XSLT_AST_KIND_TEMPLATE ||
+        find_attribute(lowering, request.rule, SXML_XSLT_AST_ATTRIBUTE_MATCH)->kind ==
+            SXML_XSLT_AST_ATTRIBUTE_NONE) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_xslt_ast_attribute *modes =
+        find_attribute(lowering, request.rule, SXML_XSLT_AST_ATTRIBUTE_MODE);
+    if (modes->value.kind != SXML_XSLT_AST_VALUE_KIND_NAME_LIST) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_xslt_ast_name_token_view tokens =
+        sxml_xslt_ast_get_name_tokens(lowering->ast, modes->value.payload.name_tokens);
+    for (size_t token_index = 0; token_index < tokens.name_token_count; token_index += 1) {
+        const sxml_xslt_ast_name_token *token = &tokens.name_tokens[token_index];
+        if (token->kind != SXML_XSLT_AST_NAME_TOKEN_KIND_NAME) {
+            continue;
+        }
+        for (uint32_t offset = 0; offset < package->instance_count; offset += 1) {
+            const component_instance *instance =
+                &table->instances[package->first_instance + offset];
+            if (instance->component_kind == SXML_XSLT_COMPONENT_KIND_MODE &&
+                instance->component_name.index == token->name.index &&
+                instance->visibility != SXML_XSLT_VISIBILITY_PUBLIC) {
+                return report(lowering, request.rule,
+                              SXML_BYTE_VIEW_FROM_LITERAL(
+                                  "XTSE3060 a template rule in xsl:override adds to a mode the "
+                                  "used package does not make public (XSLT 4.0, 3.4.6)"));
+            }
+        }
+    }
+    return SXML_STATUS_OK;
+}
+
 /* XTSE3051: an explicit xsl:accept token naming an overriding declaration
    of the same xsl:use-package; XTSE3058: an overriding named component
    no instance of the used package matches. */
@@ -1707,6 +1760,11 @@ static sxml_status check_overrides(const sxml_xslt_lowering *lowering,
     for (sxml_xslt_ast_node_index overriding =
              next_overriding(lowering, use_node, (sxml_xslt_ast_node_index){.value = 0});
          overriding.value != 0; overriding = next_overriding(lowering, use_node, overriding)) {
+        const sxml_status mode_status =
+            check_overriding_modes(lowering, (overriding_rule){.rule = overriding, .used = used});
+        if (mode_status != SXML_STATUS_OK) {
+            return mode_status;
+        }
         const declared_component component = component_of(lowering, overriding);
         if (component.component_kind == SXML_XSLT_COMPONENT_KIND_NONE) {
             continue;
@@ -1736,6 +1794,51 @@ static sxml_status check_overrides(const sxml_xslt_lowering *lowering,
                                   "XTSE3051 xsl:accept names a component an overriding "
                                   "declaration of the same xsl:use-package declares (XSLT 4.0, "
                                   "3.4.5.2)"));
+            }
+        }
+    }
+    return SXML_STATUS_OK;
+}
+
+/* XTSE3050 (3.4.6): a template rule of package outside xsl:override that
+   names a mode package accepts from a used package (with
+   declared-modes="no" it would declare a second mode of that name; new
+   rules for such a mode belong in xsl:override). */
+static sxml_status check_rules_in_accepted_modes(const sxml_xslt_lowering *lowering,
+                                                 uint32_t package) {
+    const sxml_xslt_package_table *table = lowering->packages;
+    const sxml_xslt_ast *ast = lowering->ast;
+    for (uint32_t order = 1; sxml_xslt_ast_get_declaration(ast, order).value != 0; order += 1) {
+        const sxml_xslt_ast_node_index rule = sxml_xslt_ast_get_declaration(ast, order);
+        const sxml_xslt_ast_node_index parent = node_of(lowering, rule)->parent;
+        if (node_of(lowering, rule)->kind != SXML_XSLT_AST_KIND_TEMPLATE ||
+            (parent.value != 0 && node_of(lowering, parent)->kind == SXML_XSLT_AST_KIND_OVERRIDE) ||
+            sxml_xslt_package_of_node(lowering, rule) != package ||
+            find_attribute(lowering, rule, SXML_XSLT_AST_ATTRIBUTE_MATCH)->kind ==
+                SXML_XSLT_AST_ATTRIBUTE_NONE) {
+            continue;
+        }
+        const sxml_xslt_ast_attribute *modes =
+            find_attribute(lowering, rule, SXML_XSLT_AST_ATTRIBUTE_MODE);
+        if (modes->value.kind != SXML_XSLT_AST_VALUE_KIND_NAME_LIST) {
+            continue;
+        }
+        const sxml_xslt_ast_name_token_view tokens =
+            sxml_xslt_ast_get_name_tokens(ast, modes->value.payload.name_tokens);
+        for (size_t token_index = 0; token_index < tokens.name_token_count; token_index += 1) {
+            const sxml_xslt_ast_name_token *token = &tokens.name_tokens[token_index];
+            for (uint32_t index = 1;
+                 token->kind == SXML_XSLT_AST_NAME_TOKEN_KIND_NAME && index < table->instance_count;
+                 index += 1) {
+                const component_instance *instance = &table->instances[index];
+                if (instance->package == package && instance->is_accepted &&
+                    instance->component_kind == SXML_XSLT_COMPONENT_KIND_MODE &&
+                    instance->component_name.index == token->name.index) {
+                    return report(lowering, rule,
+                                  SXML_BYTE_VIEW_FROM_LITERAL(
+                                      "XTSE3050 a template rule outside xsl:override names a mode "
+                                      "accepted from a used package (XSLT 4.0, 3.4.6)"));
+                }
             }
         }
     }
@@ -1780,6 +1883,9 @@ static sxml_status add_used_instances(const sxml_xslt_lowering *lowering, uint32
         if (status == SXML_STATUS_OK) {
             status = check_overrides(lowering, use_node, used);
         }
+    }
+    if (status == SXML_STATUS_OK) {
+        status = check_rules_in_accepted_modes(lowering, package);
     }
     return status;
 }
