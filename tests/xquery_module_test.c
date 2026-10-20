@@ -73,7 +73,8 @@ static const served_module served_modules[] = {
            "'http://www.w3.org/2005/xpath-functions/collation/html-ascii-case-insensitive'; "
            "declare decimal-format w:de decimal-separator = ',' grouping-separator = '.'; "
            "declare function w:show($n) { format-number($n, '#.###,##', 'w:de') }; "
-           "declare function w:same($a, $b) { $a eq $b and compare($a, $b) eq 0 };"),
+           "declare function w:same($a, $b) { $a eq $b and compare($a, $b) eq 0 }; "
+           "declare function w:base() { static-base-uri#0 };"),
     /* Two modules of one namespace (5.12.2). */
     MODULE("urn:two", "http://example.com/m/two-1.xq",
            "module namespace t = 'urn:two'; declare function t:one() { 1 };"),
@@ -305,6 +306,12 @@ static const query_case query_cases[] = {
                 "import module namespace w = 'urn:own' at 'own.xq'; "
                 "w:show(1234.5), w:same('a', 'A'), 'a' eq 'A'",
                 "1.234,5 true false"),
+    /* A reference to a context-dependent function keeps its module's
+       static context (XPath 4.0, 4.5.4; D275). */
+    QUERY_VALUE("context-dependent-reference",
+                "import module namespace w = 'urn:own' at 'own.xq'; "
+                "w:base()(), static-base-uri#0() = w:base()()",
+                "http://example.com/m/own.xq false"),
     QUERY_VALUE("item-type", "import module namespace a = 'urn:a' at 'a.xq'; 3 instance of a:small",
                 "true"),
     QUERY_VALUE("prefix-of-the-main-module",

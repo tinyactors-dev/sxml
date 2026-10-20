@@ -3615,6 +3615,66 @@ static sxml_status lower_focused_reference(sxml_xpath_lowerer *state, focused_re
         expression);
 }
 
+/* A reference to a context-dependent native row, as a closure that calls
+   it with its parameters (lower_named_function_reference). */
+typedef struct native_reference {
+    sxml_ast_node_index node;
+    sxml_name_identifier name;
+    const sxml_function_entry *entry;
+    uint32_t arity;
+} native_reference;
+
+static sxml_status lower_native_reference_closure(sxml_xpath_lowerer *state,
+                                                  native_reference request,
+                                                  sxml_ir_expression_index *expression) {
+    sxml_ir_function_index function = {0};
+    sxml_status status = add_closure_function(
+        state,
+        (closure_request){.node = request.node,
+                          .function_name = request.name,
+                          .signature = request.entry->signature,
+                          .parameter_count = request.arity,
+                          .captured_atoms = {.atoms = NULL, .atom_count = 0}},
+        &function);
+    void *memory = NULL;
+    if (status == SXML_STATUS_OK && request.arity > 0) {
+        status = sxml_xpath_lowerer_allocate_scratch(
+            state,
+            (sxml_xpath_lowering_scratch_request){.element_count = request.arity,
+                                                  .element_size = sizeof(sxml_ir_atom),
+                                                  .element_alignment = alignof(sxml_ir_atom)},
+            &memory);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_ir_atom *atoms = memory;
+    for (uint32_t parameter_number = 1; parameter_number <= request.arity;
+         parameter_number += 1) {
+        atoms[parameter_number - 1] = sxml_ir_slot_atom((sxml_ir_slot){.value = parameter_number});
+    }
+    sxml_ir_atom_list arguments = {0};
+    status = sxml_ir_unit_add_atoms(
+        state->unit, (sxml_ir_atom_view){.atoms = atoms, .atom_count = request.arity},
+        &arguments);
+    if (memory != NULL) {
+        sxml_xpath_lowerer_release_scratch(state, memory);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return finish_closure(
+        state,
+        (closure_body){
+            .function = function,
+            .body = {.expression_kind = SXML_IR_EXPRESSION_KIND_STATIC_CALL,
+                     .static_call = {.target = target_of(request.entry),
+                                     .arguments = arguments,
+                                     .module_number = state->static_context->ir_module_number}},
+            .node = request.node},
+        expression);
+}
+
 /* A named function reference (XPath 4.0, section 4.5.4). */
 static sxml_status
 lower_named_function_reference(sxml_xpath_lowerer *state,
@@ -3711,6 +3771,19 @@ lower_named_function_reference(sxml_xpath_lowerer *state,
                 .node = node,
                 .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_ATOM,
                                .atom = function_item}},
+            expression);
+    }
+    if (!reads_position_or_size && !omits_context_value &&
+        (properties & SXML_NATIVE_FUNCTION_USES_DYNAMIC_CONTEXT) != 0) {
+        /* A context-dependent function keeps the static context of the
+           reference (XPath 4.0, 4.5.4; F&O 4.0, 1.7): a closure of this
+           module calls the row, so a library module's fn:static-base-uri#0
+           or an untrusted module's fn:doc#1 reads its own module when
+           called from another (D275). */
+        return lower_native_reference_closure(
+            state,
+            (native_reference){.node = node, .name = name, .entry = &entry,
+                               .arity = (uint32_t)arity},
             expression);
     }
     if (!reads_position_or_size && !omits_context_value) {
