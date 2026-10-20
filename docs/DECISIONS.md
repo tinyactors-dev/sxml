@@ -13511,6 +13511,9 @@ Recorded 2026-10-20, after D99, D245, D289; in progress.
 ### D292. The codegen chapter builds a tree of the TypeScript program and prints it with XSLT (packet book-4)
 Recorded 2026-10-20, after D257, D282, D285, D288; in progress.
 
+### D293. tree-sitter's WebAssembly language files in the JavaScript package (packet 7.25)
+Recorded 2026-10-20, after D138, D189, D225, D272, D285, D288; in progress.
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): tagging and
