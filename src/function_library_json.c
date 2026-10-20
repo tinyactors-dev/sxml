@@ -699,7 +699,7 @@ static const sxml_option_definition xml_to_json_options[] = {
 
 /* fn:xml-to-json($node as node()?, $options as map(*)? := {}) as
    xs:string? (F&O 4.0, section 17.4.7). indent may insert whitespace; sxml
-   inserts none. */
+   puts each member on a line of its own. */
 static sxml_status call_xml_to_json(const sxml_function_call *call, sxml_sequence *result) {
     const sxml_sequence node_argument = json_argument(call, 0);
     if (json_sequence_is_empty(node_argument)) {
@@ -733,6 +733,7 @@ static sxml_status call_xml_to_json(const sxml_function_call *call, sxml_sequenc
             &(sxml_json_writing_request){
                 .node = node,
                 .escapes_solidus = !values.is_present[0] || json_option_is_true(&values, 0),
+                .indents = values.is_present[1] && json_option_is_true(&values, 1),
                 .allocator = allocator,
                 .error_record = call->error_record},
             sxml_output_buffer_as_output_stream(output));

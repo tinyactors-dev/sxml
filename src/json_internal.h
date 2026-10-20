@@ -183,6 +183,10 @@ typedef struct sxml_json_writing_request {
     sxml_node_reference node;
     /* Option "escape-solidus" of fn:xml-to-json: write "/" as "\/". */
     bool escapes_solidus;
+    /* Option "indent" of fn:xml-to-json: each member of a map or array on
+       a line of its own, indented two spaces per level, and a space after
+       a key's colon. */
+    bool indents;
     /* Memory for the walk's stack and key index, released before the call
        returns. Must not be the null allocator. */
     sxml_allocator allocator;

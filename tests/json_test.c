@@ -1005,7 +1005,11 @@ static const expression_case function_cases[] = {
     {"json-to-xml('[1]')/*/*/string()", "\"1\""},
     {"xml-to-json(())", ""},
     {"xml-to-json(json-to-xml('{\"x\": \"a/b\"}'), {'escape-solidus': false(), 'indent': true()})",
-     "\"{\"\"x\"\":\"\"a/b\"\"}\""},
+     "\"{\n  \"\"x\"\": \"\"a/b\"\"\n}\""},
+    /* indent: a member per line, two spaces per level; empty maps and
+       arrays stay on one line. */
+    {"xml-to-json(json-to-xml('{\"a\": [1, {}]}'), {'indent': true()})",
+     "\"{\n  \"\"a\"\": [\n    1,\n    {}\n  ]\n}\""},
     {"xml-to-json(json-to-xml('\"" ESCAPE_U "0001\"', {'escape': true()}))",
      "\"\"\"" ESCAPE_U "0001\"\"\""},
     {"jtree(())", "jtree(())"},

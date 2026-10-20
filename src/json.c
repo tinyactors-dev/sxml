@@ -2239,7 +2239,9 @@ static sxml_status sxml_json_write_key(sxml_json_writer *writer,
                                              .is_escaped_form = attributes->is_escaped_key});
     }
     if (status == SXML_STATUS_OK) {
-        status = sxml_json_bytes_append(&writer->output, SXML_BYTE_VIEW_FROM_LITERAL(":"));
+        status = sxml_json_bytes_append(&writer->output, writer->request->indents
+                                                             ? SXML_BYTE_VIEW_FROM_LITERAL(": ")
+                                                             : SXML_BYTE_VIEW_FROM_LITERAL(":"));
     }
     if (status == SXML_STATUS_OK) {
         status = sxml_json_write(writer, sxml_json_bytes_view(&writer->output));
@@ -2344,6 +2346,19 @@ static sxml_status sxml_json_write_element(sxml_json_writer *writer,
     return SXML_STATUS_INVALID_ARGUMENT;
 }
 
+/* With the indent option, a line break and two spaces per level of
+   depth (F&O 4.0, 17.4.7: indent may insert whitespace). */
+static sxml_status sxml_json_write_line_break(sxml_json_writer *writer, size_t depth) {
+    if (!writer->request->indents) {
+        return SXML_STATUS_OK;
+    }
+    sxml_status status = sxml_json_write(writer, SXML_BYTE_VIEW_FROM_LITERAL("\n"));
+    for (size_t level = 0; status == SXML_STATUS_OK && level < depth; level += 1) {
+        status = sxml_json_write(writer, SXML_BYTE_VIEW_FROM_LITERAL("  "));
+    }
+    return status;
+}
+
 /* Moves the innermost map or array to its next child: elements are
    written, whitespace text, comments and processing instructions are
    skipped, other text is invalid; at the end the bracket closes. */
@@ -2379,6 +2394,9 @@ static sxml_status sxml_json_write_next_child(sxml_json_writer *writer) {
             status = sxml_json_write(writer, SXML_BYTE_VIEW_FROM_LITERAL(","));
         }
         frame->has_written_member = true;
+        if (status == SXML_STATUS_OK) {
+            status = sxml_json_write_line_break(writer, writer->frames.element_count);
+        }
         if (status != SXML_STATUS_OK) {
             return status;
         }
@@ -2390,8 +2408,15 @@ static sxml_status sxml_json_write_next_child(sxml_json_writer *writer) {
                                                            : SXML_JSON_ELEMENT_PLACE_IN_ARRAY});
     }
     const bool is_map = frame->is_map;
+    const bool has_written_member = frame->has_written_member;
     sxml_json_key_index_restore(&writer->key_index, frame->key_mark);
     writer->frames.element_count -= 1;
+    const sxml_status status =
+        has_written_member ? sxml_json_write_line_break(writer, writer->frames.element_count)
+                           : SXML_STATUS_OK;
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
     return sxml_json_write(writer, is_map ? SXML_BYTE_VIEW_FROM_LITERAL("}")
                                           : SXML_BYTE_VIEW_FROM_LITERAL("]"));
 }
