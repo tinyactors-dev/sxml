@@ -10364,6 +10364,106 @@ stay the one source of the lexical rules; D222's segments are kept.
   character data or attribute token still passes the lexer a character
   at a time.
 
+### D233. Incremental bytes: the byte reader and the text window (packet 7.6f)
+Recorded 2026-10-20, after D12, D99, D219, D222, D228, D231, D232.
+Replaces D222's "not bounded yet: the decoded text" for documents read
+through a byte reader, and D231's "bytes delivered incrementally to the
+parser" (its planned interface, made as planned). perf-3's grammar and
+token shape (D232) are unchanged.
+- **Header** (`processor.h`, additive, the rule of D99 for stable
+  headers): `sxml_byte_reader` (glossary `byte_reader`), whose read
+  operation fills the front of a buffer sxml lends and says whether the
+  input ends there (`sxml_byte_reading`), the form
+  SXML_RESOURCE_FORM_BYTE_READER of SXML_RESOURCE_KIND_XML_DOCUMENT, and
+  the field `sxml_resource.byte_reader`, borrowed until release (as for
+  BYTES). A failed read is SXML_STATUS_INPUT_OUTPUT_FAILED: FODC0002 for
+  fn:doc and for a streamed document. Only a streamed document
+  (xsl:source-document streamable="yes", a streamed principal source,
+  D219, D228) is parsed as its bytes arrive; fn:doc and the other uses
+  read the reader whole first (its tree holds the document anyway). Other
+  kinds keep BYTES (a reader there is a form the kind does not allow).
+  Rejected: a reader in `sxml_xml_parse_request` (`xml.h`, a second way to
+  give input to every parse; the incremental parse request, internal,
+  takes it instead), and a pull of the next bytes into memory the reader
+  owns (the parser would copy anyway, and the lent buffer keeps the
+  reader free of allocation).
+- **The text window** (new `src/xml_input.c`, glossary `text_window`):
+  the part of a document's decoded UTF-8 text the parser holds. The
+  input, given whole or through a reader, is decoded a part at a time
+  (at least 32 KB, and at least as much again as the window holds, so
+  scans that find no cut stay linear) as the head and the content
+  segments need it (D222); before a segment is cut, the text before it
+  is given up when as much goes as stays. A part ends at a character
+  boundary of the input: a UTF-8 sequence or a UTF-16 unit or surrogate
+  pair not complete waits for the next read (XML 1.0, 4.3.3; RFC 2781),
+  and in XML 1.1 a last CR waits for the character after it (CR NEL is
+  one line end, a CR before LINE SEPARATOR stays one, 2.11). Each part is
+  checked as the whole text was: U+0000 ([2] Char), the restricted
+  characters of XML 1.1 ([2a]); NEL and LINE SEPARATOR translated. The
+  encoding is detected from the first bytes, read up to the first '>'
+  (Appendix F), and the XML declaration's version from the first part. A
+  whole input in UTF-8 or US-ASCII without XML 1.1 line ends to translate
+  stays its own text, checked at once and not copied, as before; UTF-16
+  and ISO-8859-1 input given whole is now decoded a window at a time too
+  (D222 kept a whole UTF-8 copy). The position tracker reads the window
+  and keeps a floor (the start of the text it still holds, with its line
+  and column), and the names of the open elements, which the start tags
+  before a segment repeat, are copied rather than viewed.
+- **Behaviour**: a decoding error of a UTF-16 or ISO-8859-1 input, or of
+  any input read through a reader, is found when its part is decoded,
+  so the events of the content before it come first (as D222 made it
+  for syntax errors); its location is the same. Documents stay below
+  4 GB (D222).
+- **CLI**: the file reader (`apps/cli_framework/cli_command.h`) has two
+  optional operations, open_file and close_file, a file read a part at a
+  time through a byte reader (the platform's over ISO C stdio); the
+  resolver of the query and transform commands delivers XML documents
+  that way (standard input stays read whole). No command or flag
+  changes.
+- **JavaScript**: the host keeps delivering BYTES (the table resolver);
+  nothing changes there.
+- **Measured** (release, `sxml transform`, a generated 95.6 MB document
+  of 904,745 records, peak resident set, outputs byte-identical): the
+  streamed identity (on-no-match shallow-copy) 133.9 MB before, 11.0 MB
+  after (29 s either way); a for-each over the hot records under "/"
+  134.5 MB to 11.0 MB; the same document in UTF-16 (191 MB) 11.0 MB; a
+  974 MB document 10.9 MB for the for-each (103 s), so the gate's "1 GB
+  under 64 MB" holds for the process (the identity of 974 MB stops at the
+  CLI's default evaluation step limit, at 11.0 MB). Unit tests
+  (`tests/xml_test.c`): every way of reading (whole, incremental, through
+  a reader giving 1 to 97 bytes at a time) gives the same events,
+  locations and failure positions in UTF-8 with and without a byte order
+  mark, UTF-16 LE and BE, ISO-8859-1 and XML 1.1 with NEL, CR NEL and LINE
+  SEPARATOR; 3.9 MB (UTF-16) and 2 MB read through a reader take 273 KB
+  and 141 KB of parser memory (test limit 512 KB). XT40 and QT4 XQ40
+  (release, whole suites, case by case): no outcome changes (XT40 11,918
+  passed, XQ40 45,914); xmlconf unchanged.
+- **Not done** (packet 7.6f's other items): xsl:merge with streamed
+  inputs and capture="yes" end rules while streaming, below and in the
+  task file; both need new IR (a MERGE form, a capture function among
+  `sxml_ir_stream_accumulators`) and a new evaluator part, in
+  `src/ir_internal.h`, `src/ir.c`, `src/ir_verify.c`,
+  `src/evaluator.c` and `src/evaluator_machine_internal.h`, which packet
+  4.21 holds uncommitted.
+  - *xsl:merge with streamed inputs* (15.3, 15.4, 18.2): a part MERGE
+    over one cursor per anchor document of each streamable merge
+    source: an open streamed document (D219) and the source's select,
+    a striding downward path, advanced to its next selected node, which
+    is grounded in a full window; the cursor keeps that item and its
+    merge keys (computed by the source's key functions in the item's
+    focus). Each step takes the smallest current key in merge-key order
+    (the comparison of the sort, source order breaking ties), gathers
+    the current items of every cursor equal to it, binds the group as
+    the grounded merge does (current-merge-group, -key, the source
+    names), runs the merge-action and advances the cursors it took.
+    XTDE2220 when a cursor's next key is smaller than its last. Memory:
+    the depth of each document and one window per cursor.
+  - *capture="yes"* (19.9): a fifth function capture-K($node) that says
+    at an element's start whether an end rule with capture="yes"
+    matches it; the stream builder then tees the element's events into
+    a full window, nested captures on a stack, and end-K reads that
+    window instead of the shallow one. Memory: the captured subtrees.
+
 ## Proposed
 
 - **The CLI's WebAssembly budget after the Phase 7 features** (packet

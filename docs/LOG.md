@@ -4,6 +4,17 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 7.6f (a) done (D233): incremental bytes. A byte reader resource form
+  (`processor.h`, additive): a streamed document is decoded and parsed
+  as its bytes arrive through a text window (`src/xml_input.c`: UTF-8,
+  UTF-16, ISO-8859-1, XML 1.1 line ends, a part at a time, the text
+  before the current segment given up); the CLI's resolver delivers
+  files so. `sxml transform` on 95.6 MB, peak resident: streamed
+  identity 133.9 MB to 11.0 MB, for-each 134.5 MB to 11.0 MB; 974 MB in
+  10.9 MB. XT40 11,918 and XQ40 45,914 passed, unchanged case by case.
+  Left: xsl:merge with streamed inputs and capture="yes" end rules (both
+  need IR and evaluator files 4.21 holds; designs in D233).
+
 - perf-3 done (D232): XML parsing speed within D12. The profile showed
   tree-sitter's cost per token and node, so the grammar makes fewer:
   '<a>', '<a/>', '</a>' and attributes without references are single

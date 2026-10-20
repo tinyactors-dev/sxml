@@ -450,6 +450,19 @@ part 1.2 KB of the core module.
     xsl:merge with streamed inputs (a new evaluator part) and (d), whose
     parser change waits for `src/xml.c`, `src/xml_segment.c` and
     `src/xml_encoding.c` (perf-3); the design is in D231.
+- **7.6f The last streaming items** (after 7.6e and perf-3; D233): (a)
+  incremental bytes as D231 designed them: the additive resource form
+  SXML_RESOURCE_FORM_BYTE_READER in `processor.h`, the incremental parse
+  decoding its input a window at a time (UTF-16 and ISO-8859-1 too), the
+  CLI's resolver delivering files that way, peak resident memory of
+  `sxml transform` on a streamed identity before and after, the
+  JavaScript host unchanged; (b) xsl:merge with streamed inputs, a new
+  evaluator part reading several documents in step; (c) capture="yes"
+  end rules while streaming, if cheap.
+  - Owns: new `src/xml_input.c`; `src/xml.c`, `src/xml_encoding.c`,
+    `src/xml_internal.h`, `include/sxml/processor.h` (the form),
+    `src/processor.c`, `src/evaluator_stream.c`, `tests/xml_test.c`,
+    the CLI's file reader and resolver.
 - **Header**: possibly `xslt.h`, additive: a streamed principal source
   given as bytes or a parser, with a record. The resolver's BYTES form
   already serves xsl:source-document.
