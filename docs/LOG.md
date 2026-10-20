@@ -4,6 +4,14 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- book-3 done (D282): Chapter 12 of the book, "Project: Generating Code
+  from a Schema", four sections. An XSD schema and an API description
+  (validated with sxml validate) become TypeScript types with runtime
+  checks from the facets, a fetch client and a Node.js handler (XQuery
+  string constructors, fn:put), and an OpenAPI 3.1 document (XSLT);
+  the generated code runs with Node.js, and a diff shows whether the
+  kept files are current. 30 examples, all match. No library change.
+
 - 5.16 done (D278): schema location hints. schema.h gains
   `sxml_schema_configuration.schema_location_hint_node` (additive):
   an instance's xsi:schemaLocation and xsi:noNamespaceSchemaLocation

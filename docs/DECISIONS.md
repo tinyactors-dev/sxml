@@ -12919,6 +12919,46 @@ a6ec5ad, 4c7a872, 368f0e0, eb27ee8.
   (D276, an evaluator operation, no suite case).
 - The XT40 section of `docs/CONFORMANCE.md` was not regenerated.
 
+### D282. The book's code-generation project (packet book-3)
+Recorded 2026-10-20, after D257 and D270. The owner asked for a
+chapter on using XQuery, XSD and XSLT for code generation, such as RPC
+between the browser and the backend in the manner of SvelteKit's
+remote functions.
+- **Place.** A new top-level Chapter 12, "Project: Generating Code
+  from a Schema", after Performance and before the appendices, so the
+  numbers of Chapters 1 to 11 (cited elsewhere in the book) hold. Four
+  sections: `codegen.md` (the sources and their validation),
+  `codegen-typescript.md`, `codegen-running.md`, `codegen-pipeline.md`;
+  examples in `docs/book/examples/codegen`. One sentence links to it
+  from the XQuery, XSLT and XSD parts and the introduction; the book's
+  glossary gains "Remote function" and "String constructor".
+- **The example.** `library.xsd` (simple types with pattern, maxLength,
+  enumeration and range facets; complex types read as JSON objects:
+  minOccurs="0" is optional, maxOccurs="unbounded" an array) and
+  `api.xml` (queries and commands), checked by `api.xsd` with
+  `sxml validate`. `typescript.xqm` writes TypeScript with string
+  constructors (types and checks, a fetch client, a Node.js handler)
+  over a hand-written `runtime.ts`; `generate.xq` stores the files with
+  `fn:put` and the text method; `openapi.xsl` writes OpenAPI 3.1 with
+  template rules and `xsl:map`. Unknown facets and unknown type names
+  are errors of the generators, not silently dropped. The generated
+  files are kept in `generated/`, and the book's `diff -r` against a
+  fresh run is the "in sync" check, so the book check also keeps them
+  current: regenerate them (`sh generate.sh` in that directory) when
+  the generator, the schema or the CLI's output changes.
+- **Running the code.** `codegen-running.md` runs `node demo.ts`
+  (Node.js 22.18 or later strips the types; the generated code uses
+  only erasable syntax). It is marked `<!-- requires: javascript -->`,
+  so the check runs it only with SXML_JAVASCRIPT set, where Node.js is
+  known to be present; the package link it makes is unused.
+- **Finding for later** (QUEUE, not fixed here): a syntax error inside
+  an enclosed expression of a string constructor (`` `{ ... }` ``) is
+  reported at line 1, column 1 of the module instead of its own place.
+- **Verified**: tools/check-book-examples.sh on a release build of a
+  HEAD snapshot with SXML_JAVASCRIPT set: all 30 examples of the four
+  files match; `mdbook build` succeeds; the generated TypeScript
+  type-checks with `tsc --strict`.
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): tagging and
