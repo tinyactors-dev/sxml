@@ -31,7 +31,8 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 
 
 - 4.29: XSLT sweep (D276's open list).
-- 2.26: XPath/XQuery sweep (D275's open list).
+- 2.27: XPath/XQuery sweep (D280's open list; XInclude for fn:doc, CJK
+  numerals in format-integer).
 - 5.16: schema location hints (xsi:schemaLocation in the library, fn:xsd-validator
   and `sxml validate`); xlink.xsd vendored for the 92 introspection tests.
 
@@ -76,6 +77,14 @@ does not (6.12 to compare).
 Swift (6.7/6.8 done, D241, D248): 55 tests on Linux; the bundled DUCET is a
 copy of third_party/unicode-collation/allkeys.txt that must be updated with
 it.
+
+XPath and XQuery (2.26, D280): XP40 32,797 -> 32,809 (31 failed), XQ40
+46,101 -> 46,138 (90 failed). A resolver may answer a module import with
+a SEQUENCE of locations (processor.h, xquery.h contract widened). D197
+stands (xs:numeric under 1.0 compatibility: the draft limits fn:number
+conversion to xs:double). Left: xqhof18/19 (run-time function-lookup
+items' static context), eqname-007, modules-43. Cheap not-run features:
+fn:doc use-xsi-schema-location (to 5.16), CJK numerals, XInclude.
 
 XPath and XQuery (2.25, D275): XP40 32,793 -> 32,797, XQ40 46,070 ->
 46,101 passed (107 failed); XT40 +13 (`//` lowering, inline functions read
