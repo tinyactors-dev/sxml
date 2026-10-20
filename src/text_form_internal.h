@@ -1,7 +1,7 @@
 #pragma once
 
 /*
- * The text form writer (glossary `text_form_writer`; D246): what the text
+ * The text form writer (glossary `text_form_writer`; D249): what the text
  * forms of the IR, the XSLT AST, the schema components and the content
  * models (src/ir.c, src/xslt_ast.c, src/schema_text.c,
  * src/schema_content_model.c) write through. It writes into caller memory

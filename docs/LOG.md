@@ -4,6 +4,19 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 7.20 done (D249): a sweep of 7.11's open cases and the larger
+  duplicates. XT40 11,945 to 11,951 passed (transform-009 and five
+  result-document cases: the driver now checks assert-serialization
+  inside assert-result-document); XP40, XQ40 and XSD unchanged case for
+  case; 0 errors. transform-004 cannot pass under D71 (a static
+  fn:transform would re-enter the compiler); transform-401 waits for
+  4.22's "~T" patterns (D245). Merged: one decoder with an error rule
+  (XML, text decoding, HTML), Full Text through the feature data path,
+  `sxml_allocator_reserve_array`, the schema reader's boolean and digits
+  through the cast engine, Gregorian cycle days in `calendar.c`, compile
+  reports built in one place, one text form writer, the serialization
+  heapsorts as `sxml_sort_in_place`. `sxml.wasm` 2,089,167 (guard +345).
+
 - 6.8 done (D248): the Swift full surface. Module `Sxml` gains
   `compileQuery` (`XQuery`, `UpdateSink`, `UpdatedTree`, `PutDocument`,
   `Message`), `compileStylesheet` (`Stylesheet.transform`, `InitialMode`,

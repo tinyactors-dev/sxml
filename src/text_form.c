@@ -1,5 +1,5 @@
 /*
- * The text form writer (src/text_form_internal.h; D246): the bounded
+ * The text form writer (src/text_form_internal.h; D249): the bounded
  * writer the four text forms each had a copy of (D182).
  *
  * Golden file: src/ir.c (its text_writer, where the code began).

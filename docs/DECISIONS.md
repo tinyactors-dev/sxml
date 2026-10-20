@@ -11211,6 +11211,108 @@ full-module entry points. No C changed.
   `Sxml` links the XCFramework, and the resource still comes from the
   Sxml target.
 
+### D249. 7.11's open cases; one decoder, one feature data path, one array helper, one text form writer (packet 7.20)
+Recorded 2026-10-20, after D29, D71, D169, D182, D185, D189, D203, D225,
+D237, D245. Verified as D181 asks: debug and debug-gcc build with
+`-Werror`, the touched unit and CLI tests pass, clang-tidy is clean on the
+changed files, `tools/check-call-cycles.py` finds no cycle (230 files),
+and XT40, XP40, XQ40 and XSD were run whole with the release drivers
+before (6e1a371) and after, case by case.
+- **7.11's XT40 cases**: 10 of 12 pass now; the gate stays open, for
+  these reasons:
+  - transform-009 passes. The XT40 driver did not check
+    assert-serialization inside assert-result-document. A serialized test
+    case now collects its result documents serialized (the collector's
+    SERIALIZED delivery), and assert-serialization and
+    serialization-matches inside assert-result-document compare those
+    bytes. Five more pass for the same reason: result-document-0201,
+    -0212, -0285, -0286 and -0287.
+  - transform-004 cannot pass while D71 holds. A static variable calls
+    fn:transform, so compiling the outer stylesheet would compile and
+    run the inner one from inside the outer compiler's static
+    evaluation: compiler, evaluator, fn:transform, compiler again,
+    without bound. That is the recursion D71 forbids. The run part
+    already goes through the machine (EVALUATE_UNIT, D203). The compile
+    part would need a compiler that the machine can suspend, a stack of
+    compilations, which is a design change of the XSLT compiler. Until
+    then a static fn:transform raises FOXT0004 (D203).
+  - transform-401 fails only on its pattern `~record(x, y)`, the "~T"
+    type pattern of the newer draft that D29 and D185 left out. Checked:
+    with the 13 October 2026 draft's equivalent, `map{'x', 'y'}`, the
+    case gives `<out><in>3</in></out>` as expected. D245 (owner) now
+    targets the newest draft, and packet 4.22 brings its type patterns,
+    so 4.22 closes this case. No pattern change is made here.
+- **One decoder** (glossary `decoding_error_rule`):
+  `sxml_xml_decoder_next` in `src/xml_internal.h` decodes UTF-8, UTF-16
+  in either byte order, ISO-8859-1 and US-ASCII, one codepoint a step.
+  Its error rule is FAIL (the XML parser's transcoding; text decoding
+  without fallback) or REPLACE (one U+FFFD per maximal subpart, Unicode
+  16.0, 3.9.6; Encoding Standard 8.1.1 and 14.2: text decoding with
+  fallback and the HTML input stream). A high surrogate cut short by the
+  end takes the rest with it, so WHATWG's single error stays single.
+  Removed: text_decoding's own decoders and `sxml_text_encoding` (it is
+  `sxml_xml_encoding` now); html_encoding's UTF-8 and UTF-16 decoders and
+  its UTF-8 check (`sxml_utf8_validate`). One change in behaviour:
+  fn:unparsed-text with fallback replaces a malformed sequence by one
+  U+FFFD instead of one for each byte. Unicode recommends this, and no
+  test case depends on it.
+- **Full Text through the feature data path** (D189):
+  `sxml_feature_data_request` gains `base_uri`. The reader gains an
+  optional `read_document` for the DOCUMENT_NODE form (a thesaurus). The
+  loader's retrieval request gains `asks_unresolved` (an empty URI is
+  not resolved; the resolver is also asked for a relative URI with no
+  base, absolute_uri empty) and `accepts_document_node`. The public
+  resource contract is unchanged. `src/full_text_resource.c` holds only
+  the stop word and thesaurus readers now. Lost: a thesaurus delivered as
+  bytes is parsed without the resolver's resource URI and encoding name.
+  It needs neither.
+- **One array helper** (glossary `growable_array`):
+  `sxml_allocator_reserve_array` in `src/memory_internal.h`, beside
+  `sxml_allocator_allocate_array`. It doubles from a minimum, zeroes new
+  memory, and leaves the array unchanged on failure. Users:
+  `collation_tailoring`, `function_library_element_map`, `cldr` (entries
+  and its byte text), `collation_uca`, the document loader, and the XML
+  buffer and array (`xml_entity`). `sxml_uca_allocate_array`, a copy of
+  `sxml_allocator_allocate_array`, is gone.
+- **D182's cheap ones**:
+  - The schema reader's xs:boolean and nonNegativeInteger read through
+    the cast engine's lexical mapping (`sxml_lexical_read_boolean`,
+    `sxml_lexical_read_digits` in `src/cast_internal.h`).
+  - Gregorian day arithmetic: `src/calendar.c` adds cycle days
+    (`sxml_calendar_cycle_day_of`, `sxml_calendar_date_in_cycle`). The day
+    numbers are made from them. `operator_temporal.c` counts in them, so
+    no int64 year overflows. `cast_facet.c` and the processor's clock use
+    the calendar, and the processor's own leap-year and civil-date copies
+    are gone.
+  - Compile reports: `sxml_schema_report_request` gives `subject` or
+    `subject_name` in place of a prebuilt `detailed_description`.
+    `sxml_schema_compilation_report` alone writes "description: subject"
+    (a name as Q{uri}local). The reader, resolver, assembler and content
+    model stop building it, and the content model's 256-byte text is
+    gone. The XPath assertion's diagnostic is now its subject.
+  - Text forms: `src/text_form.c` (glossary `text_form_writer`) is the
+    one bounded writer under the IR, XSLT AST, schema and content-model
+    text forms.
+  - The three serialization heapsorts are `sxml_sort_in_place`. The
+    canonical attribute order keeps the first key-lookup failure in its
+    sort state.
+- **Counts** (release, whole suites): XT40 11,945 to 11,951 passed (130
+  wrong errors both times), none lost, 0 errors; XP40 32,655 and XQ40
+  45,914, the same case for case; XSD 41,486, unchanged.
+- **Sizes**: `sxml.wasm` 2,089,167 stripped, 730,367 gzipped (6.2's
+  2,091,192), and the D225 guard reports +345 bytes since its baseline.
+  `sxml-full.wasm` is 7,630,816 (7,637,765), and the CLI 9,223,672. All
+  are within the budgets.
+- **Left** (not cheap here):
+  - transform-004 (D71, above) and transform-401 (4.22);
+  - XSLT's yes/no reader beside xs:boolean (another lexical space);
+  - `sxml_text_encode_codepoint`'s UTF-8 beside
+    `sxml_xml_buffer_append_codepoint`;
+  - cldr's `byte_text`, which could be an `sxml_xml_buffer`;
+  - the other private growers that `grep grow` finds (about 30, many
+    with their own minimums or index tables), which can move to
+    `sxml_allocator_reserve_array` one at a time.
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): the license (there is

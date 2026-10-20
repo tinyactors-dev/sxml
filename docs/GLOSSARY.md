@@ -138,6 +138,7 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `partial_application` | A function call with argument placeholders, giving a function item (XPath 4.0, section 4.5.2.5) |
 | `keyword_argument` | An argument given as `name := value` (XPath 4.0, section 4.5.1.1) |
 | `text_form` | The printed form of a unit, for golden tests and debugging |
+| `text_form_writer` | The bounded writer every text form writes through: it writes into caller memory what fits and counts every byte, so a caller can ask for the size first (`sxml_text_form_writer`; D249) |
 | `seal` | End the building of a unit: nothing in it moves afterwards |
 | `evaluator` | Walks the IR of a sealed unit and computes values |
 | `document_loader` | Internal interface through which fn:doc and fn:parse-xml obtain document nodes; the processor implements it |
@@ -499,6 +500,7 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `byte_order_mark` | U+FEFF at the start of a document, which identifies UTF-8 or the byte order of UTF-16 (XML 1.0, Appendix F) |
 | `transcoding` | Converting a document from its character encoding into UTF-8 before parsing |
 | `text_decoding` | Turning the octets of a text resource or a binary value into a string: the effective encoding and start offset chosen from a byte order mark and an encoding candidate, then the characters (`sxml_text_decode`; F&O 4.0, 17.1.5; EXPath Binary 4.0, bin:infer-encoding) |
+| `decoding_error_rule` | What the one decoder of UTF-8, UTF-16, ISO-8859-1 and US-ASCII octets does with octets that do not decode: fail (the XML parser; text decoding without fallback), or replace each maximal subpart by one U+FFFD and go on (text decoding with fallback; the HTML input stream) (`sxml_xml_decoder`; Unicode 16.0, 3.9.6; D249) |
 | `binary_value` | An `xs:hexBinary` or `xs:base64Binary` item, a sequence of octets; the EXPath Binary functions accept both and return `xs:base64Binary` (EXPath Binary 4.0, 1.2) |
 | `line_end_normalization` | Turning CR LF and lone CR into LF in all text of a document (XML 1.0, section 2.11); in XML 1.1 also NEL, CR NEL and LINE SEPARATOR (XML 1.1, section 2.11) |
 | `xml_version` | The version of XML a document follows, 1.0 or 1.1, read from its XML declaration (`sxml_xml_version`; XML 1.1, section 4.3.4); it decides the characters allowed, the line ends and whether prefixes may be undeclared |
@@ -871,6 +873,7 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `suffix_state` | The content model state that suffix open content moves to once the content may end: it accepts only the open content wildcard |
 | `default_binding` | What an element or attribute is bound to when it is valid: a declaration, an attribute use, or strict, lax or skip; restriction compares them (XSD 1.1 Part 1, 3.4.6.4) |
 | `scratch_array` | A growable array of fixed-size entries in allocator memory for the work lists of a compile stage |
+| `growable_array` | An array in allocator memory that doubles its capacity when it must hold more, kept by its owner as elements, count and capacity and grown by the one helper `sxml_allocator_reserve_array` (D249) |
 | `recorded_subtree` | The validated copy of an element and its descendants that the schema validator keeps while the element is open, for the XPath of assertions and identity constraints |
 | `id_table` | The IDs and IDREFs a schema validator has met under one validation root, checked at its end (cvc-id) |
 | `assessment` | How the schema validator assesses one element or attribute: strictly, against a governing type; laxly, where nothing governs it (global declarations are used where they exist, validity not known); or skipped with its subtree (processContents skip) (XSD 1.1 Part 1, 5.2 and 3.10.1) |

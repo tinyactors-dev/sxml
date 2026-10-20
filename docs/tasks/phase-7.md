@@ -1008,6 +1008,30 @@ File's four-parameter functions and its clang-tidy findings, Full Text's
 copy of the XML buffer, two stale record citations; added the fuzz
 targets `ixml_fuzz` and `full_text_fuzz`.
 
+### 7.20 Sweep: 7.11's open cases and the larger duplicates (implementation)
+- **Cases**: XT40 transform-004 (a static fn:transform, FOXT0004),
+  transform-401 (a `~record` pattern), transform-009 (an assertion the
+  XT40 driver did not check). Close 7.11's gate, or record exactly why a
+  case cannot pass under the project's draft.
+- **Duplicates** (D237, D182): the three UTF-8 and UTF-16 decoders; Full
+  Text reading through the resolver itself; the private growable arrays;
+  the schema reader's boolean and integer parsers; Gregorian day
+  arithmetic; compile-report text; the text form writers; the
+  serialization heapsorts.
+- **Size**: the core stays under budget (the D225 guard).
+**Done** 2026-10-20 (D249): XT40 transform 10 of 12. transform-009
+passes, and so do five result-document cases: the driver checks
+assert-serialization inside assert-result-document on the serialized
+result document. transform-004 cannot pass while D71 holds: compiling a
+static fn:transform re-enters the compiler. transform-401 needs the
+newest draft's "~T" patterns: D245 targets that draft, and packet 4.22
+brings them. Merged: one decoder with an error rule, Full Text through
+`sxml_optional_feature_read_data`, `sxml_allocator_reserve_array`, the
+cast engine's boolean and digits, cycle days in `src/calendar.c`, compile
+reports built in one place, `src/text_form.c`, and `sxml_sort_in_place`
+for the serialization sorts. XT40 11,945 to 11,951 passed; XP40, XQ40
+and XSD unchanged; `sxml.wasm` 2,089,167 (guard +345).
+
 ## Bindings
 
 ### js-1 JavaScript bindings for XQuery, XSLT and XSD validation (implementation)
@@ -1318,7 +1342,10 @@ Reviewed by packet 7.19 (D237) on whole release runs at 9c5b1ba.
 - [ ] Each feature meets its packet's gate above under `release`: every
   one but two, see the table below. Not met: 7.11's "all 12 XT40
   `transform` cases" (9 pass, 2 fail, 1 not run: a static fn:transform,
-  a ~record pattern, an assertion the driver does not check; D203). Met
+  a ~record pattern, an assertion the driver does not check; D203; after
+  7.20, 10 pass: the static fn:transform needs a compiler that does not
+  re-enter itself (D71), the ~record pattern packet 4.22's newest-draft
+  patterns (D245); D249). Met
   as D208 reads it: 7.4's "all 5 QT4 cases" (1 passes; the other 4
   expect fn:number conversion of xs:numeric parameters, which XPath 4.0,
   3.4.1 gives only to xs:double, and D208 follows the specification).
@@ -1360,7 +1387,7 @@ Reviewed by packet 7.19 (D237) on whole release runs at 9c5b1ba.
 | 7.8 | ≥ 95 % of 673 | binary 673 of 674 (XQ40), bin-* 672 of 672 (XP40, XQ40) | met |
 | 7.9 | ≥ 90 % of 271 | expath-file 270 of 270 (XQ40), 267 of 267 (XP40) | met |
 | 7.10a, 7.10b | ≥ 95 % HtmlTestSuite; ≥ 90 % parse-html, html-doc | 1,378 of 1,379; 22 of 22; 9 of 10; html5lib 1,749 / 7,045 / 82 | met |
-| 7.11 | ≥ 80 % of 133; all 12 XT40 | fn-transform 130 of 137 (XQ40), 127 of 137 (XP40); XT40 transform 9 of 12 | not met (XT40) |
+| 7.11 | ≥ 80 % of 133; all 12 XT40 | fn-transform 130 of 137 (XQ40), 127 of 137 (XP40); XT40 transform 9 of 12, 10 after 7.20 (D249: 004 needs a resumable compiler under D71, 401 the "~T" patterns of 4.22) | not met (XT40) |
 | 7.12a–d | ≥ 75 % of 685 | ft-* 672 of 685 (98.1 %); XP40 unchanged | met |
 | 7.13 | ≥ 95 % of the xmlconf 1.1 cases; ≥ 90 % QT4 and XT40 | xmlconf 1.1 271 of 271 (valid 84, invalid 13, not-wf 169, error 5); QT4 300 + 1 of 313 (96.2 %); XT40 XML_1.1 62 of 65 run | met |
 | 7.14a–c | ≥ 95 % of the entity and invalid cases; ≥ 90 % QT4 and XT40 dtd | xmlconf entities 265 of 265, invalid 175 of 175, DTD validation 173 + 54 of 227; XT40 dtd 84 of 87 (96.6 %); QT4 infoset-dtd 33 of 34 | met |
