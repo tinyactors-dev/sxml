@@ -13083,6 +13083,90 @@ Code as XML"), then the grammars' own tests, then the implementation.
   assertion against the highlight attributes covering its line and
   column. `tree-sitter/suite` keeps a baseline that only goes up.
 
+### D286. XPath and XQuery sweep: XInclude, ideographic numerals, place static contexts (packet 2.27)
+Recorded 2026-10-20, after D97, D162, D199, D263, D273, D275, D280, D281.
+No public header changed; IR fields sxml_ir_step.is_xnode_type_test and
+sxml_ir_static_call.namespace_bindings; a name role
+SXML_XPATH_NAME_ROLE_CONSTRUCTED_ELEMENT. Verified as D181 asks: the
+debug preset (every unit and CLI test but evaluator_stream; the
+tree-sitter suite fails on 7.22's uncommitted baseline), clang-tidy on
+the changed files, the call-cycle check, and whole XP40, XQ40 and XT40
+runs with the release drivers, case by case.
+- **XInclude** (XInclude 1.0; F&O 4.0, 17.1.1, 17.2.1; glossary xinclude,
+  inclusion_fixup; D280's cheapest not-run feature):
+  src/function_library_xinclude.c copies a document into a new tree
+  with each xi:include replaced by the document fn:doc gives for its
+  href (resolved against the element's base URI: the loader's resolver,
+  trust and stability), by text read as fn:unparsed-text reads it
+  (parse="text", encoding), or by its xi:fallback's children after a
+  resource error. One loop over an explicit stack of sibling cursors
+  (D71); included documents are walked in the same loop; including a
+  document already open is an inclusion loop. Top elements of an
+  inclusion get xml:base (relative below the parent's directory) and
+  xml:lang where they differ. Fatal errors are FODC0002 (F&O names no
+  code), an include without trust-external FODC0016. Not supported:
+  xpointer (a resource error, so a fallback applies), accept and
+  accept-language (ignored). fn:doc, fn:doc-available and fn:parse-xml
+  process after loading; XSLT's fn:document shares the option through
+  sxml_function_library_read_document_options, so D273's FODC0013 is
+  gone there too (one hunk in 4.29's file). A document without the
+  XInclude namespace is returned as it is; with includes the result is
+  a new tree per call, as strip-space "all" gives (the draft's
+  doc(x, {xinclude}) is doc(x, {xinclude}) does not hold). supports-
+  xinclude is true; the QT4 driver lists xinclude-option, so
+  fn-system-properties-supports-xinclude-false is not run any more. The
+  CLI's fn:doc has it (xquery_xinclude tests); the book no longer says
+  XInclude is unsupported.
+- **Ideographic numerals** (F&O 4.0, 4.6.1, implementation-defined
+  sequences; glossary ideographic_numerals): the token U+4E00 numbers in
+  Japanese numerals, as format-integer-052 expects; xsl:number shares it.
+- **element() on JNodes** (XPath 4.0, 4.7.5.5; D281's item): element()
+  and schema-element() select no JNode, * every one; the step records
+  the form, as D280's has_qualified_name_test.
+- **Fixed default element namespace** (XQuery 4.0, 5.14.1, 5.11): fixed
+  for name tests and types; xmlns="" in direct constructors changes only
+  prefix 0, which constructed element names use (2.1.4).
+- **Namespaces of a call's place** (D263 extended to static calls): an
+  XQuery static call of a native row with USES_DYNAMIC_CONTEXT records
+  the statically known namespaces of its place, which the callee reads;
+  format-number's decimal format name in a direct constructor with
+  xmlns:ex (eqname-007, D275's and D280's open item).
+- **Smaller fixes**: XQST0034 for a declared function named as an
+  in-scope schema type's constructor (5.18); strip-space "all" keeps the
+  whitespace of elements XSD validation gives simple content (F&O 4.0,
+  17.2.1), with fn:doc validating before stripping and stripped copies
+  keeping types; fn:build-dateTime atomizes field values; collection
+  documents with a document URI are fn:doc's documents (17.1.3);
+  xml-to-json's top element may have escaped-key without key (17.4.7).
+- **Measured** (release drivers, whole runs; no case lost but the
+  supports-xinclude-false case, now not run): start at 6236ab6, XP40
+  32,809 passed (30 wrong error), 31 failed; XQ40 46,138 (44), 90. At
+  384040b, after the XInclude commits and 5.16's: XP40 32,814 (27
+  failed), XQ40 46,146 (86). At bc7a35e: XP40 32,815 (26 failed), XQ40
+  46,154 (78 failed); this packet's share XP40 +4, XQ40 +12. XT40 12,261
+  unchanged (at 384040b with and without the changes). CONFORMANCE.md
+  is not regenerated.
+- **Not done, with causes**: xqhof18 and xqhof19 (a function item that
+  fn:function-lookup makes for a context-dependent row at run time, and
+  fn:function-lookup#2 made in a library module, need a run-time closure
+  that carries a module number and the reference's focus: an evaluator
+  task bound to a module, medium); modules-43 (cyclic imports of named
+  item types: modules are analyzed one at a time in reading order, so a
+  module set needs a shared resolution round over all modules' types,
+  medium); function-decl-40-060 (PR 2941: a default value that does not
+  depend on the focus is computed once; it would become a hidden global
+  of the declaring module, small to medium); D281's record coercion
+  cases (record-003, -005, -016): the draft rejects surplus entries
+  (XPath 4.0, 3.4.2) and XDM 4.0, 8.3.2 makes a lookup of a non-field
+  an error, which the tests contradict; fn-string-length-26 expects the
+  string value of a validated element to be its text, where XDM 4.0,
+  7.5.2.4 says the schema normalized value; map-to-element-014,
+  serialize-xml-157 and serialize-csv-002/-003 fail in XP40 only,
+  because they use XQuery's character references in string literals;
+  xml-to-json-065 (escaped on a map, which the schema of F&O 4.0, D.2
+  does not allow); XSLT's fn:document still strips before it validates
+  (4.30's file); the kept groups of D280.
+
 ## Proposed
 
 - **More source code languages and a registration API** (D285, for the

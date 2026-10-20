@@ -97,6 +97,11 @@ not tagged yet, or into the next minor release.
   fn:parse-xml and XSLT's fn:document honour use-xsi-schema-location
   (it raised FODC0009 before), and `sxml validate --use-schema-location`
   follows each FILE's hints; `--schema` is then optional.
+- **XInclude** (D286): the xinclude option of fn:doc, fn:doc-available,
+  fn:parse-xml and XSLT's fn:document processes xi:include elements
+  (documents, text, fallbacks; with trust-external; xpointer is not
+  supported); it raised FODC0013 before. fn:format-integer and
+  xsl:number number with the Japanese ideographic numerals (U+4E00).
 - XSD conformance (`docs/CONFORMANCE.md`): the W3C XSD test suite in
   scope 99.9 %; schema-aware XQ40 81.5 %, schema-aware XT40 64.6 %.
 

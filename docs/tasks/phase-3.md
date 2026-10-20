@@ -440,3 +440,18 @@ limits, fn:op collations, XQST0134, adaptive INF/NaN, the driver's
 moduleImport and format-integer sequences; XP40 32,797 to 32,809
 passed, XQ40 46,101 to 46,138, none lost. Open: D280's "Not done"
 (xqhof18, eqname-007, modules-43).
+
+### 2.27 XPath and XQuery conformance sweep (implementation)
+After 2.26. The cheap not-run features of D280 (XInclude for fn:doc,
+with fn:document's option of D273 on the same mechanism; the CJK
+numerals of fn:format-integer), then fresh whole runs (XP40 31 failed,
+XQ40 90) with D280's open list (xqhof18/19, eqname-007, modules-43) and
+4.29's D281 items (element() on JNodes, record coercion). Verification
+as D181 says.
+**Done** 2026-10-20 (D286): XInclude, ideographic numerals, element()
+on JNodes, fixed default element namespaces, call-site namespaces
+(eqname-007), XQST0034 for schema constructors, strip-space after
+validation, build-dateTime from nodes, collection documents,
+xml-to-json's escaped-key; XP40 32,809 to 32,815 passed, XQ40 46,138 to
+46,154, XT40 unchanged, none lost. Open: D286's "Not done" (xqhof18/19,
+modules-43, function-decl-40-060, D281's record cases).

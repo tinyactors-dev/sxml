@@ -4,6 +4,21 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 2.27 done (D286): XPath/XQuery sweep. XInclude for fn:doc,
+  fn:doc-available, fn:parse-xml and fn:document (one loop with an
+  explicit stack, inclusion loops, xml:base and xml:lang fixup, text
+  includes, fallbacks; FODC0016 without trust-external; no xpointer);
+  the Japanese ideographic numerals (U+4E00) of fn:format-integer;
+  element() selects no JNode; fixed default element namespaces;
+  format-number's decimal format name with a constructor's namespaces
+  (eqname-007); XQST0034 for schema constructors; strip-space "all"
+  after validation; build-dateTime from nodes; collection documents
+  through fn:doc; xml-to-json's top escaped-key. XP40 32,809 to 32,815
+  passed (31 to 26 failed; this packet +4, 5.16 +2), XQ40 46,138 to
+  46,154 (90 to 78; this packet +12), XT40 12,261 unchanged, no case
+  lost. Left: xqhof18/19, modules-43, function-decl-40-060, D281's
+  record cases (the draft disagrees with the tests).
+
 - book-3 done (D282): Chapter 12 of the book, "Project: Generating Code
   from a Schema", four sections. An XSD schema and an API description
   (validated with sxml validate) become TypeScript types with runtime
