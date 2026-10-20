@@ -5,7 +5,10 @@
  * errors of the Invisible XML Specification, marks, renaming and
  * insertions ("Constructing XML"), ambiguity and failure ("Parsing"), the
  * dynamic errors D02 to D07, long inputs (no recursion, D71), and an
- * allocation-failure loop (D23). Every case checks for leaks.
+ * allocation-failure loop (D23). Every case checks for leaks. Packet 7.21
+ * (D283): the lookahead's and Leo items' parses and failures, work in
+ * proportion to the input under a step bound, and error descriptions
+ * that say what and where.
  *
  * Golden file: tests/html_test.c.
  */
@@ -47,6 +50,8 @@ typedef struct ixml_fixture {
 typedef struct ixml_fixture_options {
     bool has_feature;
     uint64_t failing_number;
+    /* The processor's maximum_evaluation_step_count; 0 for the default. */
+    uint64_t maximum_step_count;
 } ixml_fixture_options;
 
 static sxml_status ixml_fixture_create(ixml_fixture *fixture, ixml_fixture_options options) {
@@ -62,6 +67,7 @@ static sxml_status ixml_fixture_create(ixml_fixture *fixture, ixml_fixture_optio
         allocator,
         &(sxml_processor_configuration){
             .allocator = allocator,
+            .limits = {.maximum_evaluation_step_count = options.maximum_step_count},
             .optional_features = {.optional_features = &feature,
                                   .optional_feature_count = options.has_feature ? 1U : 0U}},
         &fixture->processor);
@@ -238,6 +244,33 @@ static const expression_case expression_cases[] = {
                      "300)!'a')))",
                      "300"),
     /* The options (F&O 4.0, 1.7). */
+    /* Lookahead and Leo items (D283): the terminals a failure expected,
+       though the next character rules them out, once each, in code-point
+       order; a quote in single quotes. */
+    EXPRESSION_VALUE("invisible-xml(\"s: 'a', 'c'; 'a', 'b'; 'a', ('c'; 'b').\")('ad')/*/"
+                     "expected/string()",
+                     "\"\"\"b\"\"\" \"\"\"c\"\"\""),
+    EXPRESSION_VALUE("invisible-xml(\"s: 'a', 'b'?, 'c'.\")('ab')/*/(end-of-input!'end', "
+                     "expected/string())",
+                     "\"end\" \"\"\"c\"\"\""),
+    EXPRESSION_VALUE("invisible-xml('s: ''\"''.')('x')/*/expected/string()", "\"'\"\"'\""),
+    /* Right recursion through Leo items: the elements of each level, in
+       order; and an ambiguous right recursion. */
+    EXPRESSION_VALUE("invisible-xml(\"list: item, (-',', list)?. item: ['0'-'9']+.\")('1,22,3')",
+                     "<list><item>1</item><list><item>22</item><list><item>3</item></list>"
+                     "</list></list>"),
+    EXPRESSION_VALUE("invisible-xml(\"s: 'a', s; 'a', t; . t: 'a', s; .\")('aaa')/*/@*:state/"
+                     "string()",
+                     "\"ambiguous\""),
+    EXPRESSION_VALUE("invisible-xml(\"s: 'a', s; 'b', s; .\")('abba')", "<s>a<s>b<s>b<s>a<s/></s>"
+                     "</s></s></s>"),
+    /* Hidden one-terminal rules and groups written out where they are
+       used (D283) make the same XML. */
+    EXPRESSION_VALUE("invisible-xml(\"s: (d; -' ')+, (+'!'; '?')?. -d: ['0'-'9']. @n: d.\")"
+                     "('1 2?')",
+                     "<s>12?</s>"),
+    EXPRESSION_VALUE("invisible-xml(\"s: ('a', ('b'; 'c'))+, @e?. @e: 'e'.\")('abace')",
+                     "<s e=\"e\">abac</s>"),
     EXPRESSION_ERROR("invisible-xml(\"s: 'a'.\", {'fail-on-error': 'maybe'})", "XPTY0004"),
     EXPRESSION_VALUE("system-properties()?(#supports-invisible-xml)", "true()"),
 };
@@ -246,7 +279,8 @@ static void test_function_parses(sxml_test_state *state) {
     ixml_fixture fixture;
     SXML_TEST_REQUIRE(state, ixml_fixture_create(&fixture, (ixml_fixture_options){
                                                                .has_feature = true,
-                                                               .failing_number = 0}) ==
+                                                               .failing_number = 0,
+                                                               .maximum_step_count = 0}) ==
                                  SXML_STATUS_OK);
     for (size_t case_index = 0; case_index < SXML_TEST_COUNT(expression_cases); case_index += 1) {
         const expression_case *expression = &expression_cases[case_index];
@@ -270,7 +304,8 @@ static void test_function_is_absent_without_the_feature(sxml_test_state *state) 
     ixml_fixture fixture;
     SXML_TEST_REQUIRE(state, ixml_fixture_create(&fixture, (ixml_fixture_options){
                                                                .has_feature = false,
-                                                               .failing_number = 0}) ==
+                                                               .failing_number = 0,
+                                                               .maximum_step_count = 0}) ==
                                  SXML_STATUS_OK);
     SXML_TEST_EXPECT(state, run_expression(&fixture, TEXT("invisible-xml()")) != SXML_STATUS_OK);
     SXML_TEST_EXPECT(state,
@@ -339,7 +374,8 @@ static void test_function_survives_every_allocation_failure(sxml_test_state *sta
         ixml_fixture fixture;
         status = ixml_fixture_create(&fixture, (ixml_fixture_options){
                                                    .has_feature = true,
-                                                   .failing_number = failing_number});
+                                                   .failing_number = failing_number,
+                                                   .maximum_step_count = 0});
         if (status == SXML_STATUS_OK) {
             status = run_expression(
                 &fixture, TEXT("invisible-xml(\"s: a++',', @n. a: ['a'-'z']+. @n: +'1'.\")('ab,c'),"
@@ -356,7 +392,89 @@ static void test_function_survives_every_allocation_failure(sxml_test_state *sta
     SXML_TEST_EXPECT(state, status == SXML_STATUS_OK);
 }
 
+/* Linear grammars take steps in proportion to the input (D283): 100,000
+   characters of right recursion, left recursion and nesting each parse
+   within 4,000,000 steps, where right recursion without Leo items would
+   take some 5 x 10^9. */
+static void test_linear_grammars_take_few_steps(sxml_test_state *state) {
+    ixml_fixture fixture;
+    SXML_TEST_REQUIRE(state, ixml_fixture_create(&fixture, (ixml_fixture_options){
+                                                               .has_feature = true,
+                                                               .failing_number = 0,
+                                                               .maximum_step_count = 4000000}) ==
+                                 SXML_STATUS_OK);
+    static const expression_case linear_cases[] = {
+        EXPRESSION_VALUE("string-length(invisible-xml(\"s: r. -r: 'a', r; .\")(string-join((1 "
+                         "to 100000)!'a')))",
+                         "100000"),
+        EXPRESSION_VALUE("count(invisible-xml(\"s: n, r?. -r: -',', n, r?. n: ['0'-'9']+.\")("
+                         "string-join(1 to 20000, ','))//n)",
+                         "20000"),
+        EXPRESSION_VALUE("string-length(invisible-xml(\"s: 'a'*.\")(string-join((1 to 100000)!'a'"
+                         ")))",
+                         "100000"),
+        EXPRESSION_VALUE("count(invisible-xml(\"n: -'(', n?, -')'.\")(string-join(((1 to 50000)!"
+                         "'(', (1 to 50000)!')')))//n)",
+                         "50000"),
+    };
+    for (size_t case_index = 0; case_index < SXML_TEST_COUNT(linear_cases); case_index += 1) {
+        SXML_TEST_EXPECT(state, run_expression(&fixture, linear_cases[case_index].expression_text) ==
+                                    SXML_STATUS_OK);
+        SXML_TEST_EXPECT(state, sxml_byte_view_equals(
+                                    sxml_output_buffer_get_bytes(fixture.output_buffer),
+                                    linear_cases[case_index].output));
+    }
+    SXML_TEST_EXPECT(state, ixml_fixture_destroy(&fixture));
+}
+
+/* Error descriptions say what is wrong and where (D283). */
+typedef struct description_case {
+    sxml_byte_view expression_text;
+    sxml_byte_view description;
+} description_case;
+
+#define DESCRIPTION_CASE(text, description_text)                                                  \
+    {.expression_text = SXML_BYTE_VIEW_INITIALIZER(text),                                         \
+     .description = SXML_BYTE_VIEW_INITIALIZER(description_text)}
+
+static void test_errors_say_what_and_where(sxml_test_state *state) {
+    ixml_fixture fixture;
+    SXML_TEST_REQUIRE(state, ixml_fixture_create(&fixture, (ixml_fixture_options){
+                                                               .has_feature = true,
+                                                               .failing_number = 0,
+                                                               .maximum_step_count = 0}) ==
+                                 SXML_STATUS_OK);
+    static const description_case description_cases[] = {
+        DESCRIPTION_CASE("invisible-xml(\"s: 'a',\n t 'b'.\")",
+                         "The grammar does not match the ixml grammar at line 2, column 4, at "
+                         "\"'\" (F&O 4.0, fn:invisible-xml)"),
+        DESCRIPTION_CASE("invisible-xml(\"s: 'a'\")",
+                         "The grammar does not match the ixml grammar at line 1, column 7, at the "
+                         "end of the grammar (F&O 4.0, fn:invisible-xml)"),
+        DESCRIPTION_CASE("invisible-xml(\"s: t. u: 'a'.\")",
+                         "iXML S02: the grammar uses the nonterminal t, which no rule defines"),
+        DESCRIPTION_CASE("invisible-xml(\"s: 'a'. t: 'b'. s: 'c'.\")",
+                         "iXML S03: the grammar has more than one rule for s"),
+        DESCRIPTION_CASE("invisible-xml(\"s: @a, @a. a: 'x'.\")('xx')",
+                         "iXML D02: the parse puts two attributes named a on the element s"),
+        DESCRIPTION_CASE("invisible-xml(parse-xml('<ixml><rule name=\"1a\"><alt><literal "
+                         "string=\"x\"/></alt></rule></ixml>')/*)('x')",
+                         "iXML D03: the parse names an element or attribute 1a, which is not an "
+                         "XML name"),
+    };
+    for (size_t case_index = 0; case_index < SXML_TEST_COUNT(description_cases); case_index += 1) {
+        SXML_TEST_EXPECT(state, run_expression(&fixture,
+                                               description_cases[case_index].expression_text) !=
+                                    SXML_STATUS_OK);
+        SXML_TEST_EXPECT(state, sxml_byte_view_equals(fixture.error_record.diagnostic.description,
+                                                      description_cases[case_index].description));
+    }
+    SXML_TEST_EXPECT(state, ixml_fixture_destroy(&fixture));
+}
+
 static const sxml_test_case ixml_test_cases[] = {
+    {.name = "linear_grammars_take_few_steps", .function = test_linear_grammars_take_few_steps},
+    {.name = "errors_say_what_and_where", .function = test_errors_say_what_and_where},
     {.name = "function_parses", .function = test_function_parses},
     {.name = "function_is_absent_without_the_feature",
      .function = test_function_is_absent_without_the_feature},

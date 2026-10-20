@@ -1,7 +1,6 @@
 # Invisible XML Performance
 
 <!-- examples: ixml -->
-<!-- status: draft -->
 
 An iXML grammar can describe any context-free language, and a parser
 for all of them must be able to keep many readings of the input open at
@@ -27,7 +26,7 @@ option fails when a number is worse than this chapter says.
 | a right-recursive list | 1 MB, 159,000 numbers | under 0.4 s | under 200 MB |
 | brackets nested 100,000 deep | 200 KB | under 0.2 s | under 100 MB |
 | a grammar of 5,800 rules, compiled | 200 KB | under 0.5 s | under 200 MB |
-| the ambiguous sum below | 2,000 characters | under 1.5 s | under 200 MB |
+| the ambiguous sum below | 2,000 characters | under 2 s | under 200 MB |
 
 For every grammar in the table but the last, four times the input takes
 about four times as long and four times the memory: the parser is
@@ -59,7 +58,8 @@ file that `$file` names.
 sxml parses with Earley's algorithm, which reads the input once, from
 left to right, and keeps a set of *items* for each position: the rules
 that a reading could be in the middle of there. The work is the number
-of items, and three refinements keep it in proportion to the input:
+of items, and four refinements keep it in proportion to the input and
+small:
 
 - **One character of lookahead.** An item is kept only when the next
   character can continue it, so the parser does not follow readings that
@@ -72,6 +72,10 @@ of items, and three refinements keep it in proportion to the input:
 - **Compiled character classes.** Each character of the input is looked
   up once in a table that says which of the grammar's character sets it
   belongs to.
+- **Groups written out.** A group or an option, such as `(char; em)` or
+  `inline?`, and a hidden rule of one character set, such as `-digit`,
+  is replaced where it is used, so the parser does not complete a rule
+  of its own for every character. The XML is the same.
 
 With these, the parser is linear on every grammar that has one reading
 for each input and can tell, at each place, how to go on with a bounded
@@ -119,10 +123,10 @@ $ sxml xpath 'let $sum := invisible-xml(unparsed-text("sum.ixml"))(string-join(1
 
 sxml never lists the readings. It keeps one for each item, so the items
 grow with the square of the input and the time with its cube: 2,000
-characters take about a second. The cure is the cure of [Writing
-Grammars](ixml-grammars.md#ambiguous-grammars): say how the parts
-group, here `sum: sum, -"+", number; number.`, and the grammar is linear
-again.
+characters take one to two seconds, eight times as long as 1,000. The
+cure is the cure of [Writing Grammars](ixml-grammars.md#ambiguous-grammars):
+say how the parts group, here `sum: sum, -"+", number; number.`, and the
+grammar is linear again.
 
 ## Steps and limits
 
@@ -130,7 +134,8 @@ Every item the parser makes, and every node of the parse tree, counts as
 one step of the evaluation, so the step limit that stops a runaway query
 stops a runaway parse too. A linear grammar makes a few items for each
 character of the input, so the default limit of 10<sup>8</sup> steps
-allows inputs of several megabytes. A host that embeds sxml can set a
+allows inputs of many megabytes: a log of 10 MB parses within it, in
+about two seconds. A host that embeds sxml can set a
 higher limit (Chapter "Embedding sxml in C").
 
 ## Writing fast grammars

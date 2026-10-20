@@ -43,6 +43,7 @@ void sxml_ixml_grammar_finalize(sxml_ixml_grammar *grammar) {
     sxml_xml_array_release(&grammar->symbols);
     sxml_xml_array_release(&grammar->terminals);
     sxml_xml_array_release(&grammar->ranges);
+    sxml_ixml_parse_tables_release(&grammar->tables);
     grammar->has_version_mismatch = false;
 }
 
@@ -408,6 +409,8 @@ typedef struct grammar_compiler {
     rule_name *rule_names;      /* sorted by name */
     size_t rule_count;
     sxml_ixml_grammar_error error;
+    /* The name the first S02 or S03 is about, in the builder's text. */
+    sxml_byte_view error_name;
 } grammar_compiler;
 
 static bool has_attribute(const description_node *node, sxml_ixml_attribute_kind attribute_kind) {
@@ -774,6 +777,10 @@ static sxml_status add_factor(grammar_compiler *compiler, uint32_t node_index) {
         const uint32_t target =
             find_rule(compiler, attribute_value(compiler, node, SXML_IXML_ATTRIBUTE_KIND_NAME));
         if (target == SXML_IXML_NONE) {
+            if (compiler->error == SXML_IXML_GRAMMAR_ERROR_NONE) {
+                compiler->error_name =
+                    attribute_value(compiler, node, SXML_IXML_ATTRIBUTE_KIND_NAME);
+            }
             fail_compiling(compiler, SXML_IXML_GRAMMAR_ERROR_UNDEFINED_NONTERMINAL);
             return SXML_STATUS_OK;
         }
@@ -1142,10 +1149,288 @@ static sxml_status add_rules(grammar_compiler *compiler) {
     for (size_t rule_index = 1; rule_index < compiler->rule_count; rule_index += 1) {
         if (compare_rule_names(&compiler->rule_names[rule_index - 1],
                                &compiler->rule_names[rule_index]) == 0) {
+            if (compiler->error == SXML_IXML_GRAMMAR_ERROR_NONE) {
+                compiler->error_name = compiler->rule_names[rule_index].name;
+            }
             fail_compiling(compiler, SXML_IXML_GRAMMAR_ERROR_DUPLICATE_RULE);
         }
     }
     return SXML_STATUS_OK;
+}
+
+/* ------------------------------------------------------- Simplifying */
+
+static sxml_xml_array empty_array(sxml_allocator allocator, size_t element_byte_count) {
+    return sxml_xml_array_empty((sxml_xml_array_configuration){
+        .allocator = allocator, .element_byte_count = element_byte_count});
+}
+
+
+/* The most productions one production may become when the groups and
+   options in it are written out in place (D283). */
+#define SXML_IXML_MAXIMUM_WRITTEN_OUT 8U
+
+/* The mark of a use of a nonterminal: the use's, else its rule's, else an
+   element (the Specification, "Constructing XML"). */
+static sxml_ixml_mark use_mark(const grammar_compiler *compiler, const sxml_ixml_symbol *symbol) {
+    sxml_ixml_mark mark = (sxml_ixml_mark)symbol->mark;
+    if (mark == SXML_IXML_MARK_NONE) {
+        const sxml_ixml_nonterminal *target =
+            sxml_xml_array_at(&compiler->grammar->nonterminals, symbol->target);
+        mark = (sxml_ixml_mark)target->mark;
+    }
+    return mark == SXML_IXML_MARK_NONE ? SXML_IXML_MARK_ELEMENT : mark;
+}
+
+/* Where the productions of each nonterminal are in the compiler's list:
+   compile_pending adds those of one nonterminal together. */
+typedef struct production_runs {
+    uint32_t *first_productions;
+    uint32_t *production_counts;
+    /* Per nonterminal: the productions it becomes when written out where
+       it is used; 0 when it is not written out. */
+    uint32_t *written_counts;
+} production_runs;
+
+static const sxml_ixml_production *listed_production(const grammar_compiler *compiler,
+                                                    uint32_t production_index) {
+    return sxml_xml_array_at(&compiler->productions, production_index);
+}
+
+static const sxml_ixml_symbol *grammar_symbol_at(const grammar_compiler *compiler,
+                                                 uint32_t symbol_index) {
+    return sxml_xml_array_at(&compiler->grammar->symbols, symbol_index);
+}
+
+/* A hidden use of a rule whose one production is one symbol uses that
+   symbol in its place: a rule such as -digit: ["0"-"9"] or -s: " "*
+   makes no element of its own, so the XML is the same, and the parser
+   makes two items fewer each time it reads one (D283). One pass, so a
+   rule that is its own one symbol stays as it is. */
+static void write_out_single_rules(grammar_compiler *compiler, const production_runs *runs) {
+    const size_t nonterminal_count = compiler->grammar->nonterminals.element_count;
+    for (size_t symbol_index = 0; symbol_index < compiler->grammar->symbols.element_count;
+         symbol_index += 1) {
+        sxml_ixml_symbol *symbol = sxml_xml_array_at(&compiler->grammar->symbols, symbol_index);
+        if (symbol->symbol_kind != SXML_IXML_SYMBOL_KIND_NONTERMINAL ||
+            symbol->target >= nonterminal_count || symbol->target == 0 ||
+            runs->production_counts[symbol->target] != 1 ||
+            use_mark(compiler, symbol) != SXML_IXML_MARK_HIDDEN) {
+            continue;
+        }
+        const sxml_ixml_production *production =
+            listed_production(compiler, runs->first_productions[symbol->target]);
+        if (production->symbol_count == 1) {
+            *symbol = *grammar_symbol_at(compiler, production->first_symbol);
+        }
+    }
+}
+
+/* Decides which groups and options are written out where they are used:
+   a group or option the compiler made is used once, hidden, so its
+   productions can replace the production that uses it, one for each,
+   with the same parses and the same XML. Children are made after their
+   parents, so the counts are found from the last nonterminal back. A
+   production may become at most SXML_IXML_MAXIMUM_WRITTEN_OUT. */
+static void choose_written_out(grammar_compiler *compiler, production_runs *runs,
+                               const uint8_t *kinds) {
+    const size_t nonterminal_count = compiler->grammar->nonterminals.element_count;
+    for (size_t nonterminal_index = nonterminal_count; nonterminal_index > 0;
+         nonterminal_index -= 1) {
+        const uint32_t nonterminal = (uint32_t)nonterminal_index - 1;
+        const sxml_ixml_nonterminal *definition =
+            sxml_xml_array_at(&compiler->grammar->nonterminals, nonterminal);
+        uint64_t total = 0;
+        for (uint32_t production_offset = 0; production_offset < runs->production_counts[nonterminal];
+             production_offset += 1) {
+            const sxml_ixml_production *production = listed_production(
+                compiler, runs->first_productions[nonterminal] + production_offset);
+            uint64_t product = 1;
+            for (uint32_t dot_position = 0; dot_position < production->symbol_count;
+                 dot_position += 1) {
+                const sxml_ixml_symbol *symbol =
+                    grammar_symbol_at(compiler, production->first_symbol + dot_position);
+                if (symbol->symbol_kind != SXML_IXML_SYMBOL_KIND_NONTERMINAL ||
+                    runs->written_counts[symbol->target] == 0) {
+                    continue;
+                }
+                if (product * runs->written_counts[symbol->target] > SXML_IXML_MAXIMUM_WRITTEN_OUT) {
+                    runs->written_counts[symbol->target] = 0;
+                    continue;
+                }
+                product *= runs->written_counts[symbol->target];
+            }
+            total += product;
+        }
+        const bool is_candidate =
+            definition->is_generated &&
+            (kinds[nonterminal] == SXML_IXML_CONSTRUCT_KIND_ALTERNATIVES ||
+             kinds[nonterminal] == SXML_IXML_CONSTRUCT_KIND_OPTION);
+        runs->written_counts[nonterminal] =
+            is_candidate && total > 0 && total <= SXML_IXML_MAXIMUM_WRITTEN_OUT ? (uint32_t)total : 0;
+    }
+}
+
+/* A run of symbols in the grammar: a production being written out. */
+typedef struct symbol_run {
+    uint32_t first_symbol;
+    uint32_t symbol_count;
+} symbol_run;
+
+/* Appends to the grammar's symbols the run with the symbol at
+   replaced_offset replaced by the symbols of production; *written is the
+   new run. */
+typedef struct splice {
+    symbol_run run;
+    uint32_t replaced_offset;
+    const sxml_ixml_production *production;
+} splice;
+
+static sxml_status write_splice(grammar_compiler *compiler, const splice *request, symbol_run *written) {
+    sxml_xml_array *symbols = &compiler->grammar->symbols;
+    written->first_symbol = (uint32_t)symbols->element_count;
+    written->symbol_count = request->run.symbol_count - 1 + request->production->symbol_count;
+    sxml_status status = SXML_STATUS_OK;
+    for (uint32_t offset = 0; status == SXML_STATUS_OK && offset < request->run.symbol_count;
+         offset += 1) {
+        if (offset != request->replaced_offset) {
+            const sxml_ixml_symbol copy = *grammar_symbol_at(compiler, request->run.first_symbol + offset);
+            status = push_element(symbols, &copy, NULL);
+            continue;
+        }
+        for (uint32_t inner = 0; status == SXML_STATUS_OK && inner < request->production->symbol_count;
+             inner += 1) {
+            const sxml_ixml_symbol copy =
+                *grammar_symbol_at(compiler, request->production->first_symbol + inner);
+            status = push_element(symbols, &copy, NULL);
+        }
+    }
+    return status;
+}
+
+/* Writes one production out into output: depth first, the alternatives
+   of each written-out group in order, so the order of alternatives is
+   kept. */
+typedef struct write_out_request {
+    const production_runs *runs;
+    const sxml_ixml_production *production;
+    sxml_xml_array *output;
+    sxml_xml_array *stack; /* symbol_run */
+} write_out_request;
+
+static sxml_status write_out_production(grammar_compiler *compiler, const write_out_request *request) {
+    const uint32_t nonterminal = request->production->nonterminal;
+    request->stack->element_count = 0;
+    const symbol_run start = {.first_symbol = request->production->first_symbol,
+                              .symbol_count = request->production->symbol_count};
+    sxml_status status = push_element(request->stack, &start, NULL);
+    while (status == SXML_STATUS_OK && request->stack->element_count > 0) {
+        const symbol_run run =
+            *(const symbol_run *)sxml_xml_array_at(request->stack, request->stack->element_count - 1);
+        request->stack->element_count -= 1;
+        uint32_t replaced_offset = SXML_IXML_NONE;
+        for (uint32_t offset = 0; replaced_offset == SXML_IXML_NONE && offset < run.symbol_count;
+             offset += 1) {
+            const sxml_ixml_symbol *symbol = grammar_symbol_at(compiler, run.first_symbol + offset);
+            if (symbol->symbol_kind == SXML_IXML_SYMBOL_KIND_NONTERMINAL &&
+                request->runs->written_counts[symbol->target] != 0) {
+                replaced_offset = offset;
+            }
+        }
+        if (replaced_offset == SXML_IXML_NONE) {
+            const sxml_ixml_production written = {
+                .nonterminal = nonterminal, .first_symbol = run.first_symbol, .symbol_count = run.symbol_count};
+            status = push_element(request->output, &written, NULL);
+            continue;
+        }
+        const uint32_t group = grammar_symbol_at(compiler, run.first_symbol + replaced_offset)->target;
+        for (uint32_t alternative = request->runs->production_counts[group];
+             status == SXML_STATUS_OK && alternative > 0; alternative -= 1) {
+            const sxml_ixml_production inner = *listed_production(
+                compiler, request->runs->first_productions[group] + alternative - 1);
+            symbol_run written = {.first_symbol = 0, .symbol_count = 0};
+            status = write_splice(compiler,
+                                  &(splice){.run = run, .replaced_offset = replaced_offset, .production = &inner},
+                                  &written);
+            if (status == SXML_STATUS_OK) {
+                status = push_element(request->stack, &written, NULL);
+            }
+        }
+    }
+    return status;
+}
+
+/* Simplifies the compiled productions without changing the parses or
+   the XML (D283): hidden rules of one symbol are read in place, and
+   groups and options are written out where they are used, so the parser
+   makes fewer items for each character. */
+static sxml_status simplify_productions(grammar_compiler *compiler) {
+    const sxml_allocator allocator = compiler->builder->allocator;
+    const size_t nonterminal_count = compiler->grammar->nonterminals.element_count;
+    production_runs runs = {.first_productions = NULL, .production_counts = NULL, .written_counts = NULL};
+    uint8_t *kinds = NULL;
+    void *memory = NULL;
+    sxml_array_allocation_request index_request = {
+        .element_count = nonterminal_count, .element_size = sizeof(uint32_t), .element_alignment = _Alignof(uint32_t)};
+    sxml_status status = sxml_allocator_allocate_array(allocator, index_request, &memory);
+    runs.first_productions = memory;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_allocator_allocate_array(allocator, index_request, &memory);
+        runs.production_counts = memory;
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_allocator_allocate_array(allocator, index_request, &memory);
+        runs.written_counts = memory;
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_allocator_allocate_array(
+            allocator,
+            (sxml_array_allocation_request){
+                .element_count = nonterminal_count, .element_size = 1, .element_alignment = 1},
+            &memory);
+        kinds = memory;
+    }
+    sxml_xml_array output = empty_array(allocator, sizeof(sxml_ixml_production));
+    sxml_xml_array stack = empty_array(allocator, sizeof(symbol_run));
+    if (status == SXML_STATUS_OK) {
+        for (size_t pending_index = 0; pending_index < compiler->pending.element_count; pending_index += 1) {
+            const pending_nonterminal *pending = sxml_xml_array_at(&compiler->pending, pending_index);
+            kinds[pending->nonterminal] = (uint8_t)pending->kind;
+        }
+        for (uint32_t production_index = (uint32_t)compiler->productions.element_count; production_index > 0;
+             production_index -= 1) {
+            const uint32_t nonterminal = listed_production(compiler, production_index - 1)->nonterminal;
+            runs.first_productions[nonterminal] = production_index - 1;
+            runs.production_counts[nonterminal] += 1;
+        }
+        write_out_single_rules(compiler, &runs);
+        choose_written_out(compiler, &runs, kinds);
+    }
+    for (uint32_t production_index = 0;
+         status == SXML_STATUS_OK && production_index < compiler->productions.element_count;
+         production_index += 1) {
+        const sxml_ixml_production production = *listed_production(compiler, production_index);
+        if (runs.written_counts[production.nonterminal] != 0) {
+            /* Written out where the group is used. */
+            continue;
+        }
+        status = write_out_production(compiler, &(write_out_request){.runs = &runs,
+                                                                    .production = &production,
+                                                                    .output = &output,
+                                                                    .stack = &stack});
+    }
+    if (status == SXML_STATUS_OK) {
+        sxml_xml_array_release(&compiler->productions);
+        compiler->productions = output;
+        output = empty_array(allocator, sizeof(sxml_ixml_production));
+    }
+    sxml_xml_array_release(&output);
+    sxml_xml_array_release(&stack);
+    sxml_allocator_release(allocator, kinds);
+    sxml_allocator_release(allocator, runs.written_counts);
+    sxml_allocator_release(allocator, runs.production_counts);
+    sxml_allocator_release(allocator, runs.first_productions);
+    return status;
 }
 
 /* Orders the productions by nonterminal (keeping their order within
@@ -1190,11 +1475,6 @@ static sxml_status sort_productions(grammar_compiler *compiler) {
     return status;
 }
 
-static sxml_xml_array empty_array(sxml_allocator allocator, size_t element_byte_count) {
-    return sxml_xml_array_empty((sxml_xml_array_configuration){
-        .allocator = allocator, .element_byte_count = element_byte_count});
-}
-
 sxml_status sxml_ixml_grammar_builder_finish(sxml_ixml_grammar_builder *builder,
                                              sxml_ixml_grammar *grammar,
                                              sxml_ixml_grammar_outcome *outcome) {
@@ -1213,7 +1493,8 @@ sxml_status sxml_ixml_grammar_builder_finish(sxml_ixml_grammar_builder *builder,
                                  .productions = empty_array(allocator, sizeof(sxml_ixml_production)),
                                  .rule_names = NULL,
                                  .rule_count = 0,
-                                 .error = builder->error};
+                                 .error = builder->error,
+                                 .error_name = {.bytes = NULL, .byte_count = 0}};
     sxml_status status = SXML_STATUS_OK;
     if (builder->nodes.element_count == 0 ||
         description_at(builder, 0)->element_kind != SXML_IXML_ELEMENT_KIND_IXML) {
@@ -1232,12 +1513,22 @@ sxml_status sxml_ixml_grammar_builder_finish(sxml_ixml_grammar_builder *builder,
         status = compile_pending(&compiler, pending);
     }
     if (status == SXML_STATUS_OK && compiler.error == SXML_IXML_GRAMMAR_ERROR_NONE) {
+        status = simplify_productions(&compiler);
+    }
+    if (status == SXML_STATUS_OK && compiler.error == SXML_IXML_GRAMMAR_ERROR_NONE) {
         status = sort_productions(&compiler);
+    }
+    if (status == SXML_STATUS_OK && compiler.error == SXML_IXML_GRAMMAR_ERROR_NONE) {
+        status = sxml_ixml_grammar_prepare_tables(grammar, allocator);
     }
     sxml_allocator_release(allocator, compiler.rule_names);
     sxml_xml_array_release(&compiler.pending);
     sxml_xml_array_release(&compiler.productions);
     outcome->error = status == SXML_STATUS_OK ? compiler.error : SXML_IXML_GRAMMAR_ERROR_NONE;
+    outcome->name = outcome->error == SXML_IXML_GRAMMAR_ERROR_UNDEFINED_NONTERMINAL ||
+                            outcome->error == SXML_IXML_GRAMMAR_ERROR_DUPLICATE_RULE
+                        ? compiler.error_name
+                        : (sxml_byte_view){.bytes = NULL, .byte_count = 0};
     if (status != SXML_STATUS_OK || compiler.error != SXML_IXML_GRAMMAR_ERROR_NONE) {
         sxml_ixml_grammar_finalize(grammar);
     }
@@ -1257,19 +1548,26 @@ typedef struct xml_emitter {
     size_t element_depth;
     size_t document_element_count;
     sxml_ixml_construction_error error;
+    /* The element whose attributes are being sent. */
+    sxml_byte_view element_name;
+    /* What the first error is about (sxml_ixml_construction_outcome). */
+    sxml_byte_view error_name;
+    sxml_byte_view error_element_name;
 } xml_emitter;
 
+/* The arrays are read directly: a node is read several times per
+   character of the input. */
 static const sxml_ixml_tree_node *tree_node(const xml_emitter *emitter, uint32_t node_index) {
-    return sxml_xml_array_at(&emitter->request->parse->nodes, node_index);
+    return sxml_ixml_parse_result_node(emitter->request->parse, node_index);
 }
 
 static const sxml_ixml_symbol *grammar_symbol(const sxml_ixml_grammar *grammar, uint32_t symbol) {
-    return sxml_xml_array_at(&grammar->symbols, symbol);
+    return &((const sxml_ixml_symbol *)grammar->symbols.elements)[symbol];
 }
 
 static const sxml_ixml_nonterminal *grammar_nonterminal(const sxml_ixml_grammar *grammar,
                                                         uint32_t nonterminal) {
-    return sxml_xml_array_at(&grammar->nonterminals, nonterminal);
+    return &((const sxml_ixml_nonterminal *)grammar->nonterminals.elements)[nonterminal];
 }
 
 /* The mark of a node: the use's, else the rule's, else included (the
@@ -1305,6 +1603,20 @@ static void fail_constructing(xml_emitter *emitter, sxml_ixml_construction_error
     if (emitter->error == SXML_IXML_CONSTRUCTION_ERROR_NONE) {
         emitter->error = error;
     }
+}
+
+/* Fails with error, which is about the name name (D02, D03, D07). */
+typedef struct named_failure {
+    sxml_ixml_construction_error error;
+    sxml_byte_view name;
+} named_failure;
+
+static void fail_constructing_name(xml_emitter *emitter, named_failure failure) {
+    if (emitter->error == SXML_IXML_CONSTRUCTION_ERROR_NONE) {
+        emitter->error_name = failure.name;
+        emitter->error_element_name = emitter->element_name;
+    }
+    fail_constructing(emitter, failure.error);
 }
 
 /* Appends codepoint to text, or fails with D04 for a character XML does
@@ -1371,7 +1683,8 @@ static uint32_t next_in_walk(const xml_emitter *emitter, walk_step step) {
 static sxml_status intern_name(xml_emitter *emitter, sxml_byte_view local_name,
                                sxml_name_identifier *name) {
     if (!sxml_xml_text_is_ncname(local_name)) {
-        fail_constructing(emitter, SXML_IXML_CONSTRUCTION_ERROR_NAME);
+        fail_constructing_name(
+            emitter, (named_failure){.error = SXML_IXML_CONSTRUCTION_ERROR_NAME, .name = local_name});
         return SXML_STATUS_OK;
     }
     return sxml_name_pool_intern_name(
@@ -1386,6 +1699,8 @@ typedef struct attribute_output {
     sxml_name_identifier attribute_name;
     sxml_namespace_prefix_identifier namespace_prefix;
     sxml_byte_view value;
+    /* The attribute's local name, for D02. */
+    sxml_byte_view local_name;
 } attribute_output;
 
 static sxml_status send_attribute(xml_emitter *emitter, const attribute_output *output) {
@@ -1393,7 +1708,9 @@ static sxml_status send_attribute(xml_emitter *emitter, const attribute_output *
          name_index += 1) {
         const sxml_name_identifier *known = sxml_xml_array_at(&emitter->attribute_names, name_index);
         if (known->index == output->attribute_name.index) {
-            fail_constructing(emitter, SXML_IXML_CONSTRUCTION_ERROR_DUPLICATE_ATTRIBUTE);
+            fail_constructing_name(emitter,
+                                   (named_failure){.error = SXML_IXML_CONSTRUCTION_ERROR_DUPLICATE_ATTRIBUTE,
+                                                   .name = output->local_name});
             return SXML_STATUS_OK;
         }
     }
@@ -1419,7 +1736,9 @@ static sxml_status send_attribute(xml_emitter *emitter, const attribute_output *
 static sxml_status emit_attribute(xml_emitter *emitter, uint32_t attribute_node) {
     const sxml_byte_view local_name = node_name(emitter, tree_node(emitter, attribute_node));
     if (sxml_byte_view_equals(local_name, SXML_BYTE_VIEW_FROM_LITERAL("xmlns"))) {
-        fail_constructing(emitter, SXML_IXML_CONSTRUCTION_ERROR_XMLNS_ATTRIBUTE);
+        fail_constructing_name(emitter,
+                               (named_failure){.error = SXML_IXML_CONSTRUCTION_ERROR_XMLNS_ATTRIBUTE,
+                                               .name = local_name});
         return SXML_STATUS_OK;
     }
     sxml_name_identifier attribute_name = {.index = 0};
@@ -1441,13 +1760,19 @@ static sxml_status emit_attribute(xml_emitter *emitter, uint32_t attribute_node)
                           &(attribute_output){.attribute_name = attribute_name,
                                               .namespace_prefix = {.index = 0},
                                               .value = {.bytes = emitter->value.bytes,
-                                                        .byte_count = emitter->value.byte_count}});
+                                                        .byte_count = emitter->value.byte_count},
+                                              .local_name = local_name});
 }
 
 /* Sends the exposed attributes of element_node: its attribute children
    and those of its deleted descendants, through deleted nonterminals
-   only. */
+   only, and only into those that can expose one (the grammar's
+   exposes_attributes, D283). */
 static sxml_status emit_exposed_attributes(xml_emitter *emitter, uint32_t element_node) {
+    const bool *exposes = emitter->grammar->tables.exposes_attributes;
+    if (!exposes[tree_node(emitter, element_node)->detail]) {
+        return SXML_STATUS_OK;
+    }
     sxml_status status = SXML_STATUS_OK;
     uint32_t node = next_in_walk(
         emitter, (walk_step){.node = element_node, .top = element_node, .descends = true});
@@ -1460,7 +1785,7 @@ static sxml_status emit_exposed_attributes(xml_emitter *emitter, uint32_t elemen
             if (mark == SXML_IXML_MARK_ATTRIBUTE) {
                 status = emit_attribute(emitter, node);
             }
-            descends = mark == SXML_IXML_MARK_HIDDEN;
+            descends = mark == SXML_IXML_MARK_HIDDEN && exposes[current->detail];
         }
         node = next_in_walk(emitter,
                             (walk_step){.node = node, .top = element_node, .descends = descends});
@@ -1508,7 +1833,8 @@ static sxml_status send_ixml_attribute(xml_emitter *emitter, ixml_attribute attr
     }
     return send_attribute(emitter, &(attribute_output){.attribute_name = qualified.name,
                                                        .namespace_prefix = qualified.namespace_prefix,
-                                                       .value = attribute.value});
+                                                       .value = attribute.value,
+                                                       .local_name = attribute.local_name});
 }
 
 /* The ixml:state and ixml:version of the document element (the
@@ -1604,6 +1930,7 @@ static sxml_status start_element(xml_emitter *emitter, const element_output *out
                                     .location = {.line_number = 0},
                                     .entity_base_uri = {.bytes = NULL, .byte_count = 0}});
     emitter->attribute_names.element_count = 0;
+    emitter->element_name = output->local_name;
     if (status == SXML_STATUS_OK && output->attribute_owner != SXML_IXML_NONE) {
         status = emit_exposed_attributes(emitter, output->attribute_owner);
     }
@@ -1721,18 +2048,20 @@ static sxml_status emit_sentence(xml_emitter *emitter) {
 
 /* --------------------------------------------------- Failure document */
 
-/* Appends a character as the grammar would write it: quoted, or as "#"
-   and hex digits when it is not printable or is a quote. */
-static sxml_status append_character_notation(sxml_xml_buffer *text, uint32_t codepoint) {
+/* Writes a character as the grammar would: in double quotes, a double
+   quote in single quotes, and "#" and hex digits when it is not
+   printable. */
+sxml_status sxml_ixml_append_character_notation(sxml_xml_buffer *text, uint32_t codepoint) {
     static const char hex_digits[] = "0123456789abcdef";
-    if (codepoint > 0x20U && codepoint != 0x7FU && codepoint != '"' &&
-        !(codepoint >= 0x80U && codepoint <= 0x9FU) && sxml_xml_codepoint_is_char(codepoint)) {
-        sxml_status status = sxml_xml_buffer_append_byte(text, '"');
+    if (codepoint > 0x20U && codepoint != 0x7FU && !(codepoint >= 0x80U && codepoint <= 0x9FU) &&
+        sxml_xml_codepoint_is_char(codepoint)) {
+        const uint8_t quote = codepoint == '"' ? (uint8_t)'\'' : (uint8_t)'"';
+        sxml_status status = sxml_xml_buffer_append_byte(text, quote);
         if (status == SXML_STATUS_OK) {
             status = sxml_xml_buffer_append_codepoint(text, codepoint);
         }
         if (status == SXML_STATUS_OK) {
-            status = sxml_xml_buffer_append_byte(text, '"');
+            status = sxml_xml_buffer_append_byte(text, quote);
         }
         return status;
     }
@@ -1762,7 +2091,7 @@ static sxml_status append_terminal_notation(const sxml_ixml_grammar *grammar, ui
         terminal->range_count == 0 ? NULL : sxml_xml_array_at(&grammar->ranges, terminal->first_range);
     if (!terminal->is_exclusion && terminal->range_count == 1 && terminal->category_mask == 0 &&
         first->first_codepoint == first->last_codepoint) {
-        return append_character_notation(text, first->first_codepoint);
+        return sxml_ixml_append_character_notation(text, first->first_codepoint);
     }
     sxml_status status = sxml_xml_buffer_append(
         text, terminal->is_exclusion ? SXML_BYTE_VIEW_FROM_LITERAL("~[")
@@ -1777,12 +2106,12 @@ static sxml_status append_terminal_notation(const sxml_ixml_grammar *grammar, ui
         }
         is_first_member = false;
         if (status == SXML_STATUS_OK) {
-            status = append_character_notation(text, range->first_codepoint);
+            status = sxml_ixml_append_character_notation(text, range->first_codepoint);
         }
         if (status == SXML_STATUS_OK && range->last_codepoint != range->first_codepoint) {
             status = sxml_xml_buffer_append_byte(text, '-');
             if (status == SXML_STATUS_OK) {
-                status = append_character_notation(text, range->last_codepoint);
+                status = sxml_ixml_append_character_notation(text, range->last_codepoint);
             }
         }
     }
@@ -1865,29 +2194,97 @@ static sxml_status append_decimal(sxml_xml_buffer *text, size_t number) {
     return status;
 }
 
+sxml_ixml_failure_location sxml_ixml_locate_failure(sxml_ixml_failure_request request) {
+    sxml_ixml_failure_location location = {
+        .line_number = 1, .column_number = 1, .codepoint = SXML_IXML_NONE};
+    const size_t failure_position = request.parse->failure_position;
+    for (size_t position = 0; position < failure_position; position += 1) {
+        if (request.input.codepoints[position] == '\n') {
+            location.line_number += 1;
+            location.column_number = 1;
+        } else {
+            location.column_number += 1;
+        }
+    }
+    if (failure_position < request.input.codepoint_count) {
+        location.codepoint = request.input.codepoints[failure_position];
+    }
+    return location;
+}
+
+/* The notations of the expected terminals, in one buffer. */
+typedef struct expected_notations {
+    sxml_xml_buffer text;
+    sxml_xml_array ranges; /* sxml_ixml_text_range */
+} expected_notations;
+
+static int compare_notations(const expected_notations *notations, sxml_ixml_text_range left,
+                             sxml_ixml_text_range right) {
+    const size_t common = left.byte_count < right.byte_count ? left.byte_count : right.byte_count;
+    const int order = common == 0 ? 0
+                                  : memcmp(notations->text.bytes + left.byte_offset,
+                                           notations->text.bytes + right.byte_offset, common);
+    if (order != 0 || left.byte_count == right.byte_count) {
+        return order;
+    }
+    return left.byte_count < right.byte_count ? -1 : 1;
+}
+
+/* Writes the notation of each expected terminal and sorts them by their
+   UTF-8 bytes, which is code-point order (an insertion sort: a failure
+   expects few terminals). */
+static sxml_status collect_expected(xml_emitter *emitter, expected_notations *notations) {
+    const sxml_ixml_parse_result *parse = emitter->request->parse;
+    sxml_status status = SXML_STATUS_OK;
+    for (size_t expected_index = 0;
+         status == SXML_STATUS_OK && expected_index < parse->expected_terminals.element_count;
+         expected_index += 1) {
+        const size_t byte_offset = notations->text.byte_count;
+        status = append_terminal_notation(
+            emitter->grammar,
+            *(const uint32_t *)sxml_xml_array_at(&parse->expected_terminals, expected_index),
+            &notations->text);
+        void *element = NULL;
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xml_array_push(&notations->ranges, &element);
+        }
+        if (status == SXML_STATUS_OK) {
+            *(sxml_ixml_text_range *)element = (sxml_ixml_text_range){
+                .byte_offset = (uint32_t)byte_offset,
+                .byte_count = (uint32_t)(notations->text.byte_count - byte_offset)};
+        }
+    }
+    sxml_ixml_text_range *ranges = (sxml_ixml_text_range *)notations->ranges.elements;
+    for (size_t sorted_count = 1;
+         status == SXML_STATUS_OK && sorted_count < notations->ranges.element_count;
+         sorted_count += 1) {
+        const sxml_ixml_text_range moving = ranges[sorted_count];
+        size_t place = sorted_count;
+        while (place > 0 && compare_notations(notations, ranges[place - 1], moving) > 0) {
+            ranges[place] = ranges[place - 1];
+            place -= 1;
+        }
+        ranges[place] = moving;
+    }
+    return status;
+}
+
 /* Sends the document of a failed parse (the Specification, "Parsing":
    where and why it failed): <failed ixml:state="failed"> with the line,
    column and character position of the failure, the character found
-   there (or end-of-input), and each terminal that was expected. */
+   there (or end-of-input), and each terminal that was expected, once,
+   in code-point order of its notation. */
 static sxml_status emit_failure(xml_emitter *emitter) {
     const sxml_ixml_parse_result *parse = emitter->request->parse;
-    const sxml_ixml_codepoint_view input = emitter->request->input;
-    size_t line_number = 1;
-    size_t column_number = 1;
-    for (size_t position = 0; position < parse->failure_position; position += 1) {
-        if (input.codepoints[position] == '\n') {
-            line_number += 1;
-            column_number = 1;
-        } else {
-            column_number += 1;
-        }
-    }
+    const sxml_ixml_failure_location location = sxml_ixml_locate_failure(
+        (sxml_ixml_failure_request){.parse = parse, .input = emitter->request->input});
     sxml_status status = start_element(emitter, &(element_output){
                                                     .local_name = SXML_BYTE_VIEW_FROM_LITERAL("failed"),
                                                     .attribute_owner = SXML_IXML_NONE,
                                                     .has_failed = true});
     sxml_xml_buffer number = sxml_xml_buffer_empty(emitter->request->allocator);
-    const size_t numbers[3] = {line_number, column_number, parse->failure_position + 1};
+    const size_t numbers[3] = {location.line_number, location.column_number,
+                               parse->failure_position + 1};
     static const sxml_byte_view number_names[3] = {SXML_BYTE_VIEW_INITIALIZER("line"),
                                                    SXML_BYTE_VIEW_INITIALIZER("column"),
                                                    SXML_BYTE_VIEW_INITIALIZER("position")};
@@ -1902,8 +2299,8 @@ static sxml_status emit_failure(xml_emitter *emitter) {
         }
     }
     number.byte_count = 0;
-    if (status == SXML_STATUS_OK && parse->failure_position < input.codepoint_count) {
-        status = append_character_notation(&number, input.codepoints[parse->failure_position]);
+    if (status == SXML_STATUS_OK && location.codepoint != SXML_IXML_NONE) {
+        status = sxml_ixml_append_character_notation(&number, location.codepoint);
         if (status == SXML_STATUS_OK) {
             status = emit_failure_field(
                 emitter,
@@ -1915,22 +2312,29 @@ static sxml_status emit_failure(xml_emitter *emitter) {
             emitter, (failure_field){.local_name = SXML_BYTE_VIEW_FROM_LITERAL("end-of-input"),
                                      .content = {.bytes = NULL, .byte_count = 0}});
     }
-    for (size_t expected_index = 0;
-         status == SXML_STATUS_OK && expected_index < parse->expected_terminals.element_count;
-         expected_index += 1) {
-        number.byte_count = 0;
-        status = append_terminal_notation(
-            emitter->grammar,
-            *(const uint32_t *)sxml_xml_array_at(&parse->expected_terminals, expected_index),
-            &number);
-        if (status == SXML_STATUS_OK) {
-            status = emit_failure_field(
-                emitter,
-                (failure_field){.local_name = SXML_BYTE_VIEW_FROM_LITERAL("expected"),
-                                .content = {.bytes = number.bytes, .byte_count = number.byte_count}});
-        }
-    }
     sxml_xml_buffer_release(&number);
+    expected_notations notations = {
+        .text = sxml_xml_buffer_empty(emitter->request->allocator),
+        .ranges = empty_array(emitter->request->allocator, sizeof(sxml_ixml_text_range))};
+    if (status == SXML_STATUS_OK) {
+        status = collect_expected(emitter, &notations);
+    }
+    const sxml_ixml_text_range *ranges = (const sxml_ixml_text_range *)notations.ranges.elements;
+    for (size_t range_index = 0;
+         status == SXML_STATUS_OK && range_index < notations.ranges.element_count;
+         range_index += 1) {
+        if (range_index > 0 &&
+            compare_notations(&notations, ranges[range_index - 1], ranges[range_index]) == 0) {
+            continue;
+        }
+        status = emit_failure_field(
+            emitter, (failure_field){.local_name = SXML_BYTE_VIEW_FROM_LITERAL("expected"),
+                                     .content = {.bytes = notations.text.bytes +
+                                                          ranges[range_index].byte_offset,
+                                                 .byte_count = ranges[range_index].byte_count}});
+    }
+    sxml_xml_buffer_release(&notations.text);
+    sxml_xml_array_release(&notations.ranges);
     if (status == SXML_STATUS_OK) {
         status = end_element(emitter);
     }
@@ -1949,7 +2353,10 @@ sxml_status sxml_ixml_construct(const sxml_ixml_construction_request *request,
         .attribute_names = empty_array(allocator, sizeof(sxml_name_identifier)),
         .element_depth = 0,
         .document_element_count = 0,
-        .error = SXML_IXML_CONSTRUCTION_ERROR_NONE};
+        .error = SXML_IXML_CONSTRUCTION_ERROR_NONE,
+        .element_name = {.bytes = NULL, .byte_count = 0},
+        .error_name = {.bytes = NULL, .byte_count = 0},
+        .error_element_name = {.bytes = NULL, .byte_count = 0}};
     sxml_status status = request->builder.operations->start_document(
         request->builder.state, &(sxml_document_start_event){.document_uri = {.bytes = NULL,
                                                                               .byte_count = 0},
@@ -1963,6 +2370,8 @@ sxml_status sxml_ixml_construct(const sxml_ixml_construction_request *request,
         status = request->builder.operations->end_document(request->builder.state);
     }
     outcome->error = emitter.error;
+    outcome->name = emitter.error_name;
+    outcome->element_name = emitter.error_element_name;
     sxml_xml_buffer_release(&emitter.text);
     sxml_xml_buffer_release(&emitter.value);
     sxml_xml_array_release(&emitter.attribute_names);

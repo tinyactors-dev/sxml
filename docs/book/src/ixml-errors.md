@@ -1,7 +1,6 @@
 # When a Parse Fails
 
 <!-- examples: ixml -->
-<!-- status: draft -->
 
 Two things can go wrong: the input does not match the grammar, or the
 grammar itself is wrong. The first gives a document that says where the

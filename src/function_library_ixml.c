@@ -124,6 +124,153 @@ static const sxml_static_error construction_errors[] = {
              "iXML D07: the parse makes an attribute named xmlns")},
 };
 
+/* ------------------------------------------------- Error descriptions */
+
+/* Error descriptions that name what is wrong and where (D283), built in
+   item-heap memory and raised through the heap, which keeps the text. */
+typedef struct described_error {
+    const sxml_static_error *error;
+    sxml_byte_view description;
+} described_error;
+
+static sxml_status report_described(const sxml_function_call *call, described_error error) {
+    return sxml_item_heap_raise_error(
+        call->item_heap,
+        &(sxml_error_raise_request){
+            .error_status = error.error->error_status,
+            .code = {.namespace_uri = SXML_BYTE_VIEW_FROM_LITERAL(SXML_ERROR_NAMESPACE_URI),
+                     .local_name = error.error->code_local_name,
+                     .namespace_prefix = SXML_BYTE_VIEW_FROM_LITERAL("err")},
+            .description = error.description,
+            .has_value = false,
+            .value = sxml_sequence_empty(),
+            .location = {.source_name = {.bytes = NULL, .byte_count = 0},
+                         .line_number = 0,
+                         .column_number = 0,
+                         .byte_offset = 0}},
+        call->error_record);
+}
+
+/* The pieces of a description: text and names, in order. */
+typedef struct description_pieces {
+    const sxml_byte_view *pieces;
+    size_t piece_count;
+} description_pieces;
+
+static sxml_status report_pieces(const sxml_function_call *call, const sxml_static_error *error,
+                                 description_pieces pieces) {
+    sxml_xml_buffer text = sxml_xml_buffer_empty(sxml_item_heap_as_allocator(call->item_heap));
+    sxml_status status = SXML_STATUS_OK;
+    for (size_t piece_index = 0; status == SXML_STATUS_OK && piece_index < pieces.piece_count;
+         piece_index += 1) {
+        status = sxml_xml_buffer_append(&text, pieces.pieces[piece_index]);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = report_described(
+            call, (described_error){.error = error,
+                                    .description = {.bytes = text.bytes,
+                                                    .byte_count = text.byte_count}});
+    }
+    sxml_xml_buffer_release(&text);
+    return status;
+}
+
+static sxml_status append_number(sxml_xml_buffer *text, size_t number) {
+    uint8_t digits[24];
+    size_t digit_count = 0;
+    size_t rest = number;
+    do {
+        digits[digit_count] = (uint8_t)('0' + rest % 10);
+        digit_count += 1;
+        rest /= 10;
+    } while (rest != 0);
+    sxml_status status = SXML_STATUS_OK;
+    while (status == SXML_STATUS_OK && digit_count > 0) {
+        digit_count -= 1;
+        status = sxml_xml_buffer_append_byte(text, digits[digit_count]);
+    }
+    return status;
+}
+
+/* FOIX0001 for grammar text that does not match the ixml grammar: where
+   reading it stopped, as in a failure document. */
+static sxml_status report_syntax_error(const sxml_function_call *call,
+                                       sxml_ixml_failure_location location) {
+    sxml_xml_buffer place = sxml_xml_buffer_empty(sxml_item_heap_as_allocator(call->item_heap));
+    sxml_status status = sxml_xml_buffer_append(&place, SXML_BYTE_VIEW_FROM_LITERAL("line "));
+    if (status == SXML_STATUS_OK) {
+        status = append_number(&place, location.line_number);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xml_buffer_append(&place, SXML_BYTE_VIEW_FROM_LITERAL(", column "));
+    }
+    if (status == SXML_STATUS_OK) {
+        status = append_number(&place, location.column_number);
+    }
+    if (status == SXML_STATUS_OK && location.codepoint == SXML_IXML_NONE) {
+        status = sxml_xml_buffer_append(&place,
+                                        SXML_BYTE_VIEW_FROM_LITERAL(", at the end of the grammar"));
+    } else if (status == SXML_STATUS_OK) {
+        status = sxml_xml_buffer_append(&place, SXML_BYTE_VIEW_FROM_LITERAL(", at "));
+        if (status == SXML_STATUS_OK) {
+            status = sxml_ixml_append_character_notation(&place, location.codepoint);
+        }
+    }
+    if (status == SXML_STATUS_OK) {
+        const sxml_byte_view pieces[] = {
+            SXML_BYTE_VIEW_FROM_LITERAL("The grammar does not match the ixml grammar at "),
+            {.bytes = place.bytes, .byte_count = place.byte_count},
+            SXML_BYTE_VIEW_FROM_LITERAL(" (F&O 4.0, fn:invisible-xml)")};
+        status = report_pieces(call, &grammar_error,
+                               (description_pieces){.pieces = pieces, .piece_count = 3});
+    }
+    sxml_xml_buffer_release(&place);
+    return status;
+}
+
+/* FOIX0001 for a grammar that does not conform, naming the rule when the
+   error is about one (S02, S03). */
+static sxml_status report_grammar_error(const sxml_function_call *call,
+                                        const sxml_ixml_grammar_outcome *outcome) {
+    if (outcome->error == SXML_IXML_GRAMMAR_ERROR_UNDEFINED_NONTERMINAL) {
+        const sxml_byte_view pieces[] = {
+            SXML_BYTE_VIEW_FROM_LITERAL("iXML S02: the grammar uses the nonterminal "), outcome->name,
+            SXML_BYTE_VIEW_FROM_LITERAL(", which no rule defines")};
+        return report_pieces(call, &grammar_errors[outcome->error],
+                             (description_pieces){.pieces = pieces, .piece_count = 3});
+    }
+    if (outcome->error == SXML_IXML_GRAMMAR_ERROR_DUPLICATE_RULE) {
+        const sxml_byte_view pieces[] = {
+            SXML_BYTE_VIEW_FROM_LITERAL("iXML S03: the grammar has more than one rule for "),
+            outcome->name};
+        return report_pieces(call, &grammar_errors[outcome->error],
+                             (description_pieces){.pieces = pieces, .piece_count = 2});
+    }
+    return sxml_function_library_report(call, outcome->error == SXML_IXML_GRAMMAR_ERROR_FORM
+                                                  ? &grammar_error
+                                                  : &grammar_errors[outcome->error]);
+}
+
+/* FOIX0002 for a parse that cannot be XML, naming the names it is about
+   (D02, D03). */
+static sxml_status report_construction_error(const sxml_function_call *call,
+                                             const sxml_ixml_construction_outcome *outcome) {
+    const sxml_static_error *error = &construction_errors[outcome->error];
+    if (outcome->error == SXML_IXML_CONSTRUCTION_ERROR_DUPLICATE_ATTRIBUTE) {
+        const sxml_byte_view pieces[] = {
+            SXML_BYTE_VIEW_FROM_LITERAL("iXML D02: the parse puts two attributes named "),
+            outcome->name, SXML_BYTE_VIEW_FROM_LITERAL(" on the element "), outcome->element_name};
+        return report_pieces(call, error, (description_pieces){.pieces = pieces, .piece_count = 4});
+    }
+    if (outcome->error == SXML_IXML_CONSTRUCTION_ERROR_NAME) {
+        const sxml_byte_view pieces[] = {
+            SXML_BYTE_VIEW_FROM_LITERAL("iXML D03: the parse names an element or attribute "),
+            outcome->name, SXML_BYTE_VIEW_FROM_LITERAL(", which is not an XML name")};
+        return report_pieces(call, error, (description_pieces){.pieces = pieces, .piece_count = 3});
+    }
+    return sxml_function_library_report(call, error);
+}
+
 /* ----------------------------------------------------------- Input */
 
 /* The codepoints of UTF-8 text, line ends normalized and a leading byte
@@ -200,6 +347,10 @@ static sxml_ixml_step_meter call_meter(const sxml_function_call *call) {
 typedef struct grammar_answer {
     bool is_grammar;
     sxml_ixml_grammar_error error;
+    /* Grammar text that does not match the ixml grammar: where reading
+       it stopped. */
+    bool has_location;
+    sxml_ixml_failure_location location;
 } grammar_answer;
 
 /* Compiles the grammar of grammars into grammar (zeroed). */
@@ -211,7 +362,8 @@ static sxml_status compile_grammar_of_grammars(sxml_allocator allocator,
                                                              .name_pool = NULL});
     sxml_status status =
         sxml_ixml_grammar_builder_read_entries(&builder, sxml_ixml_grammar_of_grammars);
-    sxml_ixml_grammar_outcome outcome = {.error = SXML_IXML_GRAMMAR_ERROR_NONE};
+    sxml_ixml_grammar_outcome outcome = {.error = SXML_IXML_GRAMMAR_ERROR_NONE,
+                                         .name = {.bytes = NULL, .byte_count = 0}};
     if (status == SXML_STATUS_OK) {
         status = sxml_ixml_grammar_builder_finish(&builder, grammar, &outcome);
     }
@@ -251,8 +403,14 @@ static sxml_status read_grammar_text(const grammar_source *source, sxml_byte_vie
     }
     if (status == SXML_STATUS_OK && !parse.is_sentence) {
         answer->is_grammar = false;
+        answer->has_location = true;
+        answer->location = sxml_ixml_locate_failure(
+            (sxml_ixml_failure_request){.parse = &parse, .input = input_view(&input)});
     } else if (status == SXML_STATUS_OK) {
-        sxml_ixml_construction_outcome outcome = {.error = SXML_IXML_CONSTRUCTION_ERROR_NONE};
+        sxml_ixml_construction_outcome outcome = {
+            .error = SXML_IXML_CONSTRUCTION_ERROR_NONE,
+            .name = {.bytes = NULL, .byte_count = 0},
+            .element_name = {.bytes = NULL, .byte_count = 0}};
         status = sxml_ixml_construct(
             &(sxml_ixml_construction_request){
                 .grammar = &grammar_of_grammars,
@@ -432,7 +590,9 @@ static sxml_status call_parser(void *state, const sxml_function_call *call,
                                                             .step_meter = call_meter(call)},
                                  &parse);
     }
-    sxml_ixml_construction_outcome outcome = {.error = SXML_IXML_CONSTRUCTION_ERROR_NONE};
+    sxml_ixml_construction_outcome outcome = {.error = SXML_IXML_CONSTRUCTION_ERROR_NONE,
+                                              .name = {.bytes = NULL, .byte_count = 0},
+                                              .element_name = {.bytes = NULL, .byte_count = 0}};
     sxml_item document_node = {.representation = SXML_ITEM_REPRESENTATION_NONE};
     if (status == SXML_STATUS_OK && !parse.is_sentence && parser->fails_on_error) {
         status = sxml_function_library_report(call, &input_error);
@@ -446,7 +606,7 @@ static sxml_status call_parser(void *state, const sxml_function_call *call,
     sxml_ixml_parse_result_finalize(&parse);
     release_input(&input);
     if (status == SXML_STATUS_OK && outcome.error != SXML_IXML_CONSTRUCTION_ERROR_NONE) {
-        return sxml_function_library_report(call, &construction_errors[outcome.error]);
+        return report_construction_error(call, &outcome);
     }
     if (status == SXML_STATUS_OK) {
         *result = sxml_sequence_from_item(document_node);
@@ -547,22 +707,28 @@ static sxml_status call_invisible_xml(const sxml_function_call *call, sxml_seque
     sxml_ixml_grammar_builder_initialize(
         &builder, &(sxml_ixml_grammar_builder_configuration){
                       .allocator = allocator, .name_pool = environment->processor->name_pool});
-    grammar_answer answer = {.is_grammar = true, .error = SXML_IXML_GRAMMAR_ERROR_NONE};
+    grammar_answer answer = {.is_grammar = true,
+                             .error = SXML_IXML_GRAMMAR_ERROR_NONE,
+                             .has_location = false,
+                             .location = {.line_number = 0, .column_number = 0, .codepoint = 0}};
     status = read_grammar_argument(
         &(grammar_source){.call = call, .processor = environment->processor, .builder = &builder},
         &answer);
-    sxml_ixml_grammar_outcome outcome = {.error = SXML_IXML_GRAMMAR_ERROR_NONE};
+    sxml_ixml_grammar_outcome outcome = {.error = SXML_IXML_GRAMMAR_ERROR_NONE,
+                                         .name = {.bytes = NULL, .byte_count = 0}};
     if (status == SXML_STATUS_OK && answer.is_grammar) {
         status = sxml_ixml_grammar_builder_finish(&builder, &parser->grammar, &outcome);
     }
-    sxml_ixml_grammar_builder_finalize(&builder);
-    if (status == SXML_STATUS_OK && !answer.is_grammar) {
+    /* The outcome's name is the builder's, so the errors are raised
+       before it is finalized. */
+    if (status == SXML_STATUS_OK && !answer.is_grammar && answer.has_location) {
+        status = report_syntax_error(call, answer.location);
+    } else if (status == SXML_STATUS_OK && !answer.is_grammar) {
         status = sxml_function_library_report(call, &grammar_error);
     } else if (status == SXML_STATUS_OK && outcome.error != SXML_IXML_GRAMMAR_ERROR_NONE) {
-        status = sxml_function_library_report(call, outcome.error == SXML_IXML_GRAMMAR_ERROR_FORM
-                                                        ? &grammar_error
-                                                        : &grammar_errors[outcome.error]);
+        status = report_grammar_error(call, &outcome);
     }
+    sxml_ixml_grammar_builder_finalize(&builder);
     if (status == SXML_STATUS_OK) {
         status = make_parser_function(call, parser, result);
     }

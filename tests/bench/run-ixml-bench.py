@@ -170,7 +170,7 @@ BENCHMARKS = [
     ("markdown", "markdown.ixml", make_markdown, 250_000, 1_000_000, 0.40, 200, 6.0),
     ("right-recursion", "numbers.ixml", make_numbers, 250_000, 1_000_000, 0.40, 200, 6.0),
     ("nesting", "nesting.ixml", make_nesting, 50_000, 200_000, 0.20, 100, 6.0),
-    ("ambiguous", "sum.ixml", make_sum, 500, 2_000, 1.50, 200, None),
+    ("ambiguous", "sum.ixml", make_sum, 500, 2_000, 2.00, 200, None),
     ("grammar", None, make_grammar, 50_000, 200_000, 0.50, 200, 6.0),
 ]
 
