@@ -16,6 +16,8 @@
  */
 #include "xslt_pattern_internal.h"
 
+#include "schema_scope_internal.h"
+
 #include <math.h>
 #include <stdalign.h>
 #include <string.h>
@@ -1166,6 +1168,9 @@ typedef struct sxml_xslt_pattern_builder {
     uint32_t prefix_capacity;
     /* The span new nodes get: that of the pattern node being turned. */
     sxml_ast_source_span span;
+    /* Per pattern node, true for a name test read as schema-element()
+       (6.9.4, typed modes); NULL for none. */
+    bool *schema_element_tests;
 } sxml_xslt_pattern_builder;
 
 /* Grows an array of the builder to hold one more element. */
@@ -3346,6 +3351,22 @@ static sxml_status sxml_xslt_pattern_process_constant(sxml_xslt_pattern_builder 
 static sxml_status sxml_xslt_pattern_process_copy(sxml_xslt_pattern_builder *builder,
                                                   const sxml_xslt_pattern_task *task) {
     const sxml_ast_node *source = sxml_xslt_pattern_node(builder->pattern, task->source);
+    sxml_xslt_pattern_destination destination = task->destination;
+    if (builder->schema_element_tests != NULL &&
+        builder->schema_element_tests[task->source.value]) {
+        /* 6.9.4: the name test E of a typed mode's leading step is
+           schema-element(E); the name (a leaf) goes into its NAME. */
+        sxml_ast_node_index schema_element = {0};
+        const sxml_status status = sxml_xslt_pattern_add_kind(
+            builder,
+            (sxml_xslt_pattern_kind_node){.destination = destination,
+                                          .kind = SXML_AST_KIND_SCHEMA_ELEMENT_NODE_TYPE},
+            &schema_element);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        destination = sxml_xslt_pattern_into(schema_element, SXML_AST_FIELD_NAME);
+    }
     const sxml_ast_node_request request = {.kind = source->kind,
                                            .detail = source->detail,
                                            .flags = source->flags,
@@ -3353,7 +3374,7 @@ static sxml_status sxml_xslt_pattern_process_copy(sxml_xslt_pattern_builder *bui
                                            .payload = source->payload};
     sxml_ast_node_index copy = {0};
     sxml_status status =
-        sxml_xslt_pattern_add_request(builder, (sxml_xslt_pattern_placed_request){.request = &request, .destination = task->destination}, &copy);
+        sxml_xslt_pattern_add_request(builder, (sxml_xslt_pattern_placed_request){.request = &request, .destination = destination}, &copy);
     if (status == SXML_STATUS_OK && source->first_child.value != 0) {
         status = sxml_xslt_pattern_push_simple(
             builder,
@@ -3968,6 +3989,128 @@ static sxml_status sxml_xslt_pattern_check_forbidden_functions(
     return SXML_STATUS_OK;
 }
 
+/* ------------------------------------------------------- Typed modes */
+
+/* Whether the element name test at test is declared in the in-scope
+   schemas (a global element declaration, 3.13). */
+static sxml_status sxml_xslt_pattern_is_declared_element(
+    const sxml_xslt_pattern_match_expression_request *request, sxml_ast_node_index test,
+    bool *is_declared) {
+    const sxml_xpath_static_context *static_context = request->static_context;
+    sxml_xpath_resolved_name resolved = {.namespace_uri = {0},
+                                         .local_name = {.bytes = NULL, .byte_count = 0}};
+    sxml_status status = sxml_xpath_resolve_name(
+        &(sxml_xpath_name_request){.ast = request->pattern_ast,
+                                   .name_node = test,
+                                   .name_role = SXML_XPATH_NAME_ROLE_ELEMENT_OR_TYPE,
+                                   .static_context = static_context,
+                                   .error_record = request->error_record},
+        &resolved);
+    sxml_name_identifier name = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_name_pool_intern_name(
+            sxml_item_heap_get_name_pool(static_context->item_heap),
+            &(sxml_name_request){.namespace_uri = resolved.namespace_uri,
+                                 .local_name = resolved.local_name},
+            &name);
+    }
+    if (status == SXML_STATUS_OK) {
+        sxml_schema_scope_element element;
+        *is_declared = sxml_schema_scope_find_element(
+            static_context->unit_static_context.in_scope_schemas, name, &element);
+    }
+    return status;
+}
+
+/* Marks in tests the name tests of the first steps of the pattern's
+   relative paths that a typed mode reads as schema-element() (6.9.4):
+   EQNames on an axis of principal node kind element, outside predicates;
+   XTSE3105 for one a strict mode finds undeclared. A walk on an explicit
+   stack (D71) of at most the node count. */
+static sxml_status sxml_xslt_pattern_mark_schema_element_tests(
+    const sxml_xslt_pattern_match_expression_request *request, bool *tests) {
+    const sxml_ast *ast = request->pattern_ast;
+    void *memory = NULL;
+    sxml_status status = sxml_allocator_allocate(
+        request->allocator,
+        (sxml_allocation_request){.byte_count = ((size_t)ast->node_count + 1U) *
+                                                sizeof(sxml_ast_node_index),
+                                  .alignment = alignof(sxml_ast_node_index)},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_ast_node_index *stack = memory;
+    size_t stack_count = 1;
+    stack[0] = ast->root;
+    while (status == SXML_STATUS_OK && stack_count > 0) {
+        stack_count -= 1;
+        const sxml_ast_node_index node = stack[stack_count];
+        const sxml_ast_node *pattern = sxml_xslt_pattern_node(ast, node);
+        sxml_ast_node_index first = {0};
+        sxml_ast_node_index second = {0};
+        switch ((uint32_t)pattern->kind) {
+        case SXML_AST_KIND_PATTERN:
+        case SXML_AST_KIND_PARENTHESIZED_PATTERN:
+            first = sxml_xslt_pattern_child(ast, node, SXML_AST_FIELD_PATTERN);
+            break;
+        case SXML_AST_KIND_UNION_PATTERN:
+        case SXML_AST_KIND_INTERSECT_EXCEPT_PATTERN:
+            first = sxml_xslt_pattern_child(ast, node, SXML_AST_FIELD_LEFT);
+            second = sxml_xslt_pattern_child(ast, node, SXML_AST_FIELD_RIGHT);
+            break;
+        case SXML_AST_KIND_RELATIVE_PATH_PATTERN:
+            /* The first step is in the left part. */
+            first = sxml_xslt_pattern_child(ast, node, SXML_AST_FIELD_LEFT);
+            break;
+        case SXML_AST_KIND_ABSOLUTE_PATH_PATTERN:
+        case SXML_AST_KIND_ROOTED_PATH_PATTERN:
+            first = sxml_xslt_pattern_child(ast, node, SXML_AST_FIELD_PATH);
+            break;
+        case SXML_AST_KIND_AXIS_STEP_PATTERN: {
+            const sxml_ast_axis axis = sxml_xslt_pattern_step_axis(
+                ast, (sxml_xslt_pattern_step_axis_request){.step = node, .is_leading = true});
+            const sxml_ast_node_index test = sxml_xslt_pattern_child(ast, node, SXML_AST_FIELD_TEST);
+            const sxml_ast_node *test_node = sxml_xslt_pattern_node(ast, test);
+            if (axis == SXML_AST_AXIS_ATTRIBUTE || axis == SXML_AST_AXIS_NAMESPACE ||
+                !sxml_xslt_pattern_is_name_kind(test_node->kind) ||
+                test_node->first_child.value != 0) {
+                break;
+            }
+            bool is_declared = false;
+            status = sxml_xslt_pattern_is_declared_element(request, test, &is_declared);
+            if (status == SXML_STATUS_OK && !is_declared &&
+                request->typed_names == SXML_XSLT_PATTERN_TYPED_NAMES_STRICT) {
+                status = sxml_xpath_report_static_error(
+                    &(sxml_xpath_static_error){
+                        .ast = ast,
+                        .node = test,
+                        .code_local_name = SXML_BYTE_VIEW_FROM_LITERAL("XTSE3105"),
+                        .description = SXML_BYTE_VIEW_FROM_LITERAL(
+                            "a template rule of a mode with typed=\"strict\" names an element "
+                            "no global element declaration has (XSLT 4.0, 6.9.4)")},
+                    request->error_record);
+            }
+            tests[test.value] = is_declared ||
+                                request->typed_names == SXML_XSLT_PATTERN_TYPED_NAMES_STRICT;
+            break;
+        }
+        default:
+            break;
+        }
+        if (second.value != 0) {
+            stack[stack_count] = second;
+            stack_count += 1;
+        }
+        if (first.value != 0) {
+            stack[stack_count] = first;
+            stack_count += 1;
+        }
+    }
+    sxml_allocator_release(request->allocator, memory);
+    return status;
+}
+
 sxml_status sxml_xslt_pattern_build_match_expression(
     const sxml_xslt_pattern_match_expression_request *request,
     sxml_ast **match_expression) {
@@ -3993,17 +4136,36 @@ sxml_status sxml_xslt_pattern_build_match_expression(
         .prefixes = NULL,
         .prefix_count = 1,
         .prefix_capacity = 0,
+        .schema_element_tests = NULL,
     };
+    sxml_status status = SXML_STATUS_OK;
+    if (request->typed_names != SXML_XSLT_PATTERN_TYPED_NAMES_NONE &&
+        request->static_context != NULL) {
+        void *memory = NULL;
+        status = sxml_allocator_allocate(
+            request->allocator,
+            (sxml_allocation_request){.byte_count = (size_t)pattern->node_count + 1U,
+                                      .alignment = alignof(bool)},
+            &memory);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        builder.schema_element_tests = memory;
+        memset(memory, 0, (size_t)pattern->node_count + 1U);
+        status = sxml_xslt_pattern_mark_schema_element_tests(request, builder.schema_element_tests);
+    }
     /* Entry 0 of the prefixes means none. */
     uint32_t unused_prefix = 0;
     builder.prefix_count = 0;
-    sxml_status status = sxml_xslt_pattern_add_prefix(
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xslt_pattern_add_prefix(
         &builder,
         (sxml_xslt_pattern_prefix){.prefix_kind = SXML_XSLT_PATTERN_PREFIX_KIND_DOCUMENT,
                                    .node = {0},
                                    .separator = SXML_AST_OPERATOR_NONE,
                                    .parent = 0},
         &unused_prefix);
+    }
     /* Most patterns need fewer than 48 nodes of match expression per
        pattern node; a larger capacity is tried when one does not. */
     size_t node_capacity = 64U + 48U * (size_t)pattern->node_count;
@@ -4021,6 +4183,9 @@ sxml_status sxml_xslt_pattern_build_match_expression(
     }
     sxml_allocator_release(request->allocator, builder.tasks);
     sxml_allocator_release(request->allocator, builder.prefixes);
+    if (builder.schema_element_tests != NULL) {
+        sxml_allocator_release(request->allocator, builder.schema_element_tests);
+    }
     if (status != SXML_STATUS_OK) {
         return status;
     }
@@ -4045,7 +4210,8 @@ sxml_status sxml_xslt_pattern_lower_match_function(
             .pattern_ast = request->pattern_ast,
             .static_context = static_context,
             .allocator = lowerer->allocator,
-            .error_record = lowerer->error_record},
+            .error_record = lowerer->error_record,
+            .typed_names = request->typed_names},
         &match_expression);
     if (status != SXML_STATUS_OK) {
         return status;

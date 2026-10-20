@@ -104,6 +104,20 @@
  * failures of the allocator. Declared in src/xpath_ast_internal.h with the
  * other front ends. */
 
+/*
+ * How the template rules of a typed mode read element names (XSLT 4.0,
+ * 6.9.4): in a mode with typed="strict" or "lax", an EQName test on an
+ * axis whose principal node kind is element, in the first step of a
+ * relative path of the match pattern, is read as schema-element(E); with
+ * "lax" only when a global element declaration of E is in scope, with
+ * "strict" always, and its absence is XTSE3105.
+ */
+typedef enum sxml_xslt_pattern_typed_names {
+    SXML_XSLT_PATTERN_TYPED_NAMES_NONE = 0,
+    SXML_XSLT_PATTERN_TYPED_NAMES_LAX,
+    SXML_XSLT_PATTERN_TYPED_NAMES_STRICT,
+} sxml_xslt_pattern_typed_names;
+
 /* A pattern to turn into its match expression. */
 typedef struct sxml_xslt_pattern_match_expression_request {
     /* Root PATTERN. Borrowed for the call; the match expression borrows
@@ -116,8 +130,12 @@ typedef struct sxml_xslt_pattern_match_expression_request {
        sxml_ast_create. */
     sxml_allocator allocator;
     /* Receives XTSE0340 or XPST0081 for a function name that does not
-       bind to a permitted function; may be NULL. */
+       bind to a permitted function, XTSE3105 (typed_names); may be
+       NULL. */
     sxml_error_record *error_record;
+    /* The typed mode the match expression is for (6.9.4); NONE needs no
+       static context. */
+    sxml_xslt_pattern_typed_names typed_names;
 } sxml_xslt_pattern_match_expression_request;
 
 /*
@@ -141,6 +159,8 @@ typedef struct sxml_xslt_pattern_match_function_request {
        stylesheet's global variables as the unit's globals); NULL keeps
        the lowerer's. Its item heap and allocator must be the lowerer's. */
     const sxml_xpath_static_context *static_context;
+    /* As sxml_xslt_pattern_match_expression_request's. */
+    sxml_xslt_pattern_typed_names typed_names;
 } sxml_xslt_pattern_match_function_request;
 
 /*

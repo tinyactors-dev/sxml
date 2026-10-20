@@ -226,6 +226,17 @@ static const transformation_case transformation_cases[] = {
     {IMPORT MAIN("<xsl:variable name='h'><s:hat xsl:type='s:hat-type' size='2'/></xsl:variable>"
                  "<xsl:value-of select='$h/* instance of element(*, s:hat-type)'/>"),
      "true", NULL},
+    /* Typed modes (6.9.4, packet 4.21): a leading element name is
+       schema-element() in a lax or strict mode; strict needs a
+       declaration (XTSE3105), lax reads an undeclared name as a name. */
+    {IMPORT "<xsl:mode typed='lax'/><xsl:template match='s:hat'>T</xsl:template>"
+            "<xsl:template match='*'>O</xsl:template>"
+            MAIN("<xsl:variable name='h'><s:hat xsl:validation='strict' size='2'/>"
+                 "<s:hat xsl:type='xs:string'/></xsl:variable><xsl:apply-templates select='$h/*'/>"),
+     "TO", NULL},
+    {IMPORT "<xsl:mode typed='strict'/><xsl:template match='s:nothing'/>" MAIN("<x/>"), NULL,
+     "XTSE3105"},
+    {IMPORT "<xsl:mode typed='lax'/><xsl:template match='s:nothing'/>" MAIN("x"), "x", NULL},
     /* Documents (25.2). */
     {IMPORT MAIN("<xsl:variable name='d' as='document-node()'><xsl:document validation='strict'>"
                  "<s:hat/></xsl:document></xsl:variable>"

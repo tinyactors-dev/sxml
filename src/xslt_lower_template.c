@@ -117,8 +117,11 @@ typedef struct mode_entry {
     mode_property on_no_match;
     mode_property fails_on_multiple_match;
     mode_property copies_namespaces;
-    /* typed (6.9.4): 1 for yes, strict and lax, 2 for no. */
+    /* typed (6.9.4): 1 for yes, strict and lax, 2 for no; typed_names
+       the sxml_xslt_pattern_typed_names of strict and lax (NONE else),
+       how its rules' patterns read element names. */
     mode_property typed;
+    mode_property typed_names;
     /* The xsl:mode of highest precedence with an as attribute (6.9.5);
        0 for none. */
     sxml_xslt_ast_node_index as_declaration;
@@ -2423,6 +2426,16 @@ static sxml_status read_mode_declaration(const sxml_xslt_lowering *lowering,
                                                      : 1U,
                                         .import_precedence = precedence,
                                         .node = declaration});
+        const sxml_xslt_ast_keyword keyword = typed->value.payload.keyword;
+        set_property(&mode->typed_names,
+                     (property_setting){
+                         .value = keyword == SXML_XSLT_AST_KEYWORD_STRICT
+                                      ? (uint32_t)SXML_XSLT_PATTERN_TYPED_NAMES_STRICT
+                                  : keyword == SXML_XSLT_AST_KEYWORD_LAX
+                                      ? (uint32_t)SXML_XSLT_PATTERN_TYPED_NAMES_LAX
+                                      : (uint32_t)SXML_XSLT_PATTERN_TYPED_NAMES_NONE,
+                         .import_precedence = precedence,
+                         .node = declaration});
     }
     const sxml_xslt_ast_attribute *on_no_match =
         find_attribute(lowering, declaration, SXML_XSLT_AST_ATTRIBUTE_ON_NO_MATCH);
@@ -3772,10 +3785,34 @@ static sxml_status add_rules_and_modes(const sxml_xslt_lowering *lowering) {
             break;
         }
         find_applicable_modes(lowering, entry, &modes);
-        for (size_t mode_index = 0; mode_index < modes.count; mode_index += 1) {
+        /* 6.9.4: a typed mode's rules read leading element names as
+           schema-element(); one match function per way of reading them,
+           made on first need (index 0 is the plain one). */
+        sxml_ir_function_index typed_functions[3] = {entry->match_function, {0}, {0}};
+        for (size_t mode_index = 0; status == SXML_STATUS_OK && mode_index < modes.count;
+             mode_index += 1) {
+            const uint32_t typed_names =
+                templates->modes[modes.positions[mode_index]].typed_names.value;
+            if (typed_names > 2U || typed_functions[typed_names].value != 0) {
+                continue;
+            }
+            status = sxml_xslt_pattern_lower_match_function(
+                lowerer,
+                &(sxml_xslt_pattern_match_function_request){
+                    .pattern_ast = pattern->ast,
+                    .static_context =
+                        sxml_xslt_lowering_expression_context(lowering, entry->pattern),
+                    .typed_names = (sxml_xslt_pattern_typed_names)typed_names},
+                &typed_functions[typed_names]);
+        }
+        for (size_t mode_index = 0; status == SXML_STATUS_OK && mode_index < modes.count;
+             mode_index += 1) {
+            const uint32_t typed_names =
+                templates->modes[modes.positions[mode_index]].typed_names.value;
             rules[filled] = (pending_rule){
                 .mode_position = (uint32_t)modes.positions[mode_index],
-                .rule = {.match_function = entry->match_function,
+                .rule = {.match_function =
+                             typed_names <= 2U ? typed_functions[typed_names] : entry->match_function,
                          .template_function = entry->function,
                          .priority = priority,
                          .import_precedence = entry->import_precedence,
