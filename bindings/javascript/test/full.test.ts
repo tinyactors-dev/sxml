@@ -78,6 +78,14 @@ describe('XQuery', { skip: !isFull }, () => {
     });
   });
 
+  test('binds bin for EXPath Binary, as the sxml command does', () => {
+    withProcessor((processor) => {
+      const query = processor.compileQuery('bin:length(bin:hex("CAFE"))');
+      assert.equal(query.run(), '2');
+      query.dispose();
+    });
+  });
+
   test('serializes with the output declarations of the prolog', () => {
     withProcessor((processor) => {
       const query = processor.compileQuery(

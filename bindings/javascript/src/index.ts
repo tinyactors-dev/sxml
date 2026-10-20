@@ -114,7 +114,8 @@ export type Input = Value | JsonData;
 export interface StaticOptions {
   /** Namespace bindings, prefix to URI; the prefix '' sets the default
    *  element namespace. Added to the predeclared prefixes (xs, fn, map,
-   *  array, math, err, ...). */
+   *  array, math, err, ...) and to those of the processor's features (bin
+   *  with expath-binary), which they may rebind. */
   namespaces?: Record<string, string>;
   /** The static base URI, against which fn:doc resolves relative URIs. */
   baseUri?: string;
@@ -468,6 +469,15 @@ interface Held {
 
 /** A processor's C side and the handles made with it, so that destroying
  *  it releases them first (they could not outlive it in C). */
+/** The conventional prefixes of the optional features' namespaces, bound
+ *  for XPath and XQuery wherever the feature is present, as the sxml
+ *  command binds them (EXPath Binary 4.0, 1.5; EXPath File 4.0, 1.7;
+ *  D235): feature name, prefix, namespace URI. */
+const featurePrefixes: readonly (readonly [string, string, string])[] = [
+  ['expath-binary', 'bin', 'http://expath.org/ns/binary'],
+  ['expath-file', 'file', 'http://expath.org/ns/file'],
+];
+
 class ProcessorState {
   readonly module: Sxml;
   address: number;
@@ -481,11 +491,26 @@ class ProcessorState {
   jsonExpression = 0;
   /** What sxml_javascript_processor_destroy found still allocated. */
   leakedAllocationCount = 0;
+  /** The prefixes of the processor's features' namespaces (D235). */
+  readonly featureNamespaces: Readonly<Record<string, string>>;
 
-  constructor(module: Sxml, address: number, resolver: Resolver | undefined) {
+  constructor(module: Sxml, address: number, resolver: Resolver | undefined, features: readonly string[]) {
     this.module = module;
     this.address = address;
     this.resolver = resolver;
+    const namespaces: Record<string, string> = {};
+    for (const [feature, prefix, uri] of featurePrefixes) {
+      if (features.includes(feature)) {
+        namespaces[prefix] = uri;
+      }
+    }
+    this.featureNamespaces = Object.freeze(namespaces);
+  }
+
+  /** The namespaces of a compilation: the features' prefixes, then the
+   *  caller's, which may rebind them. */
+  staticNamespaces(namespaces: Record<string, string> | undefined): [string, string][] {
+    return Object.entries({ ...this.featureNamespaces, ...(namespaces ?? {}) });
   }
 
   releaseHandle(kind: HandleKind, address: number): void {
@@ -731,7 +756,7 @@ export class Sxml {
     if (address === 0) {
       throw outOfMemory();
     }
-    const state = new ProcessorState(this, address, options.resolver);
+    const state = new ProcessorState(this, address, options.resolver, options.features ?? this.features);
     this.processors.set(address, state);
     const processor = new Processor(state);
     this.track(processor, { processor: state, kind: 'processor', address });
@@ -923,7 +948,7 @@ export class Processor {
     let address: number;
     try {
       const namespaceWords: number[] = [];
-      for (const [prefix, uri] of Object.entries(options.namespaces ?? {})) {
+      for (const [prefix, uri] of state.staticNamespaces(options.namespaces)) {
         namespaceWords.push(...scratch.view(prefix), ...scratch.view(uri));
       }
       const request = scratch.words([
@@ -1122,7 +1147,7 @@ export class Processor {
     const scratch = new Scratch(state);
     try {
       const namespaceWords: number[] = [];
-      for (const [prefix, uri] of Object.entries(options.namespaces ?? {})) {
+      for (const [prefix, uri] of state.staticNamespaces(options.namespaces)) {
         namespaceWords.push(...scratch.view(prefix), ...scratch.view(uri));
       }
       const variableWords: number[] = [];

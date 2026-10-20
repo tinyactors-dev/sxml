@@ -34,7 +34,7 @@ model (XDM 4.0) and one evaluator.
 | HTML | HTML parsing as the HTML Living Standard specifies it, every encoding of the Encoding Standard: `fn:parse-html` and `fn:html-doc` |
 | Data model | XDM 4.0 |
 | Expressions | XPath 4.0 and the F&O 4.0 function library: maps, arrays, records, higher-order functions, regular expressions, dates and times, decimal arithmetic, JSON and CSV |
-| Queries | XQuery 4.0, the XQuery Update Facility 3.0 (with `fn:put`), and XQuery and XPath Full Text 3.0 in XQuery, with stemming, stop words and thesauri |
+| Queries | XQuery 4.0, the XQuery Update Facility 3.0 (with `fn:put`), and XQuery and XPath Full Text 3.0 in XQuery and XPath, with stemming, stop words and thesauri |
 | Transformations | XSLT 4.0, with streaming, packages, accumulators, `xsl:evaluate` and `fn:transform`; XSLT 1.0, 2.0 and 3.0 stylesheets; EXSLT Common |
 | Schemas | XSD 1.1 validation; schema-aware XPath, XQuery and XSLT |
 | Output | Serialization 4.0: the xml, xhtml, html, text, json, csv and adaptive methods, `disable-output-escaping` |
@@ -273,9 +273,9 @@ $ sxml xpath --method=xml 'invisible-xml(unparsed-text("date.ixml"))("20 Octobre
 
 ### Search text
 
-XQuery Full Text adds `contains text` to XQuery: words and phrases,
-`ftand`, `ftor` and `ftnot`, distances, windows, wildcards, stemming,
-stop words and thesauri.
+XQuery and XPath Full Text adds `contains text` to XQuery and XPath:
+words and phrases, `ftand`, `ftor` and `ftnot`, distances, windows,
+wildcards, stemming, stop words, thesauri and scores.
 
 `reviews.xml`:
 
@@ -293,6 +293,8 @@ $ sxml xquery --context-item=reviews.xml --method=adaptive --expression='//revie
 "2"
 $ sxml xquery --context-item=reviews.xml --method=adaptive --expression='//review[. contains text "memory" ftand "huge" distance at most 5 words]/@id/string()'
 "3"
+$ sxml xpath --context-item=reviews.xml '//review[. contains text "parse" using stemming]/@id/string()'
+"2"
 ```
 
 ## Features by module
@@ -307,7 +309,7 @@ have everything.
 | XPath 4.0 and F&O 4.0, with JSON and CSV | yes | yes | yes | yes |
 | Serialization 4.0 | yes | yes | yes | yes |
 | XQuery 4.0 and the XQuery Update Facility 3.0 | – | yes | yes | yes |
-| XQuery Full Text 3.0 | – | yes | yes | yes |
+| XQuery and XPath Full Text 3.0 | – | yes | yes | yes |
 | XSLT 4.0, streaming, XSLT 1.0 and EXSLT Common | – | yes | yes | yes |
 | `fn:transform` | – | yes | yes | yes |
 | XSD 1.1 validation and schema awareness | – | yes | yes | yes |
@@ -543,8 +545,7 @@ sxml 0.2.0 is in active development and has no tagged release yet.
 Everything above works in the library, the `sxml` command and, where the
 table says so, in JavaScript. The public C headers are stable. Not done
 yet: builds for macOS and Windows, bindings for iOS and Android,
-`xsl:merge` over streamed inputs, and Full Text in XPath expressions
-(it works in XQuery).
+and `xsl:merge` over streamed inputs.
 
 ## License
 

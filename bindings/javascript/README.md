@@ -6,8 +6,8 @@ dependencies. It comes as two modules:
 
 | Module | What it has | Size | Gzipped |
 | --- | --- | --: | --: |
-| `sxml.wasm` (core) | XML parsing, XPath 4.0 with the F&O 4.0 function library, Serialization 4.0 | 2.1 MB | 729 KB |
-| `sxml-full.wasm` (full) | The core, plus XQuery 4.0 with the Update Facility 3.0 and Full Text 3.0, XSLT 4.0, XSD 1.1 validation, and every optional feature except EXPath File | 7.1 MB | 1.6 MB |
+| `sxml.wasm` (core) | XML parsing, XPath 4.0 with the F&O 4.0 function library, Serialization 4.0 | 2.1 MB | 730 KB |
+| `sxml-full.wasm` (full) | The core, plus XQuery 4.0 with the Update Facility 3.0, XQuery and XPath Full Text 3.0, XSLT 4.0, XSD 1.1 validation, and every optional feature except EXPath File | 7.6 MB | 1.7 MB |
 
 ```js
 import { load } from 'sxml-js';
@@ -64,8 +64,8 @@ not exist (`err:XPST0017`), or the specification's fallback applies.
 | `html` | `fn:parse-html` and `fn:html-doc`: HTML parsed as the HTML Living Standard says, in every encoding of the Encoding Standard |
 | `invisible-xml` | `fn:invisible-xml`: Invisible XML grammars that turn text into XML |
 | `xslt-transform` | `fn:transform`: run an XSLT stylesheet from XPath or XQuery |
-| `expath-binary` | The EXPath Binary 4.0 functions, namespace `http://expath.org/ns/binary` |
-| `full-text` | XQuery Full Text 3.0: `contains text`, with stemming, stop words and thesauri |
+| `expath-binary` | The EXPath Binary 4.0 functions, namespace `http://expath.org/ns/binary`, bound to the prefix `bin` |
+| `full-text` | XQuery and XPath Full Text 3.0: `contains text` and score variables in XPath and XQuery, with stemming, stop words and thesauri |
 | `dtd-validation` | The `dtd-validation` option of `fn:doc` and `fn:parse-xml` |
 | `builtin-schemas` | The schemas that `fn:json-to-xml` with `validate`, the typed results of `fn:analyze-string`, and lax validation without an in-scope schema use |
 | `uca-collation` | UCA collation URIs (Unicode Collation Algorithm 16.0) over the DUCET, which the package ships; the CLDR root collation and the CLDR tailorings by language when the resolver gives their files (resource kind `'collation-data'`) |
@@ -99,12 +99,14 @@ value from this processor or JavaScript data. A string becomes an
 objects are maps, arrays are arrays, numbers are `xs:double`, and `null` is
 the empty sequence.
 
-`namespaces` binds prefixes for the expression:
+`namespaces` binds prefixes for the expression, besides the predeclared
+ones (`xs`, `fn`, `map`, `array`, `math`, `err`, ...). A processor with
+the `expath-binary` feature also binds `bin`, as the `sxml` command does;
+`namespaces` may rebind it:
 
 ```js
-processor.evaluate('bin:hex("CAFE") => bin:to-octets()', {
-  namespaces: { bin: 'http://expath.org/ns/binary' },
-}).toString(); // '202\n254', with the full module
+processor.evaluate('bin:hex("CAFE") => bin:to-octets()').toString(); // '202\n254', with the full module
+processor.evaluate('//p:item', { context: document, namespaces: { p: 'urn:p' } });
 ```
 
 ## Output

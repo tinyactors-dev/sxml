@@ -56,6 +56,31 @@ describe('optional features', () => {
     }
   });
 
+  // The conventional prefix of EXPath Binary, as the sxml command binds
+  // it (D235); the caller's namespaces may rebind it.
+  test('bin is bound wherever the processor has expath-binary', () => {
+    const hasBinary = expectedFeatures.includes('expath-binary');
+    for (const features of [undefined, []]) {
+      const processor = sxml.createProcessor({ features });
+      if (hasBinary && features === undefined) {
+        const result = processor.evaluate('bin:hex("CAFE") => bin:to-octets()');
+        assert.equal(result.toString(), '202\n254');
+        result.dispose();
+      } else {
+        assert.throws(
+          () => processor.evaluate('bin:hex("CAFE")'),
+          (error: unknown) => error instanceof SxmlError && error.code === 'err:XPST0081',
+        );
+      }
+      const rebound = processor.evaluate('string(namespace-uri-from-QName(xs:QName("bin:x")))', {
+        namespaces: { bin: 'urn:b' },
+      });
+      assert.equal(rebound.toString(), '"urn:b"');
+      rebound.dispose();
+      disposeChecked(processor);
+    }
+  });
+
   test('a feature the module does not have is refused', () => {
     assert.throws(() => sxml.createProcessor({ features: ['no-such-feature'] }), /no optional feature/);
   });
