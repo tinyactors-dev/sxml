@@ -54,6 +54,40 @@
       }
     },
     {
+      "name": "android",
+      "hidden": true,
+      "inherits": "base",
+      "toolchainFile": "$env{ANDROID_NDK_HOME}/build/cmake/android.toolchain.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "MinSizeRel",
+        "ANDROID_PLATFORM": "android-24"
+      }
+    },
+    {
+      "name": "android-arm64-v8a",
+      "displayName": "Android arm64-v8a, NDK r28c, API 24 (ANDROID_NDK_HOME)",
+      "inherits": "android",
+      "cacheVariables": { "ANDROID_ABI": "arm64-v8a" }
+    },
+    {
+      "name": "android-armeabi-v7a",
+      "displayName": "Android armeabi-v7a, NDK r28c, API 24 (ANDROID_NDK_HOME)",
+      "inherits": "android",
+      "cacheVariables": { "ANDROID_ABI": "armeabi-v7a" }
+    },
+    {
+      "name": "android-x86_64",
+      "displayName": "Android x86_64, NDK r28c, API 24 (ANDROID_NDK_HOME)",
+      "inherits": "android",
+      "cacheVariables": { "ANDROID_ABI": "x86_64" }
+    },
+    {
+      "name": "android-x86",
+      "displayName": "Android x86, NDK r28c, API 24 (ANDROID_NDK_HOME)",
+      "inherits": "android",
+      "cacheVariables": { "ANDROID_ABI": "x86" }
+    },
+    {
       "name": "fuzz",
       "displayName": "libFuzzer targets (tests/fuzz), Clang, AddressSanitizer and UndefinedBehaviorSanitizer",
       "inherits": "base",
@@ -74,6 +108,10 @@
     { "name": "msvc", "configurePreset": "msvc", "configuration": "Debug" },
     { "name": "wasm", "configurePreset": "wasm" },
     { "name": "fuzz", "configurePreset": "fuzz" },
+    { "name": "android-arm64-v8a", "configurePreset": "android-arm64-v8a" },
+    { "name": "android-armeabi-v7a", "configurePreset": "android-armeabi-v7a" },
+    { "name": "android-x86_64", "configurePreset": "android-x86_64" },
+    { "name": "android-x86", "configurePreset": "android-x86" },
     { "name": "lint", "configurePreset": "debug", "targets": ["lint"] }
   ],
   "testPresets": [

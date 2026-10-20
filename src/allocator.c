@@ -24,7 +24,9 @@
  * _aligned_free, and release does not know the alignment it was allocated
  * with, so every allocation uses _aligned_malloc. Elsewhere, free releases
  * both malloc and aligned_alloc memory, so plain malloc serves the common
- * case and aligned_alloc only the over-aligned one.
+ * case and aligned_alloc only the over-aligned one. Android's bionic declares
+ * aligned_alloc only from API level 28; below it, posix_memalign (POSIX.1-2008,
+ * also released by free) serves the over-aligned case (minSdk 24, D238).
  */
 static void *sxml_heap_allocate(sxml_allocation_request request) {
 #if defined(_WIN32)
@@ -40,7 +42,15 @@ static void *sxml_heap_allocate(sxml_allocation_request request) {
                            &aligned_byte_count) != SXML_STATUS_OK) {
         return NULL;
     }
+#if defined(__ANDROID__) && __ANDROID_API__ < 28
+    void *memory = NULL;
+    if (posix_memalign(&memory, request.alignment, aligned_byte_count) != 0) {
+        return NULL;
+    }
+    return memory;
+#else
     return aligned_alloc(request.alignment, aligned_byte_count);
+#endif
 #endif
 }
 

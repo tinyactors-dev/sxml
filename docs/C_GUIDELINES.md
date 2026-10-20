@@ -261,7 +261,16 @@ typedef struct sxml_memory_view {
 ## Types and expressions
 
 Target C17, with C23 features behind portability macros. Code must build with
-Clang, GCC, MSVC and the WASI SDK.
+Clang, GCC, MSVC, the WASI SDK and the Android NDK.
+
+- **Platform branches** are few, each beside the existing `_WIN32` one, and
+  each says why in a comment. Android (D238, D251): the NDK presets build
+  for API level 24 (`minSdk`), where bionic lacks two C17 functions.
+  `src/allocator.c` uses `posix_memalign` for `aligned_alloc` (API 28) and
+  `src/processor.c` uses `clock_gettime(CLOCK_REALTIME)` for `timespec_get`
+  (API 29), both when `__ANDROID_API__` is lower. Any other C17 function the
+  library calls must be in bionic at API 24; `tools/build-android.sh` checks
+  that by building all four ABIs with `-Werror`.
 
 - **Integers:** `size_t` for sizes and counts in memory, fixed-width types for
   values with a defined range, never plain `int` or `long` for data.

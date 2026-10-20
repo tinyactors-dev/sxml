@@ -97,12 +97,27 @@ sxml_date_time sxml_date_time_from_unix_time(sxml_unix_time unix_time) {
                             .timezone_offset_minutes = 0};
 }
 
-/* Reads the platform's UTC clock (C17, section 7.27.2.5, timespec_get). */
+/*
+ * Reads the platform's UTC clock into now; false when it has none (C17,
+ * section 7.27.2.5, timespec_get). Android's bionic declares timespec_get
+ * only from API level 29; below it, clock_gettime with CLOCK_REALTIME
+ * (POSIX.1-2008) reads the same clock (minSdk 24, D238).
+ */
+static bool sxml_platform_utc_time(struct timespec *now) {
+#if defined(__ANDROID__) && __ANDROID_API__ < 29
+    return clock_gettime(CLOCK_REALTIME, now) == 0;
+#elif defined(TIME_UTC)
+    return timespec_get(now, TIME_UTC) == TIME_UTC;
+#else
+    (void)now;
+    return false;
+#endif
+}
+
 static sxml_status sxml_system_clock_read(void *state, sxml_clock_reading *reading) {
     (void)state;
-#if defined(TIME_UTC)
     struct timespec now;
-    if (timespec_get(&now, TIME_UTC) != TIME_UTC) {
+    if (!sxml_platform_utc_time(&now)) {
         return SXML_STATUS_UNSUPPORTED_FEATURE;
     }
     *reading = (sxml_clock_reading){
@@ -111,10 +126,6 @@ static sxml_status sxml_system_clock_read(void *state, sxml_clock_reading *readi
                              .nanoseconds = (uint32_t)now.tv_nsec}),
         .implicit_timezone_offset_minutes = 0};
     return SXML_STATUS_OK;
-#else
-    (void)reading;
-    return SXML_STATUS_UNSUPPORTED_FEATURE;
-#endif
 }
 
 static const sxml_clock_operations sxml_system_clock_operations = {
