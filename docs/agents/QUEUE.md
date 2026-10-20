@@ -24,7 +24,7 @@ transform-004 needs a suspendable compiler (D71), transform-401 waits on
 ## Running
 
 - 4.22: XSLT moves to the newest draft and the newest xslt40-test (D245).
-- 6.5: Kotlin full surface. 6.4 done (D247): Kotlin core on the JVM, 36 cases.
+- 2.23: XPath/XQuery sweep on the largest remaining failure clusters.
 - 6.3: the Android build (NDK, four ABIs, minSdk 24 fallbacks).
 
 ## Next
@@ -55,6 +55,11 @@ transform-004 needs a suspendable compiler (D71), transform-401 waits on
 - Android emulator and device runs (6.6, D238).
 
 ## Leftovers no packet owns yet
+
+Kotlin (6.4/6.5 done, D247, D250): 65 tests on the JVM with -Xcheck:jni and
+0 leaks; the host shim now refuses U+0000, U+FFFE, U+FFFF. 6.6 (AAR) after
+6.3; Kotlin's SchemaException subclasses SxmlException, Swift's SchemaError
+does not (6.12 to compare).
 
 Swift (6.7/6.8 done, D241, D248): 55 tests on Linux; the bundled DUCET is a
 copy of third_party/unicode-collation/allkeys.txt that must be updated with
