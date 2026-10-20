@@ -1,0 +1,62 @@
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+
+  <xs:element name="records">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="books">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="book" type="book" maxOccurs="unbounded"/>
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+        <xs:element name="loans">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="loan" type="loan" maxOccurs="unbounded"/>
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+      </xs:sequence>
+    </xs:complexType>
+
+    <!-- Every book has an id, and no two books have the same one. -->
+    <xs:key name="book-id">
+      <xs:selector xpath="books/book"/>
+      <xs:field xpath="@id"/>
+    </xs:key>
+
+    <!-- An ISBN is optional, but two books never share one. -->
+    <xs:unique name="book-isbn">
+      <xs:selector xpath="books/book"/>
+      <xs:field xpath="isbn"/>
+    </xs:unique>
+
+    <!-- Every loan is of a book that exists. -->
+    <xs:keyref name="loan-book" refer="book-id">
+      <xs:selector xpath="loans/loan"/>
+      <xs:field xpath="@book"/>
+    </xs:keyref>
+
+    <!-- A book is lent at most once a day: a key of two fields. -->
+    <xs:unique name="loan-day">
+      <xs:selector xpath="loans/loan"/>
+      <xs:field xpath="@book"/>
+      <xs:field xpath="@date"/>
+    </xs:unique>
+  </xs:element>
+
+  <xs:complexType name="book">
+    <xs:sequence>
+      <xs:element name="title" type="xs:string"/>
+      <xs:element name="isbn" type="xs:string" minOccurs="0"/>
+    </xs:sequence>
+    <xs:attribute name="id" type="xs:NCName"/>
+  </xs:complexType>
+
+  <xs:complexType name="loan">
+    <xs:attribute name="book" type="xs:NCName" use="required"/>
+    <xs:attribute name="member" type="xs:NCName" use="required"/>
+    <xs:attribute name="date" type="xs:date" use="required"/>
+  </xs:complexType>
+</xs:schema>

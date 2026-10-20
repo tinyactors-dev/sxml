@@ -24,6 +24,7 @@ The options you'll use most:
 | Option | Commands | Meaning |
 | --- | --- | --- |
 | `--context-item=FILE` | `xpath`, `xquery` | The document the expression starts from |
+| `--expression=TEXT` | `xquery` | The query text, instead of a query file |
 | `--param=NAME=VALUE` | `xpath`, `xquery`, `transform` | Binds a variable or stylesheet parameter to an untyped value |
 | `--method=METHOD` | `xpath`, `xquery`, `transform`, `serialize` | The output method: `adaptive`, `xml`, `xhtml`, `html`, `text`, `json` or `csv` |
 | `--output=FILE`, `-o FILE` | `xpath`, `xquery`, `transform`, `serialize` | Writes the result to a file, only when the command succeeds |
@@ -33,6 +34,7 @@ The options you'll use most:
 | `--allow-put` | `xquery` | Lets `fn:put` write files |
 | `--allow-file-access` | `xpath`, `xquery` | Makes the EXPath File functions available |
 | `--external-entities`, `--validate-dtd` | `check` | Reads external DTDs and entities; validates against the DTD |
+| `--schema=SCHEMA` | `validate` | A schema document; repeat it to combine several into one schema |
 | `--mode=lax` | `validate` | Lax validation |
 | `--format=json` | `check`, `validate`, `version` | A report as JSON, for programs |
 

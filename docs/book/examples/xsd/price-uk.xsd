@@ -1,0 +1,13 @@
+<!-- price.xsd, with pounds as well: xs:override replaces one
+     component of the schema it names, and keeps the rest. -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:override schemaLocation="price.xsd">
+    <xs:simpleType name="currency">
+      <xs:restriction base="xs:string">
+        <xs:enumeration value="EUR"/>
+        <xs:enumeration value="USD"/>
+        <xs:enumeration value="GBP"/>
+      </xs:restriction>
+    </xs:simpleType>
+  </xs:override>
+</xs:schema>

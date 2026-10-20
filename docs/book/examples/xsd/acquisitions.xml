@@ -1,0 +1,13 @@
+<acquisitions budget="60" note="October" xmlns:staff="https://example.org/staff">
+  <item kind="book">
+    <title>The Dispossessed</title>
+    <price>12.50</price>
+    <author>Ursula K. Le Guin</author>
+  </item>
+  <staff:comment>Ask Grace about the film.</staff:comment>
+  <item kind="film" note="on DVD">
+    <title>Dune</title>
+    <price>19.90</price>
+    <minutes>137</minutes>
+  </item>
+</acquisitions>

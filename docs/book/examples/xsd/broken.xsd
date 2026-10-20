@@ -1,0 +1,11 @@
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="loan">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="book" type="xs:NCname"/>
+        <xs:element name="member" type="member-id"/>
+      </xs:sequence>
+      <xs:attribute name="date" type="xs:date" use="always"/>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

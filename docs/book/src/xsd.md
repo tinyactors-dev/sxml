@@ -115,3 +115,25 @@ $ echo '<shelf><loan book="dune" from="2026-10-01" until="2026-09-01"/></shelf>'
 Older documents often carry a DTD, the schema language built into XML
 itself. `sxml check --validate-dtd` validates a document against its
 DTD; Appendix A has the details.
+
+## What's in this chapter
+
+The rest of the chapter teaches XSD step by step:
+
+- [Simple Types and Facets](xsd-simple-types.md): built-in types,
+  restrictions, lists and unions;
+- [Complex Types and Content Models](xsd-complex-types.md): sequences,
+  choices, `all`, attributes, mixed, simple and empty content, groups;
+- [Deriving Types](xsd-derivation.md): extension, restriction,
+  `xsi:type`, substitution groups and `xsi:nil`;
+- [Namespaces and Larger Schemas](xsd-namespaces.md): target
+  namespaces, include and import;
+- [Keys and References](xsd-identity.md): `xs:unique`, `xs:key` and
+  `xs:keyref`;
+- [XSD 1.1 Features](xsd-11.md): assertions, conditional types, open
+  content, default attributes and overrides;
+- [Reading Validation Errors](xsd-errors.md): what the messages mean,
+  and how to fix what they report;
+- [Typed Data and Schema-Aware Queries](xsd-typed-data.md): using the
+  types in XQuery and XSLT.
+

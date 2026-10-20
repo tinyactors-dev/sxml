@@ -1,0 +1,12 @@
+<!-- Members, in the namespace of the schema that includes this one. -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           targetNamespace="https://example.org/lending"
+           elementFormDefault="qualified">
+
+  <xs:complexType name="member">
+    <xs:sequence>
+      <xs:element name="name" type="xs:string"/>
+    </xs:sequence>
+    <xs:attribute name="id" type="xs:NCName" use="required"/>
+  </xs:complexType>
+</xs:schema>

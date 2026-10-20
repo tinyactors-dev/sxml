@@ -1,0 +1,61 @@
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+
+  <!-- What every item of the collection has. Abstract: no element
+       has this type itself, only types derived from it. -->
+  <xs:complexType name="item" abstract="true">
+    <xs:sequence>
+      <xs:element name="title" type="xs:string"/>
+    </xs:sequence>
+    <xs:attribute name="id" type="xs:ID" use="required"/>
+  </xs:complexType>
+
+  <!-- Extension: an item, and then more. -->
+  <xs:complexType name="book">
+    <xs:complexContent>
+      <xs:extension base="item">
+        <xs:sequence>
+          <xs:element name="author" type="xs:string" maxOccurs="unbounded"/>
+          <xs:element name="pages" type="xs:positiveInteger"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="film">
+    <xs:complexContent>
+      <xs:extension base="item">
+        <xs:sequence>
+          <xs:element name="director" type="xs:string"/>
+          <xs:element name="minutes" type="xs:positiveInteger"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <!-- Restriction: a film, but at most forty minutes long. -->
+  <xs:complexType name="short-film">
+    <xs:complexContent>
+      <xs:restriction base="film">
+        <xs:sequence>
+          <xs:element name="title" type="xs:string"/>
+          <xs:element name="director" type="xs:string"/>
+          <xs:element name="minutes">
+            <xs:simpleType>
+              <xs:restriction base="xs:positiveInteger">
+                <xs:maxInclusive value="40"/>
+              </xs:restriction>
+            </xs:simpleType>
+          </xs:element>
+        </xs:sequence>
+      </xs:restriction>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:element name="collection">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="item" type="item" maxOccurs="unbounded"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

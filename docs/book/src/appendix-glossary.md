@@ -3,6 +3,9 @@
 **Accumulator.** In XSLT, a value that is updated as the processor moves
 through a document, by rules that match nodes. Works while streaming.
 
+**Assertion.** In XSD 1.1, an XPath condition that a valid element
+(`xs:assert`) or value (the `assertion` facet) must meet.
+
 **Atomic value.** A value that is not a node, a function, a map or an
 array: a string, a number, a boolean, a date, a duration, a QName and so
 on. Each has a type.
@@ -16,12 +19,18 @@ constructed element with expressions in curly braces, such as
 
 **Collation.** Rules for comparing and sorting strings, named by a URI.
 
+**Complex type.** In XSD, the type of an element with attributes or
+children. Its *content model* says which children it may have.
+
 **Constructor.** An expression that makes a new node (`<p>...</p>`,
 `element { ... } { ... }`), map or array.
 
 **Context item.** The item an expression is evaluated against: the
 document given with `--context-item`, or the item a predicate is
 testing. Written `.`.
+
+**Derivation.** Making an XSD type from another: by *restriction*,
+which narrows its values, or by *extension*, which adds content.
 
 **Document node.** The root of a document's tree, above the outermost
 element.
@@ -37,11 +46,23 @@ false; a node is true.
 the specifications. The same code means the same problem in every
 processor.
 
+**External variable.** A variable of a query whose value comes from
+outside, such as `--param`; a parameter of the whole query.
+
+**Facet.** A property of a simple type that restricts its values, such
+as `pattern`, `maxLength` or `minInclusive`.
+
 **FLWOR expression.** XQuery's expression of `for`, `let`, `where`,
 `order by`, `group by`, `count`, window clauses and `return`.
 
+**Identity constraint.** In XSD, a rule that values are unique
+(`xs:unique`, `xs:key`) or refer to a key (`xs:keyref`).
+
 **Item.** One member of a sequence: a node, an atomic value or a
 function (maps and arrays are functions).
+
+**Library module.** An XQuery module of declarations, with a namespace,
+that queries import.
 
 **Map, array, record.** A map associates keys with values; an array is
 a list of members by position; a record type describes maps with known
@@ -89,6 +110,9 @@ order. Sequences don't nest.
 **Serialization.** Writing a value as text or bytes, by an output
 method.
 
+**Simple type.** In XSD, a type of text: a built-in type such as
+`xs:date`, or a restriction, list or union of others.
+
 **Static and dynamic errors.** A static error is found when an
 expression is compiled (a syntax error, an unknown function); a dynamic
 error when it runs (division by zero, a missing document); a type error
@@ -96,6 +120,12 @@ when a value has the wrong type.
 
 **Streaming.** Processing a document as it is parsed, without building
 its tree, so memory doesn't grow with its size.
+
+**Substitution group.** In XSD, the global elements that may appear
+wherever their head element is allowed.
+
+**Target namespace.** The namespace of the components that a schema
+document declares.
 
 **Template rule.** In XSLT, a rule with a pattern and a body that makes
 the output for the nodes the pattern matches.
@@ -109,6 +139,9 @@ arithmetic, to strings in string comparisons.
 
 **Validation.** Checking a document against a schema, which also gives
 its nodes their types.
+
+**Window clause.** A FLWOR clause that binds a variable to runs of
+consecutive items: tumbling windows don't overlap, sliding windows may.
 
 **XDM.** The XQuery and XPath Data Model, the model of values that
 XPath, XQuery and XSLT share.

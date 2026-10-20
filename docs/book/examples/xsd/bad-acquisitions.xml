@@ -1,0 +1,17 @@
+<acquisitions budget="30">
+  <item kind="book">
+    <title>The Dispossessed</title>
+    <price>12.50</price>
+    <minutes>387</minutes>
+  </item>
+  <item kind="music">
+    <title>Spice Songs</title>
+    <price>9.90</price>
+  </item>
+  <comment>Ask Grace about the film.</comment>
+  <item kind="film">
+    <title>Dune</title>
+    <price>19.90</price>
+    <minutes>137</minutes>
+  </item>
+</acquisitions>

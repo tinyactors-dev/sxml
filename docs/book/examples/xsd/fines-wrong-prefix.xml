@@ -1,0 +1,6 @@
+<l:fines xmlns:l="https://example.org/lending" xmlns:m="https://example.org/money">
+  <l:fine book="geb">
+    <l:member id="alan"><name>Alan Turing</name></l:member>
+    <m:amount currency="EUR">2.40</m:amount>
+  </l:fine>
+</l:fines>

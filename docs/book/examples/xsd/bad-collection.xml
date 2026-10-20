@@ -1,0 +1,12 @@
+<collection xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <item id="lhod">
+    <title>The Left Hand of Darkness</title>
+  </item>
+  <item xsi:type="short-film" id="long">
+    <title>Long</title>
+    <director>Someone</director>
+    <minutes>90</minutes>
+  </item>
+  <item xsi:type="xs:string" id="text">Text</item>
+</collection>

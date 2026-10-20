@@ -1,0 +1,61 @@
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+
+  <xs:element name="events">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="event" type="event" minOccurs="0" maxOccurs="unbounded"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:complexType name="event">
+    <xs:sequence>
+      <xs:element name="title" type="xs:string"/>
+      <!-- One day, or a range of days. -->
+      <xs:choice>
+        <xs:element name="date" type="xs:date"/>
+        <xs:sequence>
+          <xs:element name="from" type="xs:date"/>
+          <xs:element name="until" type="xs:date"/>
+        </xs:sequence>
+      </xs:choice>
+      <xs:element name="speaker" type="xs:string" minOccurs="0" maxOccurs="3"/>
+      <xs:element name="about" type="text" minOccurs="0"/>
+      <xs:element name="contact" type="contact"/>
+      <xs:element name="fee" type="fee" minOccurs="0"/>
+      <xs:element name="cancelled" type="cancelled" minOccurs="0"/>
+    </xs:sequence>
+    <xs:attribute name="id" type="xs:ID" use="required"/>
+    <xs:attribute name="kind" type="xs:token" default="talk"/>
+  </xs:complexType>
+
+  <!-- Mixed content: text with some elements in it. -->
+  <xs:complexType name="text" mixed="true">
+    <xs:choice minOccurs="0" maxOccurs="unbounded">
+      <xs:element name="em" type="xs:string"/>
+      <xs:element name="book" type="xs:string"/>
+    </xs:choice>
+  </xs:complexType>
+
+  <!-- All: each child at most once, in any order. -->
+  <xs:complexType name="contact">
+    <xs:all>
+      <xs:element name="email" type="xs:string"/>
+      <xs:element name="phone" type="xs:string" minOccurs="0"/>
+    </xs:all>
+  </xs:complexType>
+
+  <!-- Simple content: text of a simple type, and attributes. -->
+  <xs:complexType name="fee">
+    <xs:simpleContent>
+      <xs:extension base="xs:decimal">
+        <xs:attribute name="currency" type="xs:string" fixed="EUR"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+
+  <!-- Empty content: attributes only. -->
+  <xs:complexType name="cancelled">
+    <xs:attribute name="reason" type="xs:string"/>
+  </xs:complexType>
+</xs:schema>

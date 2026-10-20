@@ -1,0 +1,20 @@
+<!-- Shared types for amounts of money, in a namespace of their own. -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           targetNamespace="https://example.org/money"
+           xmlns:money="https://example.org/money">
+
+  <xs:simpleType name="currency">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="EUR"/>
+      <xs:enumeration value="USD"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="amount">
+    <xs:simpleContent>
+      <xs:extension base="xs:decimal">
+        <xs:attribute name="currency" type="money:currency" use="required"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+</xs:schema>
