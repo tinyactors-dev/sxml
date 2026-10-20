@@ -18,9 +18,9 @@ typedef struct sxml_qt4_supported_dependency {
 } sxml_qt4_supported_dependency;
 
 /*
- * What sxml supports (D83, D108, D134). Everything else, schema
- * awareness, XSLT, advanced UCA collations, other languages and older
- * Unicode versions included, is not satisfied.
+ * What sxml supports (D83, D108, D134). Everything else, staticTyping,
+ * XInclude, remote HTTP, schema location hints and older Unicode versions
+ * included, is not satisfied.
  * - higherOrderFunctions: XPath 4.0 function items (D38, packet 1.21).
  * - namespace-axis: the namespace axis (D77).
  * - xml-version 1.0, 1.0:5+ and 1.1: documents are read by XML 1.0 Fifth
@@ -50,9 +50,9 @@ typedef struct sxml_qt4_supported_dependency {
  *   (packet 5.11, D174); they stay non-goals of the D95 denominators
  *   below, so the Phase 2 to 4 gate rates keep their meaning, and the
  *   report counts them as the area "schema-aware".
- * - XQUpdate and revalidation skip (XQuery only): the XQuery Update
- *   Facility 3.0 (packet 7.7a, D187); revalidation lax and strict are
- *   not supported yet (XUST0026, 7.7c).
+ * - XQUpdate and revalidation skip, lax and strict (XQuery only): the
+ *   XQuery Update Facility 3.0 (packet 7.7a, D187) and revalidation
+ *   through the schema validator (packet 7.7c, D205).
  * - fullText, fullText-ignore, fullText-units and fullText-defaults:
  *   Full Text 3.0 (packets 7.12a to c, D214; XPath's too since 7.12d,
  *   D235, though the QT4 cases are XQuery only); they stay non-goals of

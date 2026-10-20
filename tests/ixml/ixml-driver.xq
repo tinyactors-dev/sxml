@@ -14,7 +14,8 @@ xquery version "4.0";
  : result: assert-xml or assert-xml-ref (one of them matches),
  : assert-not-a-sentence, assert-not-a-grammar, assert-dynamic-error. A
  : test with dependencies sxml does not meet (a Unicode version other than
- : sxml's 16.0) is not run.
+ : sxml's 16.0), or whose input file has characters no xs:string holds,
+ : is not run.
  :
  : Comparison is fn:deep-equal of the expected element and the result's
  : document element, without an ixml:version attribute: the Specification
@@ -72,6 +73,18 @@ declare function local:compile($spec as element()?) as map(*) {
   } catch * {
     { "error": string($err:code) || ": " || $err:description, "code": $err:code }
   }
+};
+
+(: Whether the input file at $uri holds a C0 control other than tab, line
+   feed and carriage return. XML 1.0 (2.2, Char) has no such character,
+   so no xs:string holds one and fn:invisible-xml, which takes an
+   xs:string (F&O 4.0), cannot be given the input: the test is not run.
+   The file's bytes are read, not its text, so a decoding fault of sxml
+   still shows as an error. :)
+declare function local:has-control-characters($uri as xs:string) as xs:boolean {
+  let $hex := string(xs:hexBinary(unparsed-binary($uri)))
+  return some $index in 0 to string-length($hex) idiv 2 - 1
+         satisfies matches(substring($hex, 2 * $index + 1, 2), "^(0[0-8BCEF]|1[0-9A-F])$")
 };
 
 declare function local:input($case as element()) as xs:string {
@@ -153,6 +166,9 @@ declare function local:run-test-case($case as element(), $compiled as map(*)) as
       if (exists($compiled?error)) then { "outcome": "pass" }
       else { "outcome": "fail", "why": "compiled a grammar" }
     else if (exists($compiled?error)) then { "outcome": "error", "why": $compiled?error }
+    else if ($case/tc:test-string-ref
+             and local:has-control-characters(local:href($case/tc:test-string-ref))) then
+      { "outcome": "not-run", "why": "the input has C0 controls, which no xs:string holds" }
     else
       let $input := try { { "input": local:input($case) } }
                     catch * { { "error": string($err:code) || ": " || $err:description } }
