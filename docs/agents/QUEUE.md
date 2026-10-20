@@ -32,8 +32,6 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 (bindings/kotlin/DESIGN.md, bindings/swift/DESIGN.md).
 
 
-- stream-1: method=text quadratic memory on streamed sources; a step limit
-  option for the JavaScript package (D294).
 - 4.32: XSLT streaming: D289's about 20 single causes.
   (Book-first pages carry <!-- status: draft -->; check-book-examples.sh
   skips them unless --drafts.)
@@ -368,6 +366,13 @@ for doc($uri). 108.7 MB output: 749 MB module / 113 MB JS heap -> 481 / 4
 whole text (no public incremental parse, D233). Sinks cannot apply
 backpressure (synchronous evaluation). Swift memberwise call not compiled
 here.
+
+stream-1 (D295): long text runs grow by doubling (arena_tree.c);
+method=text serialized while streamed; xml writes long text in 64 KiB
+parts. 20,000 x 1 KB text: out of memory -> 11.0 MB, 0.55 s. A streamed
+element grants 500 steps; createProcessor({ maximumEvaluationStepCount }).
+93 MB streamed identity: CLI 23.2 s / 11 MB, Node 52.6 s / 10.7 MB. Left:
+no streamed writer for html (a tree, now linear).
 
 Platform and tooling:
 - macOS, Windows and MSVC have never been built; `_getcwd` is untested.
