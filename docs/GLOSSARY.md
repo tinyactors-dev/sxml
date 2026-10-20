@@ -921,6 +921,9 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `streamed_accumulator_values` | The values of the xslt accumulators a streamed document computes as its events pass, kept by depth for the nodes its stream windows hold now and read by fn:accumulator-before and fn:accumulator-after for those nodes (D231) |
 | `streamed_prong` | A prong of an xsl:fork in the body of a streamed xsl:source-document, streamed in a pass of its own over the document: a STREAM with OPENS_DOCUMENT over the same href (D231) |
 | `principal_stream` | The principal result of a transformation that streams its principal source, built as it is made into the result writer's tree builder and serialized as it is built when it is serialized as XML, so its tree is never held (D231) |
+| `merge_stream` | A streamed xsl:merge-source of MERGE: the URIs of its anchor documents and the STREAM chain of its select, whose last body makes the tuple of a selected node (D236) |
+| `merge_cursor` | The reader of one input of MERGE: an anchor document of a merge stream, pulled one selected node at a time, or the grounded sources' tuples; its current tuple is its head (D236) |
+| `tee` | An element whose events the stream builder also sends to a full stream window of its own as they pass, for end rules with capture="yes" (XSLT 4.0, 19.9; D236) |
 | `streamed_serialization` | An XML serialization fed by tree builder events, writing each start tag, text and end tag as it arrives and holding only the open elements (D231) |
 | `lowering_override` | One node of one XPath AST that a procedure of the caller lowers instead of the rule of its kind, wherever lowering meets it (`sxml_xpath_lowering_override`, D223) |
 | `pending_update_list` | The update primitives an updating expression returns, applied together at the end of a snapshot (XQuery Update Facility 3.0, "pending update list"); internal to the evaluator, not an XDM item |

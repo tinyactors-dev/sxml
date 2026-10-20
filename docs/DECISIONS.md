@@ -10623,6 +10623,78 @@ the release driver, compared case by case.
   the scanner is instantiated once per grammar (5,577 bytes again in the
   full module).
 
+### D236. Streamed xsl:merge (MERGE) and capture="yes" end rules while streaming (packet 7.6g)
+Recorded 2026-10-20, after D71, D166, D219, D223, D228, D231, D233,
+D234. Makes D233's two designs; replaces D231's "merge sources are
+grounded" and "capture="yes" end rules while streaming" not done.
+Verified as D181 asks: the debug preset, the stream, xslt, IR and
+evaluator part unit tests, clang-tidy on the files changed,
+`tools/check-call-cycles.py`, and the whole XT40 suite with the release
+driver, compared case by case.
+- **MERGE** (`src/ir_internal.h`; glossary `merge_stream`,
+  `merge_cursor`): an xsl:merge one to 16 of whose sources stream
+  becomes a new IR kind, evaluated by the stream part
+  (`src/evaluator_stream.c`). A source streams when it is streamable,
+  has for-each-source (no for-each-item), does not sort before merging,
+  validates nothing, names no accumulators, and its select is a path of
+  child steps without predicates from the document node whose last step
+  selects elements (striding, 19.8.8; a crawling or sorted source is
+  XTSE3430 already); nothing in it or the merge action reads fn:last,
+  fn:path or fn:has-children (the number of groups is not known while
+  streaming). Other sources are grounded first, their tuples sorted and
+  checked as before, and are one more cursor. A merge stream (new unit
+  table, `sxml_ir_unit_add_merge_streams`) is the anchors' URIs and an
+  OPENS_DOCUMENT STREAM over a chain of child-step STREAMs whose last
+  body is the source's tuple: the IR of a stream point, read by MERGE as
+  the description of its cursors, which pull one selected node at a time
+  from the stream builder (D219), skip what no step can select, and
+  ground the selected element in a full window; a document the resolver
+  gives as a tree is walked. Rejected: a cursor as a suspended STREAM
+  task (one task stack: k cursors cannot each keep a suspended chain),
+  and a comparison function of its own (the grounded merge's sort and
+  grouping decide the order and equality, so collations, data types and
+  orders are those of 15.4 by construction).
+- **Stepping** (15.4, 15.6): each step binds heads to the open group's
+  first tuple and every cursor's current tuple and evaluates order, the
+  first run of equal keys of the sorted heads (a stable sort, so the
+  group's first tuple stays first among equal keys). Without an open
+  group the run opens one; with one, a run that holds its first tuple
+  and others extends it, one that holds it alone closes it, and one
+  without it is XTDE2220 (a cursor's next tuple sorts before the one it
+  had). The cursors taken move on. A closed group's tuples are put in
+  source, anchor and input order and the action runs on the group array
+  [tuples, key] as before (current-merge-group, -key, -key-array, the
+  named groups), its position the group's number, delivered when the
+  merge delivers (D166). Errors so come in input order: merge-077's
+  XTDE3490 is raised before a later XTDE2220.
+- **capture="yes"** (19.9): `sxml_ir_stream_accumulators.capture`, the
+  new function stream-capture-0($node), gives the numbers of the
+  accumulators declared streamable one of whose capturing end rules
+  matches an element; it is called at each element's start (a call like
+  the initial one, before the start calls), and the stream builder then
+  also sends the element's events to a full window of its own (glossary
+  `tee`; nested tees a stack, an empty element's tee ended at once), whose
+  element those accumulators' end calls get as the node (others keep the
+  shallow window, so their reads of accumulator values still find the
+  node). A stylesheet whose streamable accumulators capture now streams
+  (`sxml_xslt_accumulators_stream` removed).
+- **Measured** (release): `sxml transform` merging two generated 38.3 MB
+  documents of 600,000 records each by id, peak resident 1,055.6 MB
+  before (grounded), 11.0 MB after, output identical (24.6 s and 30.0 s,
+  the second beside a suite run); evaluator_stream_test merges two
+  1.2 MB documents with an allocator peak of 502 KB under a 1 MB limit
+  the grounded merge exceeds. XT40 (whole suite, case by case): 11,943
+  to 11,945 passed, none lost (merge-077, merge-079). Cases that stream
+  now: merge 21 (039, 040, 041, 062, 063, 070 to 072, 074, 076 to 081,
+  083, 090, 091, 098, 100, 101), si-merge 6 of 6; capture 5 compute
+  their capturing accumulators while streaming (201, 202, 204, 206,
+  207), 3 of them through tees.
+- **Left** (lowered grounded, same results by 19.10): merge sources with
+  validation or type (merge-049 to -053), use-accumulators (merge-051,
+  -065 to -067, -082), predicates, or more than 16 streamed sources;
+  merge actions reading fn:last; capture-206 fails as before (an
+  unstreamed difference); merge-097's collection URI (D234).
+
 ## Proposed
 
 - **XQuery's XML version** (packet 7.13, D195; for the owner of

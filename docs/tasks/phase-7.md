@@ -473,6 +473,23 @@ part 1.2 KB of the core module.
     evaluator part in files packet 4.21 held uncommitted
     (`src/ir_internal.h`, `src/ir.c`, `src/ir_verify.c`,
     `src/evaluator.c`, `src/evaluator_machine_internal.h`).
+- **7.6g The last two streaming items** (after 7.6f and 4.21; D233,
+  D236): (a) xsl:merge with streamed inputs, a MERGE part with one cursor
+  per anchor document, keyed k-way stepping and XTDE2220 for input out of
+  order, reusing the STREAM machinery, the merge key rules and the
+  evaluator's resumable tasks; (b) capture="yes" end rules, a capture
+  function with the stream builder copying the element's events into a
+  full window. Keep GLOBAL_READ and the global-read pass working (D234).
+  - Owns: `src/evaluator_stream.c`, `src/xslt_lower_group.c` (the
+    merge), `src/xslt_lower_stream.c`, `src/xslt_accumulator.c`,
+    `tests/evaluator_stream_test.c`; single hunks in the IR
+    (`src/ir_internal.h`, `src/ir.c`, `src/ir_verify.c`, the passes),
+    `src/evaluator.c` and `src/xquery_prolog.c`.
+  - **Done** 2026-10-20 (D236): MERGE and its merge streams; tees for
+    capturing end rules. Two 38.3 MB documents merged: peak resident
+    1,055.6 MB to 11.0 MB. XT40 11,943 to 11,945, none lost; 27 merge
+    and 5 capture cases stream. Left: merge sources with validation,
+    type, accumulators or predicates (grounded).
 - **Header**: possibly `xslt.h`, additive: a streamed principal source
   given as bytes or a parser, with a record. The resolver's BYTES form
   already serves xsl:source-document.

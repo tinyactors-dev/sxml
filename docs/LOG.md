@@ -4,6 +4,16 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 7.6g done (D236): the last streaming items. xsl:merge with streamed
+  sources is the IR kind MERGE: one cursor per anchor document, keyed
+  k-way stepping through the grounded merge's own sort and grouping,
+  XTDE2220 as input is read; capture="yes" end rules read subtrees the
+  stream builder tees into full windows. Two 38.3 MB documents merged
+  by `sxml transform`: peak resident 1,055.6 MB to 11.0 MB. XT40 11,943
+  to 11,945 passed, none lost; 27 merge cases and 5 capture cases now
+  stream. Left: merge sources with validation, type, accumulators or
+  predicates (grounded, same results).
+
 - 7.12d done (D235): XPath Full Text (Appendix B) through
   grammars/xpath_full_text, which only the feature full-text links (in
   grammars/xpath the productions would add 195 KB to the core); the
