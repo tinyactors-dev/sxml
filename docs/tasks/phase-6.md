@@ -290,6 +290,9 @@ runs beside it.
 `swift_package`, `device_test`, and the PLAN.md row.
 
 ### 6.2 The host shim (implementation, here)
+**Done** 2026-10-20 (D240): `bindings/host/` and target `sxml_host`, the
+resolver as a state and a function, three JavaScript export files,
+`tests/host_shim_test.c`; `sxml.wasm` +388 bytes, `sxml-full.wasm` +561.
 After 6.1. Owns new `bindings/host/` (`sxml_host.h`,
 `sxml_host_internal.h`, `sxml_host.c`, `sxml_host_xquery.c`,
 `sxml_host_xslt.c`, `sxml_host_schema.c`, `sxml_host_full.c`,

@@ -4,6 +4,15 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 6.2 done (D240): the JavaScript shim is the host shim in
+  `bindings/host/` (`sxml_host_*`, target `sxml_host`). The resolver is a
+  state and a function, and the request names its processor. The
+  JavaScript export names are kept by three thin export files, and
+  `src/index.ts` is unchanged. All javascript/* tests pass under wasm. The
+  new `host_shim` unit test (7 cases, the allocation-failure loop) passes
+  under debug with 0 leaks. `sxml.wasm` 2,091,192 (+388), `sxml-full.wasm`
+  7,637,765 (+561). Next: 6.4 (Kotlin) and 6.7 (Swift) link `sxml_host`.
+
 - 6.1 done (D238): the Phase 6 plan in `docs/tasks/phase-6.md`. One host
   shim (the JavaScript shim moved to `bindings/host/`) under JavaScript,
   Kotlin (JNI glue only) and Swift (module map, no C). APIs mirror the

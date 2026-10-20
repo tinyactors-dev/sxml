@@ -10943,6 +10943,55 @@ tinyactors-dev organization once done, so the npm package will be
   `dev.tinyactors.sxml`, coordinates `dev.tinyactors:sxml-android` and
   `dev.tinyactors:sxml-jvm`; the Swift module stays `Sxml`. Amends D238.
 
+### D240. The host shim's resolver, request and export files (packet 6.2)
+Recorded 2026-10-20, after D138, D189, D216, D225, D238. Packet 6.2 moved
+the JavaScript shim to `bindings/host/` as the host shim (`sxml_host_*`,
+header `bindings/host/sxml_host.h`) and kept the JavaScript export names.
+- **Resolver**: `sxml_host_resolver {void *state; uint32_t (*resolve)(void
+  *state, const sxml_host_resource_request *, sxml_host_resource *)}`, in
+  `sxml_host_processor_configuration {failing_allocation_number,
+  feature_mask, resolver}`. `sxml_host_processor_create` takes that
+  configuration (one parameter). A NULL `resolve` makes no resource
+  available, as the native fallback of the old import did.
+- **Deviation: the request names its processor.**
+  `sxml_host_resource_request` gains a last field, `processor`: the
+  processor that asks. A host copies its answer into memory from
+  `sxml_host_allocate` on that processor, so every host needs it. The
+  JavaScript import needs it too, because the package finds its processor
+  state by that address. A resolver state cannot hold the processor,
+  because the state is set before the processor exists. The struct is 6
+  words on wasm32 (was 5). The package reads only the first 5, so
+  `src/index.ts` does not change.
+- **Deviation: three JavaScript files instead of two.**
+  - `sxml_javascript_exports.c` holds the exports of both modules.
+  - `sxml_javascript_full_exports.c` holds the XQuery, XSLT and XSD
+    exports. Only `sxml-full.wasm` links it, because the package tells
+    the modules apart by those exports (D189).
+  - `sxml_javascript_host.c` holds the resolver over the import
+    `sxml_host.resolve`.
+
+  `sxml_javascript.h` declares them. Each export is a one-line wrapper
+  of the host shim function with the same name.
+- **Targets**:
+  - `sxml_host` (static) is the shim with every feature of
+    `sxml_all_optional_features()`: the library for Kotlin and Swift.
+  - The object library `sxml_host_core_features` compiles the core
+    features file natively, so that `-Werror` and lint check it.
+  - The wasm modules link the host sources from the lists that
+    `bindings/host/CMakeLists.txt` passes to the parent scope.
+  - `tests/host_shim_test.c` is registered by the tests glob and gets
+    `sxml_host` from `bindings/host/CMakeLists.txt`.
+- **Size guard**: `test/size-baseline/sxml.txt` renames the moved objects
+  (`__/host/sxml_host`, `__/host/sxml_host_core_features`) and keeps the
+  sizes of the audit. The guard then reports the move's real growth
+  (+61), not a new object of 5,153 bytes.
+- **Sizes** (stripped / gzip -9):
+  - `sxml.wasm`: 2,090,804 / 715,514 to 2,091,192 / 715,723 (+388).
+  - `sxml-full.wasm`: 7,637,204 / 1,671,861 to 7,637,765 / 1,672,092
+    (+561).
+
+  Both are within the packet's 1 KB, and no budget changes.
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): the license (there is
