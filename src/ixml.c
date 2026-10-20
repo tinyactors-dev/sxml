@@ -1630,6 +1630,28 @@ static sxml_status append_character(xml_emitter *emitter, sxml_xml_buffer *text,
     return sxml_xml_buffer_append_codepoint(text, codepoint);
 }
 
+/* Appends the characters of a text run (D290): its bytes, once each
+   character is one XML allows (D04). */
+static sxml_status append_run(xml_emitter *emitter, const sxml_ixml_tree_node *node,
+                              sxml_xml_buffer *text) {
+    const sxml_byte_view run = {.bytes = emitter->request->input.text.bytes + node->detail,
+                                .byte_count = node->byte_count};
+    for (size_t byte_offset = 0; byte_offset < run.byte_count;) {
+        const uint8_t byte = run.bytes[byte_offset];
+        if (byte >= 0x20U && byte < 0x80U) {
+            byte_offset += 1;
+            continue;
+        }
+        const sxml_xml_decoded_codepoint decoded = sxml_xml_decode_codepoint(run, byte_offset);
+        byte_offset += decoded.encoded_byte_count;
+        if (!sxml_xml_codepoint_is_char(decoded.codepoint)) {
+            fail_constructing(emitter, SXML_IXML_CONSTRUCTION_ERROR_CHARACTER);
+            return SXML_STATUS_OK;
+        }
+    }
+    return sxml_xml_buffer_append(text, run);
+}
+
 /* Appends the text a terminal or insertion node adds, if any. */
 static sxml_status append_leaf(xml_emitter *emitter, const sxml_ixml_tree_node *node,
                                sxml_xml_buffer *text) {
@@ -1637,7 +1659,7 @@ static sxml_status append_leaf(xml_emitter *emitter, const sxml_ixml_tree_node *
         if (node_mark(emitter, node) == SXML_IXML_MARK_HIDDEN) {
             return SXML_STATUS_OK;
         }
-        return append_character(emitter, text, emitter->request->input.codepoints[node->detail]);
+        return append_run(emitter, node, text);
     }
     if (node->node_kind == SXML_IXML_NODE_KIND_INSERTION) {
         const sxml_byte_view inserted = sxml_ixml_grammar_text(
@@ -2195,19 +2217,29 @@ static sxml_status append_decimal(sxml_xml_buffer *text, size_t number) {
 }
 
 sxml_ixml_failure_location sxml_ixml_locate_failure(sxml_ixml_failure_request request) {
-    sxml_ixml_failure_location location = {
-        .line_number = 1, .column_number = 1, .codepoint = SXML_IXML_NONE};
+    sxml_ixml_failure_location location = {.line_number = 1,
+                                           .column_number = 1,
+                                           .character_position = 0,
+                                           .codepoint = SXML_IXML_NONE};
+    const sxml_byte_view input = request.input.text;
     const size_t failure_position = request.parse->failure_position;
-    for (size_t position = 0; position < failure_position; position += 1) {
-        if (request.input.codepoints[position] == '\n') {
+    for (size_t position = 0; position < failure_position && position < input.byte_count;
+         position += 1) {
+        /* Positions are byte offsets (D290): continuation bytes start no
+           character. */
+        if ((input.bytes[position] & 0xC0U) == 0x80U) {
+            continue;
+        }
+        location.character_position += 1;
+        if (input.bytes[position] == '\n') {
             location.line_number += 1;
             location.column_number = 1;
         } else {
             location.column_number += 1;
         }
     }
-    if (failure_position < request.input.codepoint_count) {
-        location.codepoint = request.input.codepoints[failure_position];
+    if (failure_position < input.byte_count) {
+        location.codepoint = sxml_xml_decode_codepoint(input, failure_position).codepoint;
     }
     return location;
 }
@@ -2284,7 +2316,7 @@ static sxml_status emit_failure(xml_emitter *emitter) {
                                                     .has_failed = true});
     sxml_xml_buffer number = sxml_xml_buffer_empty(emitter->request->allocator);
     const size_t numbers[3] = {location.line_number, location.column_number,
-                               parse->failure_position + 1};
+                               location.character_position + 1};
     static const sxml_byte_view number_names[3] = {SXML_BYTE_VIEW_INITIALIZER("line"),
                                                    SXML_BYTE_VIEW_INITIALIZER("column"),
                                                    SXML_BYTE_VIEW_INITIALIZER("position")};

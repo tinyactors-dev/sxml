@@ -18,6 +18,8 @@
  *   input. An item is useful only when the next character's class meets
  *   its lookahead set (Earley 1970 used lookahead the same way; the global
  *   FOLLOW sets of SLR(1) need no lookahead in the items themselves).
+ * - Regular tokens (glossary `regular_token`, D290): src/ixml_tokens.c,
+ *   the last step.
  *
  * Nullable nonterminals, FIRST and FOLLOW are computed with work lists,
  * not by sweeping all rules until nothing changes, so a grammar of
@@ -854,13 +856,31 @@ void sxml_ixml_parse_tables_release(sxml_ixml_parse_tables *tables) {
     sxml_allocator_release(allocator, tables->lookahead_words);
     sxml_allocator_release(allocator, tables->ascii_classes);
     sxml_allocator_release(allocator, tables->exposes_attributes);
+    sxml_allocator_release(allocator, tables->tokens_by_nonterminal);
+    sxml_xml_array_release(&tables->tokens);
+    sxml_xml_array_release(&tables->token_transitions);
+    sxml_xml_array_release(&tables->token_accepts);
+    sxml_xml_array_release(&tables->token_terminals);
+    sxml_xml_array_release(&tables->token_ascii_columns);
+    sxml_xml_array_release(&tables->token_follows);
     memset(tables, 0, sizeof(*tables));
+}
+
+static sxml_xml_array empty_array(sxml_allocator allocator, size_t element_byte_count) {
+    return sxml_xml_array_empty((sxml_xml_array_configuration){
+        .allocator = allocator, .element_byte_count = element_byte_count});
 }
 
 sxml_status sxml_ixml_grammar_prepare_tables(sxml_ixml_grammar *grammar, sxml_allocator allocator) {
     sxml_ixml_parse_tables *tables = &grammar->tables;
     memset(tables, 0, sizeof(*tables));
     tables->allocator = allocator;
+    tables->tokens = empty_array(allocator, sizeof(sxml_ixml_token));
+    tables->token_transitions = empty_array(allocator, sizeof(uint16_t));
+    tables->token_accepts = empty_array(allocator, sizeof(uint8_t));
+    tables->token_terminals = empty_array(allocator, sizeof(uint32_t));
+    tables->token_ascii_columns = empty_array(allocator, sizeof(uint8_t));
+    tables->token_follows = empty_array(allocator, sizeof(uint64_t));
     table_builder builder = {
         .grammar = grammar,
         .tables = tables,
@@ -921,6 +941,9 @@ sxml_status sxml_ixml_grammar_prepare_tables(sxml_ixml_grammar *grammar, sxml_al
     }
     if (status == SXML_STATUS_OK) {
         status = find_attribute_exposure(&builder);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_ixml_prepare_tokens(grammar);
     }
     sxml_allocator_release(allocator, builder.set_slots);
     sxml_allocator_release(allocator, builder.follow_words);

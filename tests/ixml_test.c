@@ -271,6 +271,35 @@ static const expression_case expression_cases[] = {
                      "<s>12?</s>"),
     EXPRESSION_VALUE("invisible-xml(\"s: ('a', ('b'; 'c'))+, @e?. @e: 'e'.\")('abace')",
                      "<s e=\"e\">abac</s>"),
+    /* Regular tokens (D290): the same XML and ambiguity as their rules,
+       every end (not the longest), attributes and hidden ones, failures
+       inside them as without tokens, positions in characters. */
+    EXPRESSION_VALUE("invisible-xml(\"s: t. t: 'x'?, 'x'?.\")('x')/*/@*:state/string()",
+                     "\"ambiguous\""),
+    EXPRESSION_VALUE("invisible-xml(\"s: t. t: 'a'*, 'a'*.\")('')", "<s><t/></s>"),
+    EXPRESSION_VALUE("invisible-xml(\"s: t. t: 'a'*, 'a'*.\")('aa')/*/@*:state/string()",
+                     "\"ambiguous\""),
+    EXPRESSION_VALUE("invisible-xml(\"s: t. -t: ('a'?)*.\")('a')/*/@*:state/string()",
+                     "\"ambiguous\""),
+    EXPRESSION_VALUE("invisible-xml(\"s: t, 'y'. -t: 'x', 'x'*; 'x'+.\")('xxy')/*/@*:state/"
+                     "string()",
+                     "\"ambiguous\""),
+    EXPRESSION_VALUE("invisible-xml(\"s: a, 'b'. a: 'b'*.\")('bbb')", "<s><a>bb</a>b</s>"),
+    EXPRESSION_VALUE("invisible-xml(\"s: @n, -';'. @n: ['0'-'9']+.\")('42;')", "<s n=\"42\"/>"),
+    EXPRESSION_VALUE("invisible-xml(\"s: w, 'x'. -w: -' '*.\")('   x')", "<s>x</s>"),
+    EXPRESSION_VALUE("invisible-xml(\"s: q. q: -'\"\"', ~['\"\"']*, -'\"\"'.\")('\"ab\"')",
+                     "<s><q>ab</q></s>"),
+    EXPRESSION_VALUE("invisible-xml(\"s: n, ';'. n: ['0'-'9']+.\")('12a;')/*/(column, "
+                     "expected)!string()",
+                     "\"3\" \"\"\";\"\"\" \"[\"\"0\"\"-\"\"9\"\"]\""),
+    EXPRESSION_VALUE("invisible-xml(\"s: w++-' '. w: [L]+.\")('\u00e4b \u00e7d')",
+                     "<s><w>\u00e4b</w><w>\u00e7d</w></s>"),
+    EXPRESSION_VALUE("invisible-xml(\"s: w++-' '. w: [L]+.\")('\u00e4b \u00e71')/*/(column, "
+                     "position)!string()",
+                     "\"5\" \"5\""),
+    EXPRESSION_VALUE("invisible-xml(\"s: m++-#a. m: ~[#a]*.\")('ab' || codepoints-to-string(13) "
+                     "|| 'c')",
+                     "<s><m>ab</m><m>c</m></s>"),
     EXPRESSION_ERROR("invisible-xml(\"s: 'a'.\", {'fail-on-error': 'maybe'})", "XPTY0004"),
     EXPRESSION_VALUE("system-properties()?(#supports-invisible-xml)", "true()"),
 };
@@ -340,12 +369,12 @@ static void test_grammar_of_grammars_compiles(sxml_test_state *state) {
     const sxml_ixml_nonterminal *root = sxml_xml_array_at(&grammar.nonterminals, 0);
     SXML_TEST_EXPECT(state, sxml_byte_view_equals(sxml_ixml_grammar_text(&grammar, root->name),
                                                   TEXT("ixml")));
-    static const uint32_t input[] = {'s', ':', ' ', '\'', 'a', '\'', '.'};
+    static const uint8_t input[] = {'s', ':', ' ', '\'', 'a', '\'', '.'};
     sxml_ixml_parse_result result = sxml_ixml_parse_result_empty(allocator);
     SXML_TEST_EXPECT(state, sxml_ixml_parse(&(sxml_ixml_parse_request){
                                                 .grammar = &grammar,
-                                                .input = {.codepoints = input,
-                                                          .codepoint_count = SXML_TEST_COUNT(input)},
+                                                .input = {.text = {.bytes = input,
+                                                                   .byte_count = SXML_TEST_COUNT(input)}},
                                                 .step_meter = {.state = NULL, .operations = NULL}},
                                             &result) == SXML_STATUS_OK);
     SXML_TEST_EXPECT(state, result.is_sentence);
@@ -354,8 +383,7 @@ static void test_grammar_of_grammars_compiles(sxml_test_state *state) {
     result = sxml_ixml_parse_result_empty(allocator);
     SXML_TEST_EXPECT(state, sxml_ixml_parse(&(sxml_ixml_parse_request){
                                                 .grammar = &grammar,
-                                                .input = {.codepoints = input,
-                                                          .codepoint_count = 3},
+                                                .input = {.text = {.bytes = input, .byte_count = 3}},
                                                 .step_meter = {.state = NULL, .operations = NULL}},
                                             &result) == SXML_STATUS_OK);
     SXML_TEST_EXPECT(state, !result.is_sentence);
@@ -395,7 +423,7 @@ static void test_function_survives_every_allocation_failure(sxml_test_state *sta
 /* Linear grammars take steps in proportion to the input (D283): 100,000
    characters of right recursion, left recursion and nesting each parse
    within 4,000,000 steps, where right recursion without Leo items would
-   take some 5 x 10^9. */
+   take some 5 x 10^9; and 2,000,000 characters read by a token (D290). */
 static void test_linear_grammars_take_few_steps(sxml_test_state *state) {
     ixml_fixture fixture;
     SXML_TEST_REQUIRE(state, ixml_fixture_create(&fixture, (ixml_fixture_options){
@@ -416,6 +444,11 @@ static void test_linear_grammars_take_few_steps(sxml_test_state *state) {
         EXPRESSION_VALUE("count(invisible-xml(\"n: -'(', n?, -')'.\")(string-join(((1 to 50000)!"
                          "'(', (1 to 50000)!')')))//n)",
                          "50000"),
+        /* A token reads 16 characters a step (D290). */
+        EXPRESSION_VALUE("let $line := string-join((1 to 1000)!'a') return string-length("
+                         "invisible-xml(\"s: m++-#a. m: ~[#a]*.\")(string-join((1 to 2000)!$line, "
+                         "codepoints-to-string(10))))",
+                         "2000000"),
     };
     for (size_t case_index = 0; case_index < SXML_TEST_COUNT(linear_cases); case_index += 1) {
         SXML_TEST_EXPECT(state, run_expression(&fixture, linear_cases[case_index].expression_text) ==

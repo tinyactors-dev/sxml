@@ -273,59 +273,56 @@ static sxml_status report_construction_error(const sxml_function_call *call,
 
 /* ----------------------------------------------------------- Input */
 
-/* The codepoints of UTF-8 text, line ends normalized and a leading byte
-   order mark dropped (the Specification, "Parsing"), in allocator
-   memory. */
-typedef struct codepoint_input {
+/* UTF-8 text with line ends normalized and a leading byte order mark
+   dropped (the Specification, "Parsing"; D290): the text itself when it
+   has no carriage return, else a copy in allocator memory. */
+typedef struct normalized_input {
     sxml_allocator allocator;
-    uint32_t *codepoints;
-    size_t codepoint_count;
-} codepoint_input;
+    sxml_ixml_input input;
+    /* The copy, NULL when input borrows the text. */
+    uint8_t *copy;
+} normalized_input;
 
-static sxml_status decode_input(sxml_byte_view utf8, codepoint_input *input) {
-    input->codepoints = NULL;
-    input->codepoint_count = 0;
+static sxml_status normalize_input(sxml_byte_view utf8, normalized_input *normalized) {
+    normalized->copy = NULL;
+    if (utf8.byte_count >= 3 && utf8.bytes[0] == 0xEFU && utf8.bytes[1] == 0xBBU &&
+        utf8.bytes[2] == 0xBFU) {
+        utf8.bytes += 3;
+        utf8.byte_count -= 3;
+    }
+    normalized->input.text = utf8;
+    if (utf8.byte_count == 0 || memchr(utf8.bytes, '\r', utf8.byte_count) == NULL) {
+        return SXML_STATUS_OK;
+    }
     void *memory = NULL;
-    const sxml_status status = sxml_allocator_allocate_array(
-        input->allocator,
-        (sxml_array_allocation_request){.element_count = utf8.byte_count,
-                                        .element_size = sizeof(uint32_t),
-                                        .element_alignment = _Alignof(uint32_t)},
-        &memory);
+    const sxml_status status = sxml_allocator_allocate(
+        normalized->allocator,
+        (sxml_allocation_request){.byte_count = utf8.byte_count, .alignment = 1}, &memory);
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    input->codepoints = memory;
-    for (size_t byte_offset = 0; byte_offset < utf8.byte_count;) {
-        const sxml_xml_decoded_codepoint decoded = sxml_xml_decode_codepoint(utf8, byte_offset);
-        byte_offset += decoded.encoded_byte_count;
-        uint32_t codepoint = decoded.codepoint;
-        if (codepoint == 0xFEFFU && input->codepoint_count == 0 &&
-            byte_offset == decoded.encoded_byte_count) {
-            continue;
-        }
-        if (codepoint == '\r') {
+    normalized->copy = memory;
+    size_t byte_count = 0;
+    for (size_t byte_offset = 0; byte_offset < utf8.byte_count; byte_offset += 1) {
+        uint8_t byte = utf8.bytes[byte_offset];
+        if (byte == '\r') {
             /* CR LF and a lone CR are one LF (XML 1.0, 2.11). */
-            codepoint = '\n';
-            if (byte_offset < utf8.byte_count && utf8.bytes[byte_offset] == '\n') {
+            byte = '\n';
+            if (byte_offset + 1 < utf8.byte_count && utf8.bytes[byte_offset + 1] == '\n') {
                 byte_offset += 1;
             }
         }
-        input->codepoints[input->codepoint_count] = codepoint;
-        input->codepoint_count += 1;
+        normalized->copy[byte_count] = byte;
+        byte_count += 1;
     }
+    normalized->input.text = (sxml_byte_view){.bytes = normalized->copy, .byte_count = byte_count};
     return SXML_STATUS_OK;
 }
 
-static void release_input(codepoint_input *input) {
-    sxml_allocator_release(input->allocator, input->codepoints);
-    input->codepoints = NULL;
-    input->codepoint_count = 0;
-}
-
-static sxml_ixml_codepoint_view input_view(const codepoint_input *input) {
-    return (sxml_ixml_codepoint_view){.codepoints = input->codepoints,
-                                      .codepoint_count = input->codepoint_count};
+static void release_input(normalized_input *normalized) {
+    sxml_allocator_release(normalized->allocator, normalized->copy);
+    normalized->copy = NULL;
+    normalized->input.text = (sxml_byte_view){.bytes = NULL, .byte_count = 0};
 }
 
 /* Charges the parse's steps to the call (the evaluation's step limit). */
@@ -392,12 +389,14 @@ static sxml_status read_grammar_text(const grammar_source *source, sxml_byte_vie
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    codepoint_input input = {.allocator = allocator, .codepoints = NULL, .codepoint_count = 0};
-    status = decode_input(text, &input);
+    normalized_input input = {.allocator = allocator,
+                              .input = {.text = {.bytes = NULL, .byte_count = 0}},
+                              .copy = NULL};
+    status = normalize_input(text, &input);
     sxml_ixml_parse_result parse = sxml_ixml_parse_result_empty(allocator);
     if (status == SXML_STATUS_OK) {
         status = sxml_ixml_parse(&(sxml_ixml_parse_request){.grammar = &grammar_of_grammars,
-                                                            .input = input_view(&input),
+                                                            .input = input.input,
                                                             .step_meter = call_meter(source->call)},
                                  &parse);
     }
@@ -405,7 +404,7 @@ static sxml_status read_grammar_text(const grammar_source *source, sxml_byte_vie
         answer->is_grammar = false;
         answer->has_location = true;
         answer->location = sxml_ixml_locate_failure(
-            (sxml_ixml_failure_request){.parse = &parse, .input = input_view(&input)});
+            (sxml_ixml_failure_request){.parse = &parse, .input = input.input});
     } else if (status == SXML_STATUS_OK) {
         sxml_ixml_construction_outcome outcome = {
             .error = SXML_IXML_CONSTRUCTION_ERROR_NONE,
@@ -415,7 +414,7 @@ static sxml_status read_grammar_text(const grammar_source *source, sxml_byte_vie
             &(sxml_ixml_construction_request){
                 .grammar = &grammar_of_grammars,
                 .parse = &parse,
-                .input = input_view(&input),
+                .input = input.input,
                 .builder = sxml_ixml_grammar_builder_as_tree_builder(source->builder),
                 .name_pool = source->processor->name_pool,
                 .allocator = allocator},
@@ -513,7 +512,7 @@ typedef struct document_request {
     sxml_processor *processor;
     const ixml_parser *parser;
     const sxml_ixml_parse_result *parse;
-    sxml_ixml_codepoint_view input;
+    sxml_ixml_input input;
 } document_request;
 
 static sxml_status build_document(const document_request *request,
@@ -581,12 +580,14 @@ static sxml_status call_parser(void *state, const sxml_function_call *call,
         return status;
     }
     const sxml_allocator allocator = sxml_item_heap_as_allocator(call->item_heap);
-    codepoint_input input = {.allocator = allocator, .codepoints = NULL, .codepoint_count = 0};
-    status = decode_input(text.utf8, &input);
+    normalized_input input = {.allocator = allocator,
+                              .input = {.text = {.bytes = NULL, .byte_count = 0}},
+                              .copy = NULL};
+    status = normalize_input(text.utf8, &input);
     sxml_ixml_parse_result parse = sxml_ixml_parse_result_empty(allocator);
     if (status == SXML_STATUS_OK) {
         status = sxml_ixml_parse(&(sxml_ixml_parse_request){.grammar = &parser->grammar,
-                                                            .input = input_view(&input),
+                                                            .input = input.input,
                                                             .step_meter = call_meter(call)},
                                  &parse);
     }
@@ -600,7 +601,7 @@ static sxml_status call_parser(void *state, const sxml_function_call *call,
         status = build_document(&(document_request){.processor = environment->processor,
                                                     .parser = parser,
                                                     .parse = &parse,
-                                                    .input = input_view(&input)},
+                                                    .input = input.input},
                                 &outcome, &document_node);
     }
     sxml_ixml_parse_result_finalize(&parse);
