@@ -348,6 +348,9 @@ Done when:
 Golden: the `_WIN32` branch of `src/allocator.c`.
 
 ### 6.4 Kotlin core (implementation, here)
+**Done** 2026-10-20 (D247): `bindings/kotlin/` (glue, `sxml_kotlin.map`,
+the binding, 36 tests), `tools/run-kotlin-tests.sh`, ctest `kotlin/jvm`;
+Kotlin 2.2.20 on JDK 21, 0 leaks. The JVM half only; Android is 6.6's.
 After 6.2 and 6.3. Owns new `bindings/kotlin/`: `CMakeLists.txt` (target
 `sxml_kotlin`, a shared library of the library, the host shim and the
 glue, with a version script exporting `Java_*` and `JNI_OnLoad` only),

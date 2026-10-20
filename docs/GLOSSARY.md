@@ -798,6 +798,7 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `host_shim` | The C layer in `bindings/host/` that the JavaScript, Kotlin and Swift bindings share: handles, flat requests, one error per processor, side results and JSON-shaped input, over the public API only, with the resolver as a state and function (D238) |
 | `jni_glue` | The one C file of the Kotlin binding (`bindings/kotlin/src/main/c/sxml_kotlin_jni.c`): JNI entry points that turn native requests into host shim requests (D238) |
 | `native_request` | The internal Kotlin object a JNI entry point takes as its one argument besides the environment and class: the inputs of one host shim call, and fields the call writes back (handle, error, side results) |
+| `native_cleaner` | The Kotlin binding's backstop for objects never closed: a PhantomReference per object and one daemon thread that runs its release action under the processor's lock, as `java.lang.ref.Cleaner` does on the JVM (D247) |
 | `kotlin_package` | The Kotlin binding in `bindings/kotlin/` (package `dev.tinyactors.sxml`, D239): an Android library (AAR) and a JVM library over `libsxml_kotlin.so` |
 | `swift_package` | The Swift binding in `bindings/swift/` (module `Sxml`, manifest `Package.swift` at the repository root), importing the host shim through the module map `CSxmlHost` |
 | `device_test` | A binding test run on an Android emulator or device, or an iOS simulator or device, rather than on the build host (Phase 6 gate) |

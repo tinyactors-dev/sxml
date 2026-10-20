@@ -151,7 +151,7 @@ internal object Native {
  * package's FinalizationRegistry (D238). It is what java.lang.ref.Cleaner
  * does, written out over a PhantomReference and a daemon thread, because
  * Android has Cleaner only from API 33 and the binding's minSdk is 24
- * (D242). An action runs once: on [Registration.clean] (close) or after
+ * (D247). An action runs once: on [Registration.clean] (close) or after
  * its owner became unreachable.
  */
 internal object NativeCleaner {

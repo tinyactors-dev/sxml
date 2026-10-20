@@ -4,6 +4,18 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 6.4 done (D247): the Kotlin core on the JVM. `bindings/kotlin/`
+  (package `dev.tinyactors.sxml`) over `libsxml_kotlin.so`: the library,
+  the host shim and one JNI glue file, exporting `Java_*` and
+  `JNI_OnLoad` only. Processor, parse, compile, evaluate, value,
+  serialize, the resolver and errors. AutoCloseable with a PhantomReference
+  cleaner (no `java.lang.ref.Cleaner`: Android API 33). Every call holds
+  the processor's lock. ctest `kotlin/jvm` (kotlinc, `-Xcheck:jni`, ASan
+  preloaded under debug; skipped without JNI, kotlinc or java) passes 36
+  cases with 0 leaks: 26 by the names of `package.test.ts`, the failure
+  loop among them, plus close, cleaner and thread tests. Kotlin 2.2.20,
+  JDK 21. Next: 6.5 (XQuery, XSLT, XSD), then 6.6 (the AAR).
+
 - 6.7 done (D241): the Swift core. `Package.swift` at the root and
   `bindings/swift/` (module `Sxml`) import the host shim through the module
   map `CSxmlHost`, with no Swift-specific C. Processor, parse, compile,
