@@ -10625,22 +10625,6 @@ the release driver, compared case by case.
 
 ## Proposed
 
-- **The comment of `sxml_full_text_feature()`** (packet 7.12d, D235;
-  for the owner of `xquery.h`): it says Full Text is for XQuery, but the
-  feature serves XPath too since D235. Proposed default, which the
-  packet did not take because implementation packets do not change
-  headers: name XPath in the comment (no API change).
-
-- **The CLI's WebAssembly budget after the Phase 7 features** (packet
-  7.10a, D201; for the owner): the `sxml` CLI module names every optional
-  feature, so each feature grows it. Before 7.10a it was 5,848,173
-  bytes stripped, already over the 5,500,000 budget (1,239,159 gzipped
-  of 1,250,000); HTML parsing makes it 5,927,297 / 1,267,818, now also
-  over the gzipped budget, so `javascript/size_budget` fails. Choose:
-  raise the CLI budget (for example to 6,500,000 / 1,400,000, leaving
-  room for 7.11 to 7.18), or link fewer features into the CLI's
-  WebAssembly build.
-
 - **XQuery's XML version** (packet 7.13, D195; for the owner of
   `xquery.h` and `processor.h`): query texts follow XML 1.0 (line ends,
   XQST0090 for `&#1;`, XQST0085 for `xmlns:p=""` in direct constructors,

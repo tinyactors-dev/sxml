@@ -346,8 +346,8 @@ sxml_xquery_query_get_serialization_parameters(const sxml_xquery_query *query);
 
 /*
  * XQuery and XPath Full Text 3.0 (W3C Recommendation, 24 November 2015),
- * for XQuery: "E contains text S" with its full-text selections, match
- * options and positional filters, the ft-option declaration and the score
+ * for XQuery and XPath (D235): "E contains text S" with its full-text
+ * selections, match options and positional filters, the ft-option declaration and the score
  * variables of for and let (D214). Without it a query that uses Full Text
  * is a static error, XPST0003, as for a processor without Full Text. Its
  * name is "full-text" (packet 7.12a, D214).
