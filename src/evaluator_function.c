@@ -1331,8 +1331,13 @@ typedef struct sxml_atomic_coercion {
     sxml_type_identifier primitive_type;
     /* True when item_type is an enumeration type. */
     bool is_enumeration;
+    /* Why the value is coerced: decides the error of a failed cast. */
+    sxml_ir_coercion_role role;
     sxml_error_record *error_record;
 } sxml_atomic_coercion;
+
+static sxml_status sxml_report_coercion_error(sxml_ir_coercion_role role,
+                                              sxml_error_record *error_record);
 
 /* True for item types whose instances are atomic: the generalized atomic
    types of XPath 4.0, section 3.2.3, and choices of them. */
@@ -1398,19 +1403,25 @@ static bool sxml_type_is_derived(const sxml_type_registry *registry,
 }
 
 /* Casts item to the target (allowing nothing empty) and writes the item,
-   owned, to *result. */
+   owned, to *result. For an XSLT role a value that cannot be converted is
+   the role's type error (XSLT 4.0, 9.3), not the cast's FORG0001. */
 static sxml_status sxml_coercion_cast(const sxml_atomic_coercion *coercion,
                                       sxml_item item, sxml_sequence *result) {
     const sxml_type_identifier target = coercion->item_type;
-    return sxml_cast_make_value(
+    const bool is_xslt = sxml_ir_coercion_role_is_xslt(coercion->role);
+    const sxml_status status = sxml_cast_make_value(
         coercion->dynamic_context->item_heap,
         &(sxml_cast_request){.value = sxml_sequence_from_item(item),
                              .target_type = target,
                              .allows_empty = false,
                              .namespace_bindings = {.namespace_bindings = NULL,
                                                     .namespace_binding_count = 0},
-                             .error_record = coercion->error_record},
+                             .error_record = is_xslt ? NULL : coercion->error_record},
         result);
+    if (is_xslt && (status == SXML_STATUS_DYNAMIC_ERROR || status == SXML_STATUS_TYPE_ERROR)) {
+        return sxml_report_coercion_error(coercion->role, coercion->error_record);
+    }
+    return status;
 }
 
 /*
@@ -1570,6 +1581,7 @@ static sxml_status sxml_report_coercion_error(sxml_ir_coercion_role role,
     case SXML_IR_COERCION_ROLE_FUNCTION_ARGUMENT:
     case SXML_IR_COERCION_ROLE_FUNCTION_RESULT:
     case SXML_IR_COERCION_ROLE_VARIABLE:
+    case SXML_IR_COERCION_ROLE_XSLT_BINDING:
         break;
     }
     return sxml_error_record_report(error_record, &sxml_coercion_error);
@@ -2190,6 +2202,7 @@ static sxml_status sxml_coercion_step_item(sxml_coercion_engine *engine,
                                   ? description.primitive_type
                                   : sxml_builtin_type_identifier(SXML_TYPE_NONE),
             .is_enumeration = description.variety == SXML_TYPE_VARIETY_ENUMERATION,
+            .role = engine->role,
             .error_record = frame->error_record};
         sxml_atomic_coercion_outcome outcome;
         status = sxml_coerce_atomic_item(&coercion, item, &outcome);

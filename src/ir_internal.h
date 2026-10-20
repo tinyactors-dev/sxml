@@ -806,7 +806,20 @@ typedef enum sxml_ir_coercion_role {
     SXML_IR_COERCION_ROLE_VARIABLE,
     /* An XSLT template or function parameter (XTTE0590, Phase 4). */
     SXML_IR_COERCION_ROLE_TEMPLATE_PARAMETER,
+    /* Another XSLT binding whose lowering maps XPTY0004 to XSLT's code: a
+       variable, a parameter's default, a template's or function's result
+       (XTTE0570, XTTE0600, XTTE0505, XTTE0780). */
+    SXML_IR_COERCION_ROLE_XSLT_BINDING,
 } sxml_ir_coercion_role;
+
+/* True for the XSLT roles, where a value that cannot be converted to the
+   required type is a type error (XSLT 4.0, 9.3: XTTE0570, XTTE0590), so a
+   failed cast of the coercion rules raises the role's type error, not
+   the FORG0001 the cast raises in XPath (XPath 4.0, 3.4.3). */
+static inline bool sxml_ir_coercion_role_is_xslt(sxml_ir_coercion_role role) {
+    return role == SXML_IR_COERCION_ROLE_TEMPLATE_PARAMETER ||
+           role == SXML_IR_COERCION_ROLE_XSLT_BINDING;
+}
 
 /* COERCE. */
 typedef struct sxml_ir_coercion {

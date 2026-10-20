@@ -1594,7 +1594,7 @@ static sxml_status bind_default(sxml_xpath_lowerer *lowerer, sxml_xpath_lowering
                 .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_COERCE,
                                .coercion = {.value = value,
                                             .sequence_type = type,
-                                            .role = SXML_IR_COERCION_ROLE_FUNCTION_ARGUMENT}},
+                                            .role = SXML_IR_COERCION_ROLE_XSLT_BINDING}},
                 .mappings = {.mappings = &sxml_xslt_default_value_mapping, .mapping_count = 1}},
             argument);
     } else if (status == SXML_STATUS_OK) {
@@ -1656,7 +1656,7 @@ static sxml_status finish_function_body(sxml_xpath_lowering_machine *machine,
                 .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_COERCE,
                                .coercion = {.value = value,
                                             .sequence_type = locals->function->result_type,
-                                            .role = SXML_IR_COERCION_ROLE_FUNCTION_RESULT}},
+                                            .role = SXML_IR_COERCION_ROLE_XSLT_BINDING}},
                 .mappings = {.mappings = mappings,
                              .mapping_count = sizeof(mappings) / sizeof(mappings[0])}},
             &value);
@@ -2786,7 +2786,7 @@ static sxml_status lower_supplied_item(sxml_xpath_lowerer *lowerer, supplied_ite
                                             .sequence_type = {.item_type = item_type,
                                                               .occurrence =
                                                                   SXML_OCCURRENCE_EXACTLY_ONE},
-                                            .role = SXML_IR_COERCION_ROLE_VARIABLE}},
+                                            .role = SXML_IR_COERCION_ROLE_XSLT_BINDING}},
                 .mappings = {.mappings = mappings,
                              .mapping_count = sizeof(mappings) / sizeof(mappings[0])}},
             &checked);

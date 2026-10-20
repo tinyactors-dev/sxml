@@ -474,7 +474,7 @@ static sxml_status bind_coercion(sxml_xpath_lowerer *lowerer, coercion_call call
             .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_COERCE,
                            .coercion = {.value = request.value,
                                         .sequence_type = request.sequence_type,
-                                        .role = SXML_IR_COERCION_ROLE_VARIABLE}},
+                                        .role = SXML_IR_COERCION_ROLE_XSLT_BINDING}},
             .mappings = {.mappings = variable_type_mapping, .mapping_count = 1}},
         atom);
 }

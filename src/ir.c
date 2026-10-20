@@ -2248,6 +2248,8 @@ static const char *coercion_role_name(sxml_ir_coercion_role role) {
         return "variable";
     case SXML_IR_COERCION_ROLE_TEMPLATE_PARAMETER:
         return "template-parameter";
+    case SXML_IR_COERCION_ROLE_XSLT_BINDING:
+        return "xslt-binding";
     }
     return "?";
 }

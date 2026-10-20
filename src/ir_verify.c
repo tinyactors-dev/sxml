@@ -924,7 +924,7 @@ static sxml_status visit_expression(verifier *checker,
         if (!sequence_type_is_valid(checker,
                                     expression->coercion.sequence_type) ||
             (uint32_t)expression->coercion.role >
-                (uint32_t)SXML_IR_COERCION_ROLE_TEMPLATE_PARAMETER) {
+                (uint32_t)SXML_IR_COERCION_ROLE_XSLT_BINDING) {
             return report(checker, "a coercion has an invalid type or role");
         }
         return check_required_atom(checker, expression->coercion.value);

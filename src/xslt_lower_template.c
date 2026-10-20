@@ -925,7 +925,7 @@ static sxml_status finish_default_branch(sxml_xpath_lowerer *lowerer,
                 .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_COERCE,
                                .coercion = {.value = value,
                                             .sequence_type = locals->plan.type.sequence_type,
-                                            .role = SXML_IR_COERCION_ROLE_VARIABLE}},
+                                            .role = SXML_IR_COERCION_ROLE_XSLT_BINDING}},
                 .mappings = {.mappings = &sxml_xslt_default_value_mapping, .mapping_count = 1}},
             &value);
     }
@@ -1033,7 +1033,7 @@ static sxml_status finish_template_body(sxml_xpath_lowering_machine *machine,
                 .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_COERCE,
                                .coercion = {.value = value,
                                             .sequence_type = type.sequence_type,
-                                            .role = SXML_IR_COERCION_ROLE_FUNCTION_RESULT}},
+                                            .role = SXML_IR_COERCION_ROLE_XSLT_BINDING}},
                 .mappings = {.mappings = mappings,
                              .mapping_count = sizeof(mappings) / sizeof(mappings[0])}},
             &value);
