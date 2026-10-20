@@ -10,10 +10,12 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
   (D181). 7.11's gate (all 12 XT40 transform cases) is open: 10 pass;
 transform-004 needs a suspendable compiler (D71), transform-401 waits on
 4.22's newest-draft patterns (D249).
-- Passes (release, whole suites): XP40 32,716, XQ40 46,017 (2.23, D258),
-  XT40 12,157 (4.24, D261: stylesheets see only declared prefixes and
-  xml, or fixed-namespaces), XSD in scope 41,486 of 41,518.
-  Zero error outcomes in every suite.
+- Passes (release, whole suites at e74d4ad, report-1, docs/CONFORMANCE.md):
+  XP40 32,815 (26 failed), XQ40 46,158 (74), XT40 12,268 (250), XSD11
+  41,599 of 41,610 run (11), iXML 886 of 907 (21 not run), tree-sitter
+  1,410 of 1,438 (8 failed, 1 corpus error). Zero errors in the W3C
+  suites. Gate rates: XP40 99.8 %, XQ40 99.8 %, XT40 96.7 %, XSD 100.0 %.
+  tools/conformance-report.py has no iXML or tree-sitter sections yet.
 - One build with everything (D272, size-3): every shipped build has every
   language and optional feature; the JavaScript package ships one
   `sxml.wasm` (7,701,002 / 1,713,241 bytes; budget 8,000,000 / 2,800,000;
@@ -36,8 +38,6 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
   forest built during the parse so item sets can be freed (D283).
   (Book-first pages carry <!-- status: draft -->; check-book-examples.sh
   skips them unless --drafts.)
-- report-1: whole runs of every suite at one commit; CONFORMANCE.md and
-  the book's conformance appendix regenerated.
 
 ## Next
 
