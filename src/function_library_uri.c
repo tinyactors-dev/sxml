@@ -52,8 +52,8 @@ static const sxml_static_error invalid_reference_error = {
     .code_local_name = SXML_BYTE_VIEW_INITIALIZER("FORG0002"),
     .description = SXML_BYTE_VIEW_INITIALIZER(
         "The reference or the base URI is not a valid IRI reference: a percent sign "
-        "without two hexadecimal digits, or a colon before the first slash that ends no "
-        "scheme (RFC 3987; F&O 4.0, fn:resolve-uri)"),
+        "without two hexadecimal digits, a colon before the first slash that ends no "
+        "scheme, or a second number sign (RFC 3987; F&O 4.0, fn:resolve-uri)"),
 };
 
 static bool is_hexadecimal_digit(uint8_t byte) {
@@ -65,11 +65,19 @@ static bool is_hexadecimal_digit(uint8_t byte) {
    characters LEIRI also allows: a "%" not followed by two hexadecimal
    digits (pct-encoded), or a ":" before any "/", "?" or "#" whose prefix
    is no scheme (ALPHA *( ALPHA / DIGIT / "+" / "-" / "." ); a relative
-   reference's first segment has no colon, RFC 3986, 4.2). */
+   reference's first segment has no colon, RFC 3986, 4.2), or a "#" in the
+   fragment (ifragment is *( ipchar / "/" / "?" ), RFC 3987, 2.2). */
 static bool is_iri_reference(sxml_byte_view text) {
     bool is_in_first_segment = true;
+    bool is_in_fragment = false;
     for (size_t byte_index = 0; byte_index < text.byte_count; byte_index += 1) {
         const uint8_t byte = text.bytes[byte_index];
+        if (byte == '#') {
+            if (is_in_fragment) {
+                return false;
+            }
+            is_in_fragment = true;
+        }
         if (byte == '%' &&
             (byte_index + 2 >= text.byte_count || !is_hexadecimal_digit(text.bytes[byte_index + 1]) ||
              !is_hexadecimal_digit(text.bytes[byte_index + 2]))) {
