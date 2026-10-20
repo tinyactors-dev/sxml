@@ -85,6 +85,11 @@ typedef enum stylesheet_function_kind {
     SXML_STYLESHEET_FUNCTION_MAP_FOR_KEY_WITH_CONTEXT,
     /* fn:map-for-key#2: (key-name, top). */
     SXML_STYLESHEET_FUNCTION_MAP_FOR_KEY_WITH_TOP,
+    /* fn:apply-templates#1: (select, the caller's context variables). */
+    SXML_STYLESHEET_FUNCTION_APPLY_TEMPLATES,
+    /* fn:apply-templates#2: (select, options, the caller's context
+       variables). */
+    SXML_STYLESHEET_FUNCTION_APPLY_TEMPLATES_WITH_OPTIONS,
     SXML_STYLESHEET_FUNCTION_COUNT,
 } stylesheet_function_kind;
 
@@ -116,6 +121,23 @@ static const sxml_function_parameter map_for_key_with_context_parameters[] = {
 static const sxml_function_parameter map_for_key_with_top_parameters[] = {
     SXML_FUNCTION_PARAMETER("key-name", "xs:anyAtomicType", SXML_PARAMETER_DEFAULT_REQUIRED),
     SXML_FUNCTION_PARAMETER("top", "node()", SXML_PARAMETER_DEFAULT_REQUIRED),
+};
+
+/* fn:apply-templates (XSLT 4.0, 6.9.3.1). The last parameter is the
+   tunnel parameters the caller received (D262: the context variables, a
+   SXML_PARAMETER_DEFAULT_CONTEXT_VARIABLE of that name), so that the
+   function passes them on as xsl:apply-templates does (10.1.6). */
+static const sxml_function_parameter apply_templates_parameters[] = {
+    SXML_FUNCTION_PARAMETER("select", "item()*", SXML_PARAMETER_DEFAULT_REQUIRED),
+    SXML_FUNCTION_PARAMETER("context-variables", "map(*)?",
+                            SXML_PARAMETER_DEFAULT_CONTEXT_VARIABLE),
+};
+
+static const sxml_function_parameter apply_templates_with_options_parameters[] = {
+    SXML_FUNCTION_PARAMETER("select", "item()*", SXML_PARAMETER_DEFAULT_REQUIRED),
+    SXML_FUNCTION_PARAMETER("options", "map(*)?", SXML_PARAMETER_DEFAULT_REQUIRED),
+    SXML_FUNCTION_PARAMETER("context-variables", "map(*)?",
+                            SXML_PARAMETER_DEFAULT_CONTEXT_VARIABLE),
 };
 
 static const sxml_function_parameter copy_of_parameters[] = {
@@ -161,6 +183,16 @@ static const stylesheet_function_rule stylesheet_function_rules[SXML_STYLESHEET_
          .parameters = {map_for_key_with_top_parameters, 2},
          .named_arity = 2,
          .result_type = SXML_BYTE_VIEW_INITIALIZER("map(xs:anyAtomicType, node()*)")},
+    [SXML_STYLESHEET_FUNCTION_APPLY_TEMPLATES] =
+        {.local_name = SXML_BYTE_VIEW_INITIALIZER("apply-templates"),
+         .parameters = {apply_templates_parameters, 2},
+         .named_arity = 1,
+         .result_type = SXML_BYTE_VIEW_INITIALIZER("item()*")},
+    [SXML_STYLESHEET_FUNCTION_APPLY_TEMPLATES_WITH_OPTIONS] =
+        {.local_name = SXML_BYTE_VIEW_INITIALIZER("apply-templates"),
+         .parameters = {apply_templates_with_options_parameters, 3},
+         .named_arity = 2,
+         .result_type = SXML_BYTE_VIEW_INITIALIZER("item()*")},
 };
 
 /* The most parameters of a stylesheet or private function. */
@@ -788,8 +820,9 @@ static sxml_status prepare_stylesheet_functions(sxml_xslt_function_table *table)
             }
         }
     }
-    static const char *const variable_names[] = {"key-name", "key-value", "context",
-                                                 "top",      "root",      "input"};
+    static const char *const variable_names[] = {"key-name", "key-value", "context", "top",
+                                                 "root",     "input",     "select",  "options",
+                                                 "received", "which"};
     for (size_t name_index = 0; status == SXML_STATUS_OK &&
                                 name_index < sizeof(variable_names) / sizeof(variable_names[0]);
          name_index += 1) {
@@ -811,6 +844,10 @@ typedef enum snippet_variable {
     SXML_SNIPPET_VARIABLE_TOP,
     SXML_SNIPPET_VARIABLE_ROOT,
     SXML_SNIPPET_VARIABLE_INPUT,
+    SXML_SNIPPET_VARIABLE_SELECT,
+    SXML_SNIPPET_VARIABLE_OPTIONS,
+    SXML_SNIPPET_VARIABLE_RECEIVED,
+    SXML_SNIPPET_VARIABLE_WHICH,
 } snippet_variable;
 
 sxml_status sxml_xslt_declare_functions(sxml_xslt_lowering *lowering,
@@ -1437,6 +1474,8 @@ static sxml_status lower_key_function(sxml_xslt_function_table *table,
         break;
     case SXML_STYLESHEET_FUNCTION_COPY_OF:
     case SXML_STYLESHEET_FUNCTION_SNAPSHOT:
+    case SXML_STYLESHEET_FUNCTION_APPLY_TEMPLATES:
+    case SXML_STYLESHEET_FUNCTION_APPLY_TEMPLATES_WITH_OPTIONS:
     case SXML_STYLESHEET_FUNCTION_COUNT:
         return SXML_STATUS_INVALID_ARGUMENT;
     }
@@ -1540,6 +1579,303 @@ static sxml_status lower_snapshot(sxml_xslt_function_table *table, table_functio
                                   .links_copies = true});
 }
 
+/* ------------------------------------------------- fn:apply-templates */
+
+/*
+ * fn:apply-templates($select, $options) (XSLT 4.0, 6.9.3.1) is
+ * xsl:apply-templates with the mode, the parameters and the tunnel
+ * parameters chosen at run time:
+ *
+ *     let $which := (: 0 #current, 1 #unnamed, 2... the declared modes :)
+ *         $params := $options?params otherwise {},
+ *         $tunnel := map:merge(($received, $options?tunnel-params),
+ *                              {"duplicates": "use-last"})
+ *     return if ($which eq 0) then APPLY_TEMPLATES(#current)
+ *            else if ($which eq 1) then APPLY_TEMPLATES(unnamed) ...
+ *
+ * The modes are the named modes the package declares with xsl:mode, of
+ * any visibility (the draft's "explicitly declared in the containing
+ * package"; its note on private modes is read as for used packages, as
+ * the suite does, D262); another name raises XTDE0565, a string other
+ * than "#current" and "#unnamed" XPTY0004 (the option's type).
+ */
+
+/* Writes the text of $which. */
+static void write_which_text(const sxml_xslt_function_table *table, uint32_t package,
+                             sxml_xslt_snippet_text *text) {
+    SXML_XSLT_SNIPPET_APPEND(
+        text, "let $m := $options?mode return if (empty($m)) then 1 "
+              "else if ($m instance of Q{http://www.w3.org/2001/XMLSchema}QName) then (");
+    sxml_xslt_selectable_mode mode = {.mode_name = {.index = 0}, .mode = {.value = 0}};
+    for (size_t position = 0; sxml_xslt_lowering_find_selectable_mode(
+             table->lowering, (sxml_xslt_selectable_mode_query){.package = package, .position = position},
+             &mode);
+         position += 1) {
+        SXML_XSLT_SNIPPET_APPEND(text, "if ($m eq ");
+        sxml_xslt_snippet_text_append_qname(text, table->lowering->lowerer->name_pool,
+                                            mode.mode_name);
+        SXML_XSLT_SNIPPET_APPEND(text, ") then ");
+        sxml_xslt_snippet_text_append_number(text, position + 2);
+        SXML_XSLT_SNIPPET_APPEND(text, " else ");
+    }
+    SXML_XSLT_SNIPPET_APPEND(
+        text, "error(QName(\"http://www.w3.org/2005/xqt-errors\", \"XTDE0565\"), "
+              "\"fn:apply-templates selects a mode the package does not declare (XSLT 4.0, "
+              "6.9.3.1)\")) "
+              "else if (string($m) eq \"#current\") then 0 "
+              "else if (string($m) eq \"#unnamed\") then 1 "
+              "else error(QName(\"http://www.w3.org/2005/xqt-errors\", \"XPTY0004\"), "
+              "\"the mode option of fn:apply-templates is no xs:QName, #current or #unnamed "
+              "(XSLT 4.0, 6.9.3.1)\")");
+}
+
+/* Lowers text with the variables in scope and binds its value in block. */
+typedef struct text_binding {
+    sxml_xslt_function_table *table;
+    sxml_byte_view text;
+    sxml_xpath_lowering_block *block;
+} text_binding;
+
+static sxml_status bind_text(text_binding binding, sxml_ir_atom *atom) {
+    sxml_xpath_lowerer *lowerer = binding.table->lowering->lowerer;
+    sxml_ast *ast = NULL;
+    sxml_status status = parse_snippet(binding.table, binding.text, &ast);
+    sxml_ir_expression_index value = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_lower_embedded(
+            lowerer,
+            &(sxml_xpath_lowering_embedding){.ast = ast,
+                                             .node = {.value = 0},
+                                             .static_context = &binding.table->snippet_context,
+                                             .focus = NULL},
+            &value);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_xpath_lowerer_bind_expression(
+        lowerer,
+        (sxml_xpath_lowering_expression_in_block){.block = binding.block, .expression = value},
+        atom);
+}
+
+/* The parts of the dispatch. */
+typedef struct apply_dispatch {
+    uint32_t package;
+    sxml_ir_atom params;
+    sxml_ir_atom tunnel;
+    /* The mode of the call add_apply makes. */
+    sxml_ir_mode_index mode;
+} apply_dispatch;
+
+/* APPLY_TEMPLATES of $select (slot 1) in dispatch.mode. */
+static sxml_status add_apply(sxml_xpath_lowerer *lowerer, apply_dispatch dispatch,
+                             sxml_ir_expression_index *expression) {
+    return sxml_xpath_lowerer_add_expression(
+        lowerer,
+        (sxml_xpath_lowering_expression_to_add){
+            .node = no_ast_node,
+            .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_APPLY_TEMPLATES,
+                           .apply_templates = {.select = sxml_ir_slot_atom((sxml_ir_slot){.value = 1}),
+                                               .focus = {.context_value = {0},
+                                                         .context_position = {0},
+                                                         .context_size = {0}},
+                                               .mode = dispatch.mode,
+                                               .rule_search = SXML_IR_RULE_SEARCH_FROM_START,
+                                               .parameters = dispatch.params,
+                                               .tunnel_parameters = dispatch.tunnel,
+                                               .separator = {.atom_kind = SXML_IR_ATOM_KIND_NONE}}}},
+        expression);
+}
+
+/* if ($which eq number) then then_branch else *body, into *body. */
+typedef struct dispatch_case {
+    size_t number;
+    sxml_ir_expression_index then_branch;
+} dispatch_case;
+
+static sxml_status add_dispatch_case(sxml_xslt_function_table *table, dispatch_case branch,
+                                     sxml_ir_expression_index *body) {
+    sxml_xpath_lowerer *lowerer = table->lowering->lowerer;
+    sxml_xslt_snippet_text text = {.allocator = table->allocator, .status = SXML_STATUS_OK};
+    SXML_XSLT_SNIPPET_APPEND(&text, "$which eq ");
+    sxml_xslt_snippet_text_append_number(&text, branch.number);
+    sxml_status status = text.status;
+    sxml_xpath_lowering_block block = {.first = {0}, .open_let = {0}};
+    sxml_ir_atom condition = {0};
+    if (status == SXML_STATUS_OK) {
+        status = bind_text((text_binding){.table = table,
+                                          .text = sxml_xslt_snippet_text_view(&text),
+                                          .block = &block},
+                           &condition);
+    }
+    sxml_xslt_snippet_text_release(&text);
+    sxml_ir_expression_index conditional = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_add_expression(
+            lowerer,
+            (sxml_xpath_lowering_expression_to_add){
+                .node = no_ast_node,
+                .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_CONDITIONAL,
+                               .conditional = {.condition = condition,
+                                               .then_branch = branch.then_branch,
+                                               .else_branch = *body}}},
+            &conditional);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_xpath_lowerer_finish_block(
+        lowerer, (sxml_xpath_lowering_block_result){.block = block, .result = conditional}, body);
+}
+
+/* The dispatch over the modes, the last mode's call the innermost else. */
+static sxml_status add_mode_dispatch(sxml_xslt_function_table *table, apply_dispatch dispatch,
+                                     sxml_ir_expression_index *body) {
+    sxml_xpath_lowerer *lowerer = table->lowering->lowerer;
+    const uint32_t package = dispatch.package;
+    size_t mode_count = 0;
+    sxml_xslt_selectable_mode mode = {.mode_name = {.index = 0}, .mode = {.value = 0}};
+    while (sxml_xslt_lowering_find_selectable_mode(
+        table->lowering, (sxml_xslt_selectable_mode_query){.package = package, .position = mode_count},
+        &mode)) {
+        mode_count += 1;
+    }
+    sxml_status status = SXML_STATUS_OK;
+    /* From the last case to the first: number mode_count + 1 is the last
+       declared mode, 1 the unnamed mode, 0 #current. */
+    for (size_t number = mode_count + 2; status == SXML_STATUS_OK && number > 0; number -= 1) {
+        const size_t case_number = number - 1;
+        sxml_ir_mode_index target = {.value = 0};
+        if (case_number == 1) {
+            target = sxml_xslt_lowering_unnamed_mode(table->lowering, package);
+        } else if (case_number > 1 &&
+                   sxml_xslt_lowering_find_selectable_mode(
+                       table->lowering,
+                       (sxml_xslt_selectable_mode_query){.package = package, .position = case_number - 2},
+                       &mode)) {
+            target = mode.mode;
+        }
+        sxml_ir_expression_index apply = {0};
+        dispatch.mode = target;
+        status = add_apply(lowerer, dispatch, &apply);
+        if (status != SXML_STATUS_OK) {
+            break;
+        }
+        if (case_number == mode_count + 1) {
+            *body = apply;
+        } else {
+            status = add_dispatch_case(
+                table, (dispatch_case){.number = case_number, .then_branch = apply}, body);
+        }
+    }
+    return status;
+}
+
+static sxml_status lower_apply_templates(sxml_xslt_function_table *table,
+                                         function_identity identity) {
+    sxml_xpath_lowerer *lowerer = table->lowering->lowerer;
+    const table_function *function = function_of(table, identity);
+    const bool has_options = identity.kind == SXML_STYLESHEET_FUNCTION_APPLY_TEMPLATES_WITH_OPTIONS;
+    if (table->lowering->templates == NULL) {
+        return sxml_xpath_lowerer_report_unsupported(
+            lowerer, no_ast_node,
+            SXML_BYTE_VIEW_FROM_LITERAL("fn:apply-templates called only after the templates"));
+    }
+    const uint32_t parameter_count = has_options ? 3U : 2U;
+    sxml_xpath_lowering_function_frame frame = {
+        .function = {.function_index = function->function,
+                     .function_level = 0,
+                     .slot_count = parameter_count,
+                     .captures = NULL,
+                     .capture_count = 0},
+        .focus = {.kind = SXML_XPATH_LOWERING_FOCUS_KIND_ABSENT},
+    };
+    sxml_xpath_lowerer_enter_function(lowerer, &frame);
+    const snippet_variable variables[3] = {SXML_SNIPPET_VARIABLE_SELECT,
+                                           has_options ? SXML_SNIPPET_VARIABLE_OPTIONS
+                                                       : SXML_SNIPPET_VARIABLE_RECEIVED,
+                                           SXML_SNIPPET_VARIABLE_RECEIVED};
+    sxml_status status = SXML_STATUS_OK;
+    for (uint32_t parameter = 0; status == SXML_STATUS_OK && parameter < parameter_count;
+         parameter += 1) {
+        status = sxml_xpath_lowerer_push_variable(
+            lowerer, (sxml_xpath_lowering_scope_entry){
+                         .variable_name = table->variable_names[variables[parameter]],
+                         .function_level = 0,
+                         .atom = sxml_ir_slot_atom((sxml_ir_slot){.value = parameter + 1})});
+    }
+    sxml_xpath_lowering_block block = {.first = {0}, .open_let = {0}};
+    apply_dispatch dispatch = {.package = identity.package,
+                               .params = {.atom_kind = SXML_IR_ATOM_KIND_NONE},
+                               .tunnel = {0},
+                               .mode = {.value = 0}};
+    sxml_ir_atom which = {0};
+    sxml_xslt_snippet_text text = {.allocator = table->allocator, .status = SXML_STATUS_OK};
+    if (has_options) {
+        write_which_text(table, identity.package, &text);
+        status = status == SXML_STATUS_OK ? text.status : status;
+        if (status == SXML_STATUS_OK) {
+            status = bind_text((text_binding){.table = table,
+                                              .text = sxml_xslt_snippet_text_view(&text),
+                                              .block = &block},
+                               &which);
+        }
+        if (status == SXML_STATUS_OK) {
+            status = bind_text(
+                (text_binding){.table = table,
+                               .text = SXML_BYTE_VIEW_FROM_LITERAL(
+                                   "let $p := $options?params return if (exists($p)) then $p "
+                                   "else {}"),
+                               .block = &block},
+                &dispatch.params);
+        }
+    }
+    if (status == SXML_STATUS_OK) {
+        /* 10.1.6: the tunnel parameters received, overlaid by those
+           supplied. */
+        status = bind_text(
+            (text_binding){
+                .table = table,
+                .text = has_options
+                            ? SXML_BYTE_VIEW_FROM_LITERAL(
+                                  "Q{http://www.w3.org/2005/xpath-functions/map}merge(($received, "
+                                  "$options?tunnel-params), {\"duplicates\": \"use-last\"})")
+                            : SXML_BYTE_VIEW_FROM_LITERAL(
+                                  "Q{http://www.w3.org/2005/xpath-functions/map}merge($received)"),
+                .block = &block},
+            &dispatch.tunnel);
+    }
+    sxml_xslt_snippet_text_release(&text);
+    if (status == SXML_STATUS_OK && has_options) {
+        status = sxml_xpath_lowerer_push_variable(
+            lowerer,
+            (sxml_xpath_lowering_scope_entry){
+                .variable_name = table->variable_names[SXML_SNIPPET_VARIABLE_WHICH],
+                .function_level = 0,
+                .atom = which});
+    }
+    sxml_ir_expression_index body = {0};
+    if (status == SXML_STATUS_OK && has_options) {
+        status = add_mode_dispatch(table, dispatch, &body);
+    } else if (status == SXML_STATUS_OK) {
+        /* 6.9.3.1: without a mode option, the unnamed mode (not the
+           default mode). */
+        dispatch.mode = sxml_xslt_lowering_unnamed_mode(table->lowering, identity.package);
+        status = add_apply(lowerer, dispatch, &body);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_finish_block(
+            lowerer, (sxml_xpath_lowering_block_result){.block = block, .result = body}, &body);
+    }
+    sxml_xpath_lowerer_leave_function(lowerer, &frame);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return replace_body(table,
+                        (function_body){.function = function, .frame = &frame, .body = body});
+}
+
 sxml_status sxml_xslt_lower_functions(sxml_xslt_function_table *table) {
     if (table == NULL) {
         return SXML_STATUS_OK;
@@ -1575,6 +1911,10 @@ sxml_status sxml_xslt_lower_functions(sxml_xslt_function_table *table) {
                 break;
             case SXML_STYLESHEET_FUNCTION_SNAPSHOT:
                 status = lower_snapshot(table, function);
+                break;
+            case SXML_STYLESHEET_FUNCTION_APPLY_TEMPLATES:
+            case SXML_STYLESHEET_FUNCTION_APPLY_TEMPLATES_WITH_OPTIONS:
+                status = lower_apply_templates(table, identity);
                 break;
             case SXML_STYLESHEET_FUNCTION_COUNT:
                 break;

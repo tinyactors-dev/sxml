@@ -2615,6 +2615,10 @@ static sxml_status lower_into_unit(const unit_lowering *work) {
     if (status == SXML_STATUS_OK) {
         status = add_invocation_globals(lowerer, &globals);
     }
+    if (status == SXML_STATUS_OK) {
+        /* fn:apply-templates named by a global needs the modes (D262). */
+        status = sxml_xslt_lower_functions(xslt_functions);
+    }
     sxml_xslt_release_templates(&lowering);
     if (status == SXML_STATUS_OK) {
         status = sxml_xslt_lower_accumulators(accumulators);

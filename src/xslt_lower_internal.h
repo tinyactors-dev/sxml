@@ -781,6 +781,31 @@ SXML_NODISCARD sxml_status sxml_xslt_lower_templates(sxml_xslt_lowering *lowerin
 /* Releases lowering->templates and sets it NULL; NULL is allowed. */
 void sxml_xslt_release_templates(sxml_xslt_lowering *lowering);
 
+/* The modes fn:apply-templates may select by name (XSLT 4.0, 6.9.3.1):
+   the position-th (from 0) named mode that an xsl:mode of package
+   declares. */
+typedef struct sxml_xslt_selectable_mode_query {
+    uint32_t package;
+    size_t position;
+} sxml_xslt_selectable_mode_query;
+
+typedef struct sxml_xslt_selectable_mode {
+    sxml_name_identifier mode_name;
+    sxml_ir_mode_index mode;
+} sxml_xslt_selectable_mode;
+
+/* Writes the mode query asks for and returns true; false after the last
+   one, or when the templates are not lowered (or already released).
+   src/xslt_lower_template.c. */
+bool sxml_xslt_lowering_find_selectable_mode(const sxml_xslt_lowering *lowering,
+                                             sxml_xslt_selectable_mode_query query,
+                                             sxml_xslt_selectable_mode *found);
+
+/* The unit's index of package's unnamed mode; 0 when the templates are
+   not lowered. src/xslt_lower_template.c. */
+sxml_ir_mode_index sxml_xslt_lowering_unnamed_mode(const sxml_xslt_lowering *lowering,
+                                                   uint32_t package);
+
 /* How the transformation starts (2.4). */
 typedef struct sxml_xslt_invocation {
     /* A template to call (call-template invocation, 2.4.4) with the global

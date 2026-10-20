@@ -825,8 +825,14 @@ void sxml_xpath_lowerer_find_context_variable(const sxml_xpath_lowerer *lowerer,
         if (received_name.index != 0 && entry->variable_name.index == received_name.index &&
             entry->function_level == function->function_level) {
             /* What the function received; nothing outside it is in
-               scope. */
+               scope. The map itself is the context variable of its own
+               name (fn:apply-templates passes it on, D262). */
             lookup->received = entry->atom;
+            if (name.index == received_name.index &&
+                entry->atom.atom_kind != SXML_IR_ATOM_KIND_NONE) {
+                lookup->is_in_scope = true;
+                lookup->atom = entry->atom;
+            }
             return;
         }
         if (entry->variable_name.index != name.index) {

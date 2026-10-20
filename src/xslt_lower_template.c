@@ -4397,6 +4397,42 @@ sxml_status sxml_xslt_lower_templates(sxml_xslt_lowering *lowering) {
     return status;
 }
 
+bool sxml_xslt_lowering_find_selectable_mode(const sxml_xslt_lowering *lowering,
+                                             sxml_xslt_selectable_mode_query query,
+                                             sxml_xslt_selectable_mode *found) {
+    const sxml_xslt_template_lowering *templates = lowering->templates;
+    if (templates == NULL) {
+        return false;
+    }
+    size_t position = 0;
+    for (size_t mode_index = 0; mode_index < templates->mode_count; mode_index += 1) {
+        const mode_entry *mode = &templates->modes[mode_index];
+        if (mode->mode_name.index == 0 || !mode->is_declared || mode->package != query.package) {
+            continue;
+        }
+        if (position == query.position) {
+            *found = (sxml_xslt_selectable_mode){
+                .mode_name = mode->mode_name,
+                .mode = {.value = (uint32_t)mode_index + 1U}};
+            return true;
+        }
+        position += 1;
+    }
+    return false;
+}
+
+sxml_ir_mode_index sxml_xslt_lowering_unnamed_mode(const sxml_xslt_lowering *lowering,
+                                                   uint32_t package) {
+    if (lowering->templates == NULL) {
+        return (sxml_ir_mode_index){.value = 0};
+    }
+    return find_mode(lowering->templates,
+                     (mode_reference){.is_current = false,
+                                      .is_all = false,
+                                      .mode_name = {.index = 0},
+                                      .package = package});
+}
+
 void sxml_xslt_release_templates(sxml_xslt_lowering *lowering) {
     sxml_xslt_template_lowering *templates = lowering->templates;
     if (templates == NULL) {
