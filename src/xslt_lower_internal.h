@@ -954,6 +954,22 @@ SXML_NODISCARD sxml_status sxml_xslt_lowering_bind_received_output_state(
     sxml_xpath_lowerer *lowerer, const sxml_xslt_output_state_mark *mark,
     sxml_ir_atom *is_temporary);
 
+/* The tunnel parameters an instruction passes to the templates it calls,
+   being built in block. */
+typedef struct sxml_xslt_captured_groups_pass {
+    sxml_xpath_lowering_block *block;
+    sxml_ir_atom *tunnel_parameters;
+} sxml_xslt_captured_groups_pass;
+
+/* XSLT 4.0, 17.2.2: where xsl:matching-substring or
+   xsl:non-matching-substring of the function being lowered sets the
+   current captured groups, binds in pass->block the map
+   *pass->tunnel_parameters (in/out) with them as the entry
+   Q{XSLT}regex-groups, which the called template reads (D262); otherwise
+   leaves it as it is. src/xslt_lower_number.c. */
+SXML_NODISCARD sxml_status sxml_xslt_lowering_pass_captured_groups(
+    sxml_xpath_lowerer *lowerer, const sxml_xslt_captured_groups_pass *pass);
+
 /* Writes the atom of the tunnel parameters the template function being
    lowered received to *tunnel_parameters and returns true; false outside a
    template function. src/xslt_lower_template.c. */

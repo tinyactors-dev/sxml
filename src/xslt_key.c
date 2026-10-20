@@ -33,9 +33,9 @@
  *             else if ... else error(XTDE1260))
  *            [exists(ancestor-or-self::node()[. is $top])]/.
  *
- * and fn:key#2 the same with $root := root($context) checked to be a
- * document node (XTDE1270) and without the filter. "/." puts the nodes in
- * document order without duplicates.
+ * with $root checked to be a document node (XTDE1270, 20.2.2), and fn:key#2
+ * the same with $root := root($context) and without the filter. "/." puts
+ * the nodes in document order without duplicates.
  *
  * fn:copy-of is the copy of xsl:copy-of (sxml_xslt_lowering_bind_copy_of);
  * fn:snapshot an XPath text over fn:copy-of and computed constructors
@@ -91,7 +91,11 @@ typedef enum stylesheet_function_kind {
 static const sxml_function_parameter key_with_context_parameters[] = {
     SXML_FUNCTION_PARAMETER("key-name", "xs:anyAtomicType", SXML_PARAMETER_DEFAULT_REQUIRED),
     SXML_FUNCTION_PARAMETER("key-value", "xs:anyAtomicType*", SXML_PARAMETER_DEFAULT_REQUIRED),
-    SXML_FUNCTION_PARAMETER("context", "node()", SXML_PARAMETER_DEFAULT_CONTEXT_VALUE),
+    {.parameter_name = SXML_BYTE_VIEW_INITIALIZER("context"),
+     .parameter_type = SXML_BYTE_VIEW_INITIALIZER("node()"),
+     .parameter_default = SXML_PARAMETER_DEFAULT_CONTEXT_VALUE,
+     /* 20.2.2, 20.2.3: no context node. */
+     .absent_focus_error_code = SXML_BYTE_VIEW_INITIALIZER("XTDE1270")},
 };
 
 static const sxml_function_parameter key_with_top_parameters[] = {
@@ -102,7 +106,11 @@ static const sxml_function_parameter key_with_top_parameters[] = {
 
 static const sxml_function_parameter map_for_key_with_context_parameters[] = {
     SXML_FUNCTION_PARAMETER("key-name", "xs:anyAtomicType", SXML_PARAMETER_DEFAULT_REQUIRED),
-    SXML_FUNCTION_PARAMETER("context", "node()", SXML_PARAMETER_DEFAULT_CONTEXT_VALUE),
+    {.parameter_name = SXML_BYTE_VIEW_INITIALIZER("context"),
+     .parameter_type = SXML_BYTE_VIEW_INITIALIZER("node()"),
+     .parameter_default = SXML_PARAMETER_DEFAULT_CONTEXT_VALUE,
+     /* 20.2.2, 20.2.3: no context node. */
+     .absent_focus_error_code = SXML_BYTE_VIEW_INITIALIZER("XTDE1270")},
 };
 
 static const sxml_function_parameter map_for_key_with_top_parameters[] = {
@@ -1360,16 +1368,13 @@ static void write_key_text(const sxml_xslt_function_table *table, function_ident
     sxml_xslt_snippet_text_append(text, with_context ? SXML_BYTE_VIEW_FROM_LITERAL("$context")
                                                      : SXML_BYTE_VIEW_FROM_LITERAL("$top"));
     SXML_XSLT_SNIPPET_APPEND(text, ") return ");
-    if (with_context || is_map_for_key(kind)) {
-        /* 20.2.2, 20.2.3: XTDE1270 when the root of the tree of the
-           context node (or of $top, for fn:map-for-key) is not a document
-           node. */
-        SXML_XSLT_SNIPPET_APPEND(
-            text, "if (not($root instance of document-node())) then "
-                  "error(QName(\"http://www.w3.org/2005/xqt-errors\", \"XTDE1270\"), "
-                  "\"fn:key or fn:map-for-key is called where the root of the tree is not "
-                  "a document node (XSLT 4.0, 20.2.2)\") else ");
-    }
+    /* 20.2.2, 20.2.3: XTDE1270 when the root of the tree of the context
+       node (or of $top) is not a document node. */
+    SXML_XSLT_SNIPPET_APPEND(
+        text, "if (not($root instance of document-node())) then "
+              "error(QName(\"http://www.w3.org/2005/xqt-errors\", \"XTDE1270\"), "
+              "\"fn:key or fn:map-for-key is called where the root of the tree is not "
+              "a document node (XSLT 4.0, 20.2.2)\") else ");
     SXML_XSLT_SNIPPET_APPEND(text, "(");
     for (size_t key_index = 0; key_index < table->key_count; key_index += 1) {
         const key_definition *key = &table->keys[key_index];

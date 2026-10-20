@@ -791,12 +791,64 @@ static sxml_status lower_variable_reference(sxml_xpath_lowerer *state,
 
 /* A context variable (SXML_PARAMETER_DEFAULT_CONTEXT_VARIABLE, D153):
    Q{XSLT}parameter_name when a variable of that name is in scope in the
-   current function or captured by it, else (), bound in block. */
+   current function or captured by it; else, in a template function, the
+   entry of that name in the context variables it received (D262); else
+   (), bound in block. */
 typedef struct context_variable_read {
     sxml_byte_view parameter_name;
     sxml_xpath_lowering_block *block;
     sxml_ast_node_index node;
 } context_variable_read;
+
+void sxml_xpath_lowerer_find_context_variable(const sxml_xpath_lowerer *lowerer,
+                                              sxml_name_identifier name,
+                                              sxml_xpath_context_variable_lookup *lookup) {
+    *lookup = (sxml_xpath_context_variable_lookup){
+        .is_in_scope = false,
+        .atom = {.atom_kind = SXML_IR_ATOM_KIND_NONE},
+        .received = {.atom_kind = SXML_IR_ATOM_KIND_NONE}};
+    const sxml_xpath_lowering_function *function = lowerer->function;
+    if (function == NULL) {
+        return;
+    }
+    sxml_name_identifier received_name = {0};
+    if (!sxml_name_pool_find_name(
+            lowerer->name_pool,
+            &(sxml_name_request){
+                .namespace_uri = sxml_well_known_namespace_identifier(SXML_NAMESPACE_XSLT),
+                .local_name = SXML_BYTE_VIEW_FROM_LITERAL(SXML_XPATH_CONTEXT_VARIABLES_LOCAL_NAME)},
+            &received_name)) {
+        received_name.index = 0;
+    }
+    for (size_t entry_number = lowerer->scope_entry_count; entry_number > 0; entry_number -= 1) {
+        const sxml_xpath_lowering_scope_entry *entry = &lowerer->scope_entries[entry_number - 1];
+        if (received_name.index != 0 && entry->variable_name.index == received_name.index &&
+            entry->function_level == function->function_level) {
+            /* What the function received; nothing outside it is in
+               scope. */
+            lookup->received = entry->atom;
+            return;
+        }
+        if (entry->variable_name.index != name.index) {
+            continue;
+        }
+        if (entry->function_level == function->function_level) {
+            lookup->is_in_scope = true;
+            lookup->atom = entry->atom;
+            return;
+        }
+        /* An enclosing function's: only a captured one reaches here. */
+        for (size_t capture_index = 0; capture_index < function->capture_count;
+             capture_index += 1) {
+            if (function->captures[capture_index].variable_name.index == name.index) {
+                lookup->is_in_scope = true;
+                lookup->atom = function->captures[capture_index].atom;
+                return;
+            }
+        }
+        return;
+    }
+}
 
 static sxml_status read_context_variable(sxml_xpath_lowerer *state,
                                          context_variable_read request,
@@ -811,28 +863,49 @@ static sxml_status read_context_variable(sxml_xpath_lowerer *state,
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    const sxml_xpath_lowering_function *function = state->function;
-    for (size_t entry_number = state->scope_entry_count; entry_number > 0;
-         entry_number -= 1) {
-        const sxml_xpath_lowering_scope_entry *entry =
-            &state->scope_entries[entry_number - 1];
-        if (entry->variable_name.index != name.index) {
-            continue;
+    sxml_xpath_context_variable_lookup lookup;
+    sxml_xpath_lowerer_find_context_variable(state, name, &lookup);
+    if (lookup.is_in_scope) {
+        *atom = lookup.atom;
+        return SXML_STATUS_OK;
+    }
+    const sxml_ir_atom received = lookup.received;
+    if (received.atom_kind != SXML_IR_ATOM_KIND_NONE) {
+        /* XSLT 4.0, 17.2.2: the value passes through template calls, so
+           a template function reads it from the tunnel parameters it
+           received: received?Q{XSLT}N, () when none is passed. */
+        sxml_item key = {.representation = 0};
+        status = sxml_atomic_item_make(
+            state->item_heap,
+            &(sxml_atomic_item_request){
+                .type = sxml_builtin_type_identifier(SXML_TYPE_XS_QNAME),
+                .datum = {.datum_kind = SXML_DATUM_KIND_QNAME,
+                          .datum_details = {.qname = {.expanded_name = name,
+                                                      .namespace_prefix = {.index = 0}}}}},
+            &key);
+        sxml_ir_atom key_atom = {0};
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xpath_lowerer_add_item_constant(state, key, &key_atom);
         }
-        if (entry->function_level == function->function_level) {
-            *atom = entry->atom;
-            return SXML_STATUS_OK;
+        if (status != SXML_STATUS_OK) {
+            return status;
         }
-        /* An enclosing function's: only a captured one reaches here. */
-        for (size_t capture_index = 0; capture_index < function->capture_count;
-             capture_index += 1) {
-            if (function->captures[capture_index].variable_name.index ==
-                name.index) {
-                *atom = function->captures[capture_index].atom;
-                return SXML_STATUS_OK;
-            }
+        sxml_ir_expression_index lookup_expression = {0};
+        status = sxml_xpath_lowerer_add_expression(
+            state,
+            (sxml_xpath_lowering_expression_to_add){
+                .node = request.node,
+                .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_LOOKUP,
+                               .lookup = {.value = received, .key = key_atom}}},
+            &lookup_expression);
+        if (status != SXML_STATUS_OK) {
+            return status;
         }
-        break;
+        return sxml_xpath_lowerer_bind_expression(
+            state,
+            (sxml_xpath_lowering_expression_in_block){.block = request.block,
+                                                      .expression = lookup_expression},
+            atom);
     }
     sxml_ir_expression_index empty = {0};
     status = sxml_xpath_lowerer_add_empty_sequence(state, request.node, &empty);
@@ -2878,7 +2951,7 @@ static bool is_current_output_uri(sxml_xpath_lowerer *state, sxml_ast_node_index
 
 sxml_status sxml_xpath_lowerer_clear_output_uri(sxml_xpath_lowerer *lowerer) {
     sxml_name_identifier name = {0};
-    const sxml_status status = sxml_name_pool_intern_name(
+    sxml_status status = sxml_name_pool_intern_name(
         lowerer->name_pool,
         &(sxml_name_request){.namespace_uri = {.index = SXML_NAMESPACE_XSLT},
                              .local_name = SXML_BYTE_VIEW_FROM_LITERAL("current-output-uri")},
@@ -2886,10 +2959,34 @@ sxml_status sxml_xpath_lowerer_clear_output_uri(sxml_xpath_lowerer *lowerer) {
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    return sxml_xpath_lowerer_push_variable(
+    status = sxml_xpath_lowerer_push_variable(
         lowerer, (sxml_xpath_lowering_scope_entry){.variable_name = name,
                                                    .function_level = lowerer->function->function_level,
                                                    .atom = {.atom_kind = SXML_IR_ATOM_KIND_NONE}});
+    /* 17.2.2: no captured groups in those functions either; the entry
+       hides what an enclosing template has in scope (D262). */
+    return status == SXML_STATUS_OK
+               ? sxml_xpath_lowerer_receive_context_variables(
+                     lowerer, (sxml_ir_atom){.atom_kind = SXML_IR_ATOM_KIND_NONE})
+               : status;
+}
+
+sxml_status sxml_xpath_lowerer_receive_context_variables(sxml_xpath_lowerer *lowerer,
+                                                         sxml_ir_atom received) {
+    sxml_name_identifier name = {0};
+    const sxml_status status = sxml_name_pool_intern_name(
+        lowerer->name_pool,
+        &(sxml_name_request){
+            .namespace_uri = {.index = SXML_NAMESPACE_XSLT},
+            .local_name = SXML_BYTE_VIEW_FROM_LITERAL(SXML_XPATH_CONTEXT_VARIABLES_LOCAL_NAME)},
+        &name);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_xpath_lowerer_push_variable(
+        lowerer, (sxml_xpath_lowering_scope_entry){.variable_name = name,
+                                                   .function_level = lowerer->function->function_level,
+                                                   .atom = received});
 }
 
 /* Whether the current output URI is cleared where the lowerer is. */
@@ -7137,6 +7234,29 @@ static sxml_status finish_function_call(sxml_xpath_lowering_machine *machine,
                     .block = locals->request.preparation_block,
                     .node = call_node},
                 &locals->arguments[argument_index].atom);
+        } else if (parameter_default == SXML_PARAMETER_DEFAULT_CONTEXT_VALUE &&
+                   state->function->focus->kind == SXML_XPATH_LOWERING_FOCUS_KIND_ABSENT &&
+                   entry->parameters.function_parameters[argument_index]
+                           .absent_focus_error_code.byte_count > 0) {
+            /* A code of the function's own for an absent focus (XSLT 4.0,
+               20.2.2). */
+            sxml_ir_expression_index raise = {0};
+            status = sxml_xpath_lowerer_add_raise(
+                state, (sxml_xpath_lowering_raise_request){
+                           .node = call_node,
+                           .error_status = SXML_STATUS_DYNAMIC_ERROR,
+                           .code_local_name = entry->parameters.function_parameters[argument_index]
+                                                  .absent_focus_error_code,
+                           .description = SXML_BYTE_VIEW_FROM_LITERAL(
+                               "the function reads the context node where the focus is absent")},
+                &raise);
+            if (status == SXML_STATUS_OK) {
+                status = sxml_xpath_lowerer_bind_expression(
+                    state,
+                    (sxml_xpath_lowering_expression_in_block){
+                        .block = locals->request.preparation_block, .expression = raise},
+                    &locals->arguments[argument_index].atom);
+            }
         } else if (parameter_default == SXML_PARAMETER_DEFAULT_CONTEXT_VALUE ||
             parameter_default == SXML_PARAMETER_DEFAULT_CURRENT_ITEM) {
             status = sxml_xpath_lowerer_read_focus(

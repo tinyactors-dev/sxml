@@ -1180,8 +1180,12 @@ static sxml_status lower_template_function(sxml_xslt_lowering *lowering,
         return status;
     }
     sxml_xpath_lowerer_enter_function(lowerer, &function_frame);
+    /* 17.2.2: the current captured groups pass through template calls,
+       as an entry of the tunnel parameters (D262). */
+    status = sxml_xpath_lowerer_receive_context_variables(
+        lowerer, sxml_ir_slot_atom(tunnel_parameters_slot));
     sxml_ir_slot grounded = {0};
-    if (prepares && !is_streamed) {
+    if (status == SXML_STATUS_OK && prepares && !is_streamed) {
         status = sxml_xpath_lowerer_add_slot(lowerer, &grounded);
         function_frame.focus.slots.context_value = grounded;
     }
@@ -1654,6 +1658,14 @@ static sxml_status continue_parameter_maps(sxml_xpath_lowering_machine *machine,
             lowerer,
             (map_building){.frame = frame, .base = locals->base_tunnel_parameters, .is_tunnel = true},
             locals->tunnel_parameters);
+    }
+    if (status == SXML_STATUS_OK) {
+        /* 17.2.2: the captured groups an enclosing xsl:matching-substring
+           or xsl:non-matching-substring sets pass on (D262). */
+        status = sxml_xslt_lowering_pass_captured_groups(
+            lowerer, &(sxml_xslt_captured_groups_pass){.block = frame->block,
+                                                       .tunnel_parameters =
+                                                           locals->tunnel_parameters});
     }
     if (status == SXML_STATUS_OK) {
         /* 26.2.6: templates called in temporary output state stay in it

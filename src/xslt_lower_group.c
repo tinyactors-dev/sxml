@@ -1318,6 +1318,9 @@ typedef struct group_locals {
     sxml_xpath_lowering_block pair_block;
     sxml_xpath_lowering_focus match_focus;
     sxml_xpath_lowering_block match_block;
+    /* The scope before the pattern, which clears the dynamic context
+       (17.2.2, 26.3.1). */
+    size_t match_scope_mark;
     sxml_ir_atom key;
     sxml_ir_atom groups;
     /* The MAP over the groups. */
@@ -1426,6 +1429,13 @@ static sxml_status lower_match(sxml_xpath_lowering_machine *machine,
     locals->match_focus =
         (sxml_xpath_lowering_focus){.kind = SXML_XPATH_LOWERING_FOCUS_KIND_FIXED, .fixed_value = item};
     locals->match_block = (sxml_xpath_lowering_block){.first = {0}, .open_let = {0}};
+    /* 17.2.2, 26.3.1: no captured groups and no current output URI in a
+       pattern. */
+    locals->match_scope_mark = lowerer->scope_entry_count;
+    status = sxml_xpath_lowerer_clear_output_uri(lowerer);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
     return sxml_xpath_lowering_call_embedded(
         machine, &(sxml_xpath_lowering_embedded_call){
                      .embedding = {.ast = match,
@@ -1443,6 +1453,7 @@ static sxml_status lower_match(sxml_xpath_lowering_machine *machine,
 /* 6.5: an error while matching is no match: the match block inside a
    TRY_CATCH whose one clause gives false. */
 static sxml_status bind_guarded_match(sxml_xpath_lowerer *lowerer, group_locals *locals) {
+    sxml_xpath_lowerer_pop_variables(lowerer, locals->match_scope_mark);
     sxml_ir_expression_index body = {0};
     sxml_status status = finish_branch(
         lowerer, (branch_result){.block = &locals->match_block, .value = locals->key}, &body);

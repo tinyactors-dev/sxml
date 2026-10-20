@@ -415,8 +415,37 @@ SXML_NODISCARD sxml_status sxml_xpath_lowerer_push_variable(
 /* XSLT (26.3.1): clears the current output URI in the function being
    lowered, for the rest of it: fn:current-output-uri() there is the
    empty sequence, and current-output-uri#0 returns it. For stylesheet
-   functions, global variables and parameters, and patterns. */
+   functions, global variables and parameters, and patterns. Clears the
+   context variables too (17.2.2: the captured groups; D262). */
 SXML_NODISCARD sxml_status sxml_xpath_lowerer_clear_output_uri(sxml_xpath_lowerer *lowerer);
+
+/* The local name, in the XSLT namespace, of the scope entry whose atom is
+   the map of context variables a template function received (its tunnel
+   parameters, D262): a context variable not in scope there is read from
+   it by name (XSLT 4.0, 17.2.2: the captured groups pass through template
+   calls). */
+#define SXML_XPATH_CONTEXT_VARIABLES_LOCAL_NAME "context-variables"
+
+/* XSLT: in the function being lowered, for the rest of it, context
+   variables not in scope are read from the map(xs:QName, item()*)
+   received (see SXML_XPATH_CONTEXT_VARIABLES_LOCAL_NAME). */
+SXML_NODISCARD sxml_status sxml_xpath_lowerer_receive_context_variables(
+    sxml_xpath_lowerer *lowerer, sxml_ir_atom received);
+
+/* Where a context variable's value is: in scope (its atom), else what
+   the function received (its map of context variables; NONE when it
+   received none). */
+typedef struct sxml_xpath_context_variable_lookup {
+    bool is_in_scope;
+    sxml_ir_atom atom;
+    sxml_ir_atom received;
+} sxml_xpath_context_variable_lookup;
+
+/* Looks the context variable name (in the XSLT namespace) up in the
+   function being lowered. */
+void sxml_xpath_lowerer_find_context_variable(const sxml_xpath_lowerer *lowerer,
+                                              sxml_name_identifier name,
+                                              sxml_xpath_context_variable_lookup *lookup);
 
 /* Takes the entries pushed after the first entry_count out of scope. */
 void sxml_xpath_lowerer_pop_variables(sxml_xpath_lowerer *lowerer,

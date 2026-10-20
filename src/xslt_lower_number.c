@@ -406,6 +406,9 @@ typedef struct pattern_filter {
     sxml_xpath_lowering_block predicate_block;
     sxml_xpath_lowering_block match_block;
     sxml_ir_atom matched;
+    /* The scope before the pattern, which clears the dynamic context
+       (6.5, 17.2.2, 26.3.1). */
+    size_t scope_mark;
 } pattern_filter;
 
 typedef struct pattern_filter_start {
@@ -452,6 +455,13 @@ static sxml_status start_pattern_filter(sxml_xpath_lowering_machine *machine,
     }
     filter->match_focus =
         (sxml_xpath_lowering_focus){.kind = SXML_XPATH_LOWERING_FOCUS_KIND_FIXED, .fixed_value = item};
+    /* 17.2.2, 26.3.1: no captured groups and no current output URI in a
+       pattern. */
+    filter->scope_mark = lowerer->scope_entry_count;
+    status = sxml_xpath_lowerer_clear_output_uri(lowerer);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
     return sxml_xpath_lowering_call_embedded(
         machine, &(sxml_xpath_lowering_embedded_call){
                      .embedding = {.ast = match,
@@ -476,6 +486,7 @@ typedef struct pattern_filter_finish {
 static sxml_status finish_pattern_filter(sxml_xpath_lowerer *lowerer,
                                          pattern_filter_finish request, sxml_ir_atom *atom) {
     pattern_filter *filter = request.filter;
+    sxml_xpath_lowerer_pop_variables(lowerer, filter->scope_mark);
     sxml_ir_expression_index body = {0};
     sxml_status status = finish_branch(
         lowerer, (branch_result){.block = &filter->match_block, .value = filter->matched}, &body);
@@ -1206,21 +1217,69 @@ static sxml_status call_analyze_text(sxml_xpath_lowering_machine *machine,
                                            .atom = text->atom});
 }
 
+/* The name of the current captured groups' variable, Q{XSLT}regex-groups
+   (glossary `context_variable`). */
+static sxml_status intern_captured_groups_name(sxml_xpath_lowerer *lowerer,
+                                               sxml_name_identifier *name) {
+    sxml_namespace_uri_identifier namespace_uri = {0};
+    const sxml_status status = sxml_name_pool_intern_namespace_uri(
+        lowerer->name_pool, SXML_BYTE_VIEW_FROM_LITERAL("http://www.w3.org/1999/XSL/Transform"),
+        &namespace_uri);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_name_pool_intern_name(
+        lowerer->name_pool,
+        &(sxml_name_request){.namespace_uri = namespace_uri,
+                             .local_name = SXML_BYTE_VIEW_FROM_LITERAL("regex-groups")},
+        name);
+}
+
+sxml_status sxml_xslt_lowering_pass_captured_groups(sxml_xpath_lowerer *lowerer,
+                                                    const sxml_xslt_captured_groups_pass *pass) {
+    sxml_name_identifier name = {0};
+    sxml_status status = intern_captured_groups_name(lowerer, &name);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    /* Only an instruction of the function being lowered sets them; a
+       template function passes on what it received unchanged. */
+    sxml_xpath_context_variable_lookup lookup;
+    sxml_xpath_lowerer_find_context_variable(lowerer, name, &lookup);
+    if (!lookup.is_in_scope) {
+        return SXML_STATUS_OK;
+    }
+    sxml_item key = {.representation = 0};
+    status = sxml_atomic_item_make(
+        lowerer->item_heap,
+        &(sxml_atomic_item_request){
+            .type = sxml_builtin_type_identifier(SXML_TYPE_XS_QNAME),
+            .datum = {.datum_kind = SXML_DATUM_KIND_QNAME,
+                      .datum_details = {.qname = {.expanded_name = name,
+                                                  .namespace_prefix = {.index = 0}}}}},
+        &key);
+    sxml_ir_atom key_atom = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_add_item_constant(lowerer, key, &key_atom);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    const sxml_ir_atom arguments[3] = {*pass->tunnel_parameters, key_atom, lookup.atom};
+    return sxml_xslt_lowering_bind_library_call(
+        lowerer,
+        &(sxml_xslt_library_call){.block = pass->block,
+                                  .function_namespace = SXML_NAMESPACE_MAP_FUNCTIONS,
+                                  .local_name = SXML_BYTE_VIEW_FROM_LITERAL("put"),
+                                  .arguments = {.atoms = arguments, .atom_count = 3}},
+        pass->tunnel_parameters);
+}
+
 /* Puts the current captured groups (the variable Q{XSLT}regex-groups,
    glossary `context_function`) in scope with value. */
 static sxml_status push_captured_groups(sxml_xpath_lowerer *lowerer, sxml_ir_atom value) {
-    sxml_namespace_uri_identifier namespace_uri = {0};
-    sxml_status status = sxml_name_pool_intern_namespace_uri(
-        lowerer->name_pool, SXML_BYTE_VIEW_FROM_LITERAL("http://www.w3.org/1999/XSL/Transform"),
-        &namespace_uri);
     sxml_name_identifier name = {0};
-    if (status == SXML_STATUS_OK) {
-        status = sxml_name_pool_intern_name(
-            lowerer->name_pool,
-            &(sxml_name_request){.namespace_uri = namespace_uri,
-                                 .local_name = SXML_BYTE_VIEW_FROM_LITERAL("regex-groups")},
-            &name);
-    }
+    const sxml_status status = intern_captured_groups_name(lowerer, &name);
     if (status != SXML_STATUS_OK) {
         return status;
     }
