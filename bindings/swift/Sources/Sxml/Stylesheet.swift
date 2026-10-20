@@ -190,7 +190,8 @@ public final class Stylesheet {
             result_delivery: delivery.rawValue,
             result_document_delivery: resultDocumentDelivery.rawValue,
             selects_unnamed_mode: initialMode == .unnamed ? 1 : 0,
-            side_results: noSideResults)
+            side_results: noSideResults,
+            streamed_source_uri: sxml_byte_view())
         let result = withExtendedLifetime((sourceValue, selection, argumentValues, serializationValue, made)) {
             sxml_host_stylesheet_transform(handle, &request)
         }

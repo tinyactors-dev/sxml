@@ -19,12 +19,12 @@
 # Tests (WASI only, Node.js): javascript/package runs test/package.test.ts
 # and javascript/languages test/full.test.ts on the module;
 # javascript/code_languages test/code-language.test.ts on language modules
-# built here (D293);
+# built here (D293); javascript/streams test/stream.test.ts (D294);
 # javascript/typecheck runs tsc (after `npm ci` here); javascript/size_budget
 # checks the size budgets of D93, D138, D189 and D272.
 
 add_library(sxml_javascript STATIC sxml_javascript_exports.c sxml_javascript_full_exports.c
-    sxml_javascript_host.c)
+    sxml_javascript_host.c sxml_javascript_stream.c)
 target_link_libraries(sxml_javascript PUBLIC sxml_host)
 sxml_apply_project_flags(sxml_javascript)
 
@@ -36,7 +36,7 @@ endif()
 # XQuery, XSLT and XSD, and every optional feature. The host shim keeps
 # its two source lists (bindings/host/CMakeLists.txt); this links both.
 add_executable(sxml_javascript_module sxml_javascript_exports.c sxml_javascript_full_exports.c
-    sxml_javascript_host.c ${SXML_HOST_CORE_SOURCES} ${SXML_HOST_FULL_SOURCES}
+    sxml_javascript_host.c sxml_javascript_stream.c ${SXML_HOST_CORE_SOURCES} ${SXML_HOST_FULL_SOURCES}
     "${SXML_HOST_INCLUDE_DIRECTORY}/sxml_host_full_features.c")
 target_include_directories(sxml_javascript_module PRIVATE "${SXML_HOST_INCLUDE_DIRECTORY}")
 target_link_libraries(sxml_javascript_module PRIVATE sxml)
@@ -113,6 +113,13 @@ if(SXML_BUILD_TESTS AND SXML_NODE_EXECUTABLE)
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
     set_tests_properties(javascript/code_languages PROPERTIES
         ENVIRONMENT "SXML_WASM_PATH=$<TARGET_FILE:sxml_javascript_module>;SXML_CODE_LANGUAGE_DIRECTORY=${sxml_language_module_directory}")
+    # Streamed output and input (test/stream.test.ts, D294).
+    add_test(NAME javascript/streams
+        COMMAND "${SXML_NODE_EXECUTABLE}" --expose-gc --test --test-reporter=dot
+            "${CMAKE_CURRENT_SOURCE_DIR}/test/stream.test.ts"
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+    set_tests_properties(javascript/streams PROPERTIES
+        ENVIRONMENT "SXML_WASM_PATH=$<TARGET_FILE:sxml_javascript_module>")
     # The TypeScript compiler's checks, when `npm ci` has installed it here.
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/node_modules/typescript/bin/tsc")
         add_test(NAME javascript/typecheck

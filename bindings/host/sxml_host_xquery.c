@@ -254,28 +254,31 @@ sxml_host_value *sxml_host_query_evaluate(
 }
 
 /*
- * Serializes value into the processor's output with the parameters of the
- * query's output declarations (XQuery 4.0, 5.22; method xml unless they
- * name another). Returns the status; on failure the processor's error is
- * set.
+ * Serializes value into the processor's output, or to its output writer
+ * (D294), with the parameters of the query's output declarations (XQuery
+ * 4.0, 5.22; method xml unless they name another). Returns the status; on
+ * failure the processor's error is set.
  */
 uint32_t sxml_host_query_serialize(sxml_host_query *query,
                                    const sxml_host_value *value) {
     sxml_host_processor *processor = query->owner;
     sxml_host_begin(processor);
-    sxml_output_buffer_clear(processor->output_buffer);
-    processor->output = sxml_host_no_text;
-    const sxml_status status = sxml_serialize_sequence(
-        sxml_processor_get_item_heap(processor->processor),
-        &(sxml_serialization_request){
-            .value = value->sequence,
-            .serialization_parameters = sxml_xquery_query_get_serialization_parameters(query->query),
-            .error_record = &processor->error_record},
-        sxml_output_buffer_as_output_stream(processor->output_buffer));
+    sxml_output_stream output_stream;
+    sxml_status status = sxml_host_output_begin(processor, &output_stream);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_serialize_sequence(
+            sxml_processor_get_item_heap(processor->processor),
+            &(sxml_serialization_request){
+                .value = value->sequence,
+                .serialization_parameters =
+                    sxml_xquery_query_get_serialization_parameters(query->query),
+                .error_record = &processor->error_record},
+            output_stream);
+    }
+    status = sxml_host_output_end(processor, status);
     if (status != SXML_STATUS_OK) {
         sxml_host_fail(processor, status);
         return (uint32_t)status;
     }
-    processor->output = sxml_output_buffer_get_bytes(processor->output_buffer);
     return SXML_STATUS_OK;
 }

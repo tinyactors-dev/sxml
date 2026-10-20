@@ -122,6 +122,72 @@ book.serialize({ method: 'xml', indent: true, omitXmlDeclaration: false });
 processor.evaluate('map { "a": [1, 2] }').serialize({ method: 'json' }); // '{"a":[1,2]}'
 ```
 
+## Streaming
+
+The methods that return a string hold the whole output twice: in the
+module's memory, which grows to fit it and never shrinks, and as the
+string. For large outputs, write to a sink instead (D294):
+
+| Method | Writes |
+| --- | --- |
+| `value.serializeTo(sink, options)`, `processor.serializeTo(value, sink, options)` | What `serialize(options)` returns |
+| `query.runTo(sink, options)`, `query.serializeTo(value, sink)` | What `run` and `serialize` return |
+| `transform({ output: sink })` | The principal result, with delivery `'serialized'`; `output` is then undefined |
+| `transform({ resultDocumentOutput: (uri) => sink })` | Each serialized `xsl:result-document`; `undefined` gathers it in `resultDocuments` as before |
+| `putDocument.serializeTo(sink)` | What `putDocument.serialize()` returns |
+
+A sink is a function `(chunk: Uint8Array) => void`, or an object with
+`write(chunk)` and, optionally, `close()` (after the output is complete)
+and `abort(reason)` (when the call fails, or a result document is
+abandoned). The chunks are 64 KiB by default; set
+`createProcessor({ outputChunkByteCount })` to change that. Each chunk is
+the sink's own copy, and the buffer in the module is reused for the next
+one. A sink must not use the processor. If a sink throws, the call stops
+and rethrows the same exception.
+
+```js
+import { writeSync } from 'node:fs';
+query.runTo((chunk) => writeSync(fd, chunk));
+```
+
+Chunks are cut at byte counts, not at characters. `textSink(onText)`
+decodes UTF-8 with `TextDecoder` in stream mode, so a character whose
+bytes two chunks share is given to `onText` once both have arrived. Use
+it, or your own streaming decoder, rather than decoding each chunk alone.
+
+**Backpressure.** An evaluation runs synchronously inside WebAssembly,
+so a sink is called during the call and cannot make the evaluation wait.
+A sink that consumes each chunk at once keeps memory bounded by one
+chunk: `fs.writeSync`, a hash, a decoder feeding a parser, or
+`postMessage` from a worker to a thread that reads concurrently. The
+adapters `writableStreamSink(writableStream)` (await its `done`),
+`nodeStreamSink(writable)` and `outputReadableStream((sink) => ...)`
+queue the chunks in JavaScript memory until the call returns and the
+event loop drains them. They still save the copy in the module's memory
+and the string.
+
+**Input.** A resolver may answer `'xml-document'` with a `ChunkSource`:
+an iterable of `Uint8Array` or string chunks, such as a generator that
+reads a file with `fs.readSync`. sxml reads it as it parses, and closes
+it (`return()`) when done. A document that XSLT streams is never whole in
+memory: `xsl:source-document streamable="yes"`, or the principal source
+that `transform({ streamedSource: uri })` names, when the initial mode is
+streamable. `fn:doc` and other uses read the chunks whole into the
+module, but not into JavaScript. For the other kinds, the package joins
+the chunks first. `Processor.parse` takes the whole text: the C API has
+no public incremental parse (D233), so for a large document, evaluate
+`doc($uri)` with a chunk source.
+
+Measured with Node.js 22, for output of 108.7 MB (1.8 million elements;
+module memory, peak JavaScript heap):
+
+| Case | String API | Sink |
+| --- | --- | --- |
+| `value.serialize` / `serializeTo` (tree of 1.8 M elements) | 749 MB, 113 MB | 481 MB, 4 MB |
+| `query.run` / `runTo` | 749 MB, 113 MB | 481 MB, 4 MB |
+| `transform` from a template | 749 MB, 113 MB | 481 MB, 4 MB |
+| `transform` with `streamedSource` (95 MB source) | 387 MB, 113 MB (source as a string) | 11 MB, 15 MB (chunk source) |
+
 ## XQuery
 
 `processor.compileQuery(text, { namespaces, baseUri })` compiles an XQuery
@@ -204,6 +270,9 @@ value, resultDocuments }`:
   against `baseOutputUri`. `resultDocumentDelivery` says how they are
   delivered, in the same way as `delivery`.
 - `messages` receives the `xsl:message` and `xsl:assert` output.
+- `output` and `resultDocumentOutput` write the serialized results to
+  sinks a chunk at a time, and `streamedSource` names a principal source
+  to stream (see Streaming).
 
 ```js
 const stylesheet = processor.compileStylesheet(`
@@ -342,7 +411,8 @@ the tables of the optional features:
   English after `[Language: en]`.
 
 The resolver is called synchronously during an evaluation. If it throws,
-the evaluation stops and the same exception is rethrown.
+the evaluation stops and the same exception is rethrown. For a large XML
+document, it may answer with an iterable of chunks (see Streaming).
 
 ## Errors
 
@@ -375,7 +445,7 @@ documents) are yours to dispose.
 | --- | --- |
 | `load({ wasm, collationData })` | Loads a module; returns an `Sxml` |
 | `Sxml.version`, `Sxml.features` | The library version and the module's optional features |
-| `Sxml.createProcessor({ resolver, features, codeLanguages })` | A new `Processor` |
+| `Sxml.createProcessor({ resolver, features, codeLanguages, outputChunkByteCount })` | A new `Processor` |
 | `Sxml.loadCodeLanguage({ wasm, name, highlights, locals, injections, injectionRegex })` | A `CodeLanguage` (`name`, `abiVersion`) from a tree-sitter WebAssembly language file |
 | `Processor.parse(xml, { uri })` | A document node |
 | `Processor.compile(expression, options)` | An `XPathExpression`, with `evaluate(options)` and `variables` |
@@ -386,6 +456,8 @@ documents) are yours to dispose.
 | `Processor.value(data)` | JavaScript data as a value |
 | `Processor.serialize(value, options)` | The same as `value.serialize(options)` |
 | `Value.toString()`, `Value.serialize(options)` | The value's text |
+| `Value.serializeTo(sink, options)`, `Processor.serializeTo`, `XQuery.runTo`, `XQuery.serializeTo` | The same, written to an `OutputSink` a chunk at a time |
+| `textSink`, `writableStreamSink`, `nodeStreamSink`, `outputReadableStream` | Sinks that decode text, or write to WHATWG and Node.js streams |
 | `dispose()` | On each object: frees its memory |
 | `SxmlError`, `SchemaError` | The errors that the package throws |
 

@@ -260,7 +260,9 @@ _Static_assert(offsetof(sxml_host_query_evaluate_request, side_results) == 16,
                "query evaluate side results");
 _Static_assert(sizeof(sxml_host_stylesheet_compile_request) == 24,
                "stylesheet compile: 6 words");
-_Static_assert(sizeof(sxml_host_transform_request) == 124, "transform: 31 words");
+_Static_assert(sizeof(sxml_host_transform_request) == 132, "transform: 33 words");
+_Static_assert(offsetof(sxml_host_transform_request, streamed_source_uri) == 124,
+               "transform streamed source");
 _Static_assert(offsetof(sxml_host_transform_request, side_results) == 116,
                "transform side results");
 _Static_assert(sizeof(sxml_host_schema_document) == 16, "schema document: 4 words");

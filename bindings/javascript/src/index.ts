@@ -19,7 +19,26 @@
 // ../sxml_javascript.c; the word offsets below follow its structs.
 
 import { linkLanguageModule } from './linker.ts';
+import {
+  type ChunkSource,
+  ChunkReader,
+  type GatheredDocument,
+  type OutputSink,
+  OutputRouter,
+  readWhole,
+} from './stream.ts';
 import { wasiImports } from './wasi.ts';
+
+export {
+  type ChunkSource,
+  type NodeWritable,
+  nodeStreamSink,
+  type OutputSink,
+  type OutputSinkObject,
+  outputReadableStream,
+  textSink,
+  writableStreamSink,
+} from './stream.ts';
 
 // ------------------------------------------------------------------ Types
 
@@ -89,8 +108,9 @@ export interface ResourceRequest {
  *  resource's bytes or text, or null/undefined when it is not available
  *  (FODC0002 for fn:doc). Called synchronously, during an evaluation; it
  *  must not use the processor. An exception it throws stops the evaluation
- *  and is rethrown by the call that started it. */
-export type Resolver = (request: ResourceRequest) => string | Uint8Array | null | undefined;
+ *  and is rethrown by the call that started it. An XML document may also
+ *  be a ChunkSource, read a chunk at a time as it is parsed (D294). */
+export type Resolver = (request: ResourceRequest) => string | Uint8Array | ChunkSource | null | undefined;
 
 export interface ProcessorOptions {
   /** Default: nothing is available. */
@@ -104,6 +124,9 @@ export interface ProcessorOptions {
    *  loaded with Sxml.loadCodeLanguage; one with a built-in language's
    *  name replaces it. Default: none. */
   codeLanguages?: CodeLanguage[];
+  /** The size of the chunks an OutputSink receives, in bytes; default
+   *  65,536 (D294). */
+  outputChunkByteCount?: number;
   /** For tests: fail this allocation (counted from 1) with out of memory. */
   failingAllocationNumber?: number;
 }
@@ -207,6 +230,8 @@ export interface PutDocument {
   parameters: Value | undefined;
   /** The node serialized with parameters (method xml without). */
   serialize(): string;
+  /** The same, written to sink a chunk at a time (D294). */
+  serializeTo(sink: OutputSink): void;
 }
 
 /** Receives what an updating query changed, after the evaluation and in
@@ -281,6 +306,22 @@ export interface TransformOptions {
   /** Receives xsl:message and xsl:assert output, after the
    *  transformation (also when it throws). */
   messages?: (message: Message) => void;
+  /** With delivery 'serialized': receives the principal result a chunk at
+   *  a time as it is serialized, instead of TransformResult.output (D294). */
+  output?: OutputSink;
+  /** With resultDocumentDelivery 'serialized': chooses the sink of each
+   *  result document by its URI, as it begins; undefined gathers it as
+   *  ResultDocument.output. A document whose transformation fails while it
+   *  is open is aborted. Documents with a sink are not in
+   *  TransformResult.resultDocuments. */
+  resultDocumentOutput?: (uri: string) => OutputSink | undefined;
+  /** The absolute URI of a principal source to stream (XSLT 4.0, 2.4.3;
+   *  D228): the resolver is asked for it (kind 'xml-document') and may
+   *  answer with a ChunkSource. When the initial mode is streamable, its
+   *  nodes are read as they are parsed and never held whole; otherwise it
+   *  is built first. Applies templates; not with source or
+   *  initialMatchSelection. */
+  streamedSource?: string;
 }
 
 /** A secondary result: what one xsl:result-document made (26.2). */
@@ -458,6 +499,9 @@ interface Exports {
   sxml_javascript_schema_destroy(schema: number): void;
   sxml_javascript_schema_compile(schema: number, request: number): number;
   sxml_javascript_schema_validate(schema: number, request: number): number;
+  // Streams (sxml_javascript_stream.c, D294).
+  sxml_javascript_set_output(processor: number, chunkByteCount: number): number;
+  sxml_javascript_set_byte_reader(processor: number): number;
 }
 
 // sxml_status values the package itself returns from the resolver import.
@@ -519,6 +563,15 @@ class ProcessorState {
   /** The exception the resolver threw during the current call. */
   pendingException: unknown = undefined;
   isInResolver = false;
+  /** Whether an output sink or chunk source is running (D294). */
+  isInSink = false;
+  /** The router of the current streaming call's output (D294). */
+  outputRouter: OutputRouter | undefined = undefined;
+  /** The chunk sources the resolver delivered, by reader identifier. */
+  readonly readers = new Map<number, ChunkReader>();
+  nextReaderIdentifier = 1;
+  /** ProcessorOptions.outputChunkByteCount. */
+  outputChunkByteCount = default_output_chunk_byte_count;
   /** parse-json($json), compiled when first needed. */
   jsonExpression = 0;
   /** What sxml_javascript_processor_destroy found still allocated. */
@@ -801,6 +854,13 @@ export class Sxml {
     }
     const state = new ProcessorState(this, address, options.resolver, options.features ?? this.features);
     state.codeLanguageView = codeLanguageView;
+    this.exports.sxml_javascript_set_byte_reader(address);
+    if (options.outputChunkByteCount !== undefined) {
+      if (!Number.isInteger(options.outputChunkByteCount) || options.outputChunkByteCount < 1) {
+        throw new RangeError('sxml: outputChunkByteCount must be a positive integer');
+      }
+      state.outputChunkByteCount = options.outputChunkByteCount;
+    }
     this.processors.set(address, state);
     const processor = new Processor(state);
     this.track(processor, { processor: state, kind: 'processor', address });
@@ -923,7 +983,7 @@ export class Sxml {
       uriReference: this.text(request[1] ?? 0, request[2] ?? 0),
       absoluteUri: this.text(request[3] ?? 0, request[4] ?? 0),
     };
-    let answer: string | Uint8Array | null | undefined;
+    let answer: string | Uint8Array | ChunkSource | null | undefined;
     if (state.resolver !== undefined) {
       state.isInResolver = true;
       try {
@@ -945,16 +1005,107 @@ export class Sxml {
     if (answer === null || answer === undefined) {
       return status_ok;
     }
+    if (typeof answer !== 'string' && !(answer instanceof Uint8Array)) {
+      // A chunk source (D294): read as it is parsed for an XML document,
+      // whole for the other kinds.
+      if (resourceRequest.kind === 'xml-document') {
+        const identifier = state.nextReaderIdentifier;
+        state.nextReaderIdentifier += 1;
+        state.readers.set(identifier, new ChunkReader(answer));
+        this.words().set([resource_form_byte_reader, 0, 0, identifier], resourceAddress / 4);
+        return status_ok;
+      }
+      try {
+        state.isInResolver = true;
+        answer = readWhole(answer);
+      } catch (exception) {
+        state.pendingException = exception;
+        return status_input_output_failed;
+      } finally {
+        state.isInResolver = false;
+      }
+    }
     const bytes = typeof answer === 'string' ? encoder.encode(answer) : answer;
     const address = this.exports.sxml_javascript_allocate(processorAddress, bytes.byteLength);
     if (address === 0) {
       return status_out_of_memory;
     }
     this.bytes().set(bytes, address);
-    this.words().set([1, address, bytes.byteLength], resourceAddress / 4);
+    this.words().set([1, address, bytes.byteLength, 0], resourceAddress / 4);
     return status_ok;
   }
+
+  /** The import sxml_host.write (sxml_host_output_event: kind, bytes,
+   *  is_abandoned). @internal */
+  write(processorAddress: number, eventAddress: number): number {
+    const state = this.processors.get(processorAddress);
+    const router = state?.outputRouter;
+    if (state === undefined || router === undefined) {
+      return status_ok;
+    }
+    const [kind = 0, address = 0, byteCount = 0, isAbandoned = 0] = this.words().subarray(
+      eventAddress / 4,
+      eventAddress / 4 + 4,
+    );
+    state.isInSink = true;
+    try {
+      router.event(kind, this.bytes().subarray(address, address + byteCount), isAbandoned !== 0, () =>
+        this.text(address, byteCount),
+      );
+      return status_ok;
+    } catch (exception) {
+      state.pendingException = exception;
+      return status_input_output_failed;
+    } finally {
+      state.isInSink = false;
+    }
+  }
+
+  /** The import sxml_host.read (sxml_host_read_request: identifier,
+   *  buffer, byte_count, is_end). @internal */
+  read(processorAddress: number, requestAddress: number): number {
+    const state = this.processors.get(processorAddress);
+    const at = requestAddress / 4;
+    const [identifier = 0, buffer = 0, bufferByteCount = 0] = this.words().subarray(at, at + 3);
+    const reader = state?.readers.get(identifier);
+    if (state === undefined || reader === undefined) {
+      this.words().set([0, 1], at + 3);
+      return status_ok;
+    }
+    state.isInSink = true;
+    try {
+      const [byteCount, isEnd] = reader.read(this.bytes().subarray(buffer, buffer + bufferByteCount));
+      this.words().set([byteCount, isEnd ? 1 : 0], at + 3);
+      return status_ok;
+    } catch (exception) {
+      state.pendingException = exception;
+      return status_input_output_failed;
+    } finally {
+      state.isInSink = false;
+    }
+  }
+
+  /** The import sxml_host.release_reader. @internal */
+  releaseReader(processorAddress: number, identifier: number): void {
+    const state = this.processors.get(processorAddress);
+    const reader = state?.readers.get(identifier);
+    if (state === undefined || reader === undefined) {
+      return;
+    }
+    state.readers.delete(identifier);
+    try {
+      reader.close();
+    } catch (exception) {
+      state.pendingException ??= exception;
+    }
+  }
 }
+
+/** ProcessorOptions.outputChunkByteCount's default. */
+const default_output_chunk_byte_count = 65536;
+
+/** SXML_RESOURCE_FORM_BYTE_READER (include/sxml/processor.h). */
+const resource_form_byte_reader = 4;
 
 /** The size of sxml_source_code_language in sxml.wasm (checked by the
  *  shim, sxml_javascript_exports.c). */
@@ -1012,6 +1163,12 @@ export async function load(options: LoadOptions = {}): Promise<Sxml> {
     sxml_host: {
       resolve: (processor: number, request: number, resource: number): number =>
         sxml === undefined ? status_ok : sxml.resolve(processor, request, resource),
+      write: (processor: number, event: number): number =>
+        sxml === undefined ? status_ok : sxml.write(processor, event),
+      read: (processor: number, request: number): number =>
+        sxml === undefined ? status_ok : sxml.read(processor, request),
+      release_reader: (processor: number, identifier: number): void =>
+        sxml?.releaseReader(processor, identifier),
     },
   });
   const exports = instance.exports as unknown as Exports;
@@ -1279,6 +1436,19 @@ export class Processor {
     }
   }
 
+  /** Serializes a value as serialize() does, writing the output to sink a
+   *  chunk at a time instead of returning it (D294). */
+  serializeTo(value: Value, sink: OutputSink, options?: SerializationOptions): void {
+    this.enter();
+    this.check(value);
+    const optionsValue = this.serializationOptions(options);
+    try {
+      this.serializeWith(value, optionsValue, sink);
+    } finally {
+      optionsValue?.dispose();
+    }
+  }
+
   /** Releases the processor and every value and expression made with it. */
   dispose(): void {
     this.state.module.untrack(this);
@@ -1304,6 +1474,9 @@ export class Processor {
     }
     if (this.state.isInResolver) {
       throw new Error('sxml: a resolver must not use its processor');
+    }
+    if (this.state.isInSink) {
+      throw new Error('sxml: an output sink or chunk source must not use its processor');
     }
     this.state.pendingException = undefined;
     return this.state;
@@ -1400,19 +1573,66 @@ export class Processor {
   }
 
   /** @internal Serializes value with a map or element of parameters, or
-   *  by the adaptive method without. */
-  serializeWith(value: Value, options: Value | undefined): string {
+   *  by the adaptive method without; to sink when given. */
+  serializeWith(value: Value, options: Value | undefined): string;
+  serializeWith(value: Value, options: Value | undefined, sink: OutputSink): void;
+  serializeWith(value: Value, options: Value | undefined, sink?: OutputSink): string | void {
     const state = this.enter();
     const scratch = new Scratch(state);
     try {
       const request = scratch.words([value.address(), options?.address() ?? 0]);
-      if (state.module.exports.sxml_javascript_serialize(state.address, request) !== status_ok) {
+      const status = this.streaming(new OutputRouter(sink), sink !== undefined, () =>
+        state.module.exports.sxml_javascript_serialize(state.address, request),
+      );
+      if (status !== status_ok) {
         throw this.failure();
       }
-      return this.output();
+      return sink === undefined ? this.output() : undefined;
     } finally {
       scratch.release();
     }
+  }
+
+  /** @internal Runs call, a call of the shim that serializes, with its
+   *  output written to router's sinks when streams is true (D294); ends
+   *  them as the call ends, failed when it returned failed (0 or a status
+   *  other than OK, as isFailure says) or threw. */
+  streaming<T>(router: OutputRouter, streams: boolean, call: () => T, isFailure?: (result: T) => boolean): T {
+    if (!streams) {
+      return call();
+    }
+    const state = this.state;
+    const exports = state.module.exports;
+    exports.sxml_javascript_set_output(state.address, state.outputChunkByteCount);
+    state.outputRouter = router;
+    let result: T;
+    try {
+      result = call();
+    } catch (exception) {
+      router.finish(true, exception);
+      throw exception;
+    } finally {
+      state.outputRouter = undefined;
+      exports.sxml_javascript_set_output(state.address, 0);
+    }
+    const failed = isFailure !== undefined ? isFailure(result) : result !== status_ok;
+    if (failed) {
+      // The failure stays readable: failure() reads it, and the sinks are
+      // aborted with it after the caller has.
+      const reason = this.peekFailure();
+      router.finish(true, reason);
+    } else {
+      router.finish(false);
+    }
+    return result;
+  }
+
+  /** @internal The last failure without taking the resolver's exception. */
+  peekFailure(): unknown {
+    if (this.state.pendingException !== undefined) {
+      return this.state.pendingException;
+    }
+    return this.failureRecord();
   }
 
   /** @internal The text of the processor's last serialization. */
@@ -1522,6 +1742,12 @@ export class Processor {
       state.pendingException = undefined;
       return exception;
     }
+    return this.failureRecord();
+  }
+
+  /** @internal The processor's error as an SxmlError. */
+  failureRecord(): SxmlError {
+    const state = this.state;
     const module = state.module;
     const at = module.exports.sxml_javascript_error_of(state.address) / 4;
     const words = module.words().slice(at, at + 15);
@@ -1657,14 +1883,14 @@ export class XQuery {
    *  output declarations give (XQuery 4.0, 5.22: method xml unless they
    *  name another). Value.serialize(options) uses options instead. */
   serialize(value: Value): string {
-    const processor = this.processor;
-    const exports = processor.exports();
-    processor.enter();
-    processor.check(value);
-    if (exports.sxml_javascript_query_serialize(this.address(), value.address()) !== status_ok) {
-      throw processor.failure();
-    }
-    return processor.output();
+    this.serializeOutput(value, undefined);
+    return this.processor.output();
+  }
+
+  /** Serializes a value as serialize() does, writing the output to sink a
+   *  chunk at a time instead of returning it (D294). */
+  serializeTo(value: Value, sink: OutputSink): void {
+    this.serializeOutput(value, sink);
   }
 
   /** Evaluates the query and serializes its result as serialize() does. */
@@ -1674,6 +1900,31 @@ export class XQuery {
       return this.serialize(result);
     } finally {
       result.dispose();
+    }
+  }
+
+  /** Evaluates the query and writes its serialized result to sink a chunk
+   *  at a time, as serializeTo() does (D294). */
+  runTo(sink: OutputSink, options: QueryEvaluateOptions = {}): void {
+    const result = this.evaluate(options);
+    try {
+      this.serializeTo(result, sink);
+    } finally {
+      result.dispose();
+    }
+  }
+
+  private serializeOutput(value: Value, sink: OutputSink | undefined): void {
+    const processor = this.processor;
+    const exports = processor.exports();
+    processor.enter();
+    processor.check(value);
+    const address = this.address();
+    const status = processor.streaming(new OutputRouter(sink), sink !== undefined, () =>
+      exports.sxml_javascript_query_serialize(address, value.address()),
+    );
+    if (status !== status_ok) {
+      throw processor.failure();
     }
   }
 
@@ -1722,6 +1973,18 @@ function deliverUpdates(processor: Processor, results: SideResult[], sink: Updat
               options.dispose();
             }
           },
+          serializeTo: (sink: OutputSink): void => {
+            if (parameters !== undefined) {
+              processor.serializeWith(node, parameters, sink);
+              return;
+            }
+            const options = processor.value({});
+            try {
+              processor.serializeWith(node, options, sink);
+            } finally {
+              options.dispose();
+            }
+          },
         });
       } else {
         node.dispose();
@@ -1755,6 +2018,21 @@ export class Stylesheet {
     const scratch = new Scratch(state);
     const made: Value[] = [];
     const delivery = options.delivery ?? 'serialized';
+    const resultDocumentDelivery = options.resultDocumentDelivery ?? 'serialized';
+    if (options.output !== undefined && delivery !== 'serialized') {
+      throw new Error("sxml: TransformOptions.output needs delivery 'serialized'");
+    }
+    if (
+      options.streamedSource !== undefined &&
+      (options.source !== undefined || options.initialMatchSelection !== undefined)
+    ) {
+      throw new Error('sxml: TransformOptions.streamedSource is the initial match selection');
+    }
+    // With a sink, the serialized results are written in chunks (D294).
+    const router = new OutputRouter(options.output, options.resultDocumentOutput);
+    const streams =
+      options.output !== undefined ||
+      (options.resultDocumentOutput !== undefined && resultDocumentDelivery === 'serialized');
     let result = 0;
     let failure: unknown;
     let output: string | undefined;
@@ -1771,7 +2049,9 @@ export class Stylesheet {
         options.initialFunction !== undefined
           ? invocation_call_function
           : options.initialTemplate !== undefined ||
-              (options.source === undefined && options.initialMatchSelection === undefined)
+              (options.source === undefined &&
+                options.initialMatchSelection === undefined &&
+                options.streamedSource === undefined)
             ? invocation_call_template
             : invocation_apply_templates;
       const unnamedMode = options.initialMode === '#unnamed';
@@ -1790,16 +2070,22 @@ export class Stylesheet {
         ...nameWords(scratch, options.initialFunction),
         invocation,
         result_deliveries[delivery],
-        result_deliveries[options.resultDocumentDelivery ?? 'serialized'],
+        result_deliveries[resultDocumentDelivery],
         unnamedMode ? 1 : 0,
         0,
         0,
+        ...scratch.view(options.streamedSource ?? ''),
       ]);
-      result = exports.sxml_javascript_stylesheet_transform(address, request);
+      result = processor.streaming(
+        router,
+        streams,
+        () => exports.sxml_javascript_stylesheet_transform(address, request),
+        (made) => made === 0,
+      );
       // Read before a callback can use the processor.
       failure = result === 0 ? processor.failure() : undefined;
-      if (result !== 0 && delivery === 'serialized') {
-        output = processor.output();
+      if (result !== 0 && delivery === 'serialized' && options.output === undefined) {
+        output = streams ? router.principalOutput() : processor.output();
       }
       sideResults = processor.sideResults(request / 4 + 29);
     } finally {
@@ -1810,7 +2096,11 @@ export class Stylesheet {
     }
     const value = result === 0 ? undefined : processor.adopt(result);
     processor.deliverMessages(sideResults, options.messages);
-    const resultDocuments: ResultDocument[] = [];
+    const resultDocuments: ResultDocument[] = router.gathered.map((document: GatheredDocument) => ({
+      uri: document.uri,
+      output: document.output,
+      value: undefined,
+    }));
     for (const side of sideResults) {
       if (side.kind === side_result_result_document) {
         resultDocuments.push({
@@ -1957,6 +2247,12 @@ export class Value {
   /** Serializes the value (Processor.serialize). */
   serialize(options?: SerializationOptions): string {
     return this.processor.serialize(this, options);
+  }
+
+  /** Serializes the value to sink a chunk at a time
+   *  (Processor.serializeTo). */
+  serializeTo(sink: OutputSink, options?: SerializationOptions): void {
+    this.processor.serializeTo(this, sink, options);
   }
 
   /** The value by the adaptive method: items one per line, strings

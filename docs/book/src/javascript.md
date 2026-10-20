@@ -149,6 +149,47 @@ my-json 14
 sxml: the highlights query does not fit the grammar at byte 1
 ```
 
+## Large outputs and inputs
+
+The methods that return a string hold the whole output twice: once in
+the module's memory, which never shrinks again, and once as the string.
+For a large output, give a sink instead. `value.serializeTo(sink)`,
+`query.runTo(sink)` and `transform({ output })` write the output a chunk
+at a time, 64 KiB by default (`createProcessor({ outputChunkByteCount
+})`). A sink is a function that gets each chunk as a `Uint8Array`, or an
+object with `write`, and optionally `close` and `abort`. Each chunk is
+copied out of the module, which reuses its buffer for the next one.
+`transform({ resultDocumentOutput })` chooses a sink for each
+`xsl:result-document` by its URI.
+
+On the input side, a resolver may answer an XML document with an
+iterable of chunks, such as a generator. sxml reads it as it parses.
+When a stylesheet's mode is streamable, `transform({ streamedSource })`
+reads the principal source this way and serializes the result as it is
+made, so neither the source nor the result is ever whole in memory:
+
+`streaming.mjs`:
+
+```js
+{{#include ../examples/javascript/streaming.mjs}}
+```
+
+```console
+$ node streaming.mjs
+496952 bytes; 10 MiB of module memory
+[ '€u', 'ro: ', '1 ', '€, 2', ' €' ]
+```
+
+The evaluation runs synchronously inside WebAssembly, so a sink cannot
+make it wait. A sink that consumes each chunk at once, like `writeSync`
+to a file, a hash, or a parser fed by a decoder, keeps memory bounded by
+one chunk. Sinks that queue chunks hold them in JavaScript memory until
+the call returns. That includes `writableStreamSink` for a WHATWG
+`WritableStream`, `nodeStreamSink` for a Node.js stream and
+`outputReadableStream`. They still save the copy in the module's memory
+and the string. `textSink` decodes UTF-8 in TextDecoder's stream mode,
+so a character split between two chunks comes out whole.
+
 ## Memory
 
 Processors, compiled expressions and values hold memory inside the

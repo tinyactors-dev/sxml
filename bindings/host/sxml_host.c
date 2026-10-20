@@ -88,7 +88,8 @@ static sxml_status sxml_host_resolve(void *state, const sxml_resource_request *r
         .absolute_uri = request->absolute_uri,
         .processor = processor};
     sxml_host_resource host_resource = {.resource_form = SXML_RESOURCE_FORM_NONE,
-                                        .content = {.bytes = NULL, .byte_count = 0}};
+                                        .content = {.bytes = NULL, .byte_count = 0},
+                                        .reader_identifier = 0};
     const sxml_host_resolver resolver = processor->resolver;
     const uint32_t status =
         resolver.resolve == NULL
@@ -101,6 +102,8 @@ static sxml_status sxml_host_resolve(void *state, const sxml_resource_request *r
     if (host_resource.resource_form == SXML_RESOURCE_FORM_BYTES) {
         resource->resource_form = SXML_RESOURCE_FORM_BYTES;
         resource->content = host_resource.content;
+    } else if (host_resource.resource_form == SXML_RESOURCE_FORM_BYTE_READER) {
+        return sxml_host_reader_resource(processor, &host_resource, resource);
     } else {
         resource->resource_form = SXML_RESOURCE_FORM_NONE;
         resource->description = SXML_BYTE_VIEW_FROM_LITERAL("The resolver has no such resource");
@@ -109,9 +112,11 @@ static sxml_status sxml_host_resolve(void *state, const sxml_resource_request *r
 }
 
 static void sxml_host_release_resource(void *state, const sxml_resource *resource) {
-    const sxml_host_processor *processor = state;
+    sxml_host_processor *processor = state;
     if (resource->resource_form == SXML_RESOURCE_FORM_BYTES) {
         sxml_allocator_release(processor->allocator, (void *)resource->content.bytes);
+    } else if (resource->resource_form == SXML_RESOURCE_FORM_BYTE_READER) {
+        sxml_host_reader_release(processor, resource);
     }
 }
 
@@ -584,13 +589,12 @@ sxml_host_value *sxml_host_evaluate(sxml_host_expression *expression,
 uint32_t sxml_host_serialize(sxml_host_processor *processor,
                              const sxml_host_serialize_request *request) {
     sxml_host_begin(processor);
-    sxml_output_buffer_clear(processor->output_buffer);
-    processor->output = sxml_host_no_text;
+    sxml_output_stream output_stream;
+    sxml_status status = sxml_host_output_begin(processor, &output_stream);
     sxml_serialization_parameters parameters;
     memset(&parameters, 0, sizeof(parameters));
     parameters.serialization_method = SXML_SERIALIZATION_METHOD_ADAPTIVE;
-    sxml_status status = SXML_STATUS_OK;
-    if (request->options != NULL) {
+    if (status == SXML_STATUS_OK && request->options != NULL) {
         status = sxml_serialization_parameter_reader_read(
             processor->parameter_reader,
             &(sxml_serialization_parameter_read_request){
@@ -604,14 +608,211 @@ uint32_t sxml_host_serialize(sxml_host_processor *processor,
             &(sxml_serialization_request){.value = request->value->sequence,
                                           .serialization_parameters = parameters,
                                           .error_record = &processor->error_record},
-            sxml_output_buffer_as_output_stream(processor->output_buffer));
+            output_stream);
     }
+    status = sxml_host_output_end(processor, status);
     if (status != SXML_STATUS_OK) {
         sxml_host_fail(processor, status);
         return (uint32_t)status;
     }
-    processor->output = sxml_output_buffer_get_bytes(processor->output_buffer);
     return SXML_STATUS_OK;
+}
+
+/* ---------------------------------------------------------------- Streams */
+
+/* A chunk's size when the configuration gives none. */
+enum { SXML_HOST_DEFAULT_CHUNK_BYTE_COUNT = 64 * 1024 };
+
+uint32_t sxml_host_set_output(sxml_host_processor *processor,
+                              const sxml_host_output_configuration *configuration) {
+    processor->output_writer = configuration->writer;
+    processor->chunk_capacity = configuration->chunk_byte_count == 0
+                                    ? (size_t)SXML_HOST_DEFAULT_CHUNK_BYTE_COUNT
+                                    : (size_t)configuration->chunk_byte_count;
+    return SXML_STATUS_OK;
+}
+
+uint32_t sxml_host_set_byte_reader(sxml_host_processor *processor,
+                                   const sxml_host_byte_reader *reader) {
+    processor->byte_reader = *reader;
+    return SXML_STATUS_OK;
+}
+
+bool sxml_host_output_is_written(const sxml_host_processor *processor) {
+    return processor->output_writer.write != NULL;
+}
+
+/* Hands event to the output writer. */
+static sxml_status sxml_host_output_send(const sxml_host_processor *processor,
+                                         const sxml_host_output_event *event) {
+    const sxml_host_output_writer writer = processor->output_writer;
+    return (sxml_status)writer.write(writer.state, event);
+}
+
+/* Writes bytes as one BYTES event. */
+static sxml_status sxml_host_output_send_bytes(const sxml_host_processor *processor,
+                                               sxml_byte_view bytes) {
+    return sxml_host_output_send(
+        processor, &(sxml_host_output_event){.output_event_kind =
+                                                 (uint32_t)SXML_HOST_OUTPUT_EVENT_KIND_BYTES,
+                                             .bytes = bytes,
+                                             .is_abandoned = 0});
+}
+
+/* Writes the chunk's bytes, if any, and empties it. */
+static sxml_status sxml_host_output_flush(sxml_host_processor *processor) {
+    if (processor->chunk_byte_count == 0) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_byte_view bytes = {.bytes = processor->chunk,
+                                  .byte_count = processor->chunk_byte_count};
+    processor->chunk_byte_count = 0;
+    return sxml_host_output_send_bytes(processor, bytes);
+}
+
+/*
+ * The chunk stream's write (include/sxml/serialize.h): gathers the
+ * serializer's small writes in the chunk and writes it when it is full; a
+ * write that finds the chunk empty and is at least a chunk long is written
+ * a chunk at a time from where it is, without a copy.
+ */
+static sxml_status sxml_host_chunk_write(void *state, sxml_byte_view bytes) {
+    sxml_host_processor *processor = state;
+    const size_t capacity = processor->chunk_capacity;
+    size_t offset = 0;
+    sxml_status status = SXML_STATUS_OK;
+    while (status == SXML_STATUS_OK && offset < bytes.byte_count) {
+        const size_t remaining = bytes.byte_count - offset;
+        if (processor->chunk_byte_count == 0 && remaining >= capacity) {
+            status = sxml_host_output_send_bytes(
+                processor, (sxml_byte_view){.bytes = bytes.bytes + offset, .byte_count = capacity});
+            offset += capacity;
+            continue;
+        }
+        const size_t room = capacity - processor->chunk_byte_count;
+        const size_t copied = remaining < room ? remaining : room;
+        memcpy(processor->chunk + processor->chunk_byte_count, bytes.bytes + offset, copied);
+        processor->chunk_byte_count += copied;
+        offset += copied;
+        if (processor->chunk_byte_count == capacity) {
+            status = sxml_host_output_flush(processor);
+        }
+    }
+    return status;
+}
+
+static const sxml_output_stream_operations sxml_host_chunk_stream_operations = {
+    .write = sxml_host_chunk_write,
+};
+
+sxml_status sxml_host_output_begin(sxml_host_processor *processor,
+                                   sxml_output_stream *output_stream) {
+    sxml_output_buffer_clear(processor->output_buffer);
+    processor->output = sxml_host_no_text;
+    if (!sxml_host_output_is_written(processor)) {
+        *output_stream = sxml_output_buffer_as_output_stream(processor->output_buffer);
+        return SXML_STATUS_OK;
+    }
+    *output_stream = (sxml_output_stream){.state = processor,
+                                          .operations = &sxml_host_chunk_stream_operations};
+    processor->chunk_byte_count = 0;
+    processor->chunk = sxml_host_allocate_bytes(processor->allocator, processor->chunk_capacity,
+                                                alignof(max_align_t));
+    return processor->chunk == NULL ? SXML_STATUS_OUT_OF_MEMORY : SXML_STATUS_OK;
+}
+
+sxml_status sxml_host_output_end(sxml_host_processor *processor, sxml_status status) {
+    if (!sxml_host_output_is_written(processor)) {
+        if (status == SXML_STATUS_OK) {
+            processor->output = sxml_output_buffer_get_bytes(processor->output_buffer);
+        }
+        return status;
+    }
+    if (status == SXML_STATUS_OK && processor->chunk != NULL) {
+        status = sxml_host_output_flush(processor);
+    }
+    sxml_allocator_release(processor->allocator, processor->chunk);
+    processor->chunk = NULL;
+    processor->chunk_byte_count = 0;
+    return status;
+}
+
+sxml_status sxml_host_output_mark(sxml_host_processor *processor,
+                                  const sxml_host_output_event *event, bool discards_chunk) {
+    sxml_status status = SXML_STATUS_OK;
+    if (discards_chunk) {
+        processor->chunk_byte_count = 0;
+    } else {
+        status = sxml_host_output_flush(processor);
+    }
+    return status == SXML_STATUS_OK ? sxml_host_output_send(processor, event) : status;
+}
+
+/* A byte reader over the processor's (include/sxml/processor.h): the
+   state of one delivered document. */
+typedef struct sxml_host_reader_state {
+    sxml_host_processor *processor;
+    uint32_t reader_identifier;
+} sxml_host_reader_state;
+
+/* Reads the next bytes through the host's reader into the lent buffer. */
+static sxml_status sxml_host_reader_read(void *state, sxml_memory_view buffer,
+                                         sxml_byte_reading *reading) {
+    const sxml_host_reader_state *reader_state = state;
+    const sxml_host_byte_reader reader = reader_state->processor->byte_reader;
+    sxml_host_read_request request = {.reader_identifier = reader_state->reader_identifier,
+                                      .buffer = buffer,
+                                      .byte_count = 0,
+                                      .is_end = 0};
+    const sxml_status status = (sxml_status)reader.read(reader.state, &request);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    reading->byte_count =
+        request.byte_count < buffer.byte_count ? (size_t)request.byte_count : buffer.byte_count;
+    reading->is_end = request.is_end != 0 || reading->byte_count == 0;
+    return SXML_STATUS_OK;
+}
+
+static const sxml_byte_reader_operations sxml_host_reader_operations = {
+    .read = sxml_host_reader_read,
+};
+
+sxml_status sxml_host_reader_resource(sxml_host_processor *processor,
+                                      const sxml_host_resource *host_resource,
+                                      sxml_resource *resource) {
+    const sxml_host_byte_reader reader = processor->byte_reader;
+    sxml_host_reader_state *reader_state =
+        reader.read == NULL
+            ? NULL
+            : sxml_host_allocate_bytes(processor->allocator, sizeof(sxml_host_reader_state),
+                                       alignof(sxml_host_reader_state));
+    if (reader_state == NULL) {
+        if (reader.release != NULL) {
+            reader.release(reader.state, host_resource->reader_identifier);
+        }
+        if (reader.read != NULL) {
+            return SXML_STATUS_OUT_OF_MEMORY;
+        }
+        resource->resource_form = SXML_RESOURCE_FORM_NONE;
+        resource->description = SXML_BYTE_VIEW_FROM_LITERAL("The host has no byte reader");
+        return SXML_STATUS_OK;
+    }
+    *reader_state = (sxml_host_reader_state){.processor = processor,
+                                             .reader_identifier = host_resource->reader_identifier};
+    resource->resource_form = SXML_RESOURCE_FORM_BYTE_READER;
+    resource->byte_reader =
+        (sxml_byte_reader){.state = reader_state, .operations = &sxml_host_reader_operations};
+    return SXML_STATUS_OK;
+}
+
+void sxml_host_reader_release(sxml_host_processor *processor, const sxml_resource *resource) {
+    sxml_host_reader_state *reader_state = resource->byte_reader.state;
+    const sxml_host_byte_reader reader = processor->byte_reader;
+    if (reader.release != NULL) {
+        reader.release(reader.state, reader_state->reader_identifier);
+    }
+    sxml_allocator_release(processor->allocator, reader_state);
 }
 
 /* ----------------------------------------------------------------- Layout */
@@ -623,11 +824,13 @@ _Static_assert(sizeof(sxml_byte_view) == 8, "a byte view is two words");
 _Static_assert(sizeof(sxml_host_error) == 60, "error: 15 words");
 _Static_assert(offsetof(sxml_host_error, line_number) == 52, "error line");
 _Static_assert(sizeof(sxml_host_resource_request) == 24, "resource request: 6 words");
-_Static_assert(sizeof(sxml_host_resource) == 12, "resource: 3 words");
 _Static_assert(sizeof(sxml_host_parse_request) == 16, "parse request: 4 words");
 _Static_assert(sizeof(sxml_host_namespace) == 16, "namespace: 4 words");
 _Static_assert(sizeof(sxml_host_variable) == 16, "variable: 4 words");
 _Static_assert(sizeof(sxml_host_compile_request) == 32, "compile request: 8 words");
 _Static_assert(sizeof(sxml_host_evaluate_request) == 12, "evaluate request: 3 words");
 _Static_assert(sizeof(sxml_host_serialize_request) == 8, "serialize request: 2 words");
+_Static_assert(sizeof(sxml_host_resource) == 16, "resource: 4 words");
+_Static_assert(sizeof(sxml_host_output_event) == 16, "output event: 4 words");
+_Static_assert(sizeof(sxml_host_read_request) == 20, "read request: 5 words");
 #endif

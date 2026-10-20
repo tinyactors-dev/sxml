@@ -12,8 +12,10 @@
  *
  * sxml_javascript_exports.c holds the exports of XPath, values and the
  * processor, sxml_javascript_full_exports.c those of XQuery, XSLT and XSD
- * (one module links both, D272), and sxml_javascript_host.c the resolver
- * that calls the package's import sxml_host.resolve.
+ * (one module links both, D272), sxml_javascript_host.c the resolver
+ * that calls the package's import sxml_host.resolve, and
+ * sxml_javascript_stream.c the output writer and byte reader over its
+ * imports sxml_host.write, sxml_host.read and sxml_host.release_reader.
  */
 #include "sxml_host.h"
 
@@ -68,6 +70,13 @@ sxml_host_value *sxml_javascript_evaluate(sxml_host_expression *expression,
                                           const sxml_host_evaluate_request *request);
 uint32_t sxml_javascript_serialize(sxml_host_processor *processor,
                                    const sxml_host_serialize_request *request);
+
+/* sxml_javascript_stream.c (D294): the processor's output goes to the
+   import sxml_host.write in chunks of chunk_byte_count bytes, or with 0
+   to its output again; its byte reader is the imports sxml_host.read and
+   sxml_host.release_reader. */
+uint32_t sxml_javascript_set_output(sxml_host_processor *processor, uint32_t chunk_byte_count);
+uint32_t sxml_javascript_set_byte_reader(sxml_host_processor *processor);
 
 /* ------------------------------------------------------ Full module only */
 

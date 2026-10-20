@@ -57,12 +57,16 @@ typedef struct sxml_host_resource_request {
     sxml_host_processor *processor;
 } sxml_host_resource_request;
 
-/* The host's answer: form 0 (not available) or 1 (bytes in content,
+/* The host's answer: form 0 (not available), 1 (bytes in content,
    allocated with sxml_host_allocate on the requesting processor; the shim
-   releases them, also when the resolver fails). */
+   releases them, also when the resolver fails), or, for an XML document,
+   SXML_RESOURCE_FORM_BYTE_READER (4): the bytes read a part at a time
+   through the processor's byte reader as reader_identifier, a number the
+   host chooses (sxml_host_set_byte_reader, D294). */
 typedef struct sxml_host_resource {
     uint32_t resource_form;
     sxml_byte_view content;
+    uint32_t reader_identifier;
 } sxml_host_resource;
 
 /*
@@ -143,6 +147,78 @@ typedef struct sxml_host_serialize_request {
        with its defaults. */
     const sxml_host_value *options;
 } sxml_host_serialize_request;
+
+/* --------------------------------------------------------------- Streams */
+
+/*
+ * A host may take serialized output a chunk at a time, and give an XML
+ * document's bytes a part at a time (D294): the output writer and the byte
+ * reader of a processor. Both run during a call on the processor and must
+ * not use it (D71); each returns SXML_STATUS_OK, or another status to stop
+ * the call (a host keeps the exception it caught and rethrows it after the
+ * call fails; SXML_STATUS_INPUT_OUTPUT_FAILED is the usual status).
+ */
+
+/* What an output event is (glossary `output_writer`). */
+typedef enum sxml_host_output_event_kind {
+    /* The next bytes of the current output: the principal output, or the
+       result document opened last and not yet closed. */
+    SXML_HOST_OUTPUT_EVENT_KIND_BYTES = 0,
+    /* A serialized result document begins (XSLT 4.0, 26.2): bytes is its
+       absolute URI. */
+    SXML_HOST_OUTPUT_EVENT_KIND_RESULT_DOCUMENT_OPENED = 1,
+    /* The result document ends; is_abandoned is nonzero when the
+       transformation failed while it was open, and the host should then
+       discard what it received for it. */
+    SXML_HOST_OUTPUT_EVENT_KIND_RESULT_DOCUMENT_CLOSED = 2,
+} sxml_host_output_event_kind;
+
+/* One output event; its views are valid during the call. */
+typedef struct sxml_host_output_event {
+    uint32_t output_event_kind;
+    /* BYTES: the bytes, at most the chunk size (glossary `output_chunk`);
+       RESULT_DOCUMENT_OPENED: the URI. */
+    sxml_byte_view bytes;
+    uint32_t is_abandoned;
+} sxml_host_output_event;
+
+/* Receives a processor's serializations a chunk at a time. */
+typedef struct sxml_host_output_writer {
+    void *state;
+    uint32_t (*write)(void *state, const sxml_host_output_event *event);
+} sxml_host_output_writer;
+
+typedef struct sxml_host_output_configuration {
+    /* write NULL: serializations go to the processor's output
+       (sxml_host_output_of), as without a configuration. */
+    sxml_host_output_writer writer;
+    /* The size of a chunk: bytes are gathered in a buffer of this size,
+       from the processor's allocator during each serializing call, and
+       written when it is full, before a result document opens or closes,
+       and at the end; 0 for 65,536. */
+    uint32_t chunk_byte_count;
+} sxml_host_output_configuration;
+
+/* One read of a byte reader: the reader's identifier and the buffer the
+   shim lends; the host writes byte_count (at most the buffer's size, 0
+   only at the end) and is_end (nonzero when no bytes follow). */
+typedef struct sxml_host_read_request {
+    uint32_t reader_identifier;
+    sxml_memory_view buffer;
+    uint32_t byte_count;
+    uint32_t is_end;
+} sxml_host_read_request;
+
+/* Reads the documents a resolver delivers as SXML_RESOURCE_FORM_BYTE_READER
+   (include/sxml/processor.h, D233): a document XSLT streams is parsed as
+   its bytes arrive; fn:doc and the other uses read it whole first. release
+   is called once for every reader the resolver delivered, when sxml no
+   longer reads it (also before its end, and when the call fails). */
+typedef struct sxml_host_byte_reader {
+    void *state;
+    uint32_t (*read)(void *state, sxml_host_read_request *request);
+    void (*release)(void *state, uint32_t reader_identifier);
+} sxml_host_byte_reader;
 
 /* ------------------------------------------------- Full module: requests */
 
@@ -283,6 +359,11 @@ typedef struct sxml_host_transform_request {
     uint32_t selects_unnamed_mode;
     /* Written by the call: result documents and messages. */
     sxml_host_side_result_list side_results;
+    /* APPLY_TEMPLATES: the absolute URI of a principal source to stream,
+       which the resolver is asked for (sxml_xslt_transformation_request.
+       streamed_source_uri, D228); empty for none, and then
+       initial_match_selection must be NULL (D294). */
+    sxml_byte_view streamed_source_uri;
 } sxml_host_transform_request;
 
 /* One schema document: its text, or (text.bytes NULL) a URI reference the
@@ -407,6 +488,24 @@ sxml_host_value *sxml_host_evaluate(sxml_host_expression *expression,
    error set on failure. */
 uint32_t sxml_host_serialize(sxml_host_processor *processor,
                              const sxml_host_serialize_request *request);
+
+/*
+ * Sets where the processor's serializations go until the next call of this
+ * function: sxml_host_serialize, sxml_host_query_serialize and, in
+ * sxml_host_stylesheet_transform, the serialized principal result and the
+ * serialized result documents, which are then written to the writer
+ * between their RESULT_DOCUMENT_OPENED and RESULT_DOCUMENT_CLOSED events
+ * instead of being side results (D294). The processor's output is then
+ * empty after those calls. Returns SXML_STATUS_OK.
+ */
+uint32_t sxml_host_set_output(sxml_host_processor *processor,
+                              const sxml_host_output_configuration *configuration);
+
+/* Sets the processor's byte reader; reader->read NULL (the default) makes a
+   resolver's SXML_RESOURCE_FORM_BYTE_READER answer not available. Returns
+   SXML_STATUS_OK. */
+uint32_t sxml_host_set_byte_reader(sxml_host_processor *processor,
+                                   const sxml_host_byte_reader *reader);
 
 /* ----------------------------------------------------------- Full module */
 

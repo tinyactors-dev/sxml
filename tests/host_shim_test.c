@@ -348,6 +348,149 @@ static void test_xquery_compile_evaluate_serialize(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, sxml_host_processor_destroy(processor) == 0);
 }
 
+/* ----------------------------------------------------------------- Streams */
+
+/* What a test's output writer received (D294). */
+typedef struct written_output {
+    uint8_t bytes[256];
+    size_t byte_count;
+    size_t chunk_count;
+    size_t largest_chunk_byte_count;
+    /* Fails the write with this number (counted from 1); 0 fails none. */
+    size_t failing_write_number;
+} written_output;
+
+static uint32_t write_output(void *state, const sxml_host_output_event *event) {
+    written_output *output = state;
+    output->chunk_count += 1;
+    if (output->chunk_count == output->failing_write_number) {
+        return SXML_STATUS_INPUT_OUTPUT_FAILED;
+    }
+    const sxml_byte_view bytes = event->bytes;
+    if (event->output_event_kind == SXML_HOST_OUTPUT_EVENT_KIND_BYTES &&
+        output->byte_count + bytes.byte_count <= sizeof(output->bytes)) {
+        memcpy(output->bytes + output->byte_count, bytes.bytes, bytes.byte_count);
+        output->byte_count += bytes.byte_count;
+        if (bytes.byte_count > output->largest_chunk_byte_count) {
+            output->largest_chunk_byte_count = bytes.byte_count;
+        }
+    }
+    return SXML_STATUS_OK;
+}
+
+/* A query serialized through an output writer arrives in chunks of at
+   most the chunk size, and the processor's output stays empty; a failing
+   write stops the serialization with its status. */
+static void test_output_writer_receives_chunks(sxml_test_state *state) {
+    resolver_state resolver = note_resolver();
+    sxml_host_processor *processor = make_processor(&resolver, 0);
+    SXML_TEST_REQUIRE(state, processor != NULL);
+    sxml_host_expression *expression =
+        compile_plain(processor, TEXT("string-join((1 to 20) ! string(), '-')"));
+    SXML_TEST_REQUIRE(state, expression != NULL);
+    sxml_host_value *result = evaluate_plain(expression, NULL);
+    SXML_TEST_REQUIRE(state, result != NULL);
+    written_output output;
+    memset(&output, 0, sizeof(output));
+    SXML_TEST_EXPECT(state, sxml_host_set_output(
+                                processor, &(sxml_host_output_configuration){
+                                               .writer = {.state = &output, .write = write_output},
+                                               .chunk_byte_count = 4}) == SXML_STATUS_OK);
+    const sxml_host_serialize_request request = {.value = result, .options = NULL};
+    SXML_TEST_EXPECT(state, sxml_host_serialize(processor, &request) == SXML_STATUS_OK);
+    const char *expected = "\"1-2-3-4-5-6-7-8-9-10-11-12-13-14-15-16-17-18-19-20\"";
+    SXML_TEST_EXPECT(state, output.byte_count == strlen(expected) &&
+                                memcmp(output.bytes, expected, output.byte_count) == 0);
+    SXML_TEST_EXPECT(state, output.largest_chunk_byte_count == 4);
+    SXML_TEST_EXPECT(state, output.chunk_count == (strlen(expected) + 3) / 4);
+    SXML_TEST_EXPECT(state, output_is(processor, ""));
+    memset(&output, 0, sizeof(output));
+    output.failing_write_number = 2;
+    SXML_TEST_EXPECT(state,
+                     sxml_host_serialize(processor, &request) == SXML_STATUS_INPUT_OUTPUT_FAILED);
+    SXML_TEST_EXPECT(state, output.chunk_count == 2);
+    /* Without a writer, the output is the processor's again. */
+    SXML_TEST_EXPECT(state, sxml_host_set_output(processor, &(sxml_host_output_configuration){
+                                                                .writer = {.state = NULL,
+                                                                           .write = NULL},
+                                                                .chunk_byte_count = 0}) ==
+                                SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, sxml_host_serialize(processor, &request) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, output_is(processor, expected));
+    sxml_host_value_release(result);
+    sxml_host_expression_destroy(expression);
+    SXML_TEST_EXPECT(state, sxml_host_processor_destroy(processor) == 0);
+}
+
+/* A test's byte reader: a text read three bytes at a time. */
+typedef struct chunk_reader_state {
+    sxml_byte_view text;
+    size_t offset;
+    uint32_t read_count;
+    uint32_t release_count;
+    uint32_t released_identifier;
+} chunk_reader_state;
+
+static uint32_t read_chunk(void *state, sxml_host_read_request *request) {
+    chunk_reader_state *reader = state;
+    reader->read_count += 1;
+    size_t count = reader->text.byte_count - reader->offset;
+    count = count < 3 ? count : 3;
+    count = count < request->buffer.byte_count ? count : request->buffer.byte_count;
+    memcpy(request->buffer.bytes, reader->text.bytes + reader->offset, count);
+    reader->offset += count;
+    request->byte_count = (uint32_t)count;
+    request->is_end = reader->offset == reader->text.byte_count ? 1 : 0;
+    return SXML_STATUS_OK;
+}
+
+static void release_chunk_reader(void *state, uint32_t reader_identifier) {
+    chunk_reader_state *reader = state;
+    reader->release_count += 1;
+    reader->released_identifier = reader_identifier;
+}
+
+static uint32_t resolve_with_reader(void *state, const sxml_host_resource_request *request,
+                                    sxml_host_resource *resource) {
+    (void)state;
+    (void)request;
+    resource->resource_form = SXML_RESOURCE_FORM_BYTE_READER;
+    resource->reader_identifier = 7;
+    return SXML_STATUS_OK;
+}
+
+/* fn:doc reads a document a resolver delivers through the byte reader,
+   which is released once; without a byte reader it is not available. */
+static void test_byte_reader_delivers_a_document(sxml_test_state *state) {
+    chunk_reader_state reader = {.text = TEXT("<a><b>1</b><b>2</b><b>3</b></a>")};
+    sxml_host_processor *processor = sxml_host_processor_create(&(sxml_host_processor_configuration){
+        .failing_allocation_number = 0,
+        .feature_mask = UINT32_MAX,
+        .resolver = {.state = NULL, .resolve = resolve_with_reader}});
+    SXML_TEST_REQUIRE(state, processor != NULL);
+    sxml_host_expression *expression = compile_plain(processor, TEXT("string-join(doc('a.xml')//b)"));
+    SXML_TEST_REQUIRE(state, expression != NULL);
+    sxml_host_value *missing = evaluate_plain(expression, NULL);
+    SXML_TEST_EXPECT(state, missing == NULL && error_code_is(processor, "FODC0002"));
+    SXML_TEST_EXPECT(state, sxml_host_set_byte_reader(
+                                processor, &(sxml_host_byte_reader){
+                                               .state = &reader,
+                                               .read = read_chunk,
+                                               .release = release_chunk_reader}) ==
+                                SXML_STATUS_OK);
+    sxml_host_value *result = evaluate_plain(expression, NULL);
+    SXML_TEST_REQUIRE(state, result != NULL);
+    const sxml_host_serialize_request request = {.value = result, .options = NULL};
+    SXML_TEST_EXPECT(state, sxml_host_serialize(processor, &request) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, output_is(processor, "\"123\""));
+    SXML_TEST_EXPECT(state, reader.read_count >= 11);
+    SXML_TEST_EXPECT(state, reader.release_count == 1 && reader.released_identifier == 7);
+    sxml_host_value_release(missing);
+    sxml_host_value_release(result);
+    sxml_host_expression_destroy(expression);
+    SXML_TEST_EXPECT(state, sxml_host_processor_destroy(processor) == 0);
+}
+
 /* sxml_host_string takes XML characters only (XML 1.1, production [2]
    Char): U+0000, U+FFFE and U+FFFF are INVALID_ARGUMENT, malformed UTF-8
    is INVALID_UTF8, and the characters around them cross intact. */
@@ -422,6 +565,9 @@ static const sxml_test_case host_shim_test_cases[] = {
      .function = test_string_refuses_characters_xml_does_not_allow},
     {.name = "xpath_under_every_allocation_failure",
      .function = test_xpath_under_every_allocation_failure},
+    {.name = "output_writer_receives_chunks", .function = test_output_writer_receives_chunks},
+    {.name = "byte_reader_delivers_a_document",
+     .function = test_byte_reader_delivers_a_document},
 };
 
 int main(int argument_count, char **arguments) {

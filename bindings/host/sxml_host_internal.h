@@ -41,6 +41,16 @@ struct sxml_host_processor {
     sxml_host_error error;
     /* The bytes of the last serialization, in output_buffer. */
     sxml_byte_view output;
+    /* Where serializations go (sxml_host_set_output; D294): write NULL
+       for output_buffer. */
+    sxml_host_output_writer output_writer;
+    size_t chunk_capacity;
+    /* During a serializing call with an output writer: the chunk being
+       filled, chunk_capacity bytes from the allocator, and its fill. */
+    uint8_t *chunk;
+    size_t chunk_byte_count;
+    /* The processor's byte reader (sxml_host_set_byte_reader). */
+    sxml_host_byte_reader byte_reader;
 };
 
 /* A value: an owned sequence in the processor's item heap. */
@@ -133,6 +143,42 @@ static sxml_status sxml_host_allocate_array(sxml_allocator allocator,
     }
     return status;
 }
+
+/* ---------------------------------------------------------------- Streams */
+
+/*
+ * Defined in sxml_host.c (D294): the output stream of a serializing
+ * call, which is the processor's output buffer or, with an output writer,
+ * the chunks it writes; and the byte reader resource form.
+ */
+
+/* Starts a serializing call's output: clears the processor's output and,
+   with an output writer, allocates the chunk. Writes the stream to write
+   to. Returns the allocator's failures. */
+sxml_status sxml_host_output_begin(sxml_host_processor *processor,
+                                   sxml_output_stream *output_stream);
+
+/* Ends it: when status is SXML_STATUS_OK, writes the last chunk, or makes
+   the buffer's bytes the processor's output; releases the chunk. Returns
+   status, or the writer's failure. */
+sxml_status sxml_host_output_end(sxml_host_processor *processor, sxml_status status);
+
+/* True when the processor has an output writer. */
+bool sxml_host_output_is_written(const sxml_host_processor *processor);
+
+/* Writes the chunk's bytes, then event (a result document's bounds). With
+   discards_chunk, the bytes are dropped instead (an abandoned document). */
+sxml_status sxml_host_output_mark(sxml_host_processor *processor,
+                                  const sxml_host_output_event *event, bool discards_chunk);
+
+/* Turns host_resource, a BYTE_READER answer, into resource: a byte reader
+   over the processor's. Releases the host's reader on failure. */
+sxml_status sxml_host_reader_resource(sxml_host_processor *processor,
+                                      const sxml_host_resource *host_resource,
+                                      sxml_resource *resource);
+
+/* Releases what sxml_host_reader_resource made for resource. */
+void sxml_host_reader_release(sxml_host_processor *processor, const sxml_resource *resource);
 
 /* -------------------------------------------- Full module: shared parts */
 

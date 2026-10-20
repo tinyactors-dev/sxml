@@ -4,8 +4,9 @@
  * with stylesheet parameters, an initial mode, template or function, the
  * principal result as a value or serialized to the processor's output,
  * and the result documents (kept by the built-in result document
- * collector) and messages as side results. Linked into the full links only
- * (D189's two links).
+ * collector) and messages as side results; with an output writer, the
+ * serialized results are written to it in chunks (D294). Linked into the
+ * full links only (D189's two links).
  *
  * Golden files: sxml_host_xquery.c, and apps/sxml/command_transform.c
  * (the same public API for the CLI: output definition, invocation,
@@ -211,7 +212,62 @@ typedef struct sxml_host_transformation {
     const sxml_host_transform_inputs *inputs;
     sxml_xslt_result_document_collector *collector;
     sxml_host_side_result_target *target;
+    /* The principal result's stream (sxml_host_output_begin). */
+    sxml_output_stream output_stream;
 } sxml_host_transformation;
+
+/*
+ * The result document handler of a transformation (XSLT 4.0, 26.2): with
+ * an output writer and SERIALIZED result documents, each is serialized
+ * into the output stream between its RESULT_DOCUMENT_OPENED and
+ * RESULT_DOCUMENT_CLOSED events (D294); otherwise the collector keeps it,
+ * a side result after the transformation.
+ */
+typedef struct sxml_host_result_document_writer {
+    sxml_host_processor *processor;
+    sxml_xslt_result_document_handler collector;
+    sxml_output_stream output_stream;
+    bool writes_documents;
+} sxml_host_result_document_writer;
+
+static sxml_status sxml_host_result_document_open(
+    void *state, const sxml_xslt_result_document_request *request,
+    sxml_xslt_result_document_target *target) {
+    const sxml_host_result_document_writer *writer = state;
+    if (!writer->writes_documents) {
+        return writer->collector.operations->open(writer->collector.state, request, target);
+    }
+    target->output_stream = writer->output_stream;
+    target->result_delivery = SXML_XSLT_RESULT_DELIVERY_SERIALIZED;
+    return sxml_host_output_mark(
+        writer->processor,
+        &(sxml_host_output_event){
+            .output_event_kind = (uint32_t)SXML_HOST_OUTPUT_EVENT_KIND_RESULT_DOCUMENT_OPENED,
+            .bytes = request->absolute_uri,
+            .is_abandoned = 0},
+        false);
+}
+
+static sxml_status sxml_host_result_document_close(
+    void *state, const sxml_xslt_result_document *result_document) {
+    const sxml_host_result_document_writer *writer = state;
+    if (!writer->writes_documents) {
+        return writer->collector.operations->close(writer->collector.state, result_document);
+    }
+    return sxml_host_output_mark(
+        writer->processor,
+        &(sxml_host_output_event){
+            .output_event_kind = (uint32_t)SXML_HOST_OUTPUT_EVENT_KIND_RESULT_DOCUMENT_CLOSED,
+            .bytes = result_document->absolute_uri,
+            .is_abandoned = result_document->is_abandoned ? 1 : 0},
+        result_document->is_abandoned);
+}
+
+static const sxml_xslt_result_document_handler_operations
+    sxml_host_result_document_writer_operations = {
+        .open = sxml_host_result_document_open,
+        .close = sxml_host_result_document_close,
+};
 
 /* Hands each collected result document to the list as a RESULT_DOCUMENT
    side result: its URI, and its bytes or its value (XSLT 4.0, 26.2). */
@@ -260,6 +316,13 @@ static sxml_status sxml_host_run_transformation(
     const sxml_host_transform_inputs *inputs = transformation->inputs;
     const sxml_host_value *context = request->global_context_item;
     const sxml_host_value *selection = request->initial_match_selection;
+    sxml_host_result_document_writer result_document_writer = {
+        .processor = processor,
+        .collector = sxml_xslt_result_document_collector_as_handler(transformation->collector),
+        .output_stream = transformation->output_stream,
+        .writes_documents = sxml_host_output_is_written(processor) &&
+                            request->result_document_delivery ==
+                                (uint32_t)SXML_XSLT_RESULT_DELIVERY_SERIALIZED};
     return sxml_xslt_stylesheet_transform(
         stylesheet->stylesheet,
         &(sxml_xslt_transformation_request){
@@ -280,11 +343,12 @@ static sxml_status sxml_host_run_transformation(
                                       request->tunnel_parameters.binding_count},
             .function_arguments = {.sequences = inputs->function_arguments,
                                    .sequence_count = request->function_argument_count},
+            .streamed_source_uri = request->streamed_source_uri,
             .base_output_uri = request->base_output_uri,
             .output_definition = &inputs->output_definition,
-            .output_stream = sxml_output_buffer_as_output_stream(processor->output_buffer),
-            .result_document_handler =
-                sxml_xslt_result_document_collector_as_handler(transformation->collector),
+            .output_stream = transformation->output_stream,
+            .result_document_handler = {.state = &result_document_writer,
+                                        .operations = &sxml_host_result_document_writer_operations},
             .error_record = &processor->error_record,
             .initial_mode_name = inputs->initial_mode_name,
             .initial_template_name = inputs->initial_template_name,
@@ -307,13 +371,15 @@ sxml_host_value *sxml_host_stylesheet_transform(
     sxml_host_stylesheet *stylesheet, sxml_host_transform_request *request) {
     sxml_host_processor *processor = stylesheet->owner;
     sxml_host_begin(processor);
-    sxml_output_buffer_clear(processor->output_buffer);
-    processor->output = sxml_host_no_text;
+    sxml_output_stream output_stream;
+    sxml_status status = sxml_host_output_begin(processor, &output_stream);
     sxml_host_side_result_target target = sxml_host_stylesheet_target(stylesheet);
     sxml_host_side_results_clear(&target);
     sxml_host_transform_inputs inputs;
     memset(&inputs, 0, sizeof(inputs));
-    sxml_status status = sxml_host_read_inputs(stylesheet, request, &inputs);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_host_read_inputs(stylesheet, request, &inputs);
+    }
     sxml_xslt_result_document_collector *collector = NULL;
     if (status == SXML_STATUS_OK) {
         status = sxml_xslt_result_document_collector_create(
@@ -326,8 +392,11 @@ sxml_host_value *sxml_host_stylesheet_transform(
     }
     sxml_sequence principal_result = sxml_sequence_empty();
     if (status == SXML_STATUS_OK) {
-        const sxml_host_transformation transformation = {
-            .request = request, .inputs = &inputs, .collector = collector, .target = &target};
+        const sxml_host_transformation transformation = {.request = request,
+                                                         .inputs = &inputs,
+                                                         .collector = collector,
+                                                         .target = &target,
+                                                         .output_stream = output_stream};
         status = sxml_host_run_transformation(stylesheet, &transformation, &principal_result);
         /* Result documents closed before a failure stay with the handler
            (xslt.h): the host sees them with the error. */
@@ -339,11 +408,11 @@ sxml_host_value *sxml_host_stylesheet_transform(
     sxml_xslt_result_document_collector_destroy(collector);
     sxml_host_release_inputs(processor->allocator, &inputs);
     request->side_results = sxml_host_side_results_view(&stylesheet->side_results);
+    status = sxml_host_output_end(processor, status);
     if (status != SXML_STATUS_OK) {
         sxml_sequence_release(principal_result);
         sxml_host_fail(processor, status);
         return NULL;
     }
-    processor->output = sxml_output_buffer_get_bytes(processor->output_buffer);
     return sxml_host_value_make(processor, principal_result);
 }
