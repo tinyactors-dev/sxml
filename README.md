@@ -52,6 +52,7 @@ model (XDM 4.0) and one evaluator.
 | macOS, Windows | The same C17 code, with an MSVC build preset. Neither platform has been built yet. |
 | Browsers and Node.js | The `@tinyactors/sxml` package: a TypeScript wrapper over two WebAssembly modules (below). |
 | WASI | The `sxml` command as a WebAssembly program. |
+| Kotlin on the JVM | The `dev.tinyactors.sxml` Kotlin binding over the native library (below). |
 | Swift on Linux | The `Sxml` Swift package over the native library (below). |
 | iOS, Android | Planned. The Swift package's iOS and macOS build and the Kotlin library for Android are not made yet. |
 
@@ -495,6 +496,33 @@ query.run({ context: library.parse('<books><book year="1968">TAOCP</book></books
 ```
 
 The package's [README](bindings/javascript/README.md) describes its API.
+
+## Use it from Kotlin
+
+The Kotlin binding `dev.tinyactors.sxml` in
+[`bindings/kotlin`](bindings/kotlin) has the same API in Kotlin's idiom,
+over one native library, `libsxml_kotlin.so`, with every language. It
+runs on the JVM now; the Android library is not made yet.
+
+```kotlin
+import dev.tinyactors.sxml.Processor
+
+Processor().use { processor ->
+    val books = processor.parse(
+        "<books><book year=\"1979\">Godel, Escher, Bach</book>" +
+            "<book year=\"1968\">The Art of Computer Programming</book></books>")
+    val titles = processor.evaluate("//book[@year < \$year] ! string()", context = books, variables = mapOf("year" to 1975))
+    println(titles)
+    // "The Art of Computer Programming"
+
+    val query = processor.compileQuery("declare variable \$n external; //book[@year < \$n] ! string()")
+    println(query.run(context = processor.parse("<books><book year=\"1968\">TAOCP</book></books>"), variables = mapOf("n" to 1975)))
+    // TAOCP
+}
+```
+
+The binding's [README](bindings/kotlin/README.md) describes its API and
+how to build it.
 
 ## Use it from Swift
 

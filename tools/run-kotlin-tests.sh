@@ -14,6 +14,8 @@
 #   JAVA_HOME             the JDK whose java runs the tests (default: PATH)
 #   SXML_KOTLIN_FEATURES  the features the library must list
 #   SXML_KOTLIN_PRELOAD   a sanitizer runtime the JVM must load first
+#   SXML_KOTLIN_RESOURCES a directory of class path resources (the DUCET,
+#                         dev/tinyactors/sxml/allkeys.txt)
 #
 # Exits 77 (ctest's skip) with the reason when JNI, kotlinc or java is
 # missing.
@@ -64,10 +66,14 @@ fi
 log="$output/kotlin-tests.log"
 status=0
 # -Xcheck:jni checks every JNI call of the glue; its warnings fail the test.
+# Under the sanitizers the JVM keeps its own SIGSEGV handling, and
+# LeakSanitizer skips what the JVM itself leaves allocated at exit
+# (bindings/kotlin/lsan-jvm.supp) but reports any leak of the binding.
 env ${SXML_KOTLIN_PRELOAD:+LD_PRELOAD="$SXML_KOTLIN_PRELOAD"} \
-    ASAN_OPTIONS="${ASAN_OPTIONS:-detect_leaks=0:handle_segv=0:allow_user_segv_handler=1}" \
+    ASAN_OPTIONS="${ASAN_OPTIONS:+$ASAN_OPTIONS:}handle_segv=0:allow_user_segv_handler=1" \
+    LSAN_OPTIONS="${LSAN_OPTIONS:+$LSAN_OPTIONS:}suppressions=$binding/lsan-jvm.supp" \
     "$java" -Xcheck:jni -Dsxml.library.path="$library" -Dsxml.sourceDirectory="$repository_root" \
-    -classpath "$jar:$kotlin_libraries" dev.tinyactors.sxml.TestMainKt "$filter" >"$log" 2>&1 || status=$?
+    -classpath "$jar:$kotlin_libraries${SXML_KOTLIN_RESOURCES:+:$SXML_KOTLIN_RESOURCES}" dev.tinyactors.sxml.TestMainKt "$filter" >"$log" 2>&1 || status=$?
 cat "$log"
 if grep -q "WARNING in native method\|FATAL ERROR in native method" "$log"; then
     echo "kotlin/jvm: -Xcheck:jni reported a misuse of JNI"

@@ -25,7 +25,7 @@ class TestSuite(val name: String) {
 fun describe(name: String, body: TestSuite.() -> Unit): TestSuite = TestSuite(name).apply(body)
 
 /** Every suite of the binding's tests. */
-val allSuites: List<TestSuite> get() = packageSuites + bindingSuites
+val allSuites: List<TestSuite> get() = packageSuites + fullSuites + bindingSuites
 
 /** Runs the suites (or those whose "suite > case" name contains the
  *  first argument) and exits 1 when a case failed. */

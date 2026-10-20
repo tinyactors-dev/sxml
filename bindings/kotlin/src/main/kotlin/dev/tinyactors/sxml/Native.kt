@@ -79,15 +79,18 @@ internal class ProcessorRequest(processor: Long = 0) : NativeRequest(processor) 
 internal class TextRequest(processor: Long, @JvmField val text: ByteArray, @JvmField val uri: ByteArray) :
     NativeRequest(processor)
 
-/** compile. namespaces: prefix and URI, in pairs; variables: namespace
- *  URI and local name, in pairs. */
+/** compile and queryCompile. namespaces: prefix and URI, in pairs;
+ *  variables: namespace URI and local name, in pairs (empty for a query). */
 internal class CompileRequest(
     processor: Long,
     @JvmField val expressionText: ByteArray,
     @JvmField val baseUri: ByteArray,
     @JvmField val namespaces: Array<ByteArray>,
     @JvmField val variables: Array<ByteArray>,
-) : NativeRequest(processor)
+) : NativeRequest(processor) {
+    /** Written by queryCompile: the body is an updating expression. */
+    @JvmField var isUpdating: Boolean = false
+}
 
 /** evaluate: value handles, 0 for an absent context or an unbound
  *  variable. */
@@ -99,7 +102,7 @@ internal class EvaluateRequest(
 ) : NativeRequest(processor)
 
 /** serialize: options 0 for the adaptive method. */
-internal class SerializeRequest(processor: Long, @JvmField val value: Long, @JvmField val options: Long) :
+internal open class SerializeRequest(processor: Long, @JvmField val value: Long, @JvmField val options: Long) :
     NativeRequest(processor) {
     @JvmField var output: ByteArray? = null
 }
@@ -108,10 +111,103 @@ internal class SerializeRequest(processor: Long, @JvmField val value: Long, @Jvm
 internal class ReleaseRequest(processor: Long, @JvmField val kind: Int, @JvmField val target: Long) :
     NativeRequest(processor)
 
+/**
+ * The side results a call writes back (sxml_host_side_result_list), flat:
+ * per side result one kind, three texts (uri, text, code), two value
+ * handles (0 for none; the binding adopts them) and three numbers (line,
+ * column, isTerminating). Null when the call had none.
+ */
+internal class NativeSideResults {
+    @JvmField var kinds: IntArray? = null
+    @JvmField var texts: Array<ByteArray>? = null
+    @JvmField var values: LongArray? = null
+    @JvmField var numbers: IntArray? = null
+}
+
+/** A request whose call writes side results (D216). */
+internal open class SideResultRequest(processor: Long) : NativeRequest(processor) {
+    @JvmField val sideResults = NativeSideResults()
+}
+
+/** Names bound to values (sxml_host_binding_list): namespace URI and
+ *  local name in pairs, and one value handle per name. */
+internal class NativeBindings(@JvmField val names: Array<ByteArray>, @JvmField val values: LongArray)
+
+/** queryEvaluate: context 0 for none. */
+internal class QueryEvaluateRequest(
+    processor: Long,
+    @JvmField val query: Long,
+    @JvmField val context: Long,
+    @JvmField val variables: NativeBindings,
+    @JvmField val acceptsPutDocuments: Boolean,
+) : SideResultRequest(processor)
+
+/** querySerialize: value with the query's output declarations. */
+internal class QuerySerializeRequest(processor: Long, @JvmField val query: Long, value: Long) :
+    SerializeRequest(processor, value, 0)
+
+/** stylesheetCompile. */
+internal class StylesheetCompileRequest(
+    processor: Long,
+    @JvmField val stylesheetText: ByteArray,
+    @JvmField val baseUri: ByteArray,
+    @JvmField val staticParameters: NativeBindings,
+) : NativeRequest(processor)
+
+/** transform: sxml_host_transform_request. names: the initial mode,
+ *  template and function, namespace URI and local name each (an empty
+ *  local name for none). */
+internal class TransformRequest(
+    processor: Long,
+    @JvmField val stylesheet: Long,
+    @JvmField val globalContextItem: Long,
+    @JvmField val initialMatchSelection: Long,
+    @JvmField val stylesheetParameters: NativeBindings,
+    @JvmField val templateParameters: NativeBindings,
+    @JvmField val tunnelParameters: NativeBindings,
+    @JvmField val functionArguments: LongArray,
+    @JvmField val baseOutputUri: ByteArray,
+    @JvmField val serializationOptions: Long,
+    @JvmField val names: Array<ByteArray>,
+    @JvmField val invocationKind: Int,
+    @JvmField val resultDelivery: Int,
+    @JvmField val resultDocumentDelivery: Int,
+    @JvmField val selectsUnnamedMode: Boolean,
+) : SideResultRequest(processor) {
+    /** Written when the principal result is serialized. */
+    @JvmField var output: ByteArray? = null
+}
+
+/** schemaCompile: text and URI in pairs (a null text: the URI is
+ *  resolved). The handle is the schema. */
+internal class SchemaCompileRequest(
+    processor: Long,
+    @JvmField val documents: Array<ByteArray?>,
+    @JvmField val baseUri: ByteArray,
+) : SideResultRequest(processor)
+
+/** schemaValidate: node 0 to validate text. governingType: namespace URI
+ *  and local name (an empty local name for none). */
+internal class ValidateRequest(
+    processor: Long,
+    @JvmField val schema: Long,
+    @JvmField val node: Long,
+    @JvmField val text: ByteArray?,
+    @JvmField val documentUri: ByteArray,
+    @JvmField val validationMode: Int,
+    @JvmField val governingType: Array<ByteArray>,
+) : SideResultRequest(processor) {
+    /** Written: sxml_validity. */
+    @JvmField var validity: Int = 1
+}
+
 /** The kinds of handle a processor makes (sxml_kotlin_handle_kind). */
 internal object HandleKind {
     const val VALUE = 0
     const val EXPRESSION = 1
+    const val QUERY = 2
+    const val STYLESHEET = 3
+    const val SCHEMA = 4
 }
 
 /** The JNI entry points (sxml_kotlin_jni.c). */
@@ -144,6 +240,20 @@ internal object Native {
     @JvmStatic external fun serialize(request: SerializeRequest)
 
     @JvmStatic external fun release(request: ReleaseRequest)
+
+    @JvmStatic external fun queryCompile(request: CompileRequest)
+
+    @JvmStatic external fun queryEvaluate(request: QueryEvaluateRequest)
+
+    @JvmStatic external fun querySerialize(request: QuerySerializeRequest)
+
+    @JvmStatic external fun stylesheetCompile(request: StylesheetCompileRequest)
+
+    @JvmStatic external fun transform(request: TransformRequest)
+
+    @JvmStatic external fun schemaCompile(request: SchemaCompileRequest)
+
+    @JvmStatic external fun schemaValidate(request: ValidateRequest)
 }
 
 /**

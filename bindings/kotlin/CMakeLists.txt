@@ -8,6 +8,9 @@
 #                 (sxml_kotlin.map). Built where JNI's headers are found
 #                 (a JDK, or the Android NDK's sysroot).
 #
+# Resource: resources/dev/tinyactors/sxml/allkeys.txt in the build tree,
+# the DUCET that CollationData.Bundled reads from the class path.
+#
 # Test: kotlin/jvm compiles src/main/kotlin and src/test/kotlin with
 # kotlinc and runs them on the JVM against sxml_kotlin
 # (tools/run-kotlin-tests.sh). It is skipped, with the reason, when JNI,
@@ -46,6 +49,14 @@ if(sxml_kotlin_has_jni)
     sxml_apply_project_flags(sxml_kotlin)
 endif()
 
+# The DUCET of the uca-collation feature as the class path resource
+# dev/tinyactors/sxml/allkeys.txt (CollationData.Bundled; D213), copied
+# from the vendored file; the tests put the directory on the class path,
+# and the Android library packs it (packet 6.6).
+set(sxml_kotlin_resources "${CMAKE_CURRENT_BINARY_DIR}/resources")
+configure_file("${PROJECT_SOURCE_DIR}/third_party/unicode-collation/allkeys.txt"
+    "${sxml_kotlin_resources}/dev/tinyactors/sxml/allkeys.txt" COPYONLY)
+
 if(NOT SXML_BUILD_TESTS OR ANDROID OR CMAKE_CROSSCOMPILING)
     return()
 endif()
@@ -81,4 +92,4 @@ add_test(NAME kotlin/jvm
         "${sxml_kotlin_library}" "${CMAKE_CURRENT_BINARY_DIR}/kotlin-tests")
 set_tests_properties(kotlin/jvm PROPERTIES
     SKIP_RETURN_CODE 77
-    ENVIRONMENT "SXML_KOTLIN_FEATURES=${sxml_kotlin_features};SXML_KOTLIN_PRELOAD=${sxml_kotlin_preload}")
+    ENVIRONMENT "SXML_KOTLIN_FEATURES=${sxml_kotlin_features};SXML_KOTLIN_PRELOAD=${sxml_kotlin_preload};SXML_KOTLIN_RESOURCES=${sxml_kotlin_resources}")

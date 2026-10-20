@@ -1,0 +1,11 @@
+# LeakSanitizer suppressions for ctest kotlin/jvm under the sanitizer
+# presets: what the JVM itself leaves allocated at exit (its allocator, the
+# launcher's and zlib's), which is not the binding's. The binding's own
+# memory never passes through these functions, so a leak of the glue, the
+# host shim or the library is still reported; sxml's allocations are also
+# checked per test by liveAllocationCount() (D23).
+leak:os::malloc
+leak:os::strdup
+leak:os::realloc
+leak:JLI_MemAlloc
+leak:inflate

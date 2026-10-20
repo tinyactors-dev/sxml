@@ -7,22 +7,10 @@ package dev.tinyactors.sxml
  * too.
  */
 class Value internal constructor(val processor: Processor, handle: Long) : AutoCloseable {
-    private var handle = handle
-    private val registration: NativeCleaner.Registration
-
-    init {
-        // The action refers to the state and the handle, not to this.
-        val state = processor.state
-        val released = handle
-        state.track(HandleKind.VALUE, released)
-        registration = NativeCleaner.register(this) { synchronized(state) { state.releaseHandle(HandleKind.VALUE, released) } }
-    }
+    private val native = NativeHandle(this, processor, HandleKind.VALUE, handle, "value")
 
     /** The handle, checked usable; the caller holds the processor's lock. */
-    internal fun address(): Long {
-        check(handle != 0L && !processor.state.isClosed) { "sxml: this value has been closed" }
-        return handle
-    }
+    internal fun address(): Long = native.address()
 
     /** Serializes the value as fn:serialize does with [options] (method
      *  xml unless they name another; keys may be camelCase). */
@@ -33,8 +21,5 @@ class Value internal constructor(val processor: Processor, handle: Long) : AutoC
     override fun toString(): String = processor.serialize(this)
 
     /** Releases the value. Idempotent. */
-    override fun close() {
-        synchronized(processor.state) { handle = 0 }
-        registration.clean()
-    }
+    override fun close() = native.close()
 }

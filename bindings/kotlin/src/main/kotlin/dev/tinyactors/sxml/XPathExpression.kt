@@ -9,18 +9,7 @@ class XPathExpression internal constructor(
 ) : AutoCloseable {
     /** The external variables, in the order compile was given them. */
     val variables: List<String> = variables.toList()
-    private var handle = handle
-    private val registration: NativeCleaner.Registration
-
-    init {
-        // The action refers to the state and the handle, not to this.
-        val state = processor.state
-        val released = handle
-        state.track(HandleKind.EXPRESSION, released)
-        registration = NativeCleaner.register(this) {
-            synchronized(state) { state.releaseHandle(HandleKind.EXPRESSION, released) }
-        }
-    }
+    private val native = NativeHandle(this, processor, HandleKind.EXPRESSION, handle, "expression")
 
     /**
      * Evaluates the expression; the result is a new value.
@@ -33,7 +22,7 @@ class XPathExpression internal constructor(
     fun evaluate(context: Any? = null, variables: Map<String, Any?> = emptyMap()): Value =
         synchronized(processor.state) {
             processor.state.enter()
-            check(handle != 0L && !processor.state.isClosed) { "sxml: this expression has been closed" }
+            val address = native.address()
             val made = ArrayList<Value>()
             try {
                 val contextHandle = if (context == null) 0 else processor.input(context, made).address()
@@ -41,7 +30,7 @@ class XPathExpression internal constructor(
                     val name = this.variables[index]
                     if (variables.containsKey(name)) processor.input(variables[name], made).address() else 0
                 }
-                processor.evaluateHandle(handle, contextHandle, values)
+                processor.evaluateHandle(address, contextHandle, values)
             } finally {
                 for (value in made) {
                     value.close()
@@ -50,8 +39,5 @@ class XPathExpression internal constructor(
         }
 
     /** Releases the expression. Idempotent. */
-    override fun close() {
-        synchronized(processor.state) { handle = 0 }
-        registration.clean()
-    }
+    override fun close() = native.close()
 }

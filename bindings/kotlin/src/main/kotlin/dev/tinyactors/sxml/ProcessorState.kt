@@ -19,7 +19,7 @@ internal class ProcessorState(
     var processor: Long = 0
 
     /** Handles not yet released: handle to HandleKind. */
-    private val live = HashMap<Long, Int>()
+    private val live = LinkedHashMap<Long, Int>()
 
     /** What the resolver threw during the current call. */
     private var pendingException: Throwable? = null
@@ -84,6 +84,10 @@ internal class ProcessorState(
         leakedAllocationCount = request.allocationCount
         processor = 0
     }
+
+    /** Whether a call failed: the resolver threw, or the call wrote an
+     *  error (a validation that finds a node invalid writes none). */
+    fun hasFailed(request: NativeRequest): Boolean = pendingException != null || request.error.status != 0
 
     /** The failure of a call: what the resolver threw, else the error the
      *  call wrote. */
