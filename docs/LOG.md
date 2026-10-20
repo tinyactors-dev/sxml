@@ -4,6 +4,16 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 2.28 done (D287): XPath/XQuery leftovers. Syntax errors at the token
+  tree-sitter could not take (a string constructor's `{ }` was 1:1);
+  run-time closures for context-dependent functions (xqhof18/19);
+  function items called after their evaluation read fresh globals
+  (D154's limit); focus-free defaults computed once (function-decl-
+  40-060); an item type round for cyclic imports (modules-43); the
+  "context node, if any" default for 4.30's map-for-key-005. XQ40
+  46,154 to 46,158 passed, XP40 32,815 and XT40 12,268 unchanged, none
+  lost. A fresh HEAD run found no new cluster.
+
 - 7.21 done (D283): fast Invisible XML. Book first (part "Parsing Text
   with Invisible XML", five chapters, 52 examples, all match), then
   tests/bench/run-ixml-bench.py whose --check holds the book's numbers,

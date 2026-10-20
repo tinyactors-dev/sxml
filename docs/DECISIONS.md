@@ -13227,6 +13227,85 @@ runs with the release drivers, case by case.
   does not allow); XSLT's fn:document still strips before it validates
   (4.30's file); the kept groups of D280.
 
+### D287. XPath and XQuery sweep: syntax error places, run-time closures, globals after the evaluation, fixed defaults, cyclic item types (packet 2.28)
+Recorded 2026-10-20, after D55, D71, D154, D234, D263, D275, D280, D282,
+D286. No public header changed; internal: sxml_function_parameter.
+is_empty_without_focus, two fields of sxml_xquery_static_request, the
+evaluator service sxml_evaluator_make_run_time_closure with its body
+operations and the unlisted row sxml:run-time-closure. Glossary:
+run_time_closure, default_global, item_type_round. Verified as D181
+asks: the debug preset (every unit and CLI test but evaluator_stream,
+under ASan and UBSan), clang-tidy on the changed files, the call-cycle
+check, the book examples (472 match), and whole XP40, XQ40 and XT40
+runs with the release drivers, case by case against HEAD.
+- **Syntax error places** (D282's finding): nothing is re-parsed; tree-
+  sitter's recovery wraps a wide region, often from the module's start,
+  in one ERROR and marks the token it could not take with an ERROR
+  inside it. sxml_xpath_find_error now descends, while the node is an
+  ERROR, to the first ERROR or MISSING node it holds, so a syntax error
+  in a string constructor's `{ }` is reported at its place (4:44, was
+  1:1 or the clause's start). One path for XPath, XQuery and XSLT value
+  templates (an attribute value template still maps through its
+  normalized value). CLI tests xquery_string_constructor_syntax_error,
+  xpath_string_template_syntax_error; the book shows no changed place.
+- **Run-time closures** (glossary run_time_closure; XPath 4.0, 4.5.4; F&O
+  4.0, 13.1.1; D275's and D286's open item, xqhof18, xqhof19): one
+  closure representation for a context-dependent function made at run
+  time, for XQuery and XSLT alike: a function item whose body operations
+  are sxml_evaluator_run_time_closure_body_operations, whose state is the
+  IR function of its place (retaining the unit) and whose captured
+  values are the wrapped item, the place's expression index and, for a
+  row that takes the caller's focus, the focus there. The machine calls
+  the wrapped item in a CALL task made a task of the place, so
+  sxml_dynamic_context_get_static_context and its kin read the place's
+  module (D275's per-module static context) and the kept focus follows
+  the arguments as a static call's caller focus. Two makers: a named
+  reference to a context-dependent native row lowers to a static call of
+  sxml:run-time-closure with the row's function item (and the caller's
+  focus, dropped at run time when absent), replacing D275's IR closure
+  of the module; fn:function-lookup wraps what it finds for a context-
+  dependent row at the place of its call. So <lib/>/fn:function-lookup#2
+  made in a library module looks up in that module, with <lib/> as the
+  focus.
+- **Globals after the evaluation** (D154's limit; D55): a function item
+  called after its evaluation ended, or from another evaluation, got no
+  global table and failed with INVALID_ARGUMENT when its body read a
+  global. Entering an IR function of a unit the run has no table for
+  now adds one with every global absent: declared globals are computed
+  again in that run on first read (D234), external variables and the
+  context value read as absent (XPDY0002). A function item does not
+  retain its evaluation's table: a global's value can hold the item, and
+  values must not form cycles (D33). Unit test
+  xquery_prolog/function_item_reads_globals_after_evaluation.
+- **Fixed defaults** (XQuery 4.0, 5.18.3: a default "is evaluated in the
+  same way as the initializing expression of a variable declaration"
+  with the caller's focus; PR 2941; function-decl-40-060): a default
+  function that reads no part of the focus becomes, through a function
+  of arity 0, the initializer of a hidden global (glossary
+  default_global, Q{urn:sxml:default}dN), and every call of it a read of
+  that global, computed once per evaluation. XQuery only; XSLT's
+  xsl:function defaults keep a call per use.
+- **Cyclic imports of named item types** (5.12.4, 5.19; qt4 issue 1520;
+  modules-43): with an import cycle the module set first runs an item
+  type round (glossary item_type_round): every module's namespaces and
+  named item types only (no schema imports or records), again and again
+  with the public types its imports gave the last time, until no more
+  are found; a module's own reading then has the found types of its
+  imports not read yet. A set without a cycle reads as before.
+- **"The context node, if any"** (4.30's D289 item, map-for-key-005):
+  sxml_function_parameter.is_empty_without_focus makes an omitted
+  context-value parameter the empty sequence where the focus is
+  statically absent; xpath_lower.c supplies it, src/xslt_key.c (4.30's)
+  is to set it on fn:map-for-key's parameter.
+- **Measured** (release drivers, whole runs, case by case, no case lost):
+  XQ40 46,154 to 46,158 passed (78 to 74 failed, 44 wrong error);
+  XP40 32,815 unchanged (26 failed); XT40 12,268 unchanged (same cases). A fresh whole run at
+  HEAD (2c91eaf, before this packet) found no new cluster: its failures
+  are D286's (78 XQ40, 26 XP40), the kept groups and singletons.
+- **Not done** (D286 stands): record-003, -005, -016 and
+  fn-string-length-26 (the draft decides against the tests); the kept
+  groups of D280 and D286.
+
 ### D288. More source code languages, a registration API and run-time languages (packet 7.23)
 Recorded 2026-10-20, after D285; in progress. The owner's answer to
 D285's proposal: TypeScript, TSX and Markdown built in; a public API to

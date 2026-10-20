@@ -455,3 +455,15 @@ validation, build-dateTime from nodes, collection documents,
 xml-to-json's escaped-key; XP40 32,809 to 32,815 passed, XQ40 46,138 to
 46,154, XT40 unchanged, none lost. Open: D286's "Not done" (xqhof18/19,
 modules-43, function-decl-40-060, D281's record cases).
+
+### 2.28 XPath and XQuery leftovers (implementation)
+After 2.27. D282's string-constructor error place; D154's and D286's
+run-time closures with their module and focus (xqhof18/19), function
+items after their evaluation; modules-43, function-decl-40-060; a fresh
+whole run. Verification as D181 says.
+**Done** 2026-10-20 (D287): syntax error places, run-time closures,
+fresh global tables after the evaluation, fixed defaults as hidden
+globals, the item type round for import cycles, is_empty_without_focus
+for 4.30; XQ40 46,154 to 46,158 passed, XP40 and XT40 unchanged, none
+lost. Open: D286's record and fn-string-length cases (the draft
+decides), the kept groups.
