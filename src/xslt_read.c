@@ -3176,8 +3176,24 @@ static sxml_status parse_expression(stylesheet_reader *reader, const expression_
         status = sxml_xslt_build_value_template_ast(&request, ast);
         break;
     case SXML_XSLT_AST_VALUE_KIND_SEQUENCE_TYPE:
+        status = sxml_xpath_build_sequence_type_ast(&request, ast);
+        break;
     case SXML_XSLT_AST_VALUE_KIND_ITEM_TYPE:
         status = sxml_xpath_build_sequence_type_ast(&request, ast);
+        if (status == SXML_STATUS_OK &&
+            sxml_ast_get_node(*ast, (*ast)->root)->detail.occurrence !=
+                SXML_OCCURRENCE_EXACTLY_ONE) {
+            /* An ItemType has no occurrence indicator (XPath 4.0, 3.2):
+               XTSE0020 (5.6.1), as for xsl:context-item's as. */
+            sxml_ast_destroy(*ast);
+            *ast = NULL;
+            return raise_error(reader,
+                               (reader_error){.error_code = "XTSE0020",
+                                              .description = "An item type has an occurrence "
+                                                             "indicator (XSLT 4.0, 5.6.1)",
+                                              .module = expression->module,
+                                              .source_span = expression->source_span});
+        }
         break;
     case SXML_XSLT_AST_VALUE_KIND_NONE:
     case SXML_XSLT_AST_VALUE_KIND_TEXT:

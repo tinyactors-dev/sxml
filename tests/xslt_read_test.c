@@ -361,6 +361,17 @@ static void test_static_errors(sxml_test_state *state) {
         {"<xsl:stylesheet version='3.0' " XSL_NAMESPACE "><xsl:template match='/'>"
          "<xsl:copy-of select='.' copy-namespaces='maybe'/></xsl:template></xsl:stylesheet>",
          "XTSE0020"},
+        /* An item type has no occurrence indicator. */
+        {"<xsl:stylesheet version='3.0' " XSL_NAMESPACE "><xsl:template name='t'>"
+         "<xsl:context-item as='node()?'/></xsl:template></xsl:stylesheet>",
+         "XTSE0020"},
+        /* static="yes" only at the top level; select and content. */
+        {"<xsl:stylesheet version='3.0' " XSL_NAMESPACE "><xsl:template name='t'>"
+         "<xsl:param name='p' static='yes' select='1'/></xsl:template></xsl:stylesheet>",
+         "XTSE0020"},
+        {"<xsl:stylesheet version='3.0' " XSL_NAMESPACE "><xsl:variable name='v' static='yes' "
+         "select='1'>2</xsl:variable></xsl:stylesheet>",
+         "XTSE0620"},
         {"<xsl:stylesheet version='3.0' " XSL_NAMESPACE "><xsl:template match='/' "
          "use-when='1 div 0'/></xsl:stylesheet>",
          "FOAR0001"},
