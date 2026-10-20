@@ -11693,7 +11693,7 @@ kind added.
 
 ### D259. Laziness, joins and the step limit (packet perf-4)
 Recorded 2026-10-20, after D71, D89, D166, D178, D224, D229, D232,
-D257. In progress; completed when the packet ends. Measured with the
+D257. Measured with the
 benchmarks of D224 (`tests/bench/run-bench.py`, processor seconds,
 release, fastest of three) and instructions under callgrind; each
 milestone against its base commit built the same way.
@@ -11747,9 +11747,88 @@ milestone against its base commit built the same way.
   q11 and numeric-join the same instructions. Every benchmark's output
   is the same byte for byte. QT4 XQ40 and XT40 whole, release, case by
   case: 0 outcomes differ.
+- **Item demands** (glossary `item_demand`; the demand pass,
+  `src/ir_loop_passes.c`, after hoist): `sxml_ir_expression.item_demand`
+  (in the padding after the source span; not in the text form) is the
+  number of leading items the expression's consumer reads, 0 for all.
+  fn:exists, fn:empty and fn:head read one item of their argument;
+  fn:boolean, fn:not, fn:zero-or-one, fn:exactly-one and a conditional's
+  condition two (the effective boolean value's FORG0006 and the
+  cardinality checks see a second item: XPath 4.0, 2.6.4 does not let a
+  processor skip a cardinality check); a FILTER by a constant position k
+  reads k of its input; a predicate whose value is no number and a
+  quantified condition read two. A LET's bound expression gets its
+  variable's demand when every read of the variable is such a read (the
+  largest); a DOCUMENT_ORDER passes its demand to the path's MAP when
+  that MAP's body gives one origin's nodes in document order (a forward
+  step from the focus, a path's document order, filters of them); LET
+  bodies, conditional branches and MAP bodies (plain MAPs, ordered path
+  MAPs) have their parent's. Content LETs (D166) have none. At run time
+  (`src/evaluator.c`) a MAP or FILTER stops once its builder has that
+  many items (a path's MAP only over one origin: over several its first
+  items are not the first in document order), unless its task delivers
+  (D166); a forward axis step from an XNode stops after that many nodes
+  of each origin (`sxml_step_request.maximum_node_count`); the
+  traversals fn:filter, fn:for-each, fn:index-where and fn:take-while of
+  a static call finish once they have made that many
+  (`sxml_native_step_request.item_demand`). The items after the ones
+  read are not evaluated, nor their errors raised (2.6.4: the outcome is
+  V or an error). The effective boolean value of a node sequence reads a
+  second node it does not need (demand 2 is shared with the cardinality
+  checks); of atomic items it must read on to find whether there is a
+  second (FORG0006), so `if ((1 to 1e9)[. = 3])` still reads the range.
+- **Quantified fusion** (glossary `quantified_fusion`; the fusion pass,
+  after filter-index): `some/every $x in S satisfies C` whose S is a slot
+  read once, by the QUANTIFIED alone, bound in the same evaluation (its
+  LET's body reaches the QUANTIFIED through LETs and conditional
+  branches only, so S is made once either way) to a FILTER that selects
+  by the item alone without a filter index, or to a MAP without flags
+  that reads neither the position nor the size, runs over that FILTER's
+  or MAP's input: the condition becomes `LET(p, P, CONDITIONAL(p, LET(x,
+  focus, C), k))` (k false for some, true for every) or `LET(t, B,
+  QUANTIFIED(t, x, C))`, and the LET of S its body. P stays guarded by
+  the item, C by P (2.6.5). Steps per item are a few more for a fused
+  FILTER (the LET and the conditional) when the quantifier reads the
+  whole input.
+- **One mechanism**: a value is read as far as its consumer needs, the
+  demand saying how far, and fusion letting a quantifier read its
+  producer's items one by one; both are IR passes over the one IR, and
+  the evaluator only stops loops that the IR says may stop. D71 holds
+  (explicit stacks; no recursion), and step counts are those of the work
+  done.
+- **The step bound** (D89's default): measured with a counting build,
+  XMark-All takes 12.3 million steps in 0.83 s of evaluation, recursion
+  11.6 million in 0.55 s, xmark-q11 5.7 million in 0.4 s, flwor-order
+  2.7 million in 0.37 s, the quantified loop of D89 13 million a second:
+  7 to 21 million steps a second, so 10^9 steps were 50 to 140 s (75 s
+  for `some $n in 1 to 1e11 satisfies $n = 0`). The default is now 10^8
+  (`SXML_EVALUATOR_DEFAULT_MAXIMUM_EVALUATION_STEP_COUNT`), 5 to 15 s
+  (that loop stops after 8 s), eight times what XMark-All takes. A step
+  bound, not a clock: it is the same on every machine and in WebAssembly,
+  and a program sets its own in `sxml_processor_limits`. The QT4, XSLT
+  and XSD drivers set 10^8 and 4 x 10^8 themselves (D166, D178) and are
+  unchanged. The public header's comment on the field names the new
+  default (its text only; the interface is unchanged).
+- **Measured** (release, at 6b899d5 without and with; 10^7 items, as
+  without the change 10^8 would take the old bound's minute):
+  `exists((1 to 1e7)[. = 999])` 2.26 to 0.004 s; `head(filter(1 to 1e7,
+  fn { . = 999 }))` 5.72 to 0.004 s; `(1 to 1e7)[. = 999][1]` 2.12 to
+  0.000 s; `some $x in (1 to 1e7)[. = 999] satisfies true()` 2.26 to
+  0.000 s; `empty(...)` 2.37 to 0.003 s; with 10^8 or 10^9 items the
+  same times after. `boolean((1 to 1e8)[. = 999])` is unchanged (above).
+  Instructions x 10^9: xmark-all 8.524 to 8.608 (+1 %: the passes'
+  compile work), recursion 6.501 to 6.494, flwor-order 4.383 to 4.392,
+  paths 1.750 to 1.753, xslt-key 3.988 to 3.988, match="$var" 2.470 to
+  2.474. Every benchmark's output the same byte for byte; QT4 XQ40 and
+  XT40 whole, release, case by case: 0 outcomes differ (XQ40 45,964
+  passed, XT40 12,036). The book's C example makes 195 allocations, 178
+  before (the passes' scratch arrays while compiling).
 - **Left**: two filters in a row (`$s[customer = $c][@id = $i]`) index
   the first only, and the second tests the first's candidates (1.4 s for
-  2,000 x 2,000).
+  2,000 x 2,000); loops over other loops (a FILTER or MAP of a MAP) are
+  not fused, so `exists((for $x in E return B)[P])` makes the whole MAP;
+  demands do not enter function bodies; the effective boolean value of
+  nodes reads one node more than it needs.
 
 ### D260. XSLT conformance sweep by root-cause clusters (packet 4.23)
 Recorded 2026-10-20, after D153, D156, D185, D230, D234, D252, D255,
@@ -11873,6 +11952,15 @@ the default:
   release driver, case by case: **12,156 to 12,157 passed (120 wrong
   error), 362 to 361 failed, 0 errors**, namespace-6202 from failure to
   pass, no case lost.
+
+### D262. XSLT conformance sweep: dynamic captured groups and D260's leftovers (packet 4.25)
+Recorded 2026-10-20, after D153, D252, D260, D261. In progress; the
+record is completed when the packet ends.
+- The current captured groups pass through template calls (XSLT 4.0,
+  17.2.2) as an entry Q{XSLT}regex-groups of the tunnel parameters; a
+  template function reads context variables not lexically in scope from
+  the tunnel parameters it received (scope entry Q{XSLT}context-variables);
+  patterns, stylesheet functions and globals hide them.
 
 ## Proposed
 
