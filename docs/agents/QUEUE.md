@@ -30,7 +30,6 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 
 - 2.23: XPath/XQuery sweep on the largest remaining failure clusters.
 - 4.23: XSLT sweep on the largest failure clusters.
-- book-1: the sxml book in docs/book/.
 
 ## Next
 
@@ -151,6 +150,13 @@ archives with SHA256SUMS. Ran here: both Linux (aarch64 under qemu),
 x86_64 Windows (wine), WASI. Owner: run the macOS and aarch64 Windows
 programs, signing and notarization, publishing. Windows has no
 /usr/share/zoneinfo, so the CLI there needs embedded or shipped tz data.
+
+The book (book-1, D257): `docs/book/`, every chapter written; Getting
+Started, XPath, XQuery and XSLT are complete, the others shorter.
+`tools/check-book-examples.sh` re-runs its examples; a change to CLI
+output the book shows updates the book. Left: chapters for a published
+npm package and release archives once they exist, more on XSLT 4.0's new
+instructions, and schema-aware XSLT output validation.
 
 Platform and tooling:
 - macOS, Windows and MSVC have never been built; `_getcwd` is untested.

@@ -4,6 +4,13 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- book-1 done (D257): the sxml book in `docs/book/`, an mdBook of 35
+  pages: Getting Started, XPath, XQuery and XSLT in full (five, four and
+  four sections), XSD, other formats, text, files, C (five programs),
+  JavaScript, performance, four appendices. 254 examples, all checked by
+  `tools/check-book-examples.sh` against a release build of HEAD
+  (`mise run book:check`); `mise run book` builds it. README links it.
+
 - dist-1 done (D256): `mise run dist` builds the `sxml` command as
   seven archives (`build/dist/`, SHA256SUMS): x86_64/aarch64 Linux
   (static musl), macOS 11 and Windows (MinGW-w64, UCRT), cross-compiled

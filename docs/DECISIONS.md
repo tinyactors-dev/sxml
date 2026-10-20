@@ -11575,6 +11575,29 @@ the `sxml` command for every supported platform as installable archives
   signature). The time zones come from `/usr/share/zoneinfo` (D209),
   which Windows does not have.
 
+### D257. The sxml book: an mdBook whose examples are checked (packet book-1)
+Recorded 2026-10-20, after D255. The user-facing book is `docs/book/`, an
+mdBook (`book.toml`, `src/SUMMARY.md`) in the style of The Rust
+Programming Language: it teaches by running small examples, and has no
+internal process in it (no phases, packets or decision numbers).
+- **Examples are real.** Inputs live in `docs/book/examples/<chapter>/`
+  and the text shows them with `{{#include}}`. Commands and their output
+  are ```console blocks. `tools/check-book-examples.sh [BUILD-DIRECTORY]`
+  re-runs every block (each chapter file in a fresh copy of the
+  directory its `<!-- examples: NAME -->` comment names) and compares the
+  output, standard error included; `--update` writes the actual outputs
+  back for review. The C chapter builds its programs with
+  `add_subdirectory` of `$SXML` (set it to a snapshot of HEAD to check
+  HEAD); the JavaScript chapter runs only with `SXML_JAVASCRIPT` set to a
+  built package and is reported as skipped otherwise.
+- **Who keeps it true**: a change to the CLI's output, an error message
+  or a result the book shows makes the check fail. The change that causes
+  it runs the check (`mise run book:check`, about three minutes with the
+  C chapter) and updates the book in the same commit.
+- **Building**: `mise run book` (`mdbook build docs/book`) writes
+  `build/book/`, which is ignored; `mise run book:serve` serves it.
+  mdbook is not a pinned mise tool; any 0.4 release works (0.4.40 here).
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): tagging and
