@@ -13311,6 +13311,11 @@ dad90fb.
   $next" to the shell; this record is the account. The XT40 section of
   `docs/CONFORMANCE.md` was not regenerated.
 
+### D290. Invisible XML for large inputs: regular tokens, sparse item sets, text runs (packet 7.24)
+Recorded 2026-10-20, after D71, D99, D215, D283; in progress. The
+owner: sxml's iXML usable on tens to hundreds of MB; the book first
+(f560fdf), then the tests (ef46866), then the implementation.
+
 ## Proposed
 
 - **More source code languages and a registration API** (D285, for the
