@@ -1,0 +1,8 @@
+{
+  "city": "Lisbon",
+  "days": [
+    { "date": "2026-10-20", "high": 23.5, "low": 16, "rain": false },
+    { "date": "2026-10-21", "high": 21, "low": 15.5, "rain": true },
+    { "date": "2026-10-22", "high": 19.5, "low": 14, "rain": true }
+  ]
+}

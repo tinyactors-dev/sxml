@@ -1,0 +1,14 @@
+<library>
+  <shelf name="Fiction">
+    <book id="dune" year="1965" pages="412">
+      <title>Dune</title>
+      <author>Frank Herbert</author>
+      <price currency="GBP">9.999</price>
+    </book>
+    <book id="dune" year="1969">
+      <author>Ursula K. Le Guin</author>
+      <title>The Left Hand of Darkness</title>
+      <price currency="EUR">11.50</price>
+    </book>
+  </shelf>
+</library>
