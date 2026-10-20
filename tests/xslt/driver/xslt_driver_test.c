@@ -580,7 +580,7 @@ static void test_plans_choose_the_principal_module(sxml_test_state *state) {
                                 &test_case.environment.modules.modules[0]);
     SXML_TEST_EXPECT(state, plan.has_global_context_item);
     SXML_TEST_EXPECT(state,
-                     plan.result_delivery == SXML_XSLT_RESULT_DELIVERY_DEFAULT);
+                     plan.result_delivery == SXML_XSLT_RESULT_DELIVERY_TREE);
 
     SXML_TEST_REQUIRE(state, read_case(catalog, TEXT("a-2"), &test_case).status ==
                                  SXML_STATUS_OK);

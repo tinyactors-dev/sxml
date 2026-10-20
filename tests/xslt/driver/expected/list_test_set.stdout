@@ -5,7 +5,7 @@ set-basic basic-template
   invoke call-template main
     param p select 1
     param t select 2 tunnel
-  plan stylesheet tests/insn/basic/basic-template.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/basic/basic-template.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert 1
 set-basic basic-function
   stylesheet principal tests/insn/basic/basic-function.xsl
@@ -43,12 +43,12 @@ set-basic basic-package
   package secondary tests/insn/basic/lib/p2.xsl uri http://example.com/p2
   package principal tests/insn/basic/main.xsl uri http://example.com/main version 2.0
   invoke call-template Q{http://example.com/t}start (initial-mode ignored)
-  plan package http://example.com/main, 2 secondary, 0 static, 0 parameters, delivery default
+  plan package http://example.com/main, 2 secondary, 0 static, 0 parameters, delivery tree
   assertions assert-serialization 1
 set-basic basic-embedded
   environment (inline)
   source . tests/insn/basic/embedded.xml select /doc defines-stylesheet
   invoke apply-templates
-  plan embedded tests/insn/basic/embedded.xml, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan embedded tests/insn/basic/embedded.xml, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-serialization-error 1
 6 test cases: 6 applicable, 0 skipped; 6 in scope

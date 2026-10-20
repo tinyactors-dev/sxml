@@ -68,17 +68,22 @@ sxml_xslt_test_count_static(sxml_xslt_test_parameter_view parameters) {
     return static_count;
 }
 
-/* The delivery <output> asks for (catalog-schema.xsd, "output"). */
+/* The delivery <output> asks for (catalog-schema.xsd, "output"). Without
+   a tree choice the result is a tree, whatever the output definition's
+   build-tree says: the reference runner (runner/run-tests.xsl) asks
+   fn:transform for raw delivery only for tree="no", and otherwise gets
+   its default delivery-format "document" (F&O 4.0, 18.3: sequence
+   normalization), which the assertions of json and adaptive outputs
+   written as "/out" assume. */
 static sxml_xslt_result_delivery
 sxml_xslt_test_delivery_of(const sxml_xslt_test_output *output) {
     if (output->is_serialized) {
         return SXML_XSLT_RESULT_DELIVERY_SERIALIZED;
     }
-    if (output->has_tree_choice) {
-        return output->builds_tree ? SXML_XSLT_RESULT_DELIVERY_TREE
-                                   : SXML_XSLT_RESULT_DELIVERY_RAW;
+    if (output->has_tree_choice && !output->builds_tree) {
+        return SXML_XSLT_RESULT_DELIVERY_RAW;
     }
-    return SXML_XSLT_RESULT_DELIVERY_DEFAULT;
+    return SXML_XSLT_RESULT_DELIVERY_TREE;
 }
 
 /* Finds the principal module of the plan; false for none. */

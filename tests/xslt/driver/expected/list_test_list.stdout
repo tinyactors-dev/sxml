@@ -5,7 +5,7 @@ set-basic basic-template
   invoke call-template main
     param p select 1
     param t select 2 tunnel
-  plan stylesheet tests/insn/basic/basic-template.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/basic/basic-template.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert 1
 set-streaming streaming-fallback
   environment (inline)
@@ -13,7 +13,7 @@ set-streaming streaming-fallback
   stylesheet - tests/strm/streaming/s.xsl
   invoke apply-templates
   dependency feature streaming
-  plan stylesheet tests/strm/streaming/s.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/strm/streaming/s.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert 1
   out of scope: group strm
 set-dependencies spec-40
@@ -22,6 +22,6 @@ set-dependencies spec-40
   dependency feature higher_order_functions
   dependency year_component_values support year zero
   dependency maximum_number_of_decimal_digits 60
-  plan stylesheet tests/misc/dependencies/a.xsl, 0 secondary, 0 static, 0 parameters, delivery default
+  plan stylesheet tests/misc/dependencies/a.xsl, 0 secondary, 0 static, 0 parameters, delivery tree
   assertions assert-true 1
 3 test cases: 3 applicable, 0 skipped; 2 in scope

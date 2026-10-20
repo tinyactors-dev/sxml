@@ -4,14 +4,14 @@ set-problems no-stylesheet
 set-problems unknown-assertion
   stylesheet - tests/misc/problems/a.xsl
   invoke apply-templates
-  plan stylesheet tests/misc/problems/a.xsl, 0 secondary, 0 static, 0 parameters, delivery default
+  plan stylesheet tests/misc/problems/a.xsl, 0 secondary, 0 static, 0 parameters, delivery tree
 set-problems empty-not
   stylesheet - tests/misc/problems/a.xsl
   invoke apply-templates
-  plan stylesheet tests/misc/problems/a.xsl, 0 secondary, 0 static, 0 parameters, delivery default
+  plan stylesheet tests/misc/problems/a.xsl, 0 secondary, 0 static, 0 parameters, delivery tree
 set-problems fine
   stylesheet - tests/misc/problems/a.xsl
   invoke apply-templates
-  plan stylesheet tests/misc/problems/a.xsl, 0 secondary, 0 static, 0 parameters, delivery default
+  plan stylesheet tests/misc/problems/a.xsl, 0 secondary, 0 static, 0 parameters, delivery tree
   assertions assert 1
 4 test cases: 4 applicable, 0 skipped; 4 in scope

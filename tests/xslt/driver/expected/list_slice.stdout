@@ -1,110 +1,110 @@
 apply-templates apply-templates-001
   stylesheet - tests/insn/apply-templates/apply-templates-001.xsl
   invoke call-template main
-  plan stylesheet tests/insn/apply-templates/apply-templates-001.xsl, 0 secondary, 0 static, 0 parameters, delivery default
+  plan stylesheet tests/insn/apply-templates/apply-templates-001.xsl, 0 secondary, 0 static, 0 parameters, delivery tree
   assertions error 1
 apply-templates conflict-resolution-0101
   environment conflict-resolution-01 (test set)
   source . (content)
   stylesheet - tests/insn/apply-templates/conflict-resolution-0101.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/apply-templates/conflict-resolution-0101.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/apply-templates/conflict-resolution-0101.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 apply-templates conflict-resolution-0106
   environment conflict-resolution-01 (test set)
   source . (content)
   stylesheet - tests/insn/apply-templates/conflict-resolution-0106.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/apply-templates/conflict-resolution-0106.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/apply-templates/conflict-resolution-0106.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 apply-templates conflict-resolution-0110c
   environment conflict-resolution-01 (test set)
   source . (content)
   stylesheet - tests/insn/apply-templates/conflict-resolution-0110.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/apply-templates/conflict-resolution-0110.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/apply-templates/conflict-resolution-0110.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 apply-templates conflict-resolution-0401c
   environment conflict-resolution-04 (test set)
   source . (content)
   stylesheet - tests/insn/apply-templates/conflict-resolution-0401.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/apply-templates/conflict-resolution-0401.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/apply-templates/conflict-resolution-0401.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 apply-templates conflict-resolution-0503
   environment conflict-resolution-05 (test set)
   source . (content)
   stylesheet - tests/insn/apply-templates/conflict-resolution-0503.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/apply-templates/conflict-resolution-0503.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/apply-templates/conflict-resolution-0503.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 apply-templates conflict-resolution-0702
   environment conflict-resolution-07 (test set)
   source . (content)
   stylesheet - tests/insn/apply-templates/conflict-resolution-0702.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/apply-templates/conflict-resolution-0702.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/apply-templates/conflict-resolution-0702.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 apply-templates conflict-resolution-0802
   environment conflict-resolution-08 (test set)
   source . (content)
   stylesheet - tests/insn/apply-templates/conflict-resolution-0802.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/apply-templates/conflict-resolution-0802.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/apply-templates/conflict-resolution-0802.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 apply-templates conflict-resolution-1101
   environment conflict-resolution-11 (test set)
   source . (content)
   stylesheet - tests/insn/apply-templates/conflict-resolution-1101.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/apply-templates/conflict-resolution-1101.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/apply-templates/conflict-resolution-1101.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 apply-templates conflict-resolution-1202c
   environment conflict-resolution-12 (test set)
   source . (content)
   stylesheet - tests/insn/apply-templates/conflict-resolution-1202.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/apply-templates/conflict-resolution-1202.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/apply-templates/conflict-resolution-1202.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 apply-templates conflict-resolution-1301
   environment (inline)
   source . (content)
   stylesheet - tests/insn/apply-templates/conflict-resolution-1301.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/apply-templates/conflict-resolution-1301.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/apply-templates/conflict-resolution-1301.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 apply-templates conflict-resolution-1601
   environment conflict-resolution-16 (test set)
   source . (content)
   stylesheet - tests/insn/apply-templates/conflict-resolution-1601.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/apply-templates/conflict-resolution-1601.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/apply-templates/conflict-resolution-1601.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 apply-templates conflict-resolution-1701
   environment conflict-resolution-17 (test set)
   source . tests/insn/apply-templates/conflict-resolution-17.xml
   stylesheet - tests/insn/apply-templates/conflict-resolution-1701.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/apply-templates/conflict-resolution-1701.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/apply-templates/conflict-resolution-1701.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 mode mode-0001
   stylesheet - tests/attr/mode/mode-0001.xsl
   invoke call-template main
-  plan stylesheet tests/attr/mode/mode-0001.xsl, 0 secondary, 0 static, 0 parameters, delivery default
+  plan stylesheet tests/attr/mode/mode-0001.xsl, 0 secondary, 0 static, 0 parameters, delivery tree
   assertions assert-xml 1
 mode mode-0104
   environment mode-01 (test set)
   source . (content)
   stylesheet - tests/attr/mode/mode-0104.xsl
   invoke apply-templates
-  plan stylesheet tests/attr/mode/mode-0104.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/attr/mode/mode-0104.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 mode mode-0803
   environment mode-08 (test set)
   source . (content)
   stylesheet - tests/attr/mode/mode-0803.xsl
   invoke apply-templates
-  plan stylesheet tests/attr/mode/mode-0803.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/attr/mode/mode-0803.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 mode mode-1106c
   environment (inline)
@@ -112,42 +112,42 @@ mode mode-1106c
   stylesheet - tests/attr/mode/mode-1106.xsl
   param STREAMABLE select false() static
   invoke apply-templates mode Z
-  plan stylesheet tests/attr/mode/mode-1106.xsl, 0 secondary, 1 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/attr/mode/mode-1106.xsl, 0 secondary, 1 static, 0 parameters, context item, delivery tree
   assertions assert 1
 mode mode-1401
   environment mode-14 (test set)
   source . tests/attr/mode/mode-14.xml
   stylesheet - tests/attr/mode/mode-1401.xsl
   invoke apply-templates
-  plan stylesheet tests/attr/mode/mode-1401.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/attr/mode/mode-1401.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 mode mode-1421
   environment mode-14 (test set)
   source . tests/attr/mode/mode-14.xml
   stylesheet - tests/attr/mode/mode-1421.xsl
   invoke apply-templates mode s
-  plan stylesheet tests/attr/mode/mode-1421.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/attr/mode/mode-1421.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 mode mode-1444
   environment mode-14 (test set)
   source . tests/attr/mode/mode-14.xml
   stylesheet - tests/attr/mode/mode-1444.xsl
   invoke apply-templates mode s
-  plan stylesheet tests/attr/mode/mode-1444.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/attr/mode/mode-1444.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions error 1
 mode mode-1509
   environment mode-15 (test set)
   source . (content)
   stylesheet - tests/attr/mode/mode-1509.xsl
   invoke call-template main
-  plan stylesheet tests/attr/mode/mode-1509.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/attr/mode/mode-1509.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions error 1
 mode mode-1604
   environment mode-01 (test set)
   source . (content)
   stylesheet - tests/attr/mode/mode-1604.xsl
   invoke apply-templates mode a
-  plan stylesheet tests/attr/mode/mode-1604.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/attr/mode/mode-1604.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 mode mode-1616
   environment mode-01 (test set)
@@ -155,132 +155,132 @@ mode mode-1616
   stylesheet - tests/attr/mode/mode-1616.xsl
   stylesheet secondary tests/attr/mode/mode-1616a.xsl
   invoke apply-templates
-  plan stylesheet tests/attr/mode/mode-1616.xsl, 1 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/attr/mode/mode-1616.xsl, 1 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 mode mode-1705b
   environment mode-01 (test set)
   source . (content)
   package principal tests/attr/mode/mode-1705b.xsl
   invoke apply-templates mode private-mode
-  plan package -, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan package -, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions error 1
 mode mode-1803
   environment (inline)
   source . tests/attr/mode/mode-14.xml
   stylesheet principal tests/attr/mode/mode-1803.xsl
   invoke apply-templates mode a
-  plan stylesheet tests/attr/mode/mode-1803.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/attr/mode/mode-1803.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert 1
 mode mode-4012
   stylesheet - tests/attr/mode/mode-4012.xsl
   invoke apply-templates
-  plan stylesheet tests/attr/mode/mode-4012.xsl, 0 secondary, 0 static, 0 parameters, delivery default
+  plan stylesheet tests/attr/mode/mode-4012.xsl, 0 secondary, 0 static, 0 parameters, delivery tree
   assertions assert 1
 match match-001
   environment match1001 (test set)
   source . (content)
   stylesheet - tests/attr/match/match-001.xsl
   invoke apply-templates
-  plan stylesheet tests/attr/match/match-001.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/attr/match/match-001.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 match match-017
   environment (inline)
   source . (content)
   stylesheet - tests/attr/match/match-017.xsl
   invoke apply-templates
-  plan stylesheet tests/attr/match/match-017.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/attr/match/match-017.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 match match-032
   environment match1030 (test set)
   source . tests/attr/match/match1030.xml
   stylesheet - tests/attr/match/match-032.xsl
   invoke apply-templates
-  plan stylesheet tests/attr/match/match-032.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/attr/match/match-032.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 match match-048
   environment match1059 (test set)
   source . (content)
   stylesheet - tests/attr/match/match-048.xsl
   invoke apply-templates
-  plan stylesheet tests/attr/match/match-048.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/attr/match/match-048.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert 1
 match match-067
   environment match1059 (test set)
   source . (content)
   stylesheet - tests/attr/match/match-067.xsl
   invoke apply-templates
-  plan stylesheet tests/attr/match/match-067.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/attr/match/match-067.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 match match-082a
   environment match1059 (test set)
   source . (content)
   stylesheet - tests/attr/match/match-082a.xsl
   invoke apply-templates
-  plan stylesheet tests/attr/match/match-082a.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/attr/match/match-082a.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert 1
 match match-100
   environment match2012 (test set)
   source . (content)
   stylesheet - tests/attr/match/match-100.xsl
   invoke apply-templates
-  plan stylesheet tests/attr/match/match-100.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/attr/match/match-100.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 match match-115
   environment match2019 (test set)
   source . (content)
   stylesheet - tests/attr/match/match-115.xsl
   invoke apply-templates
-  plan stylesheet tests/attr/match/match-115.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/attr/match/match-115.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 match match-130
   stylesheet - tests/attr/match/match-130.xsl
   invoke call-template main
-  plan stylesheet tests/attr/match/match-130.xsl, 0 secondary, 0 static, 0 parameters, delivery default
+  plan stylesheet tests/attr/match/match-130.xsl, 0 secondary, 0 static, 0 parameters, delivery tree
   assertions assert-xml 1
 match match-238
   environment match-235 (test set)
   source . tests/attr/match/match-235.xml
   stylesheet - tests/attr/match/match-238.xsl
   invoke apply-templates
-  plan stylesheet tests/attr/match/match-238.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/attr/match/match-238.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 match match-252
   stylesheet - tests/attr/match/match-252.xsl
   invoke call-template main
-  plan stylesheet tests/attr/match/match-252.xsl, 0 secondary, 0 static, 0 parameters, delivery default
+  plan stylesheet tests/attr/match/match-252.xsl, 0 secondary, 0 static, 0 parameters, delivery tree
   assertions assert 1
 match match-269
   stylesheet - tests/attr/match/match-269.xsl
   invoke apply-templates
-  plan stylesheet tests/attr/match/match-269.xsl, 0 secondary, 0 static, 0 parameters, delivery default
+  plan stylesheet tests/attr/match/match-269.xsl, 0 secondary, 0 static, 0 parameters, delivery tree
   assertions assert-xml 1
 match match-285
   environment match1004 (test set)
   source . (content)
   stylesheet - tests/attr/match/match-285.xsl
   invoke apply-templates
-  plan stylesheet tests/attr/match/match-285.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/attr/match/match-285.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 for-each-group for-each-group-001
   environment group001 (test set)
   source . tests/insn/for-each-group/group001.xml
   stylesheet - tests/insn/for-each-group/for-each-group-001.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/for-each-group/for-each-group-001.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/for-each-group/for-each-group-001.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 for-each-group for-each-group-011
   environment group001 (test set)
   source . tests/insn/for-each-group/group001.xml
   stylesheet - tests/insn/for-each-group/for-each-group-011.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/for-each-group/for-each-group-011.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/for-each-group/for-each-group-011.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 for-each-group for-each-group-018
   environment group006 (test set)
   source . (content)
   stylesheet - tests/insn/for-each-group/for-each-group-018.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/for-each-group/for-each-group-018.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/for-each-group/for-each-group-018.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 for-each-group for-each-group-029
   environment (inline)
@@ -288,439 +288,439 @@ for-each-group for-each-group-029
   source - tests/insn/for-each-group/group015b.xml uri group015b.xml
   stylesheet - tests/insn/for-each-group/for-each-group-029.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/for-each-group/for-each-group-029.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/for-each-group/for-each-group-029.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 for-each-group for-each-group-035
   environment group020 (test set)
   source . tests/insn/for-each-group/group020.xml
   stylesheet - tests/insn/for-each-group/for-each-group-035.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/for-each-group/for-each-group-035.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/for-each-group/for-each-group-035.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 for-each-group for-each-group-042
   environment group020 (test set)
   source . tests/insn/for-each-group/group020.xml
   stylesheet - tests/insn/for-each-group/for-each-group-042.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/for-each-group/for-each-group-042.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/for-each-group/for-each-group-042.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 for-each-group for-each-group-048
   environment group020 (test set)
   source . tests/insn/for-each-group/group020.xml
   stylesheet - tests/insn/for-each-group/for-each-group-048.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/for-each-group/for-each-group-048.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/for-each-group/for-each-group-048.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions error 1
 for-each-group for-each-group-055
   environment group020 (test set)
   source . tests/insn/for-each-group/group020.xml
   stylesheet - tests/insn/for-each-group/for-each-group-055.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/for-each-group/for-each-group-055.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/for-each-group/for-each-group-055.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions error 1
 for-each-group for-each-group-063
   environment group024 (test set)
   source . tests/insn/for-each-group/group024.xml
   stylesheet - tests/insn/for-each-group/for-each-group-063.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/for-each-group/for-each-group-063.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/for-each-group/for-each-group-063.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions all-of 1 assert 4
 for-each-group for-each-group-070
   environment group045 (test set)
   source . (content)
   stylesheet - tests/insn/for-each-group/for-each-group-070.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/for-each-group/for-each-group-070.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/for-each-group/for-each-group-070.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 for-each-group for-each-group-076
   environment group020 (test set)
   source . tests/insn/for-each-group/group020.xml
   stylesheet - tests/insn/for-each-group/for-each-group-076.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/for-each-group/for-each-group-076.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/for-each-group/for-each-group-076.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions error 1
 for-each-group for-each-group-082
   stylesheet - tests/insn/for-each-group/for-each-group-082.xsl
   invoke call-template main
-  plan stylesheet tests/insn/for-each-group/for-each-group-082.xsl, 0 secondary, 0 static, 0 parameters, delivery default
+  plan stylesheet tests/insn/for-each-group/for-each-group-082.xsl, 0 secondary, 0 static, 0 parameters, delivery tree
   assertions assert-xml 1
 for-each-group for-each-group-090a
   stylesheet - tests/insn/for-each-group/for-each-group-090.xsl
   invoke apply-templates
   dependency feature higher_order_functions
-  plan stylesheet tests/insn/for-each-group/for-each-group-090.xsl, 0 secondary, 0 static, 0 parameters, delivery default
+  plan stylesheet tests/insn/for-each-group/for-each-group-090.xsl, 0 secondary, 0 static, 0 parameters, delivery tree
   assertions all-of 1 assert 4
 sort sort-001
   environment (inline)
   source . tests/insn/sort/sort001.xml
   stylesheet - tests/insn/sort/sort-001.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/sort/sort-001.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/sort/sort-001.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 sort sort-007
   environment sort003 (test set)
   source . tests/insn/sort/sort003.xml
   stylesheet - tests/insn/sort/sort-007.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/sort/sort-007.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/sort/sort-007.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 sort sort-013
   environment sort010 (test set)
   source . tests/insn/sort/sort010.xml
   stylesheet - tests/insn/sort/sort-013.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/sort/sort-013.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/sort/sort-013.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 sort sort-019
   environment (inline)
   source . tests/insn/sort/sort018.xml
   stylesheet - tests/insn/sort/sort-019.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/sort/sort-019.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/sort/sort-019.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 sort sort-026
   environment sort123 (test set)
   source . tests/insn/sort/sort123.xml
   stylesheet - tests/insn/sort/sort-026.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/sort/sort-026.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/sort/sort-026.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert 1
 sort sort-032
   environment sort125 (test set)
   source . (content)
   stylesheet - tests/insn/sort/sort-032.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/sort/sort-032.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/sort/sort-032.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 sort sort-038
   environment sort129 (test set)
   source . tests/insn/sort/sort129.xml
   stylesheet - tests/insn/sort/sort-038.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/sort/sort-038.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/sort/sort-038.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert 1
 sort sort-045
   environment sort135 (test set)
   source . tests/insn/sort/sort135.xml
   stylesheet - tests/insn/sort/sort-045.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/sort/sort-045.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/sort/sort-045.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 sort sort-051
   environment (inline)
   source . tests/insn/sort/sort141.xml
   stylesheet - tests/insn/sort/sort-051.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/sort/sort-051.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/sort/sort-051.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 sort sort-057
   environment sort004 (test set)
   source . (content)
   stylesheet - tests/insn/sort/sort-057.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/sort/sort-057.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/sort/sort-057.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 sort sort-064
   environment sort004 (test set)
   source . (content)
   stylesheet - tests/insn/sort/sort-064.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/sort/sort-064.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/sort/sort-064.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 sort sort-070
   environment (inline)
   source . (content)
   stylesheet - tests/insn/sort/sort-070.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/sort/sort-070.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/sort/sort-070.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 sort sort-076
   environment sort129 (test set)
   source . tests/insn/sort/sort129.xml
   stylesheet - tests/insn/sort/sort-076.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/sort/sort-076.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/sort/sort-076.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 key key-001
   environment key101 (test set)
   source . tests/fn/key/key101.xml
   stylesheet - tests/fn/key/key-001.xsl
   invoke apply-templates
-  plan stylesheet tests/fn/key/key-001.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/fn/key/key-001.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 key key-008
   environment key110 (test set)
   source . tests/fn/key/key110.xml
   stylesheet - tests/fn/key/key-008.xsl
   invoke apply-templates
-  plan stylesheet tests/fn/key/key-008.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/fn/key/key-008.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 key key-016
   environment (inline)
   source . tests/fn/key/key113.xml
   stylesheet - tests/fn/key/key-016.xsl
   invoke apply-templates
-  plan stylesheet tests/fn/key/key-016.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/fn/key/key-016.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 key key-024
   environment (inline)
   source . tests/fn/key/key129.xml
   stylesheet - tests/fn/key/key-024.xsl
   invoke apply-templates
-  plan stylesheet tests/fn/key/key-024.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/fn/key/key-024.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 key key-032
   environment key144 (test set)
   source . tests/fn/key/key144.xml
   stylesheet - tests/fn/key/key-032.xsl
   invoke apply-templates
-  plan stylesheet tests/fn/key/key-032.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/fn/key/key-032.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions all-of 1 assert 2
 key key-040
   environment (inline)
   source . tests/fn/key/key147.xml
   stylesheet - tests/fn/key/key-040.xsl
   invoke apply-templates
-  plan stylesheet tests/fn/key/key-040.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/fn/key/key-040.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 key key-048
   environment (inline)
   source . tests/fn/key/key202.xml
   stylesheet - tests/fn/key/key-048.xsl
   invoke apply-templates
-  plan stylesheet tests/fn/key/key-048.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/fn/key/key-048.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 key key-056
   environment (inline)
   source . tests/fn/key/key214.xml
   stylesheet - tests/fn/key/key-056.xsl
   invoke apply-templates
-  plan stylesheet tests/fn/key/key-056.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/fn/key/key-056.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 key key-065
   environment (inline)
   source . (content)
   stylesheet - tests/fn/key/key-065.xsl
   invoke apply-templates
-  plan stylesheet tests/fn/key/key-065.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/fn/key/key-065.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 key key-073
   environment key236 (test set)
   source . tests/fn/key/key236.xml
   stylesheet - tests/fn/key/key-073.xsl
   invoke apply-templates
-  plan stylesheet tests/fn/key/key-073.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/fn/key/key-073.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions all-of 1 assert 9
 key key-081
   environment key303 (test set)
   source . (content)
   stylesheet - tests/fn/key/key-081.xsl
   invoke apply-templates
-  plan stylesheet tests/fn/key/key-081.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/fn/key/key-081.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 key key-088
   environment key101 (test set)
   source . tests/fn/key/key101.xml
   stylesheet - tests/fn/key/key-088.xsl
   invoke apply-templates
-  plan stylesheet tests/fn/key/key-088.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/fn/key/key-088.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions all-of 1 assert 5
 key key-096
   stylesheet - tests/fn/key/key-096.xsl
   invoke apply-templates
-  plan stylesheet tests/fn/key/key-096.xsl, 0 secondary, 0 static, 0 parameters, delivery default
+  plan stylesheet tests/fn/key/key-096.xsl, 0 secondary, 0 static, 0 parameters, delivery tree
   assertions assert 1
 number number-0101
   environment number-01 (test set)
   source . tests/insn/number/number-01.xml
   stylesheet - tests/insn/number/number-0101.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/number/number-0101.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/number/number-0101.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 number number-0201
   environment (inline)
   source . (content)
   stylesheet - tests/insn/number/number-0201.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/number/number-0201.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/number/number-0201.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 number number-0602
   environment number-06 (test set)
   source . (content)
   stylesheet - tests/insn/number/number-0602.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/number/number-0602.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/number/number-0602.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 number number-0810
   environment number-06 (test set)
   source . (content)
   stylesheet - tests/insn/number/number-0810.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/number/number-0810.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/number/number-0810.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 number number-1002
   environment (inline)
   source . tests/insn/number/number-10.xml
   stylesheet - tests/insn/number/number-1002.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/number/number-1002.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/number/number-1002.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions error 1
 number number-1701
   environment number-17 (test set)
   source . (content)
   stylesheet - tests/insn/number/number-1701.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/number/number-1701.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/number/number-1701.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 number number-2301
   environment (inline)
   source . tests/insn/number/number-23.xml
   stylesheet - tests/insn/number/number-2301.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/number/number-2301.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/number/number-2301.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 number number-2802
   environment number-28 (test set)
   source . tests/insn/number/number-28.xml
   stylesheet - tests/insn/number/number-2802.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/number/number-2802.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/number/number-2802.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 number number-2814
   environment number-28 (test set)
   source . tests/insn/number/number-28.xml
   stylesheet - tests/insn/number/number-2814.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/number/number-2814.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/number/number-2814.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 number number-3206
   environment number-32 (test set)
   source . tests/insn/number/number-32.xml
   stylesheet - tests/insn/number/number-3206.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/number/number-3206.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/number/number-3206.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 number number-3218
   environment number-32 (test set)
   source . tests/insn/number/number-32.xml
   stylesheet - tests/insn/number/number-3218.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/number/number-3218.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/number/number-3218.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 number number-3230
   environment number-32 (test set)
   source . tests/insn/number/number-32.xml
   stylesheet - tests/insn/number/number-3230.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/number/number-3230.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/number/number-3230.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 number number-3801
   environment number-38 (test set)
   source . tests/insn/number/number-38.xml
   stylesheet - tests/insn/number/number-3801.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/number/number-3801.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/number/number-3801.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 choose choose-0101
   environment choose-01 (test set)
   source . tests/insn/choose/choose-01.xml
   stylesheet - tests/insn/choose/choose-0101.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/choose/choose-0101.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/choose/choose-0101.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 choose choose-0106
   environment choose-01 (test set)
   source . tests/insn/choose/choose-01.xml
   stylesheet - tests/insn/choose/choose-0106.xsl
   invoke call-template main
-  plan stylesheet tests/insn/choose/choose-0106.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/choose/choose-0106.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert 1
 choose choose-0401
   environment choose-04 (test set)
   source . (content)
   stylesheet - tests/insn/choose/choose-0401.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/choose/choose-0401.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/choose/choose-0401.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 choose choose-0502
   environment choose-05 (test set)
   source . (content)
   stylesheet - tests/insn/choose/choose-0502.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/choose/choose-0502.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/choose/choose-0502.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 choose choose-0605
   environment choose-06 (test set)
   source . (content)
   stylesheet - tests/insn/choose/choose-0605.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/choose/choose-0605.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/choose/choose-0605.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 choose choose-0701
   environment choose-07 (test set)
   source . (content)
   stylesheet - tests/insn/choose/choose-0701.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/choose/choose-0701.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/choose/choose-0701.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 choose choose-1101
   environment choose-11 (test set)
   source . (content)
   stylesheet - tests/insn/choose/choose-1101.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/choose/choose-1101.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/choose/choose-1101.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 choose choose-1301
   environment choose-13 (test set)
   source . (content)
   stylesheet - tests/insn/choose/choose-1301.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/choose/choose-1301.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/choose/choose-1301.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 choose choose-1701
   environment choose-17 (test set)
   source . (content)
   stylesheet - tests/insn/choose/choose-1701.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/choose/choose-1701.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/choose/choose-1701.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 choose choose-1706
   environment choose-17 (test set)
   source . (content)
   stylesheet - tests/insn/choose/choose-1706.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/choose/choose-1706.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/choose/choose-1706.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 choose choose-1901
   environment choose-19 (test set)
   source . tests/insn/choose/choose-19.xml
   stylesheet - tests/insn/choose/choose-1901.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/choose/choose-1901.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/choose/choose-1901.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 choose choose-4001
   stylesheet - tests/insn/choose/choose-4001.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/choose/choose-4001.xsl, 0 secondary, 0 static, 0 parameters, delivery default
+  plan stylesheet tests/insn/choose/choose-4001.xsl, 0 secondary, 0 static, 0 parameters, delivery tree
   assertions assert 1
 choose choose-4102
   stylesheet - tests/insn/choose/choose-4102.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/choose/choose-4102.xsl, 0 secondary, 0 static, 0 parameters, delivery default
+  plan stylesheet tests/insn/choose/choose-4102.xsl, 0 secondary, 0 static, 0 parameters, delivery tree
   assertions assert 1
 copy copy-0101
   environment copy-01 (test set)
   source . (content)
   stylesheet - tests/insn/copy/copy-0101.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/copy/copy-0101.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/copy/copy-0101.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 copy copy-0602
   environment copy-06 (test set)
   source . (content)
   stylesheet - tests/insn/copy/copy-0602.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/copy/copy-0602.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/copy/copy-0602.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 copy copy-0613
   environment copy-06 (test set)
@@ -729,7 +729,7 @@ copy copy-0613
   param COPY select 'true' static
   param INHERIT select 'false' static
   invoke call-template main
-  plan stylesheet tests/insn/copy/copy-0612.xsl, 0 secondary, 2 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/copy/copy-0612.xsl, 0 secondary, 2 static, 0 parameters, context item, delivery tree
   assertions all-of 1 assert 6
 copy copy-0624
   environment copy-06 (test set)
@@ -738,103 +738,103 @@ copy copy-0624
   param COPY select 'true' static
   param INHERIT select 'true' static
   invoke call-template main
-  plan stylesheet tests/insn/copy/copy-0624.xsl, 0 secondary, 2 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/copy/copy-0624.xsl, 0 secondary, 2 static, 0 parameters, context item, delivery tree
   assertions all-of 1 assert 4
 copy copy-1202
   environment copy-12 (test set)
   source . (content)
   stylesheet - tests/insn/copy/copy-1202.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/copy/copy-1202.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/copy/copy-1202.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 copy copy-1214
   environment copy-12 (test set)
   source . (content)
   stylesheet - tests/insn/copy/copy-1214.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/copy/copy-1214.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/copy/copy-1214.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions all-of 1 assert 2
 copy copy-1701
   environment (inline)
   source . tests/insn/copy/copy-17.xml
   stylesheet - tests/insn/copy/copy-1701.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/copy/copy-1701.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/copy/copy-1701.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 copy copy-2502
   environment copy-25 (test set)
   source . (content)
   stylesheet - tests/insn/copy/copy-2502.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/copy/copy-2502.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/copy/copy-2502.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 copy copy-3302
   environment copy-33 (test set)
   source . tests/insn/copy/copy-33.xml
   stylesheet - tests/insn/copy/copy-3302.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/copy/copy-3302.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/copy/copy-3302.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 copy copy-3901
   environment copy-39 (test set)
   source . tests/insn/copy/copy-39.xml
   stylesheet - tests/insn/copy/copy-3901.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/copy/copy-3901.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/copy/copy-3901.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 copy copy-4307
   environment copy-43 (test set)
   source . (content)
   stylesheet - tests/insn/copy/copy903err.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/copy/copy903err.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/copy/copy903err.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions error 1
 copy copy-4803
   environment copy-48 (test set)
   source . tests/insn/copy/copy-48.xml
   stylesheet - tests/insn/copy/copy-4803.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/copy/copy-4803.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/copy/copy-4803.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 copy copy-5306
   stylesheet - tests/insn/copy/copy-5306.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/copy/copy-5306.xsl, 0 secondary, 0 static, 0 parameters, delivery default
+  plan stylesheet tests/insn/copy/copy-5306.xsl, 0 secondary, 0 static, 0 parameters, delivery tree
   assertions assert 1
 value-of value-of-001
   stylesheet - tests/insn/value-of/value-of-001.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/value-of/value-of-001.xsl, 0 secondary, 0 static, 0 parameters, delivery default
+  plan stylesheet tests/insn/value-of/value-of-001.xsl, 0 secondary, 0 static, 0 parameters, delivery tree
   assertions all-of 1 assert 10
 value-of value-of-002
   stylesheet - tests/insn/value-of/value-of-002.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/value-of/value-of-002.xsl, 0 secondary, 0 static, 0 parameters, delivery default
+  plan stylesheet tests/insn/value-of/value-of-002.xsl, 0 secondary, 0 static, 0 parameters, delivery tree
   assertions all-of 1 assert 10
 value-of value-of-003
   stylesheet - tests/insn/value-of/value-of-003.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/value-of/value-of-003.xsl, 0 secondary, 0 static, 0 parameters, delivery default
+  plan stylesheet tests/insn/value-of/value-of-003.xsl, 0 secondary, 0 static, 0 parameters, delivery tree
   assertions all-of 1 assert 6
 value-of value-of-004
   stylesheet - tests/insn/value-of/value-of-004.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/value-of/value-of-004.xsl, 0 secondary, 0 static, 0 parameters, delivery default
+  plan stylesheet tests/insn/value-of/value-of-004.xsl, 0 secondary, 0 static, 0 parameters, delivery tree
   assertions all-of 1 assert 6
 value-of value-of-005
   stylesheet - tests/insn/value-of/value-of-005.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/value-of/value-of-005.xsl, 0 secondary, 0 static, 0 parameters, delivery default
+  plan stylesheet tests/insn/value-of/value-of-005.xsl, 0 secondary, 0 static, 0 parameters, delivery tree
   assertions all-of 1 assert 6
 value-of value-of-006
   stylesheet - tests/insn/value-of/value-of-006.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/value-of/value-of-006.xsl, 0 secondary, 0 static, 0 parameters, delivery default
+  plan stylesheet tests/insn/value-of/value-of-006.xsl, 0 secondary, 0 static, 0 parameters, delivery tree
   assertions all-of 1 assert 6
 value-of value-of-009
   stylesheet - tests/insn/value-of/value-of-009.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/value-of/value-of-009.xsl, 0 secondary, 0 static, 0 parameters, delivery default
+  plan stylesheet tests/insn/value-of/value-of-009.xsl, 0 secondary, 0 static, 0 parameters, delivery tree
   assertions all-of 1 assert 6
 value-of value-of-011
   stylesheet - tests/insn/value-of/value-of-011.xsl
@@ -877,14 +877,14 @@ result-document result-document-0101
   source . (content)
   stylesheet - tests/insn/result-document/result-document-0101.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/result-document/result-document-0101.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/result-document/result-document-0101.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions all-of 1 assert-xml 2 assert-result-document 1
 result-document result-document-0211
   environment result-document-02 (test set)
   source . (content)
   stylesheet - tests/insn/result-document/result-document-0211.xsl
   invoke apply-templates
-  plan stylesheet tests/insn/result-document/result-document-0211.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/result-document/result-document-0211.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1 assert-result-document 1
 result-document result-document-0224
   environment result-document-02 (test set)
@@ -910,7 +910,7 @@ result-document result-document-0250
   stylesheet - tests/insn/result-document/result-document-0250.xsl
   invoke apply-templates
   dependency feature serialization
-  plan stylesheet tests/insn/result-document/result-document-0250.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/insn/result-document/result-document-0250.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions any-of 1 error 1 assert-serialization-error 1
 result-document result-document-0262
   environment result-document-02 (test set)
@@ -952,7 +952,7 @@ result-document result-document-1136
   environment result-document-113 (test set)
   stylesheet principal tests/insn/result-document/result-document-1130.xsl
   invoke call-template f
-  plan stylesheet tests/insn/result-document/result-document-1130.xsl, 0 secondary, 0 static, 0 parameters, delivery default
+  plan stylesheet tests/insn/result-document/result-document-1130.xsl, 0 secondary, 0 static, 0 parameters, delivery tree
   assertions assert 1
 result-document result-document-1205
   environment result-document-12 (test set)
@@ -973,42 +973,42 @@ result-document result-document-1410
 function function-0001
   stylesheet - tests/decl/function/function-0001.xsl
   invoke call-template main
-  plan stylesheet tests/decl/function/function-0001.xsl, 0 secondary, 0 static, 0 parameters, delivery default
+  plan stylesheet tests/decl/function/function-0001.xsl, 0 secondary, 0 static, 0 parameters, delivery tree
   assertions assert-xml 1
 function function-0107
   environment function-01 (test set)
   source . tests/decl/function/function-01.xml
   stylesheet - tests/decl/function/function-0107.xsl
   invoke apply-templates
-  plan stylesheet tests/decl/function/function-0107.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/decl/function/function-0107.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 function function-0117
   environment function-01 (test set)
   source . tests/decl/function/function-01.xml
   stylesheet - tests/decl/function/function-0117.xsl
   invoke apply-templates
-  plan stylesheet tests/decl/function/function-0117.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/decl/function/function-0117.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions error 1
 function function-0303
   environment function-03 (test set)
   source . (content)
   stylesheet - tests/decl/function/function-0303.xsl
   invoke apply-templates
-  plan stylesheet tests/decl/function/function-0303.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/decl/function/function-0303.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert 1
 function function-1003
   environment function-10 (test set)
   source . (content)
   stylesheet - tests/decl/function/function-1003.xsl
   invoke apply-templates
-  plan stylesheet tests/decl/function/function-1003.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/decl/function/function-1003.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 function function-1016
   environment function-10 (test set)
   source . (content)
   stylesheet - tests/decl/function/function-1016.xsl
   invoke apply-templates
-  plan stylesheet tests/decl/function/function-1016.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/decl/function/function-1016.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions error 1
 function function-1028
   environment function-10 (test set)
@@ -1016,35 +1016,35 @@ function function-1028
   stylesheet - tests/decl/function/function-1026.xsl
   param new-each-time select 'yes' static
   invoke apply-templates
-  plan stylesheet tests/decl/function/function-1026.xsl, 0 secondary, 1 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/decl/function/function-1026.xsl, 0 secondary, 1 static, 0 parameters, context item, delivery tree
   assertions assert 1
 function function-1301
   environment function-13 (test set)
   source . tests/decl/function/function-13.xml
   stylesheet - tests/decl/function/function-1301.xsl
   invoke apply-templates
-  plan stylesheet tests/decl/function/function-1301.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/decl/function/function-1301.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions assert-xml 1
 function function-2104
   environment function-21 (test set)
   source . (content)
   stylesheet - tests/decl/function/function-2104.xsl
   invoke apply-templates
-  plan stylesheet tests/decl/function/function-2104.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery default
+  plan stylesheet tests/decl/function/function-2104.xsl, 0 secondary, 0 static, 0 parameters, context item, delivery tree
   assertions error 1
 function function-40-006
   stylesheet - tests/decl/function/function-40-006.xsl
   invoke apply-templates
-  plan stylesheet tests/decl/function/function-40-006.xsl, 0 secondary, 0 static, 0 parameters, delivery default
+  plan stylesheet tests/decl/function/function-40-006.xsl, 0 secondary, 0 static, 0 parameters, delivery tree
   assertions all-of 1 assert 2
 function function-40-016
   stylesheet - tests/decl/function/function-40-016.xsl
   invoke apply-templates
-  plan stylesheet tests/decl/function/function-40-016.xsl, 0 secondary, 0 static, 0 parameters, delivery default
+  plan stylesheet tests/decl/function/function-40-016.xsl, 0 secondary, 0 static, 0 parameters, delivery tree
   assertions assert 1
 function function-40-903
   stylesheet - tests/decl/function/function-40-903.xsl
   invoke apply-templates
-  plan stylesheet tests/decl/function/function-40-903.xsl, 0 secondary, 0 static, 0 parameters, delivery default
+  plan stylesheet tests/decl/function/function-40-903.xsl, 0 secondary, 0 static, 0 parameters, delivery tree
   assertions error 1
 154 test cases: 154 applicable, 0 skipped; 154 in scope
