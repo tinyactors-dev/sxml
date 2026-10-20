@@ -248,7 +248,7 @@ static void test_parse_values(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, parses_by_default("\xEF\xBB\xBF[0]", "[0.0e0]"));
     /* Out of range numbers become infinities (F&O 4.0, 17.4.4, note). */
     SXML_TEST_EXPECT(state, parses_by_default("[1e400, -1e400]",
-                                              "[xs:double(\"INF\"),xs:double(\"-INF\")]"));
+                                              "[INF,-INF]"));
 }
 
 static void test_parse_strings(sxml_test_state *state) {

@@ -65,7 +65,7 @@ by zero gives infinity, as floating-point numbers do:
 $ sxml xpath '1 div 0'
 expression:1:1: err:FOAR0001: division by zero (F&O 4.0, op:numeric-divide, op:numeric-integer-divide, op:numeric-mod)
 $ sxml xpath '1e0 div 0'
-xs:double("INF")
+INF
 ```
 
 ## Untyped values

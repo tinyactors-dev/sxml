@@ -161,7 +161,7 @@ static const mode_case mode_cases[] = {
     /* 4.9: the first item, xs:double by fn:number, NaN for (). */
     {"\"2\" + 3", "error:XPTY0004", "5.0e0"},
     {"(1, 2) * 2", "error:XPTY0004", "2.0e0"},
-    {"() + 1", "", "xs:double(\"NaN\")"},
+    {"() + 1", "", "NaN"},
     {"true() + 1", "error:XPTY0004", "2.0e0"},
     {"-\"3\"", "error:XPTY0004", "-3.0e0"},
     {"1 + 1", "2", "2.0e0"},

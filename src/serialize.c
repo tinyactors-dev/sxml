@@ -1789,7 +1789,14 @@ static sxml_status sxml_serializer_write_atomic(sxml_serializer *serializer, sxm
     if (is_finite_double) {
         return sxml_serializer_write_exponent_form(serializer, canonical.text);
     }
-    /* Every other type, xs:float and the non-finite doubles: the syntax of
+    if (primitive_type.index == SXML_TYPE_XS_DOUBLE) {
+        /* INF, -INF and NaN as fn:string gives them (Serialization 4.0,
+           section 11: "by converting the value to a string using the
+           fn:string function"; QT4 Serialization-adaptive-22a, -25a,
+           -27a). */
+        return sxml_serializer_write(serializer, canonical.text);
+    }
+    /* Every other type and xs:float: the syntax of
        a constructor function, xs:TYPE("VALUE"), where TYPE is the name of
        the item's type annotation, so xs:dateTimeStamp and
        xs:dayTimeDuration keep their names (Serialization 4.0, section 11,

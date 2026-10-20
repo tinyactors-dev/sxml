@@ -394,7 +394,7 @@ static void test_atomic_items(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, serializes_to(current,
                                           sxml_sequence_from_item(
                                               sxml_atomic_item_from_double((double)INFINITY)),
-                                          "xs:double(\"INF\")"));
+                                          "INF"));
     SXML_TEST_EXPECT(
         state,
         serializes_to(current,

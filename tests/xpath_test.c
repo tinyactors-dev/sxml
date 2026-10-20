@@ -324,7 +324,7 @@ static const slice_case library_cases[] = {
     SLICE_VALUE("math", "math:pi(), math:pow(2, 10), math:pow(-2, 3), math:pow(0, 0), "
                         "math:sqrt(-0e0), math:log(0), math:atan2(1, 0) * 2 eq math:pi(), "
                         "math:exp10(2), math:pow((), 2)",
-                "3.141592653589793e0 1.024e3 -8.0e0 1.0e0 -0.0e0 xs:double(\"-INF\") true() "
+                "3.141592653589793e0 1.024e3 -8.0e0 1.0e0 -0.0e0 -INF true() "
                 "1.0e2"),
     SLICE_VALUE("math-pow-parity", "math:pow(-1, 9007199254740993)", "-1.0e0"),
     SLICE_VALUE("qname-parts",
