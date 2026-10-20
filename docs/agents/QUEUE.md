@@ -31,6 +31,8 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 
 - 4.25: XSLT sweep (D260's open list, the run-time QName cast).
 - 2.24: XPath/XQuery sweep (D258's open list; a static-typing estimate).
+- book-2: the book's XQuery and XSD parts to the depth of XPath and XSLT
+  (owner, 2026-10-20).
 
 ## Next
 
