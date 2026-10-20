@@ -4,6 +4,16 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 4.21 done (D234): XT40 11,913 to 11,943 passed, 0 errors, one wrong
+  error now a failure (document-4066); QT4 XQ40 unchanged case by case.
+  The hoist pass leaves indexed FILTERs alone (a hoisted LET raised an
+  error the predicate never ran); fn:current-merge-group(()) and
+  XTDE3490; globals computed on first read through one IR kind,
+  GLOBAL_READ, and a last pass (XTDE3052 of unread abstract variables,
+  XPDY0002 of unread globals, XTDE0640 in XSLT, the initializer's error
+  not caught around the read, required parameters still checked);
+  typed modes read leading element names as schema-element(), XTSE3105.
+
 - docs-2 done: README.md rewritten as a plain overview (standards with
   versions, the modules and their sizes at e4ea880, streaming, HTML, iXML
   and Full Text examples run on a release build, features by module,

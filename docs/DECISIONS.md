@@ -10464,6 +10464,83 @@ token shape (D232) are unchanged.
     a full window, nested captures on a stack, and end-K reads that
     window instead of the shallow one. Memory: the captured subtrees.
 
+### D234. Globals computed on first read, the hoist guard, typed modes (packet 4.21)
+Recorded 2026-10-20, after D71, D101, D135, D148, D154, D179, D223,
+D224, D229, D230. Replaces D101's and D148's computation of declared
+variables before the body ("computation order", the evaluator's global
+part) and D230's design of lazy globals, as built here. Verified as
+D181 asks: the debug preset, every unit test, clang-tidy on the files
+changed, `tools/check-call-cycles.py`, and the whole XT40 and QT4 XQ40
+suites with the release driver, compared case by case.
+- **The hoist guard** (`src/ir_loop_passes.c`): the guard of D224
+  ("the input is not empty") is right only for loops that run their
+  body for the first item of every non-empty input. A FILTER with a
+  filter index tests its predicate on the index's candidates only, which
+  may be none, so a hoisted LET raised an error the predicate never ran.
+  The hoist pass leaves indexed FILTERs (and indexed where clauses)
+  alone; D223 (no pass moves STREAM bindings) is unchanged.
+  merge-001a was not the hoist pass: fn:current-merge-group(()) was
+  map:get(sources, ()), XPTY0004. 15.5.1: an empty $source is the whole
+  group, an unknown name XTDE3490; the merge binds
+  Q{XSLT}current-merge-sources to a function item that a call with an
+  argument calls (`xslt_lower_group.c`, `xpath_lower.c`). merge-016
+  passed already.
+- **GLOBAL_READ** (glossary `global_read`; `src/ir_internal.h`): a new IR
+  kind, the global, then the body. The global-read pass
+  (`src/ir_global_read.c`, the last standard pass, after hoist so the
+  loop passes see globals as atoms) puts one GLOBAL_READ per global with
+  an initializer at the head of each LET chain whose expressions read it
+  as an atom (an expression no LET holds, with the bound expressions and
+  bodies of the LETs below it, which all run once it starts). One
+  mechanism for XQuery and XSLT: lowering is unchanged.
+- **The machine** (`src/evaluator.c`, `src/evaluator_global.c`): a
+  GLOBAL_READ of a BOUND global (or one without initializer) is replaced
+  by its body (tail), and a pushed operand passes such reads at once, so
+  a computed global costs no step (D89) and leaves stay in place
+  (D229); a FILTER predicate behind a GLOBAL_READ is not inline. An
+  ABSENT global with an initializer gets the global part's task: it
+  calls the initializer (BEING_COMPUTED meanwhile) and binds the value.
+  A read while BEING_COMPUTED is XTDE0640 in a unit whose parts evaluate
+  templates (XSLT, 9.11), XQDY0054 otherwise. While the initializer runs
+  the current mode and template rule are absent (6.7, 9.5: mode="#current"
+  in a global is the unnamed mode). Its task has the new flag
+  `stops_catching`: a try/catch of the same unit around the read does
+  not catch the initializer's error (XSLT 4.0, 2.4.2 and 8.3; QT4
+  try-006), one inside the initializer does, and the unit evaluation's
+  asker does (fn:load-xquery-module, fn:transform). A failed initializer
+  leaves its global ABSENT. sxml_evaluator_evaluate binds only the
+  context global now (`sxml_evaluator_bind_context_global`).
+- **XSLT** (9.5): XTDE0050 for a required stylesheet parameter without a
+  value is raised even when the parameter is never read: the main
+  function reads each required parameter first (`xslt_lower_control.c`).
+  Globals in temporary output state, xsl:message in a global and other
+  effects now happen when the global is first read.
+- **Typed modes** (6.9.4; `xslt_pattern.c`, `xslt_lower_template.c`): a
+  template rule applicable to a mode with typed="strict" or "lax" gets a
+  match function of its own in which an EQName test on an axis of
+  principal node kind element, in the first step of each relative path
+  of the pattern, is schema-element(E): with lax when a global element
+  declaration of E is in scope, with strict always, XTSE3105 when it is
+  not. Priorities are those of the pattern as written.
+- **Numbers**: XT40 11,918 (HEAD with the hoist fix) to 11,943 passed,
+  0 errors: lazy globals 10 (accept-042, -043a, document-4061..-4065,
+  copy-2203, square-array-201, error-0640e-2), XTDE0640 3 (error-0640d,
+  -0640f, accumulator-031, from wrong errors), typed modes 4
+  (error-3105a, match-220, -221, -244), and 8 streamed cases
+  (sx-union-012/-017/-022/-035, sf-distinct-ordered-nodes-012/-017/-022/
+  -035) whose expected order between a global's nodes and a streamed
+  document's nodes is the order the trees are now made in
+  (implementation-dependent, XDM 4.0, 2.4: nodes of different trees);
+  the hoist fix and merge before it, 11,913 to 11,918 (merge-001a, -045,
+  -046b, -048, error-3490a). One wrong error is now a failure:
+  document-4066 (the eager global hid that fn:document's schema-validation
+  option does not raise FODC0002). QT4 XQ40 whole: 45,914 passed, 0
+  outcomes differ at each step.
+- **Left**: document-4066 (fn:document options, PR2419); the other
+  XT40 leftovers of D230 (XTDE3490 of merge-097's collection URI,
+  xml-version-007, namespace-2606/-6202, docbook-004, fn:transform's
+  three cases, xsl:copy of JNodes, XTDE0430/0440).
+
 ## Proposed
 
 - **The CLI's WebAssembly budget after the Phase 7 features** (packet

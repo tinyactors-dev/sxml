@@ -664,9 +664,10 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `initial_context_value` | The context value of the query body and of every variable initializer: a context value declaration's value, else the host's (XQuery 4.0, 5.17) |
 | `context_global` | The global variable of a unit with name 0 that holds the initial context value |
 | `global_table` | The global variables of one unit in one evaluation, a slot per global number; the evaluation's own unit has the first, a unit evaluated on the same machine (fn:load-xquery-module) one more, kept until the evaluation ends |
+| `global_read` | An IR expression that computes its global on first need (the initializer of an ABSENT global), then evaluates its body; the global-read pass puts one at the head of each LET chain that reads a global with an initializer (D234) |
 | `unit_evaluation` | A native step that asks the machine to evaluate another unit's main function, its global table first, and to hand the value to the next step (D154) |
 | `module_record` | The result of fn:load-xquery-module: the public variables and functions of the loaded module (F&O 4.0, 18.1) |
-| `computation_order` | The order in which the global part computes declared variables: by the index of their initializer functions, which lowering adds dependencies first |
+| `computation_order` | Before D234, the order in which the global part computed declared variables (by initializer index); globals are now computed on first read (`global_read`) |
 | `output_stream` | Interface that receives bytes, written in order |
 | `output_buffer` | The built-in output stream: collects bytes in memory |
 | `well_known_namespace` | A namespace with a fixed `namespace_uri_identifier` in every name pool (`SXML_NAMESPACE_XML_SCHEMA`) |

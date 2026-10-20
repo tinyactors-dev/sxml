@@ -417,3 +417,14 @@ the release driver).
   Left (causes in D230): lazy globals (designed; needs the evaluator),
   typed modes and XTSE3105, XTDE3490, xml-version-007, namespace-2606
   and -6202, docbook-004, three fn:transform cases, xsl:copy of JNodes.
+- [x] **4.21 Hoist guard, lazy globals, typed modes** (implementation).
+  Owns `src/ir_loop_passes.c`, the new `src/ir_global_read.c`, the
+  evaluator's global part and the files a fix needs when no other packet
+  has them open, their unit tests, and single insertions in the ledgers.
+  In order: the hoist pass's guard (merge-001a, -016; D223 kept), globals
+  computed on first read (D230's design: a new IR expression and the
+  evaluator; XTDE0640, XQDY0054 and D71 kept), typed modes reading name
+  tests as schema-element() and XTSE3105.
+  **Done** 2026-10-20 (D234): XT40 11,913 to 11,943 passed, 0 errors
+  (document-4066 from wrong error to failure); QT4 XQ40 45,914, 0
+  outcomes differ. Left: document-4066 (fn:document options).
