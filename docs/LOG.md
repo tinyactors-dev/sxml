@@ -4,6 +4,16 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 4.29 done (D281): XSLT sweep, XT40 12,250 to 12,261 passed (104 to
+  99 wrong error), 268 to 257 failed, 0 errors, none lost. A failed
+  cast in an XSLT binding's coercion is its type error (XTTE0570,
+  XTTE0590, XTTE0505; a new IR coercion role); xsl:iterate in a global
+  reads globals when it runs; validated copy-accumulators copies;
+  run-time XTTE0945 in globals; fn:xml-to-json indent; deep-copy keeps
+  types; fixed-namespaces document URIs; function-available of the
+  grouping functions; simple content keeps whitespace. Left, with
+  sizes: D281. CONFORMANCE.md not regenerated.
+
 - 2.26 done (D280): XPath/XQuery sweep. XP40 32,797 to 32,809 passed
   (36 to 31 failed, 14,480 to 14,473 not run), XQ40 46,101 to 46,138
   (107 to 90 failed, 1,105 to 1,085 not run; xml-to-json-057 is

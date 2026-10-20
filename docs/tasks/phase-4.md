@@ -522,3 +522,16 @@ the release driver).
   FORG0001 of failed coercion casts, dynamic XTTE0945, D274's
   fn:document and xsl:source-document items; xs:numeric in XPath 1.0
   compatibility for the XPath sweep.
+- [x] **4.29 XSLT conformance sweep** (implementation, D245, D276). Owns
+  the XSLT files a cluster's root cause is in, the function library and
+  evaluator parts a cluster needs when no other packet has them open,
+  their unit tests, and single insertions in the ledgers. From a fresh
+  XT40 run at HEAD, failures and wrong-error passes by root cause,
+  largest first, skipping what D252, D262, D273, D274 and D276 decided;
+  D276's open list.
+  **Done** 2026-10-20 (D281): XT40 12,250 to 12,261 passed (104 to 99
+  wrong error), 268 to 257 failed, 0 errors, no case lost. Left (sizes
+  in D281): xsl:evaluate and package codes, schema-aware codes,
+  streaming, record coercion, fn:document per package, deterministic
+  functions, split-when, JNode shallow copy, namespace undeclarations,
+  copy-4308, the current rule in attribute sets.

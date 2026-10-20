@@ -12816,6 +12816,87 @@ whole XP40, XQ40 and XT40 runs with the release drivers, case by case.
   (">" in attribute values); deep-equal of partial applications (4);
   fn:transform (3); the kept groups above.
 
+### D281. XSLT conformance sweep: XSLT coercion casts, globals in xsl:iterate, deep-copy types, fixed-namespaces documents (packet 4.29)
+Recorded 2026-10-20, after D245, D252, D262, D273, D274, D275, D276.
+Verified as D181 asks: the debug preset (the xslt*, ir*, evaluator*,
+json, function_library*, serialize*, cli/transform* tests touched),
+clang-tidy on the changed files, the call-cycle check, the book examples
+(D257, 399 match; no CLI output the book shows changed), and the whole
+XT40 suite with the release driver after each change, case by case.
+**XT40 12,250 to 12,261 passed (104 to 99 wrong error), 268 to 257
+failed, 0 errors, no case lost**, from a whole run at b97d939 (with
+2.26's and 5.16's commits as they landed). Commits 86ad244, 240bb83,
+a6ec5ad, 4c7a872, 368f0e0, eb27ee8.
+- **A failed cast in an XSLT binding's coercion** (D276's open item,
+  9.3: a value that "cannot be converted to the required type" is a type
+  error): a new IR coercion role, SXML_IR_COERCION_ROLE_XSLT_BINDING,
+  for the coercions whose XSLT lowering maps XPTY0004 to its own code
+  (variables, explicit parameter defaults, template and function
+  results, xsl:global-context-item); for it and TEMPLATE_PARAMETER the
+  evaluator's coercion reports its type error where the cast of an
+  untyped atomic item fails, not FORG0001. Only the coercion's own cast
+  changes, so a FORG0001 of a lazily evaluated value stays (D276's
+  concern). D262's reading (FORG0001 as the draft's) is replaced: the
+  coercion rules cast (XPath 4.0, 3.4.3), and XSLT says what a failure
+  to convert is (as-1602, sequence-0132, variable-0115,
+  call-template-ext-2102).
+- **Globals in xsl:iterate**: the closure captured every declared
+  global by value, so an xsl:iterate in a global's initializer read
+  that global while it was being computed (XTDE0640) and computed every
+  other global first; globals are captured as GLOBAL_VARIABLE atoms and
+  read where the closure reads them, as D275 does for inline functions
+  (arrays-306, si-iterate-099).
+- **Smaller fixes**: xsl:copy-of with copy-accumulators="yes" links the
+  validated copies (19.10); XTTE0945 for xsl:copy in a global whose
+  global context item is absent at run time (11.9.1;
+  glob-cxt-item-013); fn:xml-to-json's indent option indents (F&O 4.0,
+  17.4.7; a request flag of the JSON writer); on-no-match="deep-copy"
+  copies with validation="preserve" (6.10.2; shallow-copy unchanged, its
+  xsl:copy rebuilds the element); fixed-namespaces URI tokens read the
+  document's outermost in-scope namespaces through the module resolver
+  (3.6.1); function-available sees current-group and the other context
+  functions (24.1); elements with simple content keep their whitespace
+  (4.2.2).
+- **The draft decides, left** (D245; recorded before or found now):
+  "~T" patterns (53, D252); priorities and pattern forms (9, D252);
+  exact numeric comparison (sx-gc-eq-*, sx-if-213); XPath 4.0's merged
+  codes XPTY0019/0020 into XPTY0004 (5), array:members returning JNodes
+  (for-each-array-001 to -003), XTTE0505 for mode/@as (mode-4007,
+  -4013; mode-4014 coerces <blue>12</blue> to 12, so no error at all),
+  xs:dateTimeStamp built in (type-available-0151), XTSE3155 and XTSE0800
+  not in the draft, xs:numeric under 1.0 compatibility (D280), D274's
+  and D262's lists: 43 cases of codes and functions, 112 in all.
+- **Suite errors and environment** (42): whitespace-only assert-xml
+  (sf-snapshot-0201 to -0209, use-package-170 to -173,
+  accumulator-054, attribute-set-1508/-1509, on-non-empty-004/-005);
+  accumulator-073 (no use-accumulators on the initial mode, so 19.2
+  makes the accumulator inapplicable: XTDE3362); function-lookup-005,
+  static-027 (spec unclear), package-location-001 to -005,
+  next-match-017, function-40-012; Saxon collection URIs (merge-097*),
+  the network (unparsed-text-2003), implementation limits (date-094e/f,
+  -095e/f), try-034 (recovery is implementation-dependent).
+- **Left, real gaps** (about 130 failed, 72 wrong error), with sizes:
+  error codes of xsl:evaluate's untrusted and module cases (12, small);
+  package and override static codes (about 20, small each); schema-aware
+  validation codes and source ENTITY checks (about 20, medium);
+  streaming (about 20, medium to large); records and type aliases (12,
+  XPath coercion to record types: discarding undefined entries, medium);
+  fn:document per package strip-space, fragment identifiers of
+  xsl:source-document, strip-space "none" (D274; medium); serialization
+  details (about 10, small each); deterministic functions,
+  new-each-time="no" (function-1025/-1026, a memo of results, medium);
+  split-when and merge-when (2, medium); xsl:copy of map JNodes in the
+  shallow-copy rule (mode-4031: the draft's 11.9.1.2 note and its 6.10.3
+  example disagree, and self::element() selects JNodes in sxml's XPath,
+  XPath 4.0 4.7.5.5); inherit-namespaces="no" needs namespace
+  undeclarations in the tree (namespace-2606, a substrate change);
+  copy-4308 (a template called from a global reads the absent focus at
+  the call); map-for-key with an empty $top and decimal keys (2, small);
+  fn:function-lookup per package (function-lookup-004, medium);
+  6.11's current rule in an attribute set invoked inside xsl:for-each
+  (D276, an evaluator operation, no suite case).
+- The XT40 section of `docs/CONFORMANCE.md` was not regenerated.
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): tagging and
