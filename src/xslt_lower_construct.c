@@ -2451,22 +2451,29 @@ static sxml_status continue_copy_of(sxml_xpath_lowering_machine *machine,
     const sxml_xslt_ast_attribute *copy_accumulators = find_attribute(
         lowering, (attribute_lookup){.node = locals->head.node,
                                      .kind = SXML_XSLT_AST_ATTRIBUTE_COPY_ACCUMULATORS});
-    if (status == SXML_STATUS_OK && sxml_xslt_has_accumulators(lowering) &&
-        copy_accumulators->value.kind == SXML_XSLT_AST_VALUE_KIND_BOOLEAN &&
-        copy_accumulators->value.payload.is_true) {
-        /* 19.10: the copies keep the accumulator values (packet 4.14). */
+    if (status != SXML_STATUS_OK || !sxml_xslt_has_accumulators(lowering) ||
+        copy_accumulators->value.kind != SXML_XSLT_AST_VALUE_KIND_BOOLEAN ||
+        !copy_accumulators->value.payload.is_true) {
+        return status != SXML_STATUS_OK
+                   ? status
+                   : finish_validated_atom(machine, frame,
+                                           (sxml_xslt_validation_request){
+                                               .query = validation, .block = NULL, .value = copies});
+    }
+    /* 19.10: the copies keep the accumulator values (packet 4.14), also
+       the validated ones validation makes (11.9.2 with 25.4). */
+    status = sxml_xslt_lowering_bind_validation(
+        machine->state,
+        &(sxml_xslt_validation_request){.query = validation, .block = frame->block, .value = copies},
+        &copies);
+    if (status == SXML_STATUS_OK) {
         status = sxml_xslt_bind_accumulator_link(
             machine->state,
             (sxml_xslt_accumulator_link_request){
                 .block = frame->block, .copies = copies, .originals = locals->value},
             &copies);
     }
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    return finish_validated_atom(
-        machine, frame,
-        (sxml_xslt_validation_request){.query = validation, .block = NULL, .value = copies});
+    return status != SXML_STATUS_OK ? status : finish_with_atom(machine, frame, copies);
 }
 
 static const sxml_xpath_lowering_procedure copy_of_procedure = {
@@ -2485,6 +2492,14 @@ typedef struct copy_locals {
     sxml_ir_expression_index content;
     sxml_xpath_lowering_focus selected_focus;
 } copy_locals;
+
+/* 11.9.1: XTTE0945 where a run-time absent focus raises XPDY0002. */
+static const sxml_xslt_error_mapping absent_copy_focus_mapping = {
+    .caught_code = SXML_BYTE_VIEW_INITIALIZER("XPDY0002"),
+    .raised_status = SXML_STATUS_TYPE_ERROR,
+    .raised_code = SXML_BYTE_VIEW_INITIALIZER("XTTE0945"),
+    .description =
+        SXML_BYTE_VIEW_INITIALIZER("xsl:copy without select has no context item (XSLT 4.0, 11.9.1)")};
 
 static sxml_status continue_copy(sxml_xpath_lowering_machine *machine,
                                  sxml_xpath_lowering_frame *frame) {
@@ -2508,7 +2523,7 @@ static sxml_status continue_copy(sxml_xpath_lowering_machine *machine,
         }
         /* 11.9.1, XTTE0945: xsl:copy without select where the focus is
            absent (a stylesheet function's body). */
-        const sxml_status status =
+        sxml_status status =
             lowerer->function->focus->kind == SXML_XPATH_LOWERING_FOCUS_KIND_ABSENT
                 ? bind_raise(lowerer,
                              (raise_request){.block = frame->block,
@@ -2523,6 +2538,20 @@ static sxml_status continue_copy(sxml_xpath_lowering_machine *machine,
                                                        .node = no_ast_node,
                                                        .part = SXML_XPATH_LOWERING_FOCUS_PART_VALUE},
                       &locals->item);
+        if (status == SXML_STATUS_OK &&
+            locals->item.atom_kind == SXML_IR_ATOM_KIND_GLOBAL_VARIABLE) {
+            /* A global's focus, the global context item, may be absent
+               only when it runs (3.4.9): its read's XPDY0002 is XTTE0945
+               too. */
+            status = sxml_xslt_lowering_bind_mapped_expression(
+                lowerer,
+                &(sxml_xslt_mapped_expression){
+                    .block = frame->block,
+                    .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_ATOM,
+                                   .atom = locals->item},
+                    .mappings = {.mappings = &absent_copy_focus_mapping, .mapping_count = 1}},
+                &locals->item);
+        }
         if (status != SXML_STATUS_OK) {
             return status;
         }

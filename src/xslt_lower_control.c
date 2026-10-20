@@ -3813,7 +3813,11 @@ static sxml_status find_iterate_captures(sxml_xpath_lowering_machine *machine,
         if (is_known || outer.atom_kind == SXML_IR_ATOM_KIND_NONE) {
             continue;
         }
-        if (outer.atom_kind == SXML_IR_ATOM_KIND_CONSTANT) {
+        if (outer.atom_kind == SXML_IR_ATOM_KIND_CONSTANT ||
+            outer.atom_kind == SXML_IR_ATOM_KIND_GLOBAL_VARIABLE) {
+            /* A global is read where the closure reads it (D275), not
+               when the closure is made: that would compute every global
+               first, the one being computed too (XTDE0640, 9.11). */
             captures[capture_count] = (sxml_xpath_lowering_capture_entry){
                 .variable_name = entry.variable_name, .atom = outer};
         } else {

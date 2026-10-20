@@ -521,6 +521,23 @@ static void test_global_variables(sxml_test_state *state) {
          "<xsl:template name='xsl:initial-template'><xsl:sequence select='$t'/></xsl:template>"
          "</xsl:stylesheet>",
          "error:XTTE0570"},
+        /* 9.3: an untyped value the coercion cannot cast is XTTE0570
+           too, not the cast's FORG0001. */
+        {"<xsl:stylesheet version='4.0' " XSL_NAMESPACE
+         " xmlns:xs='http://www.w3.org/2001/XMLSchema'>"
+         "<xsl:variable name='u' as='xs:integer'>x</xsl:variable>"
+         "<xsl:template name='xsl:initial-template'><xsl:sequence select='$u'/></xsl:template>"
+         "</xsl:stylesheet>",
+         "error:XTTE0570"},
+        /* An xsl:iterate in a global reads the globals when it runs,
+           not its own global being computed (9.11). */
+        {"<xsl:stylesheet version='4.0' " XSL_NAMESPACE ">"
+         "<xsl:variable name='k' select='10'/>"
+         "<xsl:variable name='s'><xsl:iterate select='1 to 3'>"
+         "<xsl:sequence select='. + $k'/></xsl:iterate></xsl:variable>"
+         "<xsl:template name='xsl:initial-template'><xsl:sequence select='string($s)'/>"
+         "</xsl:template></xsl:stylesheet>",
+         "\"11 12 13\""},
     };
     check_cases(state, (case_list){.cases = cases,
                                    .case_count = SXML_TEST_COUNT(cases),
