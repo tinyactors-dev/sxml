@@ -72,8 +72,11 @@ you implement or use.
   which has happened several times.
 - For part of a shared ledger (DECISIONS, GLOSSARY, LOG), stage only your
   hunk (`git apply --cached` of your patch, or `git update-index` of HEAD's
-  file plus your insertion) and commit it in the same command. Read a
-  ledger before writing it, and never write it back from an older copy.
+  file plus your insertion) and then commit the index with **no pathspec**
+  (`git commit -m "..."`) in the same command: a commit with a pathspec
+  takes the named files from the working tree and ignores what you staged.
+  Check `git show --stat HEAD` before pushing. Read a ledger before writing
+  it, and never write it back from an older copy.
 - Commit and push at every working milestone, not only at the end:
   sessions get interrupted. Push with `git push origin main`; if it is
   rejected, `git pull --rebase --autostash origin main` and push again.
