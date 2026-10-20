@@ -23,7 +23,7 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 
 - 4.22: XSLT moves to the newest draft and the newest xslt40-test (D245).
 - 6.4: Kotlin core on the JVM (dev.tinyactors.sxml).
-- 6.7: Swift core on Linux (module Sxml).
+- 6.8: Swift full surface (XQuery, XSLT, XSD, DUCET resource). 6.7 done (D241).
 - 7.20: sweep (7.11's transform-004/401/009, the larger duplicates of D237).
 
 ## Next
