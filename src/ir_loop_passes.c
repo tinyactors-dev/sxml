@@ -971,9 +971,14 @@ static sxml_status index_filter(loop_pass *pass, sxml_ir_expression_index index)
     pass->focus_slot = filter.filter.focus.context_value;
     pass->read_slots.element_count = 0;
     sxml_status status = find_conjuncts(pass, filter.filter.predicate);
-    for (size_t comparison_index = 0;
-         status == SXML_STATUS_OK && comparison_index < pass->comparisons.element_count;
-         comparison_index += 1) {
+    /* A probe that is no constant first: a join's probe differs from one
+       evaluation of the FILTER to the next, and selects fewer candidates
+       than a constant, which is the same for every evaluation. */
+    const size_t comparison_count = pass->comparisons.element_count;
+    for (size_t attempt = 0; status == SXML_STATUS_OK && attempt < 2 * comparison_count;
+         attempt += 1) {
+        const bool takes_constants = attempt >= comparison_count;
+        const size_t comparison_index = attempt % comparison_count;
         const sxml_ir_expression_index comparison_at =
             ((const sxml_ir_expression_index *)pass->comparisons.elements)[comparison_index];
         const sxml_ir_expression comparison = expression_at(pass, comparison_at);
@@ -984,7 +989,10 @@ static sxml_status index_filter(loop_pass *pass, sxml_ir_expression_index index)
         for (size_t split_index = 0; status == SXML_STATUS_OK && split_index < 2;
              split_index += 1) {
             bool is_valid = false;
-            if (!probe_may_answer(pass, splits[split_index].probe,
+            const bool is_constant =
+                splits[split_index].probe.atom_kind == SXML_IR_ATOM_KIND_CONSTANT;
+            if (is_constant != takes_constants ||
+                !probe_may_answer(pass, splits[split_index].probe,
                                   comparison.binary.operator)) {
                 continue;
             }
@@ -1657,6 +1665,574 @@ static sxml_status hoist_loop(loop_pass *pass, sxml_ir_expression_index index) {
     return status;
 }
 
+/* ---------------------------------------------------- Slot census */
+
+/* What the body of one function does with one of its slots. */
+typedef struct slot_use {
+    uint32_t read_count;
+    /* The LETs that bind it, and the last one found. */
+    uint32_t let_count;
+    sxml_ir_expression_index let;
+    /* The other expressions that bind it (a focus, a variable). */
+    uint32_t other_binding_count;
+} slot_use;
+
+/* The slot uses of one function: uses[slot], slot 0 unused. */
+typedef struct slot_census {
+    slot_use *uses;
+    size_t use_count;
+} slot_census;
+
+static void count_read(slot_census *census, sxml_ir_atom atom) {
+    if (atom.atom_kind == SXML_IR_ATOM_KIND_SLOT && atom.slot.value < census->use_count) {
+        census->uses[atom.slot.value].read_count += 1;
+    }
+}
+
+static void count_list_reads(const loop_pass *pass, slot_census *census, sxml_ir_atom_list list) {
+    const sxml_ir_atom_view atoms = sxml_ir_unit_get_atoms(pass->unit, list);
+    for (size_t atom_index = 0; atom_index < atoms.atom_count; atom_index += 1) {
+        count_read(census, atoms.atoms[atom_index]);
+    }
+}
+
+/* Counts the slots an expression of any kind reads in its own fields (as
+   src/ir_global_read.c finds the globals it reads). */
+static void count_own_reads(const loop_pass *pass, const sxml_ir_expression *expression,
+                            slot_census *census) {
+    const expression_atoms read = atoms_of(expression);
+    for (size_t atom_index = 0; atom_index < read.atom_count; atom_index += 1) {
+        count_read(census, read.atoms[atom_index]);
+    }
+    count_list_reads(pass, census, read.list);
+    const sxml_ir_expression_kind kind = expression->expression_kind;
+    if (kind == SXML_IR_EXPRESSION_KIND_FUNCTION_DEFINITION) {
+        count_list_reads(
+            pass, census,
+            sxml_ir_unit_get_function(pass->unit, expression->function_definition.function)
+                ->captured_variables);
+    } else if (kind == SXML_IR_EXPRESSION_KIND_DYNAMIC_CALL) {
+        count_read(census, expression->dynamic_call.function_item);
+        count_list_reads(pass, census, expression->dynamic_call.arguments);
+    } else if (kind == SXML_IR_EXPRESSION_KIND_SORT) {
+        count_read(census, expression->sort.input);
+        const sxml_ir_sort_key_view keys =
+            sxml_ir_unit_get_sort_keys(pass->unit, expression->sort.keys);
+        for (size_t key_index = 0; key_index < keys.sort_key_count; key_index += 1) {
+            count_read(census, keys.sort_keys[key_index].collation);
+            count_read(census, keys.sort_keys[key_index].order);
+        }
+    } else if (kind == SXML_IR_EXPRESSION_KIND_MAP_CONSTRUCTOR) {
+        const sxml_ir_map_entry_view entries =
+            sxml_ir_unit_get_map_entries(pass->unit, expression->map_constructor.entries);
+        for (size_t entry_index = 0; entry_index < entries.map_entry_count; entry_index += 1) {
+            count_read(census, entries.map_entries[entry_index].key);
+            count_read(census, entries.map_entries[entry_index].value);
+        }
+    } else if (kind == SXML_IR_EXPRESSION_KIND_ARRAY_CONSTRUCTOR) {
+        count_list_reads(pass, census, expression->array_constructor.members);
+    } else if (kind == SXML_IR_EXPRESSION_KIND_DOCUMENT_CONSTRUCTOR ||
+               kind == SXML_IR_EXPRESSION_KIND_ELEMENT_CONSTRUCTOR ||
+               kind == SXML_IR_EXPRESSION_KIND_ATTRIBUTE_CONSTRUCTOR ||
+               kind == SXML_IR_EXPRESSION_KIND_NAMESPACE_CONSTRUCTOR ||
+               kind == SXML_IR_EXPRESSION_KIND_TEXT_CONSTRUCTOR ||
+               kind == SXML_IR_EXPRESSION_KIND_COMMENT_CONSTRUCTOR ||
+               kind == SXML_IR_EXPRESSION_KIND_PROCESSING_INSTRUCTION_CONSTRUCTOR ||
+               kind == SXML_IR_EXPRESSION_KIND_SHALLOW_COPY) {
+        count_read(census, expression->node_construction.name);
+        count_read(census, expression->node_construction.value);
+    } else if (kind == SXML_IR_EXPRESSION_KIND_APPLY_TEMPLATES) {
+        count_read(census, expression->apply_templates.select);
+        count_read(census, expression->apply_templates.parameters);
+        count_read(census, expression->apply_templates.tunnel_parameters);
+        count_read(census, expression->apply_templates.separator);
+    } else if (kind == SXML_IR_EXPRESSION_KIND_STREAM) {
+        count_read(census, expression->stream.origin);
+    } else if (kind == SXML_IR_EXPRESSION_KIND_MERGE) {
+        count_read(census, expression->merge.tuples);
+        const sxml_ir_merge_stream_view streams =
+            sxml_ir_unit_get_merge_streams(pass->unit, expression->merge.streams);
+        for (size_t stream_index = 0; stream_index < streams.merge_stream_count;
+             stream_index += 1) {
+            count_read(census, streams.merge_streams[stream_index].anchors);
+        }
+    }
+}
+
+/* Counts the slots an expression binds for its children. */
+static void count_bindings(sxml_ir_expression_index index, const sxml_ir_expression *expression,
+                           slot_census *census) {
+    if (expression->expression_kind == SXML_IR_EXPRESSION_KIND_LET) {
+        const uint32_t slot = expression->let.variable.value;
+        if (slot < census->use_count) {
+            census->uses[slot].let_count += 1;
+            census->uses[slot].let = index;
+        }
+        return;
+    }
+    bound_slots bound = slots_bound_by(expression);
+    if (expression->expression_kind == SXML_IR_EXPRESSION_KIND_SORT) {
+        bound.slots[0] = expression->sort.focus.context_value;
+        bound.slots[1] = expression->sort.focus.context_position;
+        bound.slots[2] = expression->sort.focus.context_size;
+    }
+    for (size_t slot_index = 0; slot_index < 3; slot_index += 1) {
+        const uint32_t slot = bound.slots[slot_index].value;
+        if (slot != 0 && slot < census->use_count) {
+            census->uses[slot].other_binding_count += 1;
+        }
+    }
+}
+
+static void slot_census_finalize(const loop_pass *pass, slot_census *census) {
+    if (census->uses != NULL) {
+        sxml_allocator_release(pass->allocator, census->uses);
+    }
+    census->uses = NULL;
+    census->use_count = 0;
+}
+
+/* Makes the census of the body of the function at function_number.
+   Uses pass->walk. */
+static sxml_status make_slot_census(loop_pass *pass, uint32_t function_number,
+                                    slot_census *census) {
+    const sxml_ir_function *function = sxml_ir_unit_get_function(
+        pass->unit, (sxml_ir_function_index){.value = function_number});
+    census->use_count = (size_t)function->slot_count + 1;
+    void *memory = NULL;
+    sxml_status status = sxml_allocator_allocate_array(
+        pass->allocator,
+        (sxml_array_allocation_request){.element_count = census->use_count,
+                                        .element_size = sizeof(slot_use),
+                                        .element_alignment = alignof(slot_use)},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        census->use_count = 0;
+        return status;
+    }
+    census->uses = memory;
+    memset(census->uses, 0, census->use_count * sizeof(slot_use));
+    pass->walk.element_count = 0;
+    if (function->body.value != 0) {
+        status = pass_array_append(pass->allocator, &pass->walk, &function->body);
+    }
+    while (status == SXML_STATUS_OK && pass->walk.element_count > 0) {
+        pass->walk.element_count -= 1;
+        const sxml_ir_expression_index index =
+            ((const sxml_ir_expression_index *)pass->walk.elements)[pass->walk.element_count];
+        if (index.value == 0 || index.value >= pass->unit->expression_count) {
+            continue;
+        }
+        const sxml_ir_expression expression = expression_at(pass, index);
+        count_own_reads(pass, &expression, census);
+        count_bindings(index, &expression, census);
+        status = push_every_child(pass, index);
+    }
+    return status;
+}
+
+/* The LET that binds slot, when one LET binds it and nothing else does;
+   0 otherwise. */
+static sxml_ir_expression_index single_let_of(const slot_census *census, sxml_ir_atom atom) {
+    const sxml_ir_expression_index none = {.value = 0};
+    if (atom.atom_kind != SXML_IR_ATOM_KIND_SLOT || atom.slot.value == 0 ||
+        atom.slot.value >= census->use_count) {
+        return none;
+    }
+    const slot_use *use = &census->uses[atom.slot.value];
+    return use->let_count == 1 && use->other_binding_count == 0 ? use->let : none;
+}
+
+static uint32_t read_count_of(const slot_census *census, sxml_ir_slot slot) {
+    return slot.value < census->use_count ? census->uses[slot.value].read_count : 0;
+}
+
+/* ------------------------------------------- Values that are no number */
+
+/* True for an operator whose value has no number: comparisons give a
+   boolean, union, intersect and except nodes, "||" a string (XPath 4.0,
+   4.11, 4.7.5, 4.10.1). */
+static bool binary_gives_no_number(sxml_ir_binary_operator binary_operator) {
+    return binary_operator != SXML_IR_BINARY_OPERATOR_ADD &&
+           binary_operator != SXML_IR_BINARY_OPERATOR_SUBTRACT &&
+           binary_operator != SXML_IR_BINARY_OPERATOR_MULTIPLY &&
+           binary_operator != SXML_IR_BINARY_OPERATOR_DIVIDE &&
+           binary_operator != SXML_IR_BINARY_OPERATOR_INTEGER_DIVIDE &&
+           binary_operator != SXML_IR_BINARY_OPERATOR_MODULO &&
+           binary_operator != SXML_IR_BINARY_OPERATOR_RANGE;
+}
+
+/* True when the native row's result type is xs:boolean or xs:string (with
+   any occurrence): its value has no number. */
+static bool native_result_is_no_number(const sxml_native_function *row) {
+    const sxml_byte_view result = row->result_type;
+    const char *prefixes[] = {"xs:boolean", "xs:string"};
+    for (size_t prefix_index = 0; prefix_index < 2; prefix_index += 1) {
+        const size_t length = strlen(prefixes[prefix_index]);
+        if (result.byte_count >= length &&
+            memcmp(result.bytes, prefixes[prefix_index], length) == 0 &&
+            (result.byte_count == length || result.bytes[length] == '?' ||
+             result.bytes[length] == '*' || result.bytes[length] == '+')) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/* True for a constant whose first item is not a number. */
+static bool constant_is_no_number(const loop_pass *pass, sxml_ir_constant_index constant) {
+    const sxml_sequence value = sxml_ir_unit_get_constant(pass->unit, constant);
+    sxml_item first = {.representation = 0};
+    if (sxml_sequence_get_representation(value) == SXML_SEQUENCE_REPRESENTATION_EMPTY) {
+        return true;
+    }
+    if (sxml_sequence_get_item(value, (sxml_item_request){.item_index = 0, .error_record = NULL},
+                               &first) != SXML_STATUS_OK) {
+        return false;
+    }
+    return !sxml_atomic_item_is_numeric(first);
+}
+
+/* What value_has_property finds out about a value. */
+typedef enum value_property {
+    /* It never starts with a number, so that as a predicate it is taken
+       by its effective boolean value and never compared with the
+       position (XPath 4.0, 4.4.1). */
+    SXML_VALUE_PROPERTY_NO_NUMBER,
+    /* It has only nodes. */
+    SXML_VALUE_PROPERTY_NODES,
+} value_property;
+
+/* A value of a function and the property asked about it. */
+typedef struct value_question {
+    const slot_census *census;
+    sxml_ir_expression_index root;
+    value_property property;
+} value_question;
+
+/* The answer to a question a pass asks about the IR. */
+typedef struct pass_answer {
+    bool is_true;
+} pass_answer;
+
+/*
+ * Writes to answer whether the value of the expression at question.root
+ * has question.property, known from what makes the value:
+ * for NO_NUMBER, comparisons, quantified expressions, instance of and
+ * castable, native functions of xs:boolean or xs:string results, axis
+ * steps and paths, constants without a leading number; for NODES, axis
+ * steps, paths and union, intersect and except of them, and the empty
+ * constant; for both, LETs, conditionals, filters and slots LETs bind of
+ * such values. Uses pass->necessary as its stack.
+ */
+static sxml_status value_has_property(loop_pass *pass, value_question question,
+                                      pass_answer *answer) {
+    const slot_census *census = question.census;
+    bool *has_property = &answer->is_true;
+    const bool wants_nodes = question.property == SXML_VALUE_PROPERTY_NODES;
+    pass->necessary.element_count = 0;
+    sxml_status status = pass_array_append(pass->allocator, &pass->necessary, &question.root);
+    *has_property = true;
+    size_t visited = 0;
+    while (status == SXML_STATUS_OK && *has_property && pass->necessary.element_count > 0) {
+        pass->necessary.element_count -= 1;
+        const sxml_ir_expression_index index = ((const sxml_ir_expression_index *)
+                                                    pass->necessary.elements)[pass->necessary
+                                                                                     .element_count];
+        visited += 1;
+        if (index.value == 0 || index.value >= pass->unit->expression_count ||
+            visited > pass->unit->expression_count) {
+            *has_property = false;
+            break;
+        }
+        const sxml_ir_expression expression = expression_at(pass, index);
+        sxml_ir_expression_index next[2] = {{.value = 0}, {.value = 0}};
+        sxml_ir_atom followed = {.atom_kind = SXML_IR_ATOM_KIND_NONE};
+        const sxml_ir_expression_kind kind = expression.expression_kind;
+        if (kind == SXML_IR_EXPRESSION_KIND_LET) {
+            next[0] = expression.let.body;
+        } else if (kind == SXML_IR_EXPRESSION_KIND_CONDITIONAL) {
+            next[0] = expression.conditional.then_branch;
+            next[1] = expression.conditional.else_branch;
+        } else if (kind == SXML_IR_EXPRESSION_KIND_BINARY) {
+            const sxml_ir_binary_operator binary_operator = expression.binary.operator;
+            *has_property = wants_nodes ? binary_operator == SXML_IR_BINARY_OPERATOR_UNION ||
+                                              binary_operator == SXML_IR_BINARY_OPERATOR_INTERSECT ||
+                                              binary_operator == SXML_IR_BINARY_OPERATOR_EXCEPT
+                                        : binary_gives_no_number(binary_operator);
+        } else if (kind == SXML_IR_EXPRESSION_KIND_STEP) {
+            /* Nodes. */
+        } else if (kind == SXML_IR_EXPRESSION_KIND_QUANTIFIED ||
+                   kind == SXML_IR_EXPRESSION_KIND_INSTANCE_OF ||
+                   kind == SXML_IR_EXPRESSION_KIND_CASTABLE) {
+            /* A boolean. */
+            *has_property = !wants_nodes;
+        } else if (kind == SXML_IR_EXPRESSION_KIND_STATIC_CALL) {
+            *has_property =
+                !wants_nodes &&
+                expression.static_call.target.target_kind == SXML_IR_FUNCTION_TARGET_KIND_NATIVE &&
+                expression.static_call.target.native_function != NULL &&
+                native_result_is_no_number(expression.static_call.target.native_function);
+        } else if (kind == SXML_IR_EXPRESSION_KIND_ATOM) {
+            if (expression.atom.atom_kind == SXML_IR_ATOM_KIND_CONSTANT) {
+                *has_property =
+                    wants_nodes ? sxml_sequence_get_representation(sxml_ir_unit_get_constant(
+                                      pass->unit, expression.atom.constant)) ==
+                                      SXML_SEQUENCE_REPRESENTATION_EMPTY
+                                : constant_is_no_number(pass, expression.atom.constant);
+            } else {
+                followed = expression.atom;
+            }
+        } else if (kind == SXML_IR_EXPRESSION_KIND_DOCUMENT_ORDER) {
+            followed = expression.document_order.input;
+        } else if (kind == SXML_IR_EXPRESSION_KIND_FILTER) {
+            followed = expression.filter.input;
+        } else if (kind == SXML_IR_EXPRESSION_KIND_MAP) {
+            /* A path's steps select nodes; its last step may give other
+               items, which its body shows. */
+            *has_property = wants_nodes || (expression.map.flags & SXML_IR_MAP_REQUIRES_NODES) != 0;
+            next[0] = expression.map.body;
+        } else {
+            *has_property = false;
+        }
+        if (followed.atom_kind != SXML_IR_ATOM_KIND_NONE) {
+            const sxml_ir_expression_index let = single_let_of(census, followed);
+            if (let.value == 0) {
+                *has_property = false;
+            } else {
+                next[0] = expression_at(pass, let).let.bound_expression;
+            }
+        }
+        for (size_t next_index = 0; status == SXML_STATUS_OK && *has_property && next_index < 2;
+             next_index += 1) {
+            if (next[next_index].value != 0) {
+                status = pass_array_append(pass->allocator, &pass->necessary, &next[next_index]);
+            }
+        }
+    }
+    return status;
+}
+
+/* A FILTER of a function. */
+typedef struct filter_question {
+    const slot_census *census;
+    const sxml_ir_filter *filter;
+} filter_question;
+
+/* Answers whether a FILTER selects each item by its predicate alone: the
+   predicate reads neither the position nor the size and its value is no
+   number, so the item's place in the input does not matter. */
+static sxml_status filter_is_by_item(loop_pass *pass, filter_question question,
+                                     pass_answer *answer) {
+    const sxml_ir_filter *filter = question.filter;
+    answer->is_true = false;
+    if (filter->focus.context_position.value != 0 || filter->focus.context_size.value != 0 ||
+        filter->index.key.value != 0) {
+        return SXML_STATUS_OK;
+    }
+    return value_has_property(pass,
+                              (value_question){.census = question.census,
+                                               .root = filter->predicate,
+                                               .property = SXML_VALUE_PROPERTY_NO_NUMBER},
+                              answer);
+}
+
+/* ------------------------------------------------- Descendant paths */
+
+/* One link of a path after a step: the expression and the slot of the
+   value before it, in a function. */
+typedef struct path_link {
+    const slot_census *census;
+    sxml_ir_expression_index index;
+    sxml_ir_slot previous;
+} path_link;
+
+/*
+ * Answers whether the link reads the value before it once
+ * and goes on from each of its nodes alone, so that it gives the same
+ * nodes (in document order after the path) for the nodes of several
+ * origins together as for each origin apart: a FILTER that selects by the
+ * item (filter_is_by_item), a path's MAP whose body gives nodes and reads
+ * neither the position nor the size, a DOCUMENT_ORDER, or the value.
+ */
+static sxml_status link_is_per_node(loop_pass *pass, path_link link, pass_answer *answer) {
+    const slot_census *census = link.census;
+    answer->is_true = false;
+    const sxml_ir_expression expression = expression_at(pass, link.index);
+    sxml_ir_atom input = {.atom_kind = SXML_IR_ATOM_KIND_NONE};
+    if (expression.expression_kind == SXML_IR_EXPRESSION_KIND_FILTER) {
+        input = expression.filter.input;
+    } else if (expression.expression_kind == SXML_IR_EXPRESSION_KIND_MAP) {
+        input = expression.map.input;
+    } else if (expression.expression_kind == SXML_IR_EXPRESSION_KIND_DOCUMENT_ORDER) {
+        input = expression.document_order.input;
+    } else if (expression.expression_kind == SXML_IR_EXPRESSION_KIND_ATOM) {
+        input = expression.atom;
+    }
+    if (input.atom_kind != SXML_IR_ATOM_KIND_SLOT || link.previous.value == 0 ||
+        input.slot.value != link.previous.value || read_count_of(census, link.previous) != 1) {
+        return SXML_STATUS_OK;
+    }
+    if (expression.expression_kind == SXML_IR_EXPRESSION_KIND_FILTER) {
+        return filter_is_by_item(
+            pass, (filter_question){.census = census, .filter = &expression.filter}, answer);
+    }
+    if (expression.expression_kind == SXML_IR_EXPRESSION_KIND_MAP) {
+        if (expression.map.flags != (uint32_t)SXML_IR_MAP_REQUIRES_NODES ||
+            expression.map.focus.context_position.value != 0 ||
+            expression.map.focus.context_size.value != 0) {
+            return SXML_STATUS_OK;
+        }
+        return value_has_property(pass,
+                                  (value_question){.census = census,
+                                                   .root = expression.map.body,
+                                                   .property = SXML_VALUE_PROPERTY_NODES},
+                                  answer);
+    }
+    answer->is_true = true;
+    return SXML_STATUS_OK;
+}
+
+
+/*
+ * The descendant pass (glossary `descendant_path`). "E//T[P]" is
+ * E/descendant-or-self::node()/child::T[P] (XPath 4.0, 4.6.3, 4.6.7):
+ * a MAP over every node below E that steps to its T children and filters
+ * each node's children apart. When the step is to the children and T
+ * selects XNodes only, every predicate selects by the item alone
+ * (filter_is_by_item), and the intermediate values are read once, it is
+ * descendant::T[P] from E: the nodes are the same (a child of a node
+ * below E is a node below E), and so are the ones P selects. The lowered
+ * form
+ *
+ *     LET(m, MAP(E, f, STEP(f, descendant-or-self, node())),
+ *       LET(d, DOCUMENT_ORDER(m), ...
+ *         MAP(d, g, LET(c, STEP(g, child, T), FILTER(c, h, P)...))
+ *
+ * becomes
+ *
+ *     LET(m, MAP(E, f, STEP(f, descendant, T)),
+ *       LET(d, DOCUMENT_ORDER(m), ...
+ *         LET(c, d, FILTER(c, h, P)...))
+ *
+ * one FILTER over every T below E instead of one per node, whose input
+ * no longer depends on an enclosing loop's variables (so the hoist pass
+ * can compute it once, and a filter index find it the same each time).
+ * Errors: E's nodes are required as before; P runs for the same nodes.
+ */
+static sxml_status shorten_descendant_path(loop_pass *pass, const slot_census *census,
+                                           sxml_ir_expression_index index) {
+    const sxml_ir_expression outer = expression_at(pass, index);
+    const sxml_ir_map *map = &outer.map;
+    if (map->flags != (uint32_t)SXML_IR_MAP_REQUIRES_NODES ||
+        map->focus.context_position.value != 0 || map->focus.context_size.value != 0 ||
+        map->focus.context_value.value == 0 ||
+        read_count_of(census, map->focus.context_value) != 1) {
+        return SXML_STATUS_OK;
+    }
+    /* d: the descendants in document order, read here only. */
+    const sxml_ir_expression_index ordered_let = single_let_of(census, map->input);
+    if (ordered_let.value == 0 || read_count_of(census, map->input.slot) != 1) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_ir_expression ordered =
+        expression_at(pass, expression_at(pass, ordered_let).let.bound_expression);
+    if (ordered.expression_kind != SXML_IR_EXPRESSION_KIND_DOCUMENT_ORDER) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_ir_expression_index descendants_let =
+        single_let_of(census, ordered.document_order.input);
+    if (descendants_let.value == 0 ||
+        read_count_of(census, ordered.document_order.input.slot) != 1) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_ir_expression_index descendants_index =
+        expression_at(pass, descendants_let).let.bound_expression;
+    const sxml_ir_expression descendants = expression_at(pass, descendants_index);
+    if (descendants.expression_kind != SXML_IR_EXPRESSION_KIND_MAP ||
+        descendants.map.flags != (uint32_t)SXML_IR_MAP_REQUIRES_NODES ||
+        descendants.map.focus.context_position.value != 0 ||
+        descendants.map.focus.context_size.value != 0 || is_left_alone(pass, descendants_index)) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_ir_expression_index self_step_index = descendants.map.body;
+    const sxml_ir_expression self_step = expression_at(pass, self_step_index);
+    if (self_step.expression_kind != SXML_IR_EXPRESSION_KIND_STEP ||
+        self_step.step.axis != SXML_AXIS_DESCENDANT_OR_SELF ||
+        self_step.step.node_test.index != (uint32_t)SXML_TYPE_GENERIC_NODE ||
+        self_step.step.origin.atom_kind != SXML_IR_ATOM_KIND_SLOT ||
+        self_step.step.origin.slot.value != descendants.map.focus.context_value.value) {
+        return SXML_STATUS_OK;
+    }
+    /* The body: the child step, alone or bound and filtered. */
+    sxml_ir_expression_index child_step_index = map->body;
+    const sxml_ir_expression body = expression_at(pass, map->body);
+    sxml_ir_expression_index rest = {.value = 0};
+    if (body.expression_kind == SXML_IR_EXPRESSION_KIND_LET && !body.let.is_content) {
+        child_step_index = body.let.bound_expression;
+        rest = body.let.body;
+    }
+    const sxml_ir_expression child_step = expression_at(pass, child_step_index);
+    if (child_step.expression_kind != SXML_IR_EXPRESSION_KIND_STEP ||
+        child_step.step.axis != SXML_AXIS_CHILD ||
+        child_step.step.origin.atom_kind != SXML_IR_ATOM_KIND_SLOT ||
+        child_step.step.origin.slot.value != map->focus.context_value.value ||
+        !sxml_type_registry_is_subtype(
+            pass->request->type_registry,
+            (sxml_type_pair){.derived_type = child_step.step.node_test,
+                             .base_type = sxml_builtin_type_identifier(SXML_TYPE_NODE)})) {
+        return SXML_STATUS_OK;
+    }
+    /* The links after it: each reads the one before once, and goes on
+       from each node alone. */
+    sxml_ir_slot previous = body.expression_kind == SXML_IR_EXPRESSION_KIND_LET
+                                ? body.let.variable
+                                : (sxml_ir_slot){.value = 0};
+    sxml_status status = SXML_STATUS_OK;
+    while (rest.value != 0) {
+        const sxml_ir_expression link = expression_at(pass, rest);
+        sxml_ir_expression_index link_index = rest;
+        rest = (sxml_ir_expression_index){.value = 0};
+        sxml_ir_slot next_previous = {.value = 0};
+        if (link.expression_kind == SXML_IR_EXPRESSION_KIND_LET && !link.let.is_content) {
+            link_index = link.let.bound_expression;
+            next_previous = link.let.variable;
+            rest = link.let.body;
+        }
+        pass_answer is_per_node = {.is_true = false};
+        status = link_is_per_node(
+            pass, (path_link){.census = census, .index = link_index, .previous = previous},
+            &is_per_node);
+        if (status != SXML_STATUS_OK || !is_per_node.is_true) {
+            return status;
+        }
+        previous = next_previous;
+    }
+    /* The descendant step, with the child step's test. */
+    sxml_ir_expression descendant_step = self_step;
+    descendant_step.step.axis = SXML_AXIS_DESCENDANT;
+    descendant_step.step.node_test = child_step.step.node_test;
+    status = sxml_ir_unit_replace_expression(
+        pass->unit,
+        &(sxml_ir_expression_replacement){.index = self_step_index, .expression = descendant_step});
+    /* The child step becomes d, and the MAP its body. */
+    if (status == SXML_STATUS_OK) {
+        status = sxml_ir_unit_replace_expression(
+            pass->unit, &(sxml_ir_expression_replacement){
+                            .index = child_step_index,
+                            .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_ATOM,
+                                           .source_span = child_step.source_span,
+                                           .atom = map->input}});
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_ir_unit_replace_expression(
+            pass->unit,
+            &(sxml_ir_expression_replacement){.index = index,
+                                              .expression = expression_at(pass, map->body)});
+    }
+    return status;
+}
+
 static void loop_pass_finalize(loop_pass *pass) {
     pass_array *arrays[] = {&pass->lets,       &pass->necessary, &pass->comparisons,
                             &pass->read_slots, &pass->walk,      &pass->subtree,
@@ -1765,4 +2341,29 @@ sxml_status sxml_ir_index_filters(const sxml_ir_pass_request *request) {
     loop_pass_finalize(&pass);
     /* A unit at its expression limit keeps the filters it could index. */
     return status == SXML_STATUS_LIMIT_EXCEEDED ? SXML_STATUS_OK : status;
+}
+
+sxml_status sxml_ir_shorten_descendant_paths(const sxml_ir_pass_request *request) {
+    loop_pass pass = loop_pass_start(request);
+    const uint32_t expression_count = request->unit->expression_count;
+    sxml_status status = make_owners(&pass, expression_count);
+    for (uint32_t function_number = 1;
+         status == SXML_STATUS_OK && function_number < request->unit->function_count;
+         function_number += 1) {
+        slot_census census = {.uses = NULL, .use_count = 0};
+        status = make_slot_census(&pass, function_number, &census);
+        for (uint32_t expression_number = 1;
+             status == SXML_STATUS_OK && expression_number < expression_count;
+             expression_number += 1) {
+            const sxml_ir_expression_index index = {.value = expression_number};
+            if (pass.owners[expression_number] != function_number || is_left_alone(&pass, index) ||
+                expression_at(&pass, index).expression_kind != SXML_IR_EXPRESSION_KIND_MAP) {
+                continue;
+            }
+            status = shorten_descendant_path(&pass, &census, index);
+        }
+        slot_census_finalize(&pass, &census);
+    }
+    loop_pass_finalize(&pass);
+    return status;
 }

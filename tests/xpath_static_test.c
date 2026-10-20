@@ -785,13 +785,12 @@ static const golden_case golden_cases[] = {
      "    (let $3 (static-call fn:root#1 $2)\n"
      "      (let $4 (treat $3 (document-node() | jnode()))\n"
      "        (let $6 (map $4 (focus $5 _ _)\n"
-     "                  (step $5 descendant-or-self node()))\n"
+     "                  (step $5 descendant element(center)))\n"
      "          (let $7 (document-order $6)\n"
-     "            (let $12 (map $7 (focus $8 _ _)\n"
-     "                       (let $9 (step $8 child element(center))\n"
-     "                         (let $11 (map $9 (focus $10 _ _)\n"
-     "                                    (step $10 child element()))\n"
-     "                           (document-order $11))))\n"
+     "            (let $12 (let $9 $7\n"
+     "                       (let $11 (map $9 (focus $10 _ _)\n"
+     "                                  (step $10 child element()))\n"
+     "                         (document-order $11)))\n"
      "              (let $13 (document-order $12)\n"
      "                (static-call fn:count#1 $13)))))))))\n"},
     {"filterexpressionhc2",

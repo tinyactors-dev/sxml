@@ -582,19 +582,18 @@ static void test_verifier_accepts_the_example_unit(sxml_test_state *state) {
                                 .passes = sxml_ir_standard_passes,
                                 .verifies_after_each_pass = true}) ==
                                 SXML_STATUS_OK);
-    SXML_TEST_EXPECT(state, sxml_ir_standard_passes.pass_count == 4);
-    SXML_TEST_EXPECT(state, sxml_byte_view_equals(
-                                sxml_ir_standard_passes.passes[0].pass_name,
-                                SXML_BYTE_VIEW_FROM_LITERAL("verify")));
-    SXML_TEST_EXPECT(state, sxml_byte_view_equals(
-                                sxml_ir_standard_passes.passes[1].pass_name,
-                                SXML_BYTE_VIEW_FROM_LITERAL("filter-index")));
-    SXML_TEST_EXPECT(state, sxml_byte_view_equals(
-                                sxml_ir_standard_passes.passes[2].pass_name,
-                                SXML_BYTE_VIEW_FROM_LITERAL("hoist")));
-    SXML_TEST_EXPECT(state, sxml_byte_view_equals(
-                                sxml_ir_standard_passes.passes[3].pass_name,
-                                SXML_BYTE_VIEW_FROM_LITERAL("global-read")));
+    static const char *const pass_names[] = {"verify", "descendant", "filter-index", "hoist",
+                                             "global-read"};
+    SXML_TEST_EXPECT(state, sxml_ir_standard_passes.pass_count == SXML_TEST_COUNT(pass_names));
+    for (size_t pass_index = 0; pass_index < SXML_TEST_COUNT(pass_names) &&
+                                pass_index < sxml_ir_standard_passes.pass_count;
+         pass_index += 1) {
+        SXML_TEST_EXPECT(state,
+                         sxml_byte_view_equals(sxml_ir_standard_passes.passes[pass_index].pass_name,
+                                               (sxml_byte_view){
+                                                   .bytes = (const uint8_t *)pass_names[pass_index],
+                                                   .byte_count = strlen(pass_names[pass_index])}));
+    }
     sxml_ir_unit_release(example.unit);
     SXML_TEST_EXPECT(state, live_allocations(&test_fixture) == 0);
     fixture_destroy(&test_fixture);

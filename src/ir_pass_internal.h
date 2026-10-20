@@ -123,6 +123,17 @@ SXML_NODISCARD sxml_status sxml_ir_hoist_invariant_lets(const sxml_ir_pass_reque
 SXML_NODISCARD sxml_status sxml_ir_index_filters(const sxml_ir_pass_request *request);
 
 /*
+ * The descendant pass (src/ir_loop_passes.c, glossary `descendant_path`):
+ * rewrites "E//T[P]..." as "E/descendant::T[P]..." where the step is to
+ * the children, T selects XNodes only and every predicate selects by the
+ * item alone (it reads neither the position nor the size and its value is
+ * no number), and the intermediate values are read once: one FILTER over
+ * the descendants instead of one per node below E. Returns the
+ * allocator's failures.
+ */
+SXML_NODISCARD sxml_status sxml_ir_shorten_descendant_paths(const sxml_ir_pass_request *request);
+
+/*
  * The global-read pass (src/ir_global_read.c, D234): puts a GLOBAL_READ of
  * each global with an initializer that an expression reads as one of its
  * own atoms in the expression's place, the expression moved into its
@@ -133,7 +144,8 @@ SXML_NODISCARD sxml_status sxml_ir_read_globals_lazily(const sxml_ir_pass_reques
 
 /*
  * The passes compile runs, in order (src/ir.c, packet 1.12):
- * {"verify", sxml_ir_verify}, {"filter-index", sxml_ir_index_filters},
+ * {"verify", sxml_ir_verify}, {"descendant", sxml_ir_shorten_descendant_paths},
+ * {"filter-index", sxml_ir_index_filters},
  * {"hoist", sxml_ir_hoist_invariant_lets} (D224), {"global-read",
  * sxml_ir_read_globals_lazily} (D234): filter indexes first, while index
  * keys still read globals and not the slots hoisting binds; global reads

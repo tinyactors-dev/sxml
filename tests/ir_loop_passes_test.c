@@ -266,6 +266,45 @@ static const golden_case golden_cases[] = {
      "            (conditional $5\n"
      "              $1\n"
      "              (sequence))))))))\n"},
+    /* A descendant path (D259): "//a[P]/b" is descendant::a[P]/b, one
+       FILTER over every a below the origin. */
+    {"declare variable $c external; $c//a[@k = 1]/b",
+     "(function 1 main (parameters 0) (captures) (slots 11)\n"
+     "  (let $2 (map $global:1 (focus $1 _ _)\n"
+     "            (step $1 descendant element(a)))\n"
+     "    (let $3 (document-order $2)\n"
+     "      (let $8 (let $5 $3\n"
+     "                (filter $5 (focus $6 _ _)\n"
+     "                  (let $7 (step $6 attribute attribute(k))\n"
+     "                    (binary general-equal $7 1))))\n"
+     "        (let $9 (document-order $8)\n"
+     "          (let $11 (map $9 (focus $10 _ _)\n"
+     "                     (step $10 child element(b)))\n"
+     "            (document-order $11)))))))\n"},
+    /* A probe that is no constant is indexed before a constant one. */
+    {"declare variable $c external; for $x in $c return $c[@a = 'x' and @k = $x/@k]",
+     "(function 1 main (parameters 0) (captures) (slots 9)\n"
+     "  (map $global:1 (focus $1 _ _)\n"
+     "    (filter $global:1 (focus $2 _ _)\n"
+     "      (let $3 (step $2 attribute attribute(a))\n"
+     "        (let $4 (binary general-equal $3 \"x\")\n"
+     "          (conditional $4\n"
+     "            (let $5 (step $2 attribute attribute(k))\n"
+     "              (let $7 (map $1 (focus $6 _ _)\n"
+     "                        (step $6 attribute attribute(k)))\n"
+     "                (let $8 (document-order $7)\n"
+     "                  (let $9 (binary general-equal $5 $8)\n"
+     "                    (conditional $9\n"
+     "                      true()\n"
+     "                      false())))))\n"
+     "            false())))\n"
+     "      (index general-equal\n"
+     "        (let $5 (step $2 attribute attribute(k))\n"
+     "          $5)\n"
+     "        (let $7 (map $1 (focus $6 _ _)\n"
+     "                  (step $6 attribute attribute(k)))\n"
+     "          (let $8 (document-order $7)\n"
+     "            $8))))))\n"},
 };
 
 static void test_queries_match_golden_text(sxml_test_state *state) {
@@ -331,7 +370,58 @@ static const shape_case shape_cases[] = {
     /* A where clause of a for clause becomes an indexed FILTER. */
     {SHAPE_PROLOG "for $x in $c where $x/@k = $v return $x/@n", true},
     {SHAPE_PROLOG "for $x at $p in $c where $x/@k = $v return $p", false},
+    /* A descendant path's FILTER (D259). */
+    {SHAPE_PROLOG "for $x in $c return $c//a[@k = $x]", true},
 };
+
+/* Which paths the descendant pass rewrites (D259): the text has a
+   descendant step, or still the descendant-or-self step. */
+typedef struct descendant_case {
+    const char *query;
+    bool is_rewritten;
+} descendant_case;
+
+static const descendant_case descendant_cases[] = {
+    {SHAPE_PROLOG "$c//a", true},
+    {SHAPE_PROLOG "$c//a/b/@n", true},
+    {SHAPE_PROLOG "$c//a[@k = $v]", true},
+    {SHAPE_PROLOG "$c//a[@k][b = 'x']//c", true},
+    {SHAPE_PROLOG "$c//a[exists(b)]", true},
+    {SHAPE_PROLOG "$c//text()[. = 'x']", true},
+    /* Positional predicates select among one node's children. */
+    {SHAPE_PROLOG "$c//a[1]", false},
+    {SHAPE_PROLOG "$c//a[last()]", false},
+    {SHAPE_PROLOG "$c//a[position() > 1]", false},
+    {SHAPE_PROLOG "$c//a[$v]", false},
+    {SHAPE_PROLOG "$c//a[@k][2]", false},
+    {SHAPE_PROLOG "$c//a[count(b)]", false},
+    /* The steps after a descendant path go on from its value. */
+    {SHAPE_PROLOG "$c//a/string(@k)", true},
+    {SHAPE_PROLOG "$c//a[@k = 1]/string(@k)", true},
+    /* A step that is not to the children, a test that matches JNodes. */
+    {SHAPE_PROLOG "$c//@k", false},
+    {SHAPE_PROLOG "$c//node()", false},
+};
+
+static void test_descendant_paths_by_shape(sxml_test_state *state) {
+    for (size_t case_index = 0; case_index < SXML_TEST_COUNT(descendant_cases); case_index += 1) {
+        static fixture test_fixture;
+        static query_outcome outcome;
+        SXML_TEST_REQUIRE(state, fixture_create(0, &test_fixture) == SXML_STATUS_OK);
+        const descendant_case *test_case = &descendant_cases[case_index];
+        write_query_text(&test_fixture, test_case->query, &outcome);
+        const bool is_rewritten = strstr(outcome.text, "descendant-or-self") == NULL;
+        const bool matches =
+            outcome.status == SXML_STATUS_OK && is_rewritten == test_case->is_rewritten;
+        if (!matches) {
+            (void)fprintf(stderr, "query %s\nstatus %d, rewritten %d\n%s\n", test_case->query,
+                          (int)outcome.status, (int)is_rewritten, outcome.text);
+        }
+        SXML_TEST_EXPECT(state, matches);
+        SXML_TEST_EXPECT(state, fixture_released_everything(&test_fixture));
+        fixture_destroy(&test_fixture);
+    }
+}
 
 static void test_filters_are_indexed_by_shape(sxml_test_state *state) {
     for (size_t case_index = 0; case_index < SXML_TEST_COUNT(shape_cases); case_index += 1) {
@@ -377,6 +467,38 @@ static const value_case value_cases[] = {
     {"let $s := (1 to 20) ! <e n='{.}.0'/> "
      "return for $i in 1 to 3 return count($s[@n = $i])",
      "1 1 1"},
+    /* The number view (D259): untyped keys cast as "=" casts them
+       against a number, for xs:decimal, integer and xs:double probes;
+       xs:float probes test every item. */
+    {"let $s := ((1 to 20) ! <e n='{.}'/>, <e n=' 3.0 '/>, <e n='3e0'/>, <e n='NaN'/>) "
+     "return for $i in (1, 3, 2.5, 3e0, xs:float(3), 25, 1) return count($s[@n = $i])",
+     "1 3 0 3 3 0 1"},
+    {"let $s := (1 to 20) ! <e n='{.}'/> "
+     "return for $o in (1 to 4) ! <o id='{.}'/> return count($s[@n = $o/@id + 1])",
+     "1 1 1 1"},
+    /* A key that cannot be cast is FORG0001, a key of xs:string
+       XPTY0004, as without the index. */
+    {"let $s := ((1 to 20) ! <e n='{.}'/>, <e n='abc'/>) "
+     "return for $i in 1 to 3 return count($s[@n = $i])",
+     "error:FORG0001"},
+    {"let $s := (1 to 20) ! string(.) "
+     "return for $i in 1 to 3 return count($s[. = $i])",
+     "error:XPTY0004"},
+    /* An untyped probe against numbers is cast, or FORG0001. */
+    {"let $s := (1 to 20) ! xs:decimal(. div 2) "
+     "return for $p in ((1 to 3) ! <p v='{. div 2}'/>, <p v='1.5'/>) return count($s[. = $p/@v])",
+     "1 1 1 1"},
+    {"let $s := (1 to 20) return for $p in (<p v='2'/>, <p v='x'/>) return count($s[. = $p/@v])",
+     "error:FORG0001"},
+    /* Descendant paths (D259): the nodes of nested origins once, in
+       document order. */
+    {"let $d := document { <r>{(1 to 12) ! <a k='{. mod 3}'><a k='{. mod 2}'><b/></a></a>}</r> } "
+     "return for $i in 0 to 2 return count($d//a[@k = $i]/b)",
+     "6 6 0"},
+    {"let $d := document { <r><a k='1'><a k='1'><b n='1'/></a><b n='2'/></a></r> } "
+     "return (string-join($d//a[@k = 1]/b/@n, ','), count($d/r//a//b), "
+     "string-join($d//a[1]/b/@n, ','))",
+     "\"1,2\" 2 \"1,2\""},
     /* Numeric keys and probes (D229): integers, decimals and doubles. */
     {"let $s := (1 to 40) ! <e n='{. mod 7}'/> "
      "return for $i in (0, 3, 3.0, 3e0, 9) return count($s[xs:integer(@n) = $i])",
@@ -537,6 +659,7 @@ static void test_queries_survive_every_allocation_failure(sxml_test_state *state
 static const sxml_test_case ir_loop_passes_test_cases[] = {
     {.name = "queries_match_golden_text", .function = test_queries_match_golden_text},
     {.name = "filters_are_indexed_by_shape", .function = test_filters_are_indexed_by_shape},
+    {.name = "descendant_paths_by_shape", .function = test_descendant_paths_by_shape},
     {.name = "queries_give_values", .function = test_queries_give_values},
     {.name = "queries_survive_every_allocation_failure",
      .function = test_queries_survive_every_allocation_failure},
