@@ -4,6 +4,17 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 6.1 done (D238): the Phase 6 plan in `docs/tasks/phase-6.md`. One host
+  shim (the JavaScript shim moved to `bindings/host/`) under JavaScript,
+  Kotlin (JNI glue only) and Swift (module map, no C). APIs mirror the
+  JavaScript package. Ownership: AutoCloseable and Cleaner in Kotlin, ARC
+  in Swift. Probed here: NDK r28c builds the library for all four ABIs
+  at API 29 (arm64-v8a 7,693,024 bytes stripped). At API 24 only
+  `aligned_alloc` and `timespec_get` are missing (6.3 adds fallbacks).
+  Kotlin/JNI on JDK 21, an AAR with Gradle and AGP, and Swift 6.2 on
+  Linux over the shim all work. Not here: an emulator (no KVM), iOS,
+  macOS and device CI (owner). Packets 6.2 to 6.8 and 6.11 run here.
+
 - 7.19 done (D237): the Phase 7 review and gate. Whole release runs at
   9c5b1ba, 0 error outcomes: XP40 32,689 (99.5 %), XQ40 45,969 (99.5 %),
   XT40 12,075 (94.8 %, core sets 88.5 % to 100 %), XSD in scope 41,486

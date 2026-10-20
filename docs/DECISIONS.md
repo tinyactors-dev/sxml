@@ -10818,6 +10818,116 @@ full lint of every preset are left to the owner's machine (D181).
   7.4's four QT4 cases (by D208); the larger duplicates above; Phase 7
   fuzzing at length and the full lint on the owner's machine.
 
+### D238. Phase 6 plan: one host shim under JavaScript, Kotlin and Swift (packet 6.1)
+Recorded 2026-10-20, after D35, D71, D123, D138, D181, D189, D208, D216.
+Plans Phase 6 (PLAN.md) in `docs/tasks/phase-6.md`, as D165 and D183
+planned Phases 5 and 7.
+- **Mechanism**: the JavaScript shim already turns the public API into
+  handles, flat requests, one error per processor, side results (D216)
+  and JSON-shaped input. Packet 6.2 moves it to `bindings/host/` as the
+  host shim (glossary `host_shim`). The resolver becomes an interface
+  (state and function) instead of a WebAssembly import.
+  - JavaScript links it with a thin export file. The export names, and so
+    `src/index.ts`, do not change.
+  - Kotlin adds only a JNI glue file.
+  - Swift imports the shim through a module map and adds no C.
+
+  A second or third C adapter would duplicate value conversion, side
+  results and error copying. No public header changes.
+- **APIs** (in the task file): the JavaScript package's concepts with each
+  language's idiom.
+  - Shared concepts: Processor (resolver, features, collation data),
+    parse, compile once and evaluate many times, value by the
+    `fn:parse-json` rule, serialize with `fn:serialize`'s options,
+    compileQuery, compileStylesheet, compileSchema, side results after
+    the call, errors with status, code, source name, line and column.
+  - Each language's idiom: named arguments with defaults instead of
+    option objects.
+  - There is no `load()`: a native library is not fetched.
+- **Ownership**:
+  - Kotlin: objects are `AutoCloseable` with a `Cleaner` backstop. Objects
+    hold their processor strongly, and closing a processor closes what it
+    made. Every call holds the processor's lock (D35).
+  - Swift: ARC; objects retain their processor. They are not `Sendable`,
+    and Swift 6 strict concurrency enforces D35 at compile time.
+- **Callbacks**: the resolver alone runs during a call and must not use
+  its processor (D71). The binding keeps an exception it throws and
+  rethrows it after the shim fails with INPUT_OUTPUT_FAILED, so the JNI
+  glue never handles a pending JVM exception.
+- **JNI rules**: every native is `(JNIEnv *, jclass, jobject request)`,
+  three parameters (glossary `native_request`). Field IDs are cached per
+  processor, not in globals. Text is UTF-8 `ByteArray`, never `jstring`,
+  because JNI's modified UTF-8 differs for U+0000 and supplementary
+  characters.
+- **Libraries**: one per platform, each with every language and every
+  feature except EXPath File:
+  - `libsxml_kotlin.so` for Android and the JVM, exporting the JNI
+    symbols only;
+  - `Sxml.xcframework` (static) for iOS and macOS;
+  - the CMake target `sxml_host` for Swift on Linux.
+
+  A core-only native variant waits for a host that asks for it.
+- **Probe here** (2026-10-20, Linux x86_64, no KVM, no macOS):
+  - NDK r28c builds the library with `-Werror` for arm64-v8a,
+    armeabi-v7a, x86_64 and x86 at API 29. At API 24 and 28, only
+    `aligned_alloc` (`src/allocator.c`, bionic API 28) and `timespec_get`
+    (`src/processor.c`, API 29) are missing. 6.3 adds one
+    `__ANDROID_API__` branch for each, and `minSdk` is 24 (D208 default).
+  - Stripped / gzip -9 shared library with every feature: arm64-v8a
+    7,693,024 / 1,910,096; armeabi-v7a 6,684,092 / 1,795,498; x86_64
+    7,923,608 / 1,983,466; x86 7,724,252 / 2,036,922.
+  - Kotlin 2.2.20 with JNI on JDK 21 runs the shim and calls back into a
+    lambda.
+  - Gradle 8.14.3 with AGP 8.10.1 assembles an AAR with the four ABIs
+    (Maven Central answers 429 at times: retry).
+  - Swift 6.2 on Linux runs the shim through a module map.
+  - No emulator (no `/dev/kvm`). iOS needs the owner's macOS.
+- **Pins**: NDK r28c (16 KB pages), platform 35, `minSdk` 24, Kotlin
+  2.2.20, JDK 21, Gradle 8.14.3, AGP 8.10.1, Swift 6.2, iOS 15, macOS 13.
+  `tools/fetch-binding-toolchains.sh` (6.3) fetches them into a
+  scratchpad directory.
+- **Packets**:
+  - 6.2: host shim;
+  - 6.3: Android build and fallbacks;
+  - 6.4, 6.5: Kotlin;
+  - 6.6: AAR;
+  - 6.7, 6.8: Swift;
+  - 6.9: Apple builds (owner);
+  - 6.10: device CI (written here, disabled until the owner enables it,
+    D123);
+  - 6.11: documentation and release steps;
+  - 6.12: review.
+
+  6.2 to 6.8 and 6.11 run here. Device runs, 6.9 and publishing are the
+  owner's.
+- **Tests**: parity by name with `test/package.test.ts` and
+  `test/full.test.ts`, 0 leaks, the allocation-failure loop (D23). The
+  ctests are:
+  - `kotlin/jvm`: kotlinc and `kotlin.test`, with no Gradle or network
+    under ctest;
+  - `swift/linux`;
+  - `android/build`.
+
+  On devices: Android instrumented tests on an emulator at API 24 and
+  35 and one arm64 device; `xcodebuild test` on an iOS simulator and
+  device.
+- **Defaults taken** (D208; outward-facing, so the owner may change them
+  before a release):
+  - Kotlin package `io.github.dhamidi.sxml`, Maven coordinates
+    `io.github.dhamidi:sxml-android` and `:sxml-jvm`;
+  - Swift module `Sxml`, with `Package.swift` at the repository root;
+  - size budget for `libsxml_kotlin.so` on arm64-v8a: 9,000,000 stripped,
+    2,400,000 gzipped.
+- **Gate (proposed)**:
+  - the parity list passes on the JVM and Linux Swift;
+  - the four ABIs build at API 24, and the AAR is within its budget;
+  - instrumented tests pass on the emulator and an arm64 device;
+  - Swift passes on macOS, an iOS simulator and a device;
+  - the bindings workflow is green once CI is on;
+  - the JavaScript tests and sizes are unchanged, and no conformance
+    count has dropped.
+- **PLAN.md**: the Phase 6 row names the host shim and the device gate.
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): the license (there is

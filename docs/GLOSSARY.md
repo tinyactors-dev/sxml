@@ -795,6 +795,12 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `javascript_shim` | The C entry points `sxml.wasm` exports for the JavaScript package (`bindings/javascript/sxml_javascript.c`), written against the public API only |
 | `handle` | The address of a C object in WebAssembly memory that a JavaScript object owns; released by `dispose()` or, failing that, by a `FinalizationRegistry` |
 | `side_result` | What a call of the JavaScript shim delivers besides its result, kept by the handle that made it until its next call: a tree an updating query changed, a document fn:put stores, a result document, a message, a schema report (D216) |
+| `host_shim` | The C layer in `bindings/host/` that the JavaScript, Kotlin and Swift bindings share: handles, flat requests, one error per processor, side results and JSON-shaped input, over the public API only, with the resolver as a state and function (D238) |
+| `jni_glue` | The one C file of the Kotlin binding (`bindings/kotlin/src/main/c/sxml_kotlin_jni.c`): JNI entry points that turn native requests into host shim requests (D238) |
+| `native_request` | The internal Kotlin object a JNI entry point takes as its one argument besides the environment and class: the inputs of one host shim call, and fields the call writes back (handle, error, side results) |
+| `kotlin_package` | The Kotlin binding in `bindings/kotlin/` (package `io.github.dhamidi.sxml`): an Android library (AAR) and a JVM library over `libsxml_kotlin.so` |
+| `swift_package` | The Swift binding in `bindings/swift/` (module `Sxml`, manifest `Package.swift` at the repository root), importing the host shim through the module map `CSxmlHost` |
+| `device_test` | A binding test run on an Android emulator or device, or an iOS simulator or device, rather than on the build host (Phase 6 gate) |
 | `size_budget` | The most bytes a WebAssembly module may have, stripped and gzipped, checked by a ctest (D93) |
 | `csv_dialect` | The characters that structure a CSV text, each one character: separator, quote character and optional comment marker, and whether unquoted fields are trimmed of whitespace (F&O 4.0, section 17.5) |
 | `csv_token` | What reading a CSV text gives next: a field (its text, quoted or not), the end of a row (a row with no field before it is a blank row) or the end of the input |

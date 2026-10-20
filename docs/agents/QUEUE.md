@@ -26,6 +26,20 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 
 ## Next
 
+- Phase 6 (D238, `docs/tasks/phase-6.md`), packets that run here:
+  - wave 1, together: 6.2 host shim (`bindings/host/`; JavaScript
+    tests and sizes unchanged); 6.3 Android build (four ABIs at API 24,
+    the two fallbacks in `src/allocator.c` and `src/processor.c`,
+    presets, `tools/fetch-binding-toolchains.sh`);
+  - wave 2, after 6.2 and 6.3: 6.4 Kotlin core (JNI, `kotlin/jvm`) and
+    6.7 Swift core (`swift/linux`);
+  - wave 3: 6.5 Kotlin full, after 6.4; 6.8 Swift full, after 6.7;
+  - wave 4: 6.6 Android AAR (assemble only), after 6.3 and 6.5;
+  - wave 5: 6.10 the device CI workflow (written, disabled) and 6.11
+    the bindings' documentation.
+
+  Owner: 6.9 Apple builds and iOS tests; the device runs of 6.6 and
+  6.10.
 - More XPath/XQuery and XSLT sweeps on the leftovers below; perf-4 on casts
   and path-MAP hoisting.
 

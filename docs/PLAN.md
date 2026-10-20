@@ -64,7 +64,7 @@ delayed, not dropped: schema awareness is Phase 5 and the rest Phase 7 (D162).
 | 3. XQuery 4.0 | FLWOR, constructors, prolog, modules, serialization | Agreed pass rate on QT4 XQuery test sets |
 | 4. XSLT 4.0 | Templates, modes, packages, lowered into the shared IR | Agreed pass rate on XSLT 4.0 test sets |
 | 5. Schema validation | XSD 1.1 validation and schema-aware typing | XSD conformance subset; schema-aware QT4 tests |
-| 6. Platform bindings | Swift and Kotlin bindings, iOS and Android builds | Binding tests on device in CI |
+| 6. Platform bindings | Kotlin and Swift bindings over the host shim the JavaScript package shares (D238); Android builds for four ABIs and iOS builds | Binding tests on device in CI: Kotlin on the JVM, an Android emulator and an arm64 device; Swift on Linux, macOS, an iOS simulator and an iOS device (`docs/tasks/phase-6.md`) |
 | 7. Deferred features | What D97 left out of Phases 2–4: full UCA, HTML parsing, invisible XML, streaming, the Update Facility, Full Text, EXPath, compatibility modes, timezone database, other calendars and languages, fn:transform (D162); proposed for the owner: xsl:evaluate, DTD processing, XML 1.1 input, disable-output-escaping. Large parts may be optional build features (D183) | Each feature's QT4, XSLT or xmlconf test sets pass at its packet's rate (`docs/tasks/phase-7.md`); earlier gates held; size budgets met |
 
 Phases 0 to 3 are year one. Pass-rate targets for Phases 2 and 3 are set at the
