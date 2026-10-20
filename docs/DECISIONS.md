@@ -11577,8 +11577,9 @@ the `sxml` command for every supported platform as installable archives
 
 ## Proposed
 
-- **Outward-facing choices** (D208; for the owner): the license (there is
-  no LICENSE file; the JavaScript package says MIT), tagging and
-  publishing releases (0.2.0 and after, `docs/RELEASE.md`), and the npm
-  package name. Everything else takes its proposed default (D208); the
-  items that were here are resolved in D237.
+- **Outward-facing choices** (D208; for the owner): tagging and
+  publishing releases (0.2.0 and after, `docs/RELEASE.md`, the archives of
+  `mise run dist`, D256), macOS and Windows code signing, and when the
+  repository moves to tinyactors-dev. The license (MIT) and the npm name
+  (`@tinyactors/sxml`) are settled in D239; everything else takes its
+  proposed default (D208).

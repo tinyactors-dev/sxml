@@ -30,7 +30,6 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 
 - 2.23: XPath/XQuery sweep on the largest remaining failure clusters.
 - 4.23: XSLT sweep on the largest failure clusters.
-- dist-1: `mise run dist`, the CLI for every supported platform.
 - book-1: the sxml book in docs/book/.
 
 ## Next
@@ -145,6 +144,13 @@ index keys, quantifier hoisting. perf-3 (D232): XML parsing 15 -> 25 MB/s
 (tree 13 -> 21 MB/s), XMark-All -10 %; tags and plain attributes are
 single tokens. Left: casts cost about 1,100 instructions; hoisting of path
 MAPs and sort keys; the task struct copied on each push.
+
+Distribution (dist-1, D256): `mise run dist` builds the CLI for x86_64 and
+aarch64 Linux (static musl), macOS and Windows, and wasm32-wasi, as
+archives with SHA256SUMS. Ran here: both Linux (aarch64 under qemu),
+x86_64 Windows (wine), WASI. Owner: run the macOS and aarch64 Windows
+programs, signing and notarization, publishing. Windows has no
+/usr/share/zoneinfo, so the CLI there needs embedded or shipped tz data.
 
 Platform and tooling:
 - macOS, Windows and MSVC have never been built; `_getcwd` is untested.
