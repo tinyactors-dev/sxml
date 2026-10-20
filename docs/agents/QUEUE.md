@@ -10,8 +10,8 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
   (D181). 7.11's gate (all 12 XT40 transform cases) is open: 10 pass;
 transform-004 needs a suspendable compiler (D71), transform-401 waits on
 4.22's newest-draft patterns (D249).
-- Passes (release, whole suites at 9c5b1ba): XP40 32,689 (99.5 %), XQ40
-  45,969 (99.5 %), XT40 12,075 (94.8 %), XSD in scope 41,486 of 41,518.
+- Passes (release, whole suites): XP40 32,716, XQ40 46,017 (2.23, D258),
+  XT40 12,156 (95.7 %, 4.23, D260), XSD in scope 41,486 of 41,518.
   Zero error outcomes in every suite.
 - Optional features (D189). Budgets (D202, D207, D208): core `sxml.wasm`
   2,200,000 / 770,000 (2,077,439 / 725,473 after size-2, D227: each module
@@ -29,7 +29,7 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 
 
 - perf-4: laziness and short-circuiting, the 2,000-order join, the step limit.
-- 4.23: XSLT sweep on the largest failure clusters.
+- 4.24: XSLT stops inheriting XPath's predeclared prefixes (spec default, D208).
 
 ## Next
 
