@@ -31,6 +31,15 @@ not tagged yet, or into the next minor release.
   each grammar's highlights query, and `sxml:code-languages()`. The
   `sxml` command binds the prefix `sxml`. `name.h` gains
   `SXML_NAMESPACE_SXML`.
+- **More source code languages** (D288): TypeScript, TSX, Markdown and
+  its inline grammar; the locals query (references take their
+  definition's highlight) and the injections query (code inside code is
+  parsed with its own language, option `injections`). Hosts register
+  their own tree-sitter languages (`sxml_source_code_language`,
+  `sxml_processor_configuration.source_code_languages`,
+  `sxml_source_code_check_language`; tree-sitter language ABI 13 to 15),
+  and `sxml xpath`, `xquery` and `transform` load one from a shared
+  library with `--code-language=LIBRARY`.
 - **Optional features** (`processor.h`, D189): a processor names the
   features it uses (`sxml_optional_feature`), so a program links only
   those; without one, the feature's single rejection place gives the

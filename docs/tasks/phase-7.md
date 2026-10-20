@@ -1233,6 +1233,25 @@ grammars (JSON, JavaScript, Python, C, CSS, HTML, Go); tree-sitter/suite
 630 of 639 (corpus 452 of 452, highlights 178 of 187: locals 7,
 injections 2); sxml.wasm +1,990,621 to 9,693,235 bytes, budgets raised.
 
+### 7.23 More source code languages, a registration API, run-time languages (design and implementation)
+- **Owner** (2026-10-20, answering D285's proposal): TypeScript, TSX and
+  Markdown built in; a public API to register tree-sitter languages; new
+  languages at run time from tree-sitter language files, loaded by the
+  host. Order: the book, the tests, the implementation.
+- **Owns**: 7.22's files, src/source_code_check.c,
+  apps/sxml/code_languages.c/.h, apps/sxml/platform_library_loader.c,
+  the library loader of apps/cli_framework, the source code part of
+  include/sxml/processor.h.
+- **Done when**: the chapter's examples match; the new grammars' tests
+  run with a baseline; a test loads a language from a library it builds;
+  the sizes reported and the budgets raised.
+**Done** 2026-10-20 (D288): the chapter (32 examples match); eleven
+languages; locals and injections; the registration API and
+`--code-language`; tree-sitter/suite 1,410 of 1,438 (highlights 187 of
+187); sxml.wasm 13,425,285 bytes, budgets 14,000,000 and the CLI
+15,500,000 / 2,900,000. Delayed: .wasm language files in the JavaScript
+package, the native wasm store, the host shim.
+
 ## Proposed for the owner
 
 No phase covers these four features yet (D183 Proposed). The owner has

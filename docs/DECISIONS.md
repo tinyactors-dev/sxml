@@ -13307,10 +13307,120 @@ runs with the release drivers, case by case against HEAD.
   groups of D280 and D286.
 
 ### D288. More source code languages, a registration API and run-time languages (packet 7.23)
-Recorded 2026-10-20, after D285; in progress. The owner's answer to
-D285's proposal: TypeScript, TSX and Markdown built in; a public API to
-register tree-sitter languages; languages loaded at run time from files
-by the host.
+Recorded 2026-10-20, after D12, D44, D71, D99, D189, D191, D208, D272,
+D285. The owner's answer to D285's proposal (2026-10-20): TypeScript, TSX
+and Markdown built in, not Rust or Bash; a public registration API, with
+tree-sitter's ABI part of the contract; languages supplied at run time
+from tree-sitter language files, loaded by the host, never by src/. The
+owner's order: the book (commit 0cad9a1), the tests (a40851e), the
+implementation (c1a88af), the budgets (10487b2).
+- **Built-in languages** (glossary `source_code_language`): typescript
+  and tsx (tree-sitter-typescript 75b3874; their scanners include
+  `../../common/scanner.h`, vendored to
+  third_party/tree-sitter-grammars/common/; TypeScript's queries name
+  JavaScript's package, taken from the vendored javascript grammar as
+  queries/javascript-*.scm), markdown and markdown_inline
+  (tree-sitter-markdown a0a00f8). The vendor script also copies the
+  locals and injections queries and the injection-regex of
+  tree-sitter.json; the seven grammars of D285 were vendored again at
+  their commits (JavaScript gains locals.scm and injections.scm, HTML
+  injections.scm). sxml:code-languages() lists eleven.
+- **Locals** (glossary `locals_query`; tree-sitter's highlight crate):
+  local.scope, local.definition(.*), local.reference captures in
+  document order, a scope stack and a definition list (explicit, D71),
+  `#set! local.scope-inherits false`; a reference finds the innermost
+  earlier definition of its text; definitions and resolved references
+  are local for `#is? local`/`#is-not? local`, and a reference takes its
+  definition's highlight (D285's "no node is local" is gone).
+- **Injections** (glossary `injection`, `injections_query`,
+  `injection_regex`): injection.content with injection.language (a
+  capture's text or `#set!`), injection.self,
+  injection.include-children. The node's range without its *named*
+  children's (as Neovim and the highlight crate: Markdown's inline nodes
+  hold anonymous tokens of the block grammar) is parsed through
+  tree-sitter's included ranges, so positions are the document's. The
+  language is found by name (registered first), then by the first
+  injection regex that matches (XPath regex, registered first); unknown
+  languages leave the node as it is. The injected tree is written inside
+  the node's element; its document element has `language`. The option
+  `injections` (default true) turns it off; the corpus driver parses
+  without injections. One loop over an explicit stack of layers (one per
+  tree), at most 8 injections deep. Not supported: injection.combined
+  (each node is its own document), injection.parent.
+- **Registration API** (`processor.h`, additive after D99; glossary
+  `registered_language`): `sxml_source_code_language` (name, `const
+  struct TSLanguage *grammar`, highlights, locals and injections query
+  texts, injection regex), `sxml_processor_configuration.
+  source_code_languages` (appended, so earlier fields keep their
+  places), `sxml_source_code_check_language` with
+  `sxml_source_code_language_report` (problem: name, ABI, which query and
+  its byte offset), and `SXML_SOURCE_CODE_MINIMUM_LANGUAGE_ABI` 13 to
+  `..._MAXIMUM_...` 15, the range tree-sitter 0.27's runtime reads
+  (tree-sitter 0.20 and later). A registered language replaces a
+  built-in one of its name. sxml_processor_initialize refuses empty or
+  odd names (letters, digits, `_-+.`), NULL grammars, other ABIs and a
+  name twice (cheap: no query is compiled there); a query that does not
+  compile raises `sxml:invalid-query` when the language is used (an
+  injected language's bad query only drops its highlights). The checks
+  are in src/source_code_check.c, so the processor does not link the
+  grammars. Lifetime: the array, grammars and texts outlive the
+  processor. A TSLanguage is immutable, so a host may share one.
+- **Run-time language files: what works**. Native shared libraries
+  (glossary `language_library`: `libtree-sitter-NAME.so`, `.dylib`,
+  `.dll`, or `NAME.so` as `tree-sitter build` writes, exporting
+  `tree_sitter_NAME()`), loaded by the CLI: `--code-language=LIBRARY`
+  (repeatable) for `sxml xpath`, `sxml xquery` and `sxml transform`
+  (D44: one flag; it works on Linux, macOS and Windows; under WASI the
+  platform has no loader and the flag reports "this platform loads no
+  libraries", exit 3, as `--allow-file-access` has no Windows file
+  system). The name is the file name without directory, extension,
+  `lib` and `tree-sitter-`, with `-` made `_`; the queries are
+  `queries/` beside the library (a grammar repository after `tree-sitter
+  build`), else `../queries/NAME/` (Neovim's parser/ and queries/
+  layout); without highlights.scm there, no queries. Errors: a name
+  that names no language (2), a library that does not load or lacks
+  the function (3, with dlerror's text), another ABI or a query that
+  does not fit (1, with the byte offset and the file). The CLI
+  framework gains `sxml_cli_library_loader` (cli_command.h), the
+  platform layer `apps/sxml/platform_library_loader.c` (dlopen RTLD_NOW
+  | RTLD_LOCAL, dlsym; LoadLibraryW, GetProcAddress), which the
+  platform-layer lint rule names; libraries stay loaded until exit.
+  Test: tree-sitter/run-time-language builds the vendored JSON grammar
+  as a module with the entry point tree_sitter_testjson, no network.
+- **Run-time language files: delayed, with reasons**.
+  (a) tree-sitter's WebAssembly language files (`tree-sitter-NAME.wasm`,
+  web-tree-sitter's) in the JavaScript package: each is a dylink side
+  module that imports the main module's memory, indirect function table,
+  stack pointer, `__memory_base`/`__table_base` and libc (malloc,
+  iswspace, ...). sxml.wasm is a WASI SDK static module (not
+  `-fPIC`/`--experimental-pic`), exports no table or stack pointer, and
+  its tree-sitter is C inside it, so a language file cannot be linked
+  into it. Doing it means building sxml.wasm as a PIC main module and a
+  small dynamic linker in the package's JavaScript (what web-tree-sitter
+  does): a later packet, medium to large, with its own size cost.
+  (b) The same files natively, through tree-sitter's wasm store
+  (`ts_wasm_store_new`): it needs wasmtime's C API, a JIT runtime of
+  several MB built with Rust; rejected for sxml, which is a small
+  embeddable C library with no JIT (D12's spirit), and native hosts have
+  shared libraries anyway. (c) The host shim (bindings/host) and so
+  Kotlin and Swift: the shim's configuration would pass languages
+  through; Phase 6 is paused (D255), so it waits for 6.12; a grammar
+  pointer across JNI needs its own design.
+- **Not shipped**: Rust and Bash as built-ins (the owner), D285's sizes;
+  they are one `--code-language` away. markdown_inline's wiki_link and
+  tag extensions are not in the generated parser (upstream generates
+  them only with EXTENSION_WIKI_LINK/EXTENSION_TAGS), so their 8 corpus
+  tests fail; one spec test has no divider (an error of the corpus).
+- **Measured** (debug ASan/UBSan): tree-sitter/suite 630 of 639 to 1,410
+  of 1,438 (corpus 1,223 of 1,251, 19 not run; highlights 187 of 187:
+  the 7 locals and 2 injections assertions pass); the baseline is 1,410.
+  The book's chapter: 32 examples, all match (D285's 18 updated: a
+  reference to a parameter is `variable.parameter`). source_code_test
+  gains the checks and registered languages; CLI help goldens show the
+  flag. Sizes: sxml.wasm 9,693,235 / 2,006,198 to 13,425,285 / 2,411,765
+  (+3,730,635 code and data, 3,671,000 of it the four grammars, 95 %
+  parse tables), budget 14,000,000 / 2,800,000; the CLI module
+  15,026,404 / 2,696,842, budget 15,500,000 / 2,900,000.
 
 ### D289. XSLT real gaps: split-when, deterministic functions, atomic-equal keys, adaptive character maps, schema roles, override signatures (packet 4.30)
 Recorded 2026-10-20, after D245, D252, D262, D272 to D281, D286.
@@ -13396,15 +13506,6 @@ owner: sxml's iXML usable on tens to hundreds of MB; the book first
 (f560fdf), then the tests (ef46866), then the implementation.
 
 ## Proposed
-
-- **More source code languages and a registration API** (D285, for the
-  owner): TypeScript and TSX (about 1.4 MB of code and data each),
-  Rust (1.1 MB), Bash (1.3 MB) and Markdown (0.7 MB with its inline
-  grammar) are vendored the same way when wanted; a host API to register
-  a TSLanguage and its query would put tree-sitter's ABI into sxml's
-  public contract. The locals and injections queries are the next
-  refinements of the highlights (9 of the 187 highlight assertions need
-  them).
 
 - **Outward-facing choices** (D208; for the owner): tagging and
   publishing releases (0.2.0 and after, `docs/RELEASE.md`, the archives of

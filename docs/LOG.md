@@ -4,6 +4,19 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 7.23 done (D288): more source code languages. TypeScript, TSX,
+  Markdown and its inline grammar built in; the locals query (a
+  reference takes its definition's highlight) and the injections query
+  (Markdown code blocks and paragraphs, HTML script and style parsed with
+  their languages, an explicit stack of trees); a public registration
+  API (sxml_source_code_language, source_code_languages,
+  sxml_source_code_check_language, ABI 13 to 15); `--code-language` loads
+  a grammar's shared library in the CLI. tree-sitter/suite 630/639 to
+  1,410/1,438, highlights 187/187. sxml.wasm 13.4 MB (budget 14 MB).
+  Delayed: tree-sitter .wasm language files in the JavaScript package
+  (sxml.wasm is no PIC main module), the native wasm store (needs a JIT
+  runtime), the host shim.
+
 - 2.28 done (D287): XPath/XQuery leftovers. Syntax errors at the token
   tree-sitter could not take (a string constructor's `{ }` was 1:1);
   run-time closures for context-dependent functions (xqhof18/19);
