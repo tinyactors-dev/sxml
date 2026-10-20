@@ -32,7 +32,8 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 (bindings/kotlin/DESIGN.md, bindings/swift/DESIGN.md).
 
 
-- js-2: streaming output (and input) in the JavaScript API (owner).
+- stream-1: method=text quadratic memory on streamed sources; a step limit
+  option for the JavaScript package (D294).
 - 4.31: XSLT namespace undeclarations in the tree, per-package items,
   copy-4308 (D289).
   (Book-first pages carry <!-- status: draft -->; check-book-examples.sh
@@ -351,6 +352,15 @@ program (XQuery, a vocabulary of our own) and prints it with an XSLT
 printer (one rule per element, layout in one place, a second style by
 import); check.xq parses the printed code with sxml:parse-code. 46
 examples match, tsc --strict passes.
+
+js-2 (D294): serializeTo, XQuery.runTo, transform output /
+resultDocumentOutput / streamedSource, chunked sinks (textSink,
+writableStreamSink, nodeStreamSink, outputReadableStream), chunk sources
+for doc($uri). 108.7 MB output: 749 MB module / 113 MB JS heap -> 481 / 4
+(the tree); streamed source 10.6 / 14.6 MB. Processor.parse still takes
+whole text (no public incremental parse, D233). Sinks cannot apply
+backpressure (synchronous evaluation). Swift memberwise call not compiled
+here.
 
 Platform and tooling:
 - macOS, Windows and MSVC have never been built; `_getcwd` is untested.
