@@ -216,6 +216,35 @@ SXML_NODISCARD sxml_status sxml_cast_make_item_from_lexical_form(
     sxml_item_heap *item_heap, const sxml_lexical_form_request *request,
     sxml_item *item);
 
+/* An xs:boolean read from its lexical form. */
+typedef struct sxml_lexical_boolean {
+    /* False for text that is not a lexical form of xs:boolean. */
+    bool is_valid;
+    bool value;
+} sxml_lexical_boolean;
+
+/*
+ * xs:boolean's lexical mapping (XSD 1.1 Part 2, 3.3.2) of a lexical form
+ * whose whitespace is collapsed: "true" and "1" are true, "false" and "0"
+ * false; any other text is not valid. The one reader of it: the cast
+ * engine and the schema reader's boolean attributes.
+ */
+sxml_lexical_boolean sxml_lexical_read_boolean(sxml_byte_view lexical_form);
+
+/* Decimal digits and the largest value to read from them. */
+typedef struct sxml_digit_value_request {
+    /* Only the bytes "0" to "9"; may be empty (the value 0). */
+    sxml_byte_view digits;
+    uint64_t maximum;
+} sxml_digit_value_request;
+
+/*
+ * The value of request.digits in base 10 (XSD 1.1 Part 2, 3.4.13, the
+ * integer lexical mapping). Returns false, *value untouched, when it
+ * exceeds request.maximum.
+ */
+bool sxml_lexical_read_digits(sxml_digit_value_request request, uint64_t *value);
+
 /* -------------------------------------------- Facets: src/cast_facet.c */
 
 /*

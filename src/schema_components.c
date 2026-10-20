@@ -16,6 +16,7 @@
 
 #include "processor_internal.h"
 #include "types_internal.h"
+#include "xml_internal.h"
 
 #include <stdalign.h>
 #include <string.h>
@@ -832,11 +833,51 @@ sxml_status sxml_schema_compilation_report(sxml_schema_compilation *compilation,
     if (sink.operations == NULL) {
         return SXML_STATUS_STATIC_ERROR;
     }
-    const sxml_schema_report report = {
-        .code = code,
-        .description = request->detailed_description.byte_count != 0
-                           ? request->detailed_description
-                           : request->description,
-        .location = location};
-    return sink.operations->receive(sink.state, &report);
+    /* The sink's description: the description, then ": " and the subject
+       or the subject's name, when there is one. */
+    const sxml_processor *processor = compilation->components->processor;
+    sxml_xml_buffer detail = sxml_xml_buffer_empty(processor->allocator);
+    sxml_name_parts parts = {.namespace_uri = {.index = 0},
+                             .local_name = {.bytes = NULL, .byte_count = 0}};
+    const bool has_name = request->subject.byte_count == 0 &&
+                          request->subject_name.index != 0 &&
+                          sxml_name_pool_get_name_parts(processor->name_pool, request->subject_name,
+                                                        &parts) == SXML_STATUS_OK;
+    sxml_status status = SXML_STATUS_OK;
+    if (request->subject.byte_count != 0 || has_name) {
+        status = sxml_xml_buffer_append(&detail, request->description);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xml_buffer_append(&detail, SXML_BYTE_VIEW_FROM_LITERAL(": "));
+        }
+    }
+    if (status == SXML_STATUS_OK && request->subject.byte_count != 0) {
+        status = sxml_xml_buffer_append(&detail, request->subject);
+    }
+    sxml_byte_view namespace_uri = {.bytes = NULL, .byte_count = 0};
+    if (status == SXML_STATUS_OK && has_name && parts.namespace_uri.index != SXML_NAMESPACE_NONE &&
+        sxml_name_pool_get_namespace_uri(processor->name_pool, parts.namespace_uri,
+                                         &namespace_uri) == SXML_STATUS_OK) {
+        status = sxml_xml_buffer_append(&detail, SXML_BYTE_VIEW_FROM_LITERAL("Q{"));
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xml_buffer_append(&detail, namespace_uri);
+        }
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xml_buffer_append(&detail, SXML_BYTE_VIEW_FROM_LITERAL("}"));
+        }
+    }
+    if (status == SXML_STATUS_OK && has_name) {
+        status = sxml_xml_buffer_append(&detail, parts.local_name);
+    }
+    if (status == SXML_STATUS_OK) {
+        const sxml_schema_report report = {
+            .code = code,
+            .description = detail.byte_count != 0
+                               ? (sxml_byte_view){.bytes = detail.bytes,
+                                                  .byte_count = detail.byte_count}
+                               : request->description,
+            .location = location};
+        status = sink.operations->receive(sink.state, &report);
+    }
+    sxml_xml_buffer_release(&detail);
+    return status;
 }

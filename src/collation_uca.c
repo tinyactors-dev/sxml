@@ -54,6 +54,7 @@
  */
 #include "collation_uca_internal.h"
 
+#include "memory_internal.h"
 #include "optional_feature_internal.h"
 #include "processor_internal.h"
 #include "regex_internal.h"
@@ -421,23 +422,6 @@ static sxml_status read_lines(reading_pass pass, sxml_byte_view content) {
     return SXML_STATUS_OK;
 }
 
-sxml_status sxml_uca_allocate_array(sxml_allocator allocator, sxml_uca_array_request request,
-                                    void **memory) {
-    *memory = NULL;
-    if (request.element_count == 0) {
-        return SXML_STATUS_OK;
-    }
-    size_t byte_count = 0;
-    sxml_status status = sxml_size_multiply(request.element_count, request.element_size, &byte_count);
-    if (status == SXML_STATUS_OK) {
-        status = sxml_allocator_allocate(
-            allocator,
-            (sxml_allocation_request){.byte_count = byte_count, .alignment = request.alignment},
-            memory);
-    }
-    return status;
-}
-
 static bool mapping_is_before(const void *state, sxml_sort_pair pair) {
     (void)state;
     return ((const sxml_uca_mapping *)pair.first)->codepoint <
@@ -626,11 +610,11 @@ static bool has_variable_reorder_groups(void) {
 
 static sxml_status make_variable_groups(sxml_collation_element_table *table, bool is_cldr_root) {
     void *memory = NULL;
-    sxml_status status = sxml_uca_allocate_array(
+    sxml_status status = sxml_allocator_allocate_array(
         table->allocator,
-        (sxml_uca_array_request){.element_count = table->digit_zero_primary,
+        (sxml_array_allocation_request){.element_count = table->digit_zero_primary,
                                  .element_size = sizeof(uint8_t),
-                                 .alignment = alignof(uint8_t)},
+                                 .element_alignment = alignof(uint8_t)},
         &memory);
     if (status != SXML_STATUS_OK || memory == NULL) {
         return status;
@@ -707,11 +691,11 @@ static uint32_t first_primary(const sxml_collation_element_table *root, uint32_t
 static sxml_status make_group_starts(sxml_collation_element_table *table) {
     void *memory = NULL;
     const size_t start_count = sxml_collation_reorder_group_count + 1;
-    sxml_status status = sxml_uca_allocate_array(
+    sxml_status status = sxml_allocator_allocate_array(
         table->allocator,
-        (sxml_uca_array_request){.element_count = start_count,
+        (sxml_array_allocation_request){.element_count = start_count,
                                  .element_size = sizeof(uint32_t),
-                                 .alignment = alignof(uint32_t)},
+                                 .element_alignment = alignof(uint32_t)},
         &memory);
     if (status != SXML_STATUS_OK) {
         return status;
@@ -766,27 +750,27 @@ static sxml_status read_table(sxml_allocator allocator, table_source source,
     table->root = table;
     status = read_lines((reading_pass){.table = table, .is_filling = false}, content);
     if (status == SXML_STATUS_OK) {
-        status = sxml_uca_allocate_array(allocator,
-                                         (sxml_uca_array_request){.element_count = table->element_count,
+        status = sxml_allocator_allocate_array(allocator,
+                                         (sxml_array_allocation_request){.element_count = table->element_count,
                                                                   .element_size = sizeof(sxml_uca_element),
-                                                                  .alignment = alignof(sxml_uca_element)},
+                                                                  .element_alignment = alignof(sxml_uca_element)},
                                          &memory);
         table->elements = memory;
     }
     if (status == SXML_STATUS_OK) {
-        status = sxml_uca_allocate_array(allocator,
-                                         (sxml_uca_array_request){.element_count = table->mapping_count,
+        status = sxml_allocator_allocate_array(allocator,
+                                         (sxml_array_allocation_request){.element_count = table->mapping_count,
                                                                   .element_size = sizeof(sxml_uca_mapping),
-                                                                  .alignment = alignof(sxml_uca_mapping)},
+                                                                  .element_alignment = alignof(sxml_uca_mapping)},
                                          &memory);
         table->mappings = memory;
     }
     if (status == SXML_STATUS_OK) {
-        status = sxml_uca_allocate_array(
+        status = sxml_allocator_allocate_array(
             allocator,
-            (sxml_uca_array_request){.element_count = table->contraction_count,
+            (sxml_array_allocation_request){.element_count = table->contraction_count,
                                      .element_size = sizeof(sxml_uca_contraction),
-                                     .alignment = alignof(sxml_uca_contraction)},
+                                     .element_alignment = alignof(sxml_uca_contraction)},
             &memory);
         table->contractions = memory;
     }
@@ -978,11 +962,11 @@ sxml_status sxml_uca_set_reordering(const sxml_uca_reordering_request *request,
         }
     }
     void *memory = NULL;
-    sxml_status status = sxml_uca_allocate_array(
+    sxml_status status = sxml_allocator_allocate_array(
         table->allocator,
-        (sxml_uca_array_request){.element_count = group_count,
+        (sxml_array_allocation_request){.element_count = group_count,
                                  .element_size = sizeof(sxml_uca_reorder_range),
-                                 .alignment = alignof(sxml_uca_reorder_range)},
+                                 .element_alignment = alignof(sxml_uca_reorder_range)},
         &memory);
     if (status != SXML_STATUS_OK) {
         return status;
@@ -1196,29 +1180,19 @@ typedef struct character_array {
 } character_array;
 
 static sxml_status append_character(character_array *array, const uca_character *character) {
-    if (array->character_count == array->character_capacity) {
-        size_t new_capacity = array->character_capacity < 32 ? 32 : array->character_capacity;
-        sxml_status status = SXML_STATUS_OK;
-        if (array->character_capacity >= 32) {
-            status = sxml_size_multiply(new_capacity, 2, &new_capacity);
-        }
-        void *memory = NULL;
-        if (status == SXML_STATUS_OK) {
-            status = sxml_uca_allocate_array(array->allocator,
-                                    (sxml_uca_array_request){.element_count = new_capacity,
-                                                    .element_size = sizeof(uca_character),
-                                                    .alignment = alignof(uca_character)},
-                                    &memory);
-        }
-        if (status != SXML_STATUS_OK) {
-            return status;
-        }
-        if (array->character_count > 0) {
-            memcpy(memory, array->characters, array->character_count * sizeof(uca_character));
-        }
-        sxml_allocator_release(array->allocator, array->characters);
-        array->characters = memory;
-        array->character_capacity = new_capacity;
+    void *characters = array->characters;
+    const sxml_status status = sxml_allocator_reserve_array(
+        array->allocator,
+        &(sxml_array_reservation_request){.elements = &characters,
+                                          .capacity = &array->character_capacity,
+                                          .element_count = array->character_count,
+                                          .required_count = array->character_count + 1,
+                                          .element_size = sizeof(uca_character),
+                                          .element_alignment = alignof(uca_character),
+                                          .minimum_capacity = 32});
+    array->characters = characters;
+    if (status != SXML_STATUS_OK) {
+        return status;
     }
     array->characters[array->character_count] = *character;
     array->character_count += 1;

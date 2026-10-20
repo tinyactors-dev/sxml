@@ -236,26 +236,18 @@ static sxml_status append_text(byte_text *text, sxml_byte_view bytes) {
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    if (needed > text->byte_capacity) {
-        size_t capacity = text->byte_capacity < 256 ? 256 : text->byte_capacity;
-        while (status == SXML_STATUS_OK && capacity < needed) {
-            status = sxml_size_multiply(capacity, 2, &capacity);
-        }
-        void *memory = NULL;
-        if (status == SXML_STATUS_OK) {
-            status = sxml_allocator_allocate(
-                text->allocator, (sxml_allocation_request){.byte_count = capacity, .alignment = 1},
-                &memory);
-        }
-        if (status != SXML_STATUS_OK) {
-            return status;
-        }
-        if (text->byte_count > 0) {
-            memcpy(memory, text->bytes, text->byte_count);
-        }
-        sxml_allocator_release(text->allocator, text->bytes);
-        text->bytes = memory;
-        text->byte_capacity = capacity;
+    void *text_bytes = text->bytes;
+    status = sxml_allocator_reserve_array(
+        text->allocator, &(sxml_array_reservation_request){.elements = &text_bytes,
+                                                           .capacity = &text->byte_capacity,
+                                                           .element_count = text->byte_count,
+                                                           .required_count = needed,
+                                                           .element_size = 1,
+                                                           .element_alignment = 1,
+                                                           .minimum_capacity = 256});
+    text->bytes = text_bytes;
+    if (status != SXML_STATUS_OK) {
+        return status;
     }
     memcpy(text->bytes + text->byte_count, bytes.bytes, bytes.byte_count);
     text->byte_count = needed;
@@ -342,24 +334,19 @@ static bool is_kept_path(const file_reader *reader, sxml_byte_view path) {
 }
 
 static sxml_status add_entry(file_reader *reader, sxml_byte_view path, sxml_byte_view value) {
-    if (reader->entry_count == reader->entry_capacity) {
-        size_t capacity = reader->entry_capacity < 64 ? 64 : reader->entry_capacity * 2U;
-        void *memory = NULL;
-        const sxml_status status = sxml_allocator_allocate_array(
-            reader->entry_text.allocator,
-            (sxml_array_allocation_request){.element_count = capacity,
-                                            .element_size = sizeof(read_entry),
-                                            .element_alignment = alignof(read_entry)},
-            &memory);
-        if (status != SXML_STATUS_OK) {
-            return status;
-        }
-        if (reader->entry_count > 0) {
-            memcpy(memory, reader->entries, reader->entry_count * sizeof(read_entry));
-        }
-        sxml_allocator_release(reader->entry_text.allocator, reader->entries);
-        reader->entries = memory;
-        reader->entry_capacity = capacity;
+    void *entries = reader->entries;
+    const sxml_status reserved = sxml_allocator_reserve_array(
+        reader->entry_text.allocator,
+        &(sxml_array_reservation_request){.elements = &entries,
+                                          .capacity = &reader->entry_capacity,
+                                          .element_count = reader->entry_count,
+                                          .required_count = reader->entry_count + 1,
+                                          .element_size = sizeof(read_entry),
+                                          .element_alignment = alignof(read_entry),
+                                          .minimum_capacity = 64});
+    reader->entries = entries;
+    if (reserved != SXML_STATUS_OK) {
+        return reserved;
     }
     read_entry *entry = &reader->entries[reader->entry_count];
     entry->path_offset = reader->entry_text.byte_count;

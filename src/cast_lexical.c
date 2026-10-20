@@ -140,19 +140,12 @@ static sxml_byte_view sxml_cursor_read_digits(sxml_text_cursor *cursor) {
         .byte_count = cursor->byte_offset - first_offset};
 }
 
-/* The value of digits, or false when it exceeds maximum. */
-typedef struct sxml_digit_value_request {
-    sxml_byte_view digits;
-    uint64_t maximum;
-} sxml_digit_value_request;
-
-static bool sxml_digits_to_unsigned(sxml_digit_value_request request,
-                                    uint64_t *value) {
+bool sxml_lexical_read_digits(sxml_digit_value_request request, uint64_t *value) {
     uint64_t accumulated = 0;
     for (size_t byte_index = 0; byte_index < request.digits.byte_count;
          byte_index += 1) {
         uint64_t digit = (uint64_t)(request.digits.bytes[byte_index] - '0');
-        if (accumulated > (request.maximum - digit) / 10U) {
+        if (digit > request.maximum || accumulated > (request.maximum - digit) / 10U) {
             return false;
         }
         accumulated = accumulated * 10U + digit;
@@ -181,21 +174,24 @@ static bool sxml_cursor_read_two_digits(sxml_text_cursor *cursor,
 /* ------------------------------------------------------------- Booleans */
 
 /* XSD 1.1 Part 2, section 3.3.2: "true", "false", "1", "0". */
+sxml_lexical_boolean sxml_lexical_read_boolean(sxml_byte_view lexical_form) {
+    const bool is_true = sxml_byte_view_equals(lexical_form, SXML_BYTE_VIEW_FROM_LITERAL("true")) ||
+                         sxml_byte_view_equals(lexical_form, SXML_BYTE_VIEW_FROM_LITERAL("1"));
+    const bool is_false =
+        sxml_byte_view_equals(lexical_form, SXML_BYTE_VIEW_FROM_LITERAL("false")) ||
+        sxml_byte_view_equals(lexical_form, SXML_BYTE_VIEW_FROM_LITERAL("0"));
+    return (sxml_lexical_boolean){.is_valid = is_true || is_false, .value = is_true};
+}
+
 static sxml_status sxml_parse_boolean(sxml_item_heap *item_heap,
                                       const sxml_lexical_form_request *request,
                                       sxml_item *item) {
-    sxml_byte_view text = request->lexical_form;
-    bool value = false;
-    if (sxml_byte_view_equals(text, SXML_BYTE_VIEW_FROM_LITERAL("true")) ||
-        sxml_byte_view_equals(text, SXML_BYTE_VIEW_FROM_LITERAL("1"))) {
-        value = true;
-    } else if (!sxml_byte_view_equals(text,
-                                      SXML_BYTE_VIEW_FROM_LITERAL("false")) &&
-               !sxml_byte_view_equals(text, SXML_BYTE_VIEW_FROM_LITERAL("0"))) {
+    const sxml_lexical_boolean read = sxml_lexical_read_boolean(request->lexical_form);
+    if (!read.is_valid) {
         return sxml_lexical_fail(request, &sxml_cast_lexical_form_error);
     }
     sxml_atomic_datum datum = {.datum_kind = SXML_DATUM_KIND_BOOLEAN,
-                               .datum_details = {.boolean = value}};
+                               .datum_details = {.boolean = read.value}};
     return sxml_lexical_make(
         item_heap, (sxml_parsed_datum){.request = request, .datum = datum},
         item);
@@ -237,7 +233,7 @@ static sxml_status sxml_parse_decimal(sxml_item_heap *item_heap,
         uint64_t magnitude = 0;
         uint64_t maximum =
             is_negative ? (uint64_t)INT64_MAX + 1U : (uint64_t)INT64_MAX;
-        if (sxml_digits_to_unsigned(
+        if (sxml_lexical_read_digits(
                 (sxml_digit_value_request){.digits = integer_digits,
                                            .maximum = maximum},
                 &magnitude)) {
@@ -361,7 +357,7 @@ static bool sxml_split_binary_lexical_form(sxml_byte_view text,
             return false;
         }
         uint64_t magnitude = 0;
-        if (!sxml_digits_to_unsigned(
+        if (!sxml_lexical_read_digits(
                 (sxml_digit_value_request){
                     .digits = exponent_digits,
                     .maximum = (uint64_t)sxml_cast_exponent_clamp},
@@ -673,7 +669,7 @@ static sxml_duration_split sxml_split_duration(sxml_byte_view text,
         }
         cursor.byte_offset += 1;
         uint64_t value = 0;
-        if (!sxml_digits_to_unsigned(
+        if (!sxml_lexical_read_digits(
                 (sxml_digit_value_request){.digits = digits,
                                            .maximum = (uint64_t)INT64_MAX},
                 &value)) {
@@ -849,7 +845,7 @@ static sxml_date_time_split sxml_cursor_read_year(sxml_text_cursor *cursor,
         return SXML_DATE_TIME_SPLIT_OVERFLOW;
     }
     uint64_t magnitude = 0;
-    (void)sxml_digits_to_unsigned(
+    (void)sxml_lexical_read_digits(
         (sxml_digit_value_request){.digits = digits,
                                    .maximum = (uint64_t)INT64_MAX},
         &magnitude);

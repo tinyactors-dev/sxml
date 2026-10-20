@@ -41,6 +41,7 @@
  */
 #include "schema_read_internal.h"
 
+#include "cast_internal.h"
 #include "evaluator_internal.h"
 #include "processor_internal.h"
 #include "tree_internal.h"
@@ -910,8 +911,7 @@ typedef struct schema_reader {
     /* The versioning namespace (vc:), when the name pool knows it. */
     bool knows_versioning_namespace;
     sxml_namespace_uri_identifier versioning_namespace;
-    /* The detailed description of a report, and computed base URIs. */
-    sxml_xml_buffer detail;
+    /* Computed base URIs. */
     sxml_xml_buffer base_uri;
     sxml_schema_namespace_context_index last_context;
     redefinition_state redefinition;
@@ -980,56 +980,37 @@ static qname_parts split_qname(sxml_byte_view text) {
 }
 
 /* An xs:boolean value read (Part 2, 3.3.2), whitespace collapsed. */
-typedef struct boolean_value_text {
-    bool is_valid;
-    bool value;
-} boolean_value_text;
+typedef sxml_lexical_boolean boolean_value_text;
 
 static boolean_value_text parse_boolean(sxml_byte_view text) {
-    const sxml_byte_view token = sxml_xml_text_trim_whitespace(text);
-    if (sxml_byte_view_equals(token, SXML_TEXT("true")) || sxml_byte_view_equals(token, SXML_TEXT("1"))) {
-        return (boolean_value_text){.is_valid = true, .value = true};
-    }
-    if (sxml_byte_view_equals(token, SXML_TEXT("false")) || sxml_byte_view_equals(token, SXML_TEXT("0"))) {
-        return (boolean_value_text){.is_valid = true, .value = false};
-    }
-    return (boolean_value_text){.is_valid = false, .value = false};
+    return sxml_lexical_read_boolean(sxml_xml_text_trim_whitespace(text));
 }
 
 /* xs:nonNegativeInteger (Part 2, 3.4.20); a value above
    SXML_SCHEMA_UNBOUNDED - 1 is read as that. */
 static bool parse_non_negative_integer(sxml_byte_view text, uint64_t *value) {
     sxml_byte_view digits = sxml_xml_text_trim_whitespace(text);
-    if (digits.byte_count > 0 && digits.bytes[0] == '+') {
+    bool is_negative = false;
+    if (digits.byte_count > 0 && (digits.bytes[0] == '+' || digits.bytes[0] == '-')) {
+        is_negative = digits.bytes[0] == '-';
         digits.bytes += 1;
         digits.byte_count -= 1;
-    } else if (digits.byte_count > 1 && digits.bytes[0] == '-') {
-        /* -0 is zero. */
-        for (size_t digit_index = 1; digit_index < digits.byte_count; digit_index += 1) {
-            if (digits.bytes[digit_index] != '0') {
-                return false;
-            }
-        }
-        *value = 0;
-        return true;
     }
     if (digits.byte_count == 0) {
         return false;
     }
-    uint64_t number = 0;
     for (size_t digit_index = 0; digit_index < digits.byte_count; digit_index += 1) {
         const uint8_t byte = digits.bytes[digit_index];
-        if (byte < '0' || byte > '9') {
+        if (byte < '0' || byte > '9' || (is_negative && byte != '0')) {
+            /* Not digits, or below zero (-0 is zero). */
             return false;
         }
-        const uint64_t digit = (uint64_t)(byte - '0');
-        if (number > (SXML_SCHEMA_UNBOUNDED - 1U - digit) / 10U) {
-            number = SXML_SCHEMA_UNBOUNDED - 1U;
-        } else {
-            number = number * 10U + digit;
-        }
     }
-    *value = number;
+    if (!sxml_lexical_read_digits(
+            (sxml_digit_value_request){.digits = digits, .maximum = SXML_SCHEMA_UNBOUNDED - 1U},
+            value)) {
+        *value = SXML_SCHEMA_UNBOUNDED - 1U;
+    }
     return true;
 }
 
@@ -1131,20 +1112,6 @@ typedef struct read_error {
 static sxml_status report_at(schema_reader *reader, read_error error,
                              sxml_schema_position position) {
     const sxml_byte_view description = sxml_byte_view_from_c_string(error.description);
-    reader->detail.byte_count = 0;
-    sxml_status status = SXML_STATUS_OK;
-    if (error.subject.byte_count != 0) {
-        status = sxml_xml_buffer_append(&reader->detail, description);
-        if (status == SXML_STATUS_OK) {
-            status = sxml_xml_buffer_append(&reader->detail, SXML_TEXT(": "));
-        }
-        if (status == SXML_STATUS_OK) {
-            status = sxml_xml_buffer_append(&reader->detail, error.subject);
-        }
-    }
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
     sxml_byte_view constraint_name = error.constraint_name;
     if (constraint_name.byte_count == 0) {
         constraint_name = reader->element.rule != NULL ? reader->element.rule->constraint_name
@@ -1154,8 +1121,7 @@ static sxml_status report_at(schema_reader *reader, read_error error,
         reader->compilation, &(sxml_schema_report_request){
                                  .constraint_name = constraint_name,
                                  .description = description,
-                                 .detailed_description = {.bytes = reader->detail.bytes,
-                                                          .byte_count = reader->detail.byte_count},
+                                 .subject = error.subject,
                                  .position = position});
 }
 
@@ -4841,7 +4807,6 @@ sxml_status sxml_schema_read_document(sxml_schema_assembly *assembly,
     reader.request = request;
     reader.defaults = request->defaults;
     reader.tree = request->tree;
-    reader.detail = sxml_xml_buffer_empty(processor->allocator);
     reader.base_uri = sxml_xml_buffer_empty(processor->allocator);
     reader.knows_versioning_namespace = sxml_name_pool_find_namespace_uri(
         reader.name_pool, SXML_TEXT("http://www.w3.org/2007/XMLSchema-versioning"),
@@ -4870,7 +4835,6 @@ sxml_status sxml_schema_read_document(sxml_schema_assembly *assembly,
     sxml_allocator_release(reader.allocator, reader.records.elements);
     sxml_allocator_release(reader.allocator, reader.imported_namespaces.elements);
     sxml_allocator_release(reader.allocator, reader.list_indexes.elements);
-    sxml_xml_buffer_release(&reader.detail);
     sxml_xml_buffer_release(&reader.base_uri);
     return status;
 }

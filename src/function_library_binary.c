@@ -859,15 +859,15 @@ typedef struct inferred_encoding {
     sxml_byte_view encoding_name;
 } inferred_encoding;
 
-static sxml_byte_view canonical_encoding_name(sxml_text_encoding encoding) {
+static sxml_byte_view canonical_encoding_name(sxml_xml_encoding encoding) {
     switch (encoding) {
-    case SXML_TEXT_ENCODING_UTF16_BIG_ENDIAN:
+    case SXML_XML_ENCODING_UTF16_BIG_ENDIAN:
         return SXML_BYTE_VIEW_FROM_LITERAL("UTF-16BE");
-    case SXML_TEXT_ENCODING_UTF16_LITTLE_ENDIAN:
+    case SXML_XML_ENCODING_UTF16_LITTLE_ENDIAN:
         return SXML_BYTE_VIEW_FROM_LITERAL("UTF-16LE");
-    case SXML_TEXT_ENCODING_UTF8:
-    case SXML_TEXT_ENCODING_ISO_8859_1:
-    case SXML_TEXT_ENCODING_US_ASCII:
+    case SXML_XML_ENCODING_UTF8:
+    case SXML_XML_ENCODING_ISO_8859_1:
+    case SXML_XML_ENCODING_US_ASCII:
         break;
     }
     return SXML_BYTE_VIEW_FROM_LITERAL("UTF-8");

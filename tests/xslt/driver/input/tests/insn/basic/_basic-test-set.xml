@@ -64,6 +64,25 @@
          </all-of>
       </result>
    </test-case>
+   <test-case name="basic-result-serialization">
+      <description>assert-serialization inside assert-result-document: the serialized result document.</description>
+      <created by="sxml" on="2026-10-20"/>
+      <test>
+         <stylesheet file="basic-result.xsl"/>
+         <initial-template name="main"/>
+         <output serialize="yes"/>
+      </test>
+      <result>
+         <all-of>
+            <assert-result-document uri="part.txt">
+               <assert-serialization>text</assert-serialization>
+            </assert-result-document>
+            <assert-result-document uri="part.txt">
+               <serialization-matches>^te</serialization-matches>
+            </assert-result-document>
+         </all-of>
+      </result>
+   </test-case>
    <test-case name="basic-mode">
       <description>An initial mode with a selection; a raw result.</description>
       <created by="sxml" on="2026-10-17"/>

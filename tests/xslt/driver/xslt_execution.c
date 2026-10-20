@@ -1603,7 +1603,9 @@ static void sxml_xslt_test_transform(sxml_xslt_test_context *context,
         status = sxml_xslt_test_base_output_uri(context, &answer->base_output_uri);
     }
     /* Result documents are kept only for assert-result-document; without
-       one they go to the null handler, which still checks them (D166). */
+       one they go to the null handler, which still checks them (D166). A
+       serialized test case collects them serialized, for the
+       assert-serialization inside assert-result-document. */
     if (status == SXML_STATUS_OK &&
         request->survey->kind_counts[SXML_XSLT_TEST_ASSERTION_KIND_ASSERT_RESULT_DOCUMENT] > 0) {
         status = sxml_xslt_result_document_collector_create(
@@ -1611,7 +1613,9 @@ static void sxml_xslt_test_transform(sxml_xslt_test_context *context,
             &(sxml_xslt_result_document_collector_configuration){
                 .allocator = context->allocator,
                 .maximum_byte_count = 0,
-                .result_delivery = SXML_XSLT_RESULT_DELIVERY_DEFAULT},
+                .result_delivery = delivery == SXML_XSLT_RESULT_DELIVERY_SERIALIZED
+                                       ? SXML_XSLT_RESULT_DELIVERY_SERIALIZED
+                                       : SXML_XSLT_RESULT_DELIVERY_DEFAULT},
             &outputs->collector);
     }
     if (status == SXML_STATUS_OK && delivery == SXML_XSLT_RESULT_DELIVERY_SERIALIZED) {

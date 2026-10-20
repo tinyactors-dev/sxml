@@ -59,6 +59,7 @@
 #include "collation_uca_internal.h"
 
 #include "cldr_internal.h"
+#include "memory_internal.h"
 #include "optional_feature_internal.h"
 #include "processor_internal.h"
 #include "unicode_internal.h"
@@ -97,30 +98,16 @@ typedef struct growable_array {
 
 /* Makes room for one more item and writes its address to *slot. */
 static sxml_status grow_array(growable_array *array, void **slot) {
-    if (array->item_count == array->item_capacity) {
-        size_t new_capacity = array->item_capacity < 16 ? 16 : array->item_capacity;
-        sxml_status status = SXML_STATUS_OK;
-        if (array->item_capacity >= 16) {
-            status = sxml_size_multiply(new_capacity, 2, &new_capacity);
-        }
-        void *memory = NULL;
-        if (status == SXML_STATUS_OK) {
-            status = sxml_uca_allocate_array(
-                array->allocator,
-                (sxml_uca_array_request){.element_count = new_capacity,
-                                         .element_size = array->item_size,
-                                         .alignment = array->item_alignment},
-                &memory);
-        }
-        if (status != SXML_STATUS_OK) {
-            return status;
-        }
-        if (array->item_count > 0) {
-            memcpy(memory, array->items, array->item_count * array->item_size);
-        }
-        sxml_allocator_release(array->allocator, array->items);
-        array->items = memory;
-        array->item_capacity = new_capacity;
+    const sxml_status status = sxml_allocator_reserve_array(
+        array->allocator, &(sxml_array_reservation_request){.elements = &array->items,
+                                                            .capacity = &array->item_capacity,
+                                                            .element_count = array->item_count,
+                                                            .required_count = array->item_count + 1,
+                                                            .element_size = array->item_size,
+                                                            .element_alignment = array->item_alignment,
+                                                            .minimum_capacity = 16});
+    if (status != SXML_STATUS_OK) {
+        return status;
     }
     *slot = (uint8_t *)array->items + (array->item_count * array->item_size);
     array->item_count += 1;
@@ -498,11 +485,11 @@ static sxml_status push_rules(tailoring_builder *builder, sxml_byte_view text) {
     }
     builder->import_count += 1;
     void *memory = NULL;
-    sxml_status status = sxml_uca_allocate_array(
+    sxml_status status = sxml_allocator_allocate_array(
         builder->allocator,
-        (sxml_uca_array_request){.element_count = text.byte_count == 0 ? 1 : text.byte_count,
+        (sxml_array_allocation_request){.element_count = text.byte_count == 0 ? 1 : text.byte_count,
                                  .element_size = sizeof(uint32_t),
-                                 .alignment = alignof(uint32_t)},
+                                 .element_alignment = alignof(uint32_t)},
         &memory);
     if (status != SXML_STATUS_OK) {
         return status;
@@ -1616,27 +1603,27 @@ static sxml_status make_tailored_table(tailoring_builder *builder,
         }
     }
     void *memory = NULL;
-    status = sxml_uca_allocate_array(builder->allocator,
-                                     (sxml_uca_array_request){.element_count = element_count,
+    status = sxml_allocator_allocate_array(builder->allocator,
+                                     (sxml_array_allocation_request){.element_count = element_count,
                                                               .element_size = sizeof(sxml_uca_element),
-                                                              .alignment = alignof(sxml_uca_element)},
+                                                              .element_alignment = alignof(sxml_uca_element)},
                                      &memory);
     table->elements = memory;
     table->element_count = element_count;
     if (status == SXML_STATUS_OK) {
-        status = sxml_uca_allocate_array(builder->allocator,
-                                         (sxml_uca_array_request){.element_count = table->mapping_count,
+        status = sxml_allocator_allocate_array(builder->allocator,
+                                         (sxml_array_allocation_request){.element_count = table->mapping_count,
                                                                   .element_size = sizeof(sxml_uca_mapping),
-                                                                  .alignment = alignof(sxml_uca_mapping)},
+                                                                  .element_alignment = alignof(sxml_uca_mapping)},
                                          &memory);
         table->mappings = memory;
     }
     if (status == SXML_STATUS_OK) {
-        status = sxml_uca_allocate_array(
+        status = sxml_allocator_allocate_array(
             builder->allocator,
-            (sxml_uca_array_request){.element_count = table->contraction_count,
+            (sxml_array_allocation_request){.element_count = table->contraction_count,
                                      .element_size = sizeof(sxml_uca_contraction),
-                                     .alignment = alignof(sxml_uca_contraction)},
+                                     .element_alignment = alignof(sxml_uca_contraction)},
             &memory);
         table->contractions = memory;
     }

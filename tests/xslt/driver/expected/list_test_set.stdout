@@ -18,6 +18,12 @@ set-basic basic-function
   output serialize file tests/insn/basic/out/basic-function.xml
   plan stylesheet tests/insn/basic/basic-function.xsl, 1 secondary, 1 static, 1 parameters, delivery serialized
   assertions all-of 1 assert-string-value 1 assert-xml 1 serialization-matches 1 assert-message 1 assert-result-document 1
+set-basic basic-result-serialization
+  stylesheet - tests/insn/basic/basic-result.xsl
+  invoke call-template main
+  output serialize
+  plan stylesheet tests/insn/basic/basic-result.xsl, 0 secondary, 0 static, 0 parameters, delivery serialized
+  assertions all-of 1 assert-serialization 1 serialization-matches 1 assert-result-document 2
 set-basic basic-mode
   environment shared-stylesheet (test set)
   source . tests/insn/basic/doc.xml uri http://example.com/doc.xml
@@ -45,4 +51,4 @@ set-basic basic-embedded
   invoke apply-templates
   plan embedded tests/insn/basic/embedded.xml, 0 secondary, 0 static, 0 parameters, context item, delivery default
   assertions assert-serialization-error 1
-5 test cases: 5 applicable, 0 skipped; 5 in scope
+6 test cases: 6 applicable, 0 skipped; 6 in scope

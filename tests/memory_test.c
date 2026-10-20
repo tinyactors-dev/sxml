@@ -334,6 +334,69 @@ static void test_allocate_array_zeroes_and_checks_size(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, memory == NULL);
 }
 
+/* src/memory_internal.h: a growable array doubles from its minimum
+   capacity, keeps its elements when it moves and is unchanged when the
+   capacity would overflow. */
+static void test_reserve_array_grows_and_keeps_elements(sxml_test_state *state) {
+    void *elements = NULL;
+    size_t capacity = 0;
+    SXML_TEST_EXPECT(state, sxml_allocator_reserve_array(
+                                sxml_default_allocator(),
+                                &(sxml_array_reservation_request){.elements = &elements,
+                                                                  .capacity = &capacity,
+                                                                  .element_count = 0,
+                                                                  .required_count = 3,
+                                                                  .element_size = sizeof(uint32_t),
+                                                                  .element_alignment =
+                                                                      alignof(uint32_t),
+                                                                  .minimum_capacity = 4}) ==
+                                SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, elements != NULL && capacity == 4);
+    uint32_t *values = elements;
+    values[0] = 7;
+    values[2] = 9;
+    /* Enough room: nothing moves. */
+    SXML_TEST_EXPECT(state, sxml_allocator_reserve_array(
+                                sxml_default_allocator(),
+                                &(sxml_array_reservation_request){.elements = &elements,
+                                                                  .capacity = &capacity,
+                                                                  .element_count = 3,
+                                                                  .required_count = 4,
+                                                                  .element_size = sizeof(uint32_t),
+                                                                  .element_alignment =
+                                                                      alignof(uint32_t),
+                                                                  .minimum_capacity = 4}) ==
+                                SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, elements == values && capacity == 4);
+    SXML_TEST_EXPECT(state, sxml_allocator_reserve_array(
+                                sxml_default_allocator(),
+                                &(sxml_array_reservation_request){.elements = &elements,
+                                                                  .capacity = &capacity,
+                                                                  .element_count = 3,
+                                                                  .required_count = 9,
+                                                                  .element_size = sizeof(uint32_t),
+                                                                  .element_alignment =
+                                                                      alignof(uint32_t),
+                                                                  .minimum_capacity = 4}) ==
+                                SXML_STATUS_OK);
+    values = elements;
+    SXML_TEST_EXPECT(state, capacity == 16 && values[0] == 7 && values[2] == 9 && values[8] == 0);
+    void *const kept = elements;
+    SXML_TEST_EXPECT(state, sxml_allocator_reserve_array(
+                                sxml_default_allocator(),
+                                &(sxml_array_reservation_request){.elements = &elements,
+                                                                  .capacity = &capacity,
+                                                                  .element_count = 3,
+                                                                  .required_count = SIZE_MAX,
+                                                                  .element_size = sizeof(uint32_t),
+                                                                  .element_alignment =
+                                                                      alignof(uint32_t),
+                                                                  .minimum_capacity = 4}) !=
+                                SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, elements == kept && capacity == 16);
+    sxml_allocator_release(sxml_default_allocator(), elements);
+}
+
 /*
  * An allocator that breaks its contract: it hands out memory one byte past
  * an aligned address, and remembers whether it was asked to take it back.
@@ -786,6 +849,8 @@ static void test_arena_survives_every_allocation_failure(
 static const sxml_test_case memory_test_cases[] = {
     {.name = "allocate_array_zeroes_and_checks_size",
      .function = test_allocate_array_zeroes_and_checks_size},
+    {.name = "reserve_array_grows_and_keeps_elements",
+     .function = test_reserve_array_grows_and_keeps_elements},
     {.name = "byte_views_with_same_bytes_are_equal",
      .function = test_byte_views_with_same_bytes_are_equal},
     {.name = "empty_byte_views_are_equal_whatever_their_pointers",

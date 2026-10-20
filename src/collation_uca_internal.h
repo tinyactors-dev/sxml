@@ -197,19 +197,6 @@ bool sxml_uca_starts_contraction(const sxml_collation_element_table *table, uint
 void sxml_uca_make_implicit_elements(const sxml_collation_element_table *root,
                                      uint32_t codepoint, sxml_uca_element elements[2]);
 
-/* The array of allocator memory sxml_uca_allocate_array makes. */
-typedef struct sxml_uca_array_request {
-    size_t element_count;
-    size_t element_size;
-    size_t alignment;
-} sxml_uca_array_request;
-
-/* Allocates an array; *memory is NULL for zero elements. Returns the
-   allocator's failures and SXML_STATUS_ARITHMETIC_OVERFLOW. */
-SXML_NODISCARD sxml_status sxml_uca_allocate_array(sxml_allocator allocator,
-                                                   sxml_uca_array_request request,
-                                                   void **memory);
-
 /* Sorts the mappings and contractions of a table by codepoints. */
 void sxml_uca_sort_entries(sxml_collation_element_table *table);
 

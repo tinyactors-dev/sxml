@@ -1,3 +1,3 @@
 fail set-basic basic-function: assert-result-document: no result document of that URI
-test set set-basic: 5 test cases: 2 passed (0 wrong error), 1 failed, 0 errors, 2 not run
-total: 5 test cases: 2 passed (0 wrong error), 1 failed, 0 errors, 2 not run
+test set set-basic: 6 test cases: 3 passed (0 wrong error), 1 failed, 0 errors, 2 not run
+total: 6 test cases: 3 passed (0 wrong error), 1 failed, 0 errors, 2 not run

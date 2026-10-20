@@ -14,6 +14,8 @@
  */
 #include "xml_internal.h"
 
+#include "memory_internal.h"
+
 #include <stdalign.h>
 #include <string.h>
 
@@ -36,23 +38,6 @@ void sxml_xml_buffer_release(sxml_xml_buffer *buffer) {
     *buffer = sxml_xml_buffer_empty(buffer->allocator);
 }
 
-/* The capacity to grow to for at least required_count units. */
-static sxml_status sxml_xml_grown_capacity(size_t current_capacity,
-                                           size_t required_count,
-                                           size_t *capacity) {
-    size_t grown = current_capacity < SXML_XML_MINIMUM_CAPACITY
-                       ? SXML_XML_MINIMUM_CAPACITY
-                       : current_capacity;
-    while (grown < required_count) {
-        sxml_status status = sxml_size_multiply(grown, 2, &grown);
-        if (status != SXML_STATUS_OK) {
-            return status;
-        }
-    }
-    *capacity = grown;
-    return SXML_STATUS_OK;
-}
-
 sxml_status sxml_xml_buffer_reserve(sxml_xml_buffer *buffer,
                                     size_t additional_byte_count) {
     size_t required = 0;
@@ -61,29 +46,19 @@ sxml_status sxml_xml_buffer_reserve(sxml_xml_buffer *buffer,
     if (status != SXML_STATUS_OK || required <= buffer->byte_capacity) {
         return status;
     }
-    size_t capacity = 0;
-    status =
-        sxml_xml_grown_capacity(buffer->byte_capacity, required, &capacity);
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    void *memory = NULL;
-    status = sxml_allocator_allocate(
+    void *bytes = buffer->bytes;
+    status = sxml_allocator_reserve_array(
         buffer->allocator,
-        (sxml_allocation_request){.byte_count = capacity, .alignment = 1},
-        &memory);
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    if (buffer->byte_count != 0) {
-        memcpy(memory, buffer->bytes, buffer->byte_count);
-    }
-    if (buffer->bytes != NULL) {
-        sxml_allocator_release(buffer->allocator, buffer->bytes);
-    }
-    buffer->bytes = memory;
-    buffer->byte_capacity = capacity;
-    return SXML_STATUS_OK;
+        &(sxml_array_reservation_request){
+            .elements = &bytes,
+            .capacity = &buffer->byte_capacity,
+            .element_count = buffer->byte_count,
+            .required_count = required,
+            .element_size = 1,
+            .element_alignment = 1,
+            .minimum_capacity = SXML_XML_MINIMUM_CAPACITY});
+    buffer->bytes = bytes;
+    return status;
 }
 
 sxml_status sxml_xml_buffer_append(sxml_xml_buffer *buffer,
@@ -173,38 +148,19 @@ void sxml_xml_array_release(sxml_xml_array *array) {
 /* Grows array to hold at least required_count elements. */
 static sxml_status sxml_xml_array_reserve(sxml_xml_array *array,
                                           size_t required_count) {
-    if (required_count <= array->element_capacity) {
-        return SXML_STATUS_OK;
-    }
-    size_t capacity = 0;
-    sxml_status status = sxml_xml_grown_capacity(array->element_capacity,
-                                                 required_count, &capacity);
-    size_t byte_count = 0;
-    if (status == SXML_STATUS_OK) {
-        status = sxml_size_multiply(capacity, array->element_byte_count,
-                                    &byte_count);
-    }
-    void *memory = NULL;
-    if (status == SXML_STATUS_OK) {
-        status = sxml_allocator_allocate(
-            array->allocator,
-            (sxml_allocation_request){.byte_count = byte_count,
-                                      .alignment = alignof(max_align_t)},
-            &memory);
-    }
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    if (array->element_count != 0) {
-        memcpy(memory, array->elements,
-               array->element_count * array->element_byte_count);
-    }
-    if (array->elements != NULL) {
-        sxml_allocator_release(array->allocator, array->elements);
-    }
-    array->elements = memory;
-    array->element_capacity = capacity;
-    return SXML_STATUS_OK;
+    void *elements = array->elements;
+    const sxml_status status = sxml_allocator_reserve_array(
+        array->allocator,
+        &(sxml_array_reservation_request){
+            .elements = &elements,
+            .capacity = &array->element_capacity,
+            .element_count = array->element_count,
+            .required_count = required_count,
+            .element_size = array->element_byte_count,
+            .element_alignment = alignof(max_align_t),
+            .minimum_capacity = SXML_XML_MINIMUM_CAPACITY});
+    array->elements = elements;
+    return status;
 }
 
 sxml_status sxml_xml_array_push(sxml_xml_array *array, void **element) {

@@ -18,6 +18,8 @@
  */
 #include "cast_internal.h"
 
+#include "calendar_internal.h"
+
 #include "regex_internal.h"
 #include "sxml/string.h"
 
@@ -223,16 +225,10 @@ static bool sxml_item_is_nan(sxml_item item) {
 }
 
 /* Days from 1970-01-01 to year-month-01 of the proleptic Gregorian
-   calendar (H. Hinnant's days_from_civil). */
+   calendar (src/calendar_internal.h). */
 static int64_t sxml_days_to_month_start(int64_t year, int64_t month) {
-    int64_t shifted_year = month <= 2 ? year - 1 : year;
-    int64_t era = (shifted_year >= 0 ? shifted_year : shifted_year - 399) / 400;
-    int64_t year_of_era = shifted_year - era * 400;
-    int64_t shifted_month = month > 2 ? month - 3 : month + 9;
-    int64_t day_of_year = (153 * shifted_month + 2) / 5;
-    int64_t day_of_era =
-        year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
-    return era * 146097 + day_of_era - 719468;
+    return sxml_calendar_gregorian_days(
+        (sxml_calendar_date){.year = year, .month = month, .day = 1, .day_of_year = 0});
 }
 
 /* A point of the time line: seconds and nanoseconds. */

@@ -434,6 +434,13 @@ typedef struct sxml_resource_retrieval_request {
     sxml_byte_view base_uri;
     /* TEXT: the encoding option, or empty. */
     sxml_byte_view encoding_name;
+    /* Feature data (sxml_optional_feature_read_data): an empty
+       uri_reference is not resolved, and the resolver is asked also when
+       uri_reference cannot be made absolute (absolute_uri empty then). */
+    bool asks_unresolved;
+    /* A DOCUMENT_NODE the resolver delivers is available as
+       retrieved->document_node; otherwise only BYTES are. */
+    bool accepts_document_node;
 } sxml_resource_retrieval_request;
 
 /*
@@ -448,6 +455,9 @@ typedef struct sxml_retrieved_resource {
     sxml_byte_view content;
     /* Named outside the content (an HTTP charset), or empty. */
     sxml_byte_view encoding_name;
+    /* accepts_document_node: the delivered document node, borrowed as
+       content is; the empty item for BYTES. */
+    sxml_item document_node;
     sxml_byte_view description;
     /* Private: what the resolver delivered and the resolved URI. */
     bool is_delivered;

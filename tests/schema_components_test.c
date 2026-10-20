@@ -364,7 +364,7 @@ static void test_reports(sxml_test_state *state) {
     const sxml_schema_report_request request = {
         .constraint_name = SXML_BYTE_VIEW_FROM_LITERAL("src-resolve"),
         .description = SXML_BYTE_VIEW_FROM_LITERAL("a QName names no component"),
-        .detailed_description = SXML_BYTE_VIEW_FROM_LITERAL("no type named 'USAddress'"),
+        .subject = SXML_BYTE_VIEW_FROM_LITERAL("USAddress"),
         .position = {.document = {.value = 1}, .line_number = 11, .column_number = 7}};
 
     /* The null sink: the first error stops, the record has it. */
@@ -399,7 +399,6 @@ static void test_reports(sxml_test_state *state) {
     const sxml_schema_report_request second_request = {
         .constraint_name = SXML_BYTE_VIEW_FROM_LITERAL("cos-nonambig"),
         .description = SXML_BYTE_VIEW_FROM_LITERAL("two particles compete"),
-        .detailed_description = {.bytes = NULL, .byte_count = 0},
         .position = {.document = {.value = 1}, .line_number = 12, .column_number = 3}};
     SXML_TEST_EXPECT(state, sxml_schema_compilation_report(&compilation, &second_request) ==
                                 SXML_STATUS_OK);

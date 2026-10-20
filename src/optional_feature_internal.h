@@ -185,6 +185,10 @@ typedef struct sxml_feature_data_reader_operations {
        state, for example. A failure is returned by
        sxml_optional_feature_read_data. */
     sxml_status (*read)(void *state, sxml_byte_view content);
+    /* Reads a document node the resolver delivered instead of bytes,
+       borrowed for the call; NULL when the data's kind has no such form
+       (the delivery is then SXML_STATUS_INVALID_ARGUMENT). */
+    sxml_status (*read_document)(void *state, sxml_item document_node);
 } sxml_feature_data_reader_operations;
 
 typedef struct sxml_feature_data_reader {
@@ -199,9 +203,15 @@ typedef struct sxml_feature_data_request {
     /* A kind whose forms include BYTES (include/sxml/processor.h); each
        feature with data adds its own kind there (D184). */
     sxml_resource_kind resource_kind;
-    /* An absolute URI that names the data, for example
-       "http://www.unicode.org/Public/UCA/16.0.0/allkeys.txt". */
+    /* The URI that names the data, for example
+       "http://www.unicode.org/Public/UCA/16.0.0/allkeys.txt": resolved
+       against base_uri; the resolver is asked also when it cannot be
+       made absolute (absolute_uri empty), and an empty one asks for the
+       default data of the kind (Full Text's default stop words and
+       thesaurus), unresolved. */
     sxml_byte_view uri;
+    /* What a relative uri is resolved against; may be empty. */
+    sxml_byte_view base_uri;
     sxml_feature_data_reader reader;
 } sxml_feature_data_request;
 
@@ -213,8 +223,8 @@ typedef struct sxml_feature_data_outcome {
 
 /*
  * Asks the processor's resource resolver for request->uri as
- * request->resource_kind, hands the bytes to request->reader and gives them
- * back to the resolver. When the resolver does not deliver the data, the
+ * request->resource_kind, hands the bytes (or the document node) to
+ * request->reader and gives them back to the resolver. When the resolver does not deliver the data, the
  * reader is not called, outcome->is_available is false and the feature
  * behaves as its specification says for missing data. Returns
  * SXML_STATUS_INVALID_ARGUMENT for an invalid request or a form the kind

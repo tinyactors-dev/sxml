@@ -9,6 +9,7 @@
  *
  * Golden file: tests/format_test.c.
  */
+#include "calendar_internal.h"
 #include "format_date_internal.h"
 #include "sxml/memory.h"
 #include "sxml/processor.h"
@@ -26,6 +27,28 @@ static sxml_byte_view text_view(const char *text) {
 }
 
 /* -------------------------------------------------------------- Calendars */
+
+/* src/calendar_internal.h: day numbers and cycle days are one
+   arithmetic; a cycle starts on March 1 of a year divisible by 400. */
+static void test_gregorian_days_go_through_cycles(sxml_test_state *state) {
+    SXML_TEST_EXPECT(state, sxml_calendar_gregorian_days((sxml_calendar_date){
+                                .year = 1970, .month = 1, .day = 1, .day_of_year = 0}) == 0);
+    SXML_TEST_EXPECT(state, sxml_calendar_gregorian_days((sxml_calendar_date){
+                                .year = 2000, .month = 3, .day = 1, .day_of_year = 0}) == 11017);
+    const sxml_calendar_cycle_day start = sxml_calendar_cycle_day_of(
+        (sxml_calendar_date){.year = -400, .month = 3, .day = 1, .day_of_year = 0});
+    SXML_TEST_EXPECT(state, start.cycle_number == -1 && start.day_of_cycle == 0);
+    /* February 29 of a cycle's last year is its last day. */
+    const sxml_calendar_cycle_day last = sxml_calendar_cycle_day_of(
+        (sxml_calendar_date){.year = 2000, .month = 2, .day = 29, .day_of_year = 0});
+    SXML_TEST_EXPECT(state, last.cycle_number == 4 &&
+                                last.day_of_cycle == SXML_CALENDAR_DAYS_PER_CYCLE - 1);
+    const sxml_calendar_date date = sxml_calendar_date_in_cycle(last.day_of_cycle);
+    SXML_TEST_EXPECT(state, date.year == 400 && date.month == 2 && date.day == 29);
+    const sxml_calendar_date back = sxml_calendar_gregorian_date(-1);
+    SXML_TEST_EXPECT(state, back.year == 1969 && back.month == 12 && back.day == 31 &&
+                                back.day_of_year == 365);
+}
 
 static void test_calendars_are_chosen(sxml_test_state *state) {
     sxml_calendar_choice choice;
@@ -442,6 +465,8 @@ static void test_functions_survive_every_allocation_failure(sxml_test_state *sta
 }
 
 static const sxml_test_case format_date_test_cases[] = {
+    {.name = "gregorian_days_go_through_cycles",
+     .function = test_gregorian_days_go_through_cycles},
     {.name = "calendars_are_chosen", .function = test_calendars_are_chosen},
     {.name = "pictures_format", .function = test_pictures_format},
     {.name = "invalid_pictures_are_rejected", .function = test_invalid_pictures_are_rejected},

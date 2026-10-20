@@ -31,6 +31,31 @@ typedef struct sxml_calendar_date {
     int64_t day_of_year;
 } sxml_calendar_date;
 
+/*
+ * A day as the 400-year cycle of the proleptic Gregorian calendar
+ * (146,097 days) it falls in and its day in that cycle, counted from
+ * March 1 of year 400 * cycle_number (H. Hinnant, "chrono-Compatible
+ * Low-Level Date Algorithms": eras and days of era). Every year of int64_t
+ * has one, so date arithmetic that must not overflow (src/operator_temporal.c)
+ * counts in cycles; the day numbers below are made from them.
+ */
+typedef struct sxml_calendar_cycle_day {
+    int64_t cycle_number;
+    /* 0 to 146,096. */
+    int64_t day_of_cycle;
+} sxml_calendar_cycle_day;
+
+/* The days of a 400-year cycle. */
+#define SXML_CALENDAR_DAYS_PER_CYCLE 146097
+
+/* The cycle day of a proleptic Gregorian date whose year is above
+   INT64_MIN; day_of_year is ignored. */
+sxml_calendar_cycle_day sxml_calendar_cycle_day_of(sxml_calendar_date date);
+
+/* The date of day_of_cycle (0 to 146,096) with its year counted from the
+   cycle's first (0 to 400; day_of_year is not set). */
+sxml_calendar_date sxml_calendar_date_in_cycle(int64_t day_of_cycle);
+
 /* The day number of a proleptic Gregorian date (H. Hinnant's
    days_from_civil); day_of_year is ignored. */
 int64_t sxml_calendar_gregorian_days(sxml_calendar_date date);

@@ -237,6 +237,40 @@ sxml_status sxml_allocator_allocate_array(sxml_allocator allocator,
     return status;
 }
 
+sxml_status sxml_allocator_reserve_array(sxml_allocator allocator,
+                                         const sxml_array_reservation_request *request) {
+    if (request->required_count <= *request->capacity) {
+        return SXML_STATUS_OK;
+    }
+    size_t capacity = request->minimum_capacity == 0 ? 8 : request->minimum_capacity;
+    if (capacity < *request->capacity) {
+        capacity = *request->capacity;
+    }
+    sxml_status status = SXML_STATUS_OK;
+    while (status == SXML_STATUS_OK && capacity < request->required_count) {
+        status = sxml_size_multiply(capacity, 2, &capacity);
+    }
+    void *memory = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_allocator_allocate_array(
+            allocator,
+            (sxml_array_allocation_request){.element_count = capacity,
+                                            .element_size = request->element_size,
+                                            .element_alignment = request->element_alignment},
+            &memory);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (request->element_count > 0) {
+        memcpy(memory, *request->elements, request->element_count * request->element_size);
+    }
+    sxml_allocator_release(allocator, *request->elements);
+    *request->elements = memory;
+    *request->capacity = capacity;
+    return SXML_STATUS_OK;
+}
+
 void sxml_allocator_release(sxml_allocator allocator, void *memory) {
     if (memory == NULL || sxml_allocator_is_null(allocator)) {
         return;

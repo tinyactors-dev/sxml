@@ -1784,9 +1784,13 @@ typedef struct sxml_schema_report_request {
     sxml_byte_view constraint_name;
     /* Static text: the description of the error record. */
     sxml_byte_view description;
-    /* What the report sink receives as the description when not empty:
-       the description with the names involved. Borrowed for the call. */
-    sxml_byte_view detailed_description;
+    /* What the report sink's description adds after the description and
+       ": " when not empty: the value or text involved. Borrowed for the
+       call. */
+    sxml_byte_view subject;
+    /* Otherwise the name involved, as Q{uri}local (local alone in no
+       namespace); 0 for none. */
+    sxml_name_identifier subject_name;
     sxml_schema_position position;
     /* A document without an entry (a configured one that is not
        well-formed or not a schema document): its absolute URI names the

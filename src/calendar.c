@@ -13,30 +13,46 @@ static int64_t floor_divide(int64_t numerator, int64_t denominator) {
     return numerator % denominator < 0 ? quotient - 1 : quotient;
 }
 
-int64_t sxml_calendar_gregorian_days(sxml_calendar_date date) {
+sxml_calendar_cycle_day sxml_calendar_cycle_day_of(sxml_calendar_date date) {
+    /* The year starts on March 1, so a leap day ends it. */
     const int64_t year = date.month <= 2 ? date.year - 1 : date.year;
-    const int64_t era = (year >= 0 ? year : year - 399) / 400;
-    const int64_t year_of_era = year - era * 400;
+    const int64_t cycle_number = floor_divide(year, 400);
+    const int64_t year_of_cycle = year - cycle_number * 400;
     const int64_t shifted_month = date.month > 2 ? date.month - 3 : date.month + 9;
-    const int64_t day_of_era_year = (153 * shifted_month + 2) / 5 + date.day - 1;
-    const int64_t day_of_era =
-        year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_era_year;
-    return era * 146097 + day_of_era - 719468;
+    const int64_t day_of_shifted_year = (153 * shifted_month + 2) / 5 + date.day - 1;
+    return (sxml_calendar_cycle_day){
+        .cycle_number = cycle_number,
+        .day_of_cycle = year_of_cycle * 365 + year_of_cycle / 4 - year_of_cycle / 100 +
+                        day_of_shifted_year};
+}
+
+sxml_calendar_date sxml_calendar_date_in_cycle(int64_t day_of_cycle) {
+    const int64_t year_of_cycle = (day_of_cycle - day_of_cycle / 1460 + day_of_cycle / 36524 -
+                                   day_of_cycle / 146096) /
+                                  365;
+    const int64_t day_of_shifted_year =
+        day_of_cycle - (365 * year_of_cycle + year_of_cycle / 4 - year_of_cycle / 100);
+    const int64_t shifted_month = (5 * day_of_shifted_year + 2) / 153;
+    const int64_t day = day_of_shifted_year - (153 * shifted_month + 2) / 5 + 1;
+    const int64_t month = shifted_month < 10 ? shifted_month + 3 : shifted_month - 9;
+    return (sxml_calendar_date){.year = year_of_cycle + (month <= 2 ? 1 : 0),
+                                .month = month,
+                                .day = day,
+                                .day_of_year = 0};
+}
+
+/* 719,468: the days from 0000-03-01, the start of cycle 0, to 1970-01-01. */
+int64_t sxml_calendar_gregorian_days(sxml_calendar_date date) {
+    const sxml_calendar_cycle_day cycle_day = sxml_calendar_cycle_day_of(date);
+    return cycle_day.cycle_number * SXML_CALENDAR_DAYS_PER_CYCLE + cycle_day.day_of_cycle - 719468;
 }
 
 sxml_calendar_date sxml_calendar_gregorian_date(int64_t day_number) {
     const int64_t shifted = day_number + 719468;
-    const int64_t era = (shifted >= 0 ? shifted : shifted - 146096) / 146097;
-    const int64_t day_of_era = shifted - era * 146097;
-    const int64_t year_of_era =
-        (day_of_era - day_of_era / 1460 + day_of_era / 36524 - day_of_era / 146096) / 365;
-    const int64_t day_of_shifted_year =
-        day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
-    const int64_t shifted_month = (5 * day_of_shifted_year + 2) / 153;
-    const int64_t day = day_of_shifted_year - (153 * shifted_month + 2) / 5 + 1;
-    const int64_t month = shifted_month < 10 ? shifted_month + 3 : shifted_month - 9;
-    sxml_calendar_date date = {
-        .year = year_of_era + era * 400 + (month <= 2 ? 1 : 0), .month = month, .day = day};
+    const int64_t cycle_number = floor_divide(shifted, SXML_CALENDAR_DAYS_PER_CYCLE);
+    sxml_calendar_date date =
+        sxml_calendar_date_in_cycle(shifted - cycle_number * SXML_CALENDAR_DAYS_PER_CYCLE);
+    date.year += cycle_number * 400;
     date.day_of_year =
         day_number -
         sxml_calendar_gregorian_days((sxml_calendar_date){.year = date.year, .month = 1, .day = 1}) +

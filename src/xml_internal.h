@@ -205,6 +205,64 @@ SXML_NODISCARD sxml_status sxml_xml_transcode(
 SXML_NODISCARD sxml_status sxml_xml_check_ascii(
     sxml_byte_view input, sxml_xml_transcoding_failure *failure);
 
+/* ------------------------------------------------------- The decoder */
+
+/*
+ * The one decoder of UTF-8, UTF-16, ISO-8859-1 and US-ASCII octets (glossary
+ * `decoding_error_rule`): the XML parser's transcoding, text decoding
+ * (src/text_decoding_internal.h) and the HTML input stream
+ * (src/html_encoding.c) step through it, each with its error rule.
+ */
+
+/* What the decoder does with octets that do not decode in the encoding. */
+typedef enum sxml_xml_decoding_error_rule {
+    /* They end decoding (XML 1.0, 4.3.3: a fatal error; F&O 4.0, 17.1.5
+       without fallback). */
+    SXML_XML_DECODING_ERROR_RULE_FAIL,
+    /* Each maximal subpart becomes one U+FFFD and decoding goes on
+       (Unicode 16.0, 3.9.6 "U+FFFD Substitution of Maximal Subparts"; the
+       Encoding Standard, 4.1, error mode "replacement"). */
+    SXML_XML_DECODING_ERROR_RULE_REPLACE,
+} sxml_xml_decoding_error_rule;
+
+/* A decoder: a plain value the caller keeps. byte_offset is where the
+   next codepoint starts (after a byte order mark the caller skipped). */
+typedef struct sxml_xml_decoder {
+    sxml_byte_view input;
+    sxml_xml_encoding encoding;
+    sxml_xml_decoding_error_rule error_rule;
+    size_t byte_offset;
+} sxml_xml_decoder;
+
+typedef enum sxml_xml_decoding_step_kind {
+    /* A codepoint the octets encode. */
+    SXML_XML_DECODING_STEP_CODEPOINT,
+    /* REPLACE: U+FFFD for octets that do not decode. */
+    SXML_XML_DECODING_STEP_REPLACEMENT,
+    /* FAIL: octets that do not decode; the decoder stays at them. */
+    SXML_XML_DECODING_STEP_FAILURE,
+    /* No octets are left. */
+    SXML_XML_DECODING_STEP_END,
+} sxml_xml_decoding_step_kind;
+
+/* One step of a decoder. */
+typedef struct sxml_xml_decoding_step {
+    sxml_xml_decoding_step_kind step_kind;
+    /* The codepoint; U+FFFD for a replacement, 0 otherwise. */
+    uint32_t codepoint;
+    /* Where the step's octets start in the input. */
+    size_t byte_offset;
+} sxml_xml_decoding_step;
+
+/*
+ * Decodes the next codepoint and moves decoder past its octets. UTF-8 is
+ * well-formed as Unicode 16.0, 3.9 (table 3-7) says: no overlong forms,
+ * surrogates or codepoints past U+10FFFF. UTF-16 pairs surrogates (RFC
+ * 2781, 2.2); a lone surrogate or an odd last byte does not decode. Every
+ * ISO-8859-1 byte decodes; a US-ASCII byte from 0x80 on does not.
+ */
+sxml_xml_decoding_step sxml_xml_decoder_next(sxml_xml_decoder *decoder);
+
 /* ------------------------------------------------------ XML version */
 
 /* The version of XML a document follows (XML 1.1 Second Edition, 4.3.4):

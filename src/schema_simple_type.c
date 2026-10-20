@@ -77,7 +77,6 @@ static sxml_status sxml_simple_type_report(const sxml_simple_type_compiler *comp
         &(sxml_schema_report_request){
             .constraint_name = sxml_byte_view_from_c_string(error.constraint_name),
             .description = sxml_byte_view_from_c_string(error.description),
-            .detailed_description = {.bytes = NULL, .byte_count = 0},
             .position = error.position});
 }
 

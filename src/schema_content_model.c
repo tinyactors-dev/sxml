@@ -49,6 +49,7 @@
 
 #include "processor_internal.h"
 #include "sort_internal.h"
+#include "text_form_internal.h"
 
 #include <stdalign.h>
 #include <stddef.h>
@@ -588,39 +589,6 @@ static sxml_status append_uint32(content_compiler *compiler, sxml_schema_scratch
 
 /* ----------------------------------------------------------- Reporting */
 
-/* A small text for a detailed description. */
-typedef struct report_text {
-    char characters[256];
-    size_t character_count;
-} report_text;
-
-static void report_text_append(report_text *text, sxml_byte_view bytes) {
-    for (size_t byte_index = 0; byte_index < bytes.byte_count; byte_index += 1) {
-        if (text->character_count + 1 < sizeof(text->characters)) {
-            text->characters[text->character_count] = (char)bytes.bytes[byte_index];
-            text->character_count += 1;
-        }
-    }
-}
-
-static void report_text_append_name(const sxml_schema_components *components, report_text *text,
-                                    sxml_name_identifier name) {
-    sxml_name_parts parts = {.namespace_uri = {.index = 0}};
-    if (sxml_name_pool_get_name_parts(components->processor->name_pool, name, &parts) !=
-        SXML_STATUS_OK) {
-        return;
-    }
-    sxml_byte_view namespace_uri = {.bytes = NULL, .byte_count = 0};
-    if (parts.namespace_uri.index != 0 &&
-        sxml_name_pool_get_namespace_uri(components->processor->name_pool, parts.namespace_uri,
-                                         &namespace_uri) == SXML_STATUS_OK) {
-        report_text_append(text, SXML_BYTE_VIEW_FROM_LITERAL("Q{"));
-        report_text_append(text, namespace_uri);
-        report_text_append(text, SXML_BYTE_VIEW_FROM_LITERAL("}"));
-    }
-    report_text_append(text, parts.local_name);
-}
-
 /* An error of the complex type being compiled. */
 typedef struct content_report {
     const char *constraint_name;
@@ -636,19 +604,12 @@ static sxml_status report_error(content_compiler *compiler, content_report repor
     compiler->has_reported = true;
     const sxml_schema_type_definition *type_definition =
         sxml_schema_get_type_definition(compiler->components, compiler->complex_type);
-    report_text text = {.character_count = 0};
-    report_text_append(&text, sxml_byte_view_from_c_string(report.description));
-    if (report.name.index != 0) {
-        report_text_append(&text, SXML_BYTE_VIEW_FROM_LITERAL(": "));
-        report_text_append_name(compiler->components, &text, report.name);
-    }
     return sxml_schema_compilation_report(
         compiler->compilation,
         &(sxml_schema_report_request){
             .constraint_name = sxml_byte_view_from_c_string(report.constraint_name),
             .description = sxml_byte_view_from_c_string(report.description),
-            .detailed_description = {.bytes = (const uint8_t *)text.characters,
-                                     .byte_count = text.character_count},
+            .subject_name = report.name,
             .position = type_definition->position});
 }
 
@@ -3256,31 +3217,14 @@ static sxml_status check_content_restriction(content_compiler *compiler) {
 
 /* ------------------------------------------------------------ Text form */
 
-typedef struct text_writer {
-    sxml_memory_view output;
-    size_t byte_count;
-} text_writer;
+typedef sxml_text_form_writer text_writer;
 
 static void write_bytes(text_writer *writer, sxml_byte_view bytes) {
-    for (size_t byte_index = 0; byte_index < bytes.byte_count; byte_index += 1) {
-        if (writer->byte_count < writer->output.byte_count) {
-            writer->output.bytes[writer->byte_count] = bytes.bytes[byte_index];
-        }
-        writer->byte_count += 1;
-    }
+    sxml_text_form_write_bytes(writer, bytes);
 }
 
 static void write_number(text_writer *writer, uint64_t number) {
-    char digits[24];
-    size_t digit_count = 0;
-    do {
-        digits[sizeof(digits) - 1 - digit_count] = (char)('0' + (number % 10U));
-        digit_count += 1;
-        number /= 10U;
-    } while (number != 0 && digit_count < sizeof(digits));
-    write_bytes(writer,
-                (sxml_byte_view){.bytes = (const uint8_t *)digits + sizeof(digits) - digit_count,
-                                 .byte_count = digit_count});
+    sxml_text_form_write_unsigned(writer, number);
 }
 
 /* A name with the first prefix the bindings give its namespace. */
@@ -3361,7 +3305,7 @@ sxml_schema_content_model_write_text(const sxml_schema_components *components,
                                      const sxml_schema_content_model_text_request *request,
                                      size_t *byte_count) {
     const sxml_schema_content_model *model = request->content_model;
-    text_writer writer = {.output = request->output, .byte_count = 0};
+    text_writer writer = {.output = request->output, .byte_count = 0, .column = 0};
     write_bytes(&writer, sxml_byte_view_from_c_string("content-model of type "));
     write_number(&writer, model->complex_type.value);
     write_bytes(&writer,

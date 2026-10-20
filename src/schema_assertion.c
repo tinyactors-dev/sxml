@@ -155,7 +155,7 @@ static sxml_status compile_expression(expression_compilation compilation,
             &(sxml_schema_report_request){
                 .constraint_name = request->constraint_name,
                 .description = request->description,
-                .detailed_description = error_record.diagnostic.description,
+                .subject = error_record.diagnostic.description,
                 .position = record->position});
     }
     return status;

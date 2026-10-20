@@ -15,6 +15,7 @@
  * of).
  */
 #include "serialize_internal.h"
+#include "sort_internal.h"
 
 #include "sxml/name.h"
 #include "sxml/string.h"
@@ -619,59 +620,53 @@ static sxml_status sxml_xml_writer_compare(const sxml_xml_writer *writer,
     return status;
 }
 
-static void sxml_xml_writer_swap(sxml_xml_writer *writer, const sxml_canonical_sort *sort,
-                                 sxml_position_comparison positions) {
-    if (sort->is_attributes) {
-        const uint32_t swapped = writer->attribute_numbers[positions.first];
-        writer->attribute_numbers[positions.first] = writer->attribute_numbers[positions.second];
-        writer->attribute_numbers[positions.second] = swapped;
-    } else {
-        const sxml_namespace_binding swapped = writer->declared[positions.first];
-        writer->declared[positions.first] = writer->declared[positions.second];
-        writer->declared[positions.second] = swapped;
+/* The state of one canonical sort: the first failure of a key lookup
+   is kept, and every comparison after it is false. */
+typedef struct sxml_canonical_sort_state {
+    const sxml_xml_writer *writer;
+    const sxml_canonical_sort *sort;
+    /* The array being sorted and its element size, to turn an element
+       back into its position. */
+    const uint8_t *elements;
+    size_t element_size;
+    sxml_status *status;
+} sxml_canonical_sort_state;
+
+static bool sxml_canonical_is_before(const void *state, sxml_sort_pair pair) {
+    const sxml_canonical_sort_state *sort_state = state;
+    if (*sort_state->status != SXML_STATUS_OK) {
+        return false;
     }
+    sxml_position_comparison comparison = {
+        .first = (size_t)((const uint8_t *)pair.second - sort_state->elements) /
+                 sort_state->element_size,
+        .second = (size_t)((const uint8_t *)pair.first - sort_state->elements) /
+                  sort_state->element_size,
+        .is_greater = false};
+    *sort_state->status =
+        sxml_xml_writer_compare(sort_state->writer, sort_state->sort, &comparison);
+    return comparison.is_greater;
 }
 
-/* Sorts declarations or attributes into canonical order: heapsort, so
-   the work stays O(n log n) for any number of attributes, without
-   recursion. */
+/* Sorts declarations or attributes into canonical order with
+   sxml_sort_in_place, so the work stays O(n log n) for any number of
+   attributes, without recursion. */
 static sxml_status sxml_xml_writer_sort(sxml_xml_writer *writer, const sxml_canonical_sort *sort) {
-    const size_t count = sort->count;
     sxml_status status = SXML_STATUS_OK;
-    for (size_t sort_pass = 0; status == SXML_STATUS_OK && sort_pass < 2 * count; sort_pass += 1) {
-        const bool is_building = sort_pass < count;
-        size_t heap_size = count;
-        size_t root = 0;
-        if (is_building) {
-            root = count - 1 - sort_pass;
-        } else {
-            heap_size = 2 * count - sort_pass - 1;
-            sxml_xml_writer_swap(writer, sort,
-                                 (sxml_position_comparison){.first = 0, .second = heap_size});
-        }
-        while (status == SXML_STATUS_OK) {
-            size_t largest = root;
-            const size_t children[2] = {2 * root + 1, 2 * root + 2};
-            for (size_t child_index = 0; status == SXML_STATUS_OK && child_index < 2;
-                 child_index += 1) {
-                if (children[child_index] >= heap_size) {
-                    continue;
-                }
-                sxml_position_comparison comparison = {
-                    .first = children[child_index], .second = largest, .is_greater = false};
-                status = sxml_xml_writer_compare(writer, sort, &comparison);
-                if (comparison.is_greater) {
-                    largest = children[child_index];
-                }
-            }
-            if (largest == root) {
-                break;
-            }
-            sxml_xml_writer_swap(writer, sort,
-                                 (sxml_position_comparison){.first = root, .second = largest});
-            root = largest;
-        }
-    }
+    void *elements = sort->is_attributes ? (void *)writer->attribute_numbers
+                                         : (void *)writer->declared;
+    const size_t element_size =
+        sort->is_attributes ? sizeof(writer->attribute_numbers[0]) : sizeof(writer->declared[0]);
+    const sxml_canonical_sort_state state = {.writer = writer,
+                                             .sort = sort,
+                                             .elements = elements,
+                                             .element_size = element_size,
+                                             .status = &status};
+    sxml_sort_in_place(&(sxml_sort_request){.elements = elements,
+                                            .element_count = sort->count,
+                                            .element_size = element_size,
+                                            .is_before = sxml_canonical_is_before,
+                                            .state = &state});
     return status;
 }
 

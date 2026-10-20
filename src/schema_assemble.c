@@ -154,31 +154,15 @@ typedef struct document_error {
 } document_error;
 
 static sxml_status report_document(sxml_schema_assembly *assembly, document_error error) {
-    const sxml_byte_view description = sxml_byte_view_from_c_string(error.description);
-    sxml_xml_buffer detail = sxml_xml_buffer_empty(assembly->allocator);
-    sxml_status status = SXML_STATUS_OK;
-    if (error.subject.byte_count != 0) {
-        status = sxml_xml_buffer_append(&detail, description);
-        if (status == SXML_STATUS_OK) {
-            status = sxml_xml_buffer_append(&detail, SXML_TEXT(": "));
-        }
-        if (status == SXML_STATUS_OK) {
-            status = sxml_xml_buffer_append(&detail, error.subject);
-        }
-    }
-    if (status == SXML_STATUS_OK) {
-        status = sxml_schema_compilation_report(
-            assembly->compilation,
-            &(sxml_schema_report_request){
-                .constraint_name = sxml_byte_view_from_c_string(error.constraint_name),
-                .description = description,
-                .detailed_description = {.bytes = detail.bytes, .byte_count = detail.byte_count},
-                .position = error.position,
-                .document_uri = error.document_uri,
-                .configured_uri = error.configured_uri});
-    }
-    sxml_xml_buffer_release(&detail);
-    return status;
+    return sxml_schema_compilation_report(
+        assembly->compilation,
+        &(sxml_schema_report_request){
+            .constraint_name = sxml_byte_view_from_c_string(error.constraint_name),
+            .description = sxml_byte_view_from_c_string(error.description),
+            .subject = error.subject,
+            .position = error.position,
+            .document_uri = error.document_uri,
+            .configured_uri = error.configured_uri});
 }
 
 /* The constraint of a document that cannot be read or is not a schema

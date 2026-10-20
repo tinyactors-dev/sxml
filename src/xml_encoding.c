@@ -376,94 +376,167 @@ sxml_status sxml_xml_detect_encoding(const sxml_xml_encoding_request *request,
     return SXML_STATUS_OK;
 }
 
+/* ------------------------------------------------------- The decoder */
+
+/* A step over byte_count octets from the decoder's position. */
+static sxml_xml_decoding_step sxml_xml_decoder_take(sxml_xml_decoder *decoder,
+                                                    uint32_t codepoint,
+                                                    size_t byte_count) {
+    const sxml_xml_decoding_step step = {
+        .step_kind = SXML_XML_DECODING_STEP_CODEPOINT,
+        .codepoint = codepoint,
+        .byte_offset = decoder->byte_offset};
+    decoder->byte_offset += byte_count;
+    return step;
+}
+
+/* Octets that do not decode, byte_count of them the maximal subpart: a
+   replacement that moves past them, or a failure that stays. */
+static sxml_xml_decoding_step sxml_xml_decoder_reject(sxml_xml_decoder *decoder,
+                                                      size_t byte_count) {
+    if (decoder->error_rule == SXML_XML_DECODING_ERROR_RULE_FAIL) {
+        return (sxml_xml_decoding_step){.step_kind = SXML_XML_DECODING_STEP_FAILURE,
+                                        .codepoint = 0,
+                                        .byte_offset = decoder->byte_offset};
+    }
+    sxml_xml_decoding_step step = sxml_xml_decoder_take(decoder, 0xFFFD, byte_count);
+    step.step_kind = SXML_XML_DECODING_STEP_REPLACEMENT;
+    return step;
+}
+
+/* UTF-8 (Unicode 16.0, 3.9, table 3-7; the Encoding Standard's UTF-8
+   decoder, 8.1.1): the bounds of the second byte depend on the first, and
+   a maximal subpart is the lead byte and the continuation bytes that fit. */
+static sxml_xml_decoding_step sxml_xml_decode_utf8_unit(sxml_xml_decoder *decoder) {
+    const uint8_t *bytes = decoder->input.bytes + decoder->byte_offset;
+    const size_t remaining = decoder->input.byte_count - decoder->byte_offset;
+    const uint8_t lead_byte = bytes[0];
+    if (lead_byte < 0x80) {
+        return sxml_xml_decoder_take(decoder, lead_byte, 1);
+    }
+    size_t continuation_count = 0;
+    uint32_t codepoint = 0;
+    uint8_t lower_boundary = 0x80;
+    uint8_t upper_boundary = 0xBF;
+    if (lead_byte >= 0xC2 && lead_byte <= 0xDF) {
+        continuation_count = 1;
+        codepoint = lead_byte & 0x1FU;
+    } else if (lead_byte >= 0xE0 && lead_byte <= 0xEF) {
+        lower_boundary = lead_byte == 0xE0 ? 0xA0 : 0x80;
+        upper_boundary = lead_byte == 0xED ? 0x9F : 0xBF;
+        continuation_count = 2;
+        codepoint = lead_byte & 0xFU;
+    } else if (lead_byte >= 0xF0 && lead_byte <= 0xF4) {
+        lower_boundary = lead_byte == 0xF0 ? 0x90 : 0x80;
+        upper_boundary = lead_byte == 0xF4 ? 0x8F : 0xBF;
+        continuation_count = 3;
+        codepoint = lead_byte & 0x7U;
+    } else {
+        return sxml_xml_decoder_reject(decoder, 1);
+    }
+    for (size_t continuation_index = 1; continuation_index <= continuation_count;
+         continuation_index += 1) {
+        if (continuation_index >= remaining || bytes[continuation_index] < lower_boundary ||
+            bytes[continuation_index] > upper_boundary) {
+            return sxml_xml_decoder_reject(decoder, continuation_index);
+        }
+        codepoint = (codepoint << 6U) | (bytes[continuation_index] & 0x3FU);
+        lower_boundary = 0x80;
+        upper_boundary = 0xBF;
+    }
+    return sxml_xml_decoder_take(decoder, codepoint, continuation_count + 1);
+}
+
+/* The UTF-16 code unit at offset, which has two bytes left. */
+static uint32_t sxml_xml_utf16_code_unit(const sxml_xml_decoder *decoder, size_t offset) {
+    const uint32_t first = decoder->input.bytes[offset];
+    const uint32_t second = decoder->input.bytes[offset + 1];
+    return decoder->encoding == SXML_XML_ENCODING_UTF16_BIG_ENDIAN ? (first << 8U) | second
+                                                                   : (second << 8U) | first;
+}
+
+/* UTF-16 (RFC 2781, 2.2; the Encoding Standard's shared UTF-16 decoder,
+   14.2): a high surrogate needs a low one after it; a high surrogate cut
+   short by the end takes the rest with it. */
+static sxml_xml_decoding_step sxml_xml_decode_utf16_unit(sxml_xml_decoder *decoder) {
+    const size_t offset = decoder->byte_offset;
+    const size_t remaining = decoder->input.byte_count - offset;
+    if (remaining < 2) {
+        return sxml_xml_decoder_reject(decoder, remaining);
+    }
+    const uint32_t unit = sxml_xml_utf16_code_unit(decoder, offset);
+    if (unit >= 0xDC00 && unit <= 0xDFFF) {
+        return sxml_xml_decoder_reject(decoder, 2);
+    }
+    if (unit < 0xD800 || unit > 0xDBFF) {
+        return sxml_xml_decoder_take(decoder, unit, 2);
+    }
+    if (remaining < 4) {
+        return sxml_xml_decoder_reject(decoder, remaining);
+    }
+    const uint32_t low_unit = sxml_xml_utf16_code_unit(decoder, offset + 2);
+    if (low_unit < 0xDC00 || low_unit > 0xDFFF) {
+        return sxml_xml_decoder_reject(decoder, 2);
+    }
+    return sxml_xml_decoder_take(
+        decoder, 0x10000U + ((unit - 0xD800U) << 10U) + (low_unit - 0xDC00U), 4);
+}
+
+sxml_xml_decoding_step sxml_xml_decoder_next(sxml_xml_decoder *decoder) {
+    if (decoder->byte_offset >= decoder->input.byte_count) {
+        return (sxml_xml_decoding_step){.step_kind = SXML_XML_DECODING_STEP_END,
+                                        .codepoint = 0,
+                                        .byte_offset = decoder->input.byte_count};
+    }
+    const uint8_t byte = decoder->input.bytes[decoder->byte_offset];
+    switch (decoder->encoding) {
+    case SXML_XML_ENCODING_UTF8:
+        return sxml_xml_decode_utf8_unit(decoder);
+    case SXML_XML_ENCODING_UTF16_LITTLE_ENDIAN:
+    case SXML_XML_ENCODING_UTF16_BIG_ENDIAN:
+        return sxml_xml_decode_utf16_unit(decoder);
+    case SXML_XML_ENCODING_ISO_8859_1:
+        /* Every byte is the codepoint of the same value (ISO/IEC 8859-1). */
+        return sxml_xml_decoder_take(decoder, byte, 1);
+    case SXML_XML_ENCODING_US_ASCII:
+        break;
+    }
+    return byte < 0x80 ? sxml_xml_decoder_take(decoder, byte, 1)
+                       : sxml_xml_decoder_reject(decoder, 1);
+}
+
 /* ---------------------------------------------------------- Transcoding */
 
 sxml_status sxml_xml_transcode(const sxml_xml_transcoding_request *request,
                                sxml_xml_buffer *output,
                                sxml_xml_transcoding_failure *failure) {
     const sxml_byte_view input = request->input;
-    if (request->encoding == SXML_XML_ENCODING_ISO_8859_1) {
-        /* Every byte is the codepoint of the same value (ISO/IEC 8859-1). */
-        size_t byte_count = 0;
-        sxml_status status =
-            sxml_size_multiply(input.byte_count, 2, &byte_count);
-        if (status == SXML_STATUS_OK) {
-            status = sxml_xml_buffer_reserve(output, byte_count);
-        }
-        if (status != SXML_STATUS_OK) {
-            return status;
-        }
-        for (size_t byte_index = 0; byte_index < input.byte_count;
-             byte_index++) {
-            const uint8_t byte = input.bytes[byte_index];
-            if (byte < 0x80) {
-                output->bytes[output->byte_count] = byte;
-                output->byte_count += 1;
-            } else {
-                output->bytes[output->byte_count] =
-                    (uint8_t)(0xC0 | (byte >> 6));
-                output->bytes[output->byte_count + 1] =
-                    (uint8_t)(0x80 | (byte & 0x3F));
-                output->byte_count += 2;
-            }
-        }
-        return SXML_STATUS_OK;
-    }
-    const bool is_big_endian =
-        request->encoding == SXML_XML_ENCODING_UTF16_BIG_ENDIAN;
-    /* At most 3 UTF-8 bytes for every 2 input bytes. */
+    /* At most 2 UTF-8 bytes for every ISO-8859-1 byte, 3 for every 2
+       UTF-16 bytes. */
     size_t byte_count = 0;
     sxml_status status =
-        sxml_size_multiply(input.byte_count / 2 + 1, 3, &byte_count);
+        request->encoding == SXML_XML_ENCODING_ISO_8859_1
+            ? sxml_size_multiply(input.byte_count, 2, &byte_count)
+            : sxml_size_multiply(input.byte_count / 2 + 1, 3, &byte_count);
     if (status == SXML_STATUS_OK) {
         status = sxml_xml_buffer_reserve(output, byte_count);
     }
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    size_t byte_index = 0;
-    while (byte_index + 1 < input.byte_count) {
-        const size_t unit_offset = byte_index;
-        uint32_t unit = is_big_endian
-                            ? ((uint32_t)input.bytes[byte_index] << 8) |
-                                  input.bytes[byte_index + 1]
-                            : ((uint32_t)input.bytes[byte_index + 1] << 8) |
-                                  input.bytes[byte_index];
-        byte_index += 2;
-        uint32_t codepoint = unit;
-        /* RFC 2781, section 2.2: a high surrogate must be followed by a
-           low one; a low one alone is an error. */
-        if (unit >= 0xDC00 && unit <= 0xDFFF) {
-            failure->input_byte_offset = unit_offset;
+    sxml_xml_decoder decoder = {.input = input,
+                                .encoding = request->encoding,
+                                .error_rule = SXML_XML_DECODING_ERROR_RULE_FAIL,
+                                .byte_offset = 0};
+    while (status == SXML_STATUS_OK) {
+        const sxml_xml_decoding_step step = sxml_xml_decoder_next(&decoder);
+        if (step.step_kind == SXML_XML_DECODING_STEP_END) {
+            break;
+        }
+        if (step.step_kind == SXML_XML_DECODING_STEP_FAILURE) {
+            failure->input_byte_offset = step.byte_offset;
             return SXML_STATUS_INVALID_UTF8;
         }
-        if (unit >= 0xD800 && unit <= 0xDBFF) {
-            if (byte_index + 1 >= input.byte_count) {
-                failure->input_byte_offset = unit_offset;
-                return SXML_STATUS_INVALID_UTF8;
-            }
-            uint32_t low = is_big_endian
-                               ? ((uint32_t)input.bytes[byte_index] << 8) |
-                                     input.bytes[byte_index + 1]
-                               : ((uint32_t)input.bytes[byte_index + 1] << 8) |
-                                     input.bytes[byte_index];
-            if (low < 0xDC00 || low > 0xDFFF) {
-                failure->input_byte_offset = unit_offset;
-                return SXML_STATUS_INVALID_UTF8;
-            }
-            byte_index += 2;
-            codepoint = 0x10000 + ((unit - 0xD800) << 10) + (low - 0xDC00);
-        }
-        status = sxml_xml_buffer_append_codepoint(output, codepoint);
-        if (status != SXML_STATUS_OK) {
-            return status;
-        }
+        status = sxml_xml_buffer_append_codepoint(output, step.codepoint);
     }
-    if (byte_index != input.byte_count) {
-        failure->input_byte_offset = byte_index;
-        return SXML_STATUS_INVALID_UTF8;
-    }
-    return SXML_STATUS_OK;
+    return status;
 }
 
 sxml_status sxml_xml_check_ascii(sxml_byte_view input,

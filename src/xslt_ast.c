@@ -9,6 +9,8 @@
  */
 #include "xslt_ast_internal.h"
 
+#include "text_form_internal.h"
+
 #include <stdalign.h>
 #include <string.h>
 
@@ -1304,37 +1306,22 @@ static const char *const keyword_names[] = {
 };
 
 typedef struct text_writer {
-    sxml_memory_view output;
-    /* Bytes the whole text needs; may exceed the output's byte count. */
-    size_t byte_count;
+    sxml_text_form_writer form;
     const sxml_xslt_ast *ast;
     sxml_name_pool *name_pool;
 } text_writer;
 
 static void write_bytes(text_writer *writer, sxml_byte_view bytes) {
-    for (size_t byte_index = 0; byte_index < bytes.byte_count; byte_index += 1) {
-        if (writer->byte_count < writer->output.byte_count) {
-            writer->output.bytes[writer->byte_count] = bytes.bytes[byte_index];
-        }
-        writer->byte_count += 1;
-    }
+    sxml_text_form_write_bytes(&writer->form, bytes);
 }
 
 // ast-grep-ignore: pointer-parameter-without-length
 static void write_text(text_writer *writer, const char *text) {
-    write_bytes(writer, sxml_byte_view_from_c_string(text));
+    sxml_text_form_write_text(&writer->form, text);
 }
 
 static void write_unsigned(text_writer *writer, uint64_t number) {
-    uint8_t digits[20];
-    size_t digit_count = 0;
-    do {
-        digits[sizeof(digits) - 1 - digit_count] = (uint8_t)('0' + (uint8_t)(number % 10U));
-        number /= 10U;
-        digit_count += 1;
-    } while (number != 0);
-    write_bytes(writer, (sxml_byte_view){.bytes = digits + sizeof(digits) - digit_count,
-                                         .byte_count = digit_count});
+    sxml_text_form_write_unsigned(&writer->form, number);
 }
 
 /* A number as a decimal: the integer part, then up to six fraction digits
@@ -1875,8 +1862,7 @@ sxml_status sxml_xslt_ast_write_text(const sxml_xslt_ast *ast, sxml_memory_view 
     if (ast == NULL || byte_count == NULL || (output.byte_count > 0 && output.bytes == NULL)) {
         return SXML_STATUS_INVALID_ARGUMENT;
     }
-    text_writer writer = {.output = output,
-                          .byte_count = 0,
+    text_writer writer = {.form = {.output = output, .byte_count = 0, .column = 0},
                           .ast = ast,
                           .name_pool = sxml_item_heap_get_name_pool(ast->item_heap)};
     for (uint32_t module = 1; module < ast->module_count; module += 1) {
@@ -1901,6 +1887,6 @@ sxml_status sxml_xslt_ast_write_text(const sxml_xslt_ast *ast, sxml_memory_view 
             write_module_tree(&writer, root);
         }
     }
-    *byte_count = writer.byte_count;
-    return writer.byte_count > output.byte_count ? SXML_STATUS_CAPACITY_EXCEEDED : SXML_STATUS_OK;
+    *byte_count = writer.form.byte_count;
+    return writer.form.byte_count > output.byte_count ? SXML_STATUS_CAPACITY_EXCEEDED : SXML_STATUS_OK;
 }

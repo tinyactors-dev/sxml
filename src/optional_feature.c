@@ -139,14 +139,25 @@ sxml_status sxml_optional_feature_read_data(const sxml_feature_data_request *req
     sxml_retrieved_resource retrieved;
     status = sxml_processor_document_loader_retrieve(
         loader,
-        &(sxml_resource_retrieval_request){.resource_kind = request->resource_kind,
-                                           .uri_reference = request->uri,
-                                           .base_uri = {.bytes = NULL, .byte_count = 0},
-                                           .encoding_name = {.bytes = NULL, .byte_count = 0}},
+        &(sxml_resource_retrieval_request){
+            .resource_kind = request->resource_kind,
+            .uri_reference = request->uri,
+            .base_uri = request->base_uri,
+            .encoding_name = {.bytes = NULL, .byte_count = 0},
+            .asks_unresolved = true,
+            .accepts_document_node = request->reader.operations->read_document != NULL},
         &retrieved);
     if (status == SXML_STATUS_OK) {
         if (retrieved.is_available) {
-            status = request->reader.operations->read(request->reader.state, retrieved.content);
+            const sxml_feature_data_reader reader = request->reader;
+            /* A document node is delivered only when read_document is
+               there (accepts_document_node). */
+            const bool is_document = retrieved.resource.resource_form ==
+                                         SXML_RESOURCE_FORM_DOCUMENT_NODE &&
+                                     reader.operations->read_document != NULL;
+            status = is_document
+                         ? reader.operations->read_document(reader.state, retrieved.document_node)
+                         : reader.operations->read(reader.state, retrieved.content);
             outcome->is_available = status == SXML_STATUS_OK;
         }
         sxml_processor_document_loader_release(loader, &retrieved);

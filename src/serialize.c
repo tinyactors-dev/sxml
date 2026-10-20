@@ -17,6 +17,7 @@
 
 #include "cast_internal.h"
 #include "serialize_internal.h"
+#include "sort_internal.h"
 #include "sxml/name.h"
 #include "sxml/string.h"
 #include "sxml/types.h"
@@ -1068,8 +1069,14 @@ static sxml_status sxml_serializer_check_permitted_values(sxml_serializer *seria
                         .description = sxml_byte_view_from_c_string(problem)});
 }
 
-/* Sorts the character map by codepoint into heap memory (heapsort, so
-   the time stays O(n log n) without recursion) and refuses a codepoint
+static bool sxml_mapping_is_before(const void *state, sxml_sort_pair pair) {
+    (void)state;
+    return ((const sxml_character_mapping *)pair.first)->codepoint <
+           ((const sxml_character_mapping *)pair.second)->codepoint;
+}
+
+/* Sorts the character map by codepoint into heap memory (sxml_sort_in_place,
+   so the time stays O(n log n) without recursion) and refuses a codepoint
    given twice. */
 static sxml_status sxml_serializer_sort_character_map(sxml_serializer *serializer) {
     const sxml_character_map_view maps = serializer->parameters->use_character_maps;
@@ -1095,39 +1102,11 @@ static sxml_status sxml_serializer_sort_character_map(sxml_serializer *serialize
     const size_t count = maps.character_mapping_count;
     serializer->sorted_mappings = mappings;
     serializer->mapping_count = count;
-    /* Build a max-heap, then move the largest to the end, count times. */
-    for (size_t sort_pass = 0; sort_pass < 2 * count; sort_pass += 1) {
-        const bool is_building = sort_pass < count;
-        const size_t heap_size = is_building ? count : 2 * count - sort_pass;
-        size_t root = 0;
-        if (is_building) {
-            root = count - 1 - sort_pass;
-        } else {
-            const sxml_character_mapping largest = mappings[0];
-            mappings[0] = mappings[heap_size - 1];
-            mappings[heap_size - 1] = largest;
-        }
-        const size_t sift_size = is_building ? heap_size : heap_size - 1;
-        for (;;) {
-            size_t largest_index = root;
-            const size_t left = 2 * root + 1;
-            const size_t right = left + 1;
-            if (left < sift_size && mappings[left].codepoint > mappings[largest_index].codepoint) {
-                largest_index = left;
-            }
-            if (right < sift_size &&
-                mappings[right].codepoint > mappings[largest_index].codepoint) {
-                largest_index = right;
-            }
-            if (largest_index == root) {
-                break;
-            }
-            const sxml_character_mapping swapped = mappings[root];
-            mappings[root] = mappings[largest_index];
-            mappings[largest_index] = swapped;
-            root = largest_index;
-        }
-    }
+    sxml_sort_in_place(&(sxml_sort_request){.elements = mappings,
+                                            .element_count = count,
+                                            .element_size = sizeof(sxml_character_mapping),
+                                            .is_before = sxml_mapping_is_before,
+                                            .state = NULL});
     for (size_t mapping_index = 1; mapping_index < count; mapping_index += 1) {
         if (mappings[mapping_index].codepoint == mappings[mapping_index - 1].codepoint) {
             return SXML_STATUS_INVALID_ARGUMENT;

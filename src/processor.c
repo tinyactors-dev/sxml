@@ -12,8 +12,11 @@
  */
 #include "processor_internal.h"
 
+#include "calendar_internal.h"
+#include "cast_internal.h"
 #include "dtd_internal.h"
 #include "function_library_parts_internal.h"
+#include "memory_internal.h"
 #include "schema_scope_internal.h"
 #include "sxml/tree.h"
 #include "sxml/xml.h"
@@ -32,24 +35,6 @@ enum { SXML_PROCESSOR_MAXIMUM_TIMEZONE_MINUTES = 840 };
 
 enum { SXML_PROCESSOR_NANOSECONDS_PER_SECOND = 1000000000 };
 
-/* True for a leap year of the proleptic Gregorian calendar, year 0
-   included (XSD 1.1 Part 2, section D.2.1: year 0 is 1 BCE). */
-static bool sxml_year_is_leap(int64_t year) {
-    if (year % 4 != 0) {
-        return false;
-    }
-    return year % 100 != 0 || year % 400 == 0;
-}
-
-static uint8_t sxml_month_day_count(int64_t year, uint8_t month) {
-    static const uint8_t day_counts[12] = {31, 28, 31, 30, 31, 30,
-                                           31, 31, 30, 31, 30, 31};
-    if (month == 2 && sxml_year_is_leap(year)) {
-        return 29;
-    }
-    return day_counts[month - 1];
-}
-
 static bool sxml_timezone_offset_is_valid(int16_t offset_minutes) {
     return offset_minutes >= -SXML_PROCESSOR_MAXIMUM_TIMEZONE_MINUTES &&
            offset_minutes <= SXML_PROCESSOR_MAXIMUM_TIMEZONE_MINUTES;
@@ -66,7 +51,7 @@ static bool sxml_clock_reading_is_valid(const sxml_clock_reading *reading) {
         return false;
     }
     if (instant->month < 1 || instant->month > 12 || instant->day < 1 ||
-        instant->day > sxml_month_day_count(instant->year, instant->month)) {
+        instant->day > sxml_days_in_month(instant->year, instant->month)) {
         return false;
     }
     return instant->hour < 24 && instant->minute < 60 && instant->second < 60 &&
@@ -90,32 +75,6 @@ sxml_status sxml_clock_read(sxml_clock clock, sxml_clock_reading *reading) {
     return SXML_STATUS_OK;
 }
 
-/* The civil date of a day number counted from 1970-01-01 (the inverse of
-   "days from civil", H. Hinnant, "chrono-Compatible Low-Level Date
-   Algorithms"), in the proleptic Gregorian calendar. */
-typedef struct sxml_civil_date {
-    int64_t year;
-    uint8_t month;
-    uint8_t day;
-} sxml_civil_date;
-
-static sxml_civil_date sxml_civil_date_from_day_number(int64_t day_number) {
-    const int64_t shifted_day = day_number + 719468;
-    const int64_t era = (shifted_day >= 0 ? shifted_day : shifted_day - 146096) / 146097;
-    const int64_t day_of_era = shifted_day - era * 146097;
-    const int64_t year_of_era =
-        (day_of_era - day_of_era / 1460 + day_of_era / 36524 - day_of_era / 146096) /
-        365;
-    const int64_t day_of_year =
-        day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
-    const int64_t month_from_march = (5 * day_of_year + 2) / 153;
-    const int64_t day = day_of_year - (153 * month_from_march + 2) / 5 + 1;
-    const int64_t month = month_from_march < 10 ? month_from_march + 3 : month_from_march - 9;
-    return (sxml_civil_date){.year = era * 400 + year_of_era + (month <= 2 ? 1 : 0),
-                             .month = (uint8_t)month,
-                             .day = (uint8_t)day};
-}
-
 sxml_date_time sxml_date_time_from_unix_time(sxml_unix_time unix_time) {
     const int64_t seconds_per_day = 86400;
     int64_t day_number = unix_time.seconds / seconds_per_day;
@@ -124,10 +83,12 @@ sxml_date_time sxml_date_time_from_unix_time(sxml_unix_time unix_time) {
         second_of_day += seconds_per_day;
         day_number -= 1;
     }
-    const sxml_civil_date date = sxml_civil_date_from_day_number(day_number);
+    /* The civil date of a day number counted from 1970-01-01, in the
+       proleptic Gregorian calendar. */
+    const sxml_calendar_date date = sxml_calendar_gregorian_date(day_number);
     return (sxml_date_time){.year = date.year,
-                            .month = date.month,
-                            .day = date.day,
+                            .month = (uint8_t)date.month,
+                            .day = (uint8_t)date.day,
                             .hour = (uint8_t)(second_of_day / 3600),
                             .minute = (uint8_t)(second_of_day / 60 % 60),
                             .second = (uint8_t)(second_of_day % 60),
@@ -1010,34 +971,14 @@ typedef struct sxml_loader_array {
 /* Makes room for one more element; the array is unchanged on failure. */
 static sxml_status sxml_loader_array_reserve(sxml_allocator allocator,
                                              const sxml_loader_array *array) {
-    if (array->element_count < *array->capacity) {
-        return SXML_STATUS_OK;
-    }
-    const size_t capacity = *array->capacity == 0 ? 2 : *array->capacity;
-    size_t new_capacity = 0;
-    size_t byte_count = 0;
-    sxml_status status = sxml_size_multiply(capacity, 2, &new_capacity);
-    if (status == SXML_STATUS_OK) {
-        status = sxml_size_multiply(new_capacity, array->element_byte_count, &byte_count);
-    }
-    void *memory = NULL;
-    if (status == SXML_STATUS_OK) {
-        status = sxml_allocator_allocate(
-            allocator,
-            (sxml_allocation_request){.byte_count = byte_count,
-                                      .alignment = array->element_alignment},
-            &memory);
-    }
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    if (array->element_count > 0) {
-        memcpy(memory, *array->elements, array->element_count * array->element_byte_count);
-    }
-    sxml_allocator_release(allocator, *array->elements);
-    *array->elements = memory;
-    *array->capacity = new_capacity;
-    return SXML_STATUS_OK;
+    return sxml_allocator_reserve_array(
+        allocator, &(sxml_array_reservation_request){.elements = array->elements,
+                                                     .capacity = array->capacity,
+                                                     .element_count = array->element_count,
+                                                     .required_count = array->element_count + 1,
+                                                     .element_size = array->element_byte_count,
+                                                     .element_alignment = array->element_alignment,
+                                                     .minimum_capacity = 4});
 }
 
 /* Copies uri into memory of the allocator; NULL for an empty one. */
@@ -1792,6 +1733,10 @@ static void sxml_loader_give_back(const sxml_processor_document_loader *loader,
 
 void sxml_processor_document_loader_release(sxml_processor_document_loader *loader,
                                             sxml_retrieved_resource *retrieved) {
+    if (retrieved->is_available &&
+        retrieved->resource.resource_form == SXML_RESOURCE_FORM_DOCUMENT_NODE) {
+        sxml_item_release(retrieved->resource.document_node);
+    }
     if (retrieved->is_delivered) {
         sxml_loader_give_back(loader, &retrieved->resource);
     }
@@ -1801,8 +1746,10 @@ void sxml_processor_document_loader_release(sxml_processor_document_loader *load
 }
 
 /* Takes the form the resolver delivered for a TEXT or BINARY request
-   (include/sxml/processor.h: BYTES only). */
-static sxml_status sxml_loader_take_bytes(sxml_retrieved_resource *retrieved) {
+   (include/sxml/processor.h: BYTES only), or for feature data that
+   accepts a document node too. */
+static sxml_status sxml_loader_take_bytes(sxml_retrieved_resource *retrieved,
+                                          const sxml_resource_retrieval_request *request) {
     const sxml_resource *resource = &retrieved->resource;
     switch (resource->resource_form) {
     case SXML_RESOURCE_FORM_NONE:
@@ -1814,6 +1761,11 @@ static sxml_status sxml_loader_take_bytes(sxml_retrieved_resource *retrieved) {
         retrieved->encoding_name = resource->encoding_name;
         return SXML_STATUS_OK;
     case SXML_RESOURCE_FORM_DOCUMENT_NODE:
+        if (request->accepts_document_node) {
+            retrieved->is_available = true;
+            retrieved->document_node = resource->document_node;
+            return SXML_STATUS_OK;
+        }
         sxml_item_release(resource->document_node);
         return SXML_STATUS_INVALID_ARGUMENT;
     case SXML_RESOURCE_FORM_SEQUENCE:
@@ -1831,23 +1783,26 @@ sxml_status sxml_processor_document_loader_retrieve(
     memset(retrieved, 0, sizeof(*retrieved));
     const sxml_evaluation_environment *environment =
         &loader->configuration.evaluation_environment;
-    sxml_status status = sxml_loader_resolve_uri(
-        loader,
-        (sxml_loader_uri_request){.reference = request->uri_reference,
-                                  .base_uri = request->base_uri},
-        &retrieved->resolution);
+    sxml_status status = SXML_STATUS_OK;
+    if (!request->asks_unresolved || request->uri_reference.byte_count != 0) {
+        status = sxml_loader_resolve_uri(
+            loader,
+            (sxml_loader_uri_request){.reference = request->uri_reference,
+                                      .base_uri = request->base_uri},
+            &retrieved->resolution);
+    }
     if (status != SXML_STATUS_OK) {
         memset(retrieved, 0, sizeof(*retrieved));
         return status;
     }
-    if (!sxml_uri_has_scheme(retrieved->resolution.uri)) {
+    retrieved->has_absolute_uri = sxml_uri_has_scheme(retrieved->resolution.uri);
+    if (!retrieved->has_absolute_uri && !request->asks_unresolved) {
         /* F&O 4.0, fn:unparsed-text: FOUT1170 when $source "cannot be
            resolved to an absolute URI". */
         retrieved->description = SXML_BYTE_VIEW_FROM_LITERAL(
             "The URI reference cannot be resolved to an absolute URI");
         return SXML_STATUS_OK;
     }
-    retrieved->has_absolute_uri = true;
     const sxml_resource_resolver resolver = environment->resource_resolver;
     if (resolver.operations == NULL || resolver.operations->resolve == NULL) {
         retrieved->description = SXML_BYTE_VIEW_FROM_LITERAL("No resource resolver is configured");
@@ -1857,13 +1812,16 @@ sxml_status sxml_processor_document_loader_retrieve(
         resolver.state,
         &(sxml_resource_request){.resource_kind = request->resource_kind,
                                  .uri_reference = request->uri_reference,
-                                 .absolute_uri = retrieved->resolution.uri,
+                                 .absolute_uri = retrieved->has_absolute_uri
+                                                     ? retrieved->resolution.uri
+                                                     : (sxml_byte_view){.bytes = NULL,
+                                                                        .byte_count = 0},
                                  .processor = environment->processor,
                                  .encoding_name = request->encoding_name},
         &retrieved->resource);
     if (status == SXML_STATUS_OK) {
         retrieved->is_delivered = true;
-        status = sxml_loader_take_bytes(retrieved);
+        status = sxml_loader_take_bytes(retrieved, request);
     }
     if (status != SXML_STATUS_OK) {
         sxml_processor_document_loader_release(loader, retrieved);

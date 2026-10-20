@@ -12,6 +12,7 @@
  * Golden file: src/serialize.c (the adaptive method's frames).
  */
 #include "serialize_internal.h"
+#include "sort_internal.h"
 
 #include "sxml/name.h"
 #include "sxml/types.h"
@@ -362,44 +363,20 @@ static int sxml_json_compare_keys(sxml_byte_view first, sxml_byte_view second) {
     return first_offset == first.byte_count ? -1 : 1;
 }
 
-/* Sorts order (indices into keys) by heapsort (no recursion, O(n log
-   n)). */
+static bool sxml_json_key_is_before(const void *state, sxml_sort_pair pair) {
+    const sxml_json_key_texts *keys = state;
+    return sxml_json_compare_keys(keys->texts[*(const size_t *)pair.first].text,
+                                  keys->texts[*(const size_t *)pair.second].text) < 0;
+}
+
+/* Sorts order (indices into keys) with sxml_sort_in_place (no recursion,
+   O(n log n)). */
 static void sxml_json_sort_order(const sxml_json_key_texts *keys, size_t *order) {
-    const size_t count = keys->count;
-    for (size_t sort_pass = 0; sort_pass < 2 * count; sort_pass += 1) {
-        const bool is_building = sort_pass < count;
-        const size_t heap_size = is_building ? count : 2 * count - sort_pass;
-        size_t root = 0;
-        if (is_building) {
-            root = count - 1 - sort_pass;
-        } else {
-            const size_t largest = order[0];
-            order[0] = order[heap_size - 1];
-            order[heap_size - 1] = largest;
-        }
-        const size_t sift_size = is_building ? heap_size : heap_size - 1;
-        for (;;) {
-            size_t largest_index = root;
-            const size_t left = 2 * root + 1;
-            const size_t right = left + 1;
-            if (left < sift_size && sxml_json_compare_keys(keys->texts[order[left]].text,
-                                                           keys->texts[order[largest_index]].text) > 0) {
-                largest_index = left;
-            }
-            if (right < sift_size &&
-                sxml_json_compare_keys(keys->texts[order[right]].text,
-                                       keys->texts[order[largest_index]].text) > 0) {
-                largest_index = right;
-            }
-            if (largest_index == root) {
-                break;
-            }
-            const size_t swapped = order[root];
-            order[root] = order[largest_index];
-            order[largest_index] = swapped;
-            root = largest_index;
-        }
-    }
+    sxml_sort_in_place(&(sxml_sort_request){.elements = order,
+                                            .element_count = keys->count,
+                                            .element_size = sizeof(size_t),
+                                            .is_before = sxml_json_key_is_before,
+                                            .state = keys});
 }
 
 /* Whether every key of map is a string, xs:anyURI or xs:untypedAtomic:

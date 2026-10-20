@@ -256,7 +256,6 @@ static sxml_status compile_record(identity_stage *stage, record_compilation requ
                                                            "subset of XPath")
                                                     : TEXT("The field is not in the field subset "
                                                            "of XPath"),
-                                 .detailed_description = {.bytes = NULL, .byte_count = 0},
                                  .position = position});
     }
     /* 3.13.6.2 XPath Valid (an undeclared prefix, say). */
@@ -284,14 +283,12 @@ static sxml_status check_referenced_key(identity_stage *stage,
                                  .constraint_name = TEXT("c-props-correct.1"),
                                  .description = TEXT("A keyref refers to a keyref, not to a key "
                                                      "or unique"),
-                                 .detailed_description = {.bytes = NULL, .byte_count = 0},
                                  .position = constraint->position});
     }
     if (referenced->fields.entry_count != constraint->fields.entry_count) {
         return report(stage, &(sxml_schema_report_request){
                                  .constraint_name = TEXT("c-props-correct.2"),
                                  .description = TEXT("A keyref has not as many fields as its key"),
-                                 .detailed_description = {.bytes = NULL, .byte_count = 0},
                                  .position = constraint->position});
     }
     return SXML_STATUS_OK;

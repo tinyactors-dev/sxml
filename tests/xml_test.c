@@ -792,6 +792,88 @@ static void test_namespace_constraints(sxml_test_state *state) {
         "D<{urn:p}a ns(p=urn:p)</>/D");
 }
 
+/* Decodes input with rule, writing the codepoints (U+FFFD for a
+   replacement) to codepoints; returns their count, or the failure's
+   offset + 1000 when decoding failed. */
+typedef struct decoding_case {
+    sxml_byte_view input;
+    sxml_xml_encoding encoding;
+    sxml_xml_decoding_error_rule error_rule;
+} decoding_case;
+
+static size_t decode_all(decoding_case decoding, uint32_t codepoints[8]) {
+    sxml_xml_decoder decoder = {.input = decoding.input,
+                                .encoding = decoding.encoding,
+                                .error_rule = decoding.error_rule,
+                                .byte_offset = 0};
+    size_t codepoint_count = 0;
+    while (codepoint_count < 8) {
+        const sxml_xml_decoding_step step = sxml_xml_decoder_next(&decoder);
+        if (step.step_kind == SXML_XML_DECODING_STEP_END) {
+            break;
+        }
+        if (step.step_kind == SXML_XML_DECODING_STEP_FAILURE) {
+            return 1000 + step.byte_offset;
+        }
+        codepoints[codepoint_count] = step.codepoint;
+        codepoint_count += 1;
+    }
+    return codepoint_count;
+}
+
+/* src/xml_internal.h, the one decoder: maximal subparts become one U+FFFD
+   each under REPLACE (Unicode 16.0, 3.9.6; Encoding Standard, 8.1.1 and
+   14.2), and FAIL stops at them. */
+static void test_the_decoder_follows_its_error_rule(sxml_test_state *state) {
+    uint32_t codepoints[8] = {0};
+    /* "a", E2 82 cut short by "b", an invalid lead byte, U+20AC. */
+    static const uint8_t utf8[] = {'a', 0xE2, 0x82, 'b', 0xFF, 0xE2, 0x82, 0xAC};
+    const sxml_byte_view utf8_input = {.bytes = utf8, .byte_count = sizeof utf8};
+    SXML_TEST_EXPECT(state, decode_all((decoding_case){.input = utf8_input,
+                                                       .encoding = SXML_XML_ENCODING_UTF8,
+                                                       .error_rule =
+                                                           SXML_XML_DECODING_ERROR_RULE_REPLACE},
+                                       codepoints) == 5);
+    SXML_TEST_EXPECT(state, codepoints[0] == 'a' && codepoints[1] == 0xFFFD &&
+                                codepoints[2] == 'b' && codepoints[3] == 0xFFFD &&
+                                codepoints[4] == 0x20AC);
+    SXML_TEST_EXPECT(state, decode_all((decoding_case){.input = utf8_input,
+                                                       .encoding = SXML_XML_ENCODING_UTF8,
+                                                       .error_rule =
+                                                           SXML_XML_DECODING_ERROR_RULE_FAIL},
+                                       codepoints) == 1001);
+    /* UTF-16LE: "A", a lone low surrogate, a pair (U+1F600), a high
+       surrogate cut short by the end with an odd byte: one replacement. */
+    static const uint8_t utf16[] = {'A', 0, 0x00, 0xDC, 0x3D, 0xD8, 0x00, 0xDE, 0x3D, 0xD8, 'x'};
+    const sxml_byte_view utf16_input = {.bytes = utf16, .byte_count = sizeof utf16};
+    SXML_TEST_EXPECT(state,
+                     decode_all((decoding_case){.input = utf16_input,
+                                                .encoding = SXML_XML_ENCODING_UTF16_LITTLE_ENDIAN,
+                                                .error_rule = SXML_XML_DECODING_ERROR_RULE_REPLACE},
+                                codepoints) == 4);
+    SXML_TEST_EXPECT(state, codepoints[0] == 'A' && codepoints[1] == 0xFFFD &&
+                                codepoints[2] == 0x1F600 && codepoints[3] == 0xFFFD);
+    SXML_TEST_EXPECT(state,
+                     decode_all((decoding_case){.input = utf16_input,
+                                                .encoding = SXML_XML_ENCODING_UTF16_LITTLE_ENDIAN,
+                                                .error_rule = SXML_XML_DECODING_ERROR_RULE_FAIL},
+                                codepoints) == 1002);
+    /* US-ASCII refuses 0x80 and above; ISO-8859-1 takes every byte. */
+    static const uint8_t latin[] = {'z', 0xE9};
+    const sxml_byte_view latin_input = {.bytes = latin, .byte_count = sizeof latin};
+    SXML_TEST_EXPECT(state, decode_all((decoding_case){.input = latin_input,
+                                                       .encoding = SXML_XML_ENCODING_US_ASCII,
+                                                       .error_rule =
+                                                           SXML_XML_DECODING_ERROR_RULE_FAIL},
+                                       codepoints) == 1001);
+    SXML_TEST_EXPECT(state, decode_all((decoding_case){.input = latin_input,
+                                                       .encoding = SXML_XML_ENCODING_ISO_8859_1,
+                                                       .error_rule =
+                                                           SXML_XML_DECODING_ERROR_RULE_FAIL},
+                                       codepoints) == 2 &&
+                                codepoints[1] == 0xE9);
+}
+
 static void test_encodings_are_detected(sxml_test_state *state) {
     parser_fixture fixture;
     SXML_TEST_REQUIRE(state,
@@ -2162,6 +2244,8 @@ static const sxml_test_case xml_test_cases[] = {
      .function = test_well_formedness_constraints},
     {.name = "namespace_constraints", .function = test_namespace_constraints},
     {.name = "encodings_are_detected", .function = test_encodings_are_detected},
+    {.name = "the_decoder_follows_its_error_rule",
+     .function = test_the_decoder_follows_its_error_rule},
     {.name = "diagnostics_locate_the_failure",
      .function = test_diagnostics_locate_the_failure},
     {.name = "version_1_1_rules_apply",

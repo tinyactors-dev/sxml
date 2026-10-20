@@ -16,11 +16,16 @@
  * pass over its elements in document order (each synonym relates its
  * parent's term to its own), so no walk recurses (D71).
  *
- * Golden file: src/schema_assemble.c (documents asked of the resolver
- * while compiling, in both forms, released after use).
+ * They are feature data (sxml_optional_feature_read_data, D189): the
+ * shared path asks the resolver, and the readers here take the bytes or
+ * the document node.
+ *
+ * Golden file: src/cldr.c (feature data read through
+ * sxml_optional_feature_read_data).
  */
 #include "full_text_internal.h"
 
+#include "optional_feature_internal.h"
 #include "processor_internal.h"
 #include "sxml/name.h"
 #include "sxml/tree.h"
@@ -234,123 +239,99 @@ static sxml_status read_thesaurus(thesaurus_reader *reader, sxml_node_reference 
     return status;
 }
 
-/* A thesaurus delivered as bytes or as a document node. */
-typedef struct thesaurus_source {
-    sxml_processor *processor;
-    const sxml_resource *resource;
-    sxml_byte_view uri;
-} thesaurus_source;
+/* ---------------------------------------------------------- Reading */
 
-static sxml_status read_thesaurus_resource(thesaurus_source source,
-                                           sxml_full_text_word_list *list,
-                                           sxml_full_text_resource_outcome *outcome) {
-    sxml_item document = {0};
-    sxml_status status = SXML_STATUS_OK;
-    bool owns_document = false;
-    if (source.resource->resource_form == SXML_RESOURCE_FORM_DOCUMENT_NODE) {
-        document = source.resource->document_node;
-    } else {
-        const sxml_byte_view uri = source.resource->resource_uri.byte_count != 0
-                                       ? source.resource->resource_uri
-                                       : source.uri;
-        status = sxml_processor_parse_document(
-            source.processor,
-            &(sxml_xml_parse_request){.input = source.resource->content,
-                                      .source_name = uri,
-                                      .document_uri = uri,
-                                      .base_uri = uri,
-                                      .encoding_name = source.resource->encoding_name},
-            &document);
-        if (status != SXML_STATUS_OK) {
-            /* Not a well-formed thesaurus: it cannot be used (FTST0018). */
-            outcome->is_found = false;
-            const bool is_malformed = status == SXML_STATUS_MALFORMED_INPUT ||
-                                      status == SXML_STATUS_UNEXPECTED_END_OF_INPUT ||
-                                      status == SXML_STATUS_INVALID_UTF8 ||
-                                      status == SXML_STATUS_UNSUPPORTED_FEATURE;
-            return is_malformed ? SXML_STATUS_OK : status;
-        }
-        owns_document = true;
-    }
+/* What the feature data reader of one resource reads into. */
+typedef struct resource_reading {
+    sxml_processor *processor;
+    sxml_full_text_word_list *list;
+    /* The URI as written, the source name of a thesaurus parsed from
+       bytes. */
+    sxml_byte_view uri_reference;
+    /* False for a thesaurus that is not well-formed XML. */
+    bool is_usable;
+} resource_reading;
+
+static sxml_status read_stop_word_bytes(void *state, sxml_byte_view content) {
+    resource_reading *reading = state;
+    return read_stop_words(content, reading->list);
+}
+
+static sxml_status read_thesaurus_document(void *state, sxml_item document) {
+    resource_reading *reading = state;
     sxml_node_reference root;
-    status = sxml_item_get_node(document, &root);
+    sxml_status status = sxml_item_get_node(document, &root);
     if (status == SXML_STATUS_OK) {
         thesaurus_reader reader = {.tree = root.tree,
-                                   .name_pool = sxml_processor_get_name_pool(source.processor),
-                                   .list = list,
-                                   .text = {.allocator = list->bytes.allocator}};
+                                   .name_pool = sxml_processor_get_name_pool(reading->processor),
+                                   .list = reading->list,
+                                   .text = {.allocator = reading->list->bytes.allocator}};
         status = read_thesaurus(&reader, root);
         sxml_xml_buffer_release(&reader.text);
-    }
-    if (owns_document) {
-        sxml_item_release(document);
     }
     return status;
 }
 
-/* --------------------------------------------------------------- Reading */
+static sxml_status read_thesaurus_bytes(void *state, sxml_byte_view content) {
+    resource_reading *reading = state;
+    sxml_item document = {0};
+    sxml_status status = sxml_processor_parse_document(
+        reading->processor,
+        &(sxml_xml_parse_request){.input = content,
+                                  .source_name = reading->uri_reference,
+                                  .document_uri = {.bytes = NULL, .byte_count = 0},
+                                  .base_uri = {.bytes = NULL, .byte_count = 0},
+                                  .encoding_name = {.bytes = NULL, .byte_count = 0}},
+        &document);
+    if (status != SXML_STATUS_OK) {
+        /* Not a well-formed thesaurus: it cannot be used (FTST0018). */
+        const bool is_malformed = status == SXML_STATUS_MALFORMED_INPUT ||
+                                  status == SXML_STATUS_UNEXPECTED_END_OF_INPUT ||
+                                  status == SXML_STATUS_INVALID_UTF8 ||
+                                  status == SXML_STATUS_UNSUPPORTED_FEATURE;
+        reading->is_usable = !is_malformed;
+        return is_malformed ? SXML_STATUS_OK : status;
+    }
+    status = read_thesaurus_document(state, document);
+    sxml_item_release(document);
+    return status;
+}
+
+/* A stop word list is BYTES only; a thesaurus BYTES or DOCUMENT_NODE
+   (include/sxml/processor.h). */
+static const sxml_feature_data_reader_operations stop_word_reader_operations = {
+    .read = read_stop_word_bytes,
+    .read_document = NULL,
+};
+
+static const sxml_feature_data_reader_operations thesaurus_reader_operations = {
+    .read = read_thesaurus_bytes,
+    .read_document = read_thesaurus_document,
+};
 
 sxml_status sxml_full_text_read_resource(const sxml_full_text_resource_request *request,
                                          sxml_full_text_word_list *list,
                                          sxml_full_text_resource_outcome *outcome) {
-    outcome->is_found = false;
-    const sxml_resource_resolver resolver = request->processor->resource_resolver;
-    if (resolver.operations == NULL || resolver.operations->resolve == NULL) {
-        return SXML_STATUS_OK;
-    }
-    sxml_uri_resolution resolution = {.uri = {.bytes = NULL, .byte_count = 0}, .memory = NULL};
-    sxml_status status = SXML_STATUS_OK;
-    if (request->uri_reference.byte_count != 0) {
-        /* 3.4.3, 3.4.7: a URI literal, resolved against the static base
-           URI (XQuery 4.0, 4.5.2 for URI literals). */
-        status = sxml_uri_resolve(&(sxml_uri_resolution_request){.reference = request->uri_reference,
-                                                                 .base_uri = request->base_uri,
-                                                                 .allocator = list->bytes.allocator},
-                                  &resolution);
-    }
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    const sxml_byte_view absolute_uri = sxml_uri_has_scheme(resolution.uri)
-                                            ? resolution.uri
-                                            : (sxml_byte_view){.bytes = NULL, .byte_count = 0};
-    sxml_resource resource;
-    memset(&resource, 0, sizeof(resource));
-    status = resolver.operations->resolve(
-        resolver.state,
-        &(sxml_resource_request){.resource_kind = request->resource_kind,
-                                 .uri_reference = request->uri_reference,
-                                 .absolute_uri = absolute_uri,
-                                 .processor = request->processor,
-                                 .encoding_name = {.bytes = NULL, .byte_count = 0},
-                                 .is_default_collection = false,
-                                 .target_namespace_uri = {.bytes = NULL, .byte_count = 0},
-                                 .package_version = {.bytes = NULL, .byte_count = 0}},
-        &resource);
-    if (status == SXML_STATUS_OK && resource.resource_form != SXML_RESOURCE_FORM_NONE) {
-        outcome->is_found = true;
-        if (request->resource_kind == SXML_RESOURCE_KIND_FULL_TEXT_STOP_WORDS) {
-            status = resource.resource_form == SXML_RESOURCE_FORM_BYTES
-                         ? read_stop_words(resource.content, list)
-                         : SXML_STATUS_INVALID_ARGUMENT;
-        } else if (resource.resource_form == SXML_RESOURCE_FORM_BYTES ||
-                   resource.resource_form == SXML_RESOURCE_FORM_DOCUMENT_NODE) {
-            status = read_thesaurus_resource(
-                (thesaurus_source){.processor = request->processor,
-                                   .resource = &resource,
-                                   .uri = absolute_uri.byte_count != 0 ? absolute_uri
-                                                                       : request->uri_reference},
-                list, outcome);
-        } else {
-            status = SXML_STATUS_INVALID_ARGUMENT;
-        }
-    }
-    if (resource.resource_form == SXML_RESOURCE_FORM_DOCUMENT_NODE) {
-        sxml_item_release(resource.document_node);
-    }
-    if (resolver.operations->release != NULL) {
-        resolver.operations->release(resolver.state, &resource);
-    }
-    sxml_allocator_release(list->bytes.allocator, resolution.memory);
+    resource_reading reading = {.processor = request->processor,
+                                .list = list,
+                                .uri_reference = request->uri_reference,
+                                .is_usable = true};
+    sxml_feature_data_outcome data_outcome = {.is_available = false};
+    /* 3.4.3, 3.4.7: a URI literal, resolved against the static base URI
+       (XQuery 4.0, 4.5.2 for URI literals); the default list or thesaurus
+       is asked for with no URI. */
+    const sxml_status status = sxml_optional_feature_read_data(
+        &(sxml_feature_data_request){
+            .processor = request->processor,
+            .resource_kind = request->resource_kind,
+            .uri = request->uri_reference,
+            .base_uri = request->base_uri,
+            .reader = {.state = &reading,
+                       .operations = request->resource_kind ==
+                                             SXML_RESOURCE_KIND_FULL_TEXT_STOP_WORDS
+                                         ? &stop_word_reader_operations
+                                         : &thesaurus_reader_operations}},
+        &data_outcome);
+    outcome->is_found = data_outcome.is_available && reading.is_usable;
     return status;
 }

@@ -12,6 +12,7 @@
 #include "ir_pass_internal.h"
 
 #include "decimal_internal.h"
+#include "text_form_internal.h"
 #include "types_internal.h"
 
 #include <stdalign.h>
@@ -1346,11 +1347,7 @@ sxml_status sxml_ir_unit_add_global_variable(
  */
 
 typedef struct text_writer {
-    sxml_memory_view output;
-    /* Bytes the whole text needs; may exceed the output's byte count. */
-    size_t byte_count;
-    /* Bytes since the last newline: the column of the next byte. */
-    size_t column;
+    sxml_text_form_writer form;
     const sxml_ir_unit *unit;
     sxml_name_pool *name_pool;
     sxml_type_registry *type_registry;
@@ -1364,34 +1361,16 @@ typedef struct text_writer {
 } text_writer;
 
 static void write_bytes(text_writer *writer, sxml_byte_view bytes) {
-    for (size_t byte_index = 0; byte_index < bytes.byte_count;
-         byte_index += 1) {
-        const uint8_t byte = bytes.bytes[byte_index];
-        if (writer->byte_count < writer->output.byte_count) {
-            writer->output.bytes[writer->byte_count] = byte;
-        }
-        writer->byte_count += 1;
-        writer->column = byte == '\n' ? 0 : writer->column + 1;
-    }
+    sxml_text_form_write_bytes(&writer->form, bytes);
 }
 
 // ast-grep-ignore: pointer-parameter-without-length
 static void write_text(text_writer *writer, const char *text) {
-    write_bytes(writer, sxml_byte_view_from_c_string(text));
+    sxml_text_form_write_text(&writer->form, text);
 }
 
 static void write_unsigned(text_writer *writer, uint64_t number) {
-    uint8_t digits[20];
-    size_t digit_count = 0;
-    do {
-        digits[sizeof(digits) - 1 - digit_count] =
-            (uint8_t)('0' + (uint8_t)(number % 10U));
-        number /= 10U;
-        digit_count += 1;
-    } while (number != 0);
-    write_bytes(writer,
-                (sxml_byte_view){.bytes = digits + sizeof(digits) - digit_count,
-                                 .byte_count = digit_count});
+    sxml_text_form_write_unsigned(&writer->form, number);
 }
 
 static void write_signed(text_writer *writer, int64_t number) {
@@ -2544,7 +2523,7 @@ static sxml_status print_expression(text_writer *writer, print_stack *stack,
         write_atom(writer, expression->atom);
         return SXML_STATUS_OK;
     }
-    const uint32_t indent = indent_after(writer->column);
+    const uint32_t indent = indent_after(writer->form.column);
     write_text(writer, "(");
     write_text(writer, kind < SXML_IR_EXPRESSION_KIND_COUNT
                            ? expression_kind_names[kind]
@@ -3098,7 +3077,7 @@ static sxml_status run_print_tasks(text_writer *writer, print_stack *stack) {
         case SXML_PRINT_TASK_KIND_FUNCTION_FORM: {
             const sxml_ir_function *function = sxml_ir_unit_get_function(
                 writer->unit, (sxml_ir_function_index){.value = task.value});
-            const uint32_t indent = indent_after(writer->column);
+            const uint32_t indent = indent_after(writer->form.column);
             write_text(writer, "(function");
             if (function->function_name.index != 0) {
                 write_text(writer, " ");
@@ -3143,9 +3122,7 @@ sxml_status sxml_ir_unit_write_text(const sxml_ir_unit *unit,
                                     sxml_memory_view output,
                                     size_t *byte_count) {
     text_writer writer = {
-        .output = output,
-        .byte_count = 0,
-        .column = 0,
+        .form = {.output = output, .byte_count = 0, .column = 0},
         .unit = unit,
         .name_pool = sxml_item_heap_get_name_pool(unit->item_heap),
         .type_registry = sxml_item_heap_get_type_registry(unit->item_heap),
@@ -3169,8 +3146,8 @@ sxml_status sxml_ir_unit_write_text(const sxml_ir_unit *unit,
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    *byte_count = writer.byte_count;
-    if (writer.byte_count > output.byte_count) {
+    *byte_count = writer.form.byte_count;
+    if (writer.form.byte_count > output.byte_count) {
         return SXML_STATUS_CAPACITY_EXCEEDED;
     }
     return SXML_STATUS_OK;
@@ -3184,9 +3161,7 @@ static sxml_status write_static_form(const sxml_ir_function *function,
                                      sxml_memory_view output, size_t *byte_count) {
     const sxml_ir_unit *unit = function->unit;
     text_writer writer = {
-        .output = output,
-        .byte_count = 0,
-        .column = 0,
+        .form = {.output = output, .byte_count = 0, .column = 0},
         .unit = unit,
         .name_pool = sxml_item_heap_get_name_pool(unit->item_heap),
         .type_registry = sxml_item_heap_get_type_registry(unit->item_heap),
@@ -3209,7 +3184,7 @@ static sxml_status write_static_form(const sxml_ir_function *function,
     if (status == SXML_STATUS_OK) {
         status = writer.status;
     }
-    *byte_count = writer.byte_count;
+    *byte_count = writer.form.byte_count;
     return status;
 }
 

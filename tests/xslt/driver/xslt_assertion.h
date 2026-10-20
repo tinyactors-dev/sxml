@@ -30,6 +30,9 @@
  *   assertion (include/sxml/xslt.h, the result document collector);
  * - assert-serialization, serialization-matches and
  *   assert-serialization-error: on the serialized principal result;
+ *   inside assert-result-document of a serialized test case, the first
+ *   two on that result document's serialization (the collector then
+ *   holds the documents serialized);
  * - assert-warning and assert-posture-and-sweep are not checked.
  *
  * all-of, any-of and not combine as for QT4; assert-message and

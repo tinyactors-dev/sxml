@@ -28,6 +28,7 @@
 #include "evaluator_machine_internal.h"
 #include "function_library_core_internal.h"
 #include "ir_internal.h"
+#include "memory_internal.h"
 #include "schema_scope_internal.h"
 #include "sxml/serialize.h"
 #include "sxml/string.h"
@@ -1079,29 +1080,15 @@ typedef struct element_map_buffer {
 static sxml_status element_map_buffer_reserve(const element_map_context *context,
                                               element_map_buffer *buffer,
                                               size_t element_byte_count) {
-    if (buffer->element_count < buffer->element_capacity) {
-        return SXML_STATUS_OK;
-    }
-    const size_t capacity = buffer->element_capacity == 0 ? 8 : buffer->element_capacity * 2;
-    size_t byte_count = 0;
-    sxml_status status = sxml_size_multiply(capacity, element_byte_count, &byte_count);
-    void *memory = NULL;
-    if (status == SXML_STATUS_OK) {
-        status = sxml_allocator_allocate(
-            context->allocator,
-            (sxml_allocation_request){.byte_count = byte_count, .alignment = alignof(max_align_t)},
-            &memory);
-    }
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    if (buffer->element_count > 0) {
-        memcpy(memory, buffer->elements, buffer->element_count * element_byte_count);
-    }
-    sxml_allocator_release(context->allocator, buffer->elements);
-    buffer->elements = memory;
-    buffer->element_capacity = capacity;
-    return SXML_STATUS_OK;
+    return sxml_allocator_reserve_array(
+        context->allocator,
+        &(sxml_array_reservation_request){.elements = &buffer->elements,
+                                          .capacity = &buffer->element_capacity,
+                                          .element_count = buffer->element_count,
+                                          .required_count = buffer->element_count + 1,
+                                          .element_size = element_byte_count,
+                                          .element_alignment = alignof(max_align_t),
+                                          .minimum_capacity = 8});
 }
 
 static void element_map_buffer_release(const element_map_context *context,

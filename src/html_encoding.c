@@ -10,6 +10,8 @@
  */
 #include "html_internal.h"
 
+#include "sxml/string.h"
+
 #include <string.h>
 
 /* ------------------------------------------------------------ Labels */
@@ -107,126 +109,66 @@ static sxml_status write_decoding_error(sxml_html_stream_writer *writer) {
     return write_codepoint(writer, 0xFFFD);
 }
 
-/* Encoding Standard, 8.1.1 "UTF-8 decoder": each maximal invalid subpart
-   becomes one U+FFFD. */
-static sxml_status decode_utf8(sxml_html_stream_writer *writer, sxml_byte_view input) {
-    const uint8_t *bytes = input.bytes;
-    size_t offset = 0;
-    while (offset < input.byte_count) {
-        const uint8_t lead = bytes[offset];
-        sxml_status status = SXML_STATUS_OK;
-        if (lead < 0x80) {
-            /* A run of ASCII without CR goes in one append. */
-            size_t run_end = offset;
-            while (run_end < input.byte_count && bytes[run_end] < 0x80 && bytes[run_end] != '\r' &&
-                   !(bytes[run_end] < 0x20 && bytes[run_end] != 0 &&
-                     !is_ascii_whitespace(bytes[run_end])) &&
-                   bytes[run_end] != 0x7F) {
+/* True when byte goes into the stream unchanged and without a parse
+   error: ASCII other than CR, DEL and the controls that are not
+   whitespace (13.2.3.5). */
+static bool is_plain_ascii(uint8_t byte) {
+    return byte < 0x7F && byte != '\r' && (byte >= 0x20 || byte == 0 || is_ascii_whitespace(byte));
+}
+
+/* Encoding Standard, 8.1.1 "UTF-8 decoder" and 14.2 "shared UTF-16
+   decoder", through the one decoder (src/xml_internal.h) with its
+   replacement rule: each maximal invalid subpart becomes one U+FFFD and a
+   parse error. */
+static sxml_status decode_unicode(sxml_html_stream_writer *writer, sxml_xml_decoder decoder) {
+    const uint8_t *bytes = decoder.input.bytes;
+    while (true) {
+        if (decoder.encoding == SXML_XML_ENCODING_UTF8) {
+            /* A run of plain ASCII goes in one append. */
+            size_t run_end = decoder.byte_offset;
+            while (run_end < decoder.input.byte_count && is_plain_ascii(bytes[run_end])) {
                 run_end += 1;
             }
-            if (run_end > offset) {
+            if (run_end > decoder.byte_offset) {
+                size_t offset = decoder.byte_offset;
                 if (writer->follows_carriage_return && bytes[offset] == '\n') {
                     offset += 1;
                 }
                 writer->follows_carriage_return = false;
-                status = sxml_xml_buffer_append(
+                decoder.byte_offset = run_end;
+                const sxml_status status = sxml_xml_buffer_append(
                     writer->stream,
                     (sxml_byte_view){.bytes = bytes + offset, .byte_count = run_end - offset});
-                offset = run_end;
-            } else {
-                status = write_codepoint(writer, lead);
-                offset += 1;
+                if (status != SXML_STATUS_OK) {
+                    return status;
+                }
+                continue;
             }
-            if (status != SXML_STATUS_OK) {
-                return status;
-            }
-            continue;
         }
-        size_t needed = 0;
-        uint32_t codepoint = 0;
-        uint8_t lower_boundary = 0x80;
-        uint8_t upper_boundary = 0xBF;
-        if (lead >= 0xC2 && lead <= 0xDF) {
-            needed = 1;
-            codepoint = lead & 0x1FU;
-        } else if (lead >= 0xE0 && lead <= 0xEF) {
-            lower_boundary = lead == 0xE0 ? 0xA0 : 0x80;
-            upper_boundary = lead == 0xED ? 0x9F : 0xBF;
-            needed = 2;
-            codepoint = lead & 0xFU;
-        } else if (lead >= 0xF0 && lead <= 0xF4) {
-            lower_boundary = lead == 0xF0 ? 0x90 : 0x80;
-            upper_boundary = lead == 0xF4 ? 0x8F : 0xBF;
-            needed = 3;
-            codepoint = lead & 0x7U;
-        } else {
+        const sxml_xml_decoding_step step = sxml_xml_decoder_next(&decoder);
+        sxml_status status = SXML_STATUS_OK;
+        switch (step.step_kind) {
+        case SXML_XML_DECODING_STEP_END:
+        case SXML_XML_DECODING_STEP_FAILURE:
+            return SXML_STATUS_OK;
+        case SXML_XML_DECODING_STEP_REPLACEMENT:
             status = write_decoding_error(writer);
-            offset += 1;
-            if (status != SXML_STATUS_OK) {
-                return status;
-            }
-            continue;
+            break;
+        case SXML_XML_DECODING_STEP_CODEPOINT:
+            status = write_codepoint(writer, step.codepoint);
+            break;
         }
-        size_t seen = 0;
-        offset += 1;
-        bool is_valid = true;
-        while (seen < needed) {
-            if (offset >= input.byte_count || bytes[offset] < lower_boundary ||
-                bytes[offset] > upper_boundary) {
-                is_valid = false;
-                break;
-            }
-            codepoint = (codepoint << 6U) | (bytes[offset] & 0x3FU);
-            lower_boundary = 0x80;
-            upper_boundary = 0xBF;
-            seen += 1;
-            offset += 1;
-        }
-        status = is_valid ? write_codepoint(writer, codepoint) : write_decoding_error(writer);
         if (status != SXML_STATUS_OK) {
             return status;
         }
     }
-    return SXML_STATUS_OK;
 }
 
-/* Encoding Standard, 14.2 "shared UTF-16 decoder". */
-static sxml_status decode_utf16(sxml_html_stream_writer *writer, sxml_byte_view input,
-                                uint8_t encoding_number) {
-    const bool is_big_endian = encoding_number == SXML_HTML_ENCODING_UTF_16BE;
-    uint32_t lead_surrogate = 0;
-    size_t offset = 0;
-    sxml_status status = SXML_STATUS_OK;
-    while (status == SXML_STATUS_OK && offset + 1 < input.byte_count) {
-        const uint32_t first = input.bytes[offset];
-        const uint32_t second = input.bytes[offset + 1];
-        const uint32_t unit = is_big_endian ? (first << 8U) | second : (second << 8U) | first;
-        offset += 2;
-        if (lead_surrogate != 0) {
-            const uint32_t lead = lead_surrogate;
-            lead_surrogate = 0;
-            if (unit >= 0xDC00 && unit <= 0xDFFF) {
-                status = write_codepoint(writer, 0x10000U + ((lead - 0xD800U) << 10U) +
-                                                     (unit - 0xDC00U));
-                continue;
-            }
-            status = write_decoding_error(writer);
-            if (status != SXML_STATUS_OK) {
-                break;
-            }
-        }
-        if (unit >= 0xD800 && unit <= 0xDBFF) {
-            lead_surrogate = unit;
-        } else if (unit >= 0xDC00 && unit <= 0xDFFF) {
-            status = write_decoding_error(writer);
-        } else {
-            status = write_codepoint(writer, unit);
-        }
-    }
-    if (status == SXML_STATUS_OK && (lead_surrogate != 0 || offset < input.byte_count)) {
-        status = write_decoding_error(writer);
-    }
-    return status;
+static sxml_status decode_utf8(sxml_html_stream_writer *writer, sxml_byte_view input) {
+    return decode_unicode(writer, (sxml_xml_decoder){.input = input,
+                                                     .encoding = SXML_XML_ENCODING_UTF8,
+                                                     .error_rule = SXML_XML_DECODING_ERROR_RULE_REPLACE,
+                                                     .byte_offset = 0});
 }
 
 static sxml_status decode_single_byte(sxml_html_stream_writer *writer, sxml_byte_view input,
@@ -760,44 +702,11 @@ static sxml_status decode_euc_kr(sxml_html_stream_writer *writer, sxml_byte_view
 
 /* ------------------------------------------------ Sniffing the encoding */
 
-/* True when every byte sequence of input is well-formed UTF-8. */
+/* True when every byte sequence of input is well-formed UTF-8 (Unicode
+   16.0, 3.9; sxml_utf8_validate). */
 static bool is_well_formed_utf8(sxml_byte_view input) {
-    size_t offset = 0;
-    while (offset < input.byte_count) {
-        const uint8_t lead = input.bytes[offset];
-        size_t needed = 0;
-        uint8_t lower_boundary = 0x80;
-        uint8_t upper_boundary = 0xBF;
-        if (lead < 0x80) {
-            offset += 1;
-            continue;
-        }
-        if (lead >= 0xC2 && lead <= 0xDF) {
-            needed = 1;
-        } else if (lead >= 0xE0 && lead <= 0xEF) {
-            lower_boundary = lead == 0xE0 ? 0xA0 : 0x80;
-            upper_boundary = lead == 0xED ? 0x9F : 0xBF;
-            needed = 2;
-        } else if (lead >= 0xF0 && lead <= 0xF4) {
-            lower_boundary = lead == 0xF0 ? 0x90 : 0x80;
-            upper_boundary = lead == 0xF4 ? 0x8F : 0xBF;
-            needed = 3;
-        } else {
-            return false;
-        }
-        offset += 1;
-        for (size_t continuation_index = 0; continuation_index < needed;
-             continuation_index += 1) {
-            if (offset >= input.byte_count || input.bytes[offset] < lower_boundary ||
-                input.bytes[offset] > upper_boundary) {
-                return false;
-            }
-            lower_boundary = 0x80;
-            upper_boundary = 0xBF;
-            offset += 1;
-        }
-    }
-    return true;
+    sxml_utf8_validation validation;
+    return sxml_utf8_validate(input, &validation) == SXML_STATUS_OK;
 }
 
 static bool is_ascii_letter(uint8_t byte) {
@@ -1251,7 +1160,13 @@ static sxml_status decode_in(sxml_html_stream_writer *writer, sxml_byte_view inp
         return decode_utf8(writer, input);
     case SXML_HTML_ENCODING_UTF_16BE:
     case SXML_HTML_ENCODING_UTF_16LE:
-        return decode_utf16(writer, input, encoding_number);
+        return decode_unicode(writer,
+                              (sxml_xml_decoder){.input = input,
+                                                 .encoding = encoding_number == SXML_HTML_ENCODING_UTF_16BE
+                                                                 ? SXML_XML_ENCODING_UTF16_BIG_ENDIAN
+                                                                 : SXML_XML_ENCODING_UTF16_LITTLE_ENDIAN,
+                                                 .error_rule = SXML_XML_DECODING_ERROR_RULE_REPLACE,
+                                                 .byte_offset = 0});
     case SXML_HTML_ENCODING_REPLACEMENT:
         /* Encoding Standard, 14.1.1: one error for any input. */
         return input.byte_count > 0 ? write_decoding_error(writer) : SXML_STATUS_OK;

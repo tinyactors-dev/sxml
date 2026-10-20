@@ -13,7 +13,9 @@
  *
  * The encodings are the XML parser's (D51): UTF-8, UTF-16 in either byte
  * order, ISO-8859-1 and US-ASCII; encoding names are classified by
- * sxml_xml_classify_encoding_name.
+ * sxml_xml_classify_encoding_name, and the octets are decoded by the XML
+ * parser's decoder (sxml_xml_decoder_next) with the error rule fallback
+ * asks for.
  *
  * The one encoder (sxml_text_encode_codepoint) serves bin:encode-string
  * and the EXPath File writers (src/function_library_file.c, D200).
@@ -29,18 +31,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
-/* The encodings text is decoded from (the XML parser's, D51). */
-typedef enum sxml_text_encoding {
-    SXML_TEXT_ENCODING_UTF8,
-    SXML_TEXT_ENCODING_UTF16_BIG_ENDIAN,
-    SXML_TEXT_ENCODING_UTF16_LITTLE_ENDIAN,
-    SXML_TEXT_ENCODING_ISO_8859_1,
-    SXML_TEXT_ENCODING_US_ASCII,
-} sxml_text_encoding;
-
 /* How to decode: the effective encoding and where the characters start. */
 typedef struct sxml_text_decoding {
-    sxml_text_encoding encoding;
+    /* The encodings text is decoded from are the XML parser's (D51). */
+    sxml_xml_encoding encoding;
     /* The offset, in octets, after a byte order mark the rules consumed;
        0 when there is none. */
     size_t start_offset;

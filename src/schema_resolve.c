@@ -49,7 +49,6 @@ typedef struct resolver {
     uint32_t *pairs;
     size_t pair_count;
     size_t pair_capacity;
-    sxml_xml_buffer detail;
 } resolver;
 
 static uint32_t table_count(const resolver *state, sxml_schema_table table) {
@@ -121,43 +120,12 @@ typedef struct resolve_error {
 } resolve_error;
 
 static sxml_status report(resolver *state, resolve_error error) {
-    const sxml_byte_view description = sxml_byte_view_from_c_string(error.description);
-    state->detail.byte_count = 0;
-    sxml_status status = SXML_STATUS_OK;
-    sxml_name_parts parts = {.namespace_uri = {.index = 0},
-                             .local_name = {.bytes = NULL, .byte_count = 0}};
-    if (error.name.index != 0 &&
-        sxml_name_pool_get_name_parts(state->name_pool, error.name, &parts) == SXML_STATUS_OK) {
-        status = sxml_xml_buffer_append(&state->detail, description);
-        if (status == SXML_STATUS_OK) {
-            status = sxml_xml_buffer_append(&state->detail, SXML_TEXT(": "));
-        }
-        sxml_byte_view namespace_uri = {.bytes = NULL, .byte_count = 0};
-        if (status == SXML_STATUS_OK && parts.namespace_uri.index != SXML_NAMESPACE_NONE &&
-            sxml_name_pool_get_namespace_uri(state->name_pool, parts.namespace_uri,
-                                             &namespace_uri) == SXML_STATUS_OK) {
-            status = sxml_xml_buffer_append(&state->detail, SXML_TEXT("Q{"));
-            if (status == SXML_STATUS_OK) {
-                status = sxml_xml_buffer_append(&state->detail, namespace_uri);
-            }
-            if (status == SXML_STATUS_OK) {
-                status = sxml_xml_buffer_append(&state->detail, SXML_TEXT("}"));
-            }
-        }
-        if (status == SXML_STATUS_OK) {
-            status = sxml_xml_buffer_append(&state->detail, parts.local_name);
-        }
-    }
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
     return sxml_schema_compilation_report(
         state->compilation,
         &(sxml_schema_report_request){
             .constraint_name = sxml_byte_view_from_c_string(error.constraint_name),
-            .description = description,
-            .detailed_description = {.bytes = state->detail.bytes,
-                                     .byte_count = state->detail.byte_count},
+            .description = sxml_byte_view_from_c_string(error.description),
+            .subject_name = error.name,
             .position = error.position});
 }
 
@@ -823,8 +791,7 @@ sxml_status sxml_schema_resolve_references(sxml_schema_compilation *compilation)
     resolver state = {.compilation = compilation,
                       .components = compilation->components,
                       .name_pool = processor->name_pool,
-                      .allocator = processor->allocator,
-                      .detail = sxml_xml_buffer_empty(processor->allocator)};
+                      .allocator = processor->allocator};
     sxml_status status = resolve_all_references(&state);
     if (status == SXML_STATUS_OK) {
         status = resolve_type_definitions(&state);
@@ -854,6 +821,5 @@ sxml_status sxml_schema_resolve_references(sxml_schema_compilation *compilation)
     sxml_allocator_release(state.allocator, state.stack);
     sxml_allocator_release(state.allocator, state.marks);
     sxml_allocator_release(state.allocator, state.pairs);
-    sxml_xml_buffer_release(&state.detail);
     return status;
 }

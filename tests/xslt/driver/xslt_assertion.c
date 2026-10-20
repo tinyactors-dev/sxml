@@ -655,6 +655,34 @@ sxml_xslt_test_check_result_document(const sxml_xslt_test_check_request *request
         if (!sxml_byte_view_equals(document.absolute_uri, uri)) {
             continue;
         }
+        if (request->is_serialized) {
+            /* A serialized test case collects its result documents
+               serialized too: assert-serialization and
+               serialization-matches compare those bytes, as they compare
+               the principal result's. */
+            sxml_qt4_element_cursor cursor;
+            sxml_qt4_element_step child = {.has_element = false,
+                                           .element = {.index = 0},
+                                           .local_name = sxml_xslt_test_empty_text};
+            status = sxml_qt4_element_cursor_start(request->base.document, element, &cursor);
+            if (status == SXML_STATUS_OK) {
+                status = sxml_qt4_element_cursor_next(&cursor, &child);
+            }
+            if (status != SXML_STATUS_OK) {
+                return status;
+            }
+            if (child.has_element &&
+                (sxml_byte_view_equals(child.local_name, SXML_TEXT("assert-serialization")) ||
+                 sxml_byte_view_equals(child.local_name, SXML_TEXT("serialization-matches")))) {
+                sxml_xslt_test_check_request serialized_request = *request;
+                serialized_request.serialized_bytes = document.serialized_bytes;
+                return sxml_xslt_test_check_serialized(
+                    &serialized_request,
+                    (sxml_xslt_test_serialized_check){.element = child.element,
+                                                      .name = child.local_name},
+                    verdict);
+            }
+        }
         sxml_qt4_evaluation_outcome outcome = request->base.evaluation;
         outcome.value = document.value;
         return sxml_xslt_test_check_element(

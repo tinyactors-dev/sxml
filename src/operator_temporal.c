@@ -18,6 +18,7 @@
  * "Arithmetic operators on durations, dates, and times"; XSD 1.1 Part 2,
  * Appendix E "Adding durations to dateTimes".
  */
+#include "calendar_internal.h"
 #include "cast_internal.h"
 #include "operator_internal.h"
 
@@ -212,19 +213,13 @@ static int64_t sxml_floor_modulo(int64_t dividend, int64_t divisor) {
 /* --------------------------------------------------------- Calendar */
 
 enum {
-    SXML_DAYS_PER_CYCLE = 146097,
-    SXML_SECONDS_PER_DAY = 86400,
+        SXML_SECONDS_PER_DAY = 86400,
     SXML_NANOSECONDS_PER_SECOND = 1000000000,
 };
 
-/*
- * A day: the number of its 400-year cycle and its position in it, from 0
- * (1 March of the cycle's first year) to 146096.
- */
-typedef struct sxml_cycle_day {
-    int64_t cycle_number;
-    int64_t day_of_cycle;
-} sxml_cycle_day;
+/* A day: its 400-year cycle and its position in it
+   (src/calendar_internal.h). */
+typedef sxml_calendar_cycle_day sxml_cycle_day;
 
 /* A moment on a day: the day plus seconds and nanoseconds into it. */
 typedef struct sxml_moment {
@@ -235,55 +230,36 @@ typedef struct sxml_moment {
 
 /* The day of a civil date; year must be above INT64_MIN. */
 static sxml_cycle_day sxml_cycle_day_of(const sxml_date_time *date_time) {
-    int64_t year = date_time->year - (date_time->month <= 2 ? 1 : 0);
-    int64_t cycle_number = sxml_floor_divide(year, 400);
-    int64_t year_of_cycle = year - cycle_number * 400;
-    int64_t month = date_time->month;
-    int64_t day_of_year = (153 * (month > 2 ? month - 3 : month + 9) + 2) / 5 +
-                          date_time->day - 1;
-    return (sxml_cycle_day){
-        .cycle_number = cycle_number,
-        .day_of_cycle = year_of_cycle * 365 + year_of_cycle / 4 -
-                        year_of_cycle / 100 + day_of_year,
-    };
+    return sxml_calendar_cycle_day_of((sxml_calendar_date){.year = date_time->year,
+                                                           .month = date_time->month,
+                                                           .day = date_time->day,
+                                                           .day_of_year = 0});
 }
 
 /* Writes the civil date of day into *date_time (year, month, day); false
    when the year does not fit in int64_t. */
 static bool sxml_civil_date_of(sxml_cycle_day day, sxml_date_time *date_time) {
-    int64_t day_of_cycle = day.day_of_cycle;
-    int64_t year_of_cycle = (day_of_cycle - day_of_cycle / 1460 +
-                             day_of_cycle / 36524 - day_of_cycle / 146096) /
-                            365;
-    int64_t day_of_year =
-        day_of_cycle -
-        (365 * year_of_cycle + year_of_cycle / 4 - year_of_cycle / 100);
-    int64_t month_from_march = (5 * day_of_year + 2) / 153;
-    int64_t day_of_month = day_of_year - (153 * month_from_march + 2) / 5 + 1;
-    int64_t month =
-        month_from_march < 10 ? month_from_march + 3 : month_from_march - 9;
+    const sxml_calendar_date date = sxml_calendar_date_in_cycle(day.day_of_cycle);
     int64_t cycle_years = 0;
     int64_t year = 0;
     if (!sxml_checked_multiply(
             (sxml_integer_pair){.first = day.cycle_number, .second = 400},
             &cycle_years) ||
-        !sxml_checked_add(
-            (sxml_integer_pair){.first = cycle_years,
-                                .second = year_of_cycle + (month <= 2 ? 1 : 0)},
-            &year)) {
+        !sxml_checked_add((sxml_integer_pair){.first = cycle_years, .second = date.year},
+                          &year)) {
         return false;
     }
     date_time->year = year;
-    date_time->month = (uint8_t)month;
-    date_time->day = (uint8_t)day_of_month;
+    date_time->month = (uint8_t)date.month;
+    date_time->day = (uint8_t)date.day;
     return true;
 }
 
 /* Moves day by day_count days; false on overflow of the cycle number. */
 static bool sxml_cycle_day_add(sxml_cycle_day *day, int64_t day_count) {
-    int64_t day_of_cycle = day->day_of_cycle + day_count % SXML_DAYS_PER_CYCLE;
-    int64_t cycle_count = day_count / SXML_DAYS_PER_CYCLE +
-                          sxml_floor_divide(day_of_cycle, SXML_DAYS_PER_CYCLE);
+    int64_t day_of_cycle = day->day_of_cycle + day_count % SXML_CALENDAR_DAYS_PER_CYCLE;
+    int64_t cycle_count = day_count / SXML_CALENDAR_DAYS_PER_CYCLE +
+                          sxml_floor_divide(day_of_cycle, SXML_CALENDAR_DAYS_PER_CYCLE);
     int64_t cycle_number = 0;
     if (!sxml_checked_add((sxml_integer_pair){.first = day->cycle_number,
                                               .second = cycle_count},
@@ -291,7 +267,7 @@ static bool sxml_cycle_day_add(sxml_cycle_day *day, int64_t day_count) {
         return false;
     }
     day->cycle_number = cycle_number;
-    day->day_of_cycle = sxml_floor_modulo(day_of_cycle, SXML_DAYS_PER_CYCLE);
+    day->day_of_cycle = sxml_floor_modulo(day_of_cycle, SXML_CALENDAR_DAYS_PER_CYCLE);
     return true;
 }
 
@@ -306,7 +282,7 @@ static bool sxml_cycle_days_between(sxml_cycle_day first, sxml_cycle_day second,
                           &cycle_difference) ||
         !sxml_checked_multiply(
             (sxml_integer_pair){.first = cycle_difference,
-                                .second = SXML_DAYS_PER_CYCLE},
+                                .second = SXML_CALENDAR_DAYS_PER_CYCLE},
             &cycle_days)) {
         return false;
     }
