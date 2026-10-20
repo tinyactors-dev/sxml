@@ -30,8 +30,10 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 (bindings/kotlin/DESIGN.md, bindings/swift/DESIGN.md).
 
 
-- 4.30: XSLT real gaps from D281 (small and medium groups).
-- 7.21: fast Invisible XML; book first, then tests, then implementation.
+- 4.31: XSLT namespace undeclarations in the tree, per-package items,
+  copy-4308 (D289).
+- 7.24: Invisible XML: DFAs for regular nonterminals, a shared packed
+  forest built during the parse so item sets can be freed (D283).
   (Book-first pages carry <!-- status: draft -->; check-book-examples.sh
   skips them unless --drafts.)
 - 7.23: TypeScript/TSX and Markdown built in; a public API and run-time
@@ -149,6 +151,15 @@ are not hoisted from; current-merge-group(()) per 15.5.1; globals computed
 on first read (GLOBAL_READ); typed modes and XTSE3105; XT40 11,943 at its
 last run. Left: document-4066 (fn:document's schema validation does not
 raise FODC0002); a global's side effects now happen at its first read.
+
+XSLT (4.30, D289): XT40 12,261 -> 12,268 passed, 250 failed; key-004 lost
+to the draft (20.2.2 note: keys compare by fn:atomic-equal). split-when
+via fn:partition; one XSLT closure mechanism; new-each-time="no" cached;
+adaptive character maps. Left: map-for-key-005 (to 2.28), copy-4308,
+function-lookup and accumulators per package, per-package strip-space for
+fn:document, schema roles kept apart (import-schema-216), merge-when.
+Streaming: about 20 single causes (~a week). Namespace undeclarations: an
+additive tree.h binding with an empty URI (4.31).
 
 XSLT (4.29, D281): XT40 12,250 -> 12,261 passed (99 wrong error), 257
 failed. Of what is left: 112 the draft decides, 42 suite or environment,
@@ -297,6 +308,13 @@ highlights; tree-sitter/suite 630 of 639 (corpus 452/452, highlights
 (budget 10,000,000 / 2,800,000), CLI 11,289,043 / 2,288,933 (budget
 11,500,000 / 2,500,000). Owner (2026-10-20): TypeScript/TSX and Markdown
 built in, a registration API, run-time language files (7.23).
+
+7.21 (D283): Earley with lookahead, Leo items, compiled classes, grammar
+simplification. 1 MB: log 1.12 -> 0.18 s, csv 1.25 -> 0.28 s, calc 2.14 ->
+0.53 s, markdown 3.21 -> 0.30 s, right recursion fails -> 0.30 s; linear
+(4x input, 3.8-4.2x time); memory 90-200 bytes per character (all sets
+kept). Ambiguous inputs stay cubic. Suite 886 of 907 (21 not run: Unicode
+versions, C0 controls).
 
 Platform and tooling:
 - macOS, Windows and MSVC have never been built; `_getcwd` is untested.
