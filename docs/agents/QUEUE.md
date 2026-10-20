@@ -22,11 +22,11 @@ commit. Numbers are release-build passes from `docs/CONFORMANCE.md`.
 ## Running
 
 - 4.21: hoist-pass bug (merge-001a/016), globals on first read (XTDE3052), typed modes.
-- 7.6f streaming: incremental bytes (D231 design), streamed xsl:merge, capture end rules.
 
 ## Next
 
-- 7.19: the Phase 7 review, once 7.6f is done.
+- 7.6g: streamed xsl:merge and capture="yes" (designs in D233), after 4.21.
+- 7.19: the Phase 7 review, after 7.6g.
 - More XPath/XQuery and XSLT sweeps on the leftovers below; perf-4 on casts
   and path-MAP hoisting.
 
