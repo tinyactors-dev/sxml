@@ -94,7 +94,7 @@ static const sxml_static_error variable_key_error = {
     .error_status = SXML_STATUS_TYPE_ERROR,
     .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XPTY0004"),
     .description = SXML_BYTE_VIEW_INITIALIZER(
-        "a key of the variables option is not an xs:QName (F&O 4.0, 18.2)")};
+        "a key of the variables or vendor-options option is not an xs:QName (F&O 4.0, 18.2)")};
 
 /* ---------------------------------------------------------------- Options */
 
@@ -501,6 +501,9 @@ typedef struct content_resolver {
        static base URI is the caller's executable base URI); may be
        empty. */
     sxml_byte_view resource_uri;
+    /* Content loaded without trust (18.2, the trusted option): its own
+       module and schema imports, external resources, are not served. */
+    bool refuses_imports;
 } content_resolver;
 
 static sxml_status resolve_content(void *state, const sxml_resource_request *request,
@@ -516,7 +519,10 @@ static sxml_status resolve_content(void *state, const sxml_resource_request *req
         resource->resource_uri = resolver->resource_uri;
         return SXML_STATUS_OK;
     }
-    if (resolver->inner.operations == NULL) {
+    if (resolver->inner.operations == NULL ||
+        (resolver->refuses_imports &&
+         (request->resource_kind == SXML_RESOURCE_KIND_XQUERY_MODULE ||
+          request->resource_kind == SXML_RESOURCE_KIND_SCHEMA_DOCUMENT))) {
         memset(resource, 0, sizeof *resource);
         resource->resource_form = SXML_RESOURCE_FORM_NONE;
         return SXML_STATUS_OK;
@@ -678,9 +684,10 @@ static sxml_status check_match(const sxml_function_call *call, sxml_sequence val
     return match.is_match ? SXML_STATUS_OK : sxml_function_library_report(call, &wrong_value_error);
 }
 
-/* Binds the values of the variables option to the unit's globals of their
-   names, each checked against its declared type. Names the unit has no
-   global for are ignored. */
+/* Binds the values of the variables option to the unit's external
+   globals of their names (F&O 4.0, 18.2: "values for external
+   variables"), each checked against its declared type. Other names, a
+   variable with a value among them, are ignored. */
 static sxml_status bind_variables(const sxml_function_call *call, sxml_item variables,
                                   load_state *load) {
     size_t entry_count = 0;
@@ -702,7 +709,8 @@ static sxml_status bind_variables(const sxml_function_call *call, sxml_item vari
              global_number += 1) {
             const sxml_ir_global_variable *global = sxml_ir_unit_get_global_variable(
                 load->unit, (sxml_ir_global_index){.value = global_number});
-            if (global->variable_name.index != datum.datum_details.qname.expanded_name.index) {
+            if (!global->is_external ||
+                global->variable_name.index != datum.datum_details.qname.expanded_name.index) {
                 continue;
             }
             status = check_match(call, entry.value, global->declared_type);
@@ -713,6 +721,32 @@ static sxml_status bind_variables(const sxml_function_call *call, sxml_item vari
                 *slot = (sxml_evaluator_slot){.value = entry.value,
                                               .slot_state = SXML_EVALUATOR_SLOT_STATE_BOUND};
             }
+        }
+    }
+    return status;
+}
+
+/* XPTY0004 unless every key of the map option is an xs:QName: the
+   vendor-options option is a map(xs:QName, item()*) (F&O 4.0, 18.2). */
+static sxml_status check_qname_keys(const sxml_function_call *call, sxml_sequence option) {
+    sxml_item map = {.representation = 0};
+    sxml_status status = sxml_sequence_get_item(
+        option, (sxml_item_request){.item_index = 0, .error_record = NULL}, &map);
+    size_t entry_count = 0;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_map_get_size(map, &entry_count);
+    }
+    for (size_t entry_index = 0; status == SXML_STATUS_OK && entry_index < entry_count;
+         entry_index += 1) {
+        sxml_map_entry entry = {.key = {.representation = 0}};
+        status = sxml_map_get_entry(map, entry_index, &entry);
+        sxml_atomic_datum datum;
+        memset(&datum, 0, sizeof datum);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_atomic_item_get_datum(entry.key, &datum);
+        }
+        if (status == SXML_STATUS_OK && datum.datum_kind != SXML_DATUM_KIND_QNAME) {
+            status = sxml_function_library_report(call, &variable_key_error);
         }
     }
     return status;
@@ -825,10 +859,15 @@ static sxml_status compile_module(const load_request *request, load_state *load)
         (sxml_option_lookup){.values = options, .option_index = SXML_LOAD_OPTION_CONTENT});
     const sxml_byte_view static_base_uri =
         sxml_dynamic_context_get_static_base_uri(call->dynamic_context);
+    const bool is_trusted =
+        sxml_function_library_option_is_true(
+            (sxml_option_lookup){.values = options, .option_index = SXML_LOAD_OPTION_TRUSTED}) &&
+        sxml_dynamic_context_check_trust(call->dynamic_context, NULL) == SXML_STATUS_OK;
     content_resolver resolver = {.inner = environment->resource_resolver,
                                  .namespace_uri = request->namespace_uri,
                                  .content = content.utf8,
-                                 .resource_uri = static_base_uri};
+                                 .resource_uri = static_base_uri,
+                                 .refuses_imports = content.utf8.byte_count != 0 && !is_trusted};
     compilation compiling = {
         .call = call,
         .processor = environment->processor,
@@ -861,10 +900,7 @@ static sxml_status compile_module(const load_request *request, load_state *load)
     if (status == SXML_STATUS_OK) {
         status = compile_record(&compiling, sxml_function_library_text_view(&text), &load->unit);
     }
-    if (status == SXML_STATUS_OK &&
-        (!sxml_function_library_option_is_true(
-             (sxml_option_lookup){.values = options, .option_index = SXML_LOAD_OPTION_TRUSTED}) ||
-         sxml_dynamic_context_check_trust(call->dynamic_context, NULL) != SXML_STATUS_OK)) {
+    if (status == SXML_STATUS_OK && !is_trusted) {
         /* 18.2: trusted is false by default, and a module an untrusted
            call loads is untrusted too. */
         sxml_ir_unit_set_untrusted(load->unit);
@@ -906,6 +942,9 @@ static sxml_status start_loading(const sxml_native_step_request *request, sxml_n
     if (status == SXML_STATUS_OK && options.is_present[SXML_LOAD_OPTION_CONTEXT_VALUE] &&
         options.is_present[SXML_LOAD_OPTION_CONTEXT_ITEM]) {
         status = sxml_function_library_report(call, &wrong_value_error);
+    }
+    if (status == SXML_STATUS_OK && options.is_present[SXML_LOAD_OPTION_VENDOR_OPTIONS]) {
+        status = check_qname_keys(call, options.values[SXML_LOAD_OPTION_VENDOR_OPTIONS]);
     }
     if (status == SXML_STATUS_OK) {
         status = compile_module(&(load_request){.call = call,

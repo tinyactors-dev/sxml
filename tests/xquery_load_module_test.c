@@ -276,6 +276,21 @@ static const query_case query_cases[] = {
                 "load-xquery-module('urn:dyn', {'content': \"module namespace d = 'urn:dyn'; "
                 "declare variable $d:value := 2 + 2;\"})?variables(QName('urn:dyn', 'value'))",
                 "4"),
+    /* 18.2: the variables option binds external variables; a variable
+       with a value keeps it (D275). */
+    QUERY_VALUE("variables-bind-external-ones",
+                "let $m := load-xquery-module('urn:lib', {'variables': {QName('urn:lib', "
+                "'base'): 99, QName('urn:lib', 'counted'): 5, QName('urn:lib', 'input'): 0}}) "
+                "return "
+                "($m?variables(QName('urn:lib', 'base')), $m?variables(QName('urn:lib', "
+                "'counted')))",
+                "10 5"),
+    /* Content loaded without trust imports nothing; with trust it may. */
+    QUERY_VALUE("trusted-content-imports",
+                "load-xquery-module('urn:dyn', {'trusted': true(), 'content': \"module namespace "
+                "d = 'urn:dyn'; import module namespace l = 'urn:lib'; declare variable $d:v := "
+                "$l:base;\"})?variables(QName('urn:dyn', 'v'))",
+                "10"),
     QUERY_VALUE("context-value",
                 "load-xquery-module('urn:context', {'context-value': 21})"
                 "?variables(QName('urn:context', 'double'))",
@@ -295,6 +310,12 @@ static const query_case query_cases[] = {
                 "FOQM0006"),
     QUERY_ERROR("absent-external-variable",
                 "load-xquery-module('urn:lib')?variables(QName('urn:lib', 'input'))", "XPDY0002"),
+    QUERY_ERROR("untrusted-content-imports-nothing",
+                "load-xquery-module('urn:dyn', {'content': \"module namespace d = 'urn:dyn'; "
+                "import module namespace l = 'urn:lib'; declare variable $d:v := $l:base;\"})",
+                "FOQM0003"),
+    QUERY_ERROR("vendor-option-not-a-qname",
+                "load-xquery-module('urn:lib', {'vendor-options': {'wrong': 1}})", "XPTY0004"),
     QUERY_ERROR("dynamic-error-as-it-is", "load-xquery-module('urn:failing')", "FOAR0001"),
 };
 

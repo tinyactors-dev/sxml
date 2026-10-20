@@ -65,6 +65,15 @@ static const served_module served_modules[] = {
            "module namespace o = 'urn:odd'; "
            "import module namespace e = 'urn:even' at 'even.xq'; "
            "declare function o:is-odd($n) { if ($n eq 0) then false() else e:is-even($n - 1) };"),
+    /* A static context of its own: decimal formats, default collation
+       and namespaces its functions read when they run (5.2, D275). */
+    MODULE("urn:own", "http://example.com/m/own.xq",
+           "module namespace w = 'urn:own'; "
+           "declare default collation "
+           "'http://www.w3.org/2005/xpath-functions/collation/html-ascii-case-insensitive'; "
+           "declare decimal-format w:de decimal-separator = ',' grouping-separator = '.'; "
+           "declare function w:show($n) { format-number($n, '#.###,##', 'w:de') }; "
+           "declare function w:same($a, $b) { $a eq $b and compare($a, $b) eq 0 };"),
     /* Two modules of one namespace (5.12.2). */
     MODULE("urn:two", "http://example.com/m/two-1.xq",
            "module namespace t = 'urn:two'; declare function t:one() { 1 };"),
@@ -292,6 +301,10 @@ static const query_case query_cases[] = {
     QUERY_VALUE("function-and-variable",
                 "import module namespace a = 'urn:a' at 'a.xq'; a:add(5), $a:base",
                 "16 10"),
+    QUERY_VALUE("own-static-context",
+                "import module namespace w = 'urn:own' at 'own.xq'; "
+                "w:show(1234.5), w:same('a', 'A'), 'a' eq 'A'",
+                "1.234,5 true false"),
     QUERY_VALUE("item-type", "import module namespace a = 'urn:a' at 'a.xq'; 3 instance of a:small",
                 "true"),
     QUERY_VALUE("prefix-of-the-main-module",

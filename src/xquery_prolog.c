@@ -1262,7 +1262,8 @@ static sxml_status add_globals(module_lowering *module) {
             module->unit,
             &(sxml_ir_global_variable){.variable_name = declaration->variable_name,
                                        .declared_type = declaration->declared_type,
-                                       .initializer = {.value = 0}},
+                                       .initializer = {.value = 0},
+                                       .is_external = true},
             &global);
     }
     for (size_t order_index = 0; status == SXML_STATUS_OK && order_index < module->set->module_count;
@@ -1281,7 +1282,10 @@ static sxml_status add_globals(module_lowering *module) {
                     .variable_name = declaration->variable_name,
                     .declared_type = declaration->declared_type,
                     .initializer =
-                        ordered[context->global_numbers[position] - module->host_variable_count]},
+                        ordered[context->global_numbers[position] - module->host_variable_count],
+                    .is_external = (node_of(context->ast, context->variable_nodes[variable_index])
+                                        ->flags &
+                                    SXML_AST_FLAG_EXTERNAL) != 0},
                 &global);
         }
     }
@@ -1427,12 +1431,20 @@ static sxml_status lower_library_modules(module_lowering *module,
         const uint32_t first_function = module->unit->function_count;
         if (phase == SXML_LIBRARY_PHASE_DEFAULT_FUNCTIONS) {
             /* The module's static base URI and source name, module number
-               module_index (D148). */
+               module_index (D148), and the parts of its static context its
+               functions read while they run: its decimal formats, default
+               collation and in-scope schemas, and its statically known
+               namespaces (XQuery 4.0, 5.2: a library module has a static
+               context of its own; F&O 4.0, 4.9.2; D275). */
             uint32_t module_number = 0;
             status = sxml_ir_unit_add_module(
                 module->unit,
                 &(sxml_ir_module){.source_name = module->set->modules[module_index].module_uri,
-                                  .static_base_uri = context->xpath.static_base_uri},
+                                  .static_base_uri = context->xpath.static_base_uri,
+                                  .has_static_context = true,
+                                  .static_context = context->xpath.unit_static_context,
+                                  .has_static_namespaces = true,
+                                  .static_namespaces = context->xpath.namespace_bindings},
                 &module_number);
             if (status == SXML_STATUS_OK && module_number != module_index) {
                 status = SXML_STATUS_INVALID_ARGUMENT;

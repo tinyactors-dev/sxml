@@ -1310,6 +1310,10 @@ typedef struct sxml_ir_global_variable {
     sxml_sequence_type declared_type;
     /* An IR function of arity 0; 0 for an external variable. */
     sxml_ir_function_index initializer;
+    /* XQuery: declared external (XQuery 4.0, 5.16), with or without a
+       default, so fn:load-xquery-module's variables option may bind it
+       (F&O 4.0, 18.2); a host variable is too. */
+    bool is_external;
 } sxml_ir_global_variable;
 
 /* ------------------------------------------------------- XSLT modes */

@@ -304,6 +304,20 @@ sxml_qt4_serve_module(const sxml_qt4_table_request *table_request,
         }
     }
     if (chosen == NULL) {
+        /* A location hint the test case declares no module for, such as
+           an import in fn:load-xquery-module's content: the suite's file
+           at the hint, resolved (sxml checks its target namespace). */
+        if (request->absolute_uri.byte_count != 0) {
+            const sxml_status status =
+                sxml_qt4_serve_suite_file(table_request->table, request->absolute_uri, resource);
+            if (status != SXML_STATUS_OK ||
+                resource->resource_form != SXML_RESOURCE_FORM_NONE) {
+                if (status == SXML_STATUS_OK) {
+                    resource->resource_uri = request->absolute_uri;
+                }
+                return status;
+            }
+        }
         resource->description =
             SXML_TEXT("The test case has no module of that namespace");
         return SXML_STATUS_OK;
