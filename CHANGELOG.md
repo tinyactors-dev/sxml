@@ -259,6 +259,18 @@ not tagged yet, or into the next minor release.
   and `sxml serialize`) has its file URI as document URI and base URI
   (D271).
 
+### Fixed
+
+- `sxml validate` and the validator: an identity-constraint field whose
+  value is not valid for its type is reported as invalid (and, for a
+  key, as a key field without a value) instead of ending validation
+  with `SXML_STATUS_DYNAMIC_ERROR` (exit 4).
+- XSLT: a stylesheet parameter's supplied value (`sxml transform
+  --param`, or an xs:untypedAtomic binding through the API) is converted
+  to the parameter's `as` type, a built-in or a schema type, with
+  XTTE0590 when it cannot be (XSLT 4.0, 9.5); it stayed
+  xs:untypedAtomic.
+
 ## [0.2.0] - unreleased
 
 The first public release (D47, D104, D138). From this version, the public

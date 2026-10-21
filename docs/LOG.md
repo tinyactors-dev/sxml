@@ -4,6 +4,18 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- fix-2 done: the two sxml bugs book-9 found. An identity-constraint
+  field whose value is not valid for its type (anchor="req 3" as an
+  xs:ID) is reported and leaves its member unqualified (XSD 1.1, 3.11.4
+  clause 4; a key adds cvc-identity-constraint.4.2.1) instead of ending
+  validation with SXML_STATUS_DYNAMIC_ERROR (exit 4). A supplied
+  stylesheet parameter (`sxml transform --param`, or any binding) is
+  coerced to the xsl:param's `as` type, built-in or imported from a
+  schema, XTTE0590 when it cannot be (XSLT 4.0, 9.5), by the evaluator's
+  coercion of bound globals that XQuery's external variables use.
+  XSD11 41599 passed, 11 failed; schema-aware QT4 and XT40 sets and the
+  XT40 sets with stylesheet parameters unchanged.
+
 - book-12 done (D299): Project: Comparing Traces Before and After a
   Change (traces.md, traces-tree.md, traces-cardinality.md,
   traces-diff.md, traces-rendering.md, traces-streaming.md) on the OTLP
