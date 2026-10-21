@@ -4,6 +4,18 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- book-10 done (D299): Project: Drawing Diagrams with SVG, five new
+  chapters (svg.md, svg-layout.md, svg-xquery.md, svg-xslt.md,
+  svg-transform.md) in svg/. svg/draw.xqm (urn:example:draw) draws a
+  diagram description: breadth-first ranks with while-do from the first
+  node and the nodes without incoming edges (unreached nodes in a last
+  row), centred rows, edges down/up/across and loops, the class
+  attribute copied with style rules for added/removed/changed only when
+  used; its output for diagram.xml is the seed diagram.svg byte for byte.
+  Also layout.xq (the layout as XML), draw.xsl (modes per layer,
+  next-match), dark.xsl, highlight.xsl, strip.xsl, scale.xsl, texts.xq.
+  68 examples match. Found: map:keys-where is not implemented (XPST0017).
+
 - book-11 done (D299): Project: A Diff of Call Chains, three new
   chapters (call-chains.md, call-chains-graph.md, call-chains-diff.md)
   and one closing sentence in source-code.md. call-chains/graph.xqm
