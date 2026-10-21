@@ -20,7 +20,7 @@ each supported platform, named `sxml-VERSION-TARGET`:
 | `wasm32-wasi` | `.tar.gz` | `sxml.wasm`, for any WebAssembly runtime with WASI preview 1 |
 
 Download the archive for your system from the releases page of the
-repository, <https://github.com/dhamidi/sxml/releases>, together with
+repository, <https://github.com/tinyactors-dev/sxml/releases>, together with
 the file `SHA256SUMS`. Check the archive, unpack it, and put the program
 in a directory on your `PATH`. On Linux, for example:
 
@@ -54,7 +54,7 @@ sxml has no other dependencies: everything it uses is in its
 repository. Get the source and build the release configuration:
 
 ```sh
-git clone https://github.com/dhamidi/sxml
+git clone https://github.com/tinyactors-dev/sxml
 cd sxml
 cmake --preset release
 cmake --build --preset release

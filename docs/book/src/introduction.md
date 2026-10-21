@@ -158,7 +158,7 @@ the file.
 
 ## Source code
 
-The sxml repository is at <https://github.com/dhamidi/sxml>. The book's
+The sxml repository is at <https://github.com/tinyactors-dev/sxml>. The book's
 text is in `docs/book/` there. If you find a mistake, an example that
 does not do what the book says, or a passage that confused you, please
 open an issue.

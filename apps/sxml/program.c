@@ -45,7 +45,7 @@ static const sxml_cli_program sxml_program_entry = {
     .examples = {.texts = sxml_program_examples,
                  .text_count = sizeof sxml_program_examples / sizeof sxml_program_examples[0]},
     .bug_report_location =
-        SXML_BYTE_VIEW_INITIALIZER("https://github.com/dhamidi/sxml/issues"),
+        SXML_BYTE_VIEW_INITIALIZER("https://github.com/tinyactors-dev/sxml/issues"),
 };
 
 const sxml_cli_program *sxml_program(void) { return &sxml_program_entry; }

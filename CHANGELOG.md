@@ -335,4 +335,4 @@ and `xslt.h` (D151). `SXML_API_VERSION` is 0.2.0.
   provisional until the Phase 4 gate (D151). Schema validation is
   Phase 5.
 
-[0.2.0]: https://github.com/dhamidi/sxml/releases/tag/v0.2.0
+[0.2.0]: https://github.com/tinyactors-dev/sxml/releases/tag/v0.2.0

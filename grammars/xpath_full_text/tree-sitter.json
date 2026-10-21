@@ -13,7 +13,7 @@
     "license": "MIT",
     "description": "XPath 4.0 with Full Text 3.0 grammar for sxml",
     "links": {
-      "repository": "https://github.com/dhamidi/sxml"
+      "repository": "https://github.com/tinyactors-dev/sxml"
     }
   }
 }

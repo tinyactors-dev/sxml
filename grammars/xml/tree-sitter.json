@@ -13,7 +13,7 @@
     "license": "MIT",
     "description": "Strict XML 1.0 grammar for sxml",
     "links": {
-      "repository": "https://github.com/dhamidi/sxml"
+      "repository": "https://github.com/tinyactors-dev/sxml"
     }
   }
 }

@@ -2,7 +2,7 @@
 
 The full reference of the `sxml` command, with every option of every
 command, its exit codes and many examples, is the command's manual,
-[`apps/sxml/README.md`](https://github.com/dhamidi/sxml/blob/main/apps/sxml/README.md)
+[`apps/sxml/README.md`](https://github.com/tinyactors-dev/sxml/blob/main/apps/sxml/README.md)
 in the repository. It is also `USAGE.md` in each release archive, and
 `sxml help COMMAND` prints the help of one command.
 

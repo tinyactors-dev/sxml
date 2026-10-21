@@ -13,7 +13,7 @@
     "license": "MIT",
     "description": "Strict RFC 8259 JSON grammar for sxml",
     "links": {
-      "repository": "https://github.com/dhamidi/sxml"
+      "repository": "https://github.com/tinyactors-dev/sxml"
     }
   }
 }

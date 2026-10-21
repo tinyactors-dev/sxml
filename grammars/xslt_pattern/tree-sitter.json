@@ -13,7 +13,7 @@
     "license": "MIT",
     "description": "XSLT 4.0 pattern grammar for sxml",
     "links": {
-      "repository": "https://github.com/dhamidi/sxml"
+      "repository": "https://github.com/tinyactors-dev/sxml"
     }
   }
 }

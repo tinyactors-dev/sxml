@@ -36,4 +36,4 @@ Examples:
   sxml transform outline.xsl draft.xml
 
 Run 'sxml help COMMAND' for help on one command.
-Report bugs at https://github.com/dhamidi/sxml/issues
+Report bugs at https://github.com/tinyactors-dev/sxml/issues

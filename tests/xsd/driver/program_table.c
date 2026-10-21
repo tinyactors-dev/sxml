@@ -17,7 +17,7 @@ static const sxml_cli_program sxml_xsd_test_program_entry = {
     .command_count = sizeof sxml_xsd_test_program_commands /
                      sizeof sxml_xsd_test_program_commands[0],
     .bug_report_location =
-        SXML_BYTE_VIEW_INITIALIZER("https://github.com/dhamidi/sxml/issues"),
+        SXML_BYTE_VIEW_INITIALIZER("https://github.com/tinyactors-dev/sxml/issues"),
 };
 
 const sxml_cli_program *sxml_xsd_test_program(void) {

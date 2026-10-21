@@ -24,7 +24,7 @@ different error code counts as passed, as the QT4 catalog allows.
 | tree-sitter grammars' own tests: parse trees and highlights | 1,410 of 1,419 run |
 
 The repository's README has the current counts, and
-[`docs/CONFORMANCE.md`](https://github.com/dhamidi/sxml/blob/main/docs/CONFORMANCE.md)
+[`docs/CONFORMANCE.md`](https://github.com/tinyactors-dev/sxml/blob/main/docs/CONFORMANCE.md)
 has the results by test set.
 
 ## The specifications
