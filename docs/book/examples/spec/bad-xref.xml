@@ -1,0 +1,29 @@
+<rfc version="3" docName="draft-example-latch-brief-00">
+  <front>
+    <title>Latch in Brief</title>
+    <seriesInfo name="Internet-Draft" value="draft-example-latch-brief-00"/>
+    <author fullname="Ada Byron" surname="Byron"/>
+    <date year="2026" month="October"/>
+  </front>
+  <middle>
+    <section anchor="states">
+      <name>Lock States</name>
+      <t anchor="req-1">A <xref target="term-lock">lock</xref>
+      <bcp14>MUST</bcp14> start locked (<xref target="lockout"/>).</t>
+      <t anchor="req-2">Codes are compared as <xref target="RFC2119">BCP
+      14</xref> says.</t>
+    </section>
+  </middle>
+  <back>
+    <references anchor="normative">
+      <name>Normative References</name>
+      <reference anchor="RFC2119">
+        <front>
+          <title>Key words for use in RFCs to Indicate Requirement Levels</title>
+          <author fullname="S. Bradner" surname="Bradner"/>
+          <date year="1997" month="March"/>
+        </front>
+      </reference>
+    </references>
+  </back>
+</rfc>

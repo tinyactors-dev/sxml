@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- A schema for an editorial note, with three mistakes. -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="cref">
+    <xs:complexType mixed="true">
+      <xs:attribute name="anchor" type="xs:NCname" use="required"/>
+      <xs:attribute name="source" type="initials"/>
+      <xs:attribute name="display" type="xs:boolean" use="always"/>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

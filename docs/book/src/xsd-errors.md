@@ -1,18 +1,18 @@
 # Reading Validation Errors
 
-<!-- examples: xsd -->
+<!-- examples: spec -->
 
 Validation errors are meant to be read by people, and acted on. This
-section explains what sxml's messages contain, lists the ones you'll
-meet most with their usual fixes, and shows how programs read the same
-report as JSON.
+section explains what sxml's messages contain, goes through the ones
+you'll meet most in drafts with their usual fixes, and shows how
+programs read the same report as JSON.
 
 ## The parts of a message
 
 Every message has the same parts:
 
 ```text
-damaged.xml:6:14: cvc-enumeration-valid: attribute 'currency' has the value 'GBP', ...
+bad-keyword.xml:12:32: cvc-enumeration-valid: element 'bcp14' has the value 'MIGHT', ...
 ```
 
 - the file, line and column of the element or attribute;
@@ -28,18 +28,18 @@ damaged.xml:6:14: cvc-enumeration-valid: attribute 'currency' has the value 'GBP
 A schema is compiled before any document is read, and when it has
 errors, no document is checked. Schema errors have codes that don't
 start with `cvc-`: `src-` for the XML representation of the schema,
-`cos-` for rules about components, and others. This schema has three
-mistakes:
+`cos-` for rules about components, and others. This schema for an
+editorial note has three mistakes:
 
-`broken.xsd`:
+`bad-schema.xsd`:
 
 ```xml
-{{#include ../examples/xsd/broken.xsd}}
+{{#include ../examples/spec/bad-schema.xsd}}
 ```
 
 ```console
-$ sxml validate --schema=broken.xsd one-loan.xml; echo "exit status $?"
-broken.xsd:8:7: src-attribute: An attribute's value is not allowed: use
+$ sxml validate --schema=bad-schema.xsd xsd-dtd.xml; echo "exit status $?"
+bad-schema.xsd:8:7: src-attribute: An attribute's value is not allowed: use
 exit status 1
 ```
 
@@ -49,10 +49,10 @@ reports the errors of one step before it goes to the next, so fix what
 it reports and run it again:
 
 ```console
-$ sed 's/use="always"/use="required"/' broken.xsd > fixed.xsd
-$ sxml validate --schema=fixed.xsd one-loan.xml
-fixed.xsd:5:9: src-resolve: A QName value names no component of its kind: Q{http://www.w3.org/2001/XMLSchema}NCname
-fixed.xsd:6:9: src-resolve: A QName value names no component of its kind: member-id
+$ sed 's/use="always"/use="required"/' bad-schema.xsd > fixed.xsd
+$ sxml validate --schema=fixed.xsd xsd-dtd.xml
+fixed.xsd:6:7: src-resolve: A QName value names no component of its kind: Q{http://www.w3.org/2001/XMLSchema}NCname
+fixed.xsd:7:7: src-resolve: A QName value names no component of its kind: initials
 ```
 
 `src-resolve` means a name in the schema points at nothing: here a
@@ -61,6 +61,59 @@ declared. The name is shown as an expanded name, with its namespace in
 braces, so you can see whether a prefix went wrong too.
 
 ## Errors in documents
+
+Three short drafts, each with the mistakes of one kind. The first has
+key words that aren't key words:
+
+`bad-keyword.xml`:
+
+```xml
+{{#include ../examples/spec/bad-keyword.xml}}
+```
+
+```console
+$ sxml validate --schema=latch.xsd bad-keyword.xml
+bad-keyword.xml:11:32: cvc-enumeration-valid: element 'bcp14' has the value 'must', which is not valid for type 'keyword': the value is not one of the enumeration facets (XSD 1.1 Part 2, 4.3.5.4); the enumeration facets are 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL', 'SHALL NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED', ...
+bad-keyword.xml:12:32: cvc-enumeration-valid: element 'bcp14' has the value 'MIGHT', which is not valid for type 'keyword': the value is not one of the enumeration facets (XSD 1.1 Part 2, 4.3.5.4); the enumeration facets are 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL', 'SHALL NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED', ...
+```
+
+BCP 14's key words count only in capitals (RFC 8174), and the schema
+agrees: enumerations compare exactly. When a list of facets is long,
+the message shows the first eight and `...`.
+
+The second uses an anchor twice:
+
+`bad-anchor.xml`:
+
+```xml
+{{#include ../examples/spec/bad-anchor.xml}}
+```
+
+```console
+$ sxml validate --schema=latch.xsd bad-anchor.xml
+bad-anchor.xml:12:7: cvc-identity-constraint.4.1: element 't': its key sequence is that of an earlier member (unique 'anchor')
+bad-anchor.xml:15:5: cvc-identity-constraint.4.1: element 'section': its key sequence is that of an earlier member (unique 'anchor')
+```
+
+The message points at the second use, and names the constraint,
+`anchor`, so you can find it in the schema. The third refers to
+anchors that don't exist:
+
+`bad-xref.xml`:
+
+```xml
+{{#include ../examples/spec/bad-xref.xml}}
+```
+
+```console
+$ sxml validate --schema=latch.xsd bad-xref.xml
+bad-xref.xml:11:27: cvc-identity-constraint.4.3: element 'xref': its key sequence is no key sequence of the referenced key (keyref 'xref-target')
+bad-xref.xml:12:41: cvc-identity-constraint.4.3: element 'xref': its key sequence is no key sequence of the referenced key (keyref 'xref-target')
+```
+
+This short draft has no terminology section and no section `lockout`;
+they were copied from the full draft. The reference to `RFC2119` is
+fine: the draft has that reference.
 
 The constraints you'll see most in documents, and what they usually
 mean:
@@ -72,10 +125,10 @@ mean:
 | `cvc-complex-type.2.1`, `2.3` | Text where the content is empty or element-only | Remove the text, or make the type mixed |
 | `cvc-complex-type.3.2.2` | An attribute that the type doesn't declare | Declare it, or remove it |
 | `cvc-complex-type.4` | A required attribute is missing | Add it |
-| `cvc-datatype-valid.1.2.1` | The text is not a value of the type | Check the lexical form: `2026-10-20`, not `20.10.2026` |
-| `cvc-pattern-valid`, `cvc-enumeration-valid`, `cvc-maxLength-valid`, ... | A value breaks a facet; the message names it | Compare the value with the facet it shows |
+| `cvc-datatype-valid.1.2.1` | The text is not a value of the type | Check the lexical form: `2026`, not `26` |
+| `cvc-pattern-valid`, `cvc-enumeration-valid`, `cvc-maxInclusive-valid`, ... | A value breaks a facet; the message names it | Compare the value with the facet it shows |
 | `cvc-au` | A fixed attribute has another value | Use the fixed value |
-| `cvc-type.2` | An element has an abstract type | Give a derived type with `xsi:type` |
+| `cvc-type.2`, `cvc-elt.2` | An element has an abstract type or declaration | Give a derived type with `xsi:type`, or use a member of the group |
 | `cvc-elt.4.3` | `xsi:type` names a type not derived from the declared one | Use a derived type |
 | `cvc-id.2` | An `xs:ID` value is used twice | Make the ids unique |
 | `cvc-identity-constraint.4.1`, `4.2.2` | Two elements have the same key | Make the keys unique |
@@ -90,58 +143,56 @@ the later mistakes too. It guesses what the author meant: if the
 element is allowed further on in the content model, the elements
 before it are taken as missing, and checking continues from there;
 otherwise the element is taken as extra and skipped. Either way the
-element's own content is still checked against its declaration. Here
-`author` and `title` are swapped, and the price is wrong too:
+element's own content is still checked against its declaration.
 
-`late.xml`:
-
-```xml
-{{#include ../examples/xsd/late.xml}}
-```
-
-```console
-$ sxml validate --schema=library.xsd late.xml
-late.xml:4:7: cvc-complex-type.2.4: element 'author' is not allowed here; expected 'title'
-late.xml:5:7: cvc-complex-type.2.4: element 'title' is not allowed here; expected 'author' or 'price'
-late.xml:6:14: cvc-enumeration-valid: attribute 'currency' has the value 'GBP', which is not valid for type 'currency': the value is not one of the enumeration facets (XSD 1.1 Part 2, 4.3.5.4); the enumeration facets are 'EUR', 'USD'
-late.xml:6:7: cvc-datatype-valid.1.2.1: element 'price' has the value 'cheap', which is not valid for type 'amount'
-```
-
-`author` is allowed after a `title`, so sxml takes the `title` as
-missing and goes on after `author`; then the real `title` comes too
-late, and is reported as well. The currency and the price are checked
-as usual. A missing element costs one report, and so does an extra
-one:
+`bad-content.xml`, from [Complex Types and Content
+Models](xsd-complex-types.md), had the author before the title. The
+author is allowed after a title, so sxml takes the title as missing
+and goes on after the author; then the real title comes too late, and
+is reported as well:
 
 ```console
-$ printf '<library>\n  <shelf name="Fiction">\n    <book id="dune" year="1965">\n      <author>Frank Herbert</author>\n      <price currency="EUR">9.99</price>\n      <isbn>0441013597</isbn>\n    </book>\n  </shelf>\n</library>\n' > missing.xml
-$ sxml validate --schema=library.xsd missing.xml
-missing.xml:4:7: cvc-complex-type.2.4: element 'author' is not allowed here; expected 'title'
-missing.xml:6:7: cvc-complex-type.2.4: element 'isbn' is not allowed here; expected 'tags'
+$ sxml validate --schema=latch.xsd bad-content.xml 2>&1 | head -3
+bad-content.xml:1:6: cvc-au: attribute 'version' has the value '2', not its fixed value '3'
+bad-content.xml:3:5: cvc-complex-type.2.4: element 'author' is not allowed here; expected 'title'
+bad-content.xml:4:5: cvc-complex-type.2.4: element 'title' is not allowed here; expected 'author' or 'date'
+```
+
+A missing element costs one report, and so does an extra one:
+
+```console
+$ sed '/<title abbrev/d' latch.xml | sxml validate --schema=latch.xsd -
+-:10:5: cvc-complex-type.2.4: element 'seriesInfo' is not allowed here; expected 'title'
+$ sed 's|<area>Applications</area>|<area>Applications</area><status>draft</status>|' latch.xml \
+  | sxml validate --schema=latch.xsd -
+-:21:30: cvc-complex-type.2.4: element 'status' is not allowed here; expected 'area', 'keyword' or 'abstract'
 ```
 
 ## Documents that are not well-formed
 
 A document that is not well-formed can't be valid, but sxml still
 reports the validation errors it found before the place where the
-document breaks off:
+document breaks off. Here are the first twelve lines of the draft,
+with a wrong version:
 
 ```console
-$ printf '<library>\n  <shelf name="Fiction">\n    <book id="dune" year="soon">\n' > cut.xml
-$ sxml validate --schema=library.xsd cut.xml
-cut.xml:3:21: cvc-datatype-valid.1.2.1: attribute 'year' has the value 'soon', which is not valid for type 'xs:gYear'
-cut.xml:4:1: not well-formed: the document ends or breaks off before a construct is complete (XML 1.0, section 2.1)
+$ head -12 latch.xml | sed 's/version="3"/version="three"/' > cut.xml
+$ sxml validate --schema=latch.xsd cut.xml
+cut.xml:7:6: cvc-datatype-valid.1.2.1: attribute 'version' has the value 'three', which is not valid for type 'xs:integer'
+cut.xml:13:1: not well-formed: the document ends or breaks off before a construct is complete (XML 1.0, section 2.1)
 ```
 
 ## Lax validation
 
 With `--mode=lax`, a document whose document element has no
 declaration is not an error. sxml says that its validity is not known,
-and exits with status 0:
+and exits with status 0. The editorial note of the chapter's opening
+has no declaration in `latch.xsd`, which declares `cref` only inside
+paragraphs:
 
 ```console
-$ sxml validate --schema=library.xsd --mode=lax member.xml; echo "exit status $?"
-member.xml: validity not known: the schema has no declaration of the document element (lax assessment)
+$ sxml validate --schema=latch.xsd --mode=lax xsd-dtd.xml; echo "exit status $?"
+xsd-dtd.xml: validity not known: the schema has no declaration of the document element (lax assessment)
 exit status 0
 ```
 
@@ -152,10 +203,10 @@ status of the schema and of each file, and each error with its code,
 line, column, byte offset and message:
 
 ```console
-$ sxml validate --schema=library.xsd --format=json late.xml
-{"schema":{"documents":["library.xsd"],"status":"valid"},"files":[{"file":"late.xml","status":"invalid","errors":[{"code":"cvc-complex-type.2.4","line":4,"column":7,"byte_offset":74,"message":"element 'author' is not allowed here; expected 'title'"},{"code":"cvc-complex-type.2.4","line":5,"column":7,"byte_offset":111,"message":"element 'title' is not allowed here; expected 'author' or 'price'"},{"code":"cvc-enumeration-valid","line":6,"column":14,"byte_offset":144,"message":"attribute 'currency' has the value 'GBP', which is not valid for type 'currency': the value is not one of the enumeration facets (XSD 1.1 Part 2, 4.3.5.4); the enumeration facets are 'EUR', 'USD'"},{"code":"cvc-datatype-valid.1.2.1","line":6,"column":7,"byte_offset":137,"message":"element 'price' has the value 'cheap', which is not valid for type 'amount'"}]}]}
-$ sxml validate --schema=broken.xsd --format=json one-loan.xml
-{"schema":{"documents":["broken.xsd"],"status":"invalid","errors":[{"document":"broken.xsd","code":"src-attribute","line":8,"column":7,"byte_offset":255,"message":"An attribute's value is not allowed: use"}]},"files":[]}
+$ sxml validate --schema=latch.xsd --format=json bad-xref.xml
+{"schema":{"documents":["latch.xsd"],"status":"valid"},"files":[{"file":"bad-xref.xml","status":"invalid","errors":[{"code":"cvc-identity-constraint.4.3","line":11,"column":27,"byte_offset":378,"message":"element 'xref': its key sequence is no key sequence of the referenced key (keyref 'xref-target')"},{"code":"cvc-identity-constraint.4.3","line":12,"column":41,"byte_offset":455,"message":"element 'xref': its key sequence is no key sequence of the referenced key (keyref 'xref-target')"}]}]}
+$ sxml validate --schema=bad-schema.xsd --format=json xsd-dtd.xml
+{"schema":{"documents":["bad-schema.xsd"],"status":"invalid","errors":[{"document":"bad-schema.xsd","code":"src-attribute","line":8,"column":7,"byte_offset":344,"message":"An attribute's value is not allowed: use"}]},"files":[]}
 ```
 
 The exit status tells a script what happened without reading any of
@@ -164,14 +215,16 @@ or not well-formed, 2 for a mistake on the command line, and 3 when a
 file can't be read:
 
 ```console
-$ sxml validate --schema=library.xsd missing.xml; echo "exit status $?"
-missing.xml:4:7: cvc-complex-type.2.4: element 'author' is not allowed here; expected 'title'
-missing.xml:6:7: cvc-complex-type.2.4: element 'isbn' is not allowed here; expected 'tags'
+$ sxml validate --schema=latch.xsd latch.xml bad-xref.xml > /dev/null 2>&1; echo "exit status $?"
 exit status 1
+$ sxml validate --schema=latch.xsd no-such-draft.xml; echo "exit status $?"
+sxml validate: cannot read 'no-such-draft.xml'
+exit status 3
 ```
 
 From XQuery, a `validate` expression that fails raises `err:XQDY0027`
-with the first message, which `try` and `catch` can handle; the next
-section shows it. Programs that embed sxml get each error as a
-structured value, with its constraint and location: Chapter 9 shows the
-C interface, and Chapter 10 the JavaScript one.
+with the first message, which `try` and `catch` can handle; [Typed Data
+and Schema-Aware Queries](xsd-typed-data.md) shows it. Programs that
+embed sxml get each error as a structured value, with its constraint
+and location: [Embedding sxml in C](c.md) shows the C interface, and
+[sxml in JavaScript](javascript.md) the JavaScript one.
