@@ -2,7 +2,7 @@ declare option output:method "text";
 declare option output:item-separator "&#10;";
 
 (:~ The drafts to look at: file names, separated by spaces. :)
-declare variable $drafts as xs:string external := "latch.xml";
+declare variable $drafts as xs:string external := "vane.xml";
 
 (:~ The day to compute from: give it with --param=today=YYYY-MM-DD. :)
 declare variable $today as xs:date external := current-date();

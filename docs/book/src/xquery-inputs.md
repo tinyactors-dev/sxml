@@ -15,7 +15,7 @@ so that a path such as `//t` starts from it. A file name of `-` reads
 the document from standard input:
 
 ```console
-$ sxml xquery --context-item=- --expression='count(//t[@anchor])' < latch.xml
+$ sxml xquery --context-item=- --expression='count(//t[@anchor])' < vane.xml
 11
 ```
 
@@ -25,7 +25,7 @@ empty result later. Here the schema of the draft is given where a draft
 was meant:
 
 ```console
-$ sxml xquery --context-item=latch.xsd --expression='
+$ sxml xquery --context-item=vane.xsd --expression='
     declare context value as document-node(element(rfc)) external;
     count(//t[@anchor])'
 expression: err:XPTY0004: The value does not match the required type (XPath 4.0, section 3.4, coercion rules)
@@ -36,7 +36,7 @@ given:
 
 ```console
 $ sxml xquery --expression='
-    declare context value as document-node(element(rfc)) external := doc("latch-00.xml");
+    declare context value as document-node(element(rfc)) external := doc("vane-00.xml");
     count(//t[@anchor])'
 8
 ```
@@ -51,7 +51,7 @@ can read as many documents as it likes; reading the same URI twice gives
 the same document, not a copy:
 
 ```console
-$ sxml xquery --method=adaptive --expression='doc("latch.xml") is doc("latch.xml")'
+$ sxml xquery --method=adaptive --expression='doc("vane.xml") is doc("vane.xml")'
 true()
 ```
 
@@ -60,11 +60,11 @@ an error when it can't:
 
 ```console
 $ sxml xquery --method=adaptive --expression='
-    for $file in ("latch.xml", "latch-00.xml", "latch-02.xml")
+    for $file in ("vane.xml", "vane-00.xml", "vane-02.xml")
     return if (doc-available($file)) then string(doc($file)/rfc/@docName) else $file || " is missing"'
-"draft-example-latch-protocol-01"
-"draft-example-latch-protocol-00"
-"latch-02.xml is missing"
+"draft-example-vane-protocol-01"
+"draft-example-vane-protocol-00"
+"vane-02.xml is missing"
 ```
 
 Data in other formats has functions of its own: `json-doc` reads JSON
@@ -81,12 +81,12 @@ issues as JSON:
 ```
 
 ```console
-$ sxml xquery --context-item=latch.xml --method=adaptive --expression='
+$ sxml xquery --context-item=vane.xml --method=adaptive --expression='
     let $issues := json-doc("issues.json")
     for $note in //cref
     let $issue := $issues($note/@anchor)
     return `{$note/@anchor} ({$issue?state}, opened {$issue?opened}): {$issue?title}`'
-"issue-1 (open, opened 2026-07-20): Configurable lockout duration"
+"issue-1 (open, opened 2026-07-20): Configurable pause duration"
 "issue-2 (open, opened 2026-09-02): Anchor for the encryption requirement"
 ```
 
@@ -105,14 +105,14 @@ document of every `.xml` file in it, sorted by name:
 $ sxml xquery --method=adaptive --expression='
     for $draft in collection("drafts")
     return `{document-uri($draft) => tokenize("/") => foot()}: {$draft/rfc/@docName}, {count($draft//t[@anchor])} requirements`'
-"latch-00.xml: draft-example-latch-protocol-00, 8 requirements"
-"latch-01.xml: draft-example-latch-protocol-01, 11 requirements"
+"vane-00.xml: draft-example-vane-protocol-00, 8 requirements"
+"vane-01.xml: draft-example-vane-protocol-01, 11 requirements"
 ```
 
 `document-uri` tells which file each document came from; it is an
 absolute `file:` URI, so the query keeps only its last part. The
 documents are the ones `doc` reads for the same files, so
-`doc("drafts/latch-00.xml") is collection("drafts")[1]` is true.
+`doc("drafts/vane-00.xml") is collection("drafts")[1]` is true.
 `uri-collection` gives the URIs without reading the files.
 
 Parameters after a `?` change what the directory gives, separated by
@@ -123,10 +123,10 @@ of subdirectories too:
 
 ```console
 $ sxml xquery --method=adaptive --expression='
-    doc("drafts/latch-00.xml") is collection("drafts")[1],
+    doc("drafts/vane-00.xml") is collection("drafts")[1],
     uri-collection("drafts?select=*-01.xml") ! tokenize(., "/")[last()]'
 true()
-"latch-01.xml"
+"vane-01.xml"
 ```
 
 A file that is not well-formed stops `collection` with
@@ -161,13 +161,13 @@ says when drafts expire:
 
 ```console
 $ sxml xquery --param=today=2026-10-21 expiry.xq
-draft-example-latch-protocol-01: published 2026-10-21, expires 2027-04-24
-$ sxml xquery --param=today=2027-02-01 --param="drafts=latch-00.xml latch.xml" expiry.xq
-draft-example-latch-protocol-00: published 2026-07-06, expires 2027-01-07, expired
-draft-example-latch-protocol-01: published 2026-10-21, expires 2027-04-24
-$ sxml xquery --param=today=2027-02-01 --param="drafts=latch-00.xml latch.xml" --param=days=90 expiry.xq
-draft-example-latch-protocol-00: published 2026-07-06, expires 2026-10-04, expired
-draft-example-latch-protocol-01: published 2026-10-21, expires 2027-01-19, expired
+draft-example-vane-protocol-01: published 2026-10-21, expires 2027-04-24
+$ sxml xquery --param=today=2027-02-01 --param="drafts=vane-00.xml vane.xml" expiry.xq
+draft-example-vane-protocol-00: published 2026-07-06, expires 2027-01-07, expired
+draft-example-vane-protocol-01: published 2026-10-21, expires 2027-04-24
+$ sxml xquery --param=today=2027-02-01 --param="drafts=vane-00.xml vane.xml" --param=days=90 expiry.xq
+draft-example-vane-protocol-00: published 2026-07-06, expires 2026-10-04, expired
+draft-example-vane-protocol-01: published 2026-10-21, expires 2027-01-19, expired
 ```
 
 The command line has only text, so `--param` passes the value as an

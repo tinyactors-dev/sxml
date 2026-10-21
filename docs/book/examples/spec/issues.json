@@ -1,5 +1,5 @@
 {
-  "issue-1": { "title": "Configurable lockout duration", "state": "open", "opened": "2026-07-20" },
+  "issue-1": { "title": "Configurable pause duration", "state": "open", "opened": "2026-07-20" },
   "issue-2": { "title": "Anchor for the encryption requirement", "state": "open", "opened": "2026-09-02" },
-  "issue-3": { "title": "Wording of the unlock section", "state": "closed", "opened": "2026-07-08" }
+  "issue-3": { "title": "Wording of the rollout section", "state": "closed", "opened": "2026-07-08" }
 }

@@ -23,14 +23,14 @@ table of contents of the sections inside it:
 ```
 
 ```console
-$ sxml xquery --context-item=latch.xml toc.xq
+$ sxml xquery --context-item=vane.xml toc.xq
 1. Introduction
 1.1. Terminology
-2. Lock States
+2. Flag States
 3. Messages
-3.1. Unlock
+3.1. Rollout
 3.2. Status
-4. Lockout
+4. Pause
 5. Security Considerations
 6. IANA Considerations
 ```
@@ -77,8 +77,8 @@ the file is:
 ```
 
 ```console
-$ sxml xquery --context-item=latch.xml requirement.xq
-req-7 (MUST, section 4): After three rejected codes in a row, a lock MUST enter lockout.
+$ sxml xquery --context-item=vane.xml requirement.xq
+req-7 (MUST, section 4): After three failed checks in a row, a service MUST put the flag in a pause.
 ```
 
 The `sxml` command reads the module from a local file, relative to the
@@ -90,7 +90,7 @@ Try the functions one by one with `--expression`; that's the quickest
 way to see what a module does:
 
 ```console
-$ sxml xquery --context-item=latch.xml --method=adaptive --expression='
+$ sxml xquery --context-item=vane.xml --method=adaptive --expression='
     import module namespace spec = "urn:example:spec" at "spec.xqm";
     spec:section-number(//section[@anchor = "status"]),
     spec:requirement-number(//t[@anchor = "req-8"]),
@@ -99,7 +99,7 @@ $ sxml xquery --context-item=latch.xml --method=adaptive --expression='
 "3.2"
 10
 33
-{"anchor":"req-9","number":6,"section":"3.1","keyword":"MAY","text":"A controller MAY send codes that are time-based one-time passwords [RFC6238]."}
+{"anchor":"req-9","number":6,"section":"3.1","keyword":"MAY","text":"A service MAY ask an owner for a time-based one-time password [RFC6238] before a rollout."}
 ```
 
 The text of an entry is the paragraph on one line, with an editorial
@@ -113,21 +113,21 @@ An external variable is a parameter of the whole query. `--param` sets
 it:
 
 ```console
-$ sxml xquery --context-item=latch.xml --param=anchor=req-5 requirement.xq
-req-5 (MUST NOT, section 3.1): A lock MUST NOT unlock while it is in lockout (Section 4).
+$ sxml xquery --context-item=vane.xml --param=anchor=req-5 requirement.xq
+req-5 (MUST NOT, section 3.1): A service MUST NOT roll out a flag while it is in a pause (Section 4).
 ```
 
 When the type doesn't fit, the error says where:
 
 ```console
-$ sxml xquery --context-item=latch.xml --param=anchor=req-12 requirement.xq
+$ sxml xquery --context-item=vane.xml --param=anchor=req-12 requirement.xq
 requirement.xq:7:1: err:XPTY0004: The value does not match the required type (XPath 4.0, section 3.4, coercion rules)
-$ sxml xquery --context-item=latch.xml --param=anchor=lockout requirement.xq
+$ sxml xquery --context-item=vane.xml --param=anchor=pause requirement.xq
 requirement.xq:7:1: err:XPTY0004: The value does not match the required type (XPath 4.0, section 3.4, coercion rules)
 ```
 
 There is no element with the anchor `req-12`, so the map lookup gives
-the empty sequence; and `lockout` is a section, not a paragraph.
+the empty sequence; and `pause` is a section, not a paragraph.
 `spec:describe` requires exactly one `t` element, and says so in both
 cases.
 
@@ -146,7 +146,7 @@ values, and arguments can be passed by name, as `spec:entry` is called
 inside the module:
 
 ```console
-$ sxml xquery --context-item=latch.xml --expression='
+$ sxml xquery --context-item=vane.xml --expression='
     declare function local:label($section as element(section), $separator as xs:string := ".") {
       string-join($section/ancestor-or-self::section ! (count(preceding-sibling::section) + 1), $separator)
     };
@@ -185,7 +185,7 @@ reference to the function with one parameter, which you can pass to a
 higher-order function such as `for-each`:
 
 ```console
-$ sxml xquery --context-item=latch.xml --method=adaptive --expression='
+$ sxml xquery --context-item=vane.xml --method=adaptive --expression='
     import module namespace spec = "urn:example:spec" at "spec.xqm";
     spec:requirements(/) => for-each(spec:requirement-number#1) => string-join(" ")'
 "1 2 3 4 5 6 7 8 9 10 11"
@@ -195,15 +195,15 @@ Parameters can have function types, written `fn(...) as ...`. This
 function counts the requirements that pass a test it is given:
 
 ```console
-$ sxml xquery --context-item=latch.xml --method=adaptive --expression='
+$ sxml xquery --context-item=vane.xml --method=adaptive --expression='
     import module namespace spec = "urn:example:spec" at "spec.xqm";
     declare function local:count-where($draft as document-node(), $test as fn(element(t)) as xs:boolean) as xs:integer {
       count(spec:requirements($draft)[$test(.)])
     };
     local:count-where(/, fn($t) { spec:keywords($t) = "MUST" }),
-    local:count-where(/, fn($t) { contains($t, "controller") })'
+    local:count-where(/, fn($t) { contains($t, "owner") })'
 5
-4
+3
 ```
 
 [Functions as Values](xpath-higher-order.md) explains inline functions,
@@ -235,7 +235,7 @@ section number, and `spec:section` promises one:
 ```console
 $ sxml xquery --expression='
     import module namespace spec = "urn:example:spec" at "spec.xqm";
-    spec:describe(<t anchor="req-12">A lock <bcp14>MAY</bcp14> beep.</t>)'
+    spec:describe(<t anchor="req-12">A service <bcp14>MAY</bcp14> log a rollout.</t>)'
 spec.xqm:68:86: err:XPTY0004: The value does not match the required type (XPath 4.0, section 3.4, coercion rules)
 ```
 
