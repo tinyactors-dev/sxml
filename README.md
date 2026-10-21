@@ -660,7 +660,8 @@ sxml is released under the MIT License; see [LICENSE](LICENSE).
 
 The website, [sxml.tinyactors.dev](https://sxml.tinyactors.dev), serves
 the book at [/book/](https://sxml.tinyactors.dev/book/). `mise run site`
-builds both from `website/` and `docs/book` into `build/site`.
+builds both from `website/` and `docs/book` into `build/site`;
+`mise run site:publish` builds and publishes them.
 
 - [The sxml Book](docs/book/src/SUMMARY.md): a guide to sxml and its
   languages, from installing it to XPath, XQuery, XSLT, XSD, other

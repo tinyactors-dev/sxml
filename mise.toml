@@ -85,6 +85,10 @@ run = [
     "mdbook build docs/book --dest-dir ../../build/site/book",
 ]
 
+[tasks."site:publish"]
+description = "Build sxml.tinyactors.dev and force-push it to the gh-pages branch that GitHub Pages serves (needs mdbook)"
+run = "tools/publish-site.sh"
+
 [tasks."site:dev"]
 description = "Serve the landing page on http://localhost:5173, rebuilt as its files change (the book is served by book:serve)"
 run = ["npm ci --prefix website --no-audit --no-fund", "npm run --prefix website dev"]

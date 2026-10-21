@@ -14423,10 +14423,11 @@ tinyactors-dev/sxml.
 - **The look** is the tinyactors design system (vellum, graphite, pine;
   Newsreader and IBM Plex, self-hosted in `website/public/fonts/`).
   `docs/book/style/` gives the book the same colours and type.
-- **Hosting**: `.github/workflows/pages.yml` builds the site on pushes to
-  `main` that touch it and pushes it to the `gh-pages` branch, which
-  GitHub Pages serves under the custom domain in `website/public/CNAME`.
-  It runs while the CI workflow stays disabled (D123): it builds no C.
+- **Hosting**: `mise run site:publish` (`tools/publish-site.sh`) builds
+  the site locally and force-pushes it as one commit to the `gh-pages`
+  branch, which GitHub Pages serves under the custom domain in
+  `website/public/CNAME`. No GitHub Actions: they are off (D123), so
+  whoever changes `website/` or the book publishes by hand.
 
 ## Proposed
 
