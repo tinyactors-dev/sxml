@@ -14066,6 +14066,65 @@ outcome); XQ40 46,158 and XP40 32,815 as before. Commits d67e37f,
   capture-206 (D236); merge-017, -054, -067 and the three merge-097
   cases are not streaming causes.
 
+### D298. Collections in the sxml command: directories, their parameters, --collection (packet cli-3)
+Recorded 2026-10-21, after D44, D200, D271, D278, D286. F&O 4.0, 17.1.3
+and 17.1.4 leave what a collection URI names to the implementation; the
+CLI's resolver (apps/sxml/query_collection.c, public API only) makes it
+a local directory. Rules in docs/CLI.md, "Collections"; glossary
+directory_collection.
+- **URI**: a file: URI after resolution against the static base URI (a
+  relative one is relative to the working directory, a stylesheet or a
+  module), with parameters after "?" separated by ";" or "&" (as Saxon
+  writes them): select=PATTERN (the file name; "*" any characters, "?"
+  one; default `*.xml`), recurse=yes|no (default no), on-error=fail|ignore
+  (default fail). Another parameter, a fragment, another scheme or a path
+  that is not a directory: FODC0002 with that reason. No percent-decoding,
+  as the CLI's fn:doc maps file URIs to paths today.
+- **fn:uri-collection**: the xs:anyURI of each selected file, the
+  directory's normalized URI (ending "/") plus the relative path, sorted
+  by that path in byte order (code point order; a heap sort, no
+  recursion). Nothing is read; a name that is not UTF-8 is left out.
+- **fn:collection**: the document node of each of those files, parsed
+  with sxml_processor_parse_document and the processor's entity resolver,
+  as fn:doc parses a file; document URI and base URI are the file's URI.
+  A file that cannot be read or is not well-formed makes the collection
+  unavailable, FODC0002 with "FILE:LINE:COLUMN: message" (FILE relative to
+  the working directory), or with on-error=ignore is left out. A limit or
+  out of memory stops the evaluation (exit 4). Only XML documents:
+  F&O allows any items, but guessing a format from a file name would
+  break D44; JSON, text and binary files are reached through
+  uri-collection and json-doc, unparsed-text or unparsed-binary.
+- **Default collection** (XPath 4.0, 2.2.2): `--collection=DIR[?PARAMETERS]`
+  on xpath, xquery and transform, DIR relative to the working directory.
+  A DIR that is not a directory exits 3 at start; an unknown parameter is
+  a usage error (exit 2). Without it, FODC0002 "There is no default
+  collection; give --collection" (as before, D271).
+- **Trust**: no flag. Collections read what fn:doc may read (any local
+  file, never the network); listing a directory reveals less than
+  reading its files does. --allow-file-access stays the grant of the
+  EXPath File functions, which also write (D200). Listing uses the
+  invocation's file system (describe, list, canonicalize; never a write)
+  whether or not that flag is given; where there is none (Windows, D200)
+  every collection raises FODC0002.
+- **Recursion**: subdirectories are a work list; a directory whose
+  canonical path was listed already (a symbolic link back up) is listed
+  once.
+- **Library, no header change**: the loader copies the resolver's NONE
+  description into the FODC0002 of fn:collection (it said "No such
+  collection" for every reason); and a collection document whose
+  document URI fn:doc loaded first is replaced by that node, so
+  doc(u) is collection(d)[i] holds in both orders (17.1.3; D286 kept
+  collection documents only when fn:doc had not loaded the URI).
+- **Not done**: xsl:strip-space and other document preparation are not
+  applied to collection documents the host builds (the loader prepares
+  only what it parses); percent-encoded file URIs (fn:doc's, too).
+- **Counts** (debug drivers, before and after, these sets only): XQ40
+  fn-collection 32 passed, fn-uri-collection 7, fn-doc 74, fn-doc-available
+  43; XP40 25, 7, 68, 43; XT40 collection 5, document 95, merge 115,
+  iterate 51, stream-available 6 — all unchanged. CLI: 15 new or changed
+  end-to-end tests, 253 cli tests pass (debug preset); clang-tidy clean,
+  no call cycle.
+
 ### D299. The book teaches with five projects of one story (packet book-5)
 Recorded 2026-10-21, after D257, D270, D282, D292. The owner: restructure
 the book around useful examples (structured specifications kept in XML,

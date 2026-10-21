@@ -16,6 +16,12 @@ not tagged yet, or into the next minor release.
 
 ### Added (Phase 7)
 
+- **Collections in the `sxml` command** (D298): `fn:collection("dir")`
+  gives the XML documents of a directory, sorted by name, and
+  `fn:uri-collection` their URIs; `?select=`, `recurse=yes` and
+  `on-error=ignore` choose the files, and `--collection=DIR` on `xpath`,
+  `xquery` and `transform` names the default collection.
+
 - **Long streams** (D295): a streamed transformation with
   `method="text"` is written as it is made, in bounded memory, like the
   xml method (it used memory growing with the square of the output); a

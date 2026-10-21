@@ -4,6 +4,15 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- cli-3 done (D298): fn:collection and fn:uri-collection in the sxml
+  command. A collection URI is a local directory (select=, recurse=,
+  on-error= after "?"), sorted by path; collection documents are fn:doc's
+  nodes in both call orders (a loader fix), and the resolver's reason
+  reaches FODC0002. `--collection=DIR` gives the default collection on
+  xpath, xquery and transform. Docs: CLI.md "Collections", the README,
+  the book's "Many documents" and the CLI appendix. Conformance sets
+  unchanged.
+
 - book-5 done (D299): the plan for the book around five projects of one
   story (Latch door locks), `docs/tasks/book.md`: the new SUMMARY (18
   chapters, seven projects), each chapter's data and features in order,
