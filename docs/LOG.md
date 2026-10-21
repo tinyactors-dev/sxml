@@ -4,6 +4,20 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- book-29 done: the book integrated after the one-service Vane
+  revision. The introduction tells one TypeScript service with modules
+  over PostgreSQL and Redis, an evaluation API for @vane/browser and
+  @vane/node, an admin API for the console and an update stream, and
+  six projects, codegen the sixth; chapter 18 is "Project: Generating
+  Vane's SDKs from a Schema" (SUMMARY, heading, two links). The
+  glossary gains Vane, admin API, evaluation API, audit module,
+  backend SDK, frontend SDK, client module, internal span and update
+  stream; Participant is a program, database or webhook. README's book
+  pointer follows. All 884 examples match (shared release build,
+  javascript.md with a wasm package built from HEAD); mdbook builds
+  without warnings; internal links resolve; the search words of
+  section 9 and latch|door|unlock find nothing in docs/book.
+
 - book-27 done: the traces project (traces*.md), formats.md,
   javascript.md and performance.md on the one Vane service and its two
   SDKs. Roots are client spans (storefront's @vane/node, vane-console),
