@@ -4,6 +4,14 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- book-23 done: the XPath and XQuery chapters on the one Vane service.
+  Every output regenerated and read (Security "Vane messages travel",
+  ABNF rollout-update/kill-update, req-10 at 22 words, moved diff line
+  numbers); xpath.md's opening tells the SDKs, the service and the
+  update stream; xquery.md's include of the Pause section moved to
+  111:120. All 300 examples of xpath*.md and xquery*.md match on the
+  shared release build (before: 19 failures in six files).
+
 - book-22 done (D303): the Vane story redesigned as one service with
   modules and two SDKs, on the owner's request. Seeds rewritten: the
   drafts' wording (SDK and service, update stream, rollout by hash, the
