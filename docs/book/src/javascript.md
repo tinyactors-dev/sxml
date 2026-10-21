@@ -26,9 +26,10 @@ serialization. `load()` loads it from beside the package's JavaScript;
 
 As in C, everything starts with a processor. `parse` makes a document,
 `compile` compiles an expression once, and `evaluate` runs it with a
-context and variables. JavaScript values become XPath values: strings
-are strings, numbers are doubles, objects are maps and arrays are
-arrays.
+context and variables. The examples read the Latch draft of [Finding
+Things with XPath](xpath.md) and the traces of [Project: Comparing
+Traces Before and After a Change](traces.md); the example directory
+links to both files.
 
 `hello.mjs`:
 
@@ -38,9 +39,9 @@ arrays.
 
 ```console
 $ node hello.mjs
-before 1970: [ '"The Art of Computer Programming"', '"Dune"' ]
-before 1966: [ '"Dune"' ]
-[{"title":"Godel, Escher, Bach","year":1979},{"title":"The Art of Computer Programming","year":1968},{"title":"Dune","year":1965}]
+MUST: [ '"req-1"', '"req-2"', '"req-4"', '"req-6"', '"req-7"' ]
+MAY: [ '"req-9"', '"req-11"' ]
+[{"keyword":"MUST","count":5},{"keyword":"SHOULD","count":3},{"keyword":"MUST NOT","count":1},{"keyword":"MAY","count":2},{"keyword":"SHOULD NOT","count":1}]
 ```
 
 `toString()` writes a value by the adaptive method, as the `sxml`
@@ -49,7 +50,10 @@ command does, and `serialize` takes the parameters of `fn:serialize`.
 ## XQuery, XSLT and XSD
 
 `compileQuery`, `compileStylesheet` and `compileSchema` compile the
-other languages, again once, to run many times:
+other languages, again once, to run many times. JavaScript values
+become XPath values: strings are strings, numbers are doubles, objects
+are maps and arrays are arrays. So a query can take a whole OTLP file,
+parsed by `JSON.parse`, as a variable:
 
 `languages.mjs`:
 
@@ -59,10 +63,12 @@ other languages, again once, to run many times:
 
 ```console
 $ node languages.mjs
-["Godel, Escher, Bach"]
-Godel, Escher, Bach (1979)
-Dune (1965)
-invalid [ 'cvc-datatype-valid.1.2.1' ]
+[{"service":"api-gateway","spans":4},{"service":"lock-service","spans":6},{"service":"lock-registry","spans":6}]
+Lock States: 2 MUST
+Unlock: 1 MUST
+Status: 1 MUST
+Lockout: 1 MUST
+invalid [ 'cvc-enumeration-valid' ]
 ```
 
 `transform` also takes an initial mode or template, stylesheet
@@ -74,7 +80,8 @@ stores, to callbacks you give it.
 
 A processor's `resolver` answers every request for a resource. It gets
 the kind of resource and its absolute URI, and returns a string, bytes,
-or `undefined` when there is no such resource. In a browser, it can
+or `undefined` when there is no such resource. `json-doc` and
+`unparsed-text` ask for the kind `text`. In a browser, the resolver can
 answer from `fetch` results you loaded before, from IndexedDB, or from
 memory. Failures throw an `SxmlError` with the error code and location:
 
@@ -86,8 +93,8 @@ memory. Failures throw an `SxmlError` with the error code and location:
 
 ```console
 $ node resources.mjs
-7.7
-err:FODC0002 1 1
+[ '"api-gateway"', '"lock-service"', '"lock-registry"' ]
+err:FOUT1170 1 1
 ```
 
 ## Languages from tree-sitter's WebAssembly files
@@ -166,7 +173,11 @@ On the input side, a resolver may answer an XML document with an
 iterable of chunks, such as a generator. sxml reads it as it parses.
 When a stylesheet's mode is streamable, `transform({ streamedSource })`
 reads the principal source this way and serializes the result as it is
-made, so neither the source nor the result is ever whole in memory:
+made, so neither the source nor the result is ever whole in memory.
+Here a generator makes an archive of 200,000 traces in the normal form
+of [Spans as a Tree](traces-tree.md), and a streamable mode picks the
+slow requests out of it, as in [Streaming Large Trace
+Files](traces-streaming.md):
 
 `streaming.mjs`:
 
@@ -176,8 +187,8 @@ made, so neither the source nor the result is ever whole in memory:
 
 ```console
 $ node streaming.mjs
-496952 bytes; 10 MiB of module memory
-[ '€u', 'ro: ', '1 ', '€, 2', ' €' ]
+813465 bytes; 10 MiB of module memory
+[ '≥ ', '70 m', 's: 1', '2 ', '€' ]
 ```
 
 The evaluation runs synchronously inside WebAssembly, so a sink cannot

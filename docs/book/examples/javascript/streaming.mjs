@@ -3,21 +3,25 @@ import { load, textSink } from '@tinyactors/sxml';
 
 const sxml = await load();
 
-// A large source that never exists whole: a generator of chunks, read
-// as the document is parsed.
-function* orders(count) {
-  yield '<orders>';
+// A large trace archive that never exists whole: a generator of chunks
+// in the normal form of the traces project, read as it is parsed.
+function* archive(count) {
+  yield '<traces>';
   for (let start = 1; start <= count; start += 1000) {
     let text = '';
-    for (let id = start; id < start + 1000 && id <= count; id += 1) {
-      text += `<order id="${id}" total="${(id % 97) + 0.5}"/>`;
+    for (let trace = start; trace < start + 1000 && trace <= count; trace += 1) {
+      const query = 5 + ((trace * 7919) % 61);
+      text += `<trace id="${trace}" route="GET /doors">`
+        + `<span service="lock-service" kind="server" duration="${query + 12}">`
+        + `<span service="lock-registry" kind="client" duration="${query}" peer="postgresql"/>`
+        + '</span></trace>';
     }
     yield text;
   }
-  yield '</orders>';
+  yield '</traces>';
 }
 const processor = sxml.createProcessor({
-  resolver: ({ absoluteUri }) => (absoluteUri === 'urn:orders' ? orders(200_000) : undefined),
+  resolver: ({ absoluteUri }) => (absoluteUri === 'urn:archive' ? archive(200_000) : undefined),
 });
 
 // A streamable mode reads the source as it arrives; the output goes to a
@@ -26,18 +30,18 @@ const stylesheet = processor.compileStylesheet(`
 <xsl:stylesheet version="3.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
   <xsl:mode streamable="yes"/>
   <xsl:output omit-xml-declaration="yes"/>
-  <xsl:template match="/orders">
-    <large>
-      <xsl:for-each select="order[@total > 90]">
-        <order id="{@id}">€ <xsl:value-of select="@total"/></order>
+  <xsl:template match="/traces">
+    <slow>
+      <xsl:for-each select="trace/span[@duration > 70]">
+        <trace id="{../@id}">≥ 70 ms</trace>
       </xsl:for-each>
-    </large>
+    </slow>
   </xsl:template>
 </xsl:stylesheet>`);
-const file = openSync('large.xml', 'w');
+const file = openSync('slow.xml', 'w');
 let byteCount = 0;
 stylesheet.transform({
-  streamedSource: 'urn:orders',
+  streamedSource: 'urn:archive',
   output: (chunk) => {
     byteCount += chunk.byteLength;
     writeSync(file, chunk);
@@ -49,7 +53,7 @@ console.log(byteCount, 'bytes;', (sxml.exports.memory.buffer.byteLength / 2 ** 2
 // Text a chunk at a time: a character split between two chunks is decoded
 // once both arrived.
 const sizes = sxml.createProcessor({ outputChunkByteCount: 4 });
-const value = sizes.evaluate('"€uro: 1 €, 2 €"');
+const value = sizes.evaluate('"≥ 70 ms: 12 €"');
 const pieces = [];
 value.serializeTo(textSink((text) => pieces.push(text)), { method: 'text' });
 console.log(pieces);
