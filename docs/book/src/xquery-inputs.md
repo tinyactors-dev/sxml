@@ -1,31 +1,33 @@
 # Documents, Parameters and the Context
 
-<!-- examples: xquery -->
+<!-- examples: spec -->
 
 A query gets its input in three ways: the *context item*, which paths
 start from; documents and other files that it reads by name; and
 *external variables*, the parameters of the whole query. This section
-shows each of them with the `sxml` command.
+shows each of them with the `sxml` command, on both versions of the
+draft.
 
 ## The context item
 
 `--context-item=FILE` parses a document and makes it the context item,
-so that a path such as `//book` starts from it. A file name of `-`
-reads the document from standard input:
+so that a path such as `//t` starts from it. A file name of `-` reads
+the document from standard input:
 
 ```console
-$ sxml xquery --context-item=- --expression='count(//book)' < library.xml
-5
+$ sxml xquery --context-item=- --expression='count(//t[@anchor])' < latch.xml
+11
 ```
 
 A query can say what context item it expects, with `declare context
 value`. Then a wrong document is an error at the start, instead of an
-empty result later:
+empty result later. Here the schema of the draft is given where a draft
+was meant:
 
 ```console
-$ sxml xquery --context-item=loans.xml --expression='
-    declare context value as document-node(element(library)) external;
-    count(//book)'
+$ sxml xquery --context-item=latch.xsd --expression='
+    declare context value as document-node(element(rfc)) external;
+    count(//t[@anchor])'
 expression: err:XPTY0004: The value does not match the required type (XPath 4.0, section 3.4, coercion rules)
 ```
 
@@ -34,9 +36,9 @@ given:
 
 ```console
 $ sxml xquery --expression='
-    declare context value as document-node() external := doc("library.xml");
-    count(//book)'
-5
+    declare context value as document-node(element(rfc)) external := doc("latch-00.xml");
+    count(//t[@anchor])'
+8
 ```
 
 (XQuery 3.1 wrote this `declare context item`, which still works.)
@@ -49,7 +51,7 @@ can read as many documents as it likes; reading the same URI twice gives
 the same document, not a copy:
 
 ```console
-$ sxml xquery --method=adaptive --expression='doc("library.xml") is doc("library.xml")'
+$ sxml xquery --method=adaptive --expression='doc("latch.xml") is doc("latch.xml")'
 true()
 ```
 
@@ -58,71 +60,73 @@ an error when it can't:
 
 ```console
 $ sxml xquery --method=adaptive --expression='
-    for $file in ("library.xml", "loans.xml", "missing.xml")
-    return if (doc-available($file)) then name(doc($file)/*) else $file || " is missing"'
-"library"
-"loans"
-"missing.xml is missing"
+    for $file in ("latch.xml", "latch-00.xml", "latch-02.xml")
+    return if (doc-available($file)) then string(doc($file)/rfc/@docName) else $file || " is missing"'
+"draft-example-latch-protocol-01"
+"draft-example-latch-protocol-00"
+"latch-02.xml is missing"
 ```
 
 Data in other formats has functions of its own: `json-doc` reads JSON
 into maps and arrays, `unparsed-text` and `unparsed-text-lines` read
-text, and `csv-doc` and `html-doc` read CSV and HTML. Chapter 6 has
-the details. They mix freely. The names of the members are in a JSON
-file:
+text, and `csv-doc` and `html-doc` read CSV and HTML.
+[JSON, CSV and HTML](formats.md) has the details. They mix freely. The
+draft's editorial notes name issues, and the issue tracker exports its
+issues as JSON:
 
-`members.json`:
+`issues.json`:
 
 ```json
-{{#include ../examples/xquery/members.json}}
+{{#include ../examples/spec/issues.json}}
 ```
 
 ```console
-$ sxml xquery --method=adaptive --expression='
-    let $members := json-doc("members.json")
-    for $loan in doc("loans.xml")//loan
-    return $members(string($loan/@member))?name || ": " || $loan/@book'
-"Ada Lovelace: dune"
-"Alan Turing: geb"
-"Grace Hopper: dune"
-"Ada Lovelace: sicp"
-"Ada Lovelace: lhod"
-"Alan Turing: dune"
+$ sxml xquery --context-item=latch.xml --method=adaptive --expression='
+    let $issues := json-doc("issues.json")
+    for $note in //cref
+    let $issue := $issues($note/@anchor)
+    return `{$note/@anchor} ({$issue?state}, opened {$issue?opened}): {$issue?title}`'
+"issue-1 (open, opened 2026-07-20): Configurable lockout duration"
+"issue-2 (open, opened 2026-09-02): Anchor for the encryption requirement"
 ```
 
-A map is a function from keys to values, so `$members("ada")` looks up
-the key `"ada"`; `?name` then takes the member's name.
+A map is a function from keys to values, so `$issues($note/@anchor)`
+looks up the key `"issue-1"`; `?state` then takes the issue's state.
 
 ## Many documents
 
 XQuery's `collection` function returns a whole set of documents by one
 URI. What the URI names is up to the processor: a database, a list, or
-for the `sxml` command a directory. `collection("branches")` gives the
-document of every `.xml` file in `branches`, sorted by name:
+for the `sxml` command a directory. The project keeps every published
+version of the draft in `drafts`, and `collection("drafts")` gives the
+document of every `.xml` file in it, sorted by name:
 
 ```console
 $ sxml xquery --method=adaptive --expression='
-    for $loans in collection("branches")/loans
-    return $loans/@branch || ": " || count($loans/loan)'
-"North: 2"
-"South: 1"
+    for $draft in collection("drafts")
+    return `{document-uri($draft) => tokenize("/") => foot()}: {$draft/rfc/@docName}, {count($draft//t[@anchor])} requirements`'
+"latch-00.xml: draft-example-latch-protocol-00, 8 requirements"
+"latch-01.xml: draft-example-latch-protocol-01, 11 requirements"
 ```
 
-The documents are the ones `doc` reads for the same files, so
-`doc("branches/north.xml") is collection("branches")[1]` is true, and
-`document-uri` tells which file each came from. `uri-collection` gives
-those URIs without reading the files.
+`document-uri` tells which file each document came from; it is an
+absolute `file:` URI, so the query keeps only its last part. The
+documents are the ones `doc` reads for the same files, so
+`doc("drafts/latch-00.xml") is collection("drafts")[1]` is true.
+`uri-collection` gives the URIs without reading the files.
 
 Parameters after a `?` change what the directory gives, separated by
-`;`. `select` names the files (`*` stands for any characters), so
-`uri-collection` can find files that are not XML, for the functions
-that read them; `recurse=yes` takes the files of subdirectories too:
+`;`. `select` names the files (`*` stands for any characters, and the
+default is `*.xml`), so `uri-collection` can also find files that are
+not XML, for the functions that read them; `recurse=yes` takes the files
+of subdirectories too:
 
 ```console
 $ sxml xquery --method=adaptive --expression='
-    for $uri in uri-collection(".?select=*.json")
-    return json-doc($uri)?ada?name'
-"Ada Lovelace"
+    doc("drafts/latch-00.xml") is collection("drafts")[1],
+    uri-collection("drafts?select=*-01.xml") ! tokenize(., "/")[last()]'
+true()
+"latch-01.xml"
 ```
 
 A file that is not well-formed stops `collection` with
@@ -134,49 +138,46 @@ A file that is not well-formed stops `collection` with
 name the directory, and the same query reads another one next time:
 
 ```console
-$ sxml xquery --method=adaptive --collection=branches --expression='
-    count(collection()//loan)'
-3
+$ sxml xquery --method=adaptive --collection=drafts --expression='
+    count(collection()//t[@anchor])'
+19
 ```
 
 ## External variables
 
 An *external variable* is declared in the prolog with `external`, and
 its value comes from outside the query. A type after `as` says what it
-must be, and a value after `:=` is its default. This query finds the
-loans that are overdue:
+must be, and a value after `:=` is its default. An Internet-Draft is
+valid for six months, which the IETF counts as 185 days; this query
+says when drafts expire:
 
-`overdue.xq`:
+`expiry.xq`:
 
 ```xquery
-{{#include ../examples/xquery/overdue.xq}}
+{{#include ../examples/spec/expiry.xq}}
 ```
 
 `--param=NAME=VALUE` sets an external variable:
 
 ```console
-$ sxml xquery --param=today=2026-10-20 overdue.xq
-ada has dune since 2026-09-02, due 2026-09-23
-alan has geb since 2026-09-05, due 2026-09-26
-grace has dune since 2026-09-14, due 2026-10-05
-ada has sicp since 2026-09-20, due 2026-10-11
-$ sxml xquery --param=today=2026-10-20 --param=days=14 overdue.xq
-ada has dune since 2026-09-02, due 2026-09-16
-alan has geb since 2026-09-05, due 2026-09-19
-grace has dune since 2026-09-14, due 2026-09-28
-ada has sicp since 2026-09-20, due 2026-10-04
-ada has lhod since 2026-10-01, due 2026-10-15
-alan has dune since 2026-10-03, due 2026-10-17
+$ sxml xquery --param=today=2026-10-21 expiry.xq
+draft-example-latch-protocol-01: published 2026-10-21, expires 2027-04-24
+$ sxml xquery --param=today=2027-02-01 --param="drafts=latch-00.xml latch.xml" expiry.xq
+draft-example-latch-protocol-00: published 2026-07-06, expires 2027-01-07, expired
+draft-example-latch-protocol-01: published 2026-10-21, expires 2027-04-24
+$ sxml xquery --param=today=2027-02-01 --param="drafts=latch-00.xml latch.xml" --param=days=90 expiry.xq
+draft-example-latch-protocol-00: published 2026-07-06, expires 2026-10-04, expired
+draft-example-latch-protocol-01: published 2026-10-21, expires 2027-01-19, expired
 ```
 
 The command line has only text, so `--param` passes the value as an
-untyped value, and the declared type converts it: `2026-10-20` became an
-`xs:date`, `14` an `xs:integer`. Text that isn't a value of the type is
-an error:
+untyped value, and the declared type converts it: `2027-02-01` became
+an `xs:date`, `90` an `xs:integer`. Text that isn't a value of the type
+is an error:
 
 ```console
-$ sxml xquery --param=today=20.10.2026 overdue.xq
-overdue.xq: err:FORG0001: the value is not in the lexical space or value space of the target type
+$ sxml xquery --param=today=1.2.2027 expiry.xq
+expiry.xq: err:FORG0001: the value is not in the lexical space or value space of the target type
 ```
 
 Without a default, an external variable must be given:
@@ -197,4 +198,4 @@ Some advice for external variables:
   good default for "today", and a parameter makes the query testable
   with a fixed date, as above.
 - Pass a list as one string and split it with `tokenize`, as the file
-  names above.
+  names of `$drafts` above.
