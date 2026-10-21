@@ -18,33 +18,33 @@ file is an object whose `resourceSpans` is an array; each member has
 
 ```console
 $ sxml xpath 'json-doc("before.json")?resourceSpans?1?resource?attributes?1?value?stringValue'
-"api-gateway"
+"storefront"
 $ sxml xpath 'json-doc("before.json")?resourceSpans?*?scopeSpans?*?spans?* => count()'
-16
+14
 $ sxml xpath 'json-doc("before.json")?resourceSpans?*?scopeSpans?*?spans?*[?kind = 3]?name'
-"GET /flags"
-"POST /flags/{key}/kill"
-"GET /flags"
-"GET /flags/{key}"
-"PUT /flags/{key}/percentage"
-"GET"
+"GET /api/getFlags"
 "SELECT flags"
 "SELECT flags"
 "UPDATE flags"
+"GET"
+"POST /api/killFlag"
 ```
 
 `?1` is the first member of an array, and `?*` is every member, so
 `?resourceSpans?*?scopeSpans?*?spans?*` is every span of every scope of
 every resource. `[?kind = 3]` keeps the client spans, and `?name` gets
-their names. A key that is not a name, such as `Duration (ms)`, is
-looked up with a string in parentheses: `?("Duration (ms)")`.
+their names: the backend SDK's call of the service, the service's
+queries to PostgreSQL and Redis (the Redis span is named after its
+command, `GET`), and the console's call. A key that is not a name,
+such as `Duration (ms)`, is looked up with a string in parentheses:
+`?("Duration (ms)")`.
 
 JSON numbers become doubles, and JSON's `null` becomes the empty
 sequence:
 
 ```console
 $ sxml xpath 'json-doc("before.json")?resourceSpans?1?scopeSpans?1?spans?1?kind'
-2.0e0
+3.0e0
 ```
 
 A double has 53 bits for its digits, about sixteen decimal digits.
@@ -87,10 +87,10 @@ turns JSON into an XML vocabulary of `map`, `array`, `string`, `number`,
 span with a given id, wherever it is in the file:
 
 ```console
-$ sxml xpath --method=xml 'json-to-xml(unparsed-text("before.json"))//*:map[*:string[@key = "spanId"] = "bc26eff93c7d3107"]'
-<map xmlns="http://www.w3.org/2005/xpath-functions"><string key="traceId">48114dcf6840d1bd46460c4b1ce0d09d</string><string key="spanId">bc26eff93c7d3107</string><string key="parentSpanId">2b3938e2ad2889ea</string><string key="name">SELECT flags</string><number key="kind">3</number><string key="startTimeUnixNano">1792573200007000000</string><string key="endTimeUnixNano">1792573200041000000</string><array key="attributes"><map><string key="key">db.system.name</string><map key="value"><string key="stringValue">postgresql</string></map></map><map><string key="key">db.operation.name</string><map key="value"><string key="stringValue">SELECT</string></map></map><map><string key="key">db.collection.name</string><map key="value"><string key="stringValue">flags</string></map></map><map><string key="key">db.query.text</string><map key="value"><string key="stringValue">SELECT key, name, state, percentage, owners FROM flags</string></map></map><map><string key="key">server.address</string><map key="value"><string key="stringValue">postgresql</string></map></map></array></map>
-$ sxml xpath --method=text 'json-to-xml(unparsed-text("before.json"))//*:map[*:string[@key = "spanId"] = "bc26eff93c7d3107"]/*:array => xml-to-json()'
-[{"key":"db.system.name","value":{"stringValue":"postgresql"}},{"key":"db.operation.name","value":{"stringValue":"SELECT"}},{"key":"db.collection.name","value":{"stringValue":"flags"}},{"key":"db.query.text","value":{"stringValue":"SELECT key, name, state, percentage, owners FROM flags"}},{"key":"server.address","value":{"stringValue":"postgresql"}}]
+$ sxml xpath --method=xml 'json-to-xml(unparsed-text("before.json"))//*:map[*:string[@key = "spanId"] = "fb73f92d181aced2"]'
+<map xmlns="http://www.w3.org/2005/xpath-functions"><string key="traceId">48114dcf6840d1bd46460c4b1ce0d09d</string><string key="spanId">fb73f92d181aced2</string><string key="parentSpanId">448683a55e6803a1</string><string key="name">SELECT flags</string><number key="kind">3</number><string key="startTimeUnixNano">1792573200005000000</string><string key="endTimeUnixNano">1792573200044000000</string><array key="attributes"><map><string key="key">db.system.name</string><map key="value"><string key="stringValue">postgresql</string></map></map><map><string key="key">db.operation.name</string><map key="value"><string key="stringValue">SELECT</string></map></map><map><string key="key">db.collection.name</string><map key="value"><string key="stringValue">flags</string></map></map><map><string key="key">db.query.text</string><map key="value"><string key="stringValue">SELECT key, name, state, percentage, rules, owners FROM flags</string></map></map><map><string key="key">server.address</string><map key="value"><string key="stringValue">postgresql</string></map></map><map><string key="key">server.port</string><map key="value"><string key="intValue">5432</string></map></map></array></map>
+$ sxml xpath --method=text 'json-to-xml(unparsed-text("before.json"))//*:map[*:string[@key = "spanId"] = "fb73f92d181aced2"]/*:array => xml-to-json()'
+[{"key":"db.system.name","value":{"stringValue":"postgresql"}},{"key":"db.operation.name","value":{"stringValue":"SELECT"}},{"key":"db.collection.name","value":{"stringValue":"flags"}},{"key":"db.query.text","value":{"stringValue":"SELECT key, name, state, percentage, rules, owners FROM flags"}},{"key":"server.address","value":{"stringValue":"postgresql"}},{"key":"server.port","value":{"intValue":"5432"}}]
 ```
 
 ## CSV
@@ -107,32 +107,30 @@ that need it. A query can so write the spans for a spreadsheet:
 ```console
 $ sxml xquery spans-csv.xq
 route,service,name,kind,start,duration
-GET /flags,api-gateway,GET /flags,server,0,50
-GET /flags,api-gateway,GET /flags,client,1,48
-GET /flags,flag-service,GET /flags,server,2,46
-GET /flags,flag-service,GET /flags,client,4,41
-GET /flags,flag-registry,GET /flags,server,5,39
-GET /flags,flag-registry,SELECT flags,client,7,34
-POST /flags/{key}/kill,api-gateway,POST /flags/{key}/kill,server,0,34
-POST /flags/{key}/kill,api-gateway,POST /flags/{key}/kill,client,1,32
-POST /flags/{key}/kill,flag-service,POST /flags/{key}/kill,server,2,30
-POST /flags/{key}/kill,flag-service,GET,client,3,2
-POST /flags/{key}/kill,flag-service,GET /flags/{key},client,6,10
-POST /flags/{key}/kill,flag-registry,GET /flags/{key},server,7,8
-POST /flags/{key}/kill,flag-registry,SELECT flags,client,8,6
-POST /flags/{key}/kill,flag-service,PUT /flags/{key}/percentage,client,17,14
-POST /flags/{key}/kill,flag-registry,PUT /flags/{key}/percentage,server,18,12
-POST /flags/{key}/kill,flag-registry,UPDATE flags,client,19,10
+GET /api/getFlags,storefront,GET /api/getFlags,client,0,50
+GET /api/getFlags,vane,GET /api/getFlags,server,1,48
+GET /api/getFlags,vane,flags.listFlags,internal,2,46
+GET /api/getFlags,vane,registry.getFlags,internal,3,43
+GET /api/getFlags,vane,SELECT flags,client,5,39
+POST /api/killFlag,vane-console,POST /api/killFlag,client,0,34
+POST /api/killFlag,vane,POST /api/killFlag,server,1,32
+POST /api/killFlag,vane,flags.killFlag,internal,2,30
+POST /api/killFlag,vane,cache.getFlag,internal,3,3
+POST /api/killFlag,vane,GET,client,4,1
+POST /api/killFlag,vane,registry.getFlag,internal,7,9
+POST /api/killFlag,vane,SELECT flags,client,8,7
+POST /api/killFlag,vane,registry.setPercentage,internal,17,13
+POST /api/killFlag,vane,UPDATE flags,client,18,11
 ```
 
 The other way round, a tracing tool's user interface often exports a
 trace as CSV. `spans.csv` is such an export of the new version's
-listing of the flags:
+`GET /api/getFlags`, the backend SDK downloading the flags:
 
 `spans.csv` (the start):
 
 ```
-{{#include ../examples/traces/spans.csv:1:7}}
+{{#include ../examples/traces/spans.csv:1:8}}
 ```
 
 `parse-csv` reads CSV text. With `"header": true()`, the first row names
@@ -150,10 +148,10 @@ $ sxml xpath 'parse-csv(unparsed-text("spans.csv"), { "header": true() })?column
 "Start Time"
 "Duration (ms)"
 "Statement"
-$ sxml xpath 'parse-csv(unparsed-text("spans.csv"), { "header": true() })?rows[9]'
-["95cfc9416dff30ee","62982530bd8bd355","c7f30f509b22f4ca","flag-registry","SELECT flags","2026-10-21 09:00:00.021","14","SELECT key, name, state, percentage, owners FROM flags WHERE key = $1"]
-$ sxml xpath 'parse-csv(unparsed-text("spans.csv"), { "header": true() })?get(9, "Statement")'
-"SELECT key, name, state, percentage, owners FROM flags WHERE key = $1"
+$ sxml xpath 'parse-csv(unparsed-text("spans.csv"), { "header": true() })?rows[7]'
+["95cfc9416dff30ee3edeae4b2c53e1c4","68edbeb8d88faf5c","3916e2d3c40454dd","vane","SELECT flags","2026-10-21 09:00:00.018","16","SELECT key, name, state, percentage, rules, owners FROM flags WHERE key = $1"]
+$ sxml xpath 'parse-csv(unparsed-text("spans.csv"), { "header": true() })?get(7, "Statement")'
+"SELECT key, name, state, percentage, rules, owners FROM flags WHERE key = $1"
 ```
 
 The statement has commas in it, so the file quotes it, and `parse-csv`
@@ -169,14 +167,17 @@ again:
 ```console
 $ sxml xquery durations.xq
 service,operation,calls,total ms
-api-gateway,GET /flags,2,218
-flag-registry,GET /flag-keys,1,10
-flag-registry,GET /flags/{key},4,72
-flag-registry,SELECT flags,5,64
-flag-service,GET /flag-keys,1,12
-flag-service,GET /flags,1,106
-flag-service,GET /flags/{key},4,80
+storefront,GET /api/getFlags,1,110
+vane,GET /api/getFlags,1,108
+vane,SELECT flags,5,72
+vane,flags.listFlags,1,104
+vane,registry.getFlag,4,80
+vane,registry.getFlagKeys,1,12
 ```
+
+The five queries take 72 of the 104 milliseconds of `flags.listFlags`.
+`order by` compares strings by their code points, so `SELECT flags`,
+in capitals, comes before the function names in lower case.
 
 `$row($column?Service)` looks up the position of the `Service` column
 and then that member of the row, so the query keeps working if the
@@ -186,7 +187,7 @@ with `row` and `field` elements:
 
 ```console
 $ sxml xpath --method=xml 'csv-to-xml(unparsed-text("spans.csv"), { "header": true() })//*:row[1]'
-<row xmlns="http://www.w3.org/2005/xpath-functions"><field column="Trace ID">95cfc9416dff30ee</field><field column="Span ID">ad09d89327ec549f</field><field column="Parent ID"/><field column="Service">api-gateway</field><field column="Operation">GET /flags</field><field column="Start Time">2026-10-21 09:00:00.000</field><field column="Duration (ms)">110</field><field column="Statement"/></row>
+<row xmlns="http://www.w3.org/2005/xpath-functions"><field column="Trace ID">95cfc9416dff30ee3edeae4b2c53e1c4</field><field column="Span ID">6a06eb67c8c7b1df</field><field column="Parent ID"/><field column="Service">storefront</field><field column="Operation">GET /api/getFlags</field><field column="Start Time">2026-10-21 09:00:00.000</field><field column="Duration (ms)">110</field><field column="Statement"/></row>
 ```
 
 ## HTML
@@ -195,7 +196,8 @@ Real HTML is rarely well-formed XML: end tags are left out, attributes
 have no quotes, and browsers fix it all up by rules that the HTML
 standard spells out. `html-doc` and `parse-html` parse HTML by exactly
 those rules, into elements in the XHTML namespace. This is the status
-page of the Vane services:
+page of Vane, the service, its console, and the two databases the
+service uses:
 
 `status.html`:
 
@@ -207,9 +209,9 @@ page of the Vane services:
 $ sxml xpath 'html-doc("status.html")/*:html/*:head/*:title/string()'
 "Vane status"
 $ sxml xpath 'html-doc("status.html")//*:tr[*:td] ! { string(*:td[1]): normalize-space(*:td[3]) } => map:merge()'
-{"api-gateway":"up","flag-service":"up","flag-registry":"slow","audit-service":"up"}
+{"vane":"up","vane-console":"up","postgresql":"up","redis":"slow"}
 $ sxml xpath 'html-doc("status.html")//*:td[@class = "slow"]/preceding-sibling::*:td[1]/string()'
-"1.9.2"
+"7.4.1"
 $ sxml xpath 'xs:dateTime(html-doc("status.html")//*:time/@datetime)'
 xs:dateTime("2026-10-21T09:05:00Z")
 ```
