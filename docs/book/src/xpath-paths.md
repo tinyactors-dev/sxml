@@ -12,11 +12,11 @@ A path that starts with `/` starts at the document node. Each step
 names the elements to go down to:
 
 ```console
-$ sxml xpath --context-item=latch.xml '/rfc/middle/section/name/string()'
+$ sxml xpath --context-item=vane.xml '/rfc/middle/section/name/string()'
 "Introduction"
-"Lock States"
+"Flag States"
 "Messages"
-"Lockout"
+"Pause"
 "Security Considerations"
 "IANA Considerations"
 ```
@@ -31,7 +31,7 @@ level only.
 document, wherever it is. A `*` selects elements of any name:
 
 ```console
-$ sxml xpath --context-item=latch.xml '//section[@anchor = "unlock"]/* ! name()'
+$ sxml xpath --context-item=vane.xml '//section[@anchor = "rollout"]/* ! name()'
 "name"
 "t"
 "t"
@@ -49,7 +49,7 @@ node, with that node as the *context item*, so names in it are relative
 to the node:
 
 ```console
-$ sxml xpath --context-item=latch.xml '//section[@anchor = "lockout"]/t/@anchor/string()'
+$ sxml xpath --context-item=vane.xml '//section[@anchor = "pause"]/t/@anchor/string()'
 "req-7"
 "req-8"
 "req-11"
@@ -59,13 +59,13 @@ A predicate can test anything: whether a child exists, what its value
 is, or what a function says about it:
 
 ```console
-$ sxml xpath --context-item=latch.xml '//t[xref[starts-with(@target, "RFC")]]/@anchor/string()'
+$ sxml xpath --context-item=vane.xml '//t[xref[starts-with(@target, "RFC")]]/@anchor/string()'
 "req-9"
-$ sxml xpath --context-item=latch.xml '//section[t[@anchor]] ! @anchor/string()'
+$ sxml xpath --context-item=vane.xml '//section[t[@anchor]] ! @anchor/string()'
 "states"
-"unlock"
+"rollout"
 "status"
-"lockout"
+"pause"
 ```
 
 The first finds the requirements that cite an RFC: the paragraphs with
@@ -78,19 +78,19 @@ sections that have requirements of their own.
 A number in a predicate selects by position, counting from 1:
 
 ```console
-$ sxml xpath --context-item=latch.xml '/rfc/middle/section[2]/name/string()'
-"Lock States"
+$ sxml xpath --context-item=vane.xml '/rfc/middle/section[2]/name/string()'
+"Flag States"
 ```
 
 This is where `//` can surprise you. Which section has the first
 requirement with a key word?
 
 ```console
-$ sxml xpath --context-item=latch.xml '//t[bcp14][1]/../name/string()'
-"Lock States"
-"Unlock"
+$ sxml xpath --context-item=vane.xml '//t[bcp14][1]/../name/string()'
+"Flag States"
+"Rollout"
 "Status"
-"Lockout"
+"Pause"
 "Security Considerations"
 ```
 
@@ -100,7 +100,7 @@ have one. To get the first in the whole document, put the path in
 parentheses and filter the result:
 
 ```console
-$ sxml xpath --context-item=latch.xml '(//t[bcp14])[1]/@anchor/string()'
+$ sxml xpath --context-item=vane.xml '(//t[bcp14])[1]/@anchor/string()'
 "req-1"
 ```
 
@@ -108,12 +108,12 @@ $ sxml xpath --context-item=latch.xml '(//t[bcp14])[1]/@anchor/string()'
 of the current one:
 
 ```console
-$ sxml xpath --context-item=latch.xml '(//t[bcp14])[last()]/string()'
-"A code travels in clear text on the local network. Deployments
-      SHOULD carry Latch over an encrypted link.
+$ sxml xpath --context-item=vane.xml '(//t[bcp14])[last()]/string()'
+"A rollout request travels in clear text on the network. Deployments
+      SHOULD carry Vane over an encrypted link.
       This needs a requirement anchor of
       its own."
-$ sxml xpath --context-item=latch.xml '(//t[@anchor])[position() <= 3]/@anchor/string()'
+$ sxml xpath --context-item=vane.xml '(//t[@anchor])[position() <= 3]/@anchor/string()'
 "req-1"
 "req-2"
 "req-3"
@@ -130,15 +130,15 @@ it is written before the name with `::`. Which section is requirement
 req-5 in?
 
 ```console
-$ sxml xpath --context-item=latch.xml '//t[@anchor = "req-5"]/ancestor::section/name/string()'
+$ sxml xpath --context-item=vane.xml '//t[@anchor = "req-5"]/ancestor::section/name/string()'
 "Messages"
-"Unlock"
-$ sxml xpath --context-item=latch.xml '//t[@anchor = "req-5"]/ancestor::section[1]/name/string()'
-"Unlock"
+"Rollout"
+$ sxml xpath --context-item=vane.xml '//t[@anchor = "req-5"]/ancestor::section[1]/name/string()'
+"Rollout"
 ```
 
 `ancestor::section` goes *up*: to every section that contains the
-paragraph, Messages and its subsection Unlock. The result of a path is
+paragraph, Messages and its subsection Rollout. The result of a path is
 always in document order, but a predicate on a reverse axis such as
 `ancestor` counts from the node outwards, so `ancestor::section[1]` is
 the nearest one.
@@ -148,10 +148,10 @@ The sibling axes go sideways, to the nodes with the same parent, and
 document:
 
 ```console
-$ sxml xpath --context-item=latch.xml '//t[@anchor = "req-4"]/following-sibling::t/@anchor/string()'
+$ sxml xpath --context-item=vane.xml '//t[@anchor = "req-4"]/following-sibling::t/@anchor/string()'
 "req-5"
 "req-9"
-$ sxml xpath --context-item=latch.xml '//cref[@anchor = "issue-2"]/preceding::t[@anchor][1]/@anchor/string()'
+$ sxml xpath --context-item=vane.xml '//cref[@anchor = "issue-2"]/preceding::t[@anchor][1]/@anchor/string()'
 "req-11"
 ```
 
@@ -169,11 +169,11 @@ issue-2. These are the axes you can use:
 | `following::`, `preceding::` | every node after or before in the document, other than descendants and ancestors |
 | `self::` | the node itself |
 
-`..` is the most common: from the `xref`s to the term "lockout", go up
+`..` is the most common: from the `xref`s to the term "pause", go up
 to the paragraphs that use it.
 
 ```console
-$ sxml xpath --context-item=latch.xml '//xref[@target = "term-lockout"]/../@anchor/string()'
+$ sxml xpath --context-item=vane.xml '//xref[@target = "term-pause"]/../@anchor/string()'
 "req-5"
 "req-7"
 ```
@@ -184,7 +184,7 @@ number of sections before it with the same parent, and a subsection's
 number puts its parent's number before it:
 
 ```console
-$ sxml xpath --context-item=latch.xml '//t[@anchor] ! (@anchor || " in " || string-join(ancestor::section ! (count(preceding-sibling::section) + 1), "."))'
+$ sxml xpath --context-item=vane.xml '//t[@anchor] ! (@anchor || " in " || string-join(ancestor::section ! (count(preceding-sibling::section) + 1), "."))'
 "req-1 in 2"
 "req-2 in 2"
 "req-3 in 2"
@@ -214,9 +214,9 @@ When sxml writes a text node, it writes the text itself, without quotes,
 because a text node is not a string:
 
 ```console
-$ sxml xpath --context-item=latch.xml '/rfc/front/title/text()'
-The Latch Protocol for Remote Door Locks
-$ sxml xpath --context-item=latch.xml 'count(/comment()), count(//processing-instruction())'
+$ sxml xpath --context-item=vane.xml '/rfc/front/title/text()'
+The Vane Protocol for Feature Flag Rollouts
+$ sxml xpath --context-item=vane.xml 'count(/comment()), count(//processing-instruction())'
 1
 0
 ```
@@ -227,8 +227,8 @@ them in a draft and leave them out of the RFC. They are elements in the
 middle of the text:
 
 ```console
-$ sxml xpath --context-item=latch.xml '//cref/text()'
-Should the controller be able to
+$ sxml xpath --context-item=vane.xml '//cref/text()'
+Should an owner be able to
       change the duration?
 This needs a requirement anchor of
       its own.
@@ -243,9 +243,9 @@ file, without duplicates. How many paragraphs with a key word are there
 outside Security Considerations, and which requirements have an `xref`?
 
 ```console
-$ sxml xpath --context-item=latch.xml 'count(//t[bcp14] except //section[@anchor = "security"]//t)'
+$ sxml xpath --context-item=vane.xml 'count(//t[bcp14] except //section[@anchor = "security"]//t)'
 11
-$ sxml xpath --context-item=latch.xml '(//t[@anchor] intersect //t[xref])/@anchor/string()'
+$ sxml xpath --context-item=vane.xml '(//t[@anchor] intersect //t[xref])/@anchor/string()'
 "req-1"
 "req-4"
 "req-5"
@@ -258,7 +258,7 @@ in the file. A step can also be any expression in parentheses. This
 makes it easy to pick several children at once:
 
 ```console
-$ sxml xpath --context-item=latch.xml '//reference[@anchor = "RFC5234"]/front/(title, author/@surname)/string()'
+$ sxml xpath --context-item=vane.xml '//reference[@anchor = "RFC5234"]/front/(title, author/@surname)/string()'
 "Augmented BNF for Syntax Specifications: ABNF"
 "Crocker"
 "Overell"
@@ -272,27 +272,27 @@ paragraph and of every element in it, line breaks included.
 `normalize-space` collapses the whitespace:
 
 ```console
-$ sxml xpath --context-item=latch.xml '//t[@anchor = "req-5"]/string()'
-"A lock MUST NOT unlock while it is
-        in lockout
+$ sxml xpath --context-item=vane.xml '//t[@anchor = "req-5"]/string()'
+"A service MUST NOT roll out a flag
+        while it is in a pause
         ()."
-$ sxml xpath --context-item=latch.xml 'normalize-space(//t[@anchor = "req-5"])'
-"A lock MUST NOT unlock while it is in lockout ()."
+$ sxml xpath --context-item=vane.xml 'normalize-space(//t[@anchor = "req-5"])'
+"A service MUST NOT roll out a flag while it is in a pause ()."
 ```
 
 The key word and the term are in the value, because they are text inside
 the paragraph. The empty parentheses are a reference to a section,
-`<xref target="lockout"/>`, which has no text of its own: a renderer
+`<xref target="pause"/>`, which has no text of its own: a renderer
 writes "Section 4" there, and the string value has nothing. The same
 goes for editorial notes, which are part of the value too. To get the
 text of req-8 without its note, take only its own text nodes and its
 key word:
 
 ```console
-$ sxml xpath --context-item=latch.xml 'normalize-space(//t[@anchor = "req-8"])'
-"A lockout SHOULD last five minutes. Should the controller be able to change the duration?"
-$ sxml xpath --context-item=latch.xml 'normalize-space(string-join(//t[@anchor = "req-8"]/(text() | bcp14)))'
-"A lockout SHOULD last five minutes."
+$ sxml xpath --context-item=vane.xml 'normalize-space(//t[@anchor = "req-8"])'
+"A pause SHOULD last five minutes. Should an owner be able to change the duration?"
+$ sxml xpath --context-item=vane.xml 'normalize-space(string-join(//t[@anchor = "req-8"]/(text() | bcp14)))'
+"A pause SHOULD last five minutes."
 ```
 
 When you compare a node with a value, or do arithmetic with it, XPath

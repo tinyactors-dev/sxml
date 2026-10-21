@@ -7,8 +7,9 @@ XQuery is XPath with more around it, and XSLT uses XPath to select what
 its templates process. Time spent learning XPath pays off three times.
 
 This chapter and the next two work on one document: the specification
-of the Latch protocol, which a controller uses to talk to the door locks
-of a building. It is written the way the IETF writes its
+of the Vane protocol, which the SDK in an application uses to ask a
+feature-flag service which features are on and to roll them out. It is
+written the way the IETF writes its
 specifications: as an Internet-Draft in XML, in the vocabulary of the
 xml2rfc tool (RFC 7991), which turns such a file into the HTML and the
 plain text you know from RFCs. Keeping a specification in XML means a
@@ -19,12 +20,12 @@ to do all of that.
 
 The examples run in `docs/book/examples/spec`, the directory of the
 specification project, and give the draft as the context item. Here is
-the file, `latch.xml`:
+the file, `vane.xml`:
 
-`latch.xml`:
+`vane.xml`:
 
 ```xml
-{{#include ../examples/spec/latch.xml}}
+{{#include ../examples/spec/vane.xml}}
 ```
 
 It is long, but its shape is simple. The `front` has the title, the
@@ -34,7 +35,7 @@ paragraph with an `anchor`, and it says how strong it is with one of
 the key words of BCP 14 (MUST, SHOULD, MAY and their negations) in a
 `bcp14` element. `xref` elements refer to other parts of the draft by
 their anchors: to the terms of section 1.1, to sections, and to
-references. The same directory holds `latch-00.xml`, the draft's
+references. The same directory holds `vane-00.xml`, the draft's
 previous version.
 
 ## What an XPath expression is
@@ -70,7 +71,7 @@ node*, which stands for the whole file. Its children are the comment at
 the start of the file and the outermost element, `rfc`:
 
 ```console
-$ sxml xpath --context-item=latch.xml '/node() ! (if (self::comment()) then "comment" else name())'
+$ sxml xpath --context-item=vane.xml '/node() ! (if (self::comment()) then "comment" else name())'
 "comment"
 "rfc"
 ```
@@ -80,7 +81,7 @@ text nodes for the text between the tags, including the line breaks and
 spaces that indent the file. Count them:
 
 ```console
-$ sxml xpath --context-item=latch.xml 'count(//*), count(//@*), count(//text()), count(//comment())'
+$ sxml xpath --context-item=vane.xml 'count(//*), count(//@*), count(//text()), count(//comment())'
 126
 116
 219
@@ -95,7 +96,7 @@ Sections nest: a `section` can contain sections. The draft has six
 sections at the top of `middle` and nine in all:
 
 ```console
-$ sxml xpath --context-item=latch.xml 'count(/rfc/middle/section), count(//section)'
+$ sxml xpath --context-item=vane.xml 'count(/rfc/middle/section), count(//section)'
 6
 9
 ```
@@ -105,7 +106,7 @@ req-7 is a text node, the `bcp14` element, another text node, an `xref`
 and a last text node with the full stop:
 
 ```console
-$ sxml xpath --context-item=latch.xml '//t[@anchor = "req-7"]/node() ! (if (self::text()) then "text" else "element " || name())'
+$ sxml xpath --context-item=vane.xml '//t[@anchor = "req-7"]/node() ! (if (self::text()) then "text" else "element " || name())'
 "text"
 "element bcp14"
 "text"

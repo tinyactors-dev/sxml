@@ -22,7 +22,7 @@ Parameters and the result can have types. An attribute passed to a
 parameter of type `xs:string` becomes its string:
 
 ```console
-$ sxml xpath --context-item=latch.xml 'let $number := fn($anchor as xs:string) as xs:integer { xs:integer(substring-after($anchor, "req-")) } return //section[@anchor = "lockout"]/t/@anchor ! $number(.)'
+$ sxml xpath --context-item=vane.xml 'let $number := fn($anchor as xs:string) as xs:integer { xs:integer(substring-after($anchor, "req-")) } return //section[@anchor = "pause"]/t/@anchor ! $number(.)'
 7
 8
 11
@@ -36,7 +36,7 @@ the text; sorted by their numbers, they are in the order they were
 written:
 
 ```console
-$ sxml xpath --context-item=latch.xml 'sort(//t[@anchor], (), fn { xs:integer(substring-after(@anchor, "req-")) }) ! string(@anchor)'
+$ sxml xpath --context-item=vane.xml 'sort(//t[@anchor], (), fn { xs:integer(substring-after(@anchor, "req-")) }) ! string(@anchor)'
 "req-1"
 "req-2"
 "req-3"
@@ -60,11 +60,11 @@ function, and sorts by the key. Sorted by the anchors as strings,
 arguments:
 
 ```console
-$ sxml xpath --context-item=latch.xml 'for-each(//dt, upper-case#1)'
-"LOCK"
-"CONTROLLER"
-"CODE"
-"LOCKOUT"
+$ sxml xpath --context-item=vane.xml 'for-each(//dt, upper-case#1)'
+"FLAG"
+"SDK"
+"PERCENTAGE"
+"PAUSE"
 ```
 
 ## Partial application
@@ -76,14 +76,14 @@ function: it makes a new function that waits for the missing ones:
 $ sxml xpath 'for-each(("req-3", "req-11"), substring-after(?, "req-"))'
 "3"
 "11"
-$ sxml xpath --context-item=latch.xml 'let $in-section := fn($anchor, $t) { exists($t/ancestor::section[@anchor = $anchor]) } let $in-lockout := $in-section("lockout", ?) return //t[@anchor][$in-lockout(.)]/@anchor/string()'
+$ sxml xpath --context-item=vane.xml 'let $in-section := fn($anchor, $t) { exists($t/ancestor::section[@anchor = $anchor]) } let $in-pause := $in-section("pause", ?) return //t[@anchor][$in-pause(.)]/@anchor/string()'
 "req-7"
 "req-8"
 "req-11"
 ```
 
 `substring-after(?, "req-")` is a function of one argument, the string
-to cut. `$in-section("lockout", ?)` fixes the section and leaves the
+to cut. `$in-section("pause", ?)` fixes the section and leaves the
 paragraph open.
 
 ## The classic higher-order functions
@@ -93,17 +93,17 @@ which a function is true, and `fold-left` combines the items one by one
 into a single result:
 
 ```console
-$ sxml xpath --context-item=latch.xml 'for-each(//section[t[@anchor]], fn($section) { $section/@anchor || ": " || count($section/t[@anchor]) })'
+$ sxml xpath --context-item=vane.xml 'for-each(//section[t[@anchor]], fn($section) { $section/@anchor || ": " || count($section/t[@anchor]) })'
 "states: 3"
-"unlock: 3"
+"rollout: 3"
 "status: 2"
-"lockout: 3"
-$ sxml xpath --context-item=latch.xml 'filter(//t[@anchor], fn($t) { starts-with($t/bcp14, "SHOULD") }) ! string(@anchor)'
+"pause: 3"
+$ sxml xpath --context-item=vane.xml 'filter(//t[@anchor], fn($t) { starts-with($t/bcp14, "SHOULD") }) ! string(@anchor)'
 "req-3"
 "req-10"
 "req-8"
-$ sxml xpath --context-item=latch.xml 'fold-left(//t[@anchor], {}, fn($counts, $t) { let $section := string($t/ancestor::section[1]/@anchor) return map:put($counts, $section, ($counts($section) otherwise 0) + 1) })'
-{"states":3,"unlock":3,"status":2,"lockout":3}
+$ sxml xpath --context-item=vane.xml 'fold-left(//t[@anchor], {}, fn($counts, $t) { let $section := string($t/ancestor::section[1]/@anchor) return map:put($counts, $section, ($counts($section) otherwise 0) + 1) })'
+{"states":3,"rollout":3,"status":2,"pause":3}
 ```
 
 The fold starts with an empty map and, for each requirement, puts the
@@ -116,18 +116,18 @@ splits a sequence, and `while-do` repeats a function while a condition
 holds:
 
 ```console
-$ sxml xpath --context-item=latch.xml 'highest(//section, (), fn { count(t[@anchor]) }) ! string(@anchor)'
+$ sxml xpath --context-item=vane.xml 'highest(//section, (), fn { count(t[@anchor]) }) ! string(@anchor)'
 "states"
-"unlock"
-"lockout"
-$ sxml xpath --context-item=latch.xml 'lowest(//t[@anchor], (), fn { string-length(normalize-space()) })/@anchor/string()'
-"req-5"
-$ sxml xpath --context-item=latch.xml 'partition(//t[@anchor], fn($group, $next) { not($next/.. is $group[1]/..) }) ! string-join(?* ! @anchor, " ")'
+"rollout"
+"pause"
+$ sxml xpath --context-item=vane.xml 'lowest(//t[@anchor], (), fn { string-length(normalize-space()) })/@anchor/string()'
+"req-2"
+$ sxml xpath --context-item=vane.xml 'partition(//t[@anchor], fn($group, $next) { not($next/.. is $group[1]/..) }) ! string-join(?* ! @anchor, " ")'
 "req-1 req-2 req-3"
 "req-4 req-5 req-9"
 "req-6 req-10"
 "req-7 req-8 req-11"
-$ sxml xpath --context-item=latch.xml 'while-do(//t[@anchor = "req-10"], fn { exists(parent::section) }, fn { .. })/name/string()'
+$ sxml xpath --context-item=vane.xml 'while-do(//t[@anchor = "req-10"], fn { exists(parent::section) }, fn { .. })/name/string()'
 "Messages"
 ```
 
@@ -144,7 +144,7 @@ that a key, and the anchor number decides within a rank, here with the
 latest first:
 
 ```console
-$ sxml xpath --context-item=latch.xml 'let $strength := { "MUST": 1, "MUST NOT": 1, "SHOULD": 2, "SHOULD NOT": 2, "MAY": 3 } return sort-by(//t[@anchor], ({ "key": fn { $strength(bcp14) } }, { "key": fn { xs:integer(substring-after(@anchor, "req-")) }, "order": "descending" })) ! `{@anchor} {bcp14}`'
+$ sxml xpath --context-item=vane.xml 'let $strength := { "MUST": 1, "MUST NOT": 1, "SHOULD": 2, "SHOULD NOT": 2, "MAY": 3 } return sort-by(//t[@anchor], ({ "key": fn { $strength(bcp14) } }, { "key": fn { xs:integer(substring-after(@anchor, "req-")) }, "order": "descending" })) ! `{@anchor} {bcp14}`'
 "req-7 MUST"
 "req-6 MUST"
 "req-5 MUST NOT"
@@ -165,7 +165,7 @@ word: a function that tells whether a requirement has that key word or
 its negation:
 
 ```console
-$ sxml xpath --context-item=latch.xml 'let $checker := fn($keyword) { fn($t) { $t/bcp14 = ($keyword, $keyword || " NOT") } } let $requirements := //t[@anchor] for $keyword in ("MUST", "SHOULD", "MAY") return `{$keyword}: {count(filter($requirements, $checker($keyword)))}`'
+$ sxml xpath --context-item=vane.xml 'let $checker := fn($keyword) { fn($t) { $t/bcp14 = ($keyword, $keyword || " NOT") } } let $requirements := //t[@anchor] for $keyword in ("MUST", "SHOULD", "MAY") return `{$keyword}: {count(filter($requirements, $checker($keyword)))}`'
 "MUST: 6"
 "SHOULD: 3"
 "MAY: 2"
@@ -176,8 +176,8 @@ it is a *closure*. Functions can be combined, too. This one composes two
 functions into a third:
 
 ```console
-$ sxml xpath --context-item=latch.xml 'let $compose := fn($f, $g) { fn($x) { $g($f($x)) } } return $compose(normalize-space#1, string-length#1)(//t[@anchor = "req-1"])'
-79
+$ sxml xpath --context-item=vane.xml 'let $compose := fn($f, $g) { fn($x) { $g($f($x)) } } return $compose(normalize-space#1, string-length#1)(//t[@anchor = "req-1"])'
+81
 ```
 
 ## What XPath can't do alone

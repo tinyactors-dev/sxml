@@ -62,8 +62,8 @@ section. A map from anchor to that text is the lookup table such a
 renderer needs. `map:merge` combines many maps into one:
 
 ```console
-$ sxml xpath --context-item=latch.xml 'map:merge(//section ! { @anchor: string(name) })'
-{"intro":"Introduction","terminology":"Terminology","states":"Lock States","messages":"Messages","unlock":"Unlock","status":"Status","lockout":"Lockout","security":"Security Considerations","iana":"IANA Considerations"}
+$ sxml xpath --context-item=vane.xml 'map:merge(//section ! { @anchor: string(name) })'
+{"intro":"Introduction","terminology":"Terminology","states":"Flag States","messages":"Messages","rollout":"Rollout","status":"Status","pause":"Pause","security":"Security Considerations","iana":"IANA Considerations"}
 ```
 
 The key `@anchor` is an attribute, which becomes its value when it is
@@ -72,10 +72,10 @@ used as a key. Now the whole table: sections numbered as in
 and terms by their text:
 
 ```console
-$ sxml xpath --context-item=latch.xml 'let $text := map:merge((//section ! { @anchor: "Section " || string-join(ancestor-or-self::section ! (count(preceding-sibling::section) + 1), ".") }, //reference ! { @anchor: `[{@anchor}]` }, //dt ! { @anchor: string() })) return ($text?lockout, $text?RFC2119, $text?term-code, map:size($text))'
+$ sxml xpath --context-item=vane.xml 'let $text := map:merge((//section ! { @anchor: "Section " || string-join(ancestor-or-self::section ! (count(preceding-sibling::section) + 1), ".") }, //reference ! { @anchor: `[{@anchor}]` }, //dt ! { @anchor: string() })) return ($text?pause, $text?RFC2119, $text?term-percentage, map:size($text))'
 "Section 4"
 "[RFC2119]"
-"Code"
+"Percentage"
 17
 ```
 
@@ -84,9 +84,9 @@ the element's name. Its keys are the targets an `xref` may name, so
 an `xref` whose target is not a key points at nothing:
 
 ```console
-$ sxml xpath --context-item=latch.xml 'map:merge(//*[@anchor] ! { @anchor: name() }) => map:size()'
+$ sxml xpath --context-item=vane.xml 'map:merge(//*[@anchor] ! { @anchor: name() }) => map:size()'
 33
-$ sxml xpath --context-item=latch.xml 'let $kinds := map:merge(//*[@anchor] ! { @anchor: name() }) return count(//xref[empty($kinds(@target))])'
+$ sxml xpath --context-item=vane.xml 'let $kinds := map:merge(//*[@anchor] ! { @anchor: name() }) return count(//xref[empty($kinds(@target))])'
 0
 ```
 
@@ -97,7 +97,7 @@ a check that the anchors are unique. Key words are not unique, so this
 fails:
 
 ```console
-$ sxml xpath --context-item=latch.xml 'map:merge(//t[@anchor] ! { string(bcp14): string(@anchor) }, { "duplicates": "reject" })'
+$ sxml xpath --context-item=vane.xml 'map:merge(//t[@anchor] ! { string(bcp14): string(@anchor) }, { "duplicates": "reject" })'
 expression:1:1: err:FOJS0003: Duplicate keys are rejected by the duplicates option
 ```
 
@@ -105,7 +105,7 @@ When several items share a key, `map:build` groups them. Here, the
 requirements by key word:
 
 ```console
-$ sxml xpath --context-item=latch.xml 'map:build(//t[@anchor], fn { string(bcp14) }, fn { string(@anchor) })'
+$ sxml xpath --context-item=vane.xml 'map:build(//t[@anchor], fn { string(bcp14) }, fn { string(@anchor) })'
 {"MUST":("req-1","req-2","req-4","req-6","req-7"),"SHOULD":("req-3","req-8"),"MUST NOT":"req-5","MAY":("req-9","req-11"),"SHOULD NOT":"req-10"}
 ```
 
@@ -132,9 +132,9 @@ keeps each reference's authors together, which a flat sequence could
 not:
 
 ```console
-$ sxml xpath --context-item=latch.xml 'array { //reference ! array { .//author/@surname ! string() } }'
+$ sxml xpath --context-item=vane.xml 'array { //reference ! array { .//author/@surname ! string() } }'
 [["Bradner"],["Crocker","Overell"],["Leiba"],["M'Raihi","Machani","Pei","Rydell"]]
-$ sxml xpath --context-item=latch.xml 'let $authors := array { //reference[@anchor = "RFC6238"]//author/@surname ! string() } return ($authors?1, array:size($authors), $authors?*[last()])'
+$ sxml xpath --context-item=vane.xml 'let $authors := array { //reference[@anchor = "RFC6238"]//author/@surname ! string() } return ($authors?1, array:size($authors), $authors?*[last()])'
 "M'Raihi"
 4
 "Rydell"
@@ -143,7 +143,7 @@ $ sxml xpath --context-item=latch.xml 'let $authors := array { //reference[@anch
 `for member` goes through the members of an array:
 
 ```console
-$ sxml xpath --context-item=latch.xml 'for member $authors in array { //reference ! array { .//author/@surname ! string() } } return string-join($authors?*, " and ")'
+$ sxml xpath --context-item=vane.xml 'for member $authors in array { //reference ! array { .//author/@surname ! string() } } return string-join($authors?*, " and ")'
 "Bradner"
 "Crocker and Overell"
 "Leiba"
@@ -159,9 +159,9 @@ want its requirements as JSON; here is the list, an array with a map
 for each requirement, written to a file with `--output`:
 
 ```console
-$ sxml xpath --context-item=latch.xml --method=json --output=xpath-requirements.json 'array { //t[@anchor] ! { "anchor": string(@anchor), "keyword": string(bcp14), "section": string(ancestor::section[1]/name) } }'
+$ sxml xpath --context-item=vane.xml --method=json --output=xpath-requirements.json 'array { //t[@anchor] ! { "anchor": string(@anchor), "keyword": string(bcp14), "section": string(ancestor::section[1]/name) } }'
 $ cat xpath-requirements.json
-[{"anchor":"req-1","keyword":"MUST","section":"Lock States"},{"anchor":"req-2","keyword":"MUST","section":"Lock States"},{"anchor":"req-3","keyword":"SHOULD","section":"Lock States"},{"anchor":"req-4","keyword":"MUST","section":"Unlock"},{"anchor":"req-5","keyword":"MUST NOT","section":"Unlock"},{"anchor":"req-9","keyword":"MAY","section":"Unlock"},{"anchor":"req-6","keyword":"MUST","section":"Status"},{"anchor":"req-10","keyword":"SHOULD NOT","section":"Status"},{"anchor":"req-7","keyword":"MUST","section":"Lockout"},{"anchor":"req-8","keyword":"SHOULD","section":"Lockout"},{"anchor":"req-11","keyword":"MAY","section":"Lockout"}]
+[{"anchor":"req-1","keyword":"MUST","section":"Flag States"},{"anchor":"req-2","keyword":"MUST","section":"Flag States"},{"anchor":"req-3","keyword":"SHOULD","section":"Flag States"},{"anchor":"req-4","keyword":"MUST","section":"Rollout"},{"anchor":"req-5","keyword":"MUST NOT","section":"Rollout"},{"anchor":"req-9","keyword":"MAY","section":"Rollout"},{"anchor":"req-6","keyword":"MUST","section":"Status"},{"anchor":"req-10","keyword":"SHOULD NOT","section":"Status"},{"anchor":"req-7","keyword":"MUST","section":"Pause"},{"anchor":"req-8","keyword":"SHOULD","section":"Pause"},{"anchor":"req-11","keyword":"MAY","section":"Pause"}]
 ```
 
 That turned part of an XML document into JSON in one line. (`--output`
@@ -174,9 +174,9 @@ $ sxml xpath 'json-doc("xpath-requirements.json")?*[?keyword = "MAY"]?anchor'
 "req-9"
 "req-11"
 $ sxml xpath 'parse-json(unparsed-text("xpath-requirements.json"))?3'
-{"anchor":"req-3","keyword":"SHOULD","section":"Lock States"}
-$ sxml xpath 'parse-json('"'"'{"anchor": "req-7", "states": ["checking", "lockout"]}'"'"')?states?2'
-"lockout"
+{"anchor":"req-3","keyword":"SHOULD","section":"Flag States"}
+$ sxml xpath 'parse-json('"'"'{"anchor": "req-7", "states": ["checking", "paused"]}'"'"')?states?2'
+"paused"
 ```
 
 `?*` gives the members of the array, and the predicate `[?keyword =
@@ -192,8 +192,8 @@ languages. Use it where a sequence type is allowed, to check that a map
 has the shape you expect:
 
 ```console
-$ sxml xpath 'let $requirement as record(anchor as xs:string, keyword as xs:string, section as xs:string) := { "anchor": "req-7", "keyword": "MUST", "section": "Lockout" } return $requirement?section'
-"Lockout"
+$ sxml xpath 'let $requirement as record(anchor as xs:string, keyword as xs:string, section as xs:string) := { "anchor": "req-7", "keyword": "MUST", "section": "Pause" } return $requirement?section'
+"Pause"
 $ sxml xpath 'let $requirement as record(anchor as xs:string, keyword as xs:string, section as xs:string) := { "anchor": "req-7", "keyword": "MUST" } return $requirement?section'
 expression:1:5: err:XPTY0004: The value does not match the required type (XPath 4.0, section 3.4, coercion rules)
 ```
@@ -204,15 +204,15 @@ converts its arguments: a field declared `xs:string` turns a node into
 its string. So the requirement can be made from the paragraph's nodes:
 
 ```console
-$ sxml xpath --context-item=latch.xml 'let $requirement as record(anchor as xs:string, keyword as xs:string, section as xs:string) := //t[@anchor = "req-7"] ! { "anchor": @anchor, "keyword": bcp14, "section": ancestor::section[1]/name } return $requirement'
-{"anchor":"req-7","keyword":"MUST","section":"Lockout"}
+$ sxml xpath --context-item=vane.xml 'let $requirement as record(anchor as xs:string, keyword as xs:string, section as xs:string) := //t[@anchor = "req-7"] ! { "anchor": @anchor, "keyword": bcp14, "section": ancestor::section[1]/name } return $requirement'
+{"anchor":"req-7","keyword":"MUST","section":"Pause"}
 ```
 
 And the JSON file we wrote has exactly that shape, so its members can be
 checked as records when they are read:
 
 ```console
-$ sxml xpath 'let $requirements as record(anchor as xs:string, keyword as xs:string, section as xs:string)* := json-doc("xpath-requirements.json")?* return $requirements[?section = "Unlock"]?anchor'
+$ sxml xpath 'let $requirements as record(anchor as xs:string, keyword as xs:string, section as xs:string)* := json-doc("xpath-requirements.json")?* return $requirements[?section = "Rollout"]?anchor'
 "req-4"
 "req-5"
 "req-9"

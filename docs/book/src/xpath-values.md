@@ -63,7 +63,7 @@ $ sxml xpath '7 div 2, 7 idiv 2, 7 mod 2'
 of the draft's eleven requirements are MUSTs?
 
 ```console
-$ sxml xpath --context-item=latch.xml 'count(//bcp14[. = "MUST"]), count(//bcp14[. = "MUST"]) div count(//t[@anchor]), count(//bcp14[. = "MUST"]) * 100 idiv count(//t[@anchor])'
+$ sxml xpath --context-item=vane.xml 'count(//bcp14[. = "MUST"]), count(//bcp14[. = "MUST"]) div count(//t[@anchor]), count(//bcp14[. = "MUST"]) * 100 idiv count(//t[@anchor])'
 5
 0.4545454545454545454545454545454545
 45
@@ -92,7 +92,7 @@ A plain XML document has no types in it. The `year` attribute of
 takes the value out of a node:
 
 ```console
-$ sxml xpath --context-item=latch.xml 'type-of((//reference)[1]//date/@year), type-of(data((//reference)[1]//date/@year))'
+$ sxml xpath --context-item=vane.xml 'type-of((//reference)[1]//date/@year), type-of(data((//reference)[1]//date/@year))'
 "attribute()"
 "xs:untypedAtomic"
 ```
@@ -107,7 +107,7 @@ That is why the age of each reference, at the draft's date in 2026,
 comes out as doubles:
 
 ```console
-$ sxml xpath --context-item=latch.xml '//reference ! (2026 - .//date/@year)'
+$ sxml xpath --context-item=vane.xml '//reference ! (2026 - .//date/@year)'
 2.9e1
 1.8e1
 9.0e0
@@ -118,7 +118,7 @@ RFC 2119 is 29 years old. When you want exact arithmetic, convert the
 values first with a *constructor function*, named after the type:
 
 ```console
-$ sxml xpath --context-item=latch.xml '//reference ! (2026 - xs:integer(.//date/@year))'
+$ sxml xpath --context-item=vane.xml '//reference ! (2026 - xs:integer(.//date/@year))'
 29
 18
 9
@@ -155,9 +155,9 @@ The *general comparisons*, `=`, `!=`, `<`, `<=`, `>` and `>=`, compare
 sequences. They are true if *any* pair of items compares true:
 
 ```console
-$ sxml xpath --context-item=latch.xml '//bcp14 = "SHALL"'
+$ sxml xpath --context-item=vane.xml '//bcp14 = "SHALL"'
 false()
-$ sxml xpath --context-item=latch.xml '//bcp14 = ("MUST", "SHALL")'
+$ sxml xpath --context-item=vane.xml '//bcp14 = ("MUST", "SHALL")'
 true()
 ```
 
@@ -170,9 +170,9 @@ them matches. Here the untyped year is compared with a number, as a
 number:
 
 ```console
-$ sxml xpath --context-item=latch.xml '//reference[.//date/@year < 2000]/@anchor/string()'
+$ sxml xpath --context-item=vane.xml '//reference[.//date/@year < 2000]/@anchor/string()'
 "RFC2119"
-$ sxml xpath --context-item=latch.xml '//reference[.//date/@year = (1997, 2017)]/@anchor/string()'
+$ sxml xpath --context-item=vane.xml '//reference[.//date/@year = (1997, 2017)]/@anchor/string()'
 "RFC2119"
 "RFC8174"
 ```
@@ -182,7 +182,7 @@ is not the opposite of `=`: `//bcp14 != "MUST"` is true, because there
 are key words that are not MUST.
 
 ```console
-$ sxml xpath --context-item=latch.xml '//bcp14 != "MUST"'
+$ sxml xpath --context-item=vane.xml '//bcp14 != "MUST"'
 true()
 ```
 
@@ -192,9 +192,9 @@ untyped value is compared as a string, so comparing an attribute with a
 number is an error:
 
 ```console
-$ sxml xpath --context-item=latch.xml '/rfc/front/date/@year eq 2026'
+$ sxml xpath --context-item=vane.xml '/rfc/front/date/@year eq 2026'
 expression:1:1: err:XPTY0004: the compared items belong to different type families (XPath 4.0, section 4.11.1; F&O 4.0, fn:compare)
-$ sxml xpath --context-item=latch.xml 'xs:integer(/rfc/front/date/@year) eq 2026'
+$ sxml xpath --context-item=vane.xml 'xs:integer(/rfc/front/date/@year) eq 2026'
 true()
 ```
 
@@ -217,7 +217,7 @@ knows about calendars. The draft writes its date the xml2rfc way, with
 the month as a word:
 
 ```xml
-{{#include ../examples/spec/latch.xml:20}}
+{{#include ../examples/spec/vane.xml:20}}
 ```
 
 To make an `xs:date` from it, we need the month's number. A *map* is a
@@ -228,7 +228,7 @@ string between backticks is a *string template*, which puts the values
 of the expressions in curly braces into a string:
 
 ```console
-$ sxml xpath --context-item=latch.xml 'let $months := { "January": 1, "February": 2, "March": 3, "April": 4, "May": 5, "June": 6, "July": 7, "August": 8, "September": 9, "October": 10, "November": 11, "December": 12 } let $date := /rfc/front/date return xs:date(`{$date/@year}-{format-integer($months($date/@month), "00")}-{format-integer($date/@day, "00")}`)'
+$ sxml xpath --context-item=vane.xml 'let $months := { "January": 1, "February": 2, "March": 3, "April": 4, "May": 5, "June": 6, "July": 7, "August": 8, "September": 9, "October": 10, "November": 11, "December": 12 } let $date := /rfc/front/date return xs:date(`{$date/@year}-{format-integer($months($date/@month), "00")}-{format-integer($date/@day, "00")}`)'
 xs:date("2026-10-21")
 ```
 
@@ -236,13 +236,13 @@ sxml writes dates as constructor calls, so you can paste a result back
 into an expression. `let` binds a name to a value; it comes back in
 [Functions and Operators](xpath-functions.md).
 
-The previous version of the draft is in `latch-00.xml`. `doc` reads
+The previous version of the draft is in `vane-00.xml`. `doc` reads
 another document, so one expression can look at both. Here are both
 dates, -00 first, and the time between them (this time the map has only
 the two months it needs):
 
 ```console
-$ sxml xpath --context-item=latch.xml 'let $months := { "July": 7, "October": 10 } let $dates := (doc("latch-00.xml"), /) ! rfc/front/date ! xs:date(`{@year}-{format-integer($months(@month), "00")}-{format-integer(@day, "00")}`) return ($dates, $dates[2] - $dates[1])'
+$ sxml xpath --context-item=vane.xml 'let $months := { "July": 7, "October": 10 } let $dates := (doc("vane-00.xml"), /) ! rfc/front/date ! xs:date(`{@year}-{format-integer($months(@month), "00")}-{format-integer(@day, "00")}`) return ($dates, $dates[2] - $dates[1])'
 xs:date("2026-07-06")
 xs:date("2026-10-21")
 xs:dayTimeDuration("P107D")
@@ -273,7 +273,7 @@ false, a sequence that starts with a node is true, a string is true unless
 it is empty, a number is true unless it is zero or NaN.
 
 ```console
-$ sxml xpath --context-item=latch.xml 'boolean(//t[@anchor = "req-12"]), boolean(//cref), boolean(""), boolean("false"), boolean(0)'
+$ sxml xpath --context-item=vane.xml 'boolean(//t[@anchor = "req-12"]), boolean(//cref), boolean(""), boolean("false"), boolean(0)'
 false()
 true()
 false()
@@ -298,7 +298,7 @@ item type with an optional occurrence indicator: `?` for zero or one,
 $ sxml xpath '"MUST" instance of xs:string+, () instance of xs:string?'
 true()
 true()
-$ sxml xpath --context-item=latch.xml '//t[bcp14][not(@anchor)] instance of element(t)?, //bcp14 instance of element(bcp14)+'
+$ sxml xpath --context-item=vane.xml '//t[bcp14][not(@anchor)] instance of element(t)?, //bcp14 instance of element(bcp14)+'
 true()
 true()
 ```

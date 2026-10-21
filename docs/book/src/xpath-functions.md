@@ -11,16 +11,16 @@ variables and loops.
 ## Strings
 
 The draft's name, its `docName`, says which version it is:
-`draft-example-latch-protocol-01` is version 01. The string functions
+`draft-example-vane-protocol-01` is version 01. The string functions
 take it apart:
 
 ```console
-$ sxml xpath --context-item=latch.xml 'contains(/rfc/@docName, "latch"), starts-with(/rfc/@docName, "draft-"), substring(/rfc/@docName, 15, 5)'
+$ sxml xpath --context-item=vane.xml 'contains(/rfc/@docName, "vane"), starts-with(/rfc/@docName, "draft-"), substring(/rfc/@docName, 15, 4)'
 true()
 true()
-"latch"
-$ sxml xpath --context-item=latch.xml 'substring-after(/rfc/@docName, "draft-"), tokenize(/rfc/@docName, "-")[last()]'
-"example-latch-protocol-01"
+"vane"
+$ sxml xpath --context-item=vane.xml 'substring-after(/rfc/@docName, "draft-"), tokenize(/rfc/@docName, "-")[last()]'
+"example-vane-protocol-01"
 "01"
 ```
 
@@ -33,8 +33,8 @@ removes it at both ends, which is what you want before you compare or
 print a paragraph:
 
 ```console
-$ sxml xpath --context-item=latch.xml 'normalize-space(//t[@anchor = "req-3"])'
-"An unlocked lock SHOULD return to the state ""locked"" after ten seconds without a message."
+$ sxml xpath --context-item=vane.xml 'normalize-space(//t[@anchor = "req-3"])'
+"A rolling-out flag SHOULD return to the state ""stable"" ten minutes after its rollout step began."
 ```
 
 The quotes from the paragraph are doubled: that is how a string literal
@@ -46,13 +46,13 @@ strings. A *string template*, written between backticks, puts the values
 of expressions in curly braces into a string:
 
 ```console
-$ sxml xpath --context-item=latch.xml 'string-join(//section[@anchor = "lockout"]/t/@anchor, ", ")'
+$ sxml xpath --context-item=vane.xml 'string-join(//section[@anchor = "pause"]/t/@anchor, ", ")'
 "req-7, req-8, req-11"
-$ sxml xpath --context-item=latch.xml '/rfc/middle/section ! `{name}: {count(.//t[@anchor])} requirements`'
+$ sxml xpath --context-item=vane.xml '/rfc/middle/section ! `{name}: {count(.//t[@anchor])} requirements`'
 "Introduction: 0 requirements"
-"Lock States: 3 requirements"
+"Flag States: 3 requirements"
 "Messages: 5 requirements"
-"Lockout: 3 requirements"
+"Pause: 3 requirements"
 "Security Considerations: 0 requirements"
 "IANA Considerations: 0 requirements"
 ```
@@ -68,12 +68,12 @@ syntax of XML Schema with the usual extensions (`\d`, `\s`, `\w`, `\b`
 for a word boundary, groups, and `$1` in replacements):
 
 ```console
-$ sxml xpath --context-item=latch.xml 'replace(/rfc/@docName, "-(\d+)$", "-02")'
-"draft-example-latch-protocol-02"
-$ sxml xpath 'tokenize("lock, access control", ",\s*")'
-"lock"
-"access control"
-$ sxml xpath --context-item=latch.xml '//author ! tokenize(@fullname)[last()]'
+$ sxml xpath --context-item=vane.xml 'replace(/rfc/@docName, "-(\d+)$", "-02")'
+"draft-example-vane-protocol-02"
+$ sxml xpath 'tokenize("feature flag, progressive delivery", ",\s*")'
+"feature flag"
+"progressive delivery"
+$ sxml xpath --context-item=vane.xml '//author ! tokenize(@fullname)[last()]'
 "Byron"
 "Mathison"
 "Bradner"
@@ -99,10 +99,10 @@ MUST that is plain text. `\b` matches at the edges of words, so
 in the text nodes that are not inside a `bcp14`:
 
 ```console
-$ sxml xpath 'matches("Deployments SHOULD carry Latch over an encrypted link.", "\b(MUST|SHOULD|MAY)\b"), matches("A lock should lock.", "\b(MUST|SHOULD|MAY)\b")'
+$ sxml xpath 'matches("Deployments SHOULD carry Vane over an encrypted link.", "\b(MUST|SHOULD|MAY)\b"), matches("A flag should roll out.", "\b(MUST|SHOULD|MAY)\b")'
 true()
 false()
-$ sxml xpath --context-item=latch.xml '//text()[not(parent::bcp14)][matches(., "\b(MUST|SHOULD|MAY)\b")] ! normalize-space()'
+$ sxml xpath --context-item=vane.xml '//text()[not(parent::bcp14)][matches(., "\b(MUST|SHOULD|MAY)\b")] ! normalize-space()'
 "The key words ""MUST"", ""MUST NOT"", ""REQUIRED"", ""SHALL"", ""SHALL NOT"", ""SHOULD"", ""SHOULD NOT"", ""RECOMMENDED"", ""NOT RECOMMENDED"", ""MAY"", and ""OPTIONAL"" in this document are to be interpreted as described in BCP 14"
 ```
 
@@ -111,14 +111,14 @@ where they are meant as words, not as requirements. Leave that section
 out, and nothing is left: the draft marks up every key word it uses.
 
 ```console
-$ sxml xpath --context-item=latch.xml 'count(//text()[not(parent::bcp14)][not(ancestor::section[@anchor = "terminology"])][matches(., "\b(MUST|SHOULD|MAY)\b")])'
+$ sxml xpath --context-item=vane.xml 'count(//text()[not(parent::bcp14)][not(ancestor::section[@anchor = "terminology"])][matches(., "\b(MUST|SHOULD|MAY)\b")])'
 0
 ```
 
 ## Numbers
 
 ```console
-$ sxml xpath --context-item=latch.xml 'count(//t[@anchor]), sum((1, 2, 3)), avg((1, 2))'
+$ sxml xpath --context-item=vane.xml 'count(//t[@anchor]), sum((1, 2, 3)), avg((1, 2))'
 11
 6
 1.5
@@ -138,8 +138,8 @@ $ sxml xpath 'format-number(5 div 11, "0%"), format-number(5 div 11, "0.0%"), fo
 
 `format-number` writes a number with a picture string; with `%` in the
 picture it multiplies by a hundred first. `format-integer` writes
-integers as words, roman numerals or letters. "After three rejected
-codes" in req-7 is the number 3 in words. [Working with Text](text.md)
+integers as words, roman numerals or letters. "After three failed
+checks" in req-7 is the number 3 in words. [Working with Text](text.md)
 shows both in other languages.
 
 ## Sequences
@@ -147,20 +147,20 @@ shows both in other languages.
 Many functions work on whole sequences:
 
 ```console
-$ sxml xpath --context-item=latch.xml 'distinct-values(//bcp14)'
+$ sxml xpath --context-item=vane.xml 'distinct-values(//bcp14)'
 "MUST"
 "SHOULD"
 "MUST NOT"
 "MAY"
 "SHOULD NOT"
-$ sxml xpath --context-item=latch.xml 'index-of(//t[@anchor]/@anchor ! string(), "req-9")'
+$ sxml xpath --context-item=vane.xml 'index-of(//t[@anchor]/@anchor ! string(), "req-9")'
 6
-$ sxml xpath --context-item=latch.xml 'sort(//dt/string())'
-"Code"
-"Controller"
-"Lock"
-"Lockout"
-$ sxml xpath --context-item=latch.xml 'head(//t[@anchor]/@anchor ! string()), tail(//section[@anchor = "lockout"]/t/@anchor ! string())'
+$ sxml xpath --context-item=vane.xml 'sort(//dt/string())'
+"Flag"
+"Pause"
+"Percentage"
+"SDK"
+$ sxml xpath --context-item=vane.xml 'head(//t[@anchor]/@anchor ! string()), tail(//section[@anchor = "pause"]/t/@anchor ! string())'
 "req-1"
 "req-8"
 "req-11"
@@ -181,10 +181,10 @@ integers from 1 to 4.
 gives a fallback when the left side is empty:
 
 ```console
-$ sxml xpath --context-item=latch.xml 'empty(//t[bcp14 = "SHALL"]), exists(//cref)'
+$ sxml xpath --context-item=vane.xml 'empty(//t[bcp14 = "SHALL"]), exists(//cref)'
 true()
 true()
-$ sxml xpath --context-item=latch.xml '//t[bcp14 = "SHALL"]/@anchor otherwise "no SHALL"'
+$ sxml xpath --context-item=vane.xml '//t[bcp14 = "SHALL"]/@anchor otherwise "no SHALL"'
 "no SHALL"
 ```
 
@@ -195,7 +195,7 @@ operator `=>` passes the value on its left as the first argument of the
 function on its right, so you can write a pipeline from left to right:
 
 ```console
-$ sxml xpath --context-item=latch.xml '/rfc/@docName => tokenize("-") => reverse() => head()'
+$ sxml xpath --context-item=vane.xml '/rfc/@docName => tokenize("-") => reverse() => head()'
 "01"
 ```
 
@@ -203,11 +203,11 @@ $ sxml xpath --context-item=latch.xml '/rfc/@docName => tokenize("-") => reverse
 `!` does:
 
 ```console
-$ sxml xpath --context-item=latch.xml '//dt =!> upper-case()'
-"LOCK"
-"CONTROLLER"
-"CODE"
-"LOCKOUT"
+$ sxml xpath --context-item=vane.xml '//dt =!> upper-case()'
+"FLAG"
+"SDK"
+"PERCENTAGE"
+"PAUSE"
 ```
 
 ## Conditions
@@ -216,14 +216,14 @@ $ sxml xpath --context-item=latch.xml '//dt =!> upper-case()'
 is normative; the others only explain:
 
 ```console
-$ sxml xpath --context-item=latch.xml '//section ! `{@anchor}: {if (t[@anchor]) then "normative" else "informative"}`'
+$ sxml xpath --context-item=vane.xml '//section ! `{@anchor}: {if (t[@anchor]) then "normative" else "informative"}`'
 "intro: informative"
 "terminology: informative"
 "states: normative"
 "messages: informative"
-"unlock: normative"
+"rollout: normative"
 "status: normative"
-"lockout: normative"
+"pause: normative"
 "security: informative"
 "iana: informative"
 ```
@@ -233,7 +233,7 @@ paragraph with a key word but no anchor, and does every requirement
 have a key word?
 
 ```console
-$ sxml xpath --context-item=latch.xml 'some $t in //t[bcp14] satisfies empty($t/@anchor), every $t in //t[@anchor] satisfies $t/bcp14'
+$ sxml xpath --context-item=vane.xml 'some $t in //t[bcp14] satisfies empty($t/@anchor), every $t in //t[@anchor] satisfies $t/bcp14'
 true()
 true()
 ```
@@ -249,7 +249,7 @@ for each item of a sequence. Variable names start with `$`. Here is the
 share of each key word among the requirements:
 
 ```console
-$ sxml xpath --context-item=latch.xml 'let $requirements := //t[@anchor] for $keyword in distinct-values($requirements/bcp14) return `{$keyword}: {format-number(count($requirements[bcp14 = $keyword]) div count($requirements), "0%")}`'
+$ sxml xpath --context-item=vane.xml 'let $requirements := //t[@anchor] for $keyword in distinct-values($requirements/bcp14) return `{$keyword}: {format-number(count($requirements[bcp14 = $keyword]) div count($requirements), "0%")}`'
 "MUST: 45%"
 "SHOULD: 18%"
 "MUST NOT: 9%"
@@ -261,7 +261,7 @@ A variable can also come from outside. `--param` binds one from the
 command line, as an untyped value:
 
 ```console
-$ sxml xpath --context-item=latch.xml --param=keyword=SHOULD '//t[bcp14 = $keyword]/@anchor/string()'
+$ sxml xpath --context-item=vane.xml --param=keyword=SHOULD '//t[bcp14 = $keyword]/@anchor/string()'
 "req-3"
 "req-8"
 ```
@@ -277,7 +277,7 @@ maps and arrays are in `map` and `array`, mathematical functions in
 `math`, and the constructor functions of types in `xs`:
 
 ```console
-$ sxml xpath --context-item=latch.xml 'fn:count(//t[@anchor]), xs:integer("11"), math:pow(2, 10), math:sqrt(2)'
+$ sxml xpath --context-item=vane.xml 'fn:count(//t[@anchor]), xs:integer("11"), math:pow(2, 10), math:sqrt(2)'
 11
 11
 1.024e3
