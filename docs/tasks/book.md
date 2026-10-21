@@ -1,4 +1,4 @@
-# The book around five projects (plan, packets book-5 and book-14)
+# The book around five projects (plan, packets book-5, book-14 and book-22)
 
 Internal: this file is not part of the book. It plans the rewrite of
 `docs/book` that the owner asked for on 2026-10-21 (D299):
@@ -19,20 +19,32 @@ numbers in the text), every console block checked by
 `tools/check-book-examples.sh`, `<!-- examples: NAME -->`,
 `<!-- requires: javascript -->` and `<!-- status: draft -->` as today.
 The library/loans data goes away everywhere except Chapter 18 (codegen),
-which is already a project and stays as it is.
+which is already a project and stays as it is (until book-22: it now
+generates Vane's SDK clients, section 9).
 
 ## 1. One story, five projects
 
 All five projects belong to one small, made-up system, **Vane**: a
-feature-flag service. Applications ask an SDK whether a feature is on
-for a user; the SDK asks the evaluation service (`flag-service`), which
-keeps flags, their targeting rules and rollout percentages in a registry
-(`flag-registry`, backed by PostgreSQL) and a cache (`flag-cache`, Redis);
-owners roll flags out by percentage, the service checks guardrail
-metrics before each step, pauses a flag whose checks keep failing, and
-has a kill switch; an audit service records changes. Every developer has
-met this; nobody has to imagine a door. The reader meets one domain and
-sees the projects feed each other:
+feature-flag product (since book-22, section 9). Vane is **one service**,
+`vane`, a TypeScript program on Node.js whose parts are modules, not
+services: `api` (the HTTP entry points), `flags` (what each request
+does), `registry` (flags, targeting rules and percentages in
+PostgreSQL), `cache` (flags read recently, in Redis), `rollout` (the
+lifecycle machine of each flag, guardrail checks, the automatic pause)
+and `audit` (the audit log in PostgreSQL and the owners' webhook). It
+offers an **evaluation API** to the SDKs and an **admin API** to its
+console, both as remote functions (`GET /api/getFlags`, `POST
+/api/killFlag`, ...), and an **update stream** on which it sends a
+line per change. Two **SDKs** call it: `@vane/browser`, the frontend
+SDK, asks the service whether each flag is on for one user
+(`evaluateFlags`); `@vane/node`, the backend SDK, downloads every flag
+with its rules (`getFlags`), evaluates them locally, keeps them in a
+cache and keeps the cache current from the update stream. Owners roll
+flags out by percentage in the console; the service checks guardrail
+metrics before each step, pauses a flag after three failed checks, and
+has a kill switch; every change goes to the audit log. Every developer
+has met this, and the parts are where a real product has them. The
+reader meets one domain and sees the projects feed each other:
 
 | Project | What the reader builds | Data (committed by book-14) |
 | --- | --- | --- |
@@ -41,13 +53,16 @@ sees the projects feed each other:
 | scxml | A flag's rollout lifecycle as an SCXML machine whose data and events carry XSD types and whose states carry XHTML documentation; checks and generated documentation | `examples/scxml/` |
 | call-chains | The flag service's TypeScript before and after a change, its call graph, and the diff of its call chains | `examples/call-chains/` |
 | traces | OTLP JSON traces of the same change before and after, and the diff of cardinalities and participants, rendered as HTML and SVG | `examples/traces/` |
+| codegen (book-22) | Vane's API as XSD types and remote functions; generated SDK clients for the browser and Node.js, the service's request validation and an OpenAPI document | `examples/codegen/` |
 
 The links between projects are real and small: the machine's
 `vane:implements` attributes name the draft's requirement anchors; the
 machine's numbers (3 failed checks, 600 s rollout steps, a 300 s pause)
 are the draft's; the code change of call-chains is the change the traces
-record; the diagram vocabulary of svg draws the services, the machine,
-the call-chain diff and the trace diff. The book says once, early
+record; the diagram vocabulary of svg draws the system, the machine,
+the call-chain diff and the trace diff; the codegen project generates
+the SDK clients and request checks of the API that the traces record.
+The book says once, early
 (introduction), that the projects share a story, and each project
 chapter can be read on its own.
 
@@ -55,14 +70,24 @@ The story replaced an earlier one, **Latch** (door locks, a controller
 and its services), on the owner's request (2026-10-21: "nobody thinks of
 doors"). Book-14 rewrote the seed data with the same structure; section
 8 has the rename table and the packets that carry the chapters over.
-Sections 3 to 7 below still use the Latch names where they describe
-chapter content: read them through the rename table.
+Then the owner found Vane as a set of services nonsensical ("make it a
+monolithic service that's fully featured, and we want to offer client
+libraries/SDKs for frontend and backend"): book-22 made it one service
+and two SDKs, with the same teaching structure; section 9 has the change
+table and packets book-23 to book-29. Sections 3 to 7 below still use
+the Latch names where they describe chapter content, and section 2's
+spec and scxml parts keep book-14's text: read them through the tables
+of sections 8 and 9.
 
 ## 2. The shared data
 
 Everything below is committed and checked with a release build of HEAD
-(`tools/private-build.sh SCRATCH/build-book-14 --preset release --`).
-These files are the *seed* of each project directory.
+(`tools/private-build.sh SCRATCH/build-book-14 --preset release --`;
+book-22: the shared release build of 4c60631). These files are the
+*seed* of each project directory. The svg, call-chains and traces parts
+and the verification describe book-22's seeds; the spec and scxml parts
+are book-14's, with book-22's spec changes listed at the end of the spec
+part.
 
 ### spec: an Internet-Draft in a subset of xml2rfc v3
 
@@ -136,6 +161,33 @@ draft), `spec/vane.xsd`.
   (2026-07-06 to 2026-10-21), the names, and adds the leading comment.
   Anchors of unchanged requirements are the same, so a diff by anchor
   works.
+- **book-22 changes** (both drafts; the counts, anchors, keywords, the
+  unanchored SHOULD and the -00/-01 differences are unchanged): the
+  abstract and the introduction describe the protocol between the SDKs
+  and "the Vane service" (no "evaluation service", no "line-based"): an
+  SDK keeps the flags in a cache, evaluates them for each user, holds an
+  *update stream* open on which the service sends a message per change,
+  and asks for the status of a flag; the SDK term is "The library in an
+  application that evaluates flags from its cache and keeps the cache
+  current with Vane messages"; the Percentage term adds the rollout
+  semantics ("An SDK puts a user in the share by a hash of the flag and
+  the user, so the user stays in it while the percentage grows"); the
+  Messages paragraph says the lines travel on the update stream (the
+  service sends ROLLOUT and KILL, an SDK sends STATUS); the ABNF rules
+  are `rollout-update`, `kill-update`, `status-request` (same shape:
+  six rules, the same references, the same undefined core rules); req-10
+  (-01) ends "; it uses its cached answer in between" (the SDK caching
+  rule; 22 words); Security begins "Vane messages travel in clear text
+  on the network." The ABNF is now:
+
+  ```
+  message        = rollout-update / kill-update / status-request
+  rollout-update = "ROLLOUT" SP flag-key SP percentage CRLF
+  kill-update    = "KILL" SP flag-key CRLF
+  status-request = "STATUS" SP flag-key CRLF
+  flag-key       = 1*32(ALPHA / DIGIT / "-")
+  percentage     = 1*3DIGIT
+  ```
 - **vane.xsd** (XSD 1.1, `vc:minVersion="1.1"`), latch.xsd unchanged but
   its comment: named simple types (`anchor`, `draft-name` with a pattern,
   `keyword` enumerating BCP 14's eleven levels with an annotation,
@@ -152,27 +204,36 @@ draft), `spec/vane.xsd`.
 - **Vocabulary** (own, no namespace): `diagram` (title) with `node` (id,
   label, optional kind="store") and `edge` (from, to, optional label),
   and the optional `class` on node and edge (copied to the SVG group, so
-  a diff can colour `added`, `removed`, `changed`).
-- **The diagram** ("Vane services"): nodes `gateway` (api-gateway),
-  `flags` (flag-service), `registry` (flag-registry), `cache`
-  (flag-cache, store), `database` (postgresql, store); edges
-  gateway→flags HTTP, flags→registry HTTP, flags→cache Redis,
-  registry→database SQL. The SDK is the caller of api-gateway and is not
-  drawn; the audit service appears only after the change.
+  a diff can colour `added`, `removed`, `changed`). Unchanged by book-22.
+- **The diagram** ("Vane", book-22): the two SDKs, the modules of the
+  one service as boxes labelled `vane/MODULE`, and the two stores. Nodes
+  `browser` (@vane/browser), `node` (@vane/node), `api` (vane/api),
+  `flags` (vane/flags), `registry` (vane/registry), `cache`
+  (vane/cache), `postgresql` (store), `redis` (store); edges browser→api
+  HTTP, node→api HTTP, api→flags, flags→registry, flags→cache (module
+  calls have no label), registry→postgresql SQL, cache→redis Redis. The
+  console, the rollout and audit modules are not drawn (the audit module
+  appears only after the change, in the chapter's change.xml). Modules
+  are boxes, not a grouped box: the vocabulary and the layout code stay
+  as they are, and the `vane/` prefix says that the boxes are parts of
+  one program (a group element would be new layout machinery for one
+  picture).
 - **diagram.svg** is the drawing the svg chapter's code makes (`draw.xq`
-  writes it byte for byte), with this layout: rank of a node =
+  writes it byte for byte; book-22 regenerated it with the committed
+  draw.xq and draw.xqm, unchanged), with this layout: rank of a node =
   breadth-first distance from the nodes without incoming edges (cycles
   allowed; for this DAG equal to the longest path); one row per rank,
   top to bottom, nodes in document order, each row centred; boxes 140 x
   40, gaps 40 across and 60 down, padding 20, so width = 2·20 + n·140 +
-  (n−1)·40 for the widest row (360 x 380 here); edges are lines from the
-  bottom centre of the source to the top centre of the target with an
-  arrow marker, the label at the midpoint (+6, +4); services `rect
-  rx="6"`, stores `rx="20"`; a `style` element with five rules; ids
-  `node-ID`, `edge-FROM-TO`; edges drawn before nodes. The file is the
-  serialization with `indent=yes` of the SVG namespace as the default
-  namespace. Same coordinates as the Latch drawing: only ids, labels and
-  the title changed.
+  (n−1)·40 for the widest row; five ranks (browser node / api / flags /
+  registry cache / postgresql redis), 360 x 480; edges are lines from
+  the bottom centre of the source to the top centre of the target with
+  an arrow marker, the label at the midpoint (+6, +4) when there is one;
+  services `rect rx="6"`, stores `rx="20"`; a `style` element with five
+  rules; ids `node-ID`, `edge-FROM-TO`; edges drawn before nodes. The
+  file is the serialization with `indent=yes` of the SVG namespace as
+  the default namespace. The ids `node-flags` and `node-cache` remain
+  (svg-xslt.md uses them).
 
 ### scxml: a feature flag that describes itself
 
@@ -236,62 +297,121 @@ draft), `spec/vane.xsd`.
 
 ### call-chains: a TypeScript service, before and after
 
-`call-chains/before/{server,flags,registry,cache,http}.ts`,
-`call-chains/after/{server,flags,registry,audit,http}.ts` (TypeScript,
+`call-chains/before/{api,flags,registry,cache,db}.ts`,
+`call-chains/after/{api,flags,registry,audit,db}.ts` (book-22; TypeScript,
 built in; namespace imports `import * as registry from "./registry.ts"`
-make callees module-qualified).
+make callees module-qualified). They are a cut of the Vane service: the
+modules on the path of the two remote functions the change touches.
 
-The service has two routes: `GET /flags` (`listFlags`, the flag list an
-SDK or the dashboard reads) and `POST /flags/{key}/kill` (`killFlag`, the
-kill switch: an owner sets the percentage to 0). The change, in
-`flags.ts`: `listFlags` called `registry.getFlags()` once; now it calls
-`registry.getFlagKeys()` and then `registry.getFlag(key)` in a `for … of`
-loop (an N+1; a static check sees the call inside a loop); `killFlag` no
-longer reads `cache.getFlag` (cache.ts is gone) and now calls
-`audit.record(key, "kill")` (audit.ts is new). `isOwner` checks
-`flag.owners.includes(owner)`; `registry.setPercentage(key, 0)` is a
-`PUT /flags/{key}/percentage`. server.ts and http.ts are unchanged; the
-calls of `start` are inside an arrow function, so the call graph
-attributes calls to the enclosing named function. Lines are those of the
-Latch files, except http.ts, whose `Flag` interface has one field more
-(key, name, state, percentage, owners).
+- `api.ts` (was server.ts): `route` answers `GET /api/getFlags`
+  (`listFlags`, the flags with their rules that the backend SDK
+  downloads; the answer is `{ flags }`) and `POST /api/killFlag` (body
+  `{ flag, owner }`, `killFlag`, the kill switch of the admin API that
+  the console calls; the answer is `{ flag, killed }`), else `{ problems:
+  ["no function …"] }`; `start` with `createServer` and an arrow
+  function, so the call graph attributes the calls to the enclosing
+  named function. The routes are the remote functions of the codegen
+  project's api.xml.
+- `db.ts` (was http.ts): the `Rule` and `Flag` interfaces (Flag: key,
+  name, state, percentage, rules, owners) and `query(text, values)` over
+  a `pg.Pool` (`pool.query` is external). Calls carry no type arguments
+  (`await query<Flag>(…)` parses as a call of `await query`, an ERROR-free
+  but wrong tree in tree-sitter-typescript); callers cast with `as`.
+- `registry.ts`: `getFlags` (`SELECT key, name, state, percentage,
+  rules, owners FROM flags`), `getFlag(key)` (`… WHERE key = $1`),
+  `setPercentage(key, percentage)` (`UPDATE flags SET percentage = $2
+  WHERE key = $1`); after: `getFlagKeys` (`SELECT key FROM flags`)
+  instead of `getFlags`.
+- `cache.ts` (before only): `getFlag(key)` reads `flag:${key}` from
+  Redis (`redis://redis:6379`).
+- `flags.ts`: `FlagSummary` is what an SDK needs to evaluate a flag
+  (key, state, percentage, rules: no name, no owners); `summarize`
+  destructures its parameter; `listFlags`, `isOwner`, `killFlag`.
+- `audit.ts` (after only): `record(flagKey, action)` inserts into
+  `audit_events (flag, action)` through `db.query` and posts to the
+  owners' webhook `https://hooks.example.com/vane` with `fetch`.
+
+The change (vane 2.3.0 to 2.4.0), in `flags.ts`: `listFlags` called
+`registry.getFlags()` once; now it calls `registry.getFlagKeys()` and
+then `registry.getFlag(key)` in a `for … of` loop (an N+1 against the
+database; a static check sees the call inside a loop); `killFlag` no
+longer reads `cache.getFlag` (a kill must read the flag from the
+database, not from a cache that may be a minute old; cache.ts is gone)
+and now calls `audit.record(key, "kill")` (audit.ts is new). Function
+counts per file: api 2, cache 1, db 1, flags 4, registry 3, audit 1.
+Chains (chains.xq): `api.start > api.route > flags.listFlags >
+registry.getFlags > db.query` before; after, `… > registry.getFlag* >
+db.query` and `… > flags.killFlag > audit.record > db.query`.
+
+`call-chains/kinds/flag.ts` and the chapter's code are not seeds; the
+chapter's graph.xqm, chains.xq, diff.xq and report.xq ran unchanged on
+the new files.
 
 ### traces: OTLP JSON before and after
 
-`traces/before.json` (16 spans), `traces/after.json` (30 spans), each an
+`traces/before.json` (14 spans), `traces/after.json` (23 spans), each an
 OTLP `ExportTraceServiceRequest` in JSON (the OTLP/HTTP JSON encoding:
 hex trace and span ids, kind as an integer, times as decimal strings,
-`intValue` as a string), grouped as exporters write them: resourceSpans
-per service (service.name, service.version, deployment.environment.name),
-scopeSpans per instrumentation library (http, pg, redis). Two traces per
-file, `GET /flags` and `POST /flags/{key}/kill`, attributes after the
-stable HTTP and database semantic conventions (http.request.method,
-http.route, url.template, server.address, db.system.name,
-db.operation.name, db.collection.name `flags`, db.query.text). Client
-calls: `GET /flags`, `GET /flag-keys`, `GET /flags/{key}`, `PUT
-/flags/{key}/percentage`, `POST /events`, redis `GET flag:new-checkout`,
-SQL `SELECT flags`, `UPDATE flags`, `INSERT audit_events`. Participants
-come from client spans: the service of the server span whose parent is
-the client span, else `server.address` (redis and postgresql have no
-server spans). Ids and times are the Latch files' (only names changed).
-The diff (the traces chapter's `diff.xq`, run on the new files):
+`intValue` as a string), as a collector writes them: resourceSpans per
+process (service.name, service.version, deployment.environment.name
+`staging`), scopeSpans per instrumentation library. Written by book-22
+(the generator script is not committed; trace ids and start times are
+book-14's, span ids are new). Two traces per file:
+
+- `GET /api/getFlags` (09:00:00.000): the backend SDK refreshes its
+  flags. Root: a client span in resource `storefront` 5.2.0 (an
+  application that embeds the SDK), scope `@vane/node` 1.4.0,
+  `server.address` vane, `url.template` /api/getFlags. Then in resource
+  `vane`: the server span (scope `@opentelemetry/instrumentation-http`,
+  `http.route`), internal spans per module function (kind 1, scope
+  `vane` with the service's version, named after the function:
+  `flags.listFlags`, `registry.getFlags`, `code.function.name`, and
+  `vane.flag.key` where a flag is meant), and PostgreSQL client spans
+  (scope `@opentelemetry/instrumentation-pg`, `db.system.name`
+  postgresql, `db.operation.name`, `db.collection.name`, `db.query.text`
+  as the code writes it, `server.address` postgresql, port 5432).
+- `POST /api/killFlag` (09:00:02.000): an owner pulls the kill switch of
+  new-checkout. Root: a client span in resource `vane-console` 1.8.0
+  (the console in a browser, scope `@opentelemetry/instrumentation-fetch`,
+  `server.address` vane.example.com); the server span; `flags.killFlag`;
+  before: `cache.getFlag` with a Redis client span (`GET`,
+  `db.system.name` redis, `GET flag:new-checkout`, `server.address`
+  redis), then `registry.getFlag` with `SELECT flags`, and
+  `registry.setPercentage` with `UPDATE flags`; after: no cache,
+  `audit.record` with `INSERT audit_events` and the webhook, a client
+  span `POST` (scope `@opentelemetry/instrumentation-undici`,
+  `server.address` hooks.example.com, `url.full`
+  https://hooks.example.com/vane) with no server span.
+
+Participants come from client spans: the service of the server span
+whose parent is the client span, else `server.address` (postgresql,
+redis and hooks.example.com have no server spans). Internal spans are
+not calls. The diff (the traces chapter's `diff.xq`, unchanged, run on
+the new files):
 
 ```
-flag-service: 2.3.0 -> 2.4.0
-audit-service: none -> 0.3.1
-GET /flags: flag-registry -> postgresql  1 -> 5
-GET /flags: flag-service -> flag-registry  1 -> 5
-POST /flags/{key}/kill: audit-service -> postgresql  0 -> 1
-POST /flags/{key}/kill: flag-service -> audit-service  0 -> 1
-POST /flags/{key}/kill: flag-service -> flag-cache  1 -> 0
+vane: 2.3.0 -> 2.4.0
+GET /api/getFlags: vane -> postgresql  1 -> 5
+POST /api/killFlag: vane -> hooks.example.com  0 -> 1
+POST /api/killFlag: vane -> postgresql  2 -> 3
+POST /api/killFlag: vane -> redis  1 -> 0
 ```
 
-flag-service's version goes from 2.3.0 to 2.4.0 (api-gateway 1.4.0,
-flag-registry 1.9.2, audit-service 0.3.1); the four flags are
-new-checkout, dark-mode, fast-search, beta-banner (the N+1 is a run of
-four `GET /flags/{key}`); the kill request is for new-checkout.
+The new participant is the owners' webhook (hooks.example.com); the
+N+1 is a run of four `registry.getFlag` internal spans (each with a
+`SELECT flags`) under `flags.listFlags`, for new-checkout, dark-mode,
+fast-search, beta-banner; the removed call is Redis; the audit write
+raises the kill's PostgreSQL calls from 2 to 3. There is no "none ->"
+version line any more: nothing new has a resource of its own (the
+storefront and the console keep their versions). The participants
+diagram of `participants.xq` draws a callee without a resource as a
+store, which is wrong for the webhook: the traces packet decides (for
+example, a store only when the client span has `db.system.name`).
 
 ### Verification (release build of HEAD, run in each directory)
+
+Book-22's run, on the shared release build of 4c60631 (each directory a
+copy with the symlinks followed):
 
 ```console
 $ cd spec && sxml validate --schema=vane.xsd vane.xml vane-00.xml; echo $?
@@ -304,6 +424,15 @@ $ sxml xpath --context-item=vane.xml 'count(//t[bcp14]), count(//t[bcp14][not(@a
 $ sxml xpath --context-item=vane.xml 'string-join(//t[@anchor]/@anchor, " "), string-join(for $k in distinct-values(//t[@anchor]/bcp14) return $k || " " || count(//t[@anchor][bcp14 = $k]), ", ")'
 "req-1 req-2 req-3 req-4 req-5 req-9 req-6 req-10 req-7 req-8 req-11"
 "MUST 5, SHOULD 2, MUST NOT 1, MAY 2, SHOULD NOT 1"
+$ sxml xpath --context-item=vane.xml --method=text '//sourcecode[@type = "abnf"]'
+
+message        = rollout-update / kill-update / status-request
+rollout-update = "ROLLOUT" SP flag-key SP percentage CRLF
+kill-update    = "KILL" SP flag-key CRLF
+status-request = "STATUS" SP flag-key CRLF
+flag-key       = 1*32(ALPHA / DIGIT / "-")
+percentage     = 1*3DIGIT
+
 $ cd ../scxml && sxml validate --schema=scxml.xsd flag.scxml; echo $?
 0
 $ cd ../svg && sxml check diagram.xml diagram.svg; echo $?
@@ -312,24 +441,39 @@ $ sxml xquery --context-item=diagram.xml --output=drawn.svg draw.xq
 $ diff drawn.svg diagram.svg && echo same
 same
 $ cd ../call-chains && sxml xpath --allow-file-access 'for $version in ("before", "after") for $file in sort(file:list($version)) let $tree := sxml:parse-code(file:read-text($version || "/" || $file), "typescript") return `{$version}/{$file}: {count($tree//function_declaration)} functions, {count($tree//(ERROR | *[@missing]))} errors`'
+"before/api.ts: 2 functions, 0 errors"
 "before/cache.ts: 1 functions, 0 errors"
+"before/db.ts: 1 functions, 0 errors"
 "before/flags.ts: 4 functions, 0 errors"
-"before/http.ts: 1 functions, 0 errors"
 "before/registry.ts: 3 functions, 0 errors"
-"before/server.ts: 2 functions, 0 errors"
+"after/api.ts: 2 functions, 0 errors"
 "after/audit.ts: 1 functions, 0 errors"
+"after/db.ts: 1 functions, 0 errors"
 "after/flags.ts: 4 functions, 0 errors"
-"after/http.ts: 1 functions, 0 errors"
 "after/registry.ts: 3 functions, 0 errors"
-"after/server.ts: 2 functions, 0 errors"
-$ sxml xquery --context-item=diff.xml report.xq    # after the chapter's diff.xq, last lines
+$ sxml xquery --allow-file-access diff.xq --output=diff.xml
+$ sxml xquery --context-item=diff.xml report.xq | tail -4
 Calls to other modules, before and after:
   flags.listFlags > registry: 1 -> 1 + n
   flags.killFlag > audit: 0 -> 1
   flags.killFlag > cache: 1 -> 0
 $ cd ../traces && sxml xpath '("before.json", "after.json") ! `{.}: {count(json-doc(.)?resourceSpans?*?scopeSpans?*?spans?*)} spans of {count(distinct-values(json-doc(.)?resourceSpans?*?scopeSpans?*?spans?*?traceId))} traces in {string-join(json-doc(.)?resourceSpans?*?resource?attributes?*[?key = "service.name"]?value?stringValue, ", ")}`'
-"before.json: 16 spans of 2 traces in api-gateway, flag-service, flag-registry"
-"after.json: 30 spans of 2 traces in api-gateway, flag-service, flag-registry, audit-service"
+"before.json: 14 spans of 2 traces in storefront, vane, vane-console"
+"after.json: 23 spans of 2 traces in storefront, vane, vane-console"
+$ sxml xquery diff.xq
+vane: 2.3.0 -> 2.4.0
+GET /api/getFlags: vane -> postgresql  1 -> 5
+POST /api/killFlag: vane -> hooks.example.com  0 -> 1
+POST /api/killFlag: vane -> postgresql  2 -> 3
+POST /api/killFlag: vane -> redis  1 -> 0
+$ cd ../codegen && sxml validate --schema=api.xsd api.xml; echo $?
+0
+$ sh generate.sh && sxml xquery --method=text check.xq
+5 functions: client, server and runtime agree
+$ sxml xpath --allow-file-access 'for $file in sort(file:list("generated"))[ends-with(., ".ts")] return `{$file}: {count(sxml:parse-code(file:read-text("generated/" || $file), "typescript")//(ERROR | *[@missing]))} errors`'
+"client.ts: 0 errors"
+"server.ts: 0 errors"
+"types.ts: 0 errors"
 ```
 
 Also tried, so the chapters can rely on them: a broken copy of vane.xml
@@ -352,7 +496,13 @@ raises cvc-maxInclusive-valid (XQDY0027), and `sum(@expr)` on the
 validated machine fails with FORG0006 because `expr` is typed xs:string.
 The call-chains chapter's `chains.xq`, `diff.xq` and `report.xq` and the
 traces chapter's `diff.xq` ran unchanged on the new files (their code
-names no door; only comments and prose do).
+names no door; only comments and prose do). Book-22 ran them again on
+its seeds, with the result shape above, ran the scxml `check.xq` (the
+same four lines), and ran the generated codegen files with Node.js 22
+against a stub implementation: the client refuses `rollOutFlag({ flag:
+"new-checkout", percentage: 150, owner: "ada" })` with two problems, and
+the server answers a `fetch` of `{ flag: "New Checkout", …, force: true }`
+with 400 and two problems.
 
 ## 3. Rules for the rewrite packets
 
@@ -884,7 +1034,7 @@ memory; the step limit; habits. Deletes `examples/performance/`.
 ### 18. Project: Generating Code from a Schema — unchanged
 
 Owned by nobody in this rewrite; book-13 only fixes "Chapter N" texts in
-it.
+it. (Book-22 moved it into the Vane story: book-28, section 9.)
 
 ## 6. Coverage: every feature the book teaches today, and where it goes
 
@@ -1161,6 +1311,149 @@ story: SUMMARY.md, introduction.md (the Vane story, the projects, one
 directory per project), foreword.md if needed, the appendices (glossary
 terms the packets report; appendix-differences), every "Chapter N" text,
 codegen*.md references only, and the check of the whole book.
+
+## 9. One service and two SDKs (book-22)
+
+The owner, 2026-10-21: "the Vane service as it stands is pretty
+nonsensical — make it a monolithic service that's fully featured, and
+we want to offer client libraries/SDKs for frontend and backend, so it's
+a believable example." Book-22 redesigned the story (section 1) and
+rewrote the seeds (section 2); the chapters still show the services of
+book-14 until packets book-23 to book-29 carry them over, and their
+examples fail meanwhile (expected: 34 chapter files fail on the shared
+release build, plus javascript.md and codegen-running.md, which need
+SXML_JAVASCRIPT). The seed files are frozen again for those packets
+(rule 2 of section 3).
+
+### The story in one table
+
+| Part | Book-14 | Book-22 |
+| --- | --- | --- |
+| The system | five services: api-gateway, flag-service, flag-registry, flag-cache (Redis), audit-service, with postgresql | one service, `vane` (TypeScript on Node.js), with modules api, flags, registry, cache, rollout, audit (and db); PostgreSQL and Redis |
+| Who calls it | "the SDK", through api-gateway | the frontend SDK `@vane/browser` (evaluateFlags: is each flag on for this user), the backend SDK `@vane/node` (getFlags: every flag with its rules, evaluated locally, cached, kept current by the update stream), and the console `vane-console` (the admin API: rollOutFlag, killFlag) |
+| The APIs | REST routes `GET /flags`, `POST /flags/{key}/kill`, and the registry's `GET /flag-keys`, `GET /flags/{key}`, `PUT /flags/{key}/percentage` | remote functions of the codegen project's api.xml: queries with GET `/api/NAME?input=JSON`, commands with POST `/api/NAME`: getFlags, evaluateFlags, getStatus (evaluation API), rollOutFlag, killFlag (admin API); the update stream (the draft's ABNF lines) |
+| The change (2.3.0 → 2.4.0) | listFlags N+1 over flag-registry; killFlag drops the cache read and calls audit-service | the same in modules: listFlags N+1 against PostgreSQL; killFlag drops the Redis read (a kill must not trust a cached flag) and calls the audit module, which inserts into audit_events and posts to the owners' webhook |
+| The new participant | audit-service (with a resource: "none -> 0.3.1") | hooks.example.com, the owners' webhook (no resource, so no version line) |
+| The state machine | the rollout lifecycle | unchanged; it runs in the rollout module, one machine per flag |
+| Codegen | a library API (books, loans) outside the story | Vane's API: the SDK clients for the browser and Node.js, the console's client, the service's request validation and an OpenAPI document, from vane-api.xsd |
+
+### Files
+
+| Old | New | Who |
+| --- | --- | --- |
+| call-chains/{before,after}/server.ts | call-chains/{before,after}/api.ts | book-22 (seed) |
+| call-chains/{before,after}/http.ts | call-chains/{before,after}/db.ts | book-22 (seed) |
+| codegen/library.xsd, codegen/library-2.xsd | codegen/vane-api.xsd, codegen/vane-api-2.xsd (seeds, committed; the old files stay until book-28 deletes them) | book-22, book-28 |
+| codegen/library.ts (the implementation) | codegen/vane.ts | book-28 |
+| codegen/generated/client.ts | one module per client of api.xml's `clients`: generated/browser.ts, generated/node.ts, generated/console.ts (types.ts, server.ts, openapi.json, program.xml stay) | book-28 |
+| traces/diff-flags.svg, traces/diff-kill.svg and the files commands write (flags.json, kill.json, …) | the same names (the routes are still "flags" and "kill") | book-27 |
+
+### Names in the data
+
+spec (vane.xml and vane-00.xml; anchors, keywords, counts unchanged):
+
+| Old | New |
+| --- | --- |
+| abstract "a line-based protocol between the SDKs that evaluate feature flags and the evaluation service that holds them … the messages that change them" | "the protocol between the SDKs that evaluate feature flags in applications and the Vane service that holds the flags … the messages of the update stream that keeps the cache of each SDK current" |
+| intro "An SDK sends Vane messages to the evaluation service over the network and receives the state of the flags." | "An SDK in the application keeps the flags in a cache and evaluates them for each user. It holds an update stream open to the Vane service, which sends a message on it whenever a flag changes, and it asks the service for the status of a flag." |
+| SDK: "The library in an application that sends Vane messages about flags." | "The library in an application that evaluates flags from its cache and keeps the cache current with Vane messages." |
+| Percentage: "… to that share of users." | adds "An SDK puts a user in the share by a hash of the flag and the user, so the user stays in it while the percentage grows." |
+| "Each message is one line of ASCII text." | "Each message is one line of ASCII text on the update stream: the service sends ROLLOUT and KILL, an SDK sends STATUS." |
+| ABNF rollout-request, kill-request | rollout-update, kill-update (status-request unchanged; columns realigned) |
+| req-10 "… per second for a flag." | "… per second for a flag; it uses its cached answer in between." (22 words) |
+| Security "A rollout request travels in clear text on the network." | "Vane messages travel in clear text on the network." |
+
+svg (diagram.xml, diagram.svg):
+
+| Old | New |
+| --- | --- |
+| title "Vane services" | "Vane" (the chapter's change.xml: "Vane after the change") |
+| nodes gateway (api-gateway), flags (flag-service), registry (flag-registry), cache (flag-cache, store), database (postgresql, store) | browser (@vane/browser), node (@vane/node), api (vane/api), flags (vane/flags), registry (vane/registry), cache (vane/cache), postgresql (store), redis (store) |
+| edges gateway→flags HTTP, flags→registry HTTP, flags→cache Redis, registry→database SQL | browser→api HTTP, node→api HTTP, api→flags, flags→registry, flags→cache (no label), registry→postgresql SQL, cache→redis Redis |
+| 360 x 380, four rows of 1, 1, 2, 1 | 360 x 480, five rows of 2, 1, 1, 2, 2 |
+| change.xml (chapter file): flags changed, cache removed, audit-service added, audit→database | proposed for book-25: flags changed, the edge flags→cache removed (the cache module and Redis stay: other modules use them), audit (vane/audit) added with audit→postgresql SQL and audit→hooks (hooks.example.com, HTTP) added, flags→registry changed |
+| states.xml | unchanged |
+
+call-chains (TypeScript):
+
+| Old | New |
+| --- | --- |
+| module server (server.ts): route(method, path, body) for /flags and /flags/{key}/kill; body { owner }; answers a list and { killed } | module api (api.ts): route for GET /api/getFlags (answers { flags }) and POST /api/killFlag (body { flag, owner }, answers { flag, killed }); else { problems } |
+| module http (http.ts): interface Flag {key, name, state, percentage, owners}, request(service, path, init) with fetch | module db (db.ts): interfaces Rule {attribute, values, percentage}, Flag {key, name, state, percentage, rules, owners}; query(text, values) over pg.Pool |
+| registry.* call request("flag-registry", …) | registry.* call query(SQL); getFlags, getFlagKeys, getFlag, setPercentage keep their names |
+| cache: redis://flag-cache:6379 | redis://redis:6379 |
+| FlagSummary {key, name, state}; summarize(flag) | FlagSummary {key, state, percentage, rules} ("what an SDK needs"); summarize({ key, state, percentage, rules }) |
+| audit.record: request("audit-service", "/events", POST) | audit.record: query("INSERT INTO audit_events …") and fetch("https://hooks.example.com/vane", POST) |
+| chains server.start > server.route > … > http.request | api.start > api.route > … > db.query (cache.getFlag is a leaf: client.get is external) |
+| externals JSON.parse, createServer, JSON.stringify, fetch | the same, plus pool.query |
+| comments "the flag service", "the flag registry", "other services of the Vane system" | "the Vane service", "the registry module", "the cache module", "the audit module" |
+
+traces (OTLP JSON; trace ids and start times unchanged, span ids new):
+
+| Old | New |
+| --- | --- |
+| resources api-gateway 1.4.0, flag-service 2.3.0/2.4.0, flag-registry 1.9.2, audit-service 0.3.1 | storefront 5.2.0 (scope @vane/node 1.4.0), vane-console 1.8.0 (scope instrumentation-fetch), vane 2.3.0/2.4.0 (scopes instrumentation-http, vane, instrumentation-pg, instrumentation-redis, instrumentation-undici) |
+| roots: api-gateway server spans | client spans: the backend SDK's GET /api/getFlags, the console's POST /api/killFlag |
+| routes GET /flags, POST /flags/{key}/kill | GET /api/getFlags, POST /api/killFlag |
+| HTTP client calls between services (GET /flags, GET /flag-keys, GET /flags/{key}, PUT /flags/{key}/percentage, POST /events) | internal spans per module function (flags.listFlags, registry.getFlags, registry.getFlagKeys, registry.getFlag, registry.setPercentage, cache.getFlag, flags.killFlag, audit.record; attributes code.function.name, vane.flag.key) |
+| SQL SELECT/UPDATE flags, INSERT audit_events in flag-registry and audit-service | the same span names in vane; db.query.text as db.ts's callers write it (columns key, name, state, percentage, rules, owners; INSERT INTO audit_events (flag, action) VALUES ($1, $2)); server.port 5432 |
+| redis GET flag:new-checkout to flag-cache | the same to redis:6379 |
+| — | webhook client span POST to hooks.example.com:443 |
+| 16 / 30 spans | 14 / 23 spans |
+| the N+1: four GET /flags/{key} under flag-service's server span | four registry.getFlag internal spans under flags.listFlags |
+| diff: two version lines, five call rows | one version line (vane: 2.3.0 -> 2.4.0), four call rows (section 2) |
+
+codegen (book-28 carries it out; seeds api.xml, api.xsd, vane-api.xsd, vane-api-2.xsd):
+
+| Old | New |
+| --- | --- |
+| api name="library" types="library.xsd": getBook, searchBooks (queries), borrowBook (command) | name="vane" types="vane-api.xsd": queries getFlags (clients node), evaluateFlags (browser), getStatus (browser node); commands rollOutFlag, killFlag (console) |
+| api.xsd: name, input, output | adds the required `clients` attribute, a list of identifiers (minLength 1) |
+| types BookId, MemberId, Genre, LoanDays; Book, BookRequest, BookSearch, BookList, LoanRequest, Loan | FlagKey (pattern, maxLength 64), Owner (pattern), Environment, State (enumerations), Percentage (0–100), FailureCount (0–10), Seconds (1–3600); Rule, FlagConfig, FlagsRequest, FlagSet, Attribute, EvaluationContext, Evaluation, Evaluations, StatusRequest, FlagStatus, RolloutRequest, KillRequest, KillResult |
+| library-2.xsd: LoanDays 28 → 21; new Rating, Book.rating | vane-api-2.xsd: FlagKey maxLength 64 → 32 (as the draft says); new Reason enumeration (rule, percentage, default, off), Evaluation.reason optional |
+| demo: getBook dune, searchBooks science, borrowBook spqr; refused: member "ada", days 60; fetch with "SPQR" and renew | proposed: getFlags staging, evaluateFlags for one user, killFlag new-checkout by ada@example.com; refused by the client: rollOutFlag percentage 150, owner "ada"; refused by the server: a fetch of killFlag with "New Checkout" and force: true |
+| SvelteKit remote functions as the idea | the same idea, and the generated clients are the transport of Vane's two SDKs: the hand-written SDK layer (cache, refresh from the update stream, at most one status request per second per flag) sits on them (book-28 may show a small one) |
+
+### Words in the prose
+
+| Book-14 | Book-22 |
+| --- | --- |
+| the evaluation service, flag-service, the flag service | the Vane service, `vane` |
+| the services of Vane, service (a part of Vane) | the modules of the Vane service, module |
+| flag-registry, the flag registry | the registry module (vane/registry), PostgreSQL |
+| flag-cache | the cache module (vane/cache), Redis |
+| audit-service | the audit module, the audit log, the owners' webhook (hooks.example.com) |
+| api-gateway | gone: the callers are the backend SDK in `storefront` and the console |
+| the SDK | the frontend SDK (@vane/browser) or the backend SDK (@vane/node), as meant |
+| GET /flags, POST /flags/{key}/kill | GET /api/getFlags, POST /api/killFlag (getFlags, killFlag) |
+| flag-service -> flag-registry 1 -> 5 | vane -> postgresql 1 -> 5 |
+| the library, books, loans, members (codegen) | Vane's API, flags, rollouts, owners |
+
+Search words: `grep -nE 'flag-service|flag-registry|flag-cache|api-gateway|audit-service|evaluation service|line-based|rollout-request|kill-request|flag-keys|/flags/\{key\}|GET /flags\b|POST /flags|http\.ts|server\.ts|Vane services'` over the packet's chapter and example files finds nothing (the codegen packet adds `-iE 'librar|loan|borrow|genre|BookId|MemberId|LoanDays|Rating|dune|sicp|spqr'`). "service" alone stays a word: the Vane service is one.
+
+### Packets book-23 to book-29
+
+Same rules as book-15 to book-21 (section 8): apply the tables above to
+the chapter files and every example file the packet owns; regenerate
+every example output with `tools/check-book-examples.sh --update BUILD
+file.md…` on a release build of HEAD, **read each changed output** and
+make the prose say what it now says; run the check without `--update`
+(it passes); a needed seed change goes under "Proposed data changes";
+the book never mentions the old services, Latch, packets or decisions;
+report glossary terms for book-29. They run in parallel (no two own the
+same file); `svg/draw.xqm` and `svg/draw.xq` stay unchanged (the scxml,
+call-chains and traces diagrams use them; a change goes under
+"Proposed data changes").
+
+| Packet | Chapter files | Example files | Notes |
+| --- | --- | --- | --- |
+| book-23 XPath and XQuery wording | xpath-paths.md, xquery-flwor.md, xquery-project.md, xquery-serialization.md, xquery-types-errors.md, xquery-updates.md, and any other xpath*.md or xquery*.md the grep finds | spec/: the .xq and .xqm files but text-*.xq and publish-check.xq; spec/drafts/ | outputs that quote the abstract, req-10, Security or the ABNF; req-10 now has 22 words (xquery-flwor's "more than 15 words" list) |
+| book-24 XSLT, XSD, text and ABNF wording | xslt.md, xslt-templates.md, xslt-keys-grouping.md, xslt-packages.md, xslt-project.md, xsd.md, xsd-errors.md, xsd-identity.md, xsd-simple-types.md, text.md, the ABNF section of ixml-tasks.md, and any other xslt*/xsd*.md, files.md or c.md the grep finds | spec/: *.xsl, publish.sh, publish-check.xq, text-*.xq, vane-entities.xml, bibxml/, bad-*, xsd-*, levels.xsd; ixml/abnf.ixml | xslt.md and xslt-templates.md quote the abstract and introduction; ixml-tasks lists rollout-update and kill-update; text.md's score order changed (req-10 0.15) |
+| book-25 SVG | svg.md, svg-layout.md, svg-xquery.md, svg-xslt.md, svg-transform.md | svg/* but the seeds and draw.xq/draw.xqm: change.xml (the table above), box.svg, legend.svg, states.xml if needed, the outputs | eight nodes in five rows; module boxes `vane/…` and why they are not a group; svg-xslt keeps node-flags and node-cache |
+| book-26 Call chains | call-chains.md, call-chains-graph.md, call-chains-diff.md, source-code.md's sentence | call-chains/* but the seeds (graph.xqm's comment names node:http and redis: add pg), kinds/ | the story of the monolith's modules; api.ts and db.ts; pool.query is external; the prediction "1 -> 1 + n" now against the database |
+| book-27 Traces, formats, JavaScript, performance | traces.md, traces-tree.md, traces-cardinality.md, traces-diff.md, traces-rendering.md, traces-streaming.md, formats.md, javascript.md (with SXML_JAVASCRIPT), performance.md | traces/* but the seeds (make-traces.xq writes the new shape: client root, vane server span, internal module spans, pg; spans.csv, status.html, diff-*.svg, participants.xq); javascript/* | roots are client spans; windows over the children of flags.listFlags; no "none ->" version line (teach `otherwise "none"` with a short example or say when it shows); the webhook is not a store in the participants drawing; streaming and performance numbers measured again |
+| book-28 Codegen | codegen.md, codegen-typescript.md, codegen-printer.md, codegen-running.md (with SXML_JAVASCRIPT), codegen-pipeline.md | codegen/* but the seeds: typescript.xqm and print.xsl write one client module per name in `clients` (and server.ts validates every function), check.xq checks each client, openapi.xsl, runtime.ts, demo.ts, vane.ts (new), generate.sh, generated/, typo.xml, twice.xml, edited/, next/; deletes library.ts, library.xsd, library-2.xsd | in scope: Vane's SDKs and the service's request validation generated from vane-api.xsd; the chapter joins the Vane story (its opening, a sentence that the call-chain and trace routes are these remote functions); proposes a chapter title for SUMMARY (e.g. "Project: Generating Vane's SDKs from a Schema") |
+| book-29 Integration (after all) | introduction.md (the story of section 1; codegen is now the sixth Vane project: "The book ends with one more project, outside the Vane story" goes), appendix-glossary.md (the Vane entry; terms the packets report: update stream, frontend SDK, backend SDK, remote function if missing), SUMMARY.md (book-28's title), foreword.md if needed | — | the whole book with SXML_JAVASCRIPT and SXML: every example matches; `mdbook build docs/book`; the search words over docs/book find nothing |
 
 ## Proposed data changes
 

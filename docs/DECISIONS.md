@@ -14370,6 +14370,46 @@ no outcome differs.
   that is not a plain path of steps, or a body with stream points of its
   own (full windows per node, bounded by the node).
 
+### D303. Vane is one service with modules and two SDKs (packet book-22)
+Recorded 2026-10-21, after D299 and D301. The owner found Vane as a set
+of services nonsensical: "make it a monolithic service that's fully
+featured, and we want to offer client libraries/SDKs for frontend and
+backend, so it's a believable example." The projects, counts, planted
+flaws and diff shapes of D301 stay; docs/tasks/book.md section 9 has
+the change table and the packets.
+- **One service**, `vane` (TypeScript on Node.js), whose parts are
+  modules (api, flags, registry, cache, rollout, audit, db), backed by
+  PostgreSQL and Redis; an evaluation API for the SDKs, an admin API for
+  the console, both as the remote functions of the codegen project
+  (`GET /api/getFlags`, `POST /api/killFlag`, ...), and an update stream
+  (the draft's ABNF lines, now rollout-update, kill-update,
+  status-request). Two SDKs: `@vane/browser` (evaluateFlags for one
+  user) and `@vane/node` (getFlags, local evaluation, a cache kept
+  current from the stream).
+- **The change keeps its shape in modules**: listFlags's N+1 runs
+  against PostgreSQL (report "1 -> 1 + n"), killFlag drops the Redis read
+  and calls the audit module. The new trace participant is the owners'
+  webhook (hooks.example.com), not a service: a monolith has no new
+  service to add, and an audit write alone would only change a count.
+  The trace diff loses its "none ->" version line (nothing new has a
+  resource); that is accepted, and the traces packet teaches the case
+  another way.
+- **The diagram draws modules as boxes** labelled `vane/MODULE`, not a
+  group box: the vocabulary and layout code stay, so draw.xq still
+  writes diagram.svg byte for byte, and no other chapter's diagram
+  changes. Rejected: a `group` element (new layout machinery for one
+  picture).
+- **Codegen joins the story**: it generates the SDK clients (one module
+  per name in api.xml's new `clients` attribute), the console's client
+  and the service's request validation from vane-api.xsd; the library
+  example goes. The spec keeps its anchors and counts; only wording
+  that described separate services, the ABNF rule names, the
+  Percentage term (rollout by a hash) and req-10 (the SDK's cache)
+  changed.
+- **Packets** book-23 to book-29 carry the chapters over (rules of
+  book-15 to book-21: regenerate every output, read it, prose matches,
+  the search words find nothing); book-29 integrates.
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): tagging and

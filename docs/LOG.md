@@ -4,6 +4,20 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- book-22 done (D303): the Vane story redesigned as one service with
+  modules and two SDKs, on the owner's request. Seeds rewritten: the
+  drafts' wording (SDK and service, update stream, rollout by hash, the
+  SDK caching rule, ABNF rollout-update/kill-update; counts and anchors
+  unchanged), diagram.xml/svg (8 nodes, 360 x 480, draw.xq byte for
+  byte), call-chains api.ts/db.ts over PostgreSQL (report still 1 -> 1 +
+  n, 0 -> 1, 1 -> 0), traces 14 and 23 spans (diff: vane 2.3.0 ->
+  2.4.0, getFlags vane -> postgresql 1 -> 5, killFlag hooks.example.com
+  0 -> 1, postgresql 2 -> 3, redis 1 -> 0), codegen api.xml with
+  clients and vane-api.xsd/-2.xsd (generate.sh and check.xq pass; the
+  generated code runs on Node 22). On the shared release build 34
+  chapter files now fail, as expected, until packets book-23 to book-29
+  (docs/tasks/book.md section 9).
+
 - book-13 done: the rewritten book is integrated. SUMMARY.md is the
   plan's (18 chapters, seven projects: the spec editing and publishing
   projects, SVG, SCXML, call chains, traces, codegen); the introduction
