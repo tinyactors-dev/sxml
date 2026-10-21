@@ -4,6 +4,20 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- book-8 done (D299): Transforming with XSLT on the Latch draft
+  (xslt.md, xslt-templates.md, xslt-keys-grouping.md, xslt-packages.md)
+  and the new Project: Publishing the Specification (xslt-project.md):
+  spec/*.xsl (draft.xsl with modes toc and text, the package spec.xsl,
+  common.xsl imported by html.xsl, text.xsl, requirements.xsl and
+  changes.xsl), publish.sh and its own publish-check.xq (book-7's
+  check.xq is not used: it fails on -01 on purpose). Working with Text,
+  Files and the Outside World (latch-entities.xml with bibxml/ through
+  external entities) and Embedding sxml in C (requirements.c replaces
+  books.c; c/latch.xml and c/latch-00.xml link to the seed) moved to the
+  draft; ixml-tasks.md gains "The grammar in a specification"
+  (ixml/abnf.ixml). 117 examples match. examples/xslt, examples/text
+  and examples/files removed. No sxml bug found.
+
 - book-7 done (D299): Writing Programs with XQuery on the Latch draft,
   eleven chapters in spec/ (xquery-grouping.md replaces
   xquery-grouping-windows.md; windows go to traces-cardinality.md).
