@@ -5,7 +5,7 @@ declare option output:indent "yes";
 
 declare variable $before external := "before.json";
 declare variable $after external := "after.json";
-declare variable $route external := "GET /doors";
+declare variable $route external := "GET /flags";
 
 (: The calls of the route, from a map of cardinalities. :)
 declare function local:calls($cardinality as map(*)) as map(*) {

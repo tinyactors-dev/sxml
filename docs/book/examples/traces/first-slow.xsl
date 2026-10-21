@@ -3,8 +3,8 @@
     xmlns:xs="http://www.w3.org/2001/XMLSchema">
   <xsl:mode streamable="yes"/>
   <xsl:output method="text"/>
-  <!-- A parameter from the command line is untyped: convert it. -->
-  <xsl:param name="threshold" select="80"/>
+  <!-- A value given on the command line is converted to the declared type. -->
+  <xsl:param name="threshold" as="xs:decimal" select="80"/>
 
   <xsl:template match="/traces">
     <!-- Go through the traces once, counting them, and stop at the
@@ -14,7 +14,7 @@
       <xsl:on-completion>No request took longer than {$threshold} ms.&#10;</xsl:on-completion>
       <xsl:variable name="took" select="xs:decimal(span/@duration)"/>
       <xsl:choose>
-        <xsl:when test="$took gt xs:decimal($threshold)">
+        <xsl:when test="$took gt $threshold">
           <xsl:break>{@route} at {@start} took {$took} ms, after {$faster} faster requests.&#10;</xsl:break>
         </xsl:when>
         <xsl:otherwise>

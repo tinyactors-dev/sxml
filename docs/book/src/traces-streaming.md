@@ -18,8 +18,8 @@ streaming well: each trace is one element, with its spans inside it.
 ## A large input
 
 `make-traces.xq` writes an archive in the normal form, with as many
-made-up requests to the old lock service as `$count` says, one every
-100 milliseconds, two listings of the doors for each unlock, and
+made-up requests to the old flag service as `$count` says, one every
+100 milliseconds, two listings of the flags for each kill, and
 database queries that take between 5 and 65 milliseconds:
 
 `make-traces.xq`:
@@ -31,7 +31,7 @@ database queries that take between 5 and 65 milliseconds:
 ```console
 $ sxml xquery --param=count=10000 --output=archive.xml make-traces.xq
 $ head -c 300 archive.xml
-<traces source="make-traces.xq"><service name="api-gateway" version="1.4.0"/><service name="lock-service" version="2.3.0"/><service name="lock-registry" version="1.9.2"/><trace id="1" route="GET /doors" start="2026-10-21T09:00:00Z"><span id="1.1" service="api-gateway" name="GET /doors" kind="server"
+<traces source="make-traces.xq"><service name="api-gateway" version="1.4.0"/><service name="flag-service" version="2.3.0"/><service name="flag-registry" version="1.9.2"/><trace id="1" route="GET /flags" start="2026-10-21T09:00:00Z"><span id="1.1" service="api-gateway" name="GET /flags" kind="server"
 ```
 
 ## A streaming stylesheet
@@ -100,10 +100,10 @@ hand, the client span's `peer`, and counts the calls in a map:
 
 ```console
 $ sxml transform calls.xsl archive.xml
-api-gateway -> lock-service: 10000
-lock-registry -> postgresql: 10000
-lock-service -> door-cache: 3333
-lock-service -> lock-registry: 10000
+api-gateway -> flag-service: 10000
+flag-registry -> postgresql: 10000
+flag-service -> flag-cache: 3333
+flag-service -> flag-registry: 10000
 ```
 
 The empty rule for `trace` makes `xsl:apply-templates` read each trace
@@ -148,16 +148,58 @@ faster before it?
 
 ```console
 $ sxml transform first-slow.xsl archive.xml
-GET /doors at 2026-10-21T09:00:04.9Z took 81 ms, after 49 faster requests.
+GET /flags at 2026-10-21T09:00:04.9Z took 81 ms, after 49 faster requests.
 $ sxml transform --param=threshold=100 first-slow.xsl archive.xml
 No request took longer than 100 ms.
 ```
 
 `xsl:on-completion` gives the result when the loop reaches the end of
 the sequence without a break. The rule is guaranteed streamable, so
-the mode accepts it. In this version, though, sxml evaluates an `xsl:iterate` over the principal input on a tree of the
-document: the 82 MB archive takes about 590 MB, and stopping early does
-not save reading the rest.
+the mode accepts it, and the loop runs on each trace as it is parsed,
+carrying only its parameters: with the 82 MB archive it uses 11 MB.
+After `xsl:break`, nothing more is kept, but sxml still parses the rest
+of the file, so stopping early does not make it faster.
+
+The threshold is declared `as="xs:decimal"`, so the value given on the
+command line, which is text, is converted to a decimal before the
+stylesheet runs; a value that is not a number is an error before
+anything is read:
+
+```console
+$ sxml transform --param=threshold=fast first-slow.xsl archive.xml
+first-slow.xsl: err:XTTE0590: The value does not match the required type of the parameter (XSLT 4.0, section 9.3)
+```
+
+## Grouping neighbours
+
+`xsl:for-each-group` streams too, when the groups are runs of
+neighbours: `group-adjacent`, `group-starting-with` and
+`group-ending-with`. The archive is in the order of time, so the
+requests of each second are neighbours, and this stylesheet makes one
+line per second:
+
+`seconds.xsl`:
+
+```xml
+{{#include ../examples/traces/seconds.xsl}}
+```
+
+```console
+$ sxml transform seconds.xsl archive.xml | head -n 4
+2026-10-21T09:00:00: 10 requests, the slowest 77 ms
+2026-10-21T09:00:01: 10 requests, the slowest 78 ms
+2026-10-21T09:00:02: 10 requests, the slowest 79 ms
+2026-10-21T09:00:03: 10 requests, the slowest 80 ms
+```
+
+The processor holds the group that is forming, the requests of one
+second, and hands it to the body when the next second begins; it never
+holds more. `current-group()` is a stream too, and can be read only
+once, so the body copies it with `copy-of`, a small tree, and reads the
+copy twice, to count the requests and to find the slowest. With the
+82 MB archive, the stylesheet uses 10 MB. `group-by` is different: its
+groups collect members from anywhere in the input, so in a streamable
+mode it is rejected with `err:XTSE3430`, as `counts.xsl` was.
 
 ## More streaming
 
@@ -200,10 +242,10 @@ $ sxml xquery --param=count=10000 --param=start=2026-10-21T09:00:00.05Z --output
 
 ```console
 $ sxml transform merge.xsl | head -n 4
-2026-10-21T09:00:00Z first GET /doors
-2026-10-21T09:00:00.05Z second GET /doors
-2026-10-21T09:00:00.1Z first GET /doors
-2026-10-21T09:00:00.15Z second GET /doors
+2026-10-21T09:00:00Z first GET /flags
+2026-10-21T09:00:00.05Z second GET /flags
+2026-10-21T09:00:00.1Z first GET /flags
+2026-10-21T09:00:00.15Z second GET /flags
 ```
 
 Each group of the merge holds the items of all sources with the same
@@ -222,5 +264,6 @@ The trace project took OTLP JSON apart and put it together again:
 - the diff of two maps of counts shows the participants that came and
   went and the calls whose cardinality changed, as text, JSON, an HTML
   report and an SVG diagram;
-- streamable modes, accumulators, `xsl:fork` and `xsl:merge` read
-  archives of any size in constant memory.
+- streamable modes, accumulators, `xsl:iterate`, adjacent groups,
+  `xsl:fork` and `xsl:merge` read archives of any size in constant
+  memory.

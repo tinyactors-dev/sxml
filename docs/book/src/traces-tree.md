@@ -20,10 +20,10 @@ $ sxml xquery --method=adaptive --expression='
     for member $scope in $resource?scopeSpans
     return `{ $resource?resource?attributes?1?value?stringValue }, { $scope?scope?name }: { array:size($scope?spans) } spans`'
 "api-gateway, @opentelemetry/instrumentation-http: 4 spans"
-"lock-service, @opentelemetry/instrumentation-http: 5 spans"
-"lock-service, @opentelemetry/instrumentation-redis: 1 spans"
-"lock-registry, @opentelemetry/instrumentation-http: 3 spans"
-"lock-registry, @opentelemetry/instrumentation-pg: 3 spans"
+"flag-service, @opentelemetry/instrumentation-http: 5 spans"
+"flag-service, @opentelemetry/instrumentation-redis: 1 spans"
+"flag-registry, @opentelemetry/instrumentation-http: 3 spans"
+"flag-registry, @opentelemetry/instrumentation-pg: 3 spans"
 ```
 
 `$resource?resource?attributes?1` relies on `service.name` being the
@@ -82,7 +82,7 @@ gets it. The first client span:
 $ sxml xquery --method=adaptive --expression='
     import module namespace trace = "urn:example:trace" at "trace.xqm";
     trace:spans(json-doc("before.json"))[?kind = "client"][1]'
-{"trace":"48114dcf6840d1bd46460c4b1ce0d09d","id":"f1952a06701f65f9","parent":"9db4d10ecccc96f0","service":"api-gateway","name":"GET /doors","kind":"client","start":1792573200001000000,"end":1792573200049000000,"attributes":{"http.request.method":"GET","server.address":"lock-service","server.port":80,"url.full":"http://lock-service/doors","url.template":"/doors","http.response.status_code":200}}
+{"trace":"48114dcf6840d1bd46460c4b1ce0d09d","id":"f1952a06701f65f9","parent":"9db4d10ecccc96f0","service":"api-gateway","name":"GET /flags","kind":"client","start":1792573200001000000,"end":1792573200049000000,"attributes":{"http.request.method":"GET","server.address":"flag-service","server.port":80,"url.full":"http://flag-service/flags","url.template":"/flags","http.response.status_code":200}}
 ```
 
 ## A map from span id to span
@@ -100,10 +100,10 @@ $ sxml xquery --method=adaptive --expression='
     for $query in $spans[map:contains(?attributes, "db.system.name")]
     let $caller := $by-id($query?parent)
     return `{ $query?name } on { $query?attributes?("server.address") }, called by { $caller?service } in { $caller?name }`'
-"GET on door-cache, called by lock-service in POST /doors/{id}/unlock"
-"SELECT doors on postgresql, called by lock-registry in GET /doors"
-"SELECT doors on postgresql, called by lock-registry in GET /doors/{id}"
-"UPDATE doors on postgresql, called by lock-registry in PUT /doors/{id}/state"
+"GET on flag-cache, called by flag-service in POST /flags/{key}/kill"
+"SELECT flags on postgresql, called by flag-registry in GET /flags"
+"SELECT flags on postgresql, called by flag-registry in GET /flags/{key}"
+"UPDATE flags on postgresql, called by flag-registry in PUT /flags/{key}/percentage"
 ```
 
 Each lookup takes the same short time however many spans there are.
@@ -178,34 +178,34 @@ deep.
 $ sxml xquery --param=file=before.json normalize.xq
 <traces source="before.json">
   <service name="api-gateway" version="1.4.0"/>
-  <service name="lock-service" version="2.3.0"/>
-  <service name="lock-registry" version="1.9.2"/>
-  <trace id="48114dcf6840d1bd46460c4b1ce0d09d" route="GET /doors" start="2026-10-21T09:00:00Z">
-    <span id="9db4d10ecccc96f0" service="api-gateway" name="GET /doors" kind="server" start="0" duration="50">
-      <span id="f1952a06701f65f9" service="api-gateway" name="GET /doors" kind="client" start="1" duration="48" peer="lock-service">
-        <span id="450bd70b42ff202b" service="lock-service" name="GET /doors" kind="server" start="2" duration="46">
-          <span id="9507aae4931c1a17" service="lock-service" name="GET /doors" kind="client" start="4" duration="41" peer="lock-registry">
-            <span id="2b3938e2ad2889ea" service="lock-registry" name="GET /doors" kind="server" start="5" duration="39">
-              <span id="bc26eff93c7d3107" service="lock-registry" name="SELECT doors" kind="client" start="7" duration="34" peer="postgresql"/>
+  <service name="flag-service" version="2.3.0"/>
+  <service name="flag-registry" version="1.9.2"/>
+  <trace id="48114dcf6840d1bd46460c4b1ce0d09d" route="GET /flags" start="2026-10-21T09:00:00Z">
+    <span id="9db4d10ecccc96f0" service="api-gateway" name="GET /flags" kind="server" start="0" duration="50">
+      <span id="f1952a06701f65f9" service="api-gateway" name="GET /flags" kind="client" start="1" duration="48" peer="flag-service">
+        <span id="450bd70b42ff202b" service="flag-service" name="GET /flags" kind="server" start="2" duration="46">
+          <span id="9507aae4931c1a17" service="flag-service" name="GET /flags" kind="client" start="4" duration="41" peer="flag-registry">
+            <span id="2b3938e2ad2889ea" service="flag-registry" name="GET /flags" kind="server" start="5" duration="39">
+              <span id="bc26eff93c7d3107" service="flag-registry" name="SELECT flags" kind="client" start="7" duration="34" peer="postgresql"/>
             </span>
           </span>
         </span>
       </span>
     </span>
   </trace>
-  <trace id="aaab30cfb7723ae45a23d581f962cc40" route="POST /doors/{id}/unlock" start="2026-10-21T09:00:02Z">
-    <span id="c377adc01acf7ff5" service="api-gateway" name="POST /doors/{id}/unlock" kind="server" start="0" duration="34">
-      <span id="595ed12c603e8700" service="api-gateway" name="POST /doors/{id}/unlock" kind="client" start="1" duration="32" peer="lock-service">
-        <span id="a4c5b3440594b922" service="lock-service" name="POST /doors/{id}/unlock" kind="server" start="2" duration="30">
-          <span id="ecb5733260ceb4b2" service="lock-service" name="GET" kind="client" start="3" duration="2" peer="door-cache"/>
-          <span id="8662f3310d0158f0" service="lock-service" name="GET /doors/{id}" kind="client" start="6" duration="10" peer="lock-registry">
-            <span id="0cb733ec39d63363" service="lock-registry" name="GET /doors/{id}" kind="server" start="7" duration="8">
-              <span id="1822add2fe4ca68d" service="lock-registry" name="SELECT doors" kind="client" start="8" duration="6" peer="postgresql"/>
+  <trace id="aaab30cfb7723ae45a23d581f962cc40" route="POST /flags/{key}/kill" start="2026-10-21T09:00:02Z">
+    <span id="c377adc01acf7ff5" service="api-gateway" name="POST /flags/{key}/kill" kind="server" start="0" duration="34">
+      <span id="595ed12c603e8700" service="api-gateway" name="POST /flags/{key}/kill" kind="client" start="1" duration="32" peer="flag-service">
+        <span id="a4c5b3440594b922" service="flag-service" name="POST /flags/{key}/kill" kind="server" start="2" duration="30">
+          <span id="ecb5733260ceb4b2" service="flag-service" name="GET" kind="client" start="3" duration="2" peer="flag-cache"/>
+          <span id="8662f3310d0158f0" service="flag-service" name="GET /flags/{key}" kind="client" start="6" duration="10" peer="flag-registry">
+            <span id="0cb733ec39d63363" service="flag-registry" name="GET /flags/{key}" kind="server" start="7" duration="8">
+              <span id="1822add2fe4ca68d" service="flag-registry" name="SELECT flags" kind="client" start="8" duration="6" peer="postgresql"/>
             </span>
           </span>
-          <span id="9cf360297e503c8d" service="lock-service" name="PUT /doors/{id}/state" kind="client" start="17" duration="14" peer="lock-registry">
-            <span id="b71d3117a25377cd" service="lock-registry" name="PUT /doors/{id}/state" kind="server" start="18" duration="12">
-              <span id="6bd326bf36cab938" service="lock-registry" name="UPDATE doors" kind="client" start="19" duration="10" peer="postgresql"/>
+          <span id="9cf360297e503c8d" service="flag-service" name="PUT /flags/{key}/percentage" kind="client" start="17" duration="14" peer="flag-registry">
+            <span id="b71d3117a25377cd" service="flag-registry" name="PUT /flags/{key}/percentage" kind="server" start="18" duration="12">
+              <span id="6bd326bf36cab938" service="flag-registry" name="UPDATE flags" kind="client" start="19" duration="10" peer="postgresql"/>
             </span>
           </span>
         </span>
@@ -215,22 +215,22 @@ $ sxml xquery --param=file=before.json normalize.xq
 </traces>
 ```
 
-Now the shape of each request is plain to see. Listing the doors is a
-chain of single calls from the gateway down to PostgreSQL; unlocking a
-door reads the cache, reads the door from the registry, and writes its
-new state. The new version's file shows the change:
+Now the shape of each request is plain to see. Listing the flags is a
+chain of single calls from the gateway down to PostgreSQL; killing a
+flag reads the cache, reads the flag from the registry, and sets its
+percentage to 0. The new version's file shows the change:
 
 ```console
 $ sxml xquery --param=file=after.json --output=after.xml normalize.xq
-$ sxml xpath --context-item=after.xml '//trace[@route = "GET /doors"]//span[@service = "lock-service"][@kind = "client"] ! `{@start} ms: {@name}, {@duration} ms`'
-"4 ms: GET /door-ids, 12 ms"
-"18 ms: GET /doors/{id}, 20 ms"
-"40 ms: GET /doors/{id}, 20 ms"
-"62 ms: GET /doors/{id}, 20 ms"
-"84 ms: GET /doors/{id}, 20 ms"
+$ sxml xpath --context-item=after.xml '//trace[@route = "GET /flags"]//span[@service = "flag-service"][@kind = "client"] ! `{@start} ms: {@name}, {@duration} ms`'
+"4 ms: GET /flag-keys, 12 ms"
+"18 ms: GET /flags/{key}, 20 ms"
+"40 ms: GET /flags/{key}, 20 ms"
+"62 ms: GET /flags/{key}, 20 ms"
+"84 ms: GET /flags/{key}, 20 ms"
 ```
 
-One call for the ids, then one for each of the four doors, one after
+One call for the keys, then one for each of the four flags, one after
 the other: the request now takes more than twice as long. This XML,
 one `traces` element with its services and a tree of spans for each
 trace, is the *normal form* of a trace file, and the rest of the

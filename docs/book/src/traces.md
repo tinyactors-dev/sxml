@@ -2,10 +2,10 @@
 
 <!-- examples: traces -->
 
-The lock service of [Project: A Diff of Call Chains](call-chains.md)
-changed: listing the doors used to ask the door registry once, and now
-it asks for the door ids and then for each door; unlocking no longer
-reads the door cache and now writes an audit event. The diff of the
+The flag service of [Project: A Diff of Call Chains](call-chains.md)
+changed: listing the flags used to ask the flag registry once, and now
+it asks for the flag keys and then for each flag; the kill switch no
+longer reads the flag cache and now writes an audit event. The diff of the
 call chains predicted what that does at run time. In this project we
 look at what the services actually did, before and after the change,
 from the traces they recorded.
@@ -39,7 +39,7 @@ spans (one for HTTP, one for PostgreSQL, one for Redis), with the spans:
 ```
 
 This is the first span the API gateway recorded: it handled a request
-`GET /doors`, of kind 2 (server), from the time `startTimeUnixNano` to
+`GET /flags`, of kind 2 (server), from the time `startTimeUnixNano` to
 `endTimeUnixNano`, in nanoseconds since 1970. Its attributes follow
 OpenTelemetry's semantic conventions, the agreed names such as
 `http.request.method`, `http.route` and, on the database spans,
@@ -49,15 +49,15 @@ and the times and the integer attributes (`intValue`) are strings too;
 
 ## The two files
 
-`before.json` was recorded with the old version of the lock service,
+`before.json` was recorded with the old version of the flag service,
 `after.json` with the new one. Each holds two traces, one of each kind
-of request the gateway handled: listing the doors, and unlocking the
-front door. A first look:
+of request the gateway handled: listing the flags, and killing the
+flag `new-checkout`. A first look:
 
 ```console
 $ sxml xpath '("before.json", "after.json") ! `{.}: {count(json-doc(.)?resourceSpans?*?scopeSpans?*?spans?*)} spans of {count(distinct-values(json-doc(.)?resourceSpans?*?scopeSpans?*?spans?*?traceId))} traces in {string-join(json-doc(.)?resourceSpans?*?resource?attributes?*[?key = "service.name"]?value?stringValue, ", ")}`'
-"before.json: 16 spans of 2 traces in api-gateway, lock-service, lock-registry"
-"after.json: 30 spans of 2 traces in api-gateway, lock-service, lock-registry, audit-service"
+"before.json: 16 spans of 2 traces in api-gateway, flag-service, flag-registry"
+"after.json: 30 spans of 2 traces in api-gateway, flag-service, flag-registry, audit-service"
 ```
 
 Fourteen spans more, and a new service. Which spans, and why?

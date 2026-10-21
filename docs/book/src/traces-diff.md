@@ -11,8 +11,8 @@ versions of the services beside it, as text and as JSON.
 ## Matching traces by route
 
 Two files can only be compared where they recorded the same kind of
-request. A file recorded during a test of the unlock button has no
-`GET /doors`, and its missing calls are not a change. So the diff first
+request. A file recorded during a test of the kill switch has no
+`GET /flags`, and its missing calls are not a change. So the diff first
 finds the routes both files have, and compares the calls of those
 routes only:
 
@@ -55,23 +55,23 @@ the two files of the project:
 
 ```console
 $ sxml xquery diff.xq
-lock-service: 2.3.0 -> 2.4.0
+flag-service: 2.3.0 -> 2.4.0
 audit-service: none -> 0.3.1
-GET /doors: lock-registry -> postgresql  1 -> 5
-GET /doors: lock-service -> lock-registry  1 -> 5
-POST /doors/{id}/unlock: audit-service -> postgresql  0 -> 1
-POST /doors/{id}/unlock: lock-service -> audit-service  0 -> 1
-POST /doors/{id}/unlock: lock-service -> door-cache  1 -> 0
+GET /flags: flag-registry -> postgresql  1 -> 5
+GET /flags: flag-service -> flag-registry  1 -> 5
+POST /flags/{key}/kill: audit-service -> postgresql  0 -> 1
+POST /flags/{key}/kill: flag-service -> audit-service  0 -> 1
+POST /flags/{key}/kill: flag-service -> flag-cache  1 -> 0
 ```
 
-The lock service's new version made listing the doors call the registry
+The flag service's new version made listing the flags call the registry
 five times instead of once, and the registry query the database five
 times. [Project: A Diff of Call Chains](call-chains.md) found the cause
-in the code, a call to the registry inside a loop over the door ids,
-and predicted one call plus one per door. With four doors, that is
-five. Unlocking a door no longer reads the cache and calls the new
+in the code, a call to the registry inside a loop over the flag keys,
+and predicted `flags.listFlags > registry: 1 -> 1 + n`, one call plus
+one per flag. With four flags, that is five. Killing a flag no longer reads the cache and calls the new
 audit service, which writes to the database. Nothing changed between
-the gateway and the lock service, so the diff leaves those calls out.
+the gateway and the flag service, so the diff leaves those calls out.
 
 ## The diff as JSON
 
@@ -92,7 +92,7 @@ $ sxml xquery diff-json.xq
   "after": "after.json",
   "versions": [
     {
-      "service": "lock-service",
+      "service": "flag-service",
       "before": "2.3.0",
       "after": "2.4.0"
     },
@@ -104,37 +104,37 @@ $ sxml xquery diff-json.xq
   ],
   "changes": [
     {
-      "route": "GET /doors",
-      "caller": "lock-registry",
+      "route": "GET /flags",
+      "caller": "flag-registry",
       "callee": "postgresql",
       "before": 1,
       "after": 5
     },
     {
-      "route": "GET /doors",
-      "caller": "lock-service",
-      "callee": "lock-registry",
+      "route": "GET /flags",
+      "caller": "flag-service",
+      "callee": "flag-registry",
       "before": 1,
       "after": 5
     },
     {
-      "route": "POST /doors/{id}/unlock",
+      "route": "POST /flags/{key}/kill",
       "caller": "audit-service",
       "callee": "postgresql",
       "before": 0,
       "after": 1
     },
     {
-      "route": "POST /doors/{id}/unlock",
-      "caller": "lock-service",
+      "route": "POST /flags/{key}/kill",
+      "caller": "flag-service",
       "callee": "audit-service",
       "before": 0,
       "after": 1
     },
     {
-      "route": "POST /doors/{id}/unlock",
-      "caller": "lock-service",
-      "callee": "door-cache",
+      "route": "POST /flags/{key}/kill",
+      "caller": "flag-service",
+      "callee": "flag-cache",
       "before": 1,
       "after": 0
     }
@@ -161,18 +161,18 @@ and resources that have no spans left:
 ```
 
 ```console
-$ sxml xquery --param=file=before.json '--param=route=GET /doors' --output=doors.json select.xq
-$ sxml xquery --param=file=after.json '--param=route=POST /doors/{id}/unlock' --output=unlock.json select.xq
-$ sxml xpath 'json-doc("unlock.json")?resourceSpans?*?scopeSpans?*?spans?* => count()'
+$ sxml xquery --param=file=before.json '--param=route=GET /flags' --output=flags.json select.xq
+$ sxml xquery --param=file=after.json '--param=route=POST /flags/{key}/kill' --output=kill.json select.xq
+$ sxml xpath 'json-doc("kill.json")?resourceSpans?*?scopeSpans?*?spans?* => count()'
 12
 ```
 
-Comparing the listing of the old version with only the unlock request
+Comparing the listing of the old version with only the kill request
 of the new one:
 
 ```console
-$ sxml xquery --param=before=doors.json --param=after=unlock.json diff.xq
-trace.xqm:176:35: trace:no-shared-route: doors.json and unlock.json have no route in common
+$ sxml xquery --param=before=flags.json --param=after=kill.json diff.xq
+trace.xqm:176:35: trace:no-shared-route: flags.json and kill.json have no route in common
 ```
 
 The error's code is a QName in the module's own namespace,
@@ -182,16 +182,16 @@ let every other error through:
 ```console
 $ sxml xquery --method=adaptive --expression='
     import module namespace trace = "urn:example:trace" at "trace.xqm";
-    for $after in ("after.json", "unlock.json")
+    for $after in ("after.json", "kill.json")
     return try {
-      count(trace:diff(trace:load("doors.json"), trace:load($after))) || " changes"
+      count(trace:diff(trace:load("flags.json"), trace:load($after))) || " changes"
     } catch trace:no-shared-route {
       "nothing to compare: " || $err:description
     }'
 "2 changes"
-"nothing to compare: doors.json and unlock.json have no route in common"
+"nothing to compare: flags.json and kill.json have no route in common"
 ```
 
-Against `after.json`, only `GET /doors` is compared, and its two
-changes are found; the unlock request's changes are not, because
-`doors.json` has none of them to compare with.
+Against `after.json`, only `GET /flags` is compared, and its two
+changes are found; the kill request's changes are not, because
+`flags.json` has none of them to compare with.

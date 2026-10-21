@@ -24,13 +24,13 @@ per field; a field that is empty becomes no attribute:
 $ sxml xquery --output=diff.xml diff-xml.xq
 $ cat diff.xml
 <diff before="before.json" after="after.json">
-  <version service="lock-service" before="2.3.0" after="2.4.0"/>
+  <version service="flag-service" before="2.3.0" after="2.4.0"/>
   <version service="audit-service" after="0.3.1"/>
-  <change route="GET /doors" caller="lock-registry" callee="postgresql" before="1" after="5"/>
-  <change route="GET /doors" caller="lock-service" callee="lock-registry" before="1" after="5"/>
-  <change route="POST /doors/{id}/unlock" caller="audit-service" callee="postgresql" before="0" after="1"/>
-  <change route="POST /doors/{id}/unlock" caller="lock-service" callee="audit-service" before="0" after="1"/>
-  <change route="POST /doors/{id}/unlock" caller="lock-service" callee="door-cache" before="1" after="0"/>
+  <change route="GET /flags" caller="flag-registry" callee="postgresql" before="1" after="5"/>
+  <change route="GET /flags" caller="flag-service" callee="flag-registry" before="1" after="5"/>
+  <change route="POST /flags/{key}/kill" caller="audit-service" callee="postgresql" before="0" after="1"/>
+  <change route="POST /flags/{key}/kill" caller="flag-service" callee="audit-service" before="0" after="1"/>
+  <change route="POST /flags/{key}/kill" caller="flag-service" callee="flag-cache" before="1" after="0"/>
 </diff>
 ```
 
@@ -77,7 +77,7 @@ $ sxml transform report.xsl diff.xml
         <th>After</th>
       </tr>
       <tr>
-        <td>lock-service</td>
+        <td>flag-service</td>
         <td>2.3.0</td>
         <td>2.4.0</td>
       </tr>
@@ -87,7 +87,7 @@ $ sxml transform report.xsl diff.xml
         <td>0.3.1</td>
       </tr>
     </table>
-    <h2>GET /doors</h2>
+    <h2>GET /flags</h2>
     <table>
       <tr>
         <th>Caller</th>
@@ -96,19 +96,19 @@ $ sxml transform report.xsl diff.xml
         <th>After</th>
       </tr>
       <tr class="changed">
-        <td>lock-registry</td>
+        <td>flag-registry</td>
         <td>postgresql</td>
         <td>1</td>
         <td>5</td>
       </tr>
       <tr class="changed">
-        <td>lock-service</td>
-        <td>lock-registry</td>
+        <td>flag-service</td>
+        <td>flag-registry</td>
         <td>1</td>
         <td>5</td>
       </tr>
     </table>
-    <h2>POST /doors/{id}/unlock</h2>
+    <h2>POST /flags/{key}/kill</h2>
     <table>
       <tr>
         <th>Caller</th>
@@ -123,14 +123,14 @@ $ sxml transform report.xsl diff.xml
         <td>1</td>
       </tr>
       <tr class="added">
-        <td>lock-service</td>
+        <td>flag-service</td>
         <td>audit-service</td>
         <td>0</td>
         <td>1</td>
       </tr>
       <tr class="removed">
-        <td>lock-service</td>
-        <td>door-cache</td>
+        <td>flag-service</td>
+        <td>flag-cache</td>
         <td>1</td>
         <td>0</td>
       </tr>
@@ -161,20 +161,20 @@ its own is drawn as a store:
 ```
 
 ```console
-$ sxml xquery '--param=route=POST /doors/{id}/unlock' --output=unlock.xml participants.xq
-$ cat unlock.xml
-<diagram title="POST /doors/{id}/unlock: before.json and after.json">
+$ sxml xquery '--param=route=POST /flags/{key}/kill' --output=kill.xml participants.xq
+$ cat kill.xml
+<diagram title="POST /flags/{key}/kill: before.json and after.json">
   <node id="api-gateway" label="api-gateway"/>
-  <node id="lock-service" label="lock-service"/>
-  <node id="door-cache" label="door-cache" kind="store" class="removed"/>
-  <node id="lock-registry" label="lock-registry"/>
+  <node id="flag-service" label="flag-service"/>
+  <node id="flag-cache" label="flag-cache" kind="store" class="removed"/>
+  <node id="flag-registry" label="flag-registry"/>
   <node id="postgresql" label="postgresql" kind="store"/>
   <node id="audit-service" label="audit-service" class="added"/>
-  <edge from="api-gateway" to="lock-service" label="1"/>
-  <edge from="lock-service" to="door-cache" label="1 → 0" class="removed"/>
-  <edge from="lock-service" to="lock-registry" label="2"/>
-  <edge from="lock-registry" to="postgresql" label="2"/>
-  <edge from="lock-service" to="audit-service" label="0 → 1" class="added"/>
+  <edge from="api-gateway" to="flag-service" label="1"/>
+  <edge from="flag-service" to="flag-cache" label="1 → 0" class="removed"/>
+  <edge from="flag-service" to="flag-registry" label="2"/>
+  <edge from="flag-registry" to="postgresql" label="2"/>
+  <edge from="flag-service" to="audit-service" label="0 → 1" class="added"/>
   <edge from="audit-service" to="postgresql" label="0 → 1" class="added"/>
 </diagram>
 ```
@@ -191,22 +191,22 @@ The drawings of both routes are in the project directory, and
 drawing them again gives the same files:
 
 ```console
-$ sxml xquery --context-item=unlock.xml --output=unlock.svg drawing.xq
-$ cmp unlock.svg diff-unlock.svg && echo same
+$ sxml xquery --context-item=kill.xml --output=kill.svg drawing.xq
+$ cmp kill.svg diff-kill.svg && echo same
 same
-$ sxml xquery --output=doors.xml participants.xq
-$ sxml xquery --context-item=doors.xml --output=doors.svg drawing.xq
-$ cmp doors.svg diff-doors.svg && echo same
+$ sxml xquery --output=flags.xml participants.xq
+$ sxml xquery --context-item=flags.xml --output=flags.svg drawing.xq
+$ cmp flags.svg diff-flags.svg && echo same
 same
 ```
 
-Listing the doors:
+Listing the flags:
 
-![The services of GET /doors, before and after](../examples/traces/diff-doors.svg)
+![The services of GET /flags, before and after](../examples/traces/diff-flags.svg)
 
-Unlocking a door:
+Killing a flag:
 
-![The services of POST /doors/{id}/unlock, before and after](../examples/traces/diff-unlock.svg)
+![The services of POST /flags/{key}/kill, before and after](../examples/traces/diff-kill.svg)
 
 ## The drawings in the report
 
@@ -216,7 +216,7 @@ drawing whose title begins with the route, so the report becomes one
 file with everything in it:
 
 ```console
-$ sxml transform --param='drawings=diff-doors.svg diff-unlock.svg' --output=report.html report.xsl diff.xml
+$ sxml transform --param='drawings=diff-flags.svg diff-kill.svg' --output=report.html report.xsl diff.xml
 $ sxml xpath 'count(html-doc("report.html")//*:svg)'
 2
 ```

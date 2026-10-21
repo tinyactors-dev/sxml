@@ -1,19 +1,19 @@
 Trace ID,Span ID,Parent ID,Service,Operation,Start Time,Duration (ms),Statement
-95cfc9416dff30ee,ad09d89327ec549f,,api-gateway,GET /doors,2026-10-21 09:00:00.000,110,
-95cfc9416dff30ee,de9fa8dcf75aa50e,ad09d89327ec549f,api-gateway,GET /doors,2026-10-21 09:00:00.001,108,
-95cfc9416dff30ee,8844ce6b8e39c14a,de9fa8dcf75aa50e,lock-service,GET /doors,2026-10-21 09:00:00.002,106,
-95cfc9416dff30ee,e73631555fa73aef,8844ce6b8e39c14a,lock-service,GET /door-ids,2026-10-21 09:00:00.004,12,
-95cfc9416dff30ee,53c7b385ae6f5e6f,e73631555fa73aef,lock-registry,GET /door-ids,2026-10-21 09:00:00.005,10,
-95cfc9416dff30ee,1c2230f71e9ca4c3,53c7b385ae6f5e6f,lock-registry,SELECT doors,2026-10-21 09:00:00.006,8,SELECT id FROM doors
-95cfc9416dff30ee,e3d2e09aac064e18,8844ce6b8e39c14a,lock-service,GET /doors/{id},2026-10-21 09:00:00.018,20,
-95cfc9416dff30ee,c7f30f509b22f4ca,e3d2e09aac064e18,lock-registry,GET /doors/{id},2026-10-21 09:00:00.019,18,
-95cfc9416dff30ee,62982530bd8bd355,c7f30f509b22f4ca,lock-registry,SELECT doors,2026-10-21 09:00:00.021,14,"SELECT id, name, state, codes FROM doors WHERE id = $1"
-95cfc9416dff30ee,b90e7d4d6d4161d9,8844ce6b8e39c14a,lock-service,GET /doors/{id},2026-10-21 09:00:00.040,20,
-95cfc9416dff30ee,ef1449419ecde453,b90e7d4d6d4161d9,lock-registry,GET /doors/{id},2026-10-21 09:00:00.041,18,
-95cfc9416dff30ee,694ca4f1d99fa8e5,ef1449419ecde453,lock-registry,SELECT doors,2026-10-21 09:00:00.043,14,"SELECT id, name, state, codes FROM doors WHERE id = $1"
-95cfc9416dff30ee,1cec0b63b0ac0f75,8844ce6b8e39c14a,lock-service,GET /doors/{id},2026-10-21 09:00:00.062,20,
-95cfc9416dff30ee,b3b0d075d76179a0,1cec0b63b0ac0f75,lock-registry,GET /doors/{id},2026-10-21 09:00:00.063,18,
-95cfc9416dff30ee,171548ba579183a2,b3b0d075d76179a0,lock-registry,SELECT doors,2026-10-21 09:00:00.065,14,"SELECT id, name, state, codes FROM doors WHERE id = $1"
-95cfc9416dff30ee,53e8c701fde4106a,8844ce6b8e39c14a,lock-service,GET /doors/{id},2026-10-21 09:00:00.084,20,
-95cfc9416dff30ee,68c9e72c9c458574,53e8c701fde4106a,lock-registry,GET /doors/{id},2026-10-21 09:00:00.085,18,
-95cfc9416dff30ee,a14ad12777c20942,68c9e72c9c458574,lock-registry,SELECT doors,2026-10-21 09:00:00.087,14,"SELECT id, name, state, codes FROM doors WHERE id = $1"
+95cfc9416dff30ee,ad09d89327ec549f,,api-gateway,GET /flags,2026-10-21 09:00:00.000,110,
+95cfc9416dff30ee,de9fa8dcf75aa50e,ad09d89327ec549f,api-gateway,GET /flags,2026-10-21 09:00:00.001,108,
+95cfc9416dff30ee,8844ce6b8e39c14a,de9fa8dcf75aa50e,flag-service,GET /flags,2026-10-21 09:00:00.002,106,
+95cfc9416dff30ee,e73631555fa73aef,8844ce6b8e39c14a,flag-service,GET /flag-keys,2026-10-21 09:00:00.004,12,
+95cfc9416dff30ee,53c7b385ae6f5e6f,e73631555fa73aef,flag-registry,GET /flag-keys,2026-10-21 09:00:00.005,10,
+95cfc9416dff30ee,1c2230f71e9ca4c3,53c7b385ae6f5e6f,flag-registry,SELECT flags,2026-10-21 09:00:00.006,8,SELECT key FROM flags
+95cfc9416dff30ee,e3d2e09aac064e18,8844ce6b8e39c14a,flag-service,GET /flags/{key},2026-10-21 09:00:00.018,20,
+95cfc9416dff30ee,c7f30f509b22f4ca,e3d2e09aac064e18,flag-registry,GET /flags/{key},2026-10-21 09:00:00.019,18,
+95cfc9416dff30ee,62982530bd8bd355,c7f30f509b22f4ca,flag-registry,SELECT flags,2026-10-21 09:00:00.021,14,"SELECT key, name, state, percentage, owners FROM flags WHERE key = $1"
+95cfc9416dff30ee,b90e7d4d6d4161d9,8844ce6b8e39c14a,flag-service,GET /flags/{key},2026-10-21 09:00:00.040,20,
+95cfc9416dff30ee,ef1449419ecde453,b90e7d4d6d4161d9,flag-registry,GET /flags/{key},2026-10-21 09:00:00.041,18,
+95cfc9416dff30ee,694ca4f1d99fa8e5,ef1449419ecde453,flag-registry,SELECT flags,2026-10-21 09:00:00.043,14,"SELECT key, name, state, percentage, owners FROM flags WHERE key = $1"
+95cfc9416dff30ee,1cec0b63b0ac0f75,8844ce6b8e39c14a,flag-service,GET /flags/{key},2026-10-21 09:00:00.062,20,
+95cfc9416dff30ee,b3b0d075d76179a0,1cec0b63b0ac0f75,flag-registry,GET /flags/{key},2026-10-21 09:00:00.063,18,
+95cfc9416dff30ee,171548ba579183a2,b3b0d075d76179a0,flag-registry,SELECT flags,2026-10-21 09:00:00.065,14,"SELECT key, name, state, percentage, owners FROM flags WHERE key = $1"
+95cfc9416dff30ee,53e8c701fde4106a,8844ce6b8e39c14a,flag-service,GET /flags/{key},2026-10-21 09:00:00.084,20,
+95cfc9416dff30ee,68c9e72c9c458574,53e8c701fde4106a,flag-registry,GET /flags/{key},2026-10-21 09:00:00.085,18,
+95cfc9416dff30ee,a14ad12777c20942,68c9e72c9c458574,flag-registry,SELECT flags,2026-10-21 09:00:00.087,14,"SELECT key, name, state, percentage, owners FROM flags WHERE key = $1"

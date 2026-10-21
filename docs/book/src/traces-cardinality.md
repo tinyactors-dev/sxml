@@ -37,15 +37,15 @@ first of the two that exists. The calls of the old version:
 $ sxml xquery --method=adaptive --expression='
     import module namespace trace = "urn:example:trace" at "trace.xqm";
     trace:calls(trace:load("before.json"))'
-{"route":"GET /doors","caller":"api-gateway","callee":"lock-service"}
-{"route":"GET /doors","caller":"lock-service","callee":"lock-registry"}
-{"route":"GET /doors","caller":"lock-registry","callee":"postgresql"}
-{"route":"POST /doors/{id}/unlock","caller":"api-gateway","callee":"lock-service"}
-{"route":"POST /doors/{id}/unlock","caller":"lock-service","callee":"door-cache"}
-{"route":"POST /doors/{id}/unlock","caller":"lock-service","callee":"lock-registry"}
-{"route":"POST /doors/{id}/unlock","caller":"lock-registry","callee":"postgresql"}
-{"route":"POST /doors/{id}/unlock","caller":"lock-service","callee":"lock-registry"}
-{"route":"POST /doors/{id}/unlock","caller":"lock-registry","callee":"postgresql"}
+{"route":"GET /flags","caller":"api-gateway","callee":"flag-service"}
+{"route":"GET /flags","caller":"flag-service","callee":"flag-registry"}
+{"route":"GET /flags","caller":"flag-registry","callee":"postgresql"}
+{"route":"POST /flags/{key}/kill","caller":"api-gateway","callee":"flag-service"}
+{"route":"POST /flags/{key}/kill","caller":"flag-service","callee":"flag-cache"}
+{"route":"POST /flags/{key}/kill","caller":"flag-service","callee":"flag-registry"}
+{"route":"POST /flags/{key}/kill","caller":"flag-registry","callee":"postgresql"}
+{"route":"POST /flags/{key}/kill","caller":"flag-service","callee":"flag-registry"}
+{"route":"POST /flags/{key}/kill","caller":"flag-registry","callee":"postgresql"}
 ```
 
 The route comes from the trace the call belongs to: the same call
@@ -63,11 +63,11 @@ $ sxml xquery --method=adaptive --expression='
     import module namespace trace = "urn:example:trace" at "trace.xqm";
     for $call in trace:calls(trace:load("after.json"))
     group by $route := $call?route, $caller := $call?caller, $callee := $call?callee
-    where $route = "GET /doors"
+    where $route = "GET /flags"
     return `{ $caller } -> { $callee }: { count($call) }`'
-"api-gateway -> lock-service: 1"
-"lock-service -> lock-registry: 5"
-"lock-registry -> postgresql: 5"
+"api-gateway -> flag-service: 1"
+"flag-service -> flag-registry: 5"
+"flag-registry -> postgresql: 5"
 ```
 
 A file can hold many traces of the same route, so the module divides by
@@ -87,7 +87,7 @@ the same key in both:
 $ sxml xquery --method=adaptive --expression='
     import module namespace trace = "urn:example:trace" at "trace.xqm";
     ("before.json", "after.json")
-      ! trace:cardinality(trace:load(.))?("GET /doors: lock-service -> lock-registry")?count'
+      ! trace:cardinality(trace:load(.))?("GET /flags: flag-service -> flag-registry")?count'
 1
 5
 ```
@@ -100,26 +100,26 @@ $ sxml xquery --method=adaptive --expression='
 
 ```console
 $ sxml xquery --param=file=before.json cardinality.xq
-GET /doors: api-gateway -> lock-service  1
-GET /doors: lock-registry -> postgresql  1
-GET /doors: lock-service -> lock-registry  1
-POST /doors/{id}/unlock: api-gateway -> lock-service  1
-POST /doors/{id}/unlock: lock-registry -> postgresql  2
-POST /doors/{id}/unlock: lock-service -> door-cache  1
-POST /doors/{id}/unlock: lock-service -> lock-registry  2
+GET /flags: api-gateway -> flag-service  1
+GET /flags: flag-registry -> postgresql  1
+GET /flags: flag-service -> flag-registry  1
+POST /flags/{key}/kill: api-gateway -> flag-service  1
+POST /flags/{key}/kill: flag-registry -> postgresql  2
+POST /flags/{key}/kill: flag-service -> flag-cache  1
+POST /flags/{key}/kill: flag-service -> flag-registry  2
 $ sxml xquery --param=file=after.json cardinality.xq
-GET /doors: api-gateway -> lock-service  1
-GET /doors: lock-registry -> postgresql  5
-GET /doors: lock-service -> lock-registry  5
-POST /doors/{id}/unlock: api-gateway -> lock-service  1
-POST /doors/{id}/unlock: audit-service -> postgresql  1
-POST /doors/{id}/unlock: lock-registry -> postgresql  2
-POST /doors/{id}/unlock: lock-service -> audit-service  1
-POST /doors/{id}/unlock: lock-service -> lock-registry  2
+GET /flags: api-gateway -> flag-service  1
+GET /flags: flag-registry -> postgresql  5
+GET /flags: flag-service -> flag-registry  5
+POST /flags/{key}/kill: api-gateway -> flag-service  1
+POST /flags/{key}/kill: audit-service -> postgresql  1
+POST /flags/{key}/kill: flag-registry -> postgresql  2
+POST /flags/{key}/kill: flag-service -> audit-service  1
+POST /flags/{key}/kill: flag-service -> flag-registry  2
 ```
 
-Listing the doors now makes five calls to the registry, and the registry
-five queries; unlocking a door no longer reads the cache, and calls a
+Listing the flags now makes five calls to the registry, and the registry
+five queries; killing a flag no longer reads the cache, and calls a
 new service, which writes to the database. The counts say *how many*.
 The order of the calls, which the windows below look at, says more
 about *why*.
@@ -137,15 +137,15 @@ each call whose name differs from the call before it:
 
 ```console
 $ sxml xquery --context-item=after.xml --method=adaptive --expression='
-    for $server in //span[@service = "lock-service"][@kind = "server"]
+    for $server in //span[@service = "flag-service"][@kind = "server"]
     for tumbling window $run in $server/span
         start $first previous $before when not($first/@name = $before/@name)
     return `{ $server/@name }: { count($run) } x { $first/@name }`'
-"GET /doors: 1 x GET /door-ids"
-"GET /doors: 4 x GET /doors/{id}"
-"POST /doors/{id}/unlock: 1 x GET /doors/{id}"
-"POST /doors/{id}/unlock: 1 x PUT /doors/{id}/state"
-"POST /doors/{id}/unlock: 1 x POST /events"
+"GET /flags: 1 x GET /flag-keys"
+"GET /flags: 4 x GET /flags/{key}"
+"POST /flags/{key}/kill: 1 x GET /flags/{key}"
+"POST /flags/{key}/kill: 1 x PUT /flags/{key}/percentage"
+"POST /flags/{key}/kill: 1 x POST /events"
 ```
 
 `$run` is bound to the items of each window in turn, and `$first` to
@@ -153,9 +153,9 @@ the item that starts it. `previous $before` binds the item before the
 start, which for the first item is the empty sequence; `not($first/@name
 = $before/@name)` is then true, so the first item starts a window too.
 Without an `end` condition, a window ends just before the next one
-starts. The run of four `GET /doors/{id}` is the loop the change added:
-one call per door, the pattern known as N+1, where one query for all
-the doors would do.
+starts. The run of four `GET /flags/{key}` is the loop the change added:
+one call per flag, the pattern known as N+1, where one query for all
+the flags would do.
 
 Start and end can be bound to more variables: the item itself, its
 position (`at $p`), and the items before it and after it (`previous`,
@@ -191,7 +191,7 @@ happened, up to a moment `$until`:
 {{#include ../examples/traces/timeline.xq}}
 ```
 
-At 20 milliseconds past 09:00:02, the unlock request is still running:
+At 20 milliseconds past 09:00:02, the kill request is still running:
 
 ```console
 $ sxml xquery --context-item=after.xml --param=until=2026-10-21T09:00:02.020Z --output=live.xml timeline.xq
@@ -209,8 +209,8 @@ $ sxml xquery --context-item=live.xml --method=adaptive --expression='
         end $close when $close[self::end]/@span = $open/@span
     return `{ $open/@name } at { $open/@at }: { count($request[self::start]) } spans, {
       if ($close/@span = $open/@span) then "ended at " || $close/@at else "still running" }`'
-"GET /doors at 2026-10-21T09:00:00Z: 18 spans, ended at 2026-10-21T09:00:00.11Z"
-"POST /doors/{id}/unlock at 2026-10-21T09:00:02Z: 9 spans, still running"
+"GET /flags at 2026-10-21T09:00:00Z: 18 spans, ended at 2026-10-21T09:00:00.11Z"
+"POST /flags/{key}/kill at 2026-10-21T09:00:02Z: 9 spans, still running"
 ```
 
 The end condition refers to `$open`, the start of its own window: a
@@ -227,7 +227,7 @@ $ sxml xquery --context-item=live.xml --method=adaptive --expression='
     let $took := (xs:dateTime($close/@at) - xs:dateTime($open/@at))
                  div xs:dayTimeDuration("PT0.001S")
     return `{ $open/@name }: { $took } ms`'
-"GET /doors: 110 ms"
+"GET /flags: 110 ms"
 ```
 
 Subtracting two `xs:dateTime` values gives a duration, and dividing a
@@ -237,13 +237,13 @@ duration by a duration gives a number.
 
 A *sliding window* starts a window at every item where the start
 condition holds, so its windows can overlap. How many calls did the
-lock service start within 50 milliseconds of each other, while it
-listed the doors? A window starts at each call and ends before the
+flag service start within 50 milliseconds of each other, while it
+listed the flags? A window starts at each call and ends before the
 first call that starts 50 milliseconds or more after it:
 
 ```console
 $ sxml xquery --context-item=after.xml --method=adaptive --expression='
-    let $calls := //trace[@route = "GET /doors"]//span[@service = "lock-service"][@kind = "client"]
+    let $calls := //trace[@route = "GET /flags"]//span[@service = "flag-service"][@kind = "client"]
     for sliding window $burst in $calls
         start $first when true()
         end next $after when xs:decimal($after/@start) - xs:decimal($first/@start) ge 50
@@ -262,7 +262,7 @@ that are known to be complete:
 
 ```console
 $ sxml xquery --context-item=after.xml --method=adaptive --expression='
-    let $calls := //trace[@route = "GET /doors"]//span[@service = "lock-service"][@kind = "client"]
+    let $calls := //trace[@route = "GET /flags"]//span[@service = "flag-service"][@kind = "client"]
     for sliding window $burst in $calls
         start $first when true()
         only end next $after when xs:decimal($after/@start) - xs:decimal($first/@start) ge 50
@@ -272,25 +272,25 @@ $ sxml xquery --context-item=after.xml --method=adaptive --expression='
 ```
 
 `next` makes it easy to compare an item with the one after it. Which
-calls did the lock service make twice in a row, from the same span?
+calls did the flag service make twice in a row, from the same span?
 
 ```console
 $ sxml xquery --context-item=after.xml --method=adaptive --expression='
-    for sliding window $pair in //span[@service = "lock-service"][@kind = "client"]
+    for sliding window $pair in //span[@service = "flag-service"][@kind = "client"]
         start $first next $second
             when $second/@name = $first/@name and $second/.. is $first/..
         end when true()
     return `{ $first/@name } at { $first/@start } ms, again at { $second/@start } ms`'
-"GET /doors/{id} at 18 ms, again at 40 ms"
-"GET /doors/{id} at 40 ms, again at 62 ms"
-"GET /doors/{id} at 62 ms, again at 84 ms"
+"GET /flags/{key} at 18 ms, again at 40 ms"
+"GET /flags/{key} at 40 ms, again at 62 ms"
+"GET /flags/{key} at 62 ms, again at 84 ms"
 ```
 
 `end when true()` ends each window at the item that starts it: the
 windows are only a way to look at each item together with its
 neighbour. `$second/.. is $first/..` keeps neighbours that belong to
-different requests apart; without it, the last `GET /doors/{id}` of the
-listing and the first of the unlock request would make a pair.
+different requests apart; without it, the last `GET /flags/{key}` of the
+listing and the first of the kill request would make a pair.
 
 ## Choosing between them
 
