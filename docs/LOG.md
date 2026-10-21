@@ -4,6 +4,27 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- book-9 done (D299): Validating with XSD and the new Project:
+  Self-Describing State Machines. xsd.md, xsd-simple-types.md,
+  xsd-complex-types.md, xsd-derivation.md and xsd-errors.md work on the
+  draft in spec/ (levels.xsd for lists and unions, xsd-author.xsd,
+  xsd-derivation.xsd with an editor's worksheet, xsd-review.xml,
+  xsd-dtd.xml, bad-content.xml, bad-worksheet.xml, bad-keyword.xml,
+  bad-anchor.xml, bad-xref.xml, bad-schema.xsd); xsd-namespaces.md,
+  xsd-identity.md, xsd-11.md and xsd-typed-data.md on the machine in
+  scxml/ (latch-1.1.xsd overrides latch-data.xsd with conditional
+  types, open content, default attributes and the assertion and
+  explicitTimezone facets; scxml-targets.xsd overrides scxml.xsd with
+  target lists; status.xsl is schema-aware). scxml.md, scxml-checks.md
+  (check.xq finds the seed's four flaws; fix.xq makes lock-fixed.scxml
+  with transform with), scxml-xhtml.md (document.xsl) and
+  scxml-drawing.md (machine-diagram.xq with ../svg/draw.xqm). 140
+  examples match. examples/xsd removed. Two sxml bugs found and worked
+  around: an identity-constraint field whose value is invalid for its
+  type stops validation with SXML_STATUS_DYNAMIC_ERROR (exit 4) instead
+  of reporting it; and an XSLT stylesheet parameter given with --param
+  stays xs:untypedAtomic instead of being converted to its `as` type.
+
 - book-8 done (D299): Transforming with XSLT on the Latch draft
   (xslt.md, xslt-templates.md, xslt-keys-grouping.md, xslt-packages.md)
   and the new Project: Publishing the Specification (xslt-project.md):

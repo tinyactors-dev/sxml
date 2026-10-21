@@ -844,3 +844,5 @@ report lists new glossary terms and "Chapter N" texts it left for book-13.
 (Packets add requests here, one line each, for book-13 to decide. This
 file is a shared ledger: stage only your hunk and commit the index
 without a pathspec, as BRIEF.md says.)
+
+- book-9: latch-data.xsd's simple types have no `xs:documentation`, which the plan for scxml-xhtml.md expected; document.xsl uses it when present and describes the facets otherwise. Adding a sentence of documentation to `seconds`, `door-id` and `code` would show it on the page.
