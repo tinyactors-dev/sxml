@@ -1982,6 +1982,15 @@ static sxml_status choose_method(sxml_item_heap *item_heap, const sxml_xslt_resu
     return status;
 }
 
+/* indent DEFAULT as yes for html and xhtml (26.1.4). */
+static void resolve_default_indent(sxml_serialization_parameters *parameters) {
+    if (parameters->indent == SXML_SERIALIZATION_FLAG_DEFAULT &&
+        (parameters->serialization_method == SXML_SERIALIZATION_METHOD_HTML ||
+         parameters->serialization_method == SXML_SERIALIZATION_METHOD_XHTML)) {
+        parameters->indent = SXML_SERIALIZATION_FLAG_YES;
+    }
+}
+
 /* The parameters a serialization of request uses: its method or the one
    chosen, indent DEFAULT as yes for html and xhtml (26.1.4). */
 static sxml_status effective_parameters(sxml_item_heap *item_heap,
@@ -1994,11 +2003,7 @@ static sxml_status effective_parameters(sxml_item_heap *item_heap,
             return status;
         }
     }
-    if (parameters->indent == SXML_SERIALIZATION_FLAG_DEFAULT &&
-        (parameters->serialization_method == SXML_SERIALIZATION_METHOD_HTML ||
-         parameters->serialization_method == SXML_SERIALIZATION_METHOD_XHTML)) {
-        parameters->indent = SXML_SERIALIZATION_FLAG_YES;
-    }
+    resolve_default_indent(parameters);
     return SXML_STATUS_OK;
 }
 
@@ -2498,9 +2503,9 @@ static sxml_status raise_dynamic(sxml_error_record *error_record, sxml_byte_view
  * `principal_stream`, D231): the main function builds its result tree into
  * the stream's tree builder (src/evaluator_construct.c). Until the first
  * element or non-whitespace text of the tree, its top-level nodes are
- * kept in a tree; then the method is known (26.1.2): the xml or text
- * method whose parameters a streamed serialization accepts
- * (src/serialize_internal.h, D295) writes the kept nodes and every later
+ * kept in a tree; then the method is known (26.1.2): the xml, xhtml, html
+ * or text method whose parameters a streamed serialization accepts
+ * (src/serialize_internal.h, D295, D297) writes the kept nodes and every later
  * event as it comes; any other keeps building the tree, which is
  * serialized after the evaluation, as before.
  */
@@ -2585,9 +2590,9 @@ static sxml_status replay_kept_nodes(principal_stream *stream) {
     return status;
 }
 
-/* The method is known from evidence (26.1.2): streamed for the xml and
-   text methods with parameters a streamed serialization takes; built
-   otherwise. */
+/* The method is known from evidence (26.1.2): streamed for the methods
+   whose parameters (indent resolved) a streamed serialization takes;
+   built otherwise. */
 static sxml_status decide_stream(principal_stream *stream, method_evidence evidence) {
     sxml_serialization_parameters parameters = stream->definition.serialization_parameters;
     if (!stream->definition.has_serialization_method) {
@@ -2598,6 +2603,7 @@ static sxml_status decide_stream(principal_stream *stream, method_evidence evide
             parameters.serialization_method = SXML_SERIALIZATION_METHOD_HTML;
         }
     }
+    resolve_default_indent(&parameters);
     stream->state = SXML_PRINCIPAL_STREAM_BUILT;
     if (!sxml_serialization_streams(&parameters)) {
         return SXML_STATUS_OK;

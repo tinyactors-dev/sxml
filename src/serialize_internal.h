@@ -347,7 +347,7 @@ SXML_NODISCARD sxml_status sxml_serialize_xml_method(sxml_serializer *serializer
 
 /*
  * A streamed serialization (glossary `streamed_serialization`, D231): the
- * XML or text method fed by the events of a tree builder, which writes
+ * XML, XHTML, HTML or text method fed by the events of a tree builder, which writes
  * each part of the result tree as its events arrive instead of a tree it
  * walks: what it writes is what sxml_serialize_xml_method (or
  * sxml_serialize_text_method, D295) writes for the document those events
@@ -359,10 +359,12 @@ SXML_NODISCARD sxml_status sxml_serialize_xml_method(sxml_serializer *serializer
  */
 typedef struct sxml_streamed_serialization sxml_streamed_serialization;
 
-/* Whether parameters can be serialized as the events come: the xml method
-   without indent, canonical, a document type declaration or standalone,
-   which read the tree first (Serialization 4.0, 5.1.4, 5.1.7), and the
-   text method without normalization-form (D295). */
+/* Whether parameters can be serialized as the events come: the xml and
+   xhtml methods without indent, canonical, a document type declaration or
+   standalone, which read the tree first (Serialization 4.0, 5.1.4,
+   5.1.7), the html method without indent (D297), and the text method
+   without normalization-form (D295). indent is taken as given: a caller
+   whose default is yes (XSLT 4.0, 26.1.4) resolves it first. */
 bool sxml_serialization_streams(const sxml_serialization_parameters *parameters);
 
 typedef struct sxml_streamed_serialization_request {

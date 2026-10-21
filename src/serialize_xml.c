@@ -200,6 +200,11 @@ typedef struct sxml_xml_writer {
     sxml_namespace_uri_identifier xhtml_namespace;
     sxml_namespace_uri_identifier svg_namespace;
     sxml_namespace_uri_identifier mathml_namespace;
+    /* A streamed serialization's windows of the open elements (sxml_tree
+       *, the element of each its node 1), whose attributes are the
+       ancestors' the tree of the element being written lacks; NULL when
+       a whole tree is written. */
+    const sxml_xml_array *ancestor_windows;
     sxml_xml_open_element *open_elements;
     size_t open_element_count;
     size_t open_element_capacity;
@@ -325,11 +330,11 @@ static bool sxml_xml_writer_is_normalized_namespace(const sxml_xml_writer *write
             namespace_uri.index == writer->mathml_namespace.index);
 }
 
-/* Whether an attribute of element or of one of its ancestors is written
-   with prefix (the exception of prefix normalization). */
-static sxml_status sxml_xml_writer_prefix_is_used(sxml_node_reference element,
-                                                  sxml_namespace_prefix_identifier prefix,
-                                                  sxml_answer *is_used_answer) {
+/* Whether an attribute of element or of one of its ancestors in its tree
+   is written with prefix. */
+static sxml_status sxml_xml_writer_tree_uses_prefix(sxml_node_reference element,
+                                                    sxml_namespace_prefix_identifier prefix,
+                                                    sxml_answer *is_used_answer) {
     is_used_answer->is_true = false;
     sxml_node_reference current = element;
     for (;;) {
@@ -365,6 +370,31 @@ static sxml_status sxml_xml_writer_prefix_is_used(sxml_node_reference element,
     }
 }
 
+/* Whether an attribute of element or of one of its ancestors is written
+   with prefix (the exception of prefix normalization); in a streamed
+   serialization the ancestors are the elements of its open windows. */
+typedef struct sxml_prefix_use {
+    sxml_node_reference element;
+    sxml_namespace_prefix_identifier prefix;
+} sxml_prefix_use;
+
+static sxml_status sxml_xml_writer_prefix_is_used(const sxml_xml_writer *writer,
+                                                  sxml_prefix_use use,
+                                                  sxml_answer *is_used_answer) {
+    sxml_status status =
+        sxml_xml_writer_tree_uses_prefix(use.element, use.prefix, is_used_answer);
+    const sxml_xml_array *windows = writer->ancestor_windows;
+    for (size_t window_index = 0; status == SXML_STATUS_OK && !is_used_answer->is_true &&
+                                  windows != NULL && window_index < windows->element_count;
+         window_index += 1) {
+        sxml_tree *const *window = (sxml_tree *const *)sxml_xml_array_at(windows, window_index);
+        status = sxml_xml_writer_tree_uses_prefix(
+            (sxml_node_reference){.tree = *window, .node_index = {.index = 1}, .namespace_number = 0},
+            use.prefix, is_used_answer);
+    }
+    return status;
+}
+
 /* Fills the wanted bindings of an element (Serialization 4.0, section 5;
    prefix normalization, section 6): its in-scope namespaces, minus xml
    and, with HTML5, the prefixes of the three normalized namespaces; plus
@@ -387,8 +417,10 @@ static sxml_status sxml_xml_writer_collect_wanted(sxml_xml_writer *writer,
         if (normalizes && binding.namespace_prefix.index != 0 &&
             sxml_xml_writer_is_normalized_namespace(writer, binding.namespace_uri)) {
             sxml_answer is_used = {.is_true = false};
-            status = sxml_xml_writer_prefix_is_used(facts->element, binding.namespace_prefix,
-                                                    &is_used);
+            status = sxml_xml_writer_prefix_is_used(
+                writer,
+                (sxml_prefix_use){.element = facts->element, .prefix = binding.namespace_prefix},
+                &is_used);
             if (status != SXML_STATUS_OK || !is_used.is_true) {
                 continue;
             }
@@ -1082,7 +1114,7 @@ static sxml_status sxml_xml_writer_write_attribute(sxml_xml_writer *writer,
                                                    const sxml_element_facts *facts,
                                                    sxml_node_reference attribute) {
     sxml_node_description description;
-    sxml_name_parts parts;
+    sxml_name_parts parts = {.namespace_uri = {.index = SXML_NAMESPACE_NONE}};
     sxml_byte_view value = {.bytes = NULL, .byte_count = 0};
     sxml_status status = sxml_node_describe(attribute, &description);
     if (status == SXML_STATUS_OK) {
@@ -1748,6 +1780,30 @@ bool sxml_serializer_requests_html5(const sxml_serialization_parameters *paramet
     return !parameters->has_version || sxml_html_version_is_html5(parameters->version);
 }
 
+/* Looks up the namespaces of the HTML rules the writer has not found yet:
+   one the name pool has not seen yet is in no node (yet). */
+static void sxml_xml_writer_find_namespaces(sxml_xml_writer *writer) {
+    if (!writer->has_html_rules) {
+        return;
+    }
+    const sxml_name_pool *name_pool = writer->serializer->name_pool;
+    if (writer->xhtml_namespace.index == SXML_NAMESPACE_NONE) {
+        (void)sxml_name_pool_find_namespace_uri(
+            name_pool, SXML_BYTE_VIEW_FROM_LITERAL("http://www.w3.org/1999/xhtml"),
+            &writer->xhtml_namespace);
+    }
+    if (writer->svg_namespace.index == SXML_NAMESPACE_NONE) {
+        (void)sxml_name_pool_find_namespace_uri(
+            name_pool, SXML_BYTE_VIEW_FROM_LITERAL("http://www.w3.org/2000/svg"),
+            &writer->svg_namespace);
+    }
+    if (writer->mathml_namespace.index == SXML_NAMESPACE_NONE) {
+        (void)sxml_name_pool_find_namespace_uri(
+            name_pool, SXML_BYTE_VIEW_FROM_LITERAL("http://www.w3.org/1998/Math/MathML"),
+            &writer->mathml_namespace);
+    }
+}
+
 static void sxml_xml_writer_start(sxml_serializer *serializer, sxml_xml_writer *writer) {
     const sxml_serialization_parameters *parameters = serializer->parameters;
     const bool is_xml_like = parameters->serialization_method == SXML_SERIALIZATION_METHOD_XML ||
@@ -1784,24 +1840,14 @@ static void sxml_xml_writer_start(sxml_serializer *serializer, sxml_xml_writer *
         .xhtml_namespace = {.index = SXML_NAMESPACE_NONE},
         .svg_namespace = {.index = SXML_NAMESPACE_NONE},
         .mathml_namespace = {.index = SXML_NAMESPACE_NONE},
+        .ancestor_windows = NULL,
         .open_elements = NULL,
         .bindings = NULL,
         .wanted = NULL,
         .declared = NULL,
         .attribute_numbers = NULL,
     };
-    if (has_html_rules) {
-        (void)sxml_name_pool_find_namespace_uri(
-            serializer->name_pool, SXML_BYTE_VIEW_FROM_LITERAL("http://www.w3.org/1999/xhtml"),
-            &writer->xhtml_namespace);
-        (void)sxml_name_pool_find_namespace_uri(
-            serializer->name_pool, SXML_BYTE_VIEW_FROM_LITERAL("http://www.w3.org/2000/svg"),
-            &writer->svg_namespace);
-        (void)sxml_name_pool_find_namespace_uri(
-            serializer->name_pool,
-            SXML_BYTE_VIEW_FROM_LITERAL("http://www.w3.org/1998/Math/MathML"),
-            &writer->mathml_namespace);
-    }
+    sxml_xml_writer_find_namespaces(writer);
 }
 
 /* The checks of Serialization 4.0, 5.1.2, 5.1.9 and 5.1.11 (not for
@@ -2242,7 +2288,7 @@ typedef struct sxml_streamed_attribute {
 
 /*
  * A streamed serialization (glossary `streamed_serialization`, D231): the
- * XML method fed by tree builder events. An element's start tag is
+ * XML, XHTML or HTML method fed by tree builder events. An element's start tag is
  * written when its first content event or its end comes (its namespaces
  * and attributes are known then): the element is built alone in a small
  * tree (a window) with the in-scope namespaces of its parent's window,
@@ -2253,6 +2299,15 @@ typedef struct sxml_streamed_attribute {
  * whole tree would write, and the memory held is the windows of the open
  * elements. With the text method only the text events are written, as
  * they come (D295).
+ *
+ * The XHTML and HTML methods (D297) need no more than the element's
+ * window and the open elements: void elements, raw text, boolean and URI
+ * attributes are the element's own; the document type declaration needs
+ * the top level before the first element (sxml_top_level); the meta
+ * element include-content-type adds is written with head's start tag,
+ * and a meta element it replaces is skipped with its content (a depth
+ * count); prefix normalization asks whether an ancestor's attribute uses
+ * a prefix, which the writer looks up in the open windows.
  */
 struct sxml_streamed_serialization {
     sxml_allocator allocator;
@@ -2272,6 +2327,12 @@ struct sxml_streamed_serialization {
     /* The windows of the open elements (sxml_tree *, owned), innermost
        last; the element of each is its node 1. */
     sxml_xml_array windows;
+    /* The top level so far, for the document type declaration. */
+    sxml_top_level top_level;
+    /* Inside a meta element include-content-type replaces (Serialization
+       4.0, 7.5.14): the elements open in it, the meta element included;
+       0 outside one. */
+    size_t skipped_depth;
 };
 
 bool sxml_serialization_streams(const sxml_serialization_parameters *parameters) {
@@ -2282,11 +2343,23 @@ bool sxml_serialization_streams(const sxml_serialization_parameters *parameters)
     if (parameters->serialization_method == SXML_SERIALIZATION_METHOD_TEXT) {
         return parameters->normalization_form == SXML_NORMALIZATION_FORM_NONE;
     }
-    /* Indentation and Canonical XML look at an element's children before
-       its start tag; a document type declaration, standalone and
-       SEPM0004 at the whole tree (Serialization 4.0, 5.1.4, 5.1.7). */
-    return parameters->serialization_method == SXML_SERIALIZATION_METHOD_XML &&
-           parameters->indent != SXML_SERIALIZATION_FLAG_YES &&
+    /* Indentation looks at an element's children before its start tag:
+       whether one is non-whitespace text or an inline element decides the
+       whitespace before the first (Serialization 4.0, 5.1.4, 6.1.5,
+       7.5.3), and the last can come at the end of the document (D297). */
+    if (parameters->indent == SXML_SERIALIZATION_FLAG_YES) {
+        return false;
+    }
+    /* The HTML method checks nothing of the whole tree: its document type
+       declaration goes before the first element (7.5.8). */
+    if (parameters->serialization_method == SXML_SERIALIZATION_METHOD_HTML) {
+        return true;
+    }
+    /* Canonical XML sorts and checks the whole document; a document type
+       declaration and standalone need SEPM0004's check of the whole tree
+       (5.1.7, 6). */
+    return (parameters->serialization_method == SXML_SERIALIZATION_METHOD_XML ||
+            parameters->serialization_method == SXML_SERIALIZATION_METHOD_XHTML) &&
            parameters->canonical != SXML_SERIALIZATION_FLAG_YES &&
            !parameters->has_doctype_system && !parameters->has_doctype_public &&
            parameters->standalone == SXML_STANDALONE_OMIT;
@@ -2421,12 +2494,77 @@ static sxml_status sxml_streamed_send_element(const sxml_streamed_serialization 
 /* Writes the start tag of the pending element from a window of its own;
    with has_children the element stays open (its window kept), else it is
    written whole. */
+/* Looks the namespaces of the HTML rules up again when the pending
+   element names a namespace: the evaluation may have interned one after
+   the writer started (sxml_xml_writer_find_namespaces). */
+static sxml_status sxml_streamed_find_namespaces(sxml_streamed_serialization *serialization) {
+    sxml_xml_writer *writer = &serialization->writer;
+    if (!writer->has_html_rules ||
+        (writer->xhtml_namespace.index != SXML_NAMESPACE_NONE &&
+         writer->svg_namespace.index != SXML_NAMESPACE_NONE &&
+         writer->mathml_namespace.index != SXML_NAMESPACE_NONE)) {
+        return SXML_STATUS_OK;
+    }
+    bool names_namespace = serialization->pending_bindings.element_count > 0;
+    for (size_t attribute_index = 0;
+         !names_namespace && attribute_index < serialization->pending_attributes.element_count;
+         attribute_index += 1) {
+        const sxml_streamed_attribute *attribute =
+            sxml_xml_array_at(&serialization->pending_attributes, attribute_index);
+        names_namespace = attribute->event.namespace_prefix.index != 0;
+    }
+    if (!names_namespace) {
+        sxml_name_parts parts;
+        const sxml_status status = sxml_name_pool_get_name_parts(
+            serialization->serializer.name_pool, serialization->pending_element.element_name,
+            &parts);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        names_namespace = parts.namespace_uri.index != SXML_NAMESPACE_NONE;
+    }
+    if (names_namespace) {
+        sxml_xml_writer_find_namespaces(writer);
+    }
+    return SXML_STATUS_OK;
+}
+
+/* What comes before the start tag of a window's element: at the top
+   level the document type declaration before the first element (D297);
+   in a head that received a meta element, whether the element is a meta
+   element it replaces (Serialization 4.0, 6.1.18, 7.5.14). */
+static sxml_status sxml_streamed_before_start_tag(sxml_streamed_serialization *serialization,
+                                                  sxml_node_reference element,
+                                                  sxml_answer *is_replaced_answer) {
+    sxml_xml_writer *writer = &serialization->writer;
+    is_replaced_answer->is_true = false;
+    const sxml_xml_open_element *parent = sxml_xml_writer_top(writer);
+    if (parent != NULL) {
+        return parent->is_content_type_head
+                   ? sxml_xml_writer_is_replaced_meta(writer, element, is_replaced_answer)
+                   : SXML_STATUS_OK;
+    }
+    sxml_top_level *top_level = &serialization->top_level;
+    top_level->element_count += 1;
+    sxml_status status = SXML_STATUS_OK;
+    if (top_level->element_count == 1) {
+        status = sxml_xml_writer_write_doctype(writer, top_level, element);
+    }
+    top_level->has_written = true;
+    top_level->was_previous_text = false;
+    return status;
+}
+
 static sxml_status sxml_streamed_write_pending(sxml_streamed_serialization *serialization,
                                                bool has_children) {
     serialization->has_pending_element = false;
+    sxml_status status = sxml_streamed_find_namespaces(serialization);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
     sxml_serializer *serializer = &serialization->serializer;
     sxml_arena_tree *arena_tree = NULL;
-    sxml_status status = sxml_arena_tree_create(
+    status = sxml_arena_tree_create(
         serialization->allocator,
         &(sxml_arena_tree_configuration){
             .allocator = serialization->allocator,
@@ -2469,11 +2607,27 @@ static sxml_status sxml_streamed_write_pending(sxml_streamed_serialization *seri
         sxml_arena_tree_destroy(arena_tree);
         return status;
     }
-    status = sxml_xml_writer_open_element(
-        &serialization->writer,
-        (sxml_node_reference){.tree = window, .node_index = {.index = 1}, .namespace_number = 0},
-        sxml_xml_writer_top(&serialization->writer));
-    if (status == SXML_STATUS_OK && has_children) {
+    const sxml_node_reference element = {
+        .tree = window, .node_index = {.index = 1}, .namespace_number = 0};
+    sxml_answer is_replaced = {.is_true = false};
+    status = sxml_streamed_before_start_tag(serialization, element, &is_replaced);
+    if (status != SXML_STATUS_OK || is_replaced.is_true) {
+        /* A replaced meta element is left out with its content. */
+        serialization->skipped_depth = is_replaced.is_true && has_children ? 1U : 0U;
+        sxml_tree_release(window);
+        return status;
+    }
+    sxml_xml_writer *writer = &serialization->writer;
+    const size_t open_element_count = writer->open_element_count;
+    status = sxml_xml_writer_open_element(writer, element, sxml_xml_writer_top(writer));
+    /* Open when it has content, or as a head that received a meta element
+       (an empty one too, closed at once). */
+    if (status == SXML_STATUS_OK && writer->open_element_count > open_element_count) {
+        if (!has_children) {
+            status = sxml_xml_writer_close_top(writer, window);
+            sxml_tree_release(window);
+            return status;
+        }
         void *memory = NULL;
         status = sxml_xml_array_push(&serialization->windows, &memory);
         if (status == SXML_STATUS_OK) {
@@ -2507,9 +2661,12 @@ static sxml_status sxml_streamed_on_start_document(void *state,
                                                    const sxml_document_start_event *event) {
     (void)event;
     sxml_streamed_serialization *serialization = sxml_streamed_from_state(state);
-    if (serialization->parameters.omit_xml_declaration != SXML_SERIALIZATION_FLAG_NO) {
+    /* The HTML method writes no XML declaration (7.1). */
+    if (serialization->writer.is_html ||
+        serialization->parameters.omit_xml_declaration != SXML_SERIALIZATION_FLAG_NO) {
         return SXML_STATUS_OK;
     }
+    serialization->top_level.has_written = true;
     return sxml_xml_writer_write_declaration_of_xml(&serialization->writer);
 }
 
@@ -2520,9 +2677,13 @@ static sxml_status sxml_streamed_on_end_document(void *state) {
 static sxml_status sxml_streamed_on_start_element(void *state,
                                                   const sxml_element_start_event *event) {
     sxml_streamed_serialization *serialization = sxml_streamed_from_state(state);
-    const sxml_status status =
-        sxml_streamed_before_content(serialization, (sxml_streamed_content){.is_text = false});
-    if (status != SXML_STATUS_OK) {
+    sxml_status status = SXML_STATUS_OK;
+    if (serialization->skipped_depth == 0) {
+        status =
+            sxml_streamed_before_content(serialization, (sxml_streamed_content){.is_text = false});
+    }
+    if (status != SXML_STATUS_OK || serialization->skipped_depth > 0) {
+        serialization->skipped_depth += serialization->skipped_depth > 0 ? 1U : 0U;
         return status;
     }
     serialization->has_pending_element = true;
@@ -2537,6 +2698,9 @@ static sxml_status sxml_streamed_on_start_element(void *state,
 static sxml_status sxml_streamed_on_namespace_binding(void *state,
                                                       const sxml_namespace_binding *binding) {
     sxml_streamed_serialization *serialization = sxml_streamed_from_state(state);
+    if (serialization->skipped_depth > 0) {
+        return SXML_STATUS_OK;
+    }
     if (!serialization->has_pending_element) {
         return SXML_STATUS_INVALID_ARGUMENT;
     }
@@ -2550,6 +2714,9 @@ static sxml_status sxml_streamed_on_namespace_binding(void *state,
 
 static sxml_status sxml_streamed_on_attribute(void *state, const sxml_attribute_event *event) {
     sxml_streamed_serialization *serialization = sxml_streamed_from_state(state);
+    if (serialization->skipped_depth > 0) {
+        return SXML_STATUS_OK;
+    }
     if (!serialization->has_pending_element) {
         return SXML_STATUS_INVALID_ARGUMENT;
     }
@@ -2571,6 +2738,10 @@ static sxml_status sxml_streamed_on_attribute(void *state, const sxml_attribute_
 
 static sxml_status sxml_streamed_on_end_element(void *state) {
     sxml_streamed_serialization *serialization = sxml_streamed_from_state(state);
+    if (serialization->skipped_depth > 0) {
+        serialization->skipped_depth -= 1;
+        return SXML_STATUS_OK;
+    }
     sxml_status status = sxml_streamed_flush_text(serialization);
     if (status != SXML_STATUS_OK) {
         return status;
@@ -2590,10 +2761,24 @@ static sxml_status sxml_streamed_on_end_element(void *state) {
 
 static sxml_status sxml_streamed_on_text(void *state, const sxml_text_event *event) {
     sxml_streamed_serialization *serialization = sxml_streamed_from_state(state);
-    if (event->text.byte_count == 0) {
+    if (event->text.byte_count == 0 || serialization->skipped_depth > 0) {
         return SXML_STATUS_OK;
     }
     sxml_status status = SXML_STATUS_OK;
+    /* At the top level text is written as text, whatever it asks for
+       (sequence normalization joins it, Serialization 4.0, section 2),
+       and non-whitespace text before the first element means no HTML5
+       document type declaration (7.5.8). */
+    const bool is_top_level =
+        !serialization->has_pending_element && serialization->writer.open_element_count == 0;
+    if (is_top_level) {
+        serialization->top_level.has_nonwhitespace_text =
+            serialization->top_level.has_nonwhitespace_text ||
+            !sxml_xml_text_is_whitespace(event->text);
+        serialization->top_level.has_written = true;
+        serialization->top_level.was_previous_text = true;
+    }
+    const bool asks_cdata_section = event->is_cdata_section && !is_top_level;
     /* D188: they are two text nodes. So are text events that differ in
        asking for CDATA sections (XSLT 4.0, 11.4.3), unless the parent's
        text is CDATA sections anyway (cdata-section-elements): only the
@@ -2602,18 +2787,18 @@ static sxml_status sxml_streamed_on_text(void *state, const sxml_text_event *eve
     const bool is_cdata_parent = parent != NULL && parent->is_cdata_parent;
     if (serialization->text.byte_count > 0 &&
         (serialization->is_text_unescaped != event->disables_output_escaping ||
-         (!is_cdata_parent && serialization->is_text_cdata_section != event->is_cdata_section))) {
+         (!is_cdata_parent && serialization->is_text_cdata_section != asks_cdata_section))) {
         status = sxml_streamed_flush_text(serialization);
     }
     if (status == SXML_STATUS_OK) {
         status = sxml_streamed_before_content(serialization,
                                               (sxml_streamed_content){.is_text = true});
     }
-    if (status != SXML_STATUS_OK) {
+    if (status != SXML_STATUS_OK || serialization->skipped_depth > 0) {
         return status;
     }
     serialization->is_text_cdata_section =
-        (is_cdata_parent && serialization->is_text_cdata_section) || event->is_cdata_section;
+        (is_cdata_parent && serialization->is_text_cdata_section) || asks_cdata_section;
     serialization->is_text_unescaped = event->disables_output_escaping;
     status = sxml_xml_buffer_append(&serialization->text, event->text);
     /* A long text node is written in parts when that writes the same
@@ -2692,11 +2877,29 @@ sxml_streamed_text_on_processing_instruction(void *state,
     return SXML_STATUS_OK;
 }
 
-static sxml_status sxml_streamed_on_comment(void *state, const sxml_comment_event *event) {
-    sxml_streamed_serialization *serialization = sxml_streamed_from_state(state);
+/* Before a comment or processing instruction: whether it is written
+   (not inside a replaced meta element). */
+static sxml_status sxml_streamed_before_leaf(sxml_streamed_serialization *serialization,
+                                             sxml_answer *is_written_answer) {
+    is_written_answer->is_true = false;
+    if (serialization->skipped_depth > 0) {
+        return SXML_STATUS_OK;
+    }
     const sxml_status status =
         sxml_streamed_before_content(serialization, (sxml_streamed_content){.is_text = false});
-    return status == SXML_STATUS_OK
+    is_written_answer->is_true = status == SXML_STATUS_OK && serialization->skipped_depth == 0;
+    if (is_written_answer->is_true && serialization->writer.open_element_count == 0) {
+        serialization->top_level.has_written = true;
+        serialization->top_level.was_previous_text = false;
+    }
+    return status;
+}
+
+static sxml_status sxml_streamed_on_comment(void *state, const sxml_comment_event *event) {
+    sxml_streamed_serialization *serialization = sxml_streamed_from_state(state);
+    sxml_answer is_written = {.is_true = false};
+    const sxml_status status = sxml_streamed_before_leaf(serialization, &is_written);
+    return status == SXML_STATUS_OK && is_written.is_true
                ? sxml_xml_writer_write_comment(&serialization->writer, event->comment)
                : status;
 }
@@ -2705,9 +2908,9 @@ static sxml_status
 sxml_streamed_on_processing_instruction(void *state,
                                         const sxml_processing_instruction_event *event) {
     sxml_streamed_serialization *serialization = sxml_streamed_from_state(state);
-    const sxml_status status =
-        sxml_streamed_before_content(serialization, (sxml_streamed_content){.is_text = false});
-    return status == SXML_STATUS_OK
+    sxml_answer is_written = {.is_true = false};
+    const sxml_status status = sxml_streamed_before_leaf(serialization, &is_written);
+    return status == SXML_STATUS_OK && is_written.is_true
                ? sxml_xml_writer_write_instruction(
                      &serialization->writer,
                      (sxml_xml_instruction){.target = event->target, .content = event->data})
@@ -2787,8 +2990,16 @@ sxml_status sxml_streamed_serialization_create(sxml_allocator allocator,
                                  .error_record = request->error_record},
         &made->serializer);
     sxml_xml_writer_start(&made->serializer, &made->writer);
+    made->writer.ancestor_windows = &made->windows;
+    made->top_level = (sxml_top_level){.has_written = false,
+                                       .was_previous_text = false,
+                                       .has_nonwhitespace_text = false,
+                                       .element_count = 0};
+    /* As sxml_serialize_xml_method: the XML and XHTML methods check the
+       version, omit-xml-declaration and undeclare-prefixes (5.1). */
     if (status == SXML_STATUS_OK &&
-        made->parameters.serialization_method == SXML_SERIALIZATION_METHOD_XML) {
+        (made->parameters.serialization_method == SXML_SERIALIZATION_METHOD_XML ||
+         made->parameters.serialization_method == SXML_SERIALIZATION_METHOD_XHTML)) {
         status = sxml_xml_writer_check_parameters(&made->writer);
     }
     if (status != SXML_STATUS_OK) {

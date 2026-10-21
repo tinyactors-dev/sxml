@@ -4,8 +4,10 @@
  * 4.0, sections 7 and 8; D128): void elements, raw text, boolean
  * attributes, escaping in attributes, processing instructions, the
  * document type declaration and the meta element, XML islands, versions
- * before HTML5 (SERE0014, SERE0015), and the text method's string value
- * without escaping.
+ * before HTML5 (SERE0014, SERE0015), the text method's string value
+ * without escaping, and the streamed serialization of the HTML and XHTML
+ * methods (D297): byte for byte what the tree gives, with text events
+ * split at every character.
  *
  * Golden file: tests/serialize_xml_test.c (fixture, expected texts, "!CODE"
  * for an expected error, the allocation-failure loop). Expected texts
@@ -13,6 +15,7 @@
  */
 #include "sxml/serialize.h"
 
+#include "serialize_internal.h"
 #include "sxml/name.h"
 #include "sxml/tree.h"
 #include "sxml/types.h"
@@ -464,6 +467,307 @@ static void test_text_method(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
 }
 
+/* ------------------------------------------- Streamed serialization */
+
+/* A tree builder that forwards its events to target, each text event as
+   one event per character: event borders inside script and style
+   elements, around multi-byte characters and in attribute-free text. */
+typedef struct splitting_builder {
+    sxml_tree_builder target;
+} splitting_builder;
+
+static splitting_builder *splitting_from_state(void *state) {
+    return state;
+}
+
+static sxml_status split_start_document(void *state, const sxml_document_start_event *event) {
+    const sxml_tree_builder target = splitting_from_state(state)->target;
+    return target.operations->start_document(target.state, event);
+}
+
+static sxml_status split_end_document(void *state) {
+    const sxml_tree_builder target = splitting_from_state(state)->target;
+    return target.operations->end_document(target.state);
+}
+
+static sxml_status split_start_element(void *state, const sxml_element_start_event *event) {
+    const sxml_tree_builder target = splitting_from_state(state)->target;
+    return target.operations->start_element(target.state, event);
+}
+
+static sxml_status split_namespace_binding(void *state, const sxml_namespace_binding *binding) {
+    const sxml_tree_builder target = splitting_from_state(state)->target;
+    return target.operations->add_namespace_binding(target.state, binding);
+}
+
+static sxml_status split_attribute(void *state, const sxml_attribute_event *event) {
+    const sxml_tree_builder target = splitting_from_state(state)->target;
+    return target.operations->add_attribute(target.state, event);
+}
+
+static sxml_status split_end_element(void *state) {
+    const sxml_tree_builder target = splitting_from_state(state)->target;
+    return target.operations->end_element(target.state);
+}
+
+static sxml_status split_text(void *state, const sxml_text_event *event) {
+    const sxml_tree_builder target = splitting_from_state(state)->target;
+    sxml_status status = SXML_STATUS_OK;
+    size_t offset = 0;
+    while (status == SXML_STATUS_OK && offset < event->text.byte_count) {
+        size_t character_byte_count = 1;
+        while (offset + character_byte_count < event->text.byte_count &&
+               (event->text.bytes[offset + character_byte_count] & 0xC0U) == 0x80U) {
+            character_byte_count += 1;
+        }
+        sxml_text_event part = *event;
+        part.text = (sxml_byte_view){.bytes = event->text.bytes + offset,
+                                     .byte_count = character_byte_count};
+        status = target.operations->add_text(target.state, &part);
+        offset += character_byte_count;
+    }
+    return status;
+}
+
+static sxml_status split_comment(void *state, const sxml_comment_event *event) {
+    const sxml_tree_builder target = splitting_from_state(state)->target;
+    return target.operations->add_comment(target.state, event);
+}
+
+static sxml_status split_processing_instruction(void *state,
+                                                const sxml_processing_instruction_event *event) {
+    const sxml_tree_builder target = splitting_from_state(state)->target;
+    return target.operations->add_processing_instruction(target.state, event);
+}
+
+static sxml_status split_unparsed_entity(void *state, const sxml_unparsed_entity *entity) {
+    const sxml_tree_builder target = splitting_from_state(state)->target;
+    return target.operations->add_unparsed_entity(target.state, entity);
+}
+
+static const sxml_tree_builder_operations splitting_operations = {
+    .start_document = split_start_document,
+    .end_document = split_end_document,
+    .start_element = split_start_element,
+    .add_namespace_binding = split_namespace_binding,
+    .add_attribute = split_attribute,
+    .end_element = split_end_element,
+    .add_text = split_text,
+    .add_comment = split_comment,
+    .add_processing_instruction = split_processing_instruction,
+    .add_unparsed_entity = split_unparsed_entity,
+    .set_element_identity = NULL,
+};
+
+/* Serializes document's events, split, through a streamed serialization
+   into output; the error's code goes to *error_record. */
+typedef struct streamed_run {
+    sxml_item document;
+    const sxml_serialization_parameters *parameters;
+    sxml_output_buffer *output;
+} streamed_run;
+
+static sxml_status run_streamed(fixture *test_fixture, const streamed_run *run,
+                                sxml_error_record *error_record) {
+    sxml_streamed_serialization *serialization = NULL;
+    sxml_status status = sxml_streamed_serialization_create(
+        fixture_allocator(test_fixture),
+        &(sxml_streamed_serialization_request){
+            .item_heap = test_fixture->item_heap,
+            .parameters = run->parameters,
+            .output_stream = sxml_output_buffer_as_output_stream(run->output),
+            .error_record = error_record},
+        &serialization);
+    sxml_node_reference node = {.tree = NULL, .node_index = {.index = 0}, .namespace_number = 0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_item_get_node(run->document, &node);
+    }
+    if (status == SXML_STATUS_OK) {
+        splitting_builder splitting = {
+            .target = sxml_streamed_serialization_as_tree_builder(serialization)};
+        status = sxml_tree_builder_copy_node(
+            (sxml_tree_builder){.state = &splitting, .operations = &splitting_operations},
+            &(sxml_copy_request){.node = node,
+                                 .preserves_namespaces = true,
+                                 .inherits_namespaces = true,
+                                 .preserves_type_annotations = true});
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_streamed_serialization_finish(serialization);
+    }
+    sxml_streamed_serialization_destroy(serialization);
+    return status;
+}
+
+/* Whether the streamed serialization of xml_text with parameters gives
+   the bytes, or the error code, of the tree's serialization. */
+typedef struct streamed_case {
+    const char *xml_text;
+    const sxml_serialization_parameters *parameters;
+} streamed_case;
+
+static bool streamed_equals_tree(fixture *test_fixture, const streamed_case *test_case) {
+    sxml_item document = {.representation = 0};
+    if (parse_document(test_fixture, test_case->xml_text, &document) != SXML_STATUS_OK) {
+        (void)fprintf(stderr, "cannot parse %s\n", test_case->xml_text);
+        return false;
+    }
+    sxml_output_buffer_clear(test_fixture->output_buffer);
+    sxml_error_record tree_error = {.value = NULL};
+    const sxml_status tree_status = sxml_serialize_sequence(
+        test_fixture->item_heap,
+        &(sxml_serialization_request){.value = sxml_sequence_from_item(document),
+                                      .serialization_parameters = *test_case->parameters,
+                                      .error_record = &tree_error},
+        sxml_output_buffer_as_output_stream(test_fixture->output_buffer));
+    sxml_output_buffer *streamed = NULL;
+    sxml_status status = sxml_output_buffer_create(
+        sxml_default_allocator(),
+        &(sxml_output_buffer_configuration){.allocator = sxml_default_allocator(),
+                                            .maximum_byte_count = 0},
+        &streamed);
+    sxml_error_record streamed_error = {.value = NULL};
+    if (status == SXML_STATUS_OK) {
+        status = run_streamed(test_fixture,
+                              &(streamed_run){.document = document,
+                                              .parameters = test_case->parameters,
+                                              .output = streamed},
+                              &streamed_error);
+    }
+    const sxml_byte_view expected = sxml_output_buffer_get_bytes(test_fixture->output_buffer);
+    const sxml_byte_view got =
+        streamed == NULL ? (sxml_byte_view){.bytes = NULL, .byte_count = 0}
+                         : sxml_output_buffer_get_bytes(streamed);
+    bool is_equal = status == tree_status;
+    if (is_equal && status == SXML_STATUS_OK) {
+        is_equal = sxml_byte_view_equals(got, expected);
+    } else if (is_equal && status == SXML_STATUS_DYNAMIC_ERROR) {
+        is_equal = sxml_byte_view_equals(streamed_error.code.local_name,
+                                         tree_error.code.local_name);
+    }
+    if (!is_equal) {
+        (void)fprintf(stderr, "%s: tree status %d \"%.*s\", streamed status %d \"%.*s\"\n",
+                      test_case->xml_text, (int)tree_status, (int)expected.byte_count,
+                      (const char *)expected.bytes, (int)status, (int)got.byte_count,
+                      (const char *)got.bytes);
+    }
+    sxml_output_buffer_destroy(streamed);
+    sxml_item_release(document);
+    return is_equal;
+}
+
+#define XHTML_METHOD .serialization_method = SXML_SERIALIZATION_METHOD_XHTML
+
+/* Documents for the HTML rules: void and raw text elements (raw text in
+   events of one character), boolean and URI attributes, the meta element
+   added and one with content replaced, an empty head, comments and
+   processing instructions, the top level before the first element, XML
+   islands, the XHTML, SVG and MathML namespaces with prefixes an
+   ancestor's attribute keeps. */
+static const char *const streamed_documents[] = {
+    "<html><head><meta charset='x'/><title>t&amp;u</title></head><body><p>a<br/>b"
+    "<script>if (a &lt; b &amp;&amp; c) x('\xC3\xA9\xE2\x82\xAC')</script>"
+    "<style>p&gt;a{}</style><input checked='checked' name='n'/>"
+    "<a href='\xC3\xA9 x?a=1&amp;b'>\xE2\x82\xAC\xF0\x9F\x98\x80</a><!--c--><?pi a--b?></p>"
+    "</body></html>",
+    "<html><head/></html>",
+    "<html><HEAD><meta http-equiv=' Content-Type ' content='x'><b>in</b>t</meta>"
+    "<META CHARSET='y'/><link href='\xC3\xA9'/></HEAD><body/></html>",
+    "<!--c--><?pi d?>\n<HTML><body><SCRIPT>a&lt;<b>\xC3\xA9</b>&amp;</SCRIPT></body></HTML>"
+    "<!--after-->",
+    "<html xmlns='http://www.w3.org/1999/xhtml'><head/><body><br/><p/>"
+    "<svg:svg xmlns:svg='http://www.w3.org/2000/svg'><svg:g/></svg:svg>"
+    "<m:math xmlns:m='http://www.w3.org/1998/Math/MathML'/><x:i xmlns:x='urn:x'/></body></html>",
+    "<h:html xmlns:h='http://www.w3.org/1999/xhtml' h:a='1'><h:body><h:p xmlns:h2="
+    "'http://www.w3.org/1999/xhtml'><h:br/></h:p></h:body></h:html>",
+    "<div><pre>\n a\xC2\x80</pre><textarea>&lt;x&gt;</textarea><option selected='SELECTED'/>"
+    "<img src='a b.png' alt='&quot;'/></div>",
+};
+
+static void test_streamed_matches_tree(sxml_test_state *state) {
+    fixture test_fixture;
+    SXML_TEST_REQUIRE(state, fixture_create(0, &test_fixture) == SXML_STATUS_OK);
+    const sxml_character_mapping mappings[] = {
+        {.codepoint = 0xE9U, .replacement_text = SXML_BYTE_VIEW_FROM_LITERAL("&eacute;")}};
+    const sxml_serialization_parameters parameter_sets[] = {
+        {HTML_METHOD},
+        {HTML_METHOD, NO_META},
+        {HTML_METHOD, .has_html_version = true,
+         .html_version = SXML_BYTE_VIEW_FROM_LITERAL("4.01")},
+        {HTML_METHOD, .has_version = true, .version = SXML_BYTE_VIEW_FROM_LITERAL("4.0"),
+         .has_doctype_public = true,
+         .doctype_public = SXML_BYTE_VIEW_FROM_LITERAL("-//W3C//DTD HTML 4.0//EN"),
+         .has_doctype_system = true, .doctype_system = SXML_BYTE_VIEW_FROM_LITERAL("s\".dtd")},
+        {HTML_METHOD, .has_doctype_system = true,
+         .doctype_system = SXML_BYTE_VIEW_FROM_LITERAL("about:legacy-compat")},
+        {HTML_METHOD, .escape_uri_attributes = SXML_SERIALIZATION_FLAG_NO,
+         .character_encoding = SXML_CHARACTER_ENCODING_US_ASCII},
+        {HTML_METHOD, .normalization_form = SXML_NORMALIZATION_FORM_NFD,
+         .use_character_maps = {.character_mappings = mappings, .character_mapping_count = 1}},
+        {XHTML_METHOD},
+        {XHTML_METHOD, .omit_xml_declaration = SXML_SERIALIZATION_FLAG_NO,
+         .has_html_version = true, .html_version = SXML_BYTE_VIEW_FROM_LITERAL("1.0")},
+        {XHTML_METHOD, .include_content_type = SXML_SERIALIZATION_FLAG_NO,
+         .character_encoding = SXML_CHARACTER_ENCODING_US_ASCII},
+    };
+    for (size_t parameter_index = 0; parameter_index < SXML_TEST_COUNT(parameter_sets);
+         parameter_index += 1) {
+        SXML_TEST_EXPECT(state, sxml_serialization_streams(&parameter_sets[parameter_index]));
+        for (size_t document_index = 0; document_index < SXML_TEST_COUNT(streamed_documents);
+             document_index += 1) {
+            const bool is_equal = streamed_equals_tree(
+                &test_fixture,
+                &(streamed_case){.xml_text = streamed_documents[document_index],
+                                 .parameters = &parameter_sets[parameter_index]});
+            if (!is_equal) {
+                (void)fprintf(stderr, "  parameter set %zu\n", parameter_index);
+            }
+            SXML_TEST_EXPECT(state, is_equal);
+        }
+    }
+    /* Indentation looks ahead (whether a later child is text or inline
+       decides the whitespace before the first); XHTML's document type
+       declaration and Canonical XML need the whole tree (D297). */
+    const sxml_serialization_parameters built_sets[] = {
+        {HTML_METHOD, .indent = SXML_SERIALIZATION_FLAG_YES},
+        {XHTML_METHOD, .indent = SXML_SERIALIZATION_FLAG_YES},
+        {XHTML_METHOD, .has_doctype_system = true,
+         .doctype_system = SXML_BYTE_VIEW_FROM_LITERAL("s.dtd")},
+        {XHTML_METHOD, .canonical = SXML_SERIALIZATION_FLAG_YES},
+    };
+    for (size_t parameter_index = 0; parameter_index < SXML_TEST_COUNT(built_sets);
+         parameter_index += 1) {
+        SXML_TEST_EXPECT(state, !sxml_serialization_streams(&built_sets[parameter_index]));
+    }
+    SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
+}
+
+/* Every allocation of the streamed HTML serialization may fail: the
+   status says so and nothing leaks. */
+static void test_streamed_allocation_failures(sxml_test_state *state) {
+    bool has_succeeded = false;
+    const sxml_serialization_parameters parameters = {HTML_METHOD};
+    for (uint64_t failing = 1; failing < 600 && !has_succeeded; failing += 1) {
+        fixture test_fixture;
+        SXML_TEST_REQUIRE(state, fixture_create(failing, &test_fixture) == SXML_STATUS_OK);
+        sxml_item document = {.representation = 0};
+        sxml_status status = parse_document(&test_fixture, streamed_documents[0], &document);
+        if (status == SXML_STATUS_OK) {
+            sxml_error_record error_record = {.value = NULL};
+            status = run_streamed(&test_fixture,
+                                  &(streamed_run){.document = document,
+                                                  .parameters = &parameters,
+                                                  .output = test_fixture.output_buffer},
+                                  &error_record);
+            SXML_TEST_EXPECT(state, status == SXML_STATUS_OK || status == SXML_STATUS_OUT_OF_MEMORY);
+            has_succeeded = status == SXML_STATUS_OK;
+            sxml_item_release(document);
+        }
+        SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
+    }
+    SXML_TEST_EXPECT(state, has_succeeded);
+}
+
 /* ------------------------------------------------- Allocation failures */
 
 static void test_allocation_failures(sxml_test_state *state) {
@@ -500,6 +804,8 @@ static const sxml_test_case serialize_html_test_cases[] = {
     {.name = "documents", .function = test_documents},
     {.name = "text_method", .function = test_text_method},
     {.name = "allocation_failures", .function = test_allocation_failures},
+    {.name = "streamed_matches_tree", .function = test_streamed_matches_tree},
+    {.name = "streamed_allocation_failures", .function = test_streamed_allocation_failures},
 };
 
 int main(int argument_count, char **arguments) {

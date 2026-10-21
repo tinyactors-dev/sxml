@@ -121,7 +121,27 @@ typedef struct served_document {
     /* Deliver the document as a node the host parsed, not as bytes. */
     bool is_node;
     sxml_item node;
+    /* Not 0: deliver in.xml through a byte reader, this many bytes a read
+       (D233), from read_offset. */
+    size_t chunk_byte_count;
+    size_t read_offset;
 } served_document;
+
+static sxml_status read_chunk(void *state, sxml_memory_view buffer, sxml_byte_reading *reading) {
+    served_document *served = state;
+    size_t count = served->content.byte_count - served->read_offset;
+    count = count < served->chunk_byte_count ? count : served->chunk_byte_count;
+    count = count < buffer.byte_count ? count : buffer.byte_count;
+    if (count > 0) {
+        memcpy(buffer.bytes, served->content.bytes + served->read_offset, count);
+    }
+    served->read_offset += count;
+    reading->byte_count = count;
+    reading->is_end = served->read_offset == served->content.byte_count;
+    return SXML_STATUS_OK;
+}
+
+static const sxml_byte_reader_operations chunk_reader_operations = {.read = read_chunk};
 
 static sxml_status resolve_input(void *state, const sxml_resource_request *request,
                                  sxml_resource *resource) {
@@ -141,6 +161,14 @@ static sxml_status resolve_input(void *state, const sxml_resource_request *reque
         sxml_item_retain(served->node);
         resource->resource_form = SXML_RESOURCE_FORM_DOCUMENT_NODE;
         resource->document_node = served->node;
+        return SXML_STATUS_OK;
+    }
+    if (served->chunk_byte_count > 0) {
+        served->read_offset = 0;
+        resource->resource_form = SXML_RESOURCE_FORM_BYTE_READER;
+        resource->byte_reader = (sxml_byte_reader){.state = served,
+                                                   .operations = &chunk_reader_operations};
+        resource->resource_uri = request->absolute_uri;
         return SXML_STATUS_OK;
     }
     resource->resource_form = SXML_RESOURCE_FORM_BYTES;
@@ -177,7 +205,9 @@ static sxml_status fixture_create_with_step_limit(fixture *test_fixture, sxml_by
     test_fixture->served = (served_document){.content = content,
                                              .second_content = {.bytes = NULL, .byte_count = 0},
                                              .is_node = false,
-                                             .node = {.representation = 0}};
+                                             .node = {.representation = 0},
+                                             .chunk_byte_count = 0,
+                                             .read_offset = 0};
     const sxml_allocator allocator = fixture_allocator(test_fixture);
     sxml_status status =
         sxml_processor_create(allocator,
@@ -1041,8 +1071,16 @@ static void test_large_document_paths_stream_in_bounded_memory(sxml_test_state *
     "<xsl:accumulator-rule match='record' select='$value + 1'/></xsl:accumulator>"
 
 /* Applies the templates of stylesheet_text's default mode to the streamed
-   principal source in.xml (D228), serialized into the output buffer. */
-static sxml_status run_principal(fixture *test_fixture, sxml_byte_view stylesheet_text) {
+   principal source in.xml (D228), delivered as result_delivery says: the
+   serialization into the output buffer, or the tree into *principal. */
+typedef struct principal_run {
+    sxml_byte_view stylesheet_text;
+    sxml_xslt_result_delivery result_delivery;
+    sxml_sequence *principal;
+} principal_run;
+
+static sxml_status run_principal_delivered(fixture *test_fixture, const principal_run *run) {
+    const sxml_byte_view stylesheet_text = run->stylesheet_text;
     memset(&test_fixture->error_record, 0, sizeof(test_fixture->error_record));
     sxml_output_buffer_clear(test_fixture->output_buffer);
     sxml_xslt_stylesheet *stylesheet = NULL;
@@ -1070,12 +1108,24 @@ static sxml_status run_principal(fixture *test_fixture, sxml_byte_view styleshee
                 .output_stream = sxml_output_buffer_as_output_stream(test_fixture->output_buffer),
                 .error_record = &test_fixture->error_record,
                 .invocation_kind = SXML_XSLT_INVOCATION_KIND_APPLY_TEMPLATES,
-                .result_delivery = SXML_XSLT_RESULT_DELIVERY_SERIALIZED},
+                .result_delivery = run->result_delivery},
             &principal);
-        sxml_sequence_release(principal);
+        if (run->principal != NULL) {
+            *run->principal = principal;
+        } else {
+            sxml_sequence_release(principal);
+        }
     }
     sxml_xslt_stylesheet_destroy(stylesheet);
     return status;
+}
+
+/* Serialized into the output buffer. */
+static sxml_status run_principal(fixture *test_fixture, sxml_byte_view stylesheet_text) {
+    return run_principal_delivered(
+        test_fixture, &(principal_run){.stylesheet_text = stylesheet_text,
+                                       .result_delivery = SXML_XSLT_RESULT_DELIVERY_SERIALIZED,
+                                       .principal = NULL});
 }
 
 /* Template rules applied to a streamed principal source (D228): the
@@ -1230,6 +1280,145 @@ static void test_principal_source_streams_in_bounded_memory(sxml_test_state *sta
     sxml_allocator_release(sxml_default_allocator(), memory);
 }
 
+/* The html and xhtml methods serialized as the principal result is made
+   (D297): byte for byte what serializing its tree gives, with the output
+   parameters the case names (xsl:output's, indent resolved), in memory far
+   below the tree's. */
+typedef struct html_principal_case {
+    const char *stylesheet_text;
+    sxml_serialization_parameters parameters;
+} html_principal_case;
+
+#define HTML_PRINCIPAL(output, templates)                                                          \
+    "<xsl:stylesheet version='3.0' " XSL_NAMESPACE " exclude-result-prefixes='#all'>" output       \
+    "<xsl:mode streamable='yes' on-no-match='shallow-skip'/>" templates "</xsl:stylesheet>"
+
+/* A table row a record, with a script element whose text is made of
+   several text events. */
+#define HTML_TABLE                                                                                 \
+    "<xsl:template match='/'><html><head><title>records</title></head><body><table>"               \
+    "<xsl:for-each select='records/record'><tr id='r{@id}'><td><script>if (n &lt; "                \
+    "<xsl:value-of select='@id'/> &amp;&amp; m) f('<xsl:value-of select='name'/>');"               \
+    "</script></td></tr></xsl:for-each></table></body></html></xsl:template>"
+
+static const html_principal_case html_principal_cases[] = {
+    {.stylesheet_text = HTML_PRINCIPAL("<xsl:output method='html' indent='no'/>", HTML_TABLE),
+     .parameters = {.serialization_method = SXML_SERIALIZATION_METHOD_HTML,
+                    .indent = SXML_SERIALIZATION_FLAG_NO}},
+    /* The method chosen from the html element (26.1.2). */
+    {.stylesheet_text = HTML_PRINCIPAL("<xsl:output indent='no' html-version='4.01'/>", HTML_TABLE),
+     .parameters = {.serialization_method = SXML_SERIALIZATION_METHOD_HTML,
+                    .indent = SXML_SERIALIZATION_FLAG_NO,
+                    .has_html_version = true,
+                    .html_version = SXML_BYTE_VIEW_INITIALIZER("4.01")}},
+    {.stylesheet_text = HTML_PRINCIPAL(
+         "<xsl:output method='xhtml' indent='no' omit-xml-declaration='no'/>",
+         "<xsl:template match='/'><html xmlns='http://www.w3.org/1999/xhtml'><head/><body>"
+         "<xsl:for-each select='records/record'><p><xsl:value-of select='name'/><br/>"
+         "</p></xsl:for-each></body></html></xsl:template>"),
+     .parameters = {.serialization_method = SXML_SERIALIZATION_METHOD_XHTML,
+                    .indent = SXML_SERIALIZATION_FLAG_NO,
+                    .omit_xml_declaration = SXML_SERIALIZATION_FLAG_NO}},
+};
+
+/* Runs test_case on document, read whole or chunk_byte_count bytes at a
+   time; with a limit, the streamed run is under it. */
+typedef struct html_principal_run {
+    const html_principal_case *test_case;
+    size_t chunk_byte_count;
+    bool is_limited;
+} html_principal_run;
+
+static void check_html_principal(sxml_test_state *state, sxml_byte_view document,
+                                 const html_principal_run *run) {
+    const html_principal_case *test_case = run->test_case;
+    const sxml_byte_view stylesheet_text = {.bytes = (const uint8_t *)test_case->stylesheet_text,
+                                            .byte_count = strlen(test_case->stylesheet_text)};
+    fixture test_fixture;
+    sxml_status status = fixture_create(&test_fixture, document);
+    test_fixture.served.chunk_byte_count = run->chunk_byte_count;
+    /* The tree first, unlimited, serialized as the principal result's
+       tree would be. */
+    sxml_sequence tree = sxml_sequence_empty();
+    if (status == SXML_STATUS_OK) {
+        status = run_principal_delivered(
+            &test_fixture, &(principal_run){.stylesheet_text = stylesheet_text,
+                                            .result_delivery = SXML_XSLT_RESULT_DELIVERY_TREE,
+                                            .principal = &tree});
+    }
+    sxml_output_buffer *expected = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_output_buffer_create(
+            sxml_default_allocator(),
+            &(sxml_output_buffer_configuration){.allocator = sxml_default_allocator(),
+                                                .maximum_byte_count = 0},
+            &expected);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_serialize_sequence(
+            sxml_processor_get_item_heap(test_fixture.processor),
+            &(sxml_serialization_request){.value = tree,
+                                          .serialization_parameters = test_case->parameters,
+                                          .error_record = &test_fixture.error_record},
+            sxml_output_buffer_as_output_stream(expected));
+    }
+    sxml_sequence_release(tree);
+    if (run->is_limited) {
+        test_fixture.memory.peak_byte_count = test_fixture.memory.live_byte_count;
+        test_fixture.memory.limit_byte_count =
+            test_fixture.memory.live_byte_count + STREAM_LIMIT_BYTE_COUNT;
+    }
+    if (status == SXML_STATUS_OK) {
+        status = run_principal(&test_fixture, stylesheet_text);
+    }
+    const sxml_byte_view got = sxml_output_buffer_get_bytes(test_fixture.output_buffer);
+    printf("  chunks of %zu: status %d, peak %zu bytes, %zu output bytes\n",
+           run->chunk_byte_count, (int)status, test_fixture.memory.peak_byte_count,
+           got.byte_count);
+    SXML_TEST_EXPECT(state, status == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, expected != NULL &&
+                                sxml_byte_view_equals(got, sxml_output_buffer_get_bytes(expected)));
+    sxml_output_buffer_destroy(expected);
+    SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
+}
+
+/* Records whose names have characters of two, three and four bytes and
+   markup characters, read three bytes at a time: chunk borders fall
+   inside characters and inside the script elements' text. */
+static const char html_small_document[] =
+    "<records><record id='1'><name>\xC3\xA9t\xC3\xA9 &lt;&amp;&gt; \xE2\x82\xAC</name></record>"
+    "<record id='2'><name>\xF0\x9F\x98\x80 '\xE6\x97\xA5\xE6\x9C\xAC'</name></record>"
+    "<record id='3'><name>a\xC2\xA0" "b</name></record></records>";
+
+static void test_html_principal_result_streams(sxml_test_state *state) {
+    sxml_byte_view large = {.bytes = NULL, .byte_count = 0};
+    void *memory = NULL;
+    const sxml_status status = make_large_document(&large, &memory);
+    SXML_TEST_EXPECT(state, status == SXML_STATUS_OK);
+    if (status != SXML_STATUS_OK) {
+        return;
+    }
+    const sxml_byte_view small = {.bytes = (const uint8_t *)html_small_document,
+                                  .byte_count = sizeof(html_small_document) - 1};
+    for (size_t case_index = 0; case_index < SXML_TEST_COUNT(html_principal_cases);
+         case_index += 1) {
+        const html_principal_case *test_case = &html_principal_cases[case_index];
+        check_html_principal(state, large,
+                             &(html_principal_run){.test_case = test_case,
+                                                   .chunk_byte_count = 0,
+                                                   .is_limited = true});
+        check_html_principal(state, small,
+                             &(html_principal_run){.test_case = test_case,
+                                                   .chunk_byte_count = 3,
+                                                   .is_limited = false});
+        check_html_principal(state, large,
+                             &(html_principal_run){.test_case = test_case,
+                                                   .chunk_byte_count = 1000,
+                                                   .is_limited = true});
+    }
+    sxml_allocator_release(sxml_default_allocator(), memory);
+}
+
 /* The steps a streamed document grants (D295): the identity of the
    30,000 records takes more steps than a bound of 10^6, which holds the
    tree's identity, but each element read grants its steps; a loop that
@@ -1329,6 +1518,7 @@ static const sxml_test_case evaluator_stream_test_cases[] = {
      .function = test_large_document_paths_stream_in_bounded_memory},
     {.name = "principal_source_streams_in_bounded_memory",
      .function = test_principal_source_streams_in_bounded_memory},
+    {.name = "html_principal_result_streams", .function = test_html_principal_result_streams},
     {.name = "streamed_elements_grant_steps", .function = test_streamed_elements_grant_steps},
     {.name = "streams_source_reads_the_initial_mode",
      .function = test_streams_source_reads_the_initial_mode},
