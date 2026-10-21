@@ -1,4 +1,4 @@
-# The book around five projects (plan, packet book-5)
+# The book around five projects (plan, packets book-5 and book-14)
 
 Internal: this file is not part of the book. It plans the rewrite of
 `docs/book` that the owner asked for on 2026-10-21 (D299):
@@ -23,36 +23,52 @@ which is already a project and stays as it is.
 
 ## 1. One story, five projects
 
-All five projects belong to one small, made-up system, **Latch**: door
-locks in a building, a controller, and the services behind it. The reader
-meets one domain and sees the projects feed each other:
+All five projects belong to one small, made-up system, **Vane**: a
+feature-flag service. Applications ask an SDK whether a feature is on
+for a user; the SDK asks the evaluation service (`flag-service`), which
+keeps flags, their targeting rules and rollout percentages in a registry
+(`flag-registry`, backed by PostgreSQL) and a cache (`flag-cache`, Redis);
+owners roll flags out by percentage, the service checks guardrail
+metrics before each step, pauses a flag whose checks keep failing, and
+has a kill switch; an audit service records changes. Every developer has
+met this; nobody has to imagine a door. The reader meets one domain and
+sees the projects feed each other:
 
-| Project | What the reader builds | Data (committed by book-5) |
+| Project | What the reader builds | Data (committed by book-14) |
 | --- | --- | --- |
-| spec | The Latch protocol as an Internet-Draft in XML: indexes of requirements and terms, checks, targeted edits, HTML and RFC-style text | `examples/spec/` |
+| spec | The Vane protocol as an Internet-Draft in XML: indexes of requirements and terms, checks, targeted edits, HTML and RFC-style text | `examples/spec/` |
 | svg | A small diagramming tool: a graph description, a computed layout, SVG written by XQuery and XSLT, SVG transformed | `examples/svg/` |
-| scxml | The lock as an SCXML machine whose data and events carry XSD types and whose states carry XHTML documentation; checks and generated documentation | `examples/scxml/` |
-| call-chains | The lock service's TypeScript before and after a change, its call graph, and the diff of its call chains | `examples/call-chains/` |
+| scxml | A flag's rollout lifecycle as an SCXML machine whose data and events carry XSD types and whose states carry XHTML documentation; checks and generated documentation | `examples/scxml/` |
+| call-chains | The flag service's TypeScript before and after a change, its call graph, and the diff of its call chains | `examples/call-chains/` |
 | traces | OTLP JSON traces of the same change before and after, and the diff of cardinalities and participants, rendered as HTML and SVG | `examples/traces/` |
 
 The links between projects are real and small: the machine's
-`latch:implements` attributes name the draft's requirement anchors; the
-machine's numbers (3 attempts, 10 s, 300 s) are the draft's; the code
-change of call-chains is the change the traces record; the diagram
-vocabulary of svg draws the services, the machine, the call-chain diff and
-the trace diff. The book says once, early (introduction), that the
-projects share a story, and each project chapter can be read on its own.
+`vane:implements` attributes name the draft's requirement anchors; the
+machine's numbers (3 failed checks, 600 s rollout steps, a 300 s pause)
+are the draft's; the code change of call-chains is the change the traces
+record; the diagram vocabulary of svg draws the services, the machine,
+the call-chain diff and the trace diff. The book says once, early
+(introduction), that the projects share a story, and each project
+chapter can be read on its own.
+
+The story replaced an earlier one, **Latch** (door locks, a controller
+and its services), on the owner's request (2026-10-21: "nobody thinks of
+doors"). Book-14 rewrote the seed data with the same structure; section
+8 has the rename table and the packets that carry the chapters over.
+Sections 3 to 7 below still use the Latch names where they describe
+chapter content: read them through the rename table.
 
 ## 2. The shared data
 
 Everything below is committed and checked with a release build of HEAD
-(`tools/private-build.sh SCRATCH/build-book-5 --preset release --`).
+(`tools/private-build.sh SCRATCH/build-book-14 --preset release --`).
 These files are the *seed* of each project directory.
 
 ### spec: an Internet-Draft in a subset of xml2rfc v3
 
-`spec/latch.xml` (draft -01) and `spec/latch-00.xml` (the earlier draft),
-`spec/latch.xsd`.
+`spec/vane.xml` (draft -01, `draft-example-vane-protocol-01`, "The Vane
+Protocol for Feature Flag Rollouts") and `spec/vane-00.xml` (the earlier
+draft), `spec/vane.xsd`.
 
 - **Vocabulary**: a subset of xml2rfc version 3 (RFC 7991 and the RFC
   Editor's current v3 grammar), no namespace, xml2rfc's element names and
@@ -63,105 +79,182 @@ These files are the *seed* of each project directory.
   `em`, `strong`, `tt`, `cref`, and `back` with nested `references` and
   `reference`. Chosen over an own vocabulary because it is what IETF
   authors write, xml2rfc can render the file, and the book can say so.
+- **Sections** (anchors): Introduction (`intro`) with Terminology
+  (`terminology`), Flag States (`states`), Messages (`messages`, with the
+  ABNF) with Rollout (`rollout`) and Status (`status`), Pause (`pause`),
+  Security Considerations (`security`), IANA Considerations (`iana`).
 - **Requirements** are paragraphs `t` with an `anchor` holding `bcp14`
   keywords (11 in -01: MUST 5, MUST NOT 1, SHOULD 2, SHOULD NOT 1, MAY 2;
-  plus one unanchored SHOULD in Security
-  Considerations that `cref` issue-2 flags, deliberately: the
-  "add a requirement" edit gives it an anchor). Anchors are names given
-  once in the order written (`req-1`…`req-11`, not in document order:
-  -01 inserted req-9, req-10, req-11 into existing sections); the
-  renderer numbers sections and requirements by position. Terms are the
-  `dt`s of section 1.1 with anchors `term-*`, used through
-  `<xref target="term-…">text</xref>`. References: RFC 2119, 5234, 8174
-  (normative), RFC 6238 (informative, new in -01). One ABNF
-  `sourcecode` (for the iXML task). Two `cref` editorial notes.
-- **-00 vs -01**: -01 adds req-9 (TOTP, with the RFC 6238 reference),
-  req-10 (status rate) and req-11 (lockout report), changes req-7
-  ("five" to "three" rejected codes) and req-8 ("one minute" to "five
-  minutes"), and the dates and names. Anchors of unchanged requirements
-  are the same, so a diff by anchor works.
-- **latch.xsd** (XSD 1.1, `vc:minVersion="1.1"`): named simple types
-  (`anchor`, `draft-name` with a pattern, `keyword` enumerating BCP 14's
-  eleven levels with an annotation, `month`, `day`), mixed content
-  (`text`), a group of inline elements, `xs:simpleContent` extensions
-  (`title`, `sourcecode`), recursive `section` and `references`, an
-  `xs:assert` (docName equals the Internet-Draft seriesInfo), `xs:unique`
-  over all anchors (not `xs:key`: most paragraphs have none) and an
-  `xs:keyref` from `xref/@target`.
+  plus one unanchored SHOULD in Security Considerations, "carry Vane over
+  an encrypted link", that `cref` issue-2 flags, deliberately: the "add a
+  requirement" edit gives it an anchor). Anchors are names given once in
+  the order written (`req-1`…`req-11`, not in document order: -01
+  inserted req-9, req-10, req-11 into existing sections; the document
+  order is req-1 2 3 4 5 9 6 10 7 8 11); the renderer numbers sections
+  and requirements by position. The requirements:
+
+  | Anchor | Section | Keyword | Says |
+  | --- | --- | --- | --- |
+  | req-1 | states | MUST | a flag is in exactly one of "stable", "rolling-out", "paused" |
+  | req-2 | states | MUST | a flag starts "stable" when created |
+  | req-3 | states | SHOULD | a rolling-out flag returns to "stable" ten minutes after its step began |
+  | req-4 | rollout | MUST | the service checks the guardrail metrics before it applies a percentage |
+  | req-5 | rollout | MUST NOT | no rollout during a pause (xref to section `pause`) |
+  | req-9 | rollout | MAY | ask an owner for a one-time password (RFC 6238) before a rollout (-01) |
+  | req-6 | status | MUST | answer a status request with the state and the failed checks |
+  | req-10 | status | SHOULD NOT | an SDK sends at most one status request per second per flag (-01) |
+  | req-7 | pause | MUST | three failed checks in a row pause the flag (-00: five) |
+  | req-8 | pause | SHOULD | a pause lasts five minutes (-00: one minute); `cref` issue-1 |
+  | req-11 | pause | MAY | report a pause to the flag's owners (-01) |
+
+  Terms are the `dt`s of section 1.1 with anchors `term-flag` (Flag),
+  `term-sdk` (SDK), `term-percentage` (Percentage), `term-pause` (Pause),
+  used through `<xref target="term-…">text</xref>`; the Pause `dd` refers
+  to `term-flag`. References: RFC 2119, 5234, 8174 (normative), RFC 6238
+  (informative, new in -01; kept from Latch because a second factor
+  before a production rollout is plausible, and its authors, M'Raihi
+  among them, carry the collation and array lessons of Chapters 2 and
+  13). One ABNF `sourcecode` (`name="vane.abnf"`, for the iXML task):
+
+  ```
+  message         = rollout-request / kill-request / status-request
+  rollout-request = "ROLLOUT" SP flag-key SP percentage CRLF
+  kill-request    = "KILL" SP flag-key CRLF
+  status-request  = "STATUS" SP flag-key CRLF
+  flag-key        = 1*32(ALPHA / DIGIT / "-")
+  percentage      = 1*3DIGIT
+  ```
+
+  (undefined core rules: SP, CRLF, ALPHA, DIGIT). Two `cref` editorial
+  notes. Words for the full-text lessons: "flag"/"flags", "pause"/
+  "paused", "roll out"/"rollout"/"rolling-out", "SDK", "service",
+  "owner"/"owners"; req-7 says "three", for `format-integer(3, "w")`.
+- **-00 vs -01**: -01 adds req-9 (one-time password, with the RFC 6238
+  reference and the informative references section), req-10 (status
+  rate) and req-11 (pause report), changes req-7 ("five" to "three"
+  failed checks) and req-8 ("one minute" to "five minutes"), the dates
+  (2026-07-06 to 2026-10-21), the names, and adds the leading comment.
+  Anchors of unchanged requirements are the same, so a diff by anchor
+  works.
+- **vane.xsd** (XSD 1.1, `vc:minVersion="1.1"`), latch.xsd unchanged but
+  its comment: named simple types (`anchor`, `draft-name` with a pattern,
+  `keyword` enumerating BCP 14's eleven levels with an annotation,
+  `month`, `day`), mixed content (`text`), a group of inline elements,
+  `xs:simpleContent` extensions (`title`, `sourcecode`), recursive
+  `section` and `references`, an `xs:assert` (docName equals the
+  Internet-Draft seriesInfo), `xs:unique` over all anchors (not `xs:key`:
+  most paragraphs have none) and an `xs:keyref` from `xref/@target`.
 
 ### svg: a diagram description and its drawing
 
 `svg/diagram.xml`, `svg/diagram.svg`.
 
 - **Vocabulary** (own, no namespace): `diagram` (title) with `node` (id,
-  label, optional kind="store") and `edge` (from, to, optional label).
-  The svg packet adds an optional `class` on node and edge (copied to the
-  SVG group, so a diff can colour `added`, `removed`, `changed`).
-- **diagram.svg** is the drawing the svg chapter's code must produce,
-  made with this layout (a sketch in XQuery made it; the svg packet
-  writes the book's version and may regenerate the file if it changes a
-  rule, saying so):
-  rank of a node = breadth-first distance from the nodes without
-  incoming edges (cycles allowed; for this DAG equal to the longest
-  path); one row per rank, top to bottom, nodes in document order,
-  each row centred; boxes 140 x 40, gaps 40 across and 60 down, padding
-  20, so width = 2·20 + n·140 + (n−1)·40 for the widest row; edges are
-  lines from the bottom centre of the source to the top centre of the
-  target with an arrow marker, the label at the midpoint (+6, +4);
-  services `rect rx="6"`, stores `rx="20"`; a `style` element with five
-  rules; ids `node-ID`, `edge-FROM-TO`; edges drawn before nodes. The
-  file is the serialization with `indent=yes` of the SVG namespace as the
-  default namespace.
+  label, optional kind="store") and `edge` (from, to, optional label),
+  and the optional `class` on node and edge (copied to the SVG group, so
+  a diff can colour `added`, `removed`, `changed`).
+- **The diagram** ("Vane services"): nodes `gateway` (api-gateway),
+  `flags` (flag-service), `registry` (flag-registry), `cache`
+  (flag-cache, store), `database` (postgresql, store); edges
+  gateway→flags HTTP, flags→registry HTTP, flags→cache Redis,
+  registry→database SQL. The SDK is the caller of api-gateway and is not
+  drawn; the audit service appears only after the change.
+- **diagram.svg** is the drawing the svg chapter's code makes (`draw.xq`
+  writes it byte for byte), with this layout: rank of a node =
+  breadth-first distance from the nodes without incoming edges (cycles
+  allowed; for this DAG equal to the longest path); one row per rank,
+  top to bottom, nodes in document order, each row centred; boxes 140 x
+  40, gaps 40 across and 60 down, padding 20, so width = 2·20 + n·140 +
+  (n−1)·40 for the widest row (360 x 380 here); edges are lines from the
+  bottom centre of the source to the top centre of the target with an
+  arrow marker, the label at the midpoint (+6, +4); services `rect
+  rx="6"`, stores `rx="20"`; a `style` element with five rules; ids
+  `node-ID`, `edge-FROM-TO`; edges drawn before nodes. The file is the
+  serialization with `indent=yes` of the SVG namespace as the default
+  namespace. Same coordinates as the Latch drawing: only ids, labels and
+  the title changed.
 
-### scxml: a door lock that describes itself
+### scxml: a feature flag that describes itself
 
-`scxml/lock.scxml`, `scxml/scxml.xsd`, `scxml/latch-data.xsd`.
+`scxml/flag.scxml`, `scxml/scxml.xsd`, `scxml/vane-data.xsd`.
 
-- **Machine** (SCXML 1.0 namespace, `datamodel="ecmascript"`): states
-  locked (initial), checking, unlocked, lockout, jammed; transitions with
-  events, `cond`, `target`, executable `assign`, `send`, `log`.
-  Self-description, in the namespace `urn:example:latch`:
-  `latch:events` declares each event (`latch:event name`, optional
-  `latch:payload` naming a payload element of latch-data.xsd, and an
-  XHTML `p`); each `data` has `latch:type` naming a simple type; states
-  and transitions have `latch:implements` with requirement anchors of
-  spec/latch.xml; each state has an XHTML `div`.
+- **Machine** `feature_flag` (SCXML 1.0 namespace,
+  `datamodel="ecmascript"`), one flag's rollout lifecycle: states
+  `stable` (initial: the flag keeps its percentage), `checking` (the
+  guardrail metrics are checked), `rolling-out` (the new percentage is
+  served for one step), `paused` (rollouts refused), `archived`.
+  Transitions: stable --rollout.request--> checking; stable
+  status.request (targetless, `send` status.response); checking
+  --check.passed--> rolling-out (assign failures 0); checking
+  --check.failed, cond `failures + 1 < maxFailures`--> stable (assign
+  failures + 1); checking --check.failed--> paused; rolling-out
+  (onentry: `send` step.done with `delayexpr`) --"kill.request
+  step.done"--> stable (two events in one attribute); rolling-out
+  flag.evaluated (targetless, `log`); paused (onentry: `send`
+  pause.expired) --pause.expired--> stable (assign failures 0); archived
+  --kill.request--> stable. The same graph as the Latch machine (locked,
+  checking, unlocked, lockout, jammed).
+- **Self-description**, in the namespace `urn:example:vane`:
+  `vane:events` declares nine events (`vane:event name`, optional
+  `vane:payload` naming a payload element of vane-data.xsd, and an
+  XHTML `p`): rollout.request (payload `vane:rollout`), check.passed,
+  check.failed, kill.request, status.request, status.response (payload
+  `vane:status`), step.done, pause.expired, flag.archived. Data:
+  `failures` 0 (`vane:failure-count`), `maxFailures` 3
+  (`vane:failure-limit`), `stepSeconds` 600 and `pauseSeconds` 300
+  (`vane:seconds`). `vane:implements`: stable req-2, the status
+  transition req-6, checking req-4, the check.failed → paused transition
+  req-7, rolling-out req-3, paused "req-5 req-8"; each state has an
+  XHTML `div` (rolling-out and paused with a `var`).
 - **Deliberate flaws**, valid against the schemas, found by the
-  schema-aware checks of Chapter 7: `jammed` is unreachable (no
-  transition targets it), `door.opened` is handled but not declared,
-  `bolt.jammed` is declared but neither handled nor sent, and
+  schema-aware checks of Chapter 7: `archived` is unreachable (no
+  transition targets it), `flag.evaluated` is handled but not declared,
+  `flag.archived` is declared but neither handled nor sent (the author
+  forgot the archive transition: the fix adds it), and
   `status.response` is only sent (a check must count `send/@event` as
-  used, or report it as outgoing).
-- **scxml.xsd**: a subset of the Recommendation's schema (said in its
-  comment: one target per transition, so a keyref can check it; four
-  executable elements), `xs:import` of latch-data.xsd, lax `xs:any` and
-  `xs:anyAttribute` `##other`, two `xs:assert`s citing SCXML 1.0 3.5
-  and 5.3.1, `xs:key` state-id with keyrefs for targets and initial.
-- **latch-data.xsd**: simple types with facets (attempt-count,
-  attempt-limit ≤ 10, seconds ≤ 3600, door-id and code patterns matching
-  the draft's ABNF, state enumeration), payload elements `credentials`
-  and `status` (with an `xs:assert` tying `retry-after` to lockout),
-  global attributes `type`, `payload`, `implements` (an `xs:list`), the
-  `events` element with `xs:unique` on names, and `latch:value` of type
-  `xs:anySimpleType` so that a query can check a data value against its
-  type with `xsi:type` (verified: `validate { <latch:value
-  xsi:type="latch:attempt-limit">30</latch:value> }` raises
-  cvc-maxInclusive-valid).
+  used, or report it as outgoing). The draft's only MUST that nothing
+  implements is req-1.
+- **scxml.xsd**: unchanged but for its comment and the import (`xs:import`
+  of vane-data.xsd for `urn:example:vane`): a subset of the
+  Recommendation's schema (one target per transition, so a keyref can
+  check it; four executable elements), lax `xs:any` and `xs:anyAttribute`
+  `##other`, two `xs:assert`s citing SCXML 1.0 3.5 and 5.3.1, `xs:key`
+  state-id with keyrefs for targets and initial.
+- **vane-data.xsd**: simple types with facets (failure-count,
+  failure-limit ≤ 10, seconds ≤ 3600, flag-key and percentage patterns
+  matching the draft's ABNF — `[A-Za-z0-9\-]{1,32}` and `[0-9]{1,3}`,
+  so the pattern, like the ABNF, allows 999: a facet lesson —, state
+  enumeration stable, rolling-out, paused), `xs:documentation` on
+  seconds, flag-key and percentage (the request under "Proposed data
+  changes"), payload elements `rollout` (flag, percentage, optional
+  owner) and `status` (flag, state, failed-checks, optional retry-after,
+  with an `xs:assert` tying `retry-after` to the state `paused`), global
+  attributes `type`, `payload`, `implements` (an `xs:list`), the `events`
+  element with `xs:unique` on names, and `vane:value` of type
+  `xs:anySimpleType`, so that a query can check a data value against its
+  type with `xsi:type`.
 
 ### call-chains: a TypeScript service, before and after
 
-`call-chains/before/{server,doors,registry,cache,http}.ts`,
-`call-chains/after/{server,doors,registry,audit,http}.ts` (TypeScript,
+`call-chains/before/{server,flags,registry,cache,http}.ts`,
+`call-chains/after/{server,flags,registry,audit,http}.ts` (TypeScript,
 built in; namespace imports `import * as registry from "./registry.ts"`
 make callees module-qualified).
 
-The change, in `doors.ts`: `listDoors` called `registry.getDoors()` once;
-now it calls `registry.getDoorIds()` and then `registry.getDoor(id)` in a
-`for … of` loop (an N+1; a static check sees the call inside a loop);
-`unlockDoor` no longer reads `cache.getDoor` (cache.ts is gone) and now
-calls `audit.record` (audit.ts is new). server.ts and http.ts are
-unchanged; the calls of `start` are inside an arrow function, so the call
-graph attributes calls to the enclosing named function.
+The service has two routes: `GET /flags` (`listFlags`, the flag list an
+SDK or the dashboard reads) and `POST /flags/{key}/kill` (`killFlag`, the
+kill switch: an owner sets the percentage to 0). The change, in
+`flags.ts`: `listFlags` called `registry.getFlags()` once; now it calls
+`registry.getFlagKeys()` and then `registry.getFlag(key)` in a `for … of`
+loop (an N+1; a static check sees the call inside a loop); `killFlag` no
+longer reads `cache.getFlag` (cache.ts is gone) and now calls
+`audit.record(key, "kill")` (audit.ts is new). `isOwner` checks
+`flag.owners.includes(owner)`; `registry.setPercentage(key, 0)` is a
+`PUT /flags/{key}/percentage`. server.ts and http.ts are unchanged; the
+calls of `start` are inside an arrow function, so the call graph
+attributes calls to the enclosing named function. Lines are those of the
+Latch files, except http.ts, whose `Flag` interface has one field more
+(key, name, state, percentage, owners).
 
 ### traces: OTLP JSON before and after
 
@@ -171,64 +264,95 @@ hex trace and span ids, kind as an integer, times as decimal strings,
 `intValue` as a string), grouped as exporters write them: resourceSpans
 per service (service.name, service.version, deployment.environment.name),
 scopeSpans per instrumentation library (http, pg, redis). Two traces per
-file, `GET /doors` and `POST /doors/{id}/unlock`, attributes after the
+file, `GET /flags` and `POST /flags/{key}/kill`, attributes after the
 stable HTTP and database semantic conventions (http.request.method,
 http.route, url.template, server.address, db.system.name,
-db.operation.name, db.collection.name, db.query.text). Participants come
-from client spans: the service of the server span whose parent is the
-client span, else `server.address` (redis and postgresql have no server
-spans). The diff (checked with a sketch query):
+db.operation.name, db.collection.name `flags`, db.query.text). Client
+calls: `GET /flags`, `GET /flag-keys`, `GET /flags/{key}`, `PUT
+/flags/{key}/percentage`, `POST /events`, redis `GET flag:new-checkout`,
+SQL `SELECT flags`, `UPDATE flags`, `INSERT audit_events`. Participants
+come from client spans: the service of the server span whose parent is
+the client span, else `server.address` (redis and postgresql have no
+server spans). Ids and times are the Latch files' (only names changed).
+The diff (the traces chapter's `diff.xq`, run on the new files):
 
 ```
-GET /doors: lock-registry -> postgresql  1 -> 5
-GET /doors: lock-service -> lock-registry  1 -> 5
-POST /doors/{id}/unlock: audit-service -> postgresql  0 -> 1
-POST /doors/{id}/unlock: lock-service -> audit-service  0 -> 1
-POST /doors/{id}/unlock: lock-service -> door-cache  1 -> 0
+flag-service: 2.3.0 -> 2.4.0
+audit-service: none -> 0.3.1
+GET /flags: flag-registry -> postgresql  1 -> 5
+GET /flags: flag-service -> flag-registry  1 -> 5
+POST /flags/{key}/kill: audit-service -> postgresql  0 -> 1
+POST /flags/{key}/kill: flag-service -> audit-service  0 -> 1
+POST /flags/{key}/kill: flag-service -> flag-cache  1 -> 0
 ```
 
-lock-service's version goes from 2.3.0 to 2.4.0; the four doors are
-front, back, garage, office.
+flag-service's version goes from 2.3.0 to 2.4.0 (api-gateway 1.4.0,
+flag-registry 1.9.2, audit-service 0.3.1); the four flags are
+new-checkout, dark-mode, fast-search, beta-banner (the N+1 is a run of
+four `GET /flags/{key}`); the kill request is for new-checkout.
 
 ### Verification (release build of HEAD, run in each directory)
 
 ```console
-$ cd spec && sxml validate --schema=latch.xsd latch.xml latch-00.xml; echo $?
+$ cd spec && sxml validate --schema=vane.xsd vane.xml vane-00.xml; echo $?
 0
-$ sxml xpath --context-item=latch.xml 'count(//t[bcp14]), count(//t[bcp14][not(@anchor)]), count(//xref), count(//dt)'
+$ sxml xpath --context-item=vane.xml 'count(//t[bcp14]), count(//t[bcp14][not(@anchor)]), count(//xref), count(//dt)'
 12
 1
 11
 4
-$ cd ../scxml && sxml validate --schema=scxml.xsd lock.scxml; echo $?
+$ sxml xpath --context-item=vane.xml 'string-join(//t[@anchor]/@anchor, " "), string-join(for $k in distinct-values(//t[@anchor]/bcp14) return $k || " " || count(//t[@anchor][bcp14 = $k]), ", ")'
+"req-1 req-2 req-3 req-4 req-5 req-9 req-6 req-10 req-7 req-8 req-11"
+"MUST 5, SHOULD 2, MUST NOT 1, MAY 2, SHOULD NOT 1"
+$ cd ../scxml && sxml validate --schema=scxml.xsd flag.scxml; echo $?
 0
 $ cd ../svg && sxml check diagram.xml diagram.svg; echo $?
 0
+$ sxml xquery --context-item=diagram.xml --output=drawn.svg draw.xq
+$ diff drawn.svg diagram.svg && echo same
+same
 $ cd ../call-chains && sxml xpath --allow-file-access 'for $version in ("before", "after") for $file in sort(file:list($version)) let $tree := sxml:parse-code(file:read-text($version || "/" || $file), "typescript") return `{$version}/{$file}: {count($tree//function_declaration)} functions, {count($tree//(ERROR | *[@missing]))} errors`'
 "before/cache.ts: 1 functions, 0 errors"
-"before/doors.ts: 4 functions, 0 errors"
+"before/flags.ts: 4 functions, 0 errors"
 "before/http.ts: 1 functions, 0 errors"
 "before/registry.ts: 3 functions, 0 errors"
 "before/server.ts: 2 functions, 0 errors"
 "after/audit.ts: 1 functions, 0 errors"
-"after/doors.ts: 4 functions, 0 errors"
+"after/flags.ts: 4 functions, 0 errors"
 "after/http.ts: 1 functions, 0 errors"
 "after/registry.ts: 3 functions, 0 errors"
 "after/server.ts: 2 functions, 0 errors"
+$ sxml xquery --context-item=diff.xml report.xq    # after the chapter's diff.xq, last lines
+Calls to other modules, before and after:
+  flags.listFlags > registry: 1 -> 1 + n
+  flags.killFlag > audit: 0 -> 1
+  flags.killFlag > cache: 1 -> 0
 $ cd ../traces && sxml xpath '("before.json", "after.json") ! `{.}: {count(json-doc(.)?resourceSpans?*?scopeSpans?*?spans?*)} spans of {count(distinct-values(json-doc(.)?resourceSpans?*?scopeSpans?*?spans?*?traceId))} traces in {string-join(json-doc(.)?resourceSpans?*?resource?attributes?*[?key = "service.name"]?value?stringValue, ", ")}`'
-"before.json: 16 spans of 2 traces in api-gateway, lock-service, lock-registry"
-"after.json: 30 spans of 2 traces in api-gateway, lock-service, lock-registry, audit-service"
+"before.json: 16 spans of 2 traces in api-gateway, flag-service, flag-registry"
+"after.json: 30 spans of 2 traces in api-gateway, flag-service, flag-registry, audit-service"
 ```
 
-Also tried, so the chapters can rely on them: a broken copy of
-latch.xml gives cvc-enumeration-valid (bcp14 MIGHT), cvc-assertion,
-cvc-identity-constraint.4.1 (an anchor twice) and 4.3 (an xref to no
-anchor); a broken lock.scxml gives 4.1 on a duplicate event, cvc-assertion
-on `data` with expr and src, and 4.3 on a missing target; a schema-aware
-query (`import schema` of both schemas, `validate { doc("lock.scxml") }`)
-finds the four flaws above, and `sum(@expr)` on the validated machine
-fails with FORG0006 because `expr` is typed xs:string (a typed-data
-lesson in itself).
+Also tried, so the chapters can rely on them: a broken copy of vane.xml
+gives cvc-enumeration-valid (bcp14 MIGHT), cvc-assertion (docName -01,
+seriesInfo -02), cvc-identity-constraint.4.1 (an anchor twice) and 4.3
+(an xref to term-client); a broken flag.scxml gives 4.1 on a duplicate
+event (unique `event-name`), cvc-assertion on `data` with expr and src,
+and 4.3 on a missing target; the scxml chapter's `check.xq` with the
+names replaced (`latch` to `vane`) prints exactly
+
+```
+unreachable state: archived
+undeclared event: flag.evaluated
+unused event: flag.archived
+not implemented: req-1 (MUST)
+```
+
+`validate { <vane:value xsi:type="vane:failure-limit">30</vane:value> }`
+raises cvc-maxInclusive-valid (XQDY0027), and `sum(@expr)` on the
+validated machine fails with FORG0006 because `expr` is typed xs:string.
+The call-chains chapter's `chains.xq`, `diff.xq` and `report.xq` and the
+traces chapter's `diff.xq` ran unchanged on the new files (their code
+names no door; only comments and prose do).
 
 ## 3. Rules for the rewrite packets
 
@@ -839,10 +963,204 @@ Every rewrite packet is **done when** its chapter files pass the check on
 a release build of HEAD, it deleted the directories it replaces, and its
 report lists new glossary terms and "Chapter N" texts it left for book-13.
 
+## 8. The re-theme: Latch to Vane (book-14)
+
+Book-6 to book-12 wrote the chapters on the Latch story. Book-14 replaced
+the story (sections 1 and 2) and its seed files; the chapters still show
+Latch until packets book-15 to book-21 carry them over, and their
+examples fail meanwhile (expected). The seed files are frozen again for
+those packets (rule 2 of section 3).
+
+### Files
+
+Seed files renamed by book-14 (old → new), with the symlinks that point
+to them (renamed with them, so none dangles):
+
+| Old | New |
+| --- | --- |
+| spec/latch.xml, spec/latch-00.xml, spec/latch.xsd | spec/vane.xml, spec/vane-00.xml, spec/vane.xsd |
+| scxml/lock.scxml, scxml/latch-data.xsd | scxml/flag.scxml, scxml/vane-data.xsd |
+| call-chains/before/doors.ts, call-chains/after/doors.ts | call-chains/before/flags.ts, call-chains/after/flags.ts |
+| symlinks spec/lock.scxml, spec/drafts/latch-00.xml, spec/drafts/latch-01.xml | spec/flag.scxml, spec/drafts/vane-00.xml, spec/drafts/vane-01.xml |
+| symlinks scxml/latch.xml, scxml/latch.xsd, c/latch.xml, c/latch-00.xml, ixml/latch.xml, javascript/latch.xml | scxml/vane.xml, scxml/vane.xsd, c/vane.xml, c/vane-00.xml, ixml/vane.xml, javascript/vane.xml |
+
+Chapter files the packets rename (`git mv`) in the commit that changes
+their chapter, and every file a command writes:
+
+| Old | New | Packet |
+| --- | --- | --- |
+| getting-started/draft.xml (content: a cut of latch.xml) | same name, a cut of vane.xml | book-15 |
+| spec/latch-entities.xml | spec/vane-entities.xml | book-17 |
+| spec/drafts/latch-02.xml, draft-example-latch-protocol-02 (written by commands) | spec/drafts/vane-02.xml, draft-example-vane-protocol-02 | book-16 |
+| site/latch.html, site/latch.txt, latch.css, latch.html, sections/lockout.html (written) | site/vane.html, site/vane.txt, vane.css, vane.html, sections/pause.html | book-17 |
+| scxml/lock-fixed.scxml, scxml/latch-1.1.xsd | scxml/flag-fixed.scxml, scxml/vane-1.1.xsd | book-18 |
+| lock.html, lock.svg, lock.log, lock-diagram.xml (scxml, written) | flag.html, flag.svg, flag.log, flag-diagram.xml | book-18 |
+| call-chains/kinds/lock.ts (class Lock, open, check, openAll, log) | call-chains/kinds/flag.ts (class Flag, evaluate, check, evaluateAll, log) | book-20 |
+| traces/diff-doors.svg, traces/diff-unlock.svg | traces/diff-flags.svg, traces/diff-kill.svg | book-21 |
+| doors.json, unlock.json, doors.xml, doors.svg, unlock.xml, unlock.svg, lockout.json (traces, written) | flags.json, kill.json, flags.xml, flags.svg, kill.xml, kill.svg, pause.json | book-21 |
+
+### Names in the data
+
+spec (vane.xml):
+
+| Old | New |
+| --- | --- |
+| docName draft-example-latch-protocol-00/-01/-02 | draft-example-vane-protocol-00/-01/-02 |
+| draft-example-latch-brief-00 (bad-*.xml, xsd-review.xml) | draft-example-vane-brief-00 |
+| title "The Latch Protocol for Remote Door Locks", abbrev Latch | "The Vane Protocol for Feature Flag Rollouts", abbrev Vane |
+| organization Example Locks | Example Software |
+| keywords lock, access control | feature flag, progressive delivery |
+| section anchors and names: states "Lock States", unlock "Unlock", lockout "Lockout" | states "Flag States", rollout "Rollout", pause "Pause" (intro, terminology, messages, status, security, iana unchanged) |
+| term-lock Lock, term-controller Controller, term-code Code, term-lockout Lockout | term-flag Flag, term-sdk SDK, term-percentage Percentage, term-pause Pause |
+| requirement anchors req-1…req-11, issue-1, issue-2, reference anchors | unchanged (meanings: section 2's table) |
+| sourcecode name latch.abnf | vane.abnf |
+| ABNF unlock-request "UNLOCK" SP door-id SP code CRLF | rollout-request "ROLLOUT" SP flag-key SP percentage CRLF |
+| ABNF lock-request "LOCK" SP door-id CRLF | kill-request "KILL" SP flag-key CRLF |
+| ABNF status-request "STATUS" SP door-id CRLF | status-request "STATUS" SP flag-key CRLF |
+| ABNF door-id = 1*16(ALPHA / DIGIT / "-"), code = 4*8DIGIT | flag-key = 1*32(ALPHA / DIGIT / "-"), percentage = 1*3DIGIT |
+| req-7 "five"/"three" rejected codes; req-8 "one minute"/"five minutes" | "five"/"three" failed checks; "one minute"/"five minutes" |
+| req-9 TOTP codes from a controller | a one-time password asked of an owner before a rollout (RFC 6238 unchanged) |
+| error code err:LATCH0001 (and other LATCH codes) | err:VANE0001 |
+
+scxml (flag.scxml, vane-data.xsd):
+
+| Old | New |
+| --- | --- |
+| namespace urn:example:latch, prefix latch: | urn:example:vane, prefix vane: |
+| machine name door_lock | feature_flag |
+| states locked (initial), checking, unlocked, lockout, jammed | stable (initial), checking, rolling-out, paused, archived |
+| events unlock.request, code.accepted, code.rejected, lock.request | rollout.request, check.passed, check.failed, kill.request |
+| events status.request, status.response | unchanged |
+| events timeout.relock, lockout.expired, bolt.jammed (unused) | step.done, pause.expired, flag.archived (unused) |
+| undeclared door.opened, `<log label="door" expr="'opened'"/>` | flag.evaluated, `<log label="flag" expr="'evaluated'"/>` |
+| data attempts 0, maxAttempts 3, relockSeconds 10, lockoutSeconds 300 | failures 0, maxFailures 3, stepSeconds 600, pauseSeconds 300 |
+| types attempt-count, attempt-limit, seconds | failure-count, failure-limit, seconds |
+| types door-id `[A-Za-z0-9\-]{1,16}`, code `[0-9]{4,8}` | flag-key `[A-Za-z0-9\-]{1,32}`, percentage `[0-9]{1,3}` |
+| state enumeration locked, unlocked, lockout | stable, rolling-out, paused |
+| payload credentials (door, code, user?) | rollout (flag, percentage, owner?) |
+| payload status (door, state, failed-attempts, retry-after?), assert on 'lockout' | status (flag, state, failed-checks, retry-after?), assert on 'paused' |
+| chapter-made names latch:credential, latch:moment, latch:delay, latch:event-with-payload | a misspelt vane:rollout (vane:rolout) in the broken copy, vane:moment, vane:delay, vane:event-with-payload |
+| links latch.html#req-N | vane.html#req-N |
+
+svg (diagram.xml, diagram.svg; and the chapter's states.xml, change.xml, box.svg):
+
+| Old | New |
+| --- | --- |
+| title "Latch services" (change.xml: "Latch services after the change") | "Vane services" ("Vane services after the change") |
+| node locks "lock-service" | flags "flag-service" |
+| node registry "lock-registry", node cache "door-cache" | registry "flag-registry", cache "flag-cache" (ids unchanged) |
+| svg ids node-locks, edge-gateway-locks, edge-locks-registry, edge-locks-cache | node-flags, edge-gateway-flags, edge-flags-registry, edge-flags-cache |
+| states.xml: locked, checking, unlocked, jammed; unlock.request, code.accepted, code.rejected, timeout.relock, lock.request | stable, checking, rolling-out, archived; rollout.request, check.passed, check.failed, step.done, kill.request |
+
+call-chains (TypeScript):
+
+| Old | New |
+| --- | --- |
+| module doors (doors.ts) | flags (flags.ts) |
+| interface Door {id, name, state, codes}, DoorSummary | Flag {key, name, state, percentage, owners}, FlagSummary |
+| Door state "locked" \| "unlocked" \| "lockout" | "stable" \| "rolling-out" \| "paused" |
+| doors.listDoors, doors.unlockDoor, doors.codeMatches, doors.summarize | flags.listFlags, flags.killFlag, flags.isOwner, flags.summarize |
+| registry.getDoors, registry.getDoorIds, registry.getDoor, registry.setState | registry.getFlags, registry.getFlagKeys, registry.getFlag, registry.setPercentage |
+| cache.getDoor, audit.record(doorId, "unlock") | cache.getFlag, audit.record(flagKey, "kill") |
+| door.codes.includes(code), doors.push, doors.map, ids | flag.owners.includes(owner), flags.push, flags.map, keys |
+| routes /doors, /doors/{id}/unlock; body { code }; answer { unlocked } | /flags, /flags/{key}/kill; body { owner }; answer { killed } |
+| variables unlock, door, doors, id, code | kill, flag, flags, key, owner |
+| redis://door-cache:6379, key door:${id} | redis://flag-cache:6379, key flag:${key} |
+| comments "the lock service", "the lock registry", "Latch system", "Every unlock" | "the flag service", "the flag registry", "Vane system", "Every kill" |
+
+traces (OTLP JSON; ids, times and versions unchanged):
+
+| Old | New |
+| --- | --- |
+| services lock-service, lock-registry, door-cache | flag-service, flag-registry, flag-cache |
+| routes GET /doors, POST /doors/{id}/unlock | GET /flags, POST /flags/{key}/kill |
+| client calls GET /door-ids, GET /doors/{id}, PUT /doors/{id}/state | GET /flag-keys, GET /flags/{key}, PUT /flags/{key}/percentage |
+| doors front, back, garage, office | flags new-checkout, dark-mode, fast-search, beta-banner |
+| span names SELECT doors, UPDATE doors; db.collection.name doors | SELECT flags, UPDATE flags; flags |
+| queries `SELECT id, name, state, codes FROM doors [WHERE id = $1]`, `SELECT id FROM doors`, `UPDATE doors SET state = $2 WHERE id = $1` | `SELECT key, name, state, percentage, owners FROM flags [WHERE key = $1]`, `SELECT key FROM flags`, `UPDATE flags SET percentage = $2 WHERE key = $1` |
+| redis `GET door:front`; audit columns (door, action, at) | `GET flag:new-checkout`; (flag, action, at) |
+
+### Words in the prose
+
+| Latch | Vane |
+| --- | --- |
+| Latch, the Latch system | Vane, the Vane system |
+| door lock, lock (the thing with states) | flag (a feature flag) |
+| door (one of many in a building) | feature / flag (one of many in an application) |
+| controller (sends messages) | SDK (sends messages); the side that answers is the evaluation service (`flag-service`) |
+| lock service / lock registry / door cache | flag service (the evaluation service) / flag registry / flag cache |
+| unlock, unlock request (spec, machine) | roll out, rollout request |
+| unlock (call-chains, traces: unlockDoor) | kill, the kill switch (killFlag) |
+| lock (verb), lock request | kill, kill request |
+| locked / unlocked / lockout | stable / rolling out / pause, paused |
+| jammed, bolt jammed | archived, flag archived |
+| door opened | flag evaluated |
+| code (digits a person presents) | percentage (spec, machine); owner (the TypeScript check) |
+| attempts, failed attempts, rejected codes | failures, failed checks |
+| relock, the relock timeout | the end of a rollout step (step.done, ten minutes) |
+| credentials | the rollout payload |
+| TOTP codes | a one-time password before a rollout |
+| the four doors front, back, garage, office | the four flags new-checkout, dark-mode, fast-search, beta-banner |
+| Example Locks | Example Software |
+
+Search words for a packet: `latch`, `Latch`, `LATCH`, `lock` (but not
+`block`, `clock`, `statement_block`, `print:block`, `xs:block`),
+`door`, `unlock`, `attempt`, `controller`, `jam`, `bolt`, `relock`,
+`code` (only the Latch code, not source code), `front`, `garage`,
+`office`. A packet is done when `grep -niE
+'latch|\block|unlock|door|attempt|controller|jammed|bolt|relock'` over its
+chapter files and example files finds nothing of the old story.
+
+### Packets book-15 to book-21
+
+Each packet owns the same chapter and example files as the packet it
+follows (section 7), with every name of the old story replaced, and
+runs in parallel with the others; the order constraints of section 7
+hold (draw.xqm first, from book-19):
+
+| Packet | Follows | Chapter files |
+| --- | --- | --- |
+| book-15 Getting started and XPath | book-6 | getting-started.md, installation.md, hello-xpath.md, the-sxml-command.md, xpath*.md; getting-started/* |
+| book-16 XQuery | book-7 | xquery*.md; spec/ query files, edit.xqm, spec.xqm, drafts/ |
+| book-17 XSLT, text, files, C, ABNF | book-8 | xslt*.md, text.md, files.md, c.md, the ABNF section of ixml-tasks.md; spec/*.xsl, publish*, text-*.xq, vane-entities.xml, bibxml/; c/*; ixml/abnf.ixml |
+| book-18 XSD and SCXML | book-9 | xsd*.md, scxml*.md; spec/bad-*, spec/xsd-*, levels.xsd; scxml/* but the seeds |
+| book-19 SVG | book-10 | svg*.md; svg/* but the seeds (commit draw.xqm's comments first if they change) |
+| book-20 Call chains | book-11 | call-chains*.md, source-code.md's sentence; call-chains/* but the seeds |
+| book-21 Traces, formats, JavaScript, performance | book-12 | traces*.md, formats.md, javascript.md, performance.md; traces/* but the seeds; javascript/* |
+
+Rules for each of them:
+
+1. Apply the tables above to the chapter files and to every example file
+   the packet owns: prose, file names (`git mv`), code, comments, ids,
+   test data, file names that commands write. Nothing of the old story
+   remains (the grep above).
+2. Every example output is regenerated, never edited by hand: run
+   `tools/check-book-examples.sh --update BUILD file.md…` on a release
+   build of HEAD, then **read each changed output** and make the prose
+   around it say what the output now says (counts, names, orders, line
+   numbers, which requirement or state is meant, "three of four" and
+   the like). Then run the check without `--update`; it passes.
+3. Where the old text relied on a property of the Latch data that the
+   Vane data lacks (a word for a full-text example, a line number, an
+   ordering), choose the nearest example on the Vane data that teaches
+   the same point, and say so in the report. Section 2 lists the
+   properties the seed keeps on purpose.
+4. A data change still goes under "Proposed data changes" (rule 2); do
+   not edit the seeds.
+5. The book never mentions Latch: the old story is gone from the text.
+6. Report new or changed glossary terms and "Chapter N" texts for
+   book-13.
+
+Then **book-13** (integration) runs last, as section 7 says, on the Vane
+story: SUMMARY.md, introduction.md (the Vane story, the projects, one
+directory per project), foreword.md if needed, the appendices (glossary
+terms the packets report; appendix-differences), every "Chapter N" text,
+codegen*.md references only, and the check of the whole book.
+
 ## Proposed data changes
 
 (Packets add requests here, one line each, for book-13 to decide. This
 file is a shared ledger: stage only your hunk and commit the index
 without a pathspec, as BRIEF.md says.)
 
-- book-9: latch-data.xsd's simple types have no `xs:documentation`, which the plan for scxml-xhtml.md expected; document.xsl uses it when present and describes the facets otherwise. Adding a sentence of documentation to `seconds`, `door-id` and `code` would show it on the page.
+- book-9: latch-data.xsd's simple types have no `xs:documentation`, which the plan for scxml-xhtml.md expected; document.xsl uses it when present and describes the facets otherwise. Adding a sentence of documentation to `seconds`, `door-id` and `code` would show it on the page. (book-14: done in vane-data.xsd, on `seconds`, `flag-key` and `percentage`.)

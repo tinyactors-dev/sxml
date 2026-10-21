@@ -14273,6 +14273,39 @@ suite say, so the library keeps them; later packets do not reopen them.
   typeswitch-record, FunctionDecl-record and map-keys-where, three
   syntax cases in xpath_static_test.
 
+### D301. The book's story is Vane, a feature-flag service (packet book-14)
+Recorded 2026-10-21, after D299. The owner rejected the Latch story
+(door locks, a controller and its services: "nobody thinks of doors")
+and chose a feature-flag service, something developers know. The five
+projects of D299 stay; only the story and its names change.
+- **Vane**: an SDK asks the evaluation service (`flag-service`) about
+  flags; the service keeps flags, targeting rules and percentages in
+  `flag-registry` (PostgreSQL) and `flag-cache` (Redis); owners roll
+  flags out by percentage, the service checks guardrail metrics, pauses
+  a flag after three failed checks, and has a kill switch; an
+  audit-service records changes. The name is short, neutral and no
+  feature-flag product we know of.
+- **Same structure, new names**: every count, order, flaw and diff the
+  chapters rely on is kept (docs/tasks/book.md sections 2 and 8): the
+  draft's 12 BCP 14 paragraphs with one unanchored SHOULD and anchors
+  out of document order, the -00/-01 changes ("five" to "three", "one
+  minute" to "five minutes"), 11 xrefs, 4 terms, RFC 2119/5234/8174 and
+  RFC 6238 (kept: a one-time password before a rollout; M'Raihi keeps
+  the collation lesson); the machine's graph and its four flaws
+  (archived unreachable, flag.evaluated undeclared, flag.archived
+  unused, status.response only sent); the services diagram's layout;
+  the call-chain change (listFlags N+1 over registry.getFlag, killFlag
+  drops cache.getFlag and adds audit.record: "1 -> 1 + n"); the traces'
+  16 and 30 spans and five-row diff.
+- **Files renamed**: latch.xml, latch-00.xml, latch.xsd to vane.*;
+  lock.scxml to flag.scxml; latch-data.xsd to vane-data.xsd
+  (namespace urn:example:vane); doors.ts to flags.ts; the symlinks to
+  them with them.
+- **Chapters follow mechanically**: packets book-15 to book-21 own the
+  files of book-6 to book-12, apply the rename table, regenerate every
+  example output with `--update` and make the prose match what the
+  outputs say; book-13 integrates last. The book never mentions Latch.
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): tagging and

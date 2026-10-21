@@ -23,6 +23,9 @@
   </xs:simpleType>
 
   <xs:simpleType name="seconds">
+    <xs:annotation>
+      <xs:documentation>A duration in whole seconds, at most one hour.</xs:documentation>
+    </xs:annotation>
     <xs:restriction base="xs:positiveInteger">
       <xs:maxInclusive value="3600"/>
     </xs:restriction>
@@ -35,12 +38,18 @@
   <!-- Values that the protocol defines (draft-example-vane-protocol, Messages) -->
 
   <xs:simpleType name="flag-key">
+    <xs:annotation>
+      <xs:documentation>The key of a flag: the flag-key rule of the protocol's ABNF.</xs:documentation>
+    </xs:annotation>
     <xs:restriction base="xs:string">
       <xs:pattern value="[A-Za-z0-9\-]{1,32}"/>
     </xs:restriction>
   </xs:simpleType>
 
   <xs:simpleType name="percentage">
+    <xs:annotation>
+      <xs:documentation>The share of users a rollout asks for: the percentage rule of the protocol's ABNF, one to three digits.</xs:documentation>
+    </xs:annotation>
     <xs:restriction base="xs:string">
       <xs:pattern value="[0-9]{1,3}"/>
     </xs:restriction>

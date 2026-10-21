@@ -4,6 +4,19 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- book-14 done (D301): the book's story is now Vane, a feature-flag
+  service, instead of Latch (door locks). New seed data with the same
+  structure: spec/vane.xml and vane-00.xml (the Vane protocol draft:
+  12 BCP 14 paragraphs, req-9..11 new in -01, 11 xrefs, 4 terms),
+  vane.xsd; scxml/flag.scxml (stable, checking, rolling-out, paused,
+  archived; the same four flaws) and vane-data.xsd; svg/diagram.* with
+  flag-service, flag-registry, flag-cache (same layout); call-chains
+  flags.ts (listFlags N+1, killFlag without cache and with audit:
+  "1 -> 1 + n"); traces with the same 16/30 spans and five-row diff.
+  The plan (docs/tasks/book.md) has the story, the verification
+  outputs, a rename table and packets book-15..book-21; chapters show
+  Latch, and their examples fail, until those packets run.
+
 - fix-2 done: the two sxml bugs book-9 found. An identity-constraint
   field whose value is not valid for its type (anchor="req 3" as an
   xs:ID) is reported and leaves its member unqualified (XSD 1.1, 3.11.4
