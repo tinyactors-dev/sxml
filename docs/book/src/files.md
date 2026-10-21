@@ -6,7 +6,7 @@ A query or a stylesheet often needs more than its input: another
 document, a text file, a module, a schema. This chapter explains how
 sxml finds them, and how it keeps a query from reading or writing what
 it shouldn't. The examples are in `docs/book/examples/spec`, with the
-Latch draft and its references.
+Vane draft and its references.
 
 ## Resolvers
 
@@ -30,8 +30,8 @@ are resolved against the *static base URI*, which for an expression on
 the command line is the working directory:
 
 ```console
-$ sxml xpath 'doc("latch-00.xml")/rfc/@docName/string()'
-"draft-example-latch-protocol-00"
+$ sxml xpath 'doc("vane-00.xml")/rfc/@docName/string()'
+"draft-example-vane-protocol-00"
 $ sxml xpath 'unparsed-text-lines("publish.sh")[1]'
 "#!/bin/sh"
 ```
@@ -43,8 +43,8 @@ the code the specification gives, and a URI that is not a local file is
 never fetched, not even the RFC Editor's bibliography:
 
 ```console
-$ sxml xpath 'doc("latch-02.xml")'
-expression:1:1: err:FODC0002: The file cannot be read (latch-02.xml)
+$ sxml xpath 'doc("vane-02.xml")'
+expression:1:1: err:FODC0002: The file cannot be read (vane-02.xml)
 $ sxml xpath 'doc("https://www.rfc-editor.org/refs/bibxml/reference.RFC.2119.xml")'
 expression:1:1: err:FODC0002: Only local files are available (https://www.rfc-editor.org/refs/bibxml/reference.RFC.2119.xml)
 ```
@@ -52,7 +52,7 @@ expression:1:1: err:FODC0002: Only local files are available (https://www.rfc-ed
 `doc-available` and `unparsed-text-available` ask first:
 
 ```console
-$ sxml xpath 'doc-available("latch-02.xml"), unparsed-text-available("publish.sh")'
+$ sxml xpath 'doc-available("vane-02.xml"), unparsed-text-available("publish.sh")'
 false()
 true()
 ```
@@ -63,7 +63,7 @@ An XML document can pull in other files itself, through its DTD. For
 years, xml2rfc authors wrote their references that way: the RFC Editor
 publishes a file for each RFC (its *bibxml*), and a draft declares an
 external entity for each one it cites. `bibxml/` holds the four the
-Latch draft needs:
+Vane draft needs:
 
 `bibxml/reference.RFC.2119.xml`:
 
@@ -71,11 +71,11 @@ Latch draft needs:
 {{#include ../examples/spec/bibxml/reference.RFC.2119.xml}}
 ```
 
-`latch-entities.xml`, a short version of the draft, refers to them, and
+`vane-entities.xml`, a short version of the draft, refers to them, and
 its internal DTD subset declares a default for an attribute:
 
 ```xml
-{{#include ../examples/spec/latch-entities.xml}}
+{{#include ../examples/spec/vane-entities.xml}}
 ```
 
 Reading those files when a document asks for them is a classic security
@@ -84,11 +84,11 @@ entities without `--external-entities`, and `fn:doc` refuses a document
 that needs them unless the call trusts it:
 
 ```console
-$ sxml check latch-entities.xml
-$ sxml check --external-entities latch-entities.xml
-$ sxml xpath 'doc("latch-entities.xml")//reference/@anchor'
+$ sxml check vane-entities.xml
+$ sxml check --external-entities vane-entities.xml
+$ sxml xpath 'doc("vane-entities.xml")//reference/@anchor'
 expression:1:1: err:FODC0016: The document refers to an external DTD or entity, and the call does not trust external resources (F&O 4.0, fn:doc, fn:parse-xml: trust-external)
-$ sxml xpath 'doc("latch-entities.xml", { "trust-external": true() })//reference ! `{@anchor} {@quoteTitle}: {front/title}`'
+$ sxml xpath 'doc("vane-entities.xml", { "trust-external": true() })//reference ! `{@anchor} {@quoteTitle}: {front/title}`'
 "RFC2119 true: Key words for use in RFCs to Indicate Requirement Levels"
 "RFC5234 true: Augmented BNF for Syntax Specifications: ABNF"
 "RFC8174 true: Ambiguity of Uppercase vs Lowercase in RFC 2119 Key Words"
@@ -156,20 +156,20 @@ touch files, so they are always there. `unparsed-binary` reads a
 resource as bytes, through the same resolver as everything else:
 
 ```console
-$ sxml xpath 'unparsed-binary("latch.xml") => bin:part(0, 5) => bin:to-octets()'
+$ sxml xpath 'unparsed-binary("vane.xml") => bin:part(0, 5) => bin:to-octets()'
 60
 63
 120
 109
 108
-$ sxml xpath 'unparsed-binary("latch.xml") => bin:part(0, 5) => bin:decode-string()'
+$ sxml xpath 'unparsed-binary("vane.xml") => bin:part(0, 5) => bin:decode-string()'
 "<?xml"
 $ sxml xpath 'bin:hex("EFBBBF") => bin:to-octets()'
 239
 187
 191
-$ sxml xpath 'bin:decode-string(bin:from-octets((76, 97, 116, 99, 104)))'
-"Latch"
+$ sxml xpath 'bin:decode-string(bin:from-octets((86, 97, 110, 101)))'
+"Vane"
 ```
 
 The bytes `EF BB BF` are the UTF-8 byte order mark. Some editors write
@@ -179,10 +179,10 @@ a hex dump of the first three bytes of each file:
 
 ```console
 $ printf '\357\273\277<rfc/>\n' > bom.xml
-$ sxml xpath '("latch.xml", "bom.xml") ! `{.}: {xs:hexBinary(bin:part(unparsed-binary(.), 0, 3))}`'
-"latch.xml: 3C3F78"
+$ sxml xpath '("vane.xml", "bom.xml") ! `{.}: {xs:hexBinary(bin:part(unparsed-binary(.), 0, 3))}`'
+"vane.xml: 3C3F78"
 "bom.xml: EFBBBF"
-$ sxml xpath '("latch.xml", "bom.xml")[bin:part(unparsed-binary(.), 0, 3) = bin:hex("EFBBBF")]'
+$ sxml xpath '("vane.xml", "bom.xml")[bin:part(unparsed-binary(.), 0, 3) = bin:hex("EFBBBF")]'
 "bom.xml"
 ```
 

@@ -6,7 +6,7 @@ Text is where software meets people, and people write in many languages.
 This chapter covers three things sxml does with text beyond plain
 strings: sorting and comparing it the way a language expects, searching
 it by words instead of characters, and writing dates and numbers in
-other languages. The examples run on the Latch draft, in
+other languages. The examples run on the Vane draft, in
 `docs/book/examples/spec`.
 
 ## Collations
@@ -16,15 +16,14 @@ capital letter before every small letter, so the terms of the draft and
 the words that refer to them sort into two runs:
 
 ```console
-$ sxml xpath --context-item=latch.xml 'sort(distinct-values((//dt, //xref[starts-with(@target, "term-")]) ! string()))'
-"Code"
-"Controller"
-"Lock"
-"Lockout"
-"code"
-"controller"
-"lock"
-"lockout"
+$ sxml xpath --context-item=vane.xml 'sort(distinct-values((//dt, //xref[starts-with(@target, "term-")]) ! string()))'
+"Flag"
+"Pause"
+"Percentage"
+"SDK"
+"flag"
+"pause"
+"percentage"
 ```
 
 A *collation* is a set of rules for comparing strings. Every function and
@@ -34,15 +33,14 @@ URI. The Unicode Collation Algorithm (UCA) gives the order people
 expect:
 
 ```console
-$ sxml xpath --context-item=latch.xml 'sort(distinct-values((//dt, //xref[starts-with(@target, "term-")]) ! string()), "http://www.w3.org/2013/collation/UCA")'
-"code"
-"Code"
-"controller"
-"Controller"
-"lock"
-"Lock"
-"lockout"
-"Lockout"
+$ sxml xpath --context-item=vane.xml 'sort(distinct-values((//dt, //xref[starts-with(@target, "term-")]) ! string()), "http://www.w3.org/2013/collation/UCA")'
+"flag"
+"Flag"
+"pause"
+"Pause"
+"percentage"
+"Percentage"
+"SDK"
 ```
 
 Parameters in the URI tailor the order. `strength` says which
@@ -51,11 +49,11 @@ ignores only case. With it, `distinct-values` finds that the draft has
 four terms, however a sentence capitalizes them:
 
 ```console
-$ sxml xpath --context-item=latch.xml 'distinct-values((//dt, //xref[starts-with(@target, "term-")]) ! string(), "http://www.w3.org/2013/collation/UCA?strength=secondary")'
-"Lock"
-"Controller"
-"Code"
-"Lockout"
+$ sxml xpath --context-item=vane.xml 'distinct-values((//dt, //xref[starts-with(@target, "term-")]) ! string(), "http://www.w3.org/2013/collation/UCA?strength=secondary")'
+"Flag"
+"SDK"
+"Percentage"
+"Pause"
 $ sxml xpath 'compare("Strasse", "Straße", "http://www.w3.org/2013/collation/UCA?strength=primary")'
 0
 ```
@@ -65,9 +63,9 @@ requirements end in numbers, and by code points `req-10` comes before
 `req-2`:
 
 ```console
-$ sxml xpath --context-item=latch.xml 'string-join(sort(//t/@anchor ! string()), " ")'
+$ sxml xpath --context-item=vane.xml 'string-join(sort(//t/@anchor ! string()), " ")'
 "req-1 req-10 req-11 req-2 req-3 req-4 req-5 req-6 req-7 req-8 req-9"
-$ sxml xpath --context-item=latch.xml 'string-join(sort(//t/@anchor ! string(), "http://www.w3.org/2013/collation/UCA?numeric=yes"), " ")'
+$ sxml xpath --context-item=vane.xml 'string-join(sort(//t/@anchor ! string(), "http://www.w3.org/2013/collation/UCA?numeric=yes"), " ")'
 "req-1 req-2 req-3 req-4 req-5 req-6 req-7 req-8 req-9 req-10 req-11"
 ```
 
@@ -78,9 +76,9 @@ and spaces count only when everything else is equal, as a reference
 list or a phone book expects:
 
 ```console
-$ sxml xpath --context-item=latch.xml 'string-join(sort(distinct-values(//reference//author/@surname), "http://www.w3.org/2013/collation/UCA"), ", ")'
+$ sxml xpath --context-item=vane.xml 'string-join(sort(distinct-values(//reference//author/@surname), "http://www.w3.org/2013/collation/UCA"), ", ")'
 "Bradner, Crocker, Leiba, M'Raihi, Machani, Overell, Pei, Rydell"
-$ sxml xpath --context-item=latch.xml 'string-join(sort(distinct-values(//reference//author/@surname), "http://www.w3.org/2013/collation/UCA?alternate=shifted"), ", ")'
+$ sxml xpath --context-item=vane.xml 'string-join(sort(distinct-values(//reference//author/@surname), "http://www.w3.org/2013/collation/UCA?alternate=shifted"), ", ")'
 "Bradner, Crocker, Leiba, Machani, M'Raihi, Overell, Pei, Rydell"
 ```
 
@@ -89,10 +87,10 @@ translation of its terms would not be. In Spanish, `ñ` is a letter of
 its own, after `n`:
 
 ```console
-$ sxml xpath 'sort(("llave", "luz", "cerradura", "código", "ñu", "nube"), "http://www.w3.org/2013/collation/UCA?lang=es")'
-"cerradura"
-"código"
-"llave"
+$ sxml xpath 'sort(("llamada", "luz", "bandera", "función", "ñu", "nube"), "http://www.w3.org/2013/collation/UCA?lang=es")'
+"bandera"
+"función"
+"llamada"
 "luz"
 "nube"
 "ñu"
@@ -118,82 +116,75 @@ regional variants. Other languages use the root order.
 ## Full-text search
 
 `contains` finds characters. Searching for *words* is a different
-problem: "unlock" should find "unlocked", a phrase should match its
-words in order, and two words should be near each other. *XQuery and
-XPath Full Text* adds the `contains text` expression for this:
+problem: "pause" should find "paused", a phrase should match its words
+in order, and two words should be near each other. *XQuery and XPath
+Full Text* adds the `contains text` expression for this:
 
 ```console
-$ sxml xpath --context-item=latch.xml '//t[@anchor][. contains text "unlock"]/@anchor/string()'
-"req-4"
-"req-5"
+$ sxml xpath --context-item=vane.xml 'string-join(//t[@anchor][. contains text "pause"]/@anchor, " ")'
+"req-5 req-7 req-8 req-11"
 ```
 
-The search is by words and ignores case, so it found "unlock" in
-"unlock request" and in "MUST NOT unlock", but not "unlocked": that is
-another word. Options after `using` change that. With `stemming`, words
-match by their stem:
+The search is by words and ignores case, so it found "pause" in "in a
+pause" and in "A pause SHOULD last", but not "paused", the state that
+req-1 names: that is another word. Options after `using` change that.
+With `stemming`, words match by their stem:
 
 ```console
-$ sxml xpath --context-item=latch.xml '//t[@anchor][. contains text "unlock" using stemming]/@anchor/string()'
-"req-1"
-"req-3"
-"req-4"
-"req-5"
-"req-6"
+$ sxml xpath --context-item=vane.xml 'string-join(//t[@anchor][. contains text "pause" using stemming]/@anchor, " ")'
+"req-1 req-5 req-7 req-8 req-11"
 ```
 
-Now the states "unlocked" of req-1, req-3 and req-6 match. A phrase in
-quotes matches its words in order, and `ftand`, `ftor` and `ftnot`
-combine searches:
+Now req-1 matches too. A phrase in quotes matches its words in order,
+and `ftand`, `ftor` and `ftnot` combine searches:
 
 ```console
-$ sxml xpath --context-item=latch.xml '//t[@anchor][. contains text "status request"]/@anchor/string()'
+$ sxml xpath --context-item=vane.xml '//t[@anchor][. contains text "status request"]/@anchor/string()'
 "req-6"
 "req-10"
-$ sxml xpath --context-item=latch.xml '//t[@anchor][. contains text "controller" ftand "lock"]/@anchor/string()'
-"req-10"
-"req-11"
-$ sxml xpath --context-item=latch.xml 'string-join(//t[@anchor][. contains text "lock" ftand ftnot "controller"]/@anchor, " ")'
-"req-1 req-2 req-3 req-4 req-5 req-6 req-7"
+$ sxml xpath --context-item=vane.xml 'string-join(//t[@anchor][. contains text "flag" ftand "pause"]/@anchor, " ")'
+"req-5 req-7 req-11"
+$ sxml xpath --context-item=vane.xml 'string-join(//t[@anchor][. contains text "pause" ftand ftnot "flag"]/@anchor, " ")'
+"req-8"
 ```
 
 `distance` and `window` say how close words must be, and `wildcards`
-makes a `.*` in a word match any characters, so `lock.*` finds "lockout"
-as well:
+makes a `.*` in a word match any characters, so `roll.*` finds
+"rollout" and "rolling-out" as well as "roll":
 
 ```console
-$ sxml xpath --context-item=latch.xml '//t[@anchor][. contains text "lock" ftand "lockout" distance at most 3 words]/@anchor/string()'
+$ sxml xpath --context-item=vane.xml 'string-join(//t[@anchor][. contains text "flag" ftand "pause" distance at most 3 words]/@anchor, " ")'
 "req-7"
-"req-11"
-$ sxml xpath --context-item=latch.xml 'string-join(//t[@anchor][. contains text "lock.*" using wildcards]/@anchor, " ")'
-"req-1 req-2 req-3 req-4 req-5 req-6 req-10 req-7 req-8 req-11"
+$ sxml xpath --context-item=vane.xml 'string-join(//t[@anchor][. contains text "roll.*" using wildcards]/@anchor, " ")'
+"req-1 req-3 req-4 req-5 req-9 req-6"
 ```
 
-Only req-9 has no word that starts with "lock"; req-8, "A lockout
-SHOULD last five minutes", is found by the wildcard alone.
+Only req-7, "put the flag in a pause", has the two words close
+together; req-5 and req-11 have them further apart. The wildcard finds
+"rolling-out" in req-1, "rollout" in req-4, req-6 and req-9, both in
+req-3, and "roll out" in req-5.
 
 A `score` variable in a `for` clause gives each result a relevance
 between 0 and 1, to rank the results:
 
 ```console
-$ sxml xquery --context-item=latch.xml --method=adaptive --expression='
-    for $t score $score in //t[@anchor][. contains text "lockout" ftor "code"]
+$ sxml xquery --context-item=vane.xml --method=adaptive --expression='
+    for $t score $score in //t[@anchor][. contains text "rollout" ftor "status"]
     order by $score descending
     return $t/@anchor || " " || round($score, 2)'
-"req-4 0.26"
-"req-5 0.18"
-"req-7 0.18"
-"req-1 0.17"
-"req-11 0.17"
-"req-8 0.17"
+"req-6 0.26"
+"req-10 0.17"
+"req-9 0.16"
+"req-3 0.16"
+"req-4 0.16"
 ```
 
-req-4 mentions "code" twice in a short paragraph and comes first.
-`using language "de"` selects the language of the words, for stemming
-and stop words. sxml has stemmers for English, German, French, Italian,
-Spanish and Dutch, and reads lists of stop words and thesauri from
-files. `contains text` works in XQuery as in XPath, as the last example
-shows.
+req-6 has both words, "status request" and "rollout step", and comes
+first. `using language "de"` selects the language of the words, for
+stemming and stop words. sxml has stemmers for English, German, French,
+Italian, Spanish and Dutch, and reads lists of stop words and thesauri
+from files. `contains text` works in XQuery as in XPath, as the last
+example shows.
 
 ## Dates in other languages
 
@@ -223,11 +214,11 @@ three languages: the third argument of `format-date` is a language, and
 ```
 
 ```console
-$ sxml xquery --method=adaptive --context-item=latch.xml text-date.xq
+$ sxml xquery --method=adaptive --context-item=vane.xml text-date.xq
 "21 October 2026"
 "Mittwoch, 21. Oktober 2026"
 "mercredi 21 octobre 2026"
-$ sxml xquery --method=adaptive --context-item=latch-00.xml text-date.xq
+$ sxml xquery --method=adaptive --context-item=vane-00.xml text-date.xq
 "6 July 2026"
 "Montag, 6. Juli 2026"
 "lundi 6 juillet 2026"
@@ -245,9 +236,9 @@ $ sxml xpath "format-date(xs:date('2026-10-21'), '[E] [Y] [MNn] [D]', 'en', 'JE'
 ```
 
 The fifth argument is a *place*: a time zone name from the IANA Time
-Zone Database, which sxml reads from `/usr/share/zoneinfo`. A lock in
-New York that reports a lockout at 14:30 UTC reports it at 10:30 local
-time:
+Zone Database, which sxml reads from `/usr/share/zoneinfo`. A pause
+that begins at 14:30 UTC begins at 10:30 for an owner of the flag in
+New York:
 
 ```console
 $ sxml xpath "format-dateTime(xs:dateTime('2026-10-21T14:30:00Z'), '[H01]:[m01] [ZN]', 'en', (), 'America/New_York')"
@@ -271,9 +262,10 @@ $ sxml xpath "format-integer(11, 'w'), format-integer(11, 'w', 'de'), format-int
 "Onzième"
 ```
 
-The draft writes its numbers in words: ten seconds, three codes, five
-minutes. The lock that implements it has them as numbers. A query can
-check that each requirement says the number the lock uses, with
+The draft writes its numbers in words: ten minutes, three failed
+checks, five minutes. The service that implements it has them as
+numbers. A query can check that each requirement says the number the
+service uses, with
 `format-integer` making the word and `contains text` finding it (an
 expression in braces is searched for):
 
@@ -284,18 +276,18 @@ expression in braces is searched for):
 ```
 
 ```console
-$ sxml xquery --method=adaptive --context-item=latch.xml text-numbers.xq
+$ sxml xquery --method=adaptive --context-item=vane.xml text-numbers.xq
 "req-3 states ten: true"
 "req-7 states three: true"
 "req-8 states five: true"
-$ sxml xquery --method=adaptive --context-item=latch-00.xml text-numbers.xq
+$ sxml xquery --method=adaptive --context-item=vane-00.xml text-numbers.xq
 "req-3 states ten: true"
 "req-7 states three: false"
 "req-8 states five: false"
 ```
 
-The first draft said "five" rejected codes and "one minute"; the
-second agrees with the lock.
+The first draft said "five" failed checks and "one minute"; the
+second agrees with the service.
 
 `format-number` writes decimals with grouping and a fixed number of
 places. Its options choose the separators:
@@ -308,7 +300,7 @@ $ sxml xpath "format-number(300000, '#,##0'), format-number(300000, '#.##0', { '
 "300.000"
 ```
 
-Five of the eleven requirements are MUSTs, and a lockout of five
+Five of the eleven requirements are MUSTs, and a pause of five
 minutes is 300,000 milliseconds, or 300.000 in German. In XSLT,
 `xsl:number` and `xsl:sort` take a `lang` attribute and use the same
 data.

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- The references of the Latch draft, as xml2rfc authors used to write
+<!-- The references of the Vane draft, as xml2rfc authors used to write
      them: each reference is an external entity, a file of the RFC
      Editor's bibliography (bibxml), and the DTD gives every reference a
      default for the attribute quoteTitle. -->
@@ -10,9 +10,9 @@
   <!ENTITY RFC8174 SYSTEM "bibxml/reference.RFC.8174.xml">
   <!ATTLIST reference quoteTitle (true | false) "true">
 ]>
-<rfc version="3" docName="draft-example-latch-protocol-01">
+<rfc version="3" docName="draft-example-vane-protocol-01">
   <front>
-    <title>The Latch Protocol for Remote Door Locks</title>
+    <title>The Vane Protocol for Feature Flag Rollouts</title>
   </front>
   <middle>
     <section anchor="terminology">
