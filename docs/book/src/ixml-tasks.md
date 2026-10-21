@@ -2,9 +2,10 @@
 
 <!-- examples: ixml -->
 
-This chapter solves five everyday problems with a grammar each: a log
+This chapter solves six everyday problems with a grammar each: a log
 file, semicolon-separated values, dates written in several ways, a small
-programming language, and Markdown-like text. Every solution has two
+programming language, Markdown-like text, and the grammar inside a
+specification. Every solution has two
 parts, a grammar that turns the text into XML and a query that uses the
 XML.
 
@@ -279,3 +280,98 @@ there is only one way to split it. And a paragraph line may not start
 with `#` or `-`, so a heading or a list item can never also be read as a
 paragraph. The line feed inside a paragraph becomes a space with
 `-#a, +" "`.
+
+## The grammar in a specification
+
+Specifications define their syntax in ABNF (RFC 5234), and the grammar
+sits in the document as text. The Latch draft
+([Transforming with XSLT](xslt.md) and the chapters before it use it) has
+the syntax of its messages in a `sourcecode` element; `latch.xml` here is
+a link to the draft:
+
+```console
+$ sxml xpath --context-item=latch.xml --method=text '//sourcecode[@type = "abnf"]'
+
+message        = unlock-request / lock-request / status-request
+unlock-request = "UNLOCK" SP door-id SP code CRLF
+lock-request   = "LOCK" SP door-id CRLF
+status-request = "STATUS" SP door-id CRLF
+door-id        = 1*16(ALPHA / DIGIT / "-")
+code           = 4*8DIGIT
+```
+
+To a program, those lines are one string. A small grammar for ABNF
+rules turns them into XML: rule names, alternatives separated by `/`,
+sequences of elements, repetitions such as `1*16` and `4*8`, quoted
+strings and groups in parentheses:
+
+`abnf.ixml`:
+
+```
+{{#include ../examples/ixml/abnf.ixml}}
+```
+
+`rule++(-#a+)` is one or more rules separated by line feeds, and
+`element++S` one or more elements separated by spaces. A repetition
+has a minimum, a maximum or both around the `*`, or just a number,
+which ABNF reads as an exact count. XPath extracts the text, and the
+grammar parses it:
+
+```console
+$ sxml xquery --context-item=latch.xml --expression='declare option output:indent "yes"; invisible-xml(unparsed-text("abnf.ixml"))(string(//sourcecode[@type = "abnf"]))/rules/rule[@name = ("door-id", "code")]'
+<rule name="door-id">
+  <alternative>
+    <repeat min="1" max="16">
+      <group>
+        <alternative>
+          <ref name="ALPHA"/>
+        </alternative>
+        <alternative>
+          <ref name="DIGIT"/>
+        </alternative>
+        <alternative>
+          <string>-</string>
+        </alternative>
+      </group>
+    </repeat>
+  </alternative>
+</rule>
+<rule name="code">
+  <alternative>
+    <repeat min="4" max="8">
+      <ref name="DIGIT"/>
+    </repeat>
+  </alternative>
+</rule>
+```
+
+Once the grammar is XML, questions about it are paths. Which rules does
+each rule use, and which names does the draft use without defining
+them?
+
+```console
+$ sxml xquery --context-item=latch.xml --method=adaptive --expression='
+    let $rules := invisible-xml(unparsed-text("abnf.ixml"))(string(//sourcecode[@type = "abnf"]))//rule
+    return (
+      for $rule in $rules
+      return `{$rule/@name} uses {string-join(distinct-values($rule//ref/@name), ", ")}`,
+      `undefined: {string-join(distinct-values($rules//ref/@name[not(. = $rules/@name)]), ", ")}`
+    )'
+"message uses unlock-request, lock-request, status-request"
+"unlock-request uses SP, door-id, code, CRLF"
+"lock-request uses SP, door-id, CRLF"
+"status-request uses SP, door-id, CRLF"
+"door-id uses ALPHA, DIGIT"
+"code uses DIGIT"
+"undefined: SP, CRLF, ALPHA, DIGIT"
+```
+
+The four undefined names are the *core rules* of RFC 5234 (Appendix B.1),
+which every ABNF grammar may use, so the draft is complete. A misspelled
+rule name, `door_id` for `door-id`, would show up in the same list, and
+a broken rule fails to parse with the line and column of the mistake:
+
+```console
+$ sxml xpath 'invisible-xml(unparsed-text("abnf.ixml"))("pin = code / ")'
+<failed xmlns:ixml="http://invisiblexml.org/NS" ixml:state="failed"><line>1</line><column>14</column><position>14</position><end-of-input/><expected>"("</expected><expected>"*"</expected><expected>#20</expected><expected>'"'</expected><expected>["0"-"9"]</expected><expected>["A"-"Z"; "a"-"z"]</expected></failed>
+```

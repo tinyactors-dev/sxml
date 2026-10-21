@@ -1,0 +1,19 @@
+ixml version "1.1".
+{The rules of ABNF (RFC 5234): one rule on each line, a name, "=" and
+ alternatives separated by "/", each a sequence of elements, each
+ element with an optional repetition.}
+rules: -#a*, rule++(-#a+), -#a*.
+rule: @name, s, -"=", s, alternatives.
+-alternatives: alternative++(s, -"/", s).
+alternative: element++S.
+-element: repeat; -item.
+repeat: (@min, -"*", @max?; -"*", @max; @min), -item.
+-item: ref; string; group.
+ref: @name.
+string: -'"', ~['"']*, -'"'.
+group: -"(", s, alternatives, s, -")".
+@name: ["A"-"Z"; "a"-"z"], ["A"-"Z"; "a"-"z"; "0"-"9"; "-"]*.
+@min: ["0"-"9"]+.
+@max: ["0"-"9"]+.
+-s: -" "*.
+-S: -" "+.

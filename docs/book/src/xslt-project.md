@@ -54,8 +54,8 @@ with all of them in its description, and `sxml xquery` exits with
 status 1; otherwise the query writes the warnings, one on each line.
 
 [Project: Editing a Specification Without Rewriting
-It](xquery-project.md) builds a fuller check, and the edits that fix
-what it finds.
+It](xquery-project.md) builds a stricter check, which counts the
+unanchored `SHOULD` as an error, and the edits that fix what it finds.
 
 ## The requirements as JSON
 
