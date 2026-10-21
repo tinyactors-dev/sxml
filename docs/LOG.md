@@ -4,6 +4,12 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- book-19 done: the SVG project (svg.md, svg-layout.md, svg-xquery.md,
+  svg-xslt.md, svg-transform.md) on the Vane story. states.xml draws
+  four flag states (stable, checking, rolling-out, archived),
+  change.xml the services after flag-service 2.4.0, box.svg labels
+  flag-service; draw.xqm unchanged. 68 examples match.
+
 - book-14 done (D301): the book's story is now Vane, a feature-flag
   service, instead of Latch (door locks). New seed data with the same
   structure: spec/vane.xml and vane-00.xml (the Vane protocol draft:
