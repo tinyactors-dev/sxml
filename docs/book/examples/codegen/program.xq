@@ -1,4 +1,5 @@
-(:~ The tree of the TypeScript program for an API description and its schema. :)
+(:~ The tree of the TypeScript program for an API description and its schema:
+    the types, one module for each client, and the server. :)
 import module namespace ts = "https://example.org/typescript" at "typescript.xqm";
 
 declare option output:method "xml";
@@ -8,4 +9,8 @@ declare variable $api-file as xs:string external := "api.xml";
 
 let $api := doc($api-file)
 let $types := ts:types(doc(resolve-uri($api/*/@types, base-uri($api))))
-return <program>{ $types, ts:client($api, $types), ts:server($api, $types) }</program>
+return <program>{
+  $types,
+  ts:client-names($api) ! ts:client($api, ., $types),
+  ts:server($api, $types)
+}</program>

@@ -251,10 +251,17 @@ declare function ts:functions($api as document-node()) as element()* {
   $api/api:api/(api:query | api:command)
 };
 
-(:~ client.ts: one async function for each remote function. :)
-declare function ts:client($api as document-node(), $types as element(module)) as element(module) {
-  ts:module("client.ts", "Generated from the API description by program.xq and print.xsl. Do not edit.",
-    for $function in ts:functions($api)
+(:~ The names of the clients that the API description offers, sorted. :)
+declare function ts:client-names($api as document-node()) as xs:string* {
+  sort(distinct-values($api/api:api/*/@clients ! tokenize(.)))
+};
+
+(:~ The module of one client, such as browser.ts: one async function for
+    each remote function that the client offers. :)
+declare function ts:client($api as document-node(), $client as xs:string, $types as element(module))
+    as element(module) {
+  ts:module($client || ".ts", "Generated from the API description by program.xq and print.xsl. Do not edit.",
+    for $function in ts:functions($api)[tokenize(@clients) = $client]
     let $input := string($function/@input)
     let $output := string($function/@output)
     return
@@ -283,12 +290,13 @@ declare function ts:client($api as document-node(), $types as element(module)) a
     $types)
 };
 
-(:~ server.ts: the interface the server implements, and a request handler. :)
+(:~ server.ts: the interface the service implements, and a request handler
+    that checks every function, whichever client calls it. :)
 declare function ts:server($api as document-node(), $types as element(module)) as element(module) {
   let $functions := ts:functions($api)
   return ts:module("server.ts", "Generated from the API description by program.xq and print.xsl. Do not edit.", (
     <interface name="Implementation" export="true">
-      <doc>What the server does: one method for each remote function.</doc>
+      <doc>What the service does: one method for each remote function.</doc>
       {
         for $function in $functions
         return

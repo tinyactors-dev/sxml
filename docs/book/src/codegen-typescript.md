@@ -10,9 +10,9 @@ as it is, line breaks included, except for expressions written between
 
 ```console
 $ sxml xquery --method=text --expression='
-    let $name := "BookId"
+    let $name := "FlagKey"
     return ``[export function check`{ $name }`(value: unknown): boolean { return true; }]``'
-export function checkBookId(value: unknown): boolean { return true; }
+export function checkFlagKey(value: unknown): boolean { return true; }
 ```
 
 Braces, quotes and backticks are ordinary text in a string constructor,
@@ -66,12 +66,12 @@ and the whole vocabulary fits in a table:
 | `module` (with `file`) | a file; its children are its declarations |
 | `comment`, `doc` | `// text` and `/** text */` |
 | `import` (with `from`, `type-only`) | `import type { A, B } from "./types.ts";` |
-| `type-alias` | `export type Genre = "fiction" \| "science";` |
-| `interface`, `property` (with `optional`), `method` | `export interface Book { id: BookId; title?: string; }` |
-| `function` (with `export`, `async`), `parameter`, `returns`, `body` | `export async function getBook(input: BookRequest): Promise<Book> { ... }` |
-| `type`, `array-type`, `union`, `predicate` | `Promise<Book>`, `string[]`, `"a" \| "b"`, `value is Book` |
+| `type-alias` | `export type State = "stable" \| "paused";` |
+| `interface`, `property` (with `optional`), `method` | `export interface FlagStatus { flag: FlagKey; retryAfter?: Seconds; }` |
+| `function` (with `export`, `async`), `parameter`, `returns`, `body` | `export async function getFlags(input: FlagsRequest): Promise<FlagSet> { ... }` |
+| `type`, `array-type`, `union`, `predicate` | `Promise<FlagSet>`, `string[]`, `"a" \| "b"`, `value is FlagSet` |
 | `statement`, `const`, `return`, `if` with `then` and `else`, `for-of` | statements |
-| `name`, `string`, `number`, `boolean`, `regex` | `value`, `"text"`, `28`, `false`, `/^m[0-9]{4}$/u` |
+| `name`, `string`, `number`, `boolean`, `regex` | `value`, `"text"`, `100`, `false`, `/^[a-z0-9-]*$/u` |
 | `call` (with `function`, or `method` of its first child), `member`, `not`, `binary` (with `operator`), `await`, `array`, `object` with `entry`, `arrow` | expressions |
 
 A name of something, such as a function, is an attribute; the parts of
@@ -95,7 +95,7 @@ It has three groups of functions:
 
 - *Checks.* A check looks at a value that came from JSON, so its type
   is `unknown`, and adds a message to `problems` for each way it is
-  wrong. `path` says where the value is, such as `input.days`, so the
+  wrong. `path` says where the value is, such as `input.percentage`, so the
   messages can say it too. The checks of the built-in XSD types are
   here: an `xs:integer` must be a whole number, an `xs:date` a string
   such as `2026-10-20`. `characterCount` counts characters as XSD does:
@@ -152,8 +152,11 @@ Let's read it from the top.
 - `ts:types` builds `types.ts`: every type of the schema, in the order
   of the schema. `ts:functions` returns the functions of the
   description, after it has checked that their types are complex types
-  of the schema. `ts:client` and `ts:server` build `client.ts` and
-  `server.ts`.
+  of the schema. `ts:client-names` lists the names in the `clients`
+  attributes, once each and sorted, and `ts:client` builds the module
+  of one of them, such as `browser.ts`, with the functions that name it.
+  `ts:server` builds `server.ts`, with every function: whichever client
+  sends a request, the service checks it.
 
 The XSD types are read as XML, with paths such as
 `xs:restriction/@base`. This is the schema as a document, not the
@@ -170,11 +173,11 @@ $ sxml xquery --method=xml --expression='
     import module namespace ts = "https://example.org/typescript" at "typescript.xqm";
     declare namespace xs = "http://www.w3.org/2001/XMLSchema";
     declare option output:indent "yes";
-    ts:facet(<xs:maxInclusive value="28"/>)'
+    ts:facet(<xs:maxInclusive value="100"/>)'
 <if>
   <binary operator="greater">
     <name>value</name>
-    <number>28</number>
+    <number>100</number>
   </binary>
   <then>
     <statement>
@@ -182,7 +185,7 @@ $ sxml xquery --method=xml --expression='
         <name>problems</name>
         <binary operator="plus">
           <name>path</name>
-          <string>: must be at most 28</string>
+          <string>: must be at most 100</string>
         </binary>
       </call>
     </statement>
@@ -192,14 +195,14 @@ $ sxml xquery --method=xml --expression='
 
 The tree is longer than the line of code it stands for, but each part
 has a name, so a test can ask for a part instead of comparing text. The
-operator and the number of a `minLength` facet:
+operator and the number of a `maxLength` facet:
 
 ```console
 $ sxml xquery --expression='
     import module namespace ts = "https://example.org/typescript" at "typescript.xqm";
     declare namespace xs = "http://www.w3.org/2001/XMLSchema";
-    ts:facet(<xs:minLength value="3"/>)/binary ! (@operator, number) ! string()'
-less 3
+    ts:facet(<xs:maxLength value="64"/>)/binary ! (@operator, number) ! string()'
+greater 64
 ```
 
 Given to the printer of the next section, which reads a document from
@@ -210,8 +213,8 @@ of TypeScript:
 $ sxml xquery --method=xml --expression='
     import module namespace ts = "https://example.org/typescript" at "typescript.xqm";
     declare namespace xs = "http://www.w3.org/2001/XMLSchema";
-    ts:facet(<xs:pattern value="[a-z][a-z0-9-]*"/>)' | sxml transform print.xsl -
-if (!/^(?:[a-z][a-z0-9-]*)$/u.test(value)) problems.push(path + ": must match [a-z][a-z0-9-]*");
+    ts:facet(<xs:pattern value="[a-z0-9][a-z0-9-]*"/>)' | sxml transform print.xsl -
+if (!/^(?:[a-z0-9][a-z0-9-]*)$/u.test(value)) problems.push(path + ": must match [a-z0-9][a-z0-9-]*");
 ```
 
 A simple type is a type alias and a check function. Put into a
@@ -221,14 +224,14 @@ A simple type is a type alias and a check function. Put into a
 $ sxml xquery --method=xml --expression='
     import module namespace ts = "https://example.org/typescript" at "typescript.xqm";
     declare namespace xs = "http://www.w3.org/2001/XMLSchema";
-    <module>{ ts:simple-type(doc("library.xsd")//xs:simpleType[@name = "LoanDays"]) }</module>' | sxml transform print.xsl -
-export type LoanDays = number;
+    <module>{ ts:simple-type(doc("vane-api.xsd")//xs:simpleType[@name = "Percentage"]) }</module>' | sxml transform print.xsl -
+export type Percentage = number;
 
-export function checkLoanDays(value: unknown, path: string, problems: string[]): value is LoanDays {
+export function checkPercentage(value: unknown, path: string, problems: string[]): value is Percentage {
   if (!checkInteger(value, path, problems)) return false;
   const count = problems.length;
-  if (value < 1) problems.push(path + ": must be at least 1");
-  if (value > 28) problems.push(path + ": must be at most 28");
+  if (value < 0) problems.push(path + ": must be at least 0");
+  if (value > 100) problems.push(path + ": must be at most 100");
   return problems.length === count;
 }
 ```
@@ -242,19 +245,23 @@ after it. A complex type becomes an interface:
 $ sxml xquery --method=xml --expression='
     import module namespace ts = "https://example.org/typescript" at "typescript.xqm";
     declare namespace xs = "http://www.w3.org/2001/XMLSchema";
-    <module>{ ts:complex-type(doc("library.xsd")//xs:complexType[@name = "BookSearch"]) }</module>' | sxml transform print.xsl -
-export interface BookSearch {
-  genre?: Genre;
-  availableOnly?: boolean;
+    <module>{ ts:complex-type(doc("vane-api.xsd")//xs:complexType[@name = "FlagStatus"]) }</module>' | sxml transform print.xsl -
+export interface FlagStatus {
+  flag: FlagKey;
+  state: State;
+  failedChecks: FailureCount;
+  retryAfter?: Seconds;
 }
 
-export function checkBookSearch(value: unknown, path: string, problems: string[]): value is BookSearch {
+export function checkFlagStatus(value: unknown, path: string, problems: string[]): value is FlagStatus {
   if (!checkObject(value, path, problems)) return false;
   const count = problems.length;
-  if (value.genre !== undefined) checkGenre(value.genre, path + ".genre", problems);
-  if (value.availableOnly !== undefined) checkBoolean(value.availableOnly, path + ".availableOnly", problems);
+  checkFlagKey(value.flag, path + ".flag", problems);
+  checkState(value.state, path + ".state", problems);
+  checkFailureCount(value.failedChecks, path + ".failedChecks", problems);
+  if (value.retryAfter !== undefined) checkSeconds(value.retryAfter, path + ".retryAfter", problems);
   for (const key of Object.keys(value)) {
-    if (!["genre", "availableOnly"].includes(key)) problems.push(path + "." + key + ": is not allowed");
+    if (!["flag", "state", "failedChecks", "retryAfter"].includes(key)) problems.push(path + "." + key + ": is not allowed");
   }
   return problems.length === count;
 }
@@ -284,14 +291,17 @@ The output options in the prolog, as in [Writing
 Results](xquery-serialization.md), write the tree as indented XML, so
 it is easy to read and to compare. The modules are built in the order
 of the files that use each other: `types.ts` first, because
-`ts:module` looks into it to find the imports of the other two.
+`ts:module` looks into it to find the imports of the others. The
+clients come next, one for each name, and the server last.
 
 ```console
 $ sxml xquery --output=program.xml program.xq
 $ sxml xpath --context-item=program.xml '/program/module ! `{ @file }: { count(descendant::*) } elements`'
-"types.ts: 689 elements"
-"client.ts: 90 elements"
-"server.ts: 90 elements"
+"types.ts: 1427 elements"
+"browser.ts: 62 elements"
+"console.ts: 62 elements"
+"node.ts: 62 elements"
+"server.ts: 138 elements"
 ```
 
 The tree is a document, so everything in this book about querying
@@ -299,29 +309,34 @@ documents applies to the program. Every exported function, by file:
 
 ```console
 $ sxml xpath --context-item=program.xml '/program/module ! `{ @file }: { string-join(function[@export]/@name, ", ") }`'
-"types.ts: checkBookId, checkMemberId, checkGenre, checkLoanDays, checkBook, checkBookRequest, checkBookSearch, checkBookList, checkLoanRequest, checkLoan"
-"client.ts: getBook, searchBooks, borrowBook"
+"types.ts: checkFlagKey, checkOwner, checkEnvironment, checkState, checkPercentage, checkFailureCount, checkSeconds, checkRule, checkFlagConfig, checkFlagsRequest, checkFlagSet, checkAttribute, checkEvaluationContext, checkEvaluation, checkEvaluations, checkStatusRequest, checkFlagStatus, checkRolloutRequest, checkKillRequest, checkKillResult"
+"browser.ts: evaluateFlags, getStatus"
+"console.ts: rollOutFlag, killFlag"
+"node.ts: getFlags, getStatus"
 "server.ts: createHandler"
 ```
 
-The checks that use `checkBookId`, which are the ones a change to the
-type of a book's id reaches:
+The checks that use `checkFlagKey`, which are the ones a change to the
+type of a flag key reaches:
 
 ```console
-$ sxml xpath --context-item=program.xml '//function[.//(call/@function | name) = "checkBookId"]/@name ! string()'
-"checkBook"
-"checkBookRequest"
-"checkLoanRequest"
-"checkLoan"
+$ sxml xpath --context-item=program.xml '//function[.//(call/@function | name) = "checkFlagKey"]/@name ! string()'
+"checkFlagConfig"
+"checkEvaluation"
+"checkStatusRequest"
+"checkFlagStatus"
+"checkRolloutRequest"
+"checkKillRequest"
+"checkKillResult"
 ```
 
-And the imports of the client, which `ts:module` found in the tree:
+And the imports of the frontend SDK's client, which `ts:module` found in the tree:
 
 ```console
-$ sxml xpath --context-item=program.xml '/program/module[@file = "client.ts"]/import ! `{ @from }: { string-join(name, ", ") }`'
+$ sxml xpath --context-item=program.xml '/program/module[@file = "browser.ts"]/import ! `{ @from }: { string-join(name, ", ") }`'
 "../runtime.ts: call, expect"
-"./types.ts: BookRequest, Book, BookSearch, BookList, LoanRequest, Loan"
-"./types.ts: checkBookRequest, checkBook, checkBookSearch, checkBookList, checkLoanRequest, checkLoan"
+"./types.ts: EvaluationContext, Evaluations, StatusRequest, FlagStatus"
+"./types.ts: checkEvaluationContext, checkEvaluations, checkStatusRequest, checkFlagStatus"
 ```
 
 None of these needs to know how TypeScript writes a function or an
@@ -335,9 +350,9 @@ file, because `--output` writes its file only when the whole query
 succeeds:
 
 ```console
-$ sed 's/output="Loan"/output="Receipt"/' api.xml > typo.xml
+$ sed 's/output="KillResult"/output="KillResults"/' api.xml > typo.xml
 $ sxml xquery --param=api-file=typo.xml --output=typo-program.xml program.xq
-typescript.xqm:248:10: ts:unknown-type: The function borrowBook uses the type Receipt, which the schema doesn't declare
+typescript.xqm:248:10: ts:unknown-type: The function killFlag uses the type KillResults, which the schema doesn't declare
 $ test -e typo-program.xml || echo "no file written"
 no file written
 ```

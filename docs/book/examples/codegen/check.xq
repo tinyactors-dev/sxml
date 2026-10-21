@@ -5,31 +5,38 @@ declare function local:parse($file as xs:string) as document-node() {
   sxml:parse-code(unparsed-text($file), "typescript")
 };
 
-let $program := doc($directory || "/program.xml")
-let $client := local:parse($directory || "/client.ts")
-let $server := local:parse($directory || "/server.ts")
+let $program := doc($directory || "/program.xml")/program
+let $files := $program/module/@file ! string()
+let $code := map:merge($files ! { .: local:parse($directory || "/" || .) })
+let $clients := $files[not(. = ("types.ts", "server.ts"))]
 let $runtime := local:parse("runtime.ts")
 
-let $functions := $client//export_statement/function_declaration/identifier ! string()
-let $methods := $server//interface_declaration[type_identifier = "Implementation"]
+let $functions := function($file) {
+  $code($file)//export_statement/function_declaration/identifier ! string()
+}
+let $methods := $code("server.ts")//interface_declaration[type_identifier = "Implementation"]
   //method_signature/property_identifier ! string()
-let $routes := $server//call_expression[identifier = "serve"]
+let $routes := $code("server.ts")//call_expression[identifier = "serve"]
   /arguments/object/pair/property_identifier ! string()
 let $exports := $runtime//export_statement ! (.//*[@field = "name"])[1] ! string()
 
 let $problems := (
-  $program/module[@file = "client.ts"]/function/@name[not(. = $functions)]
-    ! `client.ts lacks the function {.} of the tree`,
-  $functions[not(. = $methods)] ! `client function {.} has no method in Implementation`,
-  $methods[not(. = $functions)] ! `method {.} has no client function`,
-  $methods[not(. = $routes)] ! `method {.} has no route in createHandler`,
-  for $file in ("types.ts", "client.ts", "server.ts")
-  for $name in local:parse($directory || "/" || $file)
+  for $file in $clients
+  return (
+    $program/module[@file = $file]/function/@name[not(. = $functions($file))]
+      ! `{ $file } lacks the function { . } of the tree`,
+    $functions($file)[not(. = $methods)]
+      ! `{ $file }: client function { . } has no method in Implementation`
+  ),
+  $methods[not(. = $clients ! $functions(.))] ! `method { . } is in no client`,
+  $methods[not(. = $routes)] ! `method { . } has no route in createHandler`,
+  for $file in $files
+  for $name in $code($file)
     //import_statement[string/string_fragment = "../runtime.ts"]//import_specifier/identifier
   where not($name = $exports)
   return `{ $file } imports { $name }, which runtime.ts doesn't export`
 )
 return
   if (empty($problems))
-  then `{ count($functions) } functions: client, server and runtime agree`
+  then `{ count($methods) } functions in { count($clients) } clients: clients, server and runtime agree`
   else error(#local:mismatch, string-join($problems, "; "))

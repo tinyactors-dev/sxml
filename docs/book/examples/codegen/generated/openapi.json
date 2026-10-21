@@ -1,21 +1,24 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "library",
+    "title": "vane",
     "version": "1.0.0"
   },
   "paths": {
-    "/api/getBook": {
+    "/api/getFlags": {
       "get": {
-        "operationId": "getBook",
-        "summary": "Finds one book by its id.",
+        "operationId": "getFlags",
+        "summary": "Every flag with its rules, for an SDK that evaluates flags itself.",
+        "tags": [
+          "node"
+        ],
         "responses": {
           "200": {
             "description": "The output",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Book"
+                  "$ref": "#/components/schemas/FlagSet"
                 }
               }
             }
@@ -32,7 +35,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/BookRequest"
+                  "$ref": "#/components/schemas/FlagsRequest"
                 }
               }
             }
@@ -40,17 +43,20 @@
         ]
       }
     },
-    "/api/searchBooks": {
+    "/api/evaluateFlags": {
       "get": {
-        "operationId": "searchBooks",
-        "summary": "Lists the books of a genre, or all books.",
+        "operationId": "evaluateFlags",
+        "summary": "Whether each flag is on for one user, for an SDK in a browser page.",
+        "tags": [
+          "browser"
+        ],
         "responses": {
           "200": {
             "description": "The output",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/BookList"
+                  "$ref": "#/components/schemas/Evaluations"
                 }
               }
             }
@@ -67,7 +73,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/BookSearch"
+                  "$ref": "#/components/schemas/EvaluationContext"
                 }
               }
             }
@@ -75,17 +81,59 @@
         ]
       }
     },
-    "/api/borrowBook": {
+    "/api/getStatus": {
+      "get": {
+        "operationId": "getStatus",
+        "summary": "The state of one flag and its failed checks since the last rollout step.",
+        "tags": [
+          "browser",
+          "node"
+        ],
+        "responses": {
+          "200": {
+            "description": "The output",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FlagStatus"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The input is not valid"
+          }
+        },
+        "parameters": [
+          {
+            "name": "input",
+            "in": "query",
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusRequest"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "/api/rollOutFlag": {
       "post": {
-        "operationId": "borrowBook",
-        "summary": "Lends a book to a member for some days.",
+        "operationId": "rollOutFlag",
+        "summary": "Rolls a flag out to a new percentage once its guardrail checks pass.",
+        "tags": [
+          "console"
+        ],
         "responses": {
           "200": {
             "description": "The output",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Loan"
+                  "$ref": "#/components/schemas/FlagStatus"
                 }
               }
             }
@@ -99,7 +147,41 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/LoanRequest"
+                "$ref": "#/components/schemas/RolloutRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/killFlag": {
+      "post": {
+        "operationId": "killFlag",
+        "summary": "Turns a flag off for every user at once.",
+        "tags": [
+          "console"
+        ],
+        "responses": {
+          "200": {
+            "description": "The output",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KillResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The input is not valid"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KillRequest"
               }
             }
           }
@@ -109,130 +191,276 @@
   },
   "components": {
     "schemas": {
-      "BookId": {
+      "FlagKey": {
         "type": "string",
-        "pattern": "^(?:[a-z][a-z0-9-]*)$",
-        "maxLength": 40
+        "pattern": "^(?:[a-z0-9][a-z0-9-]*)$",
+        "maxLength": 64
       },
-      "MemberId": {
+      "Owner": {
         "type": "string",
-        "pattern": "^(?:m[0-9]{4})$"
+        "pattern": "^(?:[^@ ]+@[^@ ]+)$"
       },
-      "Genre": {
+      "Environment": {
         "type": "string",
         "enum": [
-          "fiction",
-          "science",
-          "history"
+          "production",
+          "staging"
         ]
       },
-      "LoanDays": {
+      "State": {
+        "type": "string",
+        "enum": [
+          "stable",
+          "rolling-out",
+          "paused"
+        ]
+      },
+      "Percentage": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 100
+      },
+      "FailureCount": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 10
+      },
+      "Seconds": {
         "type": "integer",
         "minimum": 1,
-        "maximum": 28
+        "maximum": 3600
       },
-      "Book": {
+      "Rule": {
         "type": "object",
         "properties": {
-          "id": {
-            "$ref": "#/components/schemas/BookId"
-          },
-          "title": {
+          "attribute": {
             "type": "string"
           },
-          "genre": {
-            "$ref": "#/components/schemas/Genre"
-          },
-          "available": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "id",
-          "title",
-          "genre",
-          "available"
-        ],
-        "additionalProperties": false
-      },
-      "BookRequest": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "$ref": "#/components/schemas/BookId"
-          }
-        },
-        "required": [
-          "id"
-        ],
-        "additionalProperties": false
-      },
-      "BookSearch": {
-        "type": "object",
-        "properties": {
-          "genre": {
-            "$ref": "#/components/schemas/Genre"
-          },
-          "availableOnly": {
-            "type": "boolean"
-          }
-        },
-        "required": [],
-        "additionalProperties": false
-      },
-      "BookList": {
-        "type": "object",
-        "properties": {
-          "books": {
+          "values": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/Book"
+              "type": "string"
+            }
+          },
+          "percentage": {
+            "$ref": "#/components/schemas/Percentage"
+          }
+        },
+        "required": [
+          "attribute",
+          "values",
+          "percentage"
+        ],
+        "additionalProperties": false
+      },
+      "FlagConfig": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "$ref": "#/components/schemas/FlagKey"
+          },
+          "state": {
+            "$ref": "#/components/schemas/State"
+          },
+          "percentage": {
+            "$ref": "#/components/schemas/Percentage"
+          },
+          "rules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Rule"
             }
           }
         },
         "required": [
-          "books"
+          "key",
+          "state",
+          "percentage",
+          "rules"
         ],
         "additionalProperties": false
       },
-      "LoanRequest": {
+      "FlagsRequest": {
         "type": "object",
         "properties": {
-          "book": {
-            "$ref": "#/components/schemas/BookId"
-          },
-          "member": {
-            "$ref": "#/components/schemas/MemberId"
-          },
-          "days": {
-            "$ref": "#/components/schemas/LoanDays"
+          "environment": {
+            "$ref": "#/components/schemas/Environment"
           }
         },
         "required": [
-          "book",
-          "member",
-          "days"
+          "environment"
         ],
         "additionalProperties": false
       },
-      "Loan": {
+      "FlagSet": {
         "type": "object",
         "properties": {
-          "book": {
-            "$ref": "#/components/schemas/BookId"
-          },
-          "member": {
-            "$ref": "#/components/schemas/MemberId"
-          },
-          "due": {
-            "type": "string",
-            "format": "date"
+          "flags": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FlagConfig"
+            }
           }
         },
         "required": [
-          "book",
-          "member",
-          "due"
+          "flags"
+        ],
+        "additionalProperties": false
+      },
+      "Attribute": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "value"
+        ],
+        "additionalProperties": false
+      },
+      "EvaluationContext": {
+        "type": "object",
+        "properties": {
+          "environment": {
+            "$ref": "#/components/schemas/Environment"
+          },
+          "user": {
+            "type": "string"
+          },
+          "attributes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Attribute"
+            }
+          }
+        },
+        "required": [
+          "environment",
+          "user",
+          "attributes"
+        ],
+        "additionalProperties": false
+      },
+      "Evaluation": {
+        "type": "object",
+        "properties": {
+          "flag": {
+            "$ref": "#/components/schemas/FlagKey"
+          },
+          "on": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "flag",
+          "on"
+        ],
+        "additionalProperties": false
+      },
+      "Evaluations": {
+        "type": "object",
+        "properties": {
+          "evaluations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Evaluation"
+            }
+          }
+        },
+        "required": [
+          "evaluations"
+        ],
+        "additionalProperties": false
+      },
+      "StatusRequest": {
+        "type": "object",
+        "properties": {
+          "flag": {
+            "$ref": "#/components/schemas/FlagKey"
+          }
+        },
+        "required": [
+          "flag"
+        ],
+        "additionalProperties": false
+      },
+      "FlagStatus": {
+        "type": "object",
+        "properties": {
+          "flag": {
+            "$ref": "#/components/schemas/FlagKey"
+          },
+          "state": {
+            "$ref": "#/components/schemas/State"
+          },
+          "failedChecks": {
+            "$ref": "#/components/schemas/FailureCount"
+          },
+          "retryAfter": {
+            "$ref": "#/components/schemas/Seconds"
+          }
+        },
+        "required": [
+          "flag",
+          "state",
+          "failedChecks"
+        ],
+        "additionalProperties": false
+      },
+      "RolloutRequest": {
+        "type": "object",
+        "properties": {
+          "flag": {
+            "$ref": "#/components/schemas/FlagKey"
+          },
+          "percentage": {
+            "$ref": "#/components/schemas/Percentage"
+          },
+          "owner": {
+            "$ref": "#/components/schemas/Owner"
+          }
+        },
+        "required": [
+          "flag",
+          "percentage",
+          "owner"
+        ],
+        "additionalProperties": false
+      },
+      "KillRequest": {
+        "type": "object",
+        "properties": {
+          "flag": {
+            "$ref": "#/components/schemas/FlagKey"
+          },
+          "owner": {
+            "$ref": "#/components/schemas/Owner"
+          }
+        },
+        "required": [
+          "flag",
+          "owner"
+        ],
+        "additionalProperties": false
+      },
+      "KillResult": {
+        "type": "object",
+        "properties": {
+          "flag": {
+            "$ref": "#/components/schemas/FlagKey"
+          },
+          "killed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "flag",
+          "killed"
         ],
         "additionalProperties": false
       }

@@ -51,11 +51,13 @@
     </xsl:map>
   </xsl:template>
 
-  <!-- A query reads its input from the URL, a command from the body. -->
+  <!-- A query reads its input from the URL, a command from the body.
+       The tags name the clients that offer the function. -->
   <xsl:template match="api:query | api:command">
     <xsl:variable name="operation" select="{
       'operationId': string(@name),
       'summary': normalize-space(),
+      'tags': array { tokenize(@clients) },
       'responses': {
         '200': { 'description': 'The output', 'content': f:json(@output) },
         '400': { 'description': 'The input is not valid' }
