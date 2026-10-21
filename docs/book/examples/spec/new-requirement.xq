@@ -5,6 +5,6 @@ declare boundary-space preserve;
 let $after := //t[@anchor = "req-8"]
 return insert nodes (
   text { "&#10;      " },
-  <t anchor="req-13">A <xref target="term-controller">controller</xref>
-      <bcp14>MAY</bcp14> end a lockout early.</t>
+  <t anchor="req-13">An owner of a <xref target="term-flag">flag</xref>
+      <bcp14>MAY</bcp14> end a pause early.</t>
 ) after $after
