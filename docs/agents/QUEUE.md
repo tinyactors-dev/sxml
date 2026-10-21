@@ -38,7 +38,7 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 ## Next
 
 - book-6..book-12 (parallel), then book-13: the book rewritten around the
-  Latch projects, per docs/tasks/book.md (D299); waiting for the owner's go.
+  Latch projects, per docs/tasks/book.md (D299); running (owner, 2026-10-21).
 - Phase 6 (D238, `docs/tasks/phase-6.md`), packets that run here:
   - wave 1, together: 6.2 host shim (`bindings/host/`; JavaScript
     tests and sizes unchanged); 6.3 Android build (four ABIs at API 24,
