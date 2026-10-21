@@ -4,6 +4,14 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- book-25 done: the SVG chapters on the one Vane service. The diagram
+  of eight nodes in five rows (SDKs, vane/MODULE boxes, two stores) in
+  every output, regenerated and read; svg.md says why modules are boxes
+  and not a group; change.xml redrawn after section 9 (flags->cache
+  removed, vane/audit and hooks.example.com added, rows ordered so no
+  lines cross); box.svg and legend.svg relabelled. All 68 examples of
+  svg*.md match on the shared release build.
+
 - book-23 done: the XPath and XQuery chapters on the one Vane service.
   Every output regenerated and read (Security "Vane messages travel",
   ABNF rollout-update/kill-update, req-10 at 22 words, moved diff line
