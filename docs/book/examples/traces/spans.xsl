@@ -2,7 +2,7 @@
   <xsl:mode streamable="yes"/>
   <xsl:output method="text"/>
 
-  <xsl:template match="/orders">
-    <xsl:value-of select="sum(order/total) div count(order)"/>
+  <xsl:template match="/traces">
+    <xsl:value-of select="format-number(count(descendant::span), '#,##0')"/>
   </xsl:template>
 </xsl:stylesheet>
