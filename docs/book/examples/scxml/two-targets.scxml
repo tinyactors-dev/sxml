@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- A transition with two targets: SCXML allows a list of states. -->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       version="1.0" name="test_rig" initial="idle">
+  <state id="idle">
+    <transition event="test.start" target="motor light"/>
+  </state>
+  <state id="motor">
+    <transition event="test.stop" target="idle"/>
+  </state>
+  <state id="light"/>
+</scxml>

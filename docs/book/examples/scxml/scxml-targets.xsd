@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SCXML's full rule for targets: a transition may name several
+     states, as a list. scxml.xsd overridden: the transition type and the
+     scxml element, whose keyref for targets becomes an assertion. -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:vc="http://www.w3.org/2007/XMLSchema-versioning"
+           xmlns:sc="http://www.w3.org/2005/07/scxml"
+           targetNamespace="http://www.w3.org/2005/07/scxml"
+           elementFormDefault="qualified"
+           vc:minVersion="1.1">
+  <xs:override schemaLocation="scxml.xsd">
+    <xs:complexType name="transition">
+      <xs:group ref="sc:executable" minOccurs="0" maxOccurs="unbounded"/>
+      <xs:attribute name="event" type="sc:event-descriptors"/>
+      <xs:attribute name="cond" type="xs:string"/>
+      <xs:attribute name="target" type="sc:state-ids"/>
+      <xs:attribute name="type" default="external">
+        <xs:simpleType>
+          <xs:restriction base="xs:token">
+            <xs:enumeration value="internal"/>
+            <xs:enumeration value="external"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:attribute>
+      <xs:anyAttribute namespace="##other" processContents="lax"/>
+      <xs:assert test="exists(@event | @cond | @target)"/>
+    </xs:complexType>
+    <xs:element name="scxml">
+      <xs:complexType>
+        <xs:choice minOccurs="0" maxOccurs="unbounded">
+          <xs:element name="state" type="sc:state"/>
+          <xs:element name="final" type="sc:final"/>
+          <xs:element ref="sc:datamodel"/>
+          <xs:any namespace="##other" processContents="lax"/>
+        </xs:choice>
+        <xs:attribute name="version" type="xs:decimal" use="required" fixed="1.0"/>
+        <xs:attribute name="initial" type="xs:NCName"/>
+        <xs:attribute name="name" type="xs:NCName"/>
+        <xs:attribute name="datamodel" type="xs:NMTOKEN"/>
+        <xs:anyAttribute namespace="##other" processContents="lax"/>
+        <!-- A keyref compares the whole list with each id, so an
+             assertion checks the targets one by one. -->
+        <xs:assert test="every $target in .//sc:transition/data(@target)
+                         satisfies $target = .//(sc:state | sc:final)/@id"/>
+      </xs:complexType>
+      <xs:key name="state-id">
+        <xs:selector xpath=".//sc:state | .//sc:final"/>
+        <xs:field xpath="@id"/>
+      </xs:key>
+      <xs:keyref name="initial-state" refer="sc:state-id">
+        <xs:selector xpath=". | .//sc:state"/>
+        <xs:field xpath="@initial"/>
+      </xs:keyref>
+    </xs:element>
+  </xs:override>
+  <xs:simpleType name="state-ids">
+    <xs:list itemType="xs:NCName"/>
+  </xs:simpleType>
+</xs:schema>
