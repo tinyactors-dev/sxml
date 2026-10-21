@@ -4,6 +4,20 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- book-7 done (D299): Writing Programs with XQuery on the Latch draft,
+  eleven chapters in spec/ (xquery-grouping.md replaces
+  xquery-grouping-windows.md; windows go to traces-cardinality.md).
+  spec/spec.xqm (urn:example:spec: requirements, keywords, section and
+  requirement numbers, anchor map, the record spec:entry) underlies
+  edit.xqm (urn:example:edit: updating functions that keep the draft's
+  indentation), check.xq (fails with spec:check; on latch.xml it reports
+  the unanchored SHOULD on purpose), changes.xq (the requirement diff by
+  anchor, text or JSON), and section queries; drafts/ holds symlinks to
+  both drafts for collection(); lock.scxml is a symlink to the scxml
+  seed. Updates are shown as diffs against `sxml serialize latch.xml`.
+  169 examples match. examples/xquery and examples/xquery-project
+  removed. No sxml bug found.
+
 - book-10 done (D299): Project: Drawing Diagrams with SVG, five new
   chapters (svg.md, svg-layout.md, svg-xquery.md, svg-xslt.md,
   svg-transform.md) in svg/. svg/draw.xqm (urn:example:draw) draws a
