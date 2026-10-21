@@ -97,7 +97,7 @@ group `edge-FROM-TO`. The variable `$ids` collects the node ids, and
 `$highlighted` the ids of the groups to highlight: the node's own, and
 for every node M the two possible edges between it and M. Matching
 whole ids, rather than looking for the node's id somewhere inside an
-edge's id, keeps `lock` from matching an edge of `locks`.
+edge's id, keeps a node `flag` from matching an edge of `flags`.
 
 A template rule whose pattern uses a variable is fine in XSLT: `g[@id =
 $highlighted]` matches the groups to change, which get the class
@@ -107,21 +107,22 @@ selects the groups without the class.
 ```console
 $ sxml transform --param=node=registry highlight.xsl diagram.svg --output=highlight.svg
 $ sxml xpath --context-item=highlight.svg '//*:g[contains-token(@class, "highlight")]/@id/string()'
-"edge-locks-registry"
+"edge-flags-registry"
 "edge-registry-database"
 "node-registry"
 ```
 
 `as="xs:string"` on the parameter converts the value given, and
 `required="yes"` makes a missing one an error. A node the drawing
-doesn't have is not an error, but worth a word, which `xsl:message`
+doesn't have, such as the audit service that only the services after
+the change have, is not an error, but worth a word, which `xsl:message`
 writes to standard error while the transformation goes on:
 
 ```console
 $ sxml transform highlight.xsl diagram.svg
 highlight.xsl: err:XTDE0050: no value is supplied for a required stylesheet parameter (XSLT 4.0, 9.5)
-$ sxml transform --param=node=vault highlight.xsl diagram.svg --output=nothing.svg
-highlight.xsl: the drawing has no node "vault"
+$ sxml transform --param=node=audit highlight.xsl diagram.svg --output=nothing.svg
+highlight.xsl: the drawing has no node "audit"
 ```
 
 Without `xpath-default-namespace`, the stylesheet still runs, and does
@@ -229,9 +230,9 @@ HTTP
 Redis
 SQL
 api-gateway
-lock-service
-lock-registry
-door-cache
+flag-service
+flag-registry
+flag-cache
 postgresql
 $ sxml xquery --context-item=legend.svg texts.xq
 service

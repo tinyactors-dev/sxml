@@ -51,11 +51,11 @@ $ sxml xquery --context-item=diagram.xml boxes.xq
   <rect x="20" y="20" width="140" height="40" fill="#eef3fb" stroke="#3b5b92"/>
   <text x="90" y="45" text-anchor="middle">api-gateway</text>
   <rect x="20" y="80" width="140" height="40" fill="#eef3fb" stroke="#3b5b92"/>
-  <text x="90" y="105" text-anchor="middle">lock-service</text>
+  <text x="90" y="105" text-anchor="middle">flag-service</text>
   <rect x="20" y="140" width="140" height="40" fill="#eef3fb" stroke="#3b5b92"/>
-  <text x="90" y="165" text-anchor="middle">lock-registry</text>
+  <text x="90" y="165" text-anchor="middle">flag-registry</text>
   <rect x="20" y="200" width="140" height="40" fill="#eef3fb" stroke="#3b5b92"/>
-  <text x="90" y="225" text-anchor="middle">door-cache</text>
+  <text x="90" y="225" text-anchor="middle">flag-cache</text>
   <rect x="20" y="260" width="140" height="40" fill="#eef3fb" stroke="#3b5b92"/>
   <text x="90" y="285" text-anchor="middle">postgresql</text>
 </svg>
@@ -213,7 +213,7 @@ sxml xquery: 'drawn.svg' exists; give --force to replace it
 The optional `class` attribute of a node or an edge is copied to its
 group, and the three classes `added`, `removed` and `changed` get their
 own style rules. `change.xml` is the services after a change to
-lock-service: it no longer reads the door cache, it records each unlock
+flag-service: it no longer reads the flag cache, it records each kill
 with a new audit service, and the way it calls the registry changed.
 
 `change.xml`:
@@ -236,11 +236,11 @@ $ sxml xpath --context-item=change.svg '//*:style/string()'
     .added rect, .added line, .added path { stroke: #2e7d32; stroke-width: 3 }
   "
 $ sxml xpath --context-item=change.svg '//*:g[tokenize(@class) = ("added", "removed", "changed")] ! `{@id}: {@class}`'
-"edge-locks-registry: edge changed"
-"edge-locks-cache: edge removed"
-"edge-locks-audit: edge added"
+"edge-flags-registry: edge changed"
+"edge-flags-cache: edge removed"
+"edge-flags-audit: edge added"
 "edge-audit-database: edge added"
-"node-locks: node service changed"
+"node-flags: node service changed"
 "node-cache: node store removed"
 "node-audit: node service added"
 ```
@@ -271,7 +271,7 @@ A diagram built in the query itself is drawn the same way. Here the loop
 shows up, with its style rule:
 
 ```console
-$ sxml xquery --expression='import module namespace draw = "urn:example:draw" at "draw.xqm"; draw:svg(<diagram title="Polling"><node id="lock" label="lock"/><edge from="lock" to="lock" label="status.request"/></diagram>)' --output=loop.svg
+$ sxml xquery --expression='import module namespace draw = "urn:example:draw" at "draw.xqm"; draw:svg(<diagram title="Polling"><node id="flag" label="flag"/><edge from="flag" to="flag" label="status.request"/></diagram>)' --output=loop.svg
 $ sxml xpath --context-item=loop.svg '//*:path[not(ancestor::*:defs)]/@d/string(), contains(//*:style, ".edge path")'
 "M 40 60 C 40 84, 70 84, 70 60"
 true()

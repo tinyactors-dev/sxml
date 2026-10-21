@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Three states of the door lock and a fourth that nothing leads to.
-     Every state has an incoming edge except jammed. -->
-<diagram title="Lock states">
-  <node id="locked" label="locked"/>
+<!-- Three states of a feature flag and a fourth that nothing leads to.
+     Every state has an incoming edge except archived. -->
+<diagram title="Flag states">
+  <node id="stable" label="stable"/>
   <node id="checking" label="checking"/>
-  <node id="unlocked" label="unlocked"/>
-  <node id="jammed" label="jammed"/>
-  <edge from="locked" to="checking" label="unlock.request"/>
-  <edge from="checking" to="unlocked" label="code.accepted"/>
-  <edge from="checking" to="locked" label="code.rejected"/>
-  <edge from="unlocked" to="locked" label="timeout.relock"/>
-  <edge from="jammed" to="locked" label="lock.request"/>
+  <node id="rolling-out" label="rolling-out"/>
+  <node id="archived" label="archived"/>
+  <edge from="stable" to="checking" label="rollout.request"/>
+  <edge from="checking" to="rolling-out" label="check.passed"/>
+  <edge from="checking" to="stable" label="check.failed"/>
+  <edge from="rolling-out" to="stable" label="step.done"/>
+  <edge from="archived" to="stable" label="kill.request"/>
 </diagram>

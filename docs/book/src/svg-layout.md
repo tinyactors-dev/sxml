@@ -23,7 +23,7 @@ them, and the nodes one edge further:
 ```console
 $ sxml xpath --context-item=diagram.xml '//node[not(@id = //edge/@to)]/@id/string()'
 "gateway"
-$ sxml xpath --context-item=diagram.xml '//edge[@from = "locks"]/@to/string()'
+$ sxml xpath --context-item=diagram.xml '//edge[@from = "flags"]/@to/string()'
 "registry"
 "cache"
 ```
@@ -36,8 +36,8 @@ first map from a sequence of keys and a function that gives each key's
 value; `fn { 0 }` is a function that ignores its argument:
 
 ```console
-$ sxml xpath --context-item=diagram.xml 'map:build(("gateway", "locks"), value := fn { 0 })'
-{"gateway":0,"locks":0}
+$ sxml xpath --context-item=diagram.xml 'map:build(("gateway", "flags"), value := fn { 0 })'
+{"gateway":0,"flags":0}
 ```
 
 Here is the search as two functions of `draw.xqm`:
@@ -64,11 +64,11 @@ module's namespace and file, and `--method=adaptive` shows the map:
 
 ```console
 $ sxml xquery --method=adaptive --context-item=diagram.xml --expression='import module namespace draw = "urn:example:draw" at "draw.xqm"; draw:ranks(/diagram)'
-{"gateway":0,"locks":1,"registry":2,"cache":2,"database":3}
+{"gateway":0,"flags":1,"registry":2,"cache":2,"database":3}
 ```
 
 A diagram with cycles works the same way. `states.xml` has four states
-of the door lock; every state has an incoming edge except `jammed`:
+of a feature flag; every state has an incoming edge except `archived`:
 
 `states.xml`:
 
@@ -78,11 +78,11 @@ of the door lock; every state has an incoming edge except `jammed`:
 
 ```console
 $ sxml xquery --method=adaptive --context-item=states.xml --expression='import module namespace draw = "urn:example:draw" at "draw.xqm"; draw:ranks(/diagram)'
-{"locked":0,"jammed":0,"checking":1,"unlocked":2}
+{"stable":0,"archived":0,"checking":1,"rolling-out":2}
 ```
 
-`locked` is first, so it starts the search; `jammed` has no incoming edge,
-so it starts too. The edges back to `locked` change nothing, because it
+`stable` is first, so it starts the search; `archived` has no incoming edge,
+so it starts too. The edges back to `stable` change nothing, because it
 already has a rank. And here are two nodes that only point at each
 other, behind a first node that leads nowhere: they go into the last row.
 
@@ -106,9 +106,9 @@ pass number *p* ranks the nodes one edge away from rank *p* − 1:
 
 ```console
 $ sxml xquery --method=adaptive --context-item=diagram.xml ranks-fold.xq
-{"gateway":0,"locks":1,"registry":2,"cache":2,"database":3}
+{"gateway":0,"flags":1,"registry":2,"cache":2,"database":3}
 $ sxml xquery --method=adaptive --context-item=states.xml ranks-fold.xq
-{"locked":0,"jammed":0,"checking":1,"unlocked":2}
+{"stable":0,"archived":0,"checking":1,"rolling-out":2}
 ```
 
 The results are the same. The fold says plainly that it ends, and it
@@ -138,13 +138,13 @@ sequence):
 ```console
 $ sxml xquery --method=adaptive --context-item=diagram.xml rows.xq
 ["gateway"]
-["locks"]
+["flags"]
 ["registry","cache"]
 ["database"]
 $ sxml xquery --method=adaptive --context-item=states.xml rows.xq
-["locked","jammed"]
+["stable","archived"]
 ["checking"]
-["unlocked"]
+["rolling-out"]
 ```
 
 `group by` keeps the nodes of each group in their order in the
@@ -204,7 +204,7 @@ members of one row's array. Each pair gives a one-entry map, and
 
 ```console
 $ sxml xquery --method=adaptive --context-item=diagram.xml --expression='import module namespace draw = "urn:example:draw" at "draw.xqm"; draw:layout(/diagram)'
-{"width":360,"height":380,"places":{"gateway":{"x":110,"y":20},"locks":{"x":110,"y":120},"registry":{"x":20,"y":220},"cache":{"x":200,"y":220},"database":{"x":110,"y":320}}}
+{"width":360,"height":380,"places":{"gateway":{"x":110,"y":20},"flags":{"x":110,"y":120},"registry":{"x":20,"y":220},"cache":{"x":200,"y":220},"database":{"x":110,"y":320}}}
 ```
 
 These are the numbers in `diagram.svg`: the `rect` of `registry` is at
@@ -223,7 +223,7 @@ numbers, or nothing for an edge from a node to itself, which
 
 An edge down, the common case, leaves the bottom centre of its source
 and arrives at the top centre of its target. An edge up (in `states.xml`,
-`code.rejected` from `checking` back to `locked`) runs a little to the
+`check.failed` from `checking` back to `stable`) runs a little to the
 right, so that it doesn't cover the edge that goes down between the same
 boxes. Edges in one row join the sides. A line that passes a box on its
 way is hidden under it, because the boxes are drawn last; a bigger tool
@@ -257,15 +257,15 @@ an expression, which is how the four ends of a line get their names.
 
 ```console
 $ sxml xquery --context-item=diagram.xml layout.xq
-<diagram title="Latch services" width="360" height="380">
+<diagram title="Vane services" width="360" height="380">
   <node id="gateway" label="api-gateway" x="110" y="20"/>
-  <node id="locks" label="lock-service" x="110" y="120"/>
-  <node id="registry" label="lock-registry" x="20" y="220"/>
-  <node id="cache" label="door-cache" kind="store" x="200" y="220"/>
+  <node id="flags" label="flag-service" x="110" y="120"/>
+  <node id="registry" label="flag-registry" x="20" y="220"/>
+  <node id="cache" label="flag-cache" kind="store" x="200" y="220"/>
   <node id="database" label="postgresql" kind="store" x="110" y="320"/>
-  <edge from="gateway" to="locks" label="HTTP" x1="180" y1="60" x2="180" y2="120"/>
-  <edge from="locks" to="registry" label="HTTP" x1="180" y1="160" x2="90" y2="220"/>
-  <edge from="locks" to="cache" label="Redis" x1="180" y1="160" x2="270" y2="220"/>
+  <edge from="gateway" to="flags" label="HTTP" x1="180" y1="60" x2="180" y2="120"/>
+  <edge from="flags" to="registry" label="HTTP" x1="180" y1="160" x2="90" y2="220"/>
+  <edge from="flags" to="cache" label="Redis" x1="180" y1="160" x2="270" y2="220"/>
   <edge from="registry" to="database" label="SQL" x1="90" y1="260" x2="180" y2="320"/>
 </diagram>
 ```

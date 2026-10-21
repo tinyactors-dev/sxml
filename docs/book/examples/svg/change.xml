@@ -1,18 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- The services after the change to lock-service 2.4.0: it no longer
-     reads the door cache, it records unlocks with a new audit service, and
-     its calls to the registry changed. -->
-<diagram title="Latch services after the change">
+<!-- The services after the change to flag-service 2.4.0: it no longer
+     reads the flag cache, it records each kill with a new audit service,
+     and its calls to the registry changed. -->
+<diagram title="Vane services after the change">
   <node id="gateway" label="api-gateway"/>
-  <node id="locks" label="lock-service" class="changed"/>
-  <node id="registry" label="lock-registry"/>
-  <node id="cache" label="door-cache" kind="store" class="removed"/>
+  <node id="flags" label="flag-service" class="changed"/>
+  <node id="registry" label="flag-registry"/>
+  <node id="cache" label="flag-cache" kind="store" class="removed"/>
   <node id="audit" label="audit-service" class="added"/>
   <node id="database" label="postgresql" kind="store"/>
-  <edge from="gateway" to="locks" label="HTTP"/>
-  <edge from="locks" to="registry" label="HTTP" class="changed"/>
-  <edge from="locks" to="cache" label="Redis" class="removed"/>
-  <edge from="locks" to="audit" label="HTTP" class="added"/>
+  <edge from="gateway" to="flags" label="HTTP"/>
+  <edge from="flags" to="registry" label="HTTP" class="changed"/>
+  <edge from="flags" to="cache" label="Redis" class="removed"/>
+  <edge from="flags" to="audit" label="HTTP" class="added"/>
   <edge from="registry" to="database" label="SQL"/>
   <edge from="audit" to="database" label="SQL" class="added"/>
 </diagram>

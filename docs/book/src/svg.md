@@ -10,8 +10,8 @@ that kind from the parts of this book. The description is XML, the
 layout is computed by XQuery, and the picture is SVG, which is XML too,
 so the same tools can write it, check it and change it afterwards.
 
-The diagram we'll draw is the Latch system's services and who calls whom.
-Later projects draw other things with the same code: the lock's state
+The diagram we'll draw is the Vane system's services and who calls whom.
+Later projects draw other things with the same code: the flag's state
 machine, a diff of call chains, and a diff of traces.
 
 The files are in `docs/book/examples/svg`.
@@ -88,7 +88,7 @@ The services are in rows: api-gateway at the top, what it calls below
 it, and so on down to the database. Each node is a group `g` with a
 `rect` and a `text`; each edge is a group with a `line` and the edge's
 label at its middle. The groups have ids made from the description
-(`node-registry`, `edge-locks-cache`) and classes (`node`, `service`,
+(`node-registry`, `edge-flags-cache`) and classes (`node`, `service`,
 `store`, `edge`) that the five style rules use. Stores have rounder
 corners.
 
@@ -99,7 +99,7 @@ $ sxml check diagram.xml diagram.svg
 $ sxml xpath --context-item=diagram.xml 'count(//node), count(//edge), //node[@kind = "store"]/@label/string()'
 5
 4
-"door-cache"
+"flag-cache"
 "postgresql"
 ```
 
@@ -114,12 +114,12 @@ $ sxml xpath --context-item=diagram.svg 'count(//rect), count(//*:rect)'
 0
 5
 $ sxml xpath --context-item=diagram.svg '//Q{http://www.w3.org/2000/svg}g/@id/string()'
-"edge-gateway-locks"
-"edge-locks-registry"
-"edge-locks-cache"
+"edge-gateway-flags"
+"edge-flags-registry"
+"edge-flags-cache"
 "edge-registry-database"
 "node-gateway"
-"node-locks"
+"node-flags"
 "node-registry"
 "node-cache"
 "node-database"

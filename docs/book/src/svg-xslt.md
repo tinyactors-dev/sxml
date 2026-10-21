@@ -20,7 +20,7 @@ $ sxml xquery --context-item=diagram.xml --output=laid-out.xml layout.xq
 $ sxml xpath --context-item=laid-out.xml '/diagram/@width/string(), //node[@id = "cache"]/@*!string()'
 "360"
 "cache"
-"door-cache"
+"flag-cache"
 "store"
 "200"
 "220"
@@ -78,8 +78,8 @@ the parameter with its default, 6:
 
 ```console
 $ sxml transform draw.xsl laid-out.xml --output=drawn.svg
-$ sxml xpath --context-item=drawn.svg '//*:g[@id = ("node-locks", "node-cache")] ! `{@id}: {@class}, rx {*:rect/@rx}`'
-"node-locks: service, rx 6"
+$ sxml xpath --context-item=drawn.svg '//*:g[@id = ("node-flags", "node-cache")] ! `{@id}: {@class}, rx {*:rect/@rx}`'
+"node-flags: service, rx 6"
 "node-cache: store, rx 20"
 ```
 
@@ -93,7 +93,7 @@ a missing `class` adds nothing.
 $ sxml transform draw.xsl laid-out.xml
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="360" height="380" viewBox="0 0 360 380">
-  <title>Latch services</title>
+  <title>Vane services</title>
   <style>
         .nodes rect { fill: #eef3fb; stroke: #3b5b92; stroke-width: 1.5 }
         .nodes .store rect { fill: #f6efe3; stroke: #8a6a2f }
@@ -107,9 +107,9 @@ $ sxml transform draw.xsl laid-out.xml
     </marker>
   </defs>
   <g class="edges">
-    <line id="edge-gateway-locks" x1="180" y1="60" x2="180" y2="120" marker-end="url(#arrow)"/>
-    <line id="edge-locks-registry" x1="180" y1="160" x2="90" y2="220" marker-end="url(#arrow)"/>
-    <line id="edge-locks-cache" x1="180" y1="160" x2="270" y2="220" marker-end="url(#arrow)"/>
+    <line id="edge-gateway-flags" x1="180" y1="60" x2="180" y2="120" marker-end="url(#arrow)"/>
+    <line id="edge-flags-registry" x1="180" y1="160" x2="90" y2="220" marker-end="url(#arrow)"/>
+    <line id="edge-flags-cache" x1="180" y1="160" x2="270" y2="220" marker-end="url(#arrow)"/>
     <line id="edge-registry-database" x1="90" y1="260" x2="180" y2="320" marker-end="url(#arrow)"/>
   </g>
   <g class="nodes">
@@ -117,17 +117,17 @@ $ sxml transform draw.xsl laid-out.xml
       <rect x="110" y="20" width="140" height="40" rx="6"/>
       <text x="180" y="45" text-anchor="middle">api-gateway</text>
     </g>
-    <g id="node-locks" class="service">
+    <g id="node-flags" class="service">
       <rect x="110" y="120" width="140" height="40" rx="6"/>
-      <text x="180" y="145" text-anchor="middle">lock-service</text>
+      <text x="180" y="145" text-anchor="middle">flag-service</text>
     </g>
     <g id="node-registry" class="service">
       <rect x="20" y="220" width="140" height="40" rx="6"/>
-      <text x="90" y="245" text-anchor="middle">lock-registry</text>
+      <text x="90" y="245" text-anchor="middle">flag-registry</text>
     </g>
     <g id="node-cache" class="store">
       <rect x="200" y="220" width="140" height="40" rx="20"/>
-      <text x="270" y="245" text-anchor="middle">door-cache</text>
+      <text x="270" y="245" text-anchor="middle">flag-cache</text>
     </g>
     <g id="node-database" class="store">
       <rect x="110" y="320" width="140" height="40" rx="20"/>
@@ -152,11 +152,11 @@ read by the stylesheet from standard input (`-`):
 ```console
 $ sxml xquery --context-item=states.xml layout.xq | sxml transform draw.xsl - --output=states.svg
 $ sxml xpath --context-item=states.svg '//*:g[@class = "labels"]/*:text ! `{.} at {@x},{@y}`'
-"unlock.request at 141,94"
-"code.accepted at 186,194"
-"code.rejected at 171,94"
-"timeout.relock at 171,144"
-"lock.request at 186,44"
+"rollout.request at 141,94"
+"check.passed at 186,194"
+"check.failed at 171,94"
+"step.done at 171,144"
+"kill.request at 186,44"
 ```
 
 ## A rule for input that is wrong
@@ -171,8 +171,8 @@ gives itself `priority="1"` to win:
 
 ```console
 $ sxml transform draw.xsl diagram.xml
-Latch services: no layout; run layout.xq first
-draw.xsl:43:5: err:XTMM9000: Latch services: no layout; run layout.xq first
+Vane services: no layout; run layout.xq first
+draw.xsl:43:5: err:XTMM9000: Vane services: no layout; run layout.xq first
 ```
 
 ## Matching SVG
@@ -193,15 +193,15 @@ Run on both drawings, it shows that they agree:
 ```console
 $ sxml transform boxes.xsl diagram.svg
 110,20 api-gateway
-110,120 lock-service
-20,220 lock-registry
-200,220 door-cache
+110,120 flag-service
+20,220 flag-registry
+200,220 flag-cache
 110,320 postgresql
 $ sxml transform boxes.xsl drawn.svg
 110,20 api-gateway
-110,120 lock-service
-20,220 lock-registry
-200,220 door-cache
+110,120 flag-service
+20,220 flag-registry
+200,220 flag-cache
 110,320 postgresql
 ```
 
