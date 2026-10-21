@@ -1,11 +1,5 @@
-<log>
-  <request time="2026-10-20T09:14:02Z" method="GET" path="/api/flags" status="200" ms="12"/>
-  <request time="2026-10-20T09:14:03Z" method="GET" path="/api/flags" status="200" ms="9"/>
-  <request time="2026-10-20T09:14:05Z" method="POST" path="/api/flags" status="201" ms="31"/>
-  <request time="2026-10-20T09:14:07Z" method="GET" path="/api/users/7" status="404" ms="4"/>
-  <request time="2026-10-20T09:14:09Z" method="GET" path="/api/flags" status="500" ms="120"/>
-  <request time="2026-10-20T09:14:11Z" method="GET" path="/api/users/7" status="200" ms="15"/>
-  <request time="2026-10-20T09:14:12Z" method="DELETE" path="/api/sessions/3" status="204" ms="8"/>
-  <request time="2026-10-20T09:14:15Z" method="GET" path="/api/flags" status="200" ms="11"/>
-  <request time="2026-10-20T09:14:16Z" method="GET" path="/api/sessions/3" status="200" ms="6"/>
-</log>
+<rules>
+  <max-parameters limit="3"/>
+  <only-calls directory="src/api/" function="fetch"/>
+  <no-calls function="console.log" directory="src/"/>
+</rules>

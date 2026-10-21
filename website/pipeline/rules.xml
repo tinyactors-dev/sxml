@@ -1,0 +1,1 @@
+<rules><max-parameters limit="3"/><only-calls directory="src/api/" function="fetch"/><no-calls function="console.log" directory="src/"/></rules>

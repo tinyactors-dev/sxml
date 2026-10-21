@@ -1,0 +1,4 @@
+Your change breaks rules in AGENTS.md. Fix these:
+src/cart.ts:3: addItem takes 4 parameters; the limit is 3.
+src/ui/profile.ts:2: calls fetch, which only code in src/api/ may call.
+src/ui/profile.ts:3: calls console.log, which code in src/ must not call.

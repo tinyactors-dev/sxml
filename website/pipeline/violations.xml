@@ -1,0 +1,1 @@
+<violations><violation file="src/cart.ts" line="3" name="addItem" count="4"><max-parameters limit="3"/></violation><violation file="src/ui/profile.ts" line="2"><only-calls directory="src/api/" function="fetch"/></violation><violation file="src/ui/profile.ts" line="3"><no-calls function="console.log" directory="src/"/></violation></violations>

@@ -1,1 +1,3 @@
-"120 ms /api/flags"
+"2: fetch"
+"3: console.log"
+"4: response.json"

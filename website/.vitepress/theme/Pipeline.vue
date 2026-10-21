@@ -1,30 +1,19 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
-import { data as stages } from './pipeline.data'
+import { data } from './pipeline.data'
 
-// One access log travels through every language: text, Invisible XML,
-// XML, XSD, XPath, XQuery, XSLT, SVG. The files and outputs are
-// website/pipeline/'s, recorded by its run.mjs.
+// The rules of an AGENTS.md travel through every language: Markdown,
+// Invisible XML, XSD, XPath, XQuery and XSLT check an agent's code. The
+// board, files and outputs are website/pipeline/'s, recorded by its
+// run.mjs.
+
+const { board: parts, stages } = data
 
 const selected = ref(0)
 const stage = computed(() => stages[selected.value])
 
-// The board: language blocks, with the files that pass between them on
-// the trace. A block's index is its stage's.
-type Part = { kind: 'file'; name: string } | { kind: 'block'; stage: number }
-const parts: Part[] = [
-  { kind: 'file', name: 'access.log' },
-  { kind: 'block', stage: 0 },
-  { kind: 'file', name: 'requests.xml' },
-  { kind: 'block', stage: 1 },
-  { kind: 'block', stage: 2 },
-  { kind: 'block', stage: 3 },
-  { kind: 'file', name: 'paths.xml' },
-  { kind: 'block', stage: 4 },
-  { kind: 'file', name: 'chart.svg' },
-]
 const reached = (index: number) => {
-  const active = parts.findIndex((part) => part.kind === 'block' && part.stage === selected.value)
+  const active = parts.findIndex((part) => 'stage' in part && part.stage === selected.value)
   return index <= active
 }
 // On a narrow screen the board scrolls; keep the active block in view.
@@ -46,7 +35,7 @@ const next = () => {
       <div ref="board" class="px-board" role="tablist" aria-label="Pipeline stages">
         <template v-for="(part, index) in parts" :key="index">
           <span v-if="index > 0" class="px-trace" :class="{ 'is-hot': reached(index) }" />
-          <span v-if="part.kind === 'file'" class="px-file" :class="{ 'is-hot': reached(index) }">{{ part.name }}</span>
+          <span v-if="'file' in part" class="px-file" :class="{ 'is-hot': reached(index) }">{{ part.file }}</span>
           <button
             v-else
             role="tab"
@@ -75,13 +64,9 @@ const next = () => {
               <div v-if="command.output" class="px-output" :class="{ 'px-output--wrap': command.wrap }" v-html="command.output" />
             </div>
           </div>
-          <figure v-for="(command, index) in stage.commands.filter((command) => command.rendered)" :key="`rendered-${index}`" class="px-rendered">
-            <figcaption>chart.svg in a browser</figcaption>
-            <div class="px-chart" v-html="command.rendered" />
-          </figure>
           <button class="px-next" @click="next">
             <template v-if="selected < stages.length - 1">Next: {{ stages[selected + 1].name }} <span aria-hidden="true">→</span></template>
-            <template v-else>Back to the text <span aria-hidden="true">↺</span></template>
+            <template v-else>Back to AGENTS.md <span aria-hidden="true">↺</span></template>
           </button>
         </div>
       </div>
@@ -102,7 +87,7 @@ const next = () => {
 .px-reg--tl{left:-7px;top:-7px}.px-reg--tr{right:-7px;top:-7px}.px-reg--bl{left:-7px;bottom:-7px}.px-reg--br{right:-7px;bottom:-7px}
 
 /* The board: blocks are chips with pin pads, files are hatched pads on
-   the trace; the trace is pine as far as the log has travelled. */
+   the trace; the trace is pine as far as the rules have travelled. */
 .px-board{position:relative;display:flex;align-items:center;overflow-x:auto;padding:6px 2px 10px;scrollbar-width:thin}
 .px-trace{flex:1 0 14px;height:1.5px;background:var(--fg-4);transition:background 360ms var(--ease-step)}
 .px-trace.is-hot{background:var(--accent);height:2.5px}
@@ -134,13 +119,6 @@ const next = () => {
 .px-output--wrap :deep(pre){white-space:pre-wrap;word-break:break-word}
 .px-prompt{color:var(--accent-fg);user-select:none}
 .px-note{color:var(--code-muted);padding-top:2px}
-
-.px-rendered{margin:0;border:1px solid var(--border-1);background:var(--surface-1);border-radius:2px}
-.px-rendered figcaption{font:400 12px/1 var(--font-mono);color:var(--fg-3);padding:10px 14px;border-bottom:1px solid var(--border-1)}
-.px-chart{padding:16px 18px 14px}
-.px-chart :deep(svg){display:block;width:100%;height:auto;font:400 13px var(--font-mono);fill:var(--fg-1)}
-.px-chart :deep(.requests){fill:var(--fg-4)}
-.px-chart :deep(.errors){fill:var(--state-error)}
 
 .px-next{align-self:flex-end;display:inline-flex;align-items:center;gap:8px;height:32px;padding:0 14px;border:1px solid var(--border-2);border-radius:2px;font:500 13px/1 var(--font-sans);color:var(--fg-1);background:var(--surface-1);transition:border-color 120ms var(--ease-step)}
 .px-next:hover{border-color:var(--fg-1)}

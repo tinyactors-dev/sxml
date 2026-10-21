@@ -1,0 +1,9 @@
+rule: max-parameters | only-calls | no-calls.
+max-parameters: -"Functions take at most ", @limit,
+                -" parameters.".
+only-calls: -"Only ", @directory,
+            -" calls ", @function, -".".
+no-calls: -"No ", @function, -" in ", @directory, -".".
+limit: ["0"-"9"]+.
+directory: ~[" "]+.
+function: ["a"-"z"; "A"-"Z"; "_."]+.

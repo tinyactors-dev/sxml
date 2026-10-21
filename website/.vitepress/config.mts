@@ -8,6 +8,8 @@ export default defineConfig({
     'An XML toolchain in portable C: XML and HTML parsing, XPath 4.0, XQuery 4.0, XSLT 4.0 and XSD 1.1 from one small library with no dependencies.',
   lang: 'en',
   cleanUrls: true,
+  // The pipeline example's files (pipeline/AGENTS.md among them) are data, not pages.
+  srcExclude: ['pipeline/**'],
   outDir: '../build/site',
   cacheDir: '../build/site-cache',
   head: [

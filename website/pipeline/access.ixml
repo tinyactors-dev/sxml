@@ -1,9 +1,0 @@
-log: request+.
-request: @time, -" ", @method, -" ", @path, -" ",
-         @status, -" ", @ms, -"ms", -#a.
-time: ~[" "]+.
-method: ["A"-"Z"]+.
-path: "/", ~[" "]*.
-status: digit, digit, digit.
-ms: digit+.
--digit: ["0"-"9"].

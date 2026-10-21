@@ -77,11 +77,11 @@ const targets = [
         </div>
       </div>
       <div class="sx-wrap sx-hero__plate">
-        <h2 class="sx-h3">From a server log to a chart</h2>
+        <h2 class="sx-h3">Hold a coding agent to your AGENTS.md</h2>
         <p class="sx-hero__plate-text">
-          Nine lines of a web server's access log become XML, are validated and queried,
-          summarized by path and drawn as SVG. The files and outputs below are real,
-          recorded with the <code>sxml</code> command.
+          The rules in an AGENTS.md file become XML, are validated, and are checked against
+          the syntax tree of every source file. A hook gives the agent the violations to fix.
+          The files and outputs below are real, recorded with the <code>sxml</code> command.
         </p>
         <Pipeline />
       </div>

@@ -1,0 +1,27 @@
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="rules">
+    <xs:complexType>
+      <xs:choice minOccurs="0" maxOccurs="unbounded">
+        <xs:element name="max-parameters">
+          <xs:complexType>
+            <xs:attribute name="limit" use="required"
+                          type="xs:positiveInteger"/>
+          </xs:complexType>
+        </xs:element>
+        <xs:element name="only-calls" type="calls"/>
+        <xs:element name="no-calls" type="calls"/>
+      </xs:choice>
+    </xs:complexType>
+  </xs:element>
+  <xs:complexType name="calls">
+    <xs:attribute name="function" use="required"
+                  type="xs:NCName"/>
+    <xs:attribute name="directory" use="required">
+      <xs:simpleType>
+        <xs:restriction base="xs:string">
+          <xs:pattern value="[^ ]+/"/>
+        </xs:restriction>
+      </xs:simpleType>
+    </xs:attribute>
+  </xs:complexType>
+</xs:schema>

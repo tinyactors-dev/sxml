@@ -1,2 +1,2 @@
-"404 GET /api/users/7"
-"500 GET /api/flags"
+"addItem: 4"
+"checkout: 1"
