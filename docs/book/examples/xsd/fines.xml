@@ -1,6 +1,0 @@
-<fines xmlns="https://example.org/lending">
-  <fine book="geb">
-    <member id="alan"><name>Alan Turing</name></member>
-    <amount currency="EUR">2.40</amount>
-  </fine>
-</fines>

@@ -1,8 +1,0 @@
-<fines xmlns="https://example.org/lending"
-       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-       xsi:schemaLocation="https://example.org/lending lending.xsd">
-  <fine book="geb">
-    <member id="alan"><name>Alan Turing</name></member>
-    <amount currency="EUR">2.40</amount>
-  </fine>
-</fines>

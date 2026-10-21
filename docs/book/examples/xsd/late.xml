@@ -1,9 +1,0 @@
-<library>
-  <shelf name="Fiction">
-    <book id="dune" year="1965">
-      <author>Frank Herbert</author>
-      <title>Dune</title>
-      <price currency="GBP">cheap</price>
-    </book>
-  </shelf>
-</library>
