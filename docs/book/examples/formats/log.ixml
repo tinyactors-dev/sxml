@@ -1,7 +1,0 @@
-log: line++-#a, -#a?.
-line: date, -" ", time, -" ", level, -" ", message.
-@date: digit, digit, digit, digit, "-", digit, digit, "-", digit, digit.
-@time: digit, digit, ":", digit, digit, ":", digit, digit.
-@level: "INFO"; "WARN"; "ERROR".
-message: ~[#a]*.
--digit: ["0"-"9"].
