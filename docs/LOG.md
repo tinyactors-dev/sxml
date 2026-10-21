@@ -4,6 +4,17 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- book-18 done: Validating with XSD (all nine xsd*.md) and Project:
+  Self-Describing State Machines (scxml*.md, four files) on the Vane
+  story, 143 examples matching on the release build of HEAD. Renamed
+  scxml/lock-fixed.scxml to flag-fixed.scxml (made again by fix.xq,
+  which now declares flag.evaluated and adds flag.archived transitions
+  from stable and paused) and latch-1.1.xsd to vane-1.1.xsd; the broken
+  drafts, worksheets and levels.xsd carried over. With fix-2: status.xsl
+  has typed parameters (XTTE0590 for --param=state=archived), and the
+  errors and keys chapters show a field value that is not valid for its
+  type (an anchor and a state id with a space).
+
 - book-17 done: Transforming with XSLT (xslt*.md, five files), Working
   with Text, Files and the Outside World, Embedding sxml in C and the
   ABNF section of Parsing Text with Invisible XML on the Vane story;
