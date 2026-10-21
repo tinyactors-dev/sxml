@@ -276,6 +276,12 @@ sxml_add_cli_test(transform_version_1 EXIT_CODE 0 ARGUMENTS transform xslt/versi
 # xsl:evaluate of an expression given on the command line (packet 7.3, D196).
 sxml_add_cli_test(transform_evaluate EXIT_CODE 0 ARGUMENTS transform "--param=expression=sum(//*:price) * (1 + $tax)" xslt/evaluate.xsl books.xml)
 sxml_add_cli_test(transform_missing_param EXIT_CODE 1 ARGUMENTS transform xslt/required.xsl)
+# A --param value converted to the parameter's "as" type, built-in or from
+# xsl:import-schema; XTTE0590 when it cannot be (XSLT 4.0, 9.5).
+sxml_add_cli_test(transform_typed_params EXIT_CODE 0 ARGUMENTS transform --param=count=41 --param=due=2026-10-21 xslt/typed-params.xsl)
+sxml_add_cli_test(transform_typed_param_error EXIT_CODE 1 ARGUMENTS transform --param=count=forty xslt/typed-params.xsl)
+sxml_add_cli_test(transform_schema_param EXIT_CODE 0 ARGUMENTS transform --param=price=12.50 xslt/schema-param.xsl)
+sxml_add_cli_test(transform_schema_param_error EXIT_CODE 1 ARGUMENTS transform --param=price=-1 xslt/schema-param.xsl)
 # fn:trace and fn:message beside xsl:message on standard error (D271).
 sxml_add_cli_test(transform_trace EXIT_CODE 0 ARGUMENTS transform xslt/trace.xsl)
 sxml_add_cli_test(transform_static_error EXIT_CODE 1 ARGUMENTS transform xslt/broken.xsl books.xml)

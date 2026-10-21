@@ -684,6 +684,54 @@ static void test_parameters_reach_their_declarations(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
 }
 
+static sxml_sequence make_untyped(const fixture *test_fixture, const char *text) {
+    sxml_item item = {.representation = 0};
+    if (sxml_atomic_item_make(
+            sxml_processor_get_item_heap(test_fixture->processor),
+            &(sxml_atomic_item_request){
+                .type = sxml_builtin_type_identifier(SXML_TYPE_XS_UNTYPED_ATOMIC),
+                .datum = {.datum_kind = SXML_DATUM_KIND_STRING,
+                          .datum_details = {.string = {.utf8 = sxml_byte_view_from_c_string(text),
+                                                       .codepoint_count = 0,
+                                                       .is_ascii = false}}}},
+            &item) != SXML_STATUS_OK) {
+        return sxml_sequence_empty();
+    }
+    return sxml_sequence_from_item(item);
+}
+
+/* 9.5: a supplied xs:untypedAtomic value is converted to the parameter's
+   required type by the coercion rules, XTTE0590 when it cannot be. */
+static void test_untyped_parameters_are_converted(sxml_test_state *state) {
+    fixture test_fixture;
+    SXML_TEST_EXPECT(state, fixture_create(0, &test_fixture) == SXML_STATUS_OK);
+    const sxml_sequence count = make_untyped(&test_fixture, "41");
+    const sxml_sequence due = make_untyped(&test_fixture, "2026-10-21");
+    const sxml_sequence wrong = make_untyped(&test_fixture, "forty");
+    sxml_variable_binding bindings[] = {
+        {.variable_name = fixture_name(&test_fixture, TEXT("count")), .value = count},
+        {.variable_name = fixture_name(&test_fixture, TEXT("due")), .value = due}};
+    transformation_run run = {
+        .stylesheet_text = TEXT(STYLESHEET(
+            "<xsl:output method='text'/><xsl:param name='count' as='xs:integer' select='0'/>"
+            "<xsl:param name='due' as='xs:date?'/><xsl:template name='main'><xsl:value-of "
+            "select='$count instance of xs:integer, $count idiv 2, $due instance of xs:date, "
+            "$due'/></xsl:template>")),
+        .invocation_kind = SXML_XSLT_INVOCATION_KIND_CALL_TEMPLATE,
+        .initial_template = TEXT("main"),
+        .stylesheet_parameters = {.variable_bindings = bindings, .variable_binding_count = 2},
+        .result_delivery = SXML_XSLT_RESULT_DELIVERY_SERIALIZED};
+    SXML_TEST_EXPECT(state, run_transformation(&test_fixture, &run) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, output_is(&test_fixture, TEXT("true 20 true 2026-10-21")));
+    bindings[0].value = wrong;
+    SXML_TEST_EXPECT(state, run_transformation(&test_fixture, &run) == SXML_STATUS_TYPE_ERROR);
+    SXML_TEST_EXPECT(state, error_code_is(&run, TEXT("XTTE0590")));
+    sxml_sequence_release(count);
+    sxml_sequence_release(due);
+    sxml_sequence_release(wrong);
+    SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
+}
+
 static void test_initial_function_and_selection(sxml_test_state *state) {
     fixture test_fixture;
     SXML_TEST_EXPECT(state, fixture_create(0, &test_fixture) == SXML_STATUS_OK);
@@ -1157,6 +1205,7 @@ static const sxml_test_case xslt_test_cases[] = {
     {.name = "transformations_round_trip", .function = test_transformations_round_trip},
     {.name = "parameters_reach_their_declarations",
      .function = test_parameters_reach_their_declarations},
+    {.name = "untyped_parameters_are_converted", .function = test_untyped_parameters_are_converted},
     {.name = "initial_function_and_selection", .function = test_initial_function_and_selection},
     {.name = "deliveries_documents_and_messages",
      .function = test_deliveries_documents_and_messages},

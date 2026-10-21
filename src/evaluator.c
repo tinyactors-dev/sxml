@@ -6231,8 +6231,9 @@ static sxml_status sxml_add_unbound_global_table(sxml_dynamic_context *context,
 }
 
 /* Adds the global table of request->unit, filled from the request:
-   external values coerced to their declared types (XPTY0004), the others
-   ABSENT; writes its index. */
+   external values coerced to their declared types (XPTY0004; XTTE0590
+   for a stylesheet parameter, XSLT 4.0, 9.5), the others ABSENT; writes
+   its index. */
 static sxml_status sxml_add_global_table(sxml_dynamic_context *context,
                                          const sxml_evaluation_request *request,
                                          size_t *table_index) {
@@ -6264,7 +6265,9 @@ static sxml_status sxml_add_global_table(sxml_dynamic_context *context,
             context,
             &(sxml_coercion_request){.value = given->value,
                                      .sequence_type = variable->declared_type,
-                                     .role = SXML_IR_COERCION_ROLE_VARIABLE,
+                                     .role = variable->is_stylesheet_parameter
+                                                 ? SXML_IR_COERCION_ROLE_TEMPLATE_PARAMETER
+                                                 : SXML_IR_COERCION_ROLE_VARIABLE,
                                      .error_record = context->error_record},
             &coerced);
         if (status == SXML_STATUS_OK) {

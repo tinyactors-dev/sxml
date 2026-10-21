@@ -6102,14 +6102,32 @@ sxml_status sxml_xslt_lowering_add_global_variables(const sxml_xslt_lowering *lo
     }
     for (size_t global_index = 0; status == SXML_STATUS_OK && global_index < global_count;
          global_index += 1) {
+        /* 9.5: a supplied value of a stylesheet parameter is converted to
+           its required type by the coercion rules (an xs:untypedAtomic
+           value is cast to the expected atomic type), XTTE0590 when it
+           cannot be; the evaluator coerces it as it binds it
+           (src/evaluator.c). A variable, or a parameter's own default
+           (lower_initializer), is not supplied: item()*. */
+        sxml_xslt_declared_type type = {.has_type = false};
+        const bool is_parameter =
+            kind_of(lowering, lowering->global_nodes[global_index]) == SXML_XSLT_AST_KIND_PARAM;
+        if (is_parameter) {
+            status = sxml_xslt_lowering_resolve_declared_type(
+                lowering, lowering->global_nodes[global_index], &type);
+        }
         sxml_ir_global_index global = {0};
-        status = sxml_ir_unit_add_global_variable(
-            lowerer->unit,
-            &(sxml_ir_global_variable){
-                .variable_name = lowering->global_declarations[global_index].variable_name,
-                .declared_type = lowering->global_declarations[global_index].declared_type,
-                .initializer = {.value = (uint32_t)ordered[global_index]}},
-            &global);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_ir_unit_add_global_variable(
+                lowerer->unit,
+                &(sxml_ir_global_variable){
+                    .variable_name = lowering->global_declarations[global_index].variable_name,
+                    .declared_type = type.has_type
+                                         ? type.sequence_type
+                                         : lowering->global_declarations[global_index].declared_type,
+                    .initializer = {.value = (uint32_t)ordered[global_index]},
+                    .is_stylesheet_parameter = is_parameter},
+                &global);
+        }
     }
     if (status == SXML_STATUS_OK) {
         /* The context global (D135): the host's context value. */

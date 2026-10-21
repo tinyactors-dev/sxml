@@ -820,7 +820,8 @@ typedef enum sxml_ir_coercion_role {
     SXML_IR_COERCION_ROLE_FUNCTION_RESULT,
     /* A variable with a declared type (let, for, external, global). */
     SXML_IR_COERCION_ROLE_VARIABLE,
-    /* An XSLT template or function parameter (XTTE0590, Phase 4). */
+    /* An XSLT template or function parameter, or a stylesheet
+       parameter's supplied value (XTTE0590, Phase 4). */
     SXML_IR_COERCION_ROLE_TEMPLATE_PARAMETER,
     /* Another XSLT binding whose lowering maps XPTY0004 to XSLT's code: a
        variable, a parameter's default, a template's or function's result
@@ -1348,6 +1349,10 @@ typedef struct sxml_ir_global_variable {
        default, so fn:load-xquery-module's variables option may bind it
        (F&O 4.0, 18.2); a host variable is too. */
     bool is_external;
+    /* XSLT: a stylesheet parameter (XSLT 4.0, 9.5): a supplied value is
+       coerced to declared_type, its "as" type, with the role
+       SXML_IR_COERCION_ROLE_TEMPLATE_PARAMETER (XTTE0590). */
+    bool is_stylesheet_parameter;
 } sxml_ir_global_variable;
 
 /* ------------------------------------------------------- XSLT modes */
