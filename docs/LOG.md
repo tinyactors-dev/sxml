@@ -4,6 +4,17 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- fix-3 done (D302): streaming and index fixes from book-12. xsl:text's
+  text value templates are absorbed (Streaming 4.0, 12.6.40: was 0, now
+  the count, or XTSE3430); xsl:iterate and xsl:for-each-group (adjacent,
+  starting-with, ending-with) over a streamed path are streamed
+  iterations (new STREAM flag FOLDS_ITERATIONS): 586 / 598 MB -> 11 MB on
+  the 82 MB archive; a break stops the bodies (the rest is still parsed);
+  //x from a non-document focus is XTSE3430 (12.9.21). Child paths
+  from several origins are indexed: /spans/span[...] in a loop 21.9 s
+  -> 0.30 s. parse-json's number-parser is not in the draft. XT40
+  12,283, XQ40 46,158, XP40 32,815 before and after, no outcome differs.
+
 - book-18 done: Validating with XSD (all nine xsd*.md) and Project:
   Self-Describing State Machines (scxml*.md, four files) on the Vane
   story, 143 examples matching on the release build of HEAD. Renamed

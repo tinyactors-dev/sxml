@@ -14306,6 +14306,70 @@ projects of D299 stay; only the story and its names change.
   example output with `--update` and make the prose match what the
   outputs say; book-13 integrates last. The book never mentions Latch.
 
+### D302. Streaming fixes from the book: text value templates, streamed xsl:iterate and xsl:for-each-group, //x from elements, child-path indexes (packet fix-3)
+Recorded 2026-10-21, after D166, D223, D224, D228, D229, D231, D259,
+D295, D296. Book-12 found four problems on the 82 MB trace archive
+(100,000 traces, 633,333 spans); the newest drafts decide each.
+Measured with the release CLI (peak resident set, wall seconds);
+QT4 whole with the release drivers, case by case, after each change:
+XT40 12,283 (98 wrong error), XQ40 46,158, XP40 32,815 before and after,
+no outcome differs.
+- **xsl:text** (wrong result): the analysis took xsl:text as grounded
+  and motionless, so a text value template in it read a shallow window
+  (`<xsl:text>{count(trace)}</xsl:text>` gave 0). XSLT Streaming 4.0,
+  12.6.40: xsl:text follows the general rules, its content absorbed
+  (12.5). Two downward selections in it are now XTSE3430, and a text
+  value template, in xsl:text or a text node, is a streamed path:
+  `{count(trace)}` at /traces 318.8 MB -> 11.1 MB.
+- **xsl:iterate** (12.6.22, guaranteed-streamable with a striding
+  select): it was a streamed path, every node grounded before fn:scan
+  ran (586 MB). Decided (glossary `streamed_iteration`): an xsl:iterate
+  whose select is a path of steps is a stream point; its closure runs on
+  each node's full window as the node passes, the STREAM's fold holding
+  the iteration state, new flag `SXML_IR_STREAM_FOLDS_ITERATIONS`
+  (src/ir_internal.h: the body's value is the state, its second member
+  the STREAM's value for the node, a non-zero control ends the STREAM
+  and skips the rest of origin's content). The outputs are a content LET
+  (D166), delivered as made. first-slow.xsl 586.0 MB 7.55 s -> 11.1 MB
+  6.58 s; an output per trace 193 MB -> 11.1 MB. After xsl:break no
+  body runs, but the rest of the document is still parsed (not built):
+  Streaming 4.0, 2.5 lets a processor stop reading, but the principal
+  stream cannot know that nothing after the element is read (trailing
+  comments and processing instructions go to the mode). Rejected: a
+  separate IR kind for iterations (the fold of D223 carries the state).
+- **xsl:for-each-group** (12.6.19): group-by outside xsl:fork, and any
+  xsl:sort, are roaming and free-ranging (XTSE3430, already so).
+  group-adjacent, group-starting-with and group-ending-with without
+  xsl:sort over a path of steps are now the same kind of stream point:
+  a step closure keeps the pending group's pairs in an array (persistent
+  append, D37) and asks the grouping row (D137) whether the node starts a
+  group, comparing it with the group's first pair (its last for
+  group-ending-with); a complete group goes to a body closure. A group is
+  held while it forms, never the population: adjacent groups by route
+  598.3 MB 8.50 s -> 11.1 MB 8.33 s, output identical.
+- **count(//x) from /traces** ran on a tree (352 MB): 12.9.21 rewrites
+  root(.) of a non-document to head(ancestor-or-self::node()), which is
+  no pattern step, so "//x" is no scanning expression there (12.8.9's
+  note: it streams only where the focus is a document node). Now
+  XTSE3430, the documented outcome; from match="/" it streams in 11 MB.
+- **Child paths and the filter index** (D224, D229, D259):
+  `/spans/span[@parent = $span/@id]` in a loop filtered each origin's
+  children apart, a FILTER input made anew each turn, never indexed
+  (21.9 s over 3,000 traces). The descendant pass also pulls the links
+  after a child step out of the path's MAP when they go on from each
+  node alone, include a FILTER and are read once, before the path's
+  DOCUMENT_ORDER (same nodes, same order, XPath 4.0, 4.6.2); the input is
+  then loop-independent, hoisted and indexed: 0.30 s. No parallel
+  mechanism; run-bench outputs byte-identical, times within noise.
+- **fn:parse-json number-parser**: not in the newest F&O 4.0 draft
+  (17.4.4 has liberal, duplicates, escape, fallback, null and
+  number-format: double, decimal, adaptive, all implemented). An unknown
+  option is rejected (1.7, option parameter conventions); nothing to do.
+- **Left**: stopping the parse after a break; xsl:for-each-group with
+  xsl:sort in xsl:fork; xsl:iterate and xsl:for-each-group with a select
+  that is not a plain path of steps, or a body with stream points of its
+  own (full windows per node, bounded by the node).
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): tagging and

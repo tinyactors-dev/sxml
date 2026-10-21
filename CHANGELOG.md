@@ -270,6 +270,18 @@ not tagged yet, or into the next minor release.
   to the parameter's `as` type, a built-in or a schema type, with
   XTTE0590 when it cannot be (XSLT 4.0, 9.5); it stayed
   xs:untypedAtomic.
+- XSLT streaming (D302): a text value template in `xsl:text` read a
+  streamed node's content as empty (`{count(trace)}` gave 0); it is now
+  assessed as XSLT Streaming 4.0 says and streams. `xsl:iterate` and
+  `xsl:for-each-group` (group-adjacent, group-starting-with,
+  group-ending-with, without `xsl:sort`) over a streamed path run in
+  bounded memory instead of building the selected nodes first, and
+  `xsl:break` ends the iteration's reading of nodes. `//x` in a template
+  whose focus is not the document node is XTSE3430, as the draft says,
+  instead of building the document.
+- XPath and XQuery: a filter in a child path from several origins, as
+  in `/spans/span[@parent = $span/@id]` inside a loop, is indexed like
+  `//span[...]` (D302): 21.9 s to 0.3 s over 16,000 spans.
 
 ## [0.2.0] - unreleased
 
