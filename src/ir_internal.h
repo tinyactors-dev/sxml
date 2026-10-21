@@ -1076,11 +1076,21 @@ typedef enum sxml_ir_stream_flag {
        it passes (it is the open node, glossary `open_node`). Without the
        flag the window holds the element's subtree. */
     SXML_IR_STREAM_SHALLOW_WINDOWS = 1U << 1U,
+    /* With fold (glossary `streamed_iteration`): the body's value is one
+       iteration state of xsl:iterate, an array [control, output, ...]
+       (src/xslt_lower_control.c). Its output, the second member, is the
+       STREAM's value for the node (appended, or delivered); the state is
+       bound to fold; a control, the first member, that is not the
+       xs:integer 0 (a break) ends the STREAM: no more nodes are selected,
+       and what is left of origin's content is skipped. A STREAM that
+       starts with such a state in fold selects nothing. */
+    SXML_IR_STREAM_FOLDS_ITERATIONS = 1U << 2U,
 } sxml_ir_stream_flag;
 
 /* Every bit of sxml_ir_stream_flag. */
 #define SXML_IR_STREAM_KNOWN_FLAGS                                            \
-    ((uint32_t)SXML_IR_STREAM_OPENS_DOCUMENT | (uint32_t)SXML_IR_STREAM_SHALLOW_WINDOWS)
+    ((uint32_t)SXML_IR_STREAM_OPENS_DOCUMENT | (uint32_t)SXML_IR_STREAM_SHALLOW_WINDOWS | \
+     (uint32_t)SXML_IR_STREAM_FOLDS_ITERATIONS)
 
 /*
  * STREAM (XSLT 4.0, 18.1 and 19; D219), lowered from a stream point
@@ -1156,7 +1166,8 @@ typedef struct sxml_ir_stream {
     /* 0, or a slot the body's value is bound to after each node (the
        body reads the value before; it is bound before the STREAM, whose
        own value is then empty): an aggregate folded as the nodes pass
-       (fn:sum over a streamed path, D223). */
+       (fn:sum over a streamed path, D223), or with FOLDS_ITERATIONS the
+       states of a streamed xsl:iterate. */
     sxml_ir_slot fold;
     /* OPENS_DOCUMENT: the accumulators the document computes (D231). */
     sxml_ir_stream_accumulators accumulators;

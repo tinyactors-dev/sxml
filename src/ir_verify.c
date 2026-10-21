@@ -579,6 +579,10 @@ static sxml_status check_stream(verifier *checker, const sxml_ir_stream *stream)
         (opens_document && stream->predicate.value != 0)) {
         return report(checker, "a stream has a size, no body or a document predicate");
     }
+    if ((stream->flags & (uint32_t)SXML_IR_STREAM_FOLDS_ITERATIONS) != 0 &&
+        (stream->fold.value == 0 || opens_document)) {
+        return report(checker, "a stream folds iterations without a fold");
+    }
     if (stream->position_counter.value > current_function(checker)->slot_count ||
         stream->fold.value > current_function(checker)->slot_count) {
         return report(checker, "a stream counter or fold is beyond the function's slots");

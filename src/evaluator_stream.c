@@ -2506,11 +2506,63 @@ static sxml_status sxml_stream_next_event_candidate(sxml_dynamic_context *dynami
     }
 }
 
+/* FOLDS_ITERATIONS (glossary `streamed_iteration`): whether the state
+   in fold ended the iteration, a control other than the xs:integer 0 (an
+   xsl:break, XSLT 4.0, 7.2). */
+static sxml_status sxml_stream_has_stopped(sxml_dynamic_context *dynamic_context,
+                                           const sxml_stream_state *state, bool *has_stopped) {
+    *has_stopped = false;
+    if ((state->stream->flags & (uint32_t)SXML_IR_STREAM_FOLDS_ITERATIONS) == 0) {
+        return SXML_STATUS_OK;
+    }
+    sxml_sequence value = sxml_sequence_empty();
+    const sxml_status status = sxml_evaluator_machine_read_atom(
+        dynamic_context,
+        (sxml_ir_atom){.atom_kind = SXML_IR_ATOM_KIND_SLOT, .slot = state->stream->fold}, &value);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_sequence control = sxml_sequence_empty();
+    if (sxml_sequence_get_representation(value) == SXML_SEQUENCE_REPRESENTATION_SINGLE_ITEM &&
+        sxml_array_get_member(value.content, 0, &control) == SXML_STATUS_OK) {
+        *has_stopped =
+            sxml_sequence_get_representation(control) != SXML_SEQUENCE_REPRESENTATION_SINGLE_ITEM ||
+            sxml_item_get_representation(control.content) != SXML_ITEM_REPRESENTATION_INTEGER ||
+            control.content.payload.integer != 0;
+    }
+    return SXML_STATUS_OK;
+}
+
+/* An iteration that has stopped: no more candidates; what is left of
+   origin's content is skipped (the skip may suspend, and resumes here). */
+static sxml_status sxml_stream_stop(sxml_dynamic_context *dynamic_context,
+                                    sxml_stream_state *state) {
+    if (state->walks_tree) {
+        state->walks_tree = false;
+        sxml_item_release(state->tree_window);
+        state->tree_window = (sxml_item){.representation = 0};
+    }
+    if (state->document != NULL) {
+        const sxml_status status = sxml_stream_skip_to(dynamic_context, state, state->base_depth);
+        if (status != SXML_STATUS_OK || state->is_suspended) {
+            return status;
+        }
+    }
+    return sxml_stream_finish(dynamic_context, state);
+}
+
 /* Finds the next candidate and considers it, or finishes. */
 static sxml_status sxml_stream_next(sxml_dynamic_context *dynamic_context,
                                     sxml_stream_state *state) {
     bool has_candidate = false;
-    sxml_status status = SXML_STATUS_OK;
+    bool has_stopped = false;
+    sxml_status status = sxml_stream_has_stopped(dynamic_context, state, &has_stopped);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (has_stopped) {
+        return sxml_stream_stop(dynamic_context, state);
+    }
     if (state->walks_tree) {
         status = sxml_stream_next_tree_candidate(dynamic_context, state, &has_candidate);
         if (status != SXML_STATUS_OK) {
@@ -2566,7 +2618,20 @@ static sxml_status sxml_stream_take_predicate(sxml_dynamic_context *dynamic_cont
 static sxml_status sxml_stream_take_body(sxml_dynamic_context *dynamic_context,
                                          sxml_stream_state *state) {
     sxml_status status = SXML_STATUS_OK;
-    if (state->stream->fold.value != 0) {
+    if ((state->stream->flags & (uint32_t)SXML_IR_STREAM_FOLDS_ITERATIONS) != 0) {
+        /* The iteration's state, which the next body reads, and its
+           output, the STREAM's value for the node. */
+        const sxml_sequence value = sxml_evaluator_machine_take_value(dynamic_context);
+        sxml_sequence output = sxml_sequence_empty();
+        if (sxml_sequence_get_representation(value) != SXML_SEQUENCE_REPRESENTATION_SINGLE_ITEM ||
+            sxml_array_get_member(value.content, 1, &output) != SXML_STATUS_OK) {
+            sxml_sequence_release(value);
+            return SXML_STATUS_INVALID_ARGUMENT;
+        }
+        sxml_sequence_retain(output);
+        sxml_evaluator_machine_bind_slot(dynamic_context, state->stream->fold, value);
+        status = sxml_stream_append(dynamic_context, state, output);
+    } else if (state->stream->fold.value != 0) {
         /* The aggregate so far, which the next body reads (D223). */
         sxml_evaluator_machine_bind_slot(dynamic_context, state->stream->fold,
                                          sxml_evaluator_machine_take_value(dynamic_context));

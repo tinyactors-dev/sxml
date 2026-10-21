@@ -612,8 +612,8 @@ typedef struct sxml_xslt_accumulator_reading {
 SXML_NODISCARD sxml_status sxml_xslt_reads_accumulators(
     const sxml_xslt_accumulator_reading *reading, bool *reads);
 
-/* True when node (an xsl:for-each or xsl:apply-templates) is a stream
-   point of a streamed body. */
+/* True when node (an xsl:for-each, xsl:apply-templates or xsl:iterate)
+   is a stream point of a streamed body. */
 bool sxml_xslt_is_stream_point(const sxml_xslt_lowering *lowering, sxml_xslt_ast_node_index node);
 
 /* A streamed construct to lower, bound in block, its atom written to
@@ -686,6 +686,28 @@ SXML_NODISCARD sxml_status sxml_xslt_lowering_add_merge_chain(
    xsl:apply-templates) to its chain of STREAMs, in the current focus. */
 SXML_NODISCARD sxml_status sxml_xslt_lowering_call_stream_point(
     sxml_xpath_lowering_machine *machine, const sxml_xslt_stream_call *call);
+
+/* A streamed xsl:iterate (glossary `streamed_iteration`): a stream point
+   whose select is a path of steps, its closure (src/xslt_lower_control.c,
+   fn($state, $item, $position)) and initial state. */
+typedef struct sxml_xslt_streamed_iteration_call {
+    const sxml_xslt_lowering *lowering;
+    sxml_xslt_ast_node_index node;
+    sxml_xpath_lowering_block *block;
+    sxml_ir_atom closure;
+    sxml_ir_atom initial_state;
+    /* Written: the outputs of the iterations, and the last state. */
+    sxml_ir_atom *outputs;
+    sxml_ir_atom *final_state;
+} sxml_xslt_streamed_iteration_call;
+
+/* From a step: pushes the frame lowering call->node's select, in the
+   current focus, to a chain of STREAMs whose last folds the iteration
+   states (SXML_IR_STREAM_FOLDS_ITERATIONS) from the initial state: each
+   selected node, in its full window, is given to the closure; a break
+   ends the chain. */
+SXML_NODISCARD sxml_status sxml_xslt_lowering_call_streamed_iteration(
+    sxml_xpath_lowering_machine *machine, const sxml_xslt_streamed_iteration_call *call);
 
 /* An xsl:apply-templates (no xsl:sort) applied to the one node of
    item_focus (a STREAM's selected node, D223): its parameters and

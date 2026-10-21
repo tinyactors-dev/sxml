@@ -2162,7 +2162,10 @@ static assessment assess_root(assessment argument) {
     step = normalized(step);
     step.type = SXML_U_DOCUMENT;
     step.is_uncertain = argument.is_uncertain;
-    step.is_pattern_step = true;
+    /* XSLT Streaming 4.0, 12.9.21 and 12.8.9: the rewritten head(...) is
+       no pattern step, so a path from it is no scanning expression: "//a"
+       streams only where the focus is a document node (12.8.9's note). */
+    step.is_pattern_step = false;
     return step;
 }
 
@@ -2887,7 +2890,7 @@ static sxml_status step_path(machine *state, uint32_t frame_index) {
         current->cursor += 1U;
         if ((component.flags & SXML_STREAM_OPERAND_FLAG_ROOT) != 0U) {
             current->saved = assess_root(context_item(current->focus));
-            current->flag = true;
+            current->flag = current->saved.is_pattern_step;
             continue;
         }
         if (is_first) {
@@ -4190,7 +4193,9 @@ static const uint8_t xslt_rules[SXML_XSLT_AST_KIND_COUNT] = {
     [SXML_XSLT_AST_KIND_SEQUENCE] = SXML_STREAM_XSLT_RULE_GENERAL,
     [SXML_XSLT_AST_KIND_SOURCE_DOCUMENT] = SXML_STREAM_XSLT_RULE_SOURCE_DOCUMENT,
     [SXML_XSLT_AST_KIND_SWITCH] = SXML_STREAM_XSLT_RULE_GENERAL,
-    [SXML_XSLT_AST_KIND_TEXT] = SXML_STREAM_XSLT_RULE_GROUNDED,
+    /* XSLT Streaming 4.0, 12.6.40: xsl:text follows the general rules
+       (its text value templates are absorbed, 12.5). */
+    [SXML_XSLT_AST_KIND_TEXT] = SXML_STREAM_XSLT_RULE_GENERAL,
     [SXML_XSLT_AST_KIND_TRY] = SXML_STREAM_XSLT_RULE_GENERAL,
     [SXML_XSLT_AST_KIND_VALUE_OF] = SXML_STREAM_XSLT_RULE_GENERAL,
     [SXML_XSLT_AST_KIND_WHERE_POPULATED] = SXML_STREAM_XSLT_RULE_GENERAL,
@@ -4273,7 +4278,7 @@ static usage xslt_content_usage(const sxml_xslt_ast *ast, sxml_xslt_ast_node_ind
         kind == SXML_XSLT_AST_KIND_PROCESSING_INSTRUCTION || kind == SXML_XSLT_AST_KIND_NAMESPACE ||
         kind == SXML_XSLT_AST_KIND_MESSAGE || kind == SXML_XSLT_AST_KIND_ASSERT ||
         kind == SXML_XSLT_AST_KIND_DOCUMENT || kind == SXML_XSLT_AST_KIND_RESULT_DOCUMENT ||
-        kind == SXML_XSLT_AST_KIND_VALUE_OF) {
+        kind == SXML_XSLT_AST_KIND_VALUE_OF || kind == SXML_XSLT_AST_KIND_TEXT) {
         return SXML_STREAM_USAGE_ABSORPTION;
     }
     return SXML_STREAM_USAGE_NONE;

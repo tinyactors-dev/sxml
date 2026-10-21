@@ -2732,8 +2732,8 @@ static sxml_status print_expression(text_writer *writer, print_stack *stack,
     case SXML_IR_EXPRESSION_KIND_STREAM: {
         /* "(stream ORIGIN document FOCUS BODY)", "(stream ORIGIN self
            FOCUS BODY)" (a grounding stream, D228) or "(stream ORIGIN AXIS
-           TEST FOCUS [counter $n] [fold $f] [shallow] [PREDICATE] BODY)"
-           (D219, D223). */
+           TEST FOCUS [counter $n] [fold $f] [shallow] [iterations]
+           [PREDICATE] BODY)" (D219, D223). */
         const sxml_ir_stream *stream = &expression->stream;
         write_text(writer, " ");
         write_atom(writer, stream->origin);
@@ -2759,6 +2759,9 @@ static sxml_status print_expression(text_writer *writer, print_stack *stack,
         }
         if ((stream->flags & (uint32_t)SXML_IR_STREAM_SHALLOW_WINDOWS) != 0) {
             write_text(writer, " shallow");
+        }
+        if ((stream->flags & (uint32_t)SXML_IR_STREAM_FOLDS_ITERATIONS) != 0) {
+            write_text(writer, " iterations");
         }
         if (stream->accumulators.initial.value != 0) {
             /* " accumulators function:I function:S function:E function:D"

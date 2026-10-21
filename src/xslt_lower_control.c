@@ -3695,6 +3695,10 @@ typedef struct iterate_locals {
     sxml_xpath_lowering_block running_block;
     sxml_ir_atom body;
     sxml_ir_atom states;
+    /* A streamed iteration (glossary `streamed_iteration`): the closure,
+       given to the chain of STREAMs instead of fn:scan. */
+    bool is_streamed;
+    sxml_ir_atom closure_item;
     sxml_ir_atom final_state;
     sxml_ir_atom outputs;
     sxml_xpath_lowering_block completion_block;
@@ -3710,6 +3714,8 @@ enum {
     SXML_XSLT_ITERATE_STEP_BODY = 2,
     SXML_XSLT_ITERATE_STEP_COMPLETION = 3,
     SXML_XSLT_ITERATE_STEP_FINISH = 4,
+    /* The chain of a streamed iteration was lowered. */
+    SXML_XSLT_ITERATE_STEP_STREAMED = 5,
 };
 
 static const sxml_xpath_lowering_procedure iterate_procedure;
@@ -4018,6 +4024,11 @@ static sxml_status start_iterate(sxml_xpath_lowering_machine *machine,
         }
         parameter->sequence_type = type.sequence_type;
         parameter_index += 1;
+    }
+    if (sxml_xslt_is_stream_point(lowering, locals->head.node)) {
+        /* A streamed iteration: the select is lowered as its chain. */
+        locals->is_streamed = true;
+        return add_empty_atom(machine->state, &locals->input);
     }
     const sxml_xslt_ast_attribute *select =
         find_attribute(lowering, (attribute_lookup){.node = locals->head.node,
@@ -4335,6 +4346,10 @@ static sxml_status finish_closure(sxml_xpath_lowering_machine *machine,
                                         .input = locals->input},
             &closure);
     }
+    if (locals->is_streamed) {
+        locals->closure_item = closure;
+        return status;
+    }
     const sxml_ir_atom scan_arguments[3] = {locals->input, locals->initial_state, closure};
     if (status == SXML_STATUS_OK) {
         status = bind_call(lowerer,
@@ -4523,12 +4538,28 @@ static sxml_status continue_iterate(sxml_xpath_lowering_machine *machine,
             return status;
         }
         return start_closure(machine, frame);
-    case SXML_XSLT_ITERATE_STEP_BODY: {
-        frame->step = SXML_XSLT_ITERATE_STEP_COMPLETION;
-        status = finish_closure(machine, frame);
-        if (status == SXML_STATUS_OK) {
-            status = bind_outputs(lowerer, frame);
+    case SXML_XSLT_ITERATE_STEP_BODY:
+    case SXML_XSLT_ITERATE_STEP_STREAMED: {
+        if (frame->step == SXML_XSLT_ITERATE_STEP_BODY) {
+            status = finish_closure(machine, frame);
+            if (status == SXML_STATUS_OK && locals->is_streamed) {
+                /* The outputs and the last state from the chain (D302). */
+                frame->step = SXML_XSLT_ITERATE_STEP_STREAMED;
+                return sxml_xslt_lowering_call_streamed_iteration(
+                    machine, &(sxml_xslt_streamed_iteration_call){
+                                 .lowering = locals->head.lowering,
+                                 .node = locals->head.node,
+                                 .block = frame->block,
+                                 .closure = locals->closure_item,
+                                 .initial_state = locals->initial_state,
+                                 .outputs = &locals->outputs,
+                                 .final_state = &locals->final_state});
+            }
+            if (status == SXML_STATUS_OK) {
+                status = bind_outputs(lowerer, frame);
+            }
         }
+        frame->step = SXML_XSLT_ITERATE_STEP_COMPLETION;
         step_outcome outcome = {.is_pushed = false};
         if (status == SXML_STATUS_OK) {
             status = start_completion(machine, frame, &outcome);

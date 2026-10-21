@@ -645,6 +645,38 @@ static void test_fallback_option_processes_unstreamed(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
 }
 
+/* Two downward selections in one text value template of xsl:text are not
+   guaranteed-streamable (XSLT Streaming 4.0, 12.6.40: the content is
+   absorbed): XTSE3430, as in xsl:value-of. */
+static void test_text_value_templates_are_assessed(sxml_test_state *state) {
+    fixture test_fixture;
+    sxml_status status = fixture_create(
+        &test_fixture, (sxml_byte_view){.bytes = (const uint8_t *)books, .byte_count = sizeof(books) - 1});
+    static const char *const not_streamable[] = {
+        STREAMED("", "yes", "<xsl:text expand-text='yes'>{count(//book)} {count(//t)}</xsl:text>"),
+        STREAMED("", "yes", "<p xsl:expand-text='yes'>{count(//book)} {count(//t)}</p>"),
+    };
+    for (size_t case_index = 0; status == SXML_STATUS_OK && case_index < SXML_TEST_COUNT(not_streamable);
+         case_index += 1) {
+        const sxml_status run_status = run_main(
+            &test_fixture, (sxml_byte_view){.bytes = (const uint8_t *)not_streamable[case_index],
+                                            .byte_count = strlen(not_streamable[case_index])});
+        SXML_TEST_EXPECT(state, run_status == SXML_STATUS_STATIC_ERROR);
+        SXML_TEST_EXPECT(state, sxml_byte_view_equals(test_fixture.error_record.code.local_name,
+                                                      TEXT("XTSE3430")));
+    }
+    static const char streamable[] =
+        STREAMED("", "yes", "<xsl:text expand-text='yes'>{count(//book)} books</xsl:text>");
+    if (status == SXML_STATUS_OK) {
+        status = run_main(&test_fixture, TEXT(streamable));
+    }
+    SXML_TEST_EXPECT(state, status == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, sxml_byte_view_equals(
+                                sxml_output_buffer_get_bytes(test_fixture.output_buffer),
+                                TEXT(DECLARATION "<out>4 books</out>")));
+    SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
+}
+
 /* ------------------------------------------------------------- xsl:merge */
 
 /* A stylesheet whose template main merges in.xml and in2.xml (packet
@@ -1212,6 +1244,43 @@ static const principal_case principal_cases[] = {
                    "<xsl:template match='/'><n><xsl:value-of "
                    "select='sum(records/record/price)'/></n></xsl:template>",
                    DECLARATION "<n>1.4925E6</n>"),
+    /* Text value templates are absorbed (XSLT Streaming 4.0, 12.5,
+       12.6.40), in xsl:text as in a text node: streamed paths. xsl:text
+       was taken as grounded and read a shallow window: 0 records. */
+    PRINCIPAL_CASE("shallow-skip",
+                   "<xsl:template match='/' expand-text='yes'><n><xsl:text>{count(records/record)}"
+                   "</xsl:text></n></xsl:template>",
+                   DECLARATION "<n>30000</n>"),
+    PRINCIPAL_CASE("shallow-skip",
+                   "<xsl:template match='/' expand-text='yes'><s>{sum(records/record/price)}</s>"
+                   "</xsl:template>",
+                   DECLARATION "<s>1.4925E6</s>"),
+    PRINCIPAL_CASE("shallow-skip",
+                   "<xsl:template match='/' expand-text='yes'><n>hot: "
+                   "<xsl:text>{records/record[@hot = 'yes']/@id}</xsl:text></n></xsl:template>",
+                   DECLARATION "<n>hot: 10000 20000 30000</n>"),
+    /* xsl:iterate over the records as they pass (D302, glossary
+       `streamed_iteration`): it was a streamed path, all records
+       grounded before the first iteration. */
+    PRINCIPAL_CASE("shallow-skip",
+                   "<xsl:template match='/'><n><xsl:iterate select='records/record'>"
+                   "<xsl:param name='n' select='0'/><xsl:on-completion><c><xsl:value-of "
+                   "select='$n'/></c></xsl:on-completion><xsl:if test='@hot = \"yes\"'><h>"
+                   "<xsl:value-of select='name'/></h></xsl:if><xsl:next-iteration>"
+                   "<xsl:with-param name='n' select='$n + 1'/></xsl:next-iteration>"
+                   "</xsl:iterate></n></xsl:template>",
+                   DECLARATION "<n><h>item 10000</h><h>item 20000</h><h>item 30000</h>"
+                               "<c>30000</c></n>"),
+    /* xsl:break ends the reading: no iteration after it. */
+    PRINCIPAL_CASE("shallow-skip",
+                   "<xsl:template match='/'><n><xsl:iterate select='records/record'>"
+                   "<xsl:param name='hot' select='0'/><xsl:on-completion>none</xsl:on-completion>"
+                   "<xsl:choose><xsl:when test='@hot = \"yes\" and $hot = 1'><xsl:break "
+                   "select='string(@id)'/></xsl:when><xsl:otherwise><xsl:next-iteration>"
+                   "<xsl:with-param name='hot' select='$hot + (if (@hot = \"yes\") then 1 "
+                   "else 0)'/></xsl:next-iteration></xsl:otherwise></xsl:choose>"
+                   "</xsl:iterate></n></xsl:template>",
+                   DECLARATION "<n>20000</n>"),
 };
 
 static void test_principal_source_streams_in_bounded_memory(sxml_test_state *state) {
@@ -1508,6 +1577,8 @@ static const sxml_test_case evaluator_stream_test_cases[] = {
     {.name = "malformed_document_is_an_error", .function = test_malformed_document_is_an_error},
     {.name = "fallback_option_processes_unstreamed",
      .function = test_fallback_option_processes_unstreamed},
+    {.name = "text_value_templates_are_assessed",
+     .function = test_text_value_templates_are_assessed},
     {.name = "streamed_merges_are_unstreamed_merges",
      .function = test_streamed_merges_are_unstreamed_merges},
     {.name = "large_merge_streams_in_bounded_memory",

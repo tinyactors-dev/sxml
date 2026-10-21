@@ -107,6 +107,10 @@ typedef enum stream_point_kind {
        streamed xsl:source-document (glossary `streamed_prong`, D231): an
        xsl:sequence streamed in a pass of its own over the document. */
     SXML_STREAM_POINT_PRONG,
+    /* An xsl:iterate whose select is a path of steps (glossary
+       `streamed_iteration`): its closure runs on each selected node, in
+       its full window, as it passes; a break ends the reading. */
+    SXML_STREAM_POINT_ITERATE,
 } stream_point_kind;
 
 /* What a streamed path gives for each node it selects (its grounding,
@@ -948,6 +952,10 @@ static bool is_transparent_kind(sxml_ast_kind kind) {
         SXML_AST_KIND_FUNCTION_CALL,
         SXML_AST_KIND_ARGUMENT_LIST,
         SXML_AST_KIND_KEYWORD_ARGUMENT,
+        /* String templates and text value templates (XPath 4.0, 4.9.3;
+           XSLT 4.0, 5.6.2): fixed parts and atomized variable parts. */
+        SXML_AST_KIND_STRING_TEMPLATE,
+        SXML_AST_KIND_ENCLOSED_EXPRESSION,
     };
     for (size_t index = 0; index < sizeof(kinds) / sizeof(kinds[0]); index += 1) {
         if (kinds[index] == kind) {
@@ -1259,10 +1267,33 @@ static bool is_item_attribute(sxml_xslt_ast_attribute_kind kind) {
            kind == SXML_XSLT_AST_ATTRIBUTE_GROUP_ENDING_WITH;
 }
 
+/* The text value template of a text node, or of xsl:text whose content
+   is one text node and that has no select; NULL for others (XSLT 4.0,
+   5.7.2: the template's value is the text node's). */
+static const sxml_xslt_ast_expression *text_value_template_of(const sxml_xslt_lowering *lowering,
+                                                              sxml_xslt_ast_node_index node) {
+    const sxml_xslt_ast_node *entry = node_of(lowering, node);
+    if (entry->kind == SXML_XSLT_AST_KIND_TEXT) {
+        if (has_attribute(lowering, node, SXML_XSLT_AST_ATTRIBUTE_SELECT) ||
+            entry->first_child.value == 0 ||
+            node_of(lowering, entry->first_child)->next_sibling.value != 0) {
+            return NULL;
+        }
+        entry = node_of(lowering, entry->first_child);
+    }
+    if (entry->kind != SXML_XSLT_AST_KIND_TEXT_NODE ||
+        entry->content.kind != SXML_XSLT_AST_VALUE_KIND_VALUE_TEMPLATE) {
+        return NULL;
+    }
+    return expression_of_value(lowering, entry->content);
+}
+
 /* Whether node is an instruction whose select expression has one
    streamed path (glossary `streamed_path`): xsl:value-of, xsl:copy-of,
    xsl:sequence, xsl:for-each (one that is not a stream point of its own),
-   xsl:apply-templates, xsl:iterate and xsl:for-each-group. The instruction must be consuming and grounded
+   xsl:apply-templates, xsl:iterate and xsl:for-each-group; or a text
+   value template, in a text node or xsl:text (XSLT Streaming 4.0, 12.5
+   and 12.6.40: absorbed). The instruction must be consuming and grounded
    (19.8.4), its other attributes motionless; what runs on the selected
    nodes (a body, sort keys, template rules) reads their full windows. */
 typedef struct path_point_finding {
@@ -1280,17 +1311,20 @@ static sxml_status is_path_point(const sxml_xslt_lowering *lowering, point_quest
                                entry->kind == SXML_XSLT_AST_KIND_APPLY_TEMPLATES ||
                                entry->kind == SXML_XSLT_AST_KIND_ITERATE ||
                                entry->kind == SXML_XSLT_AST_KIND_FOR_EACH_GROUP;
-    if ((!runs_on_items && entry->kind != SXML_XSLT_AST_KIND_VALUE_OF &&
+    const bool is_text = entry->kind == SXML_XSLT_AST_KIND_TEXT_NODE ||
+                         entry->kind == SXML_XSLT_AST_KIND_TEXT;
+    if ((!runs_on_items && !is_text && entry->kind != SXML_XSLT_AST_KIND_VALUE_OF &&
          entry->kind != SXML_XSLT_AST_KIND_COPY_OF &&
          entry->kind != SXML_XSLT_AST_KIND_SEQUENCE) ||
         sxml_xslt_lowering_has_xslt_1_behaviour(lowering, node)) {
         return SXML_STATUS_OK;
     }
-    const sxml_xslt_ast_expression *select = select_of(lowering, node);
+    const sxml_xslt_ast_expression *select =
+        is_text ? text_value_template_of(lowering, node) : select_of(lowering, node);
     if (select == NULL || calls_window_function(select->ast)) {
         return SXML_STATUS_OK;
     }
-    if (!runs_on_items) {
+    if (!runs_on_items && !is_text) {
         /* The select is all: the content is xsl:fallback at most. */
         for (sxml_xslt_ast_node_index child = entry->first_child; child.value != 0;
              child = node_of(lowering, child)->next_sibling) {
@@ -1299,15 +1333,19 @@ static sxml_status is_path_point(const sxml_xslt_lowering *lowering, point_quest
             }
         }
     }
+    /* A text node is no instruction of the analysis: its template is
+       assessed as an expression. */
+    const bool is_text_node = entry->kind == SXML_XSLT_AST_KIND_TEXT_NODE;
     sxml_xslt_stream_sweep sweep = SXML_XSLT_STREAM_SWEEP_UNCERTAIN;
-    sxml_status status = sweep_of(lowering,
-                                  (sweep_question){.instruction = node,
-                                                   .assesses_content = false,
-                                                   .expression = NULL,
-                                                   .expression_node = no_ast_node,
-                                                   .is_document_focus = question.is_document_focus,
-                                                   .requires_grounded = true},
-                                  &sweep);
+    sxml_status status =
+        sweep_of(lowering,
+                 (sweep_question){.instruction = is_text_node ? (sxml_xslt_ast_node_index){0} : node,
+                                  .assesses_content = false,
+                                  .expression = is_text_node ? select : NULL,
+                                  .expression_node = is_text_node ? select->ast->root : no_ast_node,
+                                  .is_document_focus = question.is_document_focus,
+                                  .requires_grounded = true},
+                 &sweep);
     if (status != SXML_STATUS_OK || sweep != SXML_XSLT_STREAM_SWEEP_CONSUMING) {
         return status;
     }
@@ -1357,6 +1395,34 @@ static sxml_status is_path_point(const sxml_xslt_lowering *lowering, point_quest
     }
     const stream_grounding grounding =
         grounding_of(select->ast, finding.path, finding.has_attribute_step);
+    if (entry->kind == SXML_XSLT_AST_KIND_ITERATE) {
+        /* The select is the path (XSLT Streaming 4.0, 12.6.22: striding):
+           the closure runs on each node as it passes (D302). */
+        const sxml_ast_node_index top = unwrap_parentheses(
+            select->ast, sxml_ast_find_child(select->ast, (sxml_ast_child_query){
+                                                              .parent = select->ast->root,
+                                                              .field = SXML_AST_FIELD_BODY}));
+        stream_path path;
+        if (top.value == finding.path.value && grounding == SXML_STREAM_GROUNDING_NODES &&
+            !finding.has_attribute_step &&
+            read_path((path_reading){.ast = select->ast,
+                                     .node = no_ast_node,
+                                     .is_document_focus = question.is_document_focus,
+                                     .allows_attribute = false},
+                      &path)) {
+            found->point = (stream_point){.kind = SXML_STREAM_POINT_ITERATE,
+                                          .node = node,
+                                          .is_shallow = false,
+                                          .ast = NULL,
+                                          .path = no_ast_node,
+                                          .grounding = SXML_STREAM_GROUNDING_NODES,
+                                          .lowered = no_ast_node,
+                                          .document = {0},
+                                          .has_lowered = false};
+            *is_point = true;
+            return SXML_STATUS_OK;
+        }
+    }
     found->point = (stream_point){
         .kind = SXML_STREAM_POINT_PATH,
         .node = node,
@@ -1673,7 +1739,9 @@ static sxml_status plan_one_body(const body_planning *planning, bool *is_streame
         }
         if (path_point.is_point) {
             point_count += 1;
-            status = add_path_point(lowering, path_point.point);
+            status = path_point.point.kind == SXML_STREAM_POINT_PATH
+                         ? add_path_point(lowering, path_point.point)
+                         : add_point(lowering->stream_plan, path_point.point);
             continue;
         }
         bool is_wrapping = false;
@@ -1910,6 +1978,8 @@ typedef struct stream_chain {
     /* An aggregate folded in a slot, bound to () first (a folded path). */
     bool needs_fold;
     sxml_ir_slot fold;
+    /* The fold holds the states of a streamed xsl:iterate. */
+    bool folds_iterations;
     bool is_shallow;
     sxml_xpath_lowering_focus item_focus;
     sxml_xpath_lowering_block body_block;
@@ -2073,8 +2143,11 @@ static sxml_status make_chain(sxml_xpath_lowerer *lowerer, const stream_chain *c
         const bool is_last = index == chain->path.step_count;
         const sxml_ir_atom origin =
             index == 1U ? chain->origin : sxml_ir_slot_atom(chain->steps[index - 2U].value);
-        const uint32_t flags =
+        uint32_t flags =
             !is_last || chain->is_shallow ? (uint32_t)SXML_IR_STREAM_SHALLOW_WINDOWS : 0U;
+        if (is_last && chain->folds_iterations) {
+            flags |= (uint32_t)SXML_IR_STREAM_FOLDS_ITERATIONS;
+        }
         status = sxml_xslt_lowering_add_expression(
             lowerer,
             (sxml_ir_expression){
@@ -2212,6 +2285,131 @@ sxml_status sxml_xslt_lowering_call_stream_point(sxml_xpath_lowering_machine *ma
             .is_body = false,
             .destination = {.expression = NULL,
                             .atom = call->atom,
+                            .atom_block = call->block,
+                            .focused = NULL},
+            .initial_locals = {.bytes = (const uint8_t *)&initial, .byte_count = sizeof(initial)}},
+        &frame);
+}
+
+/* ------------------------------------- Lowering a streamed iteration */
+
+typedef struct streamed_iteration_locals {
+    sxml_xslt_streamed_iteration_call call;
+    stream_chain chain;
+} streamed_iteration_locals;
+
+/* The fold, bound to the initial state before the chain: a slot of its
+   own, which the chain's last STREAM rebinds. */
+static sxml_status bind_iteration_fold(sxml_xpath_lowerer *lowerer, sxml_xpath_lowering_block *block,
+                                       streamed_iteration_locals *locals) {
+    sxml_ir_atom_list list = {0};
+    sxml_status status = sxml_ir_unit_add_atoms(
+        lowerer->unit, (sxml_ir_atom_view){.atoms = &locals->call.initial_state, .atom_count = 1},
+        &list);
+    sxml_ir_atom fold = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xslt_lowering_bind_expression(
+            lowerer, &(sxml_xslt_expression_to_bind){
+                         .block = block,
+                         .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_SEQUENCE,
+                                        .sequence = list}},
+            &fold);
+    }
+    if (status == SXML_STATUS_OK && fold.atom_kind != SXML_IR_ATOM_KIND_SLOT) {
+        status = SXML_STATUS_INVALID_ARGUMENT;
+    }
+    locals->chain.fold = fold.slot;
+    return status;
+}
+
+/* The body: closure($fold, the node, its position), the next state. */
+static sxml_status bind_iteration_body(sxml_xpath_lowerer *lowerer, stream_chain *chain,
+                                       sxml_ir_atom closure) {
+    const sxml_ir_atom arguments[3] = {
+        sxml_ir_slot_atom(chain->fold), sxml_ir_slot_atom(chain->item_focus.slots.context_value),
+        sxml_ir_slot_atom(chain->item_focus.slots.context_position)};
+    sxml_ir_atom_list list = {0};
+    const sxml_status status = sxml_ir_unit_add_atoms(
+        lowerer->unit, (sxml_ir_atom_view){.atoms = arguments, .atom_count = 3}, &list);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_xslt_lowering_bind_expression(
+        lowerer,
+        &(sxml_xslt_expression_to_bind){
+            .block = &chain->body_block,
+            .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_DYNAMIC_CALL,
+                           .dynamic_call = {.function_item = closure, .arguments = list}}},
+        &chain->body);
+}
+
+static sxml_status continue_streamed_iteration(sxml_xpath_lowering_machine *machine,
+                                               sxml_xpath_lowering_frame *frame) {
+    sxml_xpath_lowerer *lowerer = machine->state;
+    streamed_iteration_locals *locals = frame->locals;
+    const sxml_xslt_lowering *lowering = locals->call.lowering;
+    stream_chain *chain = &locals->chain;
+    sxml_status status = SXML_STATUS_OK;
+    if (frame->step == SXML_STREAM_CHAIN_STEP_START) {
+        frame->step = SXML_STREAM_CHAIN_STEP_PREDICATES;
+        const sxml_xslt_ast_expression *select = select_of(lowering, locals->call.node);
+        if (select == NULL || !read_path((path_reading){.ast = select->ast,
+                                                        .node = no_ast_node,
+                                                        .is_document_focus = true,
+                                                        .allows_attribute = false},
+                                         &chain->path)) {
+            return SXML_STATUS_INVALID_ARGUMENT;
+        }
+        chain->ast = select->ast;
+        chain->static_context = &lowering->static_contexts[select->static_context.value];
+        chain->is_shallow = false;
+        chain->folds_iterations = true;
+        status = start_chain((chain_start){.lowerer = lowerer, .block = frame->block}, chain);
+        if (status == SXML_STATUS_OK) {
+            status = bind_iteration_fold(lowerer, frame->block, locals);
+        }
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+    }
+    if (frame->step == SXML_STREAM_CHAIN_STEP_PREDICATES) {
+        bool has_called = false;
+        status = call_next_predicate(machine, chain, &has_called);
+        if (status != SXML_STATUS_OK || has_called) {
+            return status;
+        }
+        frame->step = SXML_STREAM_CHAIN_STEP_FINISH;
+    }
+    status = bind_iteration_body(lowerer, chain, locals->call.closure);
+    sxml_ir_expression_index expression = {0};
+    if (status == SXML_STATUS_OK) {
+        status = make_chain(lowerer, chain, &expression);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    *locals->call.final_state = sxml_ir_slot_atom(chain->fold);
+    return sxml_xpath_lowering_finish_frame(machine, frame, expression);
+}
+
+static const sxml_xpath_lowering_procedure streamed_iteration_procedure = {
+    .procedure_name = SXML_BYTE_VIEW_INITIALIZER("streamed iteration"),
+    .step = continue_streamed_iteration,
+    .locals_size = sizeof(streamed_iteration_locals)};
+
+sxml_status sxml_xslt_lowering_call_streamed_iteration(
+    sxml_xpath_lowering_machine *machine, const sxml_xslt_streamed_iteration_call *call) {
+    const streamed_iteration_locals initial = {.call = *call};
+    sxml_xpath_lowering_frame *frame = NULL;
+    return sxml_xpath_lowering_push_procedure(
+        machine,
+        &(sxml_xpath_lowering_procedure_call){
+            .procedure = &streamed_iteration_procedure,
+            .node = no_ast_node,
+            .block = call->block,
+            .is_body = false,
+            .destination = {.expression = NULL,
+                            .atom = call->outputs,
                             .atom_block = call->block,
                             .focused = NULL},
             .initial_locals = {.bytes = (const uint8_t *)&initial, .byte_count = sizeof(initial)}},
