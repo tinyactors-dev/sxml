@@ -16,13 +16,13 @@ argument is the context item `.`. This one counts the words of its
 argument:
 
 ```console
-$ sxml xquery --context-item=latch.xml --method=adaptive --expression='
+$ sxml xquery --context-item=vane.xml --method=adaptive --expression='
     let $words := fn { count(tokenize(normalize-space(.))) }
     return ($words("one two three"), (//t[@anchor])[position() le 3] ! $words(.))'
 3
 14
-13
-15
+12
+16
 ```
 
 Numbers can be written in hexadecimal and binary, with underscores to
@@ -42,7 +42,7 @@ $ sxml xquery --method=adaptive --expression='0x1F, 0b101, 1_000_000, char(0xA7)
 when the condition is false:
 
 ```console
-$ sxml xquery --context-item=latch.xml --method=adaptive --expression='
+$ sxml xquery --context-item=vane.xml --method=adaptive --expression='
     if (exists(//cref)) { "the draft has editorial notes" }'
 "the draft has editorial notes"
 ```
@@ -55,7 +55,7 @@ The *pipeline operator* `->` passes a value to any expression, as the
 context value `.`:
 
 ```console
-$ sxml xquery --context-item=latch.xml --method=adaptive --expression='
+$ sxml xquery --context-item=vane.xml --method=adaptive --expression='
     //t[@anchor = "req-7"] -> (./@anchor || " (" || ./bcp14 || ")")'
 "req-7 (MUST)"
 ```
@@ -67,7 +67,7 @@ braces into a string. Most of the earlier examples use them, because
 they are much easier to read than many `||`:
 
 ```console
-$ sxml xquery --context-item=latch.xml --method=adaptive --expression='
+$ sxml xquery --context-item=vane.xml --method=adaptive --expression='
     `{ count(//t[@anchor]) } requirements in { count(//section) } sections, by { string-join(/rfc/front/author/@surname, " and ") }`'
 "11 requirements in 9 sections, by Byron and Mathison"
 ```
@@ -78,7 +78,7 @@ A `let` can take a sequence, an array or a map apart, and bind its
 parts to several variables at once:
 
 ```console
-$ sxml xquery --context-item=latch.xml --method=adaptive --expression='
+$ sxml xquery --context-item=vane.xml --method=adaptive --expression='
     let $($first, $second) := /rfc/front/author/@surname ! string()
     let $[$year, $month] := [2026, "October"]
     let ${$anchor, $keyword} := { "anchor": "req-7", "keyword": "MUST" }

@@ -10,7 +10,7 @@ by hand or by asking a language model to rewrite the section, puts every
 other sentence at risk, and leaves the reviewers to find out which words
 moved.
 
-In this project we'll build a small toolkit for the Latch draft that
+In this project we'll build a small toolkit for the Vane draft that
 works the other way:
 
 - `edit.xqm`, a module of updating functions, one for each kind of edit;
@@ -54,9 +54,9 @@ Let's read it from the top.
 Ordinary functions can be tried on their own:
 
 ```console
-$ sxml xquery --context-item=latch.xml --method=adaptive --expression='
+$ sxml xquery --context-item=vane.xml --method=adaptive --expression='
     import module namespace edit = "urn:example:edit" at "edit.xqm";
-    edit:next-anchor(/), edit:next-anchor(doc("latch-00.xml")),
+    edit:next-anchor(/), edit:next-anchor(doc("vane-00.xml")),
     edit:rfc(5424, "The Syslog Protocol", "R. Gerhards", 2009, "March")'
 "req-12"
 "req-9"
@@ -68,25 +68,25 @@ Updating functions are tried as updating queries. As in
 draft as sxml writes it:
 
 ```console
-$ sxml serialize latch.xml > before.xml
-$ sxml xquery --context-item=latch.xml --expression='
+$ sxml serialize vane.xml > before.xml
+$ sxml xquery --context-item=vane.xml --expression='
     import module namespace edit = "urn:example:edit" at "edit.xqm";
-    edit:rename-term(//dt[@anchor = "term-code"], "Access Code")' > after.xml
+    edit:rename-term(//dt[@anchor = "term-percentage"], "Rollout Percentage")' > after.xml
 $ diff before.xml after.xml
-46c46
-<           <dt anchor="term-code">Code</dt>
+50c50
+<           <dt anchor="term-percentage">Percentage</dt>
 ---
->           <dt anchor="term-access-code">Access Code</dt>
-80c80
-<         <xref target="term-code">code</xref> of an unlock request with its
+>           <dt anchor="term-rollout-percentage">Rollout Percentage</dt>
+85c85
+<         <xref target="term-percentage">percentage</xref> of a rollout
 ---
->         <xref target="term-access-code">access code</xref> of an unlock request with its
+>         <xref target="term-rollout-percentage">rollout percentage</xref> of a rollout
 ```
 
 The types of the parameters guard the edits. BCP 14 has no MIGHT:
 
 ```console
-$ sxml xquery --context-item=latch.xml --expression='
+$ sxml xquery --context-item=vane.xml --expression='
     import module namespace edit = "urn:example:edit" at "edit.xqm";
     edit:set-keyword(//t[@anchor = "req-3"], "MIGHT")'
 expression:3:5: err:XPTY0004: The value does not match the required type (XPath 4.0, section 3.4, coercion rules)
@@ -98,12 +98,12 @@ both get the next anchor, the same one. The schema finds that, as its
 `xs:unique` on anchors forbids it:
 
 ```console
-$ sxml xquery --context-item=latch.xml --output=twice.xml --expression='
+$ sxml xquery --context-item=vane.xml --output=twice.xml --expression='
     import module namespace edit = "urn:example:edit" at "edit.xqm";
-    edit:add-requirement(//t[@anchor = "req-11"], <t>A lock <bcp14>MAY</bcp14> beep.</t>),
-    edit:add-requirement(//t[@anchor = "req-8"], <t>A lock <bcp14>MAY</bcp14> blink.</t>)'
-$ sxml validate --schema=latch.xsd twice.xml
-twice.xml:107:7: cvc-identity-constraint.4.1: element 't': its key sequence is that of an earlier member (unique 'anchor')
+    edit:add-requirement(//t[@anchor = "req-11"], <t>A service <bcp14>MAY</bcp14> log each rollout.</t>),
+    edit:add-requirement(//t[@anchor = "req-8"], <t>A service <bcp14>MAY</bcp14> log each pause.</t>)'
+$ sxml validate --schema=vane.xsd twice.xml
+twice.xml:113:7: cvc-identity-constraint.4.1: element 't': its key sequence is that of an earlier member (unique 'anchor')
 ```
 
 Add one requirement per command, as the session below does.
@@ -129,30 +129,30 @@ it writes each problem with `fn:message`, on standard error, and raises
 one problem we know of:
 
 ```console
-$ sxml xquery --context-item=latch.xml check.xq; echo "exit status $?"
+$ sxml xquery --context-item=vane.xml check.xq; echo "exit status $?"
 security: a requirement without an anchor (SHOULD)
-check.xq:35:3: spec:check: 1 problem(s) in draft-example-latch-protocol-01
+check.xq:35:3: spec:check: 1 problem(s) in draft-example-vane-protocol-01
 exit status 1
 ```
 
 To see the other checks at work, break a copy of the draft in three
 places: a keyword loses its markup, a cross reference names a term that
-doesn't exist, and the TOTP reference is no longer cited:
+doesn't exist, and the one-time password reference is no longer cited:
 
 ```console
-$ sed -e 's|<bcp14>MAY</bcp14> report|MAY report|' -e 's|target="term-code"|target="term-pin"|' -e 's|<xref target="RFC6238"/>|one-time passwords|' latch.xml > broken.xml
+$ sed -e 's|<bcp14>MAY</bcp14> report|MAY report|' -e 's|target="term-percentage"|target="term-share"|' -e 's|<xref target="RFC6238"/>|one-time passwords|' vane.xml > broken.xml
 $ sxml xquery --context-item=broken.xml check.xq; echo "exit status $?"
-req-4: a cross reference to the missing anchor term-pin
-term-code: a term that nothing refers to
+req-4: a cross reference to the missing anchor term-share
+term-percentage: a term that nothing refers to
 RFC6238: a reference that nothing refers to
 req-11: MAY without bcp14 markup
 security: a requirement without an anchor (SHOULD)
-check.xq:35:3: spec:check: 5 problem(s) in draft-example-latch-protocol-01
+check.xq:35:3: spec:check: 5 problem(s) in draft-example-vane-protocol-01
 exit status 1
 ```
 
 The renamed target counts twice, as it should: the reference is
-dangling, and the term `term-code` lost its only use.
+dangling, and the term `term-percentage` lost its only use.
 
 ## The changes
 
@@ -173,23 +173,23 @@ also reported as new text. From -00 to -01:
 
 ```console
 $ sxml xquery changes.xq
-req-9 added: A controller MAY send codes that are time-based one-time passwords [RFC6238].
-req-10 added: A controller SHOULD NOT send more than one status request per second to a lock.
-req-7 text: After five rejected codes in a row, a lock MUST enter lockout.
-    now: After three rejected codes in a row, a lock MUST enter lockout.
-req-8 text: A lockout SHOULD last one minute.
-    now: A lockout SHOULD last five minutes.
-req-11 added: A lock MAY report a lockout to the controller as soon as it begins.
+req-9 added: A service MAY ask an owner for a time-based one-time password [RFC6238] before a rollout.
+req-10 added: An SDK SHOULD NOT send more than one status request per second for a flag.
+req-7 text: After five failed checks in a row, a service MUST put the flag in a pause.
+    now: After three failed checks in a row, a service MUST put the flag in a pause.
+req-8 text: A pause SHOULD last one minute.
+    now: A pause SHOULD last five minutes.
+req-11 added: A service MAY report a pause to the owners of the flag as soon as it begins.
 ```
 
 Nothing was removed in -01; the other way round, three requirements
 were:
 
 ```console
-$ sxml xquery --param=old=latch.xml --param=new=latch-00.xml changes.xq | grep removed
-req-9 removed: A controller MAY send codes that are time-based one-time passwords [RFC6238].
-req-10 removed: A controller SHOULD NOT send more than one status request per second to a lock.
-req-11 removed: A lock MAY report a lockout to the controller as soon as it begins.
+$ sxml xquery --param=old=vane.xml --param=new=vane-00.xml changes.xq | grep removed
+req-9 removed: A service MAY ask an owner for a time-based one-time password [RFC6238] before a rollout.
+req-10 removed: An SDK SHOULD NOT send more than one status request per second for a flag.
+req-11 removed: A service MAY report a pause to the owners of the flag as soon as it begins.
 ```
 
 `$format` is an enumeration too, so the command line can only ask for
@@ -206,13 +206,14 @@ The JSON form follows in the session.
 
 Now the real work: draft -02. The working group decided three things.
 The SHOULD in Security Considerations becomes a requirement, and the
-note asking for it goes. Locks should log rejected codes, with syslog.
-And an unlocked lock *must* lock itself again, not only *should*. Each
-decision is one command, and each command writes a new file with
-`--output`, so every step can be looked at:
+note asking for it goes. The service should log every failed check,
+with syslog. And a rolling-out flag *must* return to stable when its
+step is over, not only *should*. Each decision is one command, and each
+command writes a new file with `--output`, so every step can be looked
+at:
 
 ```console
-$ sxml xquery --context-item=latch.xml --output=step-1.xml --expression='
+$ sxml xquery --context-item=vane.xml --output=step-1.xml --expression='
     import module namespace edit = "urn:example:edit" at "edit.xqm";
     edit:new-version(/, xs:date("2026-11-30")),
     edit:give-anchor(//section[@anchor = "security"]/t[bcp14]),
@@ -220,9 +221,9 @@ $ sxml xquery --context-item=latch.xml --output=step-1.xml --expression='
 $ sxml xquery --context-item=step-1.xml --output=step-2.xml --expression='
     import module namespace edit = "urn:example:edit" at "edit.xqm";
     edit:add-requirement(//t[@anchor = "req-11"],
-      <t>A lock <bcp14>SHOULD</bcp14> log every rejected code with syslog <xref target="RFC5424"/>.</t>),
+      <t>A service <bcp14>SHOULD</bcp14> log every failed check with syslog <xref target="RFC5424"/>.</t>),
     edit:add-reference(/, edit:rfc(5424, "The Syslog Protocol", "R. Gerhards", 2009, "March"))'
-$ sxml xquery --context-item=step-2.xml --output=drafts/latch-02.xml --expression='
+$ sxml xquery --context-item=step-2.xml --output=drafts/vane-02.xml --expression='
     import module namespace edit = "urn:example:edit" at "edit.xqm";
     edit:set-keyword(//t[@anchor = "req-3"], "MUST")'
 ```
@@ -232,16 +233,16 @@ query: they belong together, and they touch different nodes. Is the new
 draft valid, and does it pass the check?
 
 ```console
-$ sxml validate --schema=latch.xsd drafts/latch-02.xml; echo "exit status $?"
+$ sxml validate --schema=vane.xsd drafts/vane-02.xml; echo "exit status $?"
 exit status 0
-$ sxml xquery --context-item=drafts/latch-02.xml check.xq
-draft-example-latch-protocol-02: no problems
+$ sxml xquery --context-item=drafts/vane-02.xml check.xq
+draft-example-vane-protocol-02: no problems
 ```
 
 What changed in the requirements, as JSON for the issue tracker:
 
 ```console
-$ sxml xquery --param=old=latch.xml --param=new=drafts/latch-02.xml --param=format=json changes.xq
+$ sxml xquery --param=old=vane.xml --param=new=drafts/vane-02.xml --param=format=json changes.xq
 [
   {
     "anchor": "req-3",
@@ -253,13 +254,13 @@ $ sxml xquery --param=old=latch.xml --param=new=drafts/latch-02.xml --param=form
     "anchor": "req-13",
     "change": "added",
     "old": null,
-    "new": "A lock SHOULD log every rejected code with syslog [RFC5424]."
+    "new": "A service SHOULD log every failed check with syslog [RFC5424]."
   },
   {
     "anchor": "req-12",
     "change": "added",
     "old": null,
-    "new": "A code travels in clear text on the local network. Deployments SHOULD carry Latch over an encrypted link."
+    "new": "A rollout request travels in clear text on the network. Deployments SHOULD carry Vane over an encrypted link."
   }
 ]
 ```
@@ -267,35 +268,35 @@ $ sxml xquery --param=old=latch.xml --param=new=drafts/latch-02.xml --param=form
 And the whole change, for the reviewers, is this diff:
 
 ```console
-$ diff before.xml drafts/latch-02.xml
+$ diff before.xml drafts/vane-02.xml
 5c5
-<      numbers sections and requirements in document order. --><rfc version="3" category="std" ipr="trust200902" submissionType="IETF" docName="draft-example-latch-protocol-01">
+<      numbers sections and requirements in document order. --><rfc version="3" category="std" ipr="trust200902" submissionType="IETF" docName="draft-example-vane-protocol-01">
 ---
->      numbers sections and requirements in document order. --><rfc version="3" category="std" ipr="trust200902" submissionType="IETF" docName="draft-example-latch-protocol-02">
+>      numbers sections and requirements in document order. --><rfc version="3" category="std" ipr="trust200902" submissionType="IETF" docName="draft-example-vane-protocol-02">
 8c8
-<     <seriesInfo name="Internet-Draft" value="draft-example-latch-protocol-01"/>
+<     <seriesInfo name="Internet-Draft" value="draft-example-vane-protocol-01"/>
 ---
->     <seriesInfo name="Internet-Draft" value="draft-example-latch-protocol-02"/>
+>     <seriesInfo name="Internet-Draft" value="draft-example-vane-protocol-02"/>
 17c17
 <     <date year="2026" month="October" day="21"/>
 ---
 >     <date year="2026" month="November" day="30"/>
-62c62
-<       <t anchor="req-3">An unlocked lock <bcp14>SHOULD</bcp14> return to the
+66c66
+<       <t anchor="req-3">A rolling-out flag <bcp14>SHOULD</bcp14> return to the
 ---
->       <t anchor="req-3">An unlocked lock <bcp14>MUST</bcp14> return to the
-105a106
->       <t anchor="req-13">A lock <bcp14>SHOULD</bcp14> log every rejected code with syslog <xref target="RFC5424"/>.</t>
-109c110
-<       <t>A code travels in clear text on the local network. Deployments
+>       <t anchor="req-3">A rolling-out flag <bcp14>MUST</bcp14> return to the
+111a112
+>       <t anchor="req-13">A service <bcp14>SHOULD</bcp14> log every failed check with syslog <xref target="RFC5424"/>.</t>
+115c116
+<       <t>A rollout request travels in clear text on the network. Deployments
 ---
->       <t anchor="req-12">A code travels in clear text on the local network. Deployments
-111,112c112
+>       <t anchor="req-12">A rollout request travels in clear text on the network. Deployments
+117,118c118
 <       <cref anchor="issue-2" source="AB">This needs a requirement anchor of
 <       its own.</cref></t>
 ---
 >       </t>
-164a165,172
+170a171,178
 >         </reference>
 >         <reference anchor="RFC5424" target="https://www.rfc-editor.org/info/rfc5424">
 >           <front>
@@ -313,11 +314,11 @@ new version sits with the others, ready for the queries of
 
 ```console
 $ sxml xquery --method=adaptive --expression='collection("drafts") ! string(rfc/@docName)'
-"draft-example-latch-protocol-00"
-"draft-example-latch-protocol-01"
-"draft-example-latch-protocol-02"
-$ sxml xquery --param=today=2026-11-30 --param=drafts=drafts/latch-02.xml expiry.xq
-draft-example-latch-protocol-02: published 2026-11-30, expires 2027-06-03
+"draft-example-vane-protocol-00"
+"draft-example-vane-protocol-01"
+"draft-example-vane-protocol-02"
+$ sxml xquery --param=today=2026-11-30 --param=drafts=drafts/vane-02.xml expiry.xq
+draft-example-vane-protocol-02: published 2026-11-30, expires 2027-06-03
 ```
 
 ## What we built

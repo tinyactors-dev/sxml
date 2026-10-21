@@ -6,8 +6,8 @@ import module namespace spec = "urn:example:spec" at "spec.xqm";
 declare option output:method "text";
 declare option output:item-separator "&#10;";
 
-declare variable $old as xs:string external := "latch-00.xml";
-declare variable $new as xs:string external := "latch.xml";
+declare variable $old as xs:string external := "vane-00.xml";
+declare variable $new as xs:string external := "vane.xml";
 (:~ "text" or "json". :)
 declare variable $format as enum("text", "json") external := "text";
 
