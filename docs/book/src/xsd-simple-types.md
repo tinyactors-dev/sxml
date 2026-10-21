@@ -15,7 +15,7 @@ namespace `http://www.w3.org/2001/XMLSchema`, usually with the prefix
 
 | Type | Values | Examples |
 | --- | --- | --- |
-| `xs:string` | any text | `Lock States` |
+| `xs:string` | any text | `Flag States` |
 | `xs:token` | text without leading, trailing or double spaces; these are removed | `trust200902` |
 | `xs:boolean` | `true`, `false`, `1`, `0` | `true` |
 | `xs:decimal` | exact decimal numbers | `1.0` |
@@ -24,13 +24,13 @@ namespace `http://www.w3.org/2001/XMLSchema`, usually with the prefix
 | `xs:double` | floating-point numbers | `1.5E3`, `INF` |
 | `xs:date`, `xs:time`, `xs:dateTime` | dates and times of ISO 8601 | `2026-10-21`, `09:30:00` |
 | `xs:gYear`, `xs:gYearMonth` | a year, a month of a year | `1997`, `2026-10` |
-| `xs:duration` | a length of time | `PT5M`, `PT10S` |
+| `xs:duration` | a length of time | `PT5M`, `PT10M` |
 | `xs:anyURI` | a URI | `https://www.rfc-editor.org/info/rfc2119` |
 | `xs:NCName` | an XML name without a colon | `req-7` |
-| `xs:ID`, `xs:IDREF` | a name unique in the document, and a reference to one | `term-lock` |
+| `xs:ID`, `xs:IDREF` | a name unique in the document, and a reference to one | `term-flag` |
 | `xs:language` | a language tag | `en-GB` |
 
-`latch.xsd` uses several of them directly: the `year` of a `date` is an
+`vane.xsd` uses several of them directly: the `year` of a `date` is an
 `xs:gYear`, the `version` of `rfc` an `xs:integer`, the `target` of a
 `reference` an `xs:anyURI`.
 
@@ -43,10 +43,10 @@ compared, as XPath compares typed values, not their texts.
 
 Most simple types you write are restrictions: a built-in type, with
 *facets* that narrow down its values. These are the first simple types
-of `latch.xsd`:
+of `vane.xsd`:
 
 ```xml
-{{#include ../examples/spec/latch.xsd:11:63}}
+{{#include ../examples/spec/vane.xsd:11:63}}
 ```
 
 The facets in them, and the others XSD has:
@@ -82,10 +82,10 @@ XHTML](scxml-xhtml.md) does.
 A draft with a mistake for three of the types:
 
 ```console
-$ sed -e 's/latch-protocol-01"/latch-protocol-1"/' \
-      -e 's/month="October" day="21"/month="Oct" day="32"/' latch.xml \
-  | sxml validate --schema=latch.xsd -
--:8:6: cvc-pattern-valid: attribute 'docName' has the value 'draft-example-latch-protocol-1', which is not valid for type 'draft-name': the value matches no pattern facet (XSD 1.1 Part 2, 4.3.4.4); the pattern facet is 'draft-[a-z0-9]+(-[a-z0-9]+)*-[0-9]{2}'
+$ sed -e 's/vane-protocol-01"/vane-protocol-1"/' \
+      -e 's/month="October" day="21"/month="Oct" day="32"/' vane.xml \
+  | sxml validate --schema=vane.xsd -
+-:8:6: cvc-pattern-valid: attribute 'docName' has the value 'draft-example-vane-protocol-1', which is not valid for type 'draft-name': the value matches no pattern facet (XSD 1.1 Part 2, 4.3.4.4); the pattern facet is 'draft-[a-z0-9]+(-[a-z0-9]+)*-[0-9]{2}'
 -:20:23: cvc-enumeration-valid: attribute 'month' has the value 'Oct', which is not valid for type 'month': the value is not one of the enumeration facets (XSD 1.1 Part 2, 4.3.5.4); the enumeration facets are 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', ...
 -:20:35: cvc-maxInclusive-valid: attribute 'day' has the value '32', which is not valid for type 'day': the value is above the maxInclusive facet (XSD 1.1 Part 2, 4.3.7.4); the maxInclusive facet is '31'
 -:7:1: cvc-assertion: element 'rfc' breaks the assertion 'not(@docName) or                        @docName = front/ser...' of an anonymous type derived from 'xs:anyType'
@@ -111,7 +111,7 @@ $ echo '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
   <xs:simpleType name="long-day">
     <xs:restriction base="day"><xs:maxInclusive value="40"/></xs:restriction>
   </xs:simpleType>
-</xs:schema>' | sxml validate --schema=- latch.xml
+</xs:schema>' | sxml validate --schema=- vane.xml
 -:6:32: maxInclusive-valid-restriction: a maxInclusive facet must lie within the base type's bounds (XSD 1.1 Part 2, 4.3.7.4)
 ```
 
@@ -127,7 +127,7 @@ the key words a draft uses and the day of its next meeting:
 {{#include ../examples/spec/levels.xsd}}
 ```
 
-`xs:include` brings in the components of `latch.xsd`, so `keyword` and
+`xs:include` brings in the components of `vane.xsd`, so `keyword` and
 `day` can be used here; [Namespaces and Larger
 Schemas](xsd-namespaces.md) says more about combining schema documents.
 
@@ -206,8 +206,8 @@ The same works on the draft. Its `year` is a year, so it compares with
 `xs:gYear("2010")`, and its `day` is a number:
 
 ```console
-$ sxml xquery --method=adaptive --context-item=latch.xml --expression='
-    import schema default element namespace "" at "latch.xsd";
+$ sxml xquery --method=adaptive --context-item=vane.xml --expression='
+    import schema default element namespace "" at "vane.xsd";
     let $draft := validate { / }
     return (
       data($draft/rfc/front/date/@day) + 1,
@@ -225,8 +225,8 @@ invalid (the message writes the line break as a space, so that each
 message stays on one line):
 
 ```console
-$ sed 's/<bcp14>MUST NOT</<bcp14>MUST\n        NOT</' latch.xml | sxml validate --schema=latch.xsd -
--:85:34: cvc-enumeration-valid: element 'bcp14' has the value 'MUST         NOT', which is not valid for type 'keyword': the value is not one of the enumeration facets (XSD 1.1 Part 2, 4.3.5.4); the enumeration facets are 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL', 'SHALL NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED', ...
+$ sed 's/<bcp14>MUST NOT</<bcp14>MUST\n        NOT</' vane.xml | sxml validate --schema=vane.xsd -
+-:90:37: cvc-enumeration-valid: element 'bcp14' has the value 'MUST         NOT', which is not valid for type 'keyword': the value is not one of the enumeration facets (XSD 1.1 Part 2, 4.3.5.4); the enumeration facets are 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL', 'SHALL NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED', ...
 ```
 
 Had `keyword` restricted `xs:token`, the line break and the spaces
@@ -248,7 +248,7 @@ $ echo '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
       <xs:fractionDigits value="2"/>
     </xs:restriction>
   </xs:simpleType>
-</xs:schema>' | sxml validate --schema=- latch.xml
+</xs:schema>' | sxml validate --schema=- vane.xml
 -:4:7: cos-applicable-facets: the facet does not apply to the base type's variety and primitive type (XSD 1.1 Part 2, 4.1.5)
 ```
 

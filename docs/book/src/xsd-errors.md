@@ -12,7 +12,7 @@ programs read the same report as JSON.
 Every message has the same parts:
 
 ```text
-bad-keyword.xml:12:32: cvc-enumeration-valid: element 'bcp14' has the value 'MIGHT', ...
+bad-keyword.xml:12:35: cvc-enumeration-valid: element 'bcp14' has the value 'MIGHT', ...
 ```
 
 - the file, line and column of the element or attribute;
@@ -72,9 +72,9 @@ key words that aren't key words:
 ```
 
 ```console
-$ sxml validate --schema=latch.xsd bad-keyword.xml
+$ sxml validate --schema=vane.xsd bad-keyword.xml
 bad-keyword.xml:11:32: cvc-enumeration-valid: element 'bcp14' has the value 'must', which is not valid for type 'keyword': the value is not one of the enumeration facets (XSD 1.1 Part 2, 4.3.5.4); the enumeration facets are 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL', 'SHALL NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED', ...
-bad-keyword.xml:12:32: cvc-enumeration-valid: element 'bcp14' has the value 'MIGHT', which is not valid for type 'keyword': the value is not one of the enumeration facets (XSD 1.1 Part 2, 4.3.5.4); the enumeration facets are 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL', 'SHALL NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED', ...
+bad-keyword.xml:12:35: cvc-enumeration-valid: element 'bcp14' has the value 'MIGHT', which is not valid for type 'keyword': the value is not one of the enumeration facets (XSD 1.1 Part 2, 4.3.5.4); the enumeration facets are 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL', 'SHALL NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED', ...
 ```
 
 BCP 14's key words count only in capitals (RFC 8174), and the schema
@@ -90,14 +90,32 @@ The second uses an anchor twice:
 ```
 
 ```console
-$ sxml validate --schema=latch.xsd bad-anchor.xml
+$ sxml validate --schema=vane.xsd bad-anchor.xml
 bad-anchor.xml:12:7: cvc-identity-constraint.4.1: element 't': its key sequence is that of an earlier member (unique 'anchor')
 bad-anchor.xml:15:5: cvc-identity-constraint.4.1: element 'section': its key sequence is that of an earlier member (unique 'anchor')
 ```
 
 The message points at the second use, and names the constraint,
-`anchor`, so you can find it in the schema. The third refers to
-anchors that don't exist:
+`anchor`, so you can find it in the schema.
+
+An anchor must also be a name, an `xs:NCName`, which has no spaces. An
+editor who writes the anchor of the Pause section with one gets two
+messages for one mistake:
+
+```console
+$ sed 's/<section anchor="pause">/<section anchor="the pause">/' vane.xml \
+  | sxml validate --schema=vane.xsd -
+-:106:14: cvc-datatype-valid.1.2.1: attribute 'anchor' has the value 'the pause', which is not valid for type 'anchor'
+-:92:10: cvc-identity-constraint.4.3: element 'xref': its key sequence is no key sequence of the referenced key (keyref 'xref-target')
+```
+
+The first says what is wrong with the value. The second follows from
+it: a value that is not valid for its type is no key at all, so the
+section has no anchor that the `xref` to `pause` in the Rollout section
+could name, and the keyref reports that `xref`. Fix the first message,
+and the second goes away with it.
+
+The third draft refers to anchors that don't exist:
 
 `bad-xref.xml`:
 
@@ -106,12 +124,12 @@ anchors that don't exist:
 ```
 
 ```console
-$ sxml validate --schema=latch.xsd bad-xref.xml
+$ sxml validate --schema=vane.xsd bad-xref.xml
 bad-xref.xml:11:27: cvc-identity-constraint.4.3: element 'xref': its key sequence is no key sequence of the referenced key (keyref 'xref-target')
 bad-xref.xml:12:41: cvc-identity-constraint.4.3: element 'xref': its key sequence is no key sequence of the referenced key (keyref 'xref-target')
 ```
 
-This short draft has no terminology section and no section `lockout`;
+This short draft has no terminology section and no section `pause`;
 they were copied from the full draft. The reference to `RFC2119` is
 fine: the draft has that reference.
 
@@ -132,6 +150,7 @@ mean:
 | `cvc-elt.4.3` | `xsi:type` names a type not derived from the declared one | Use a derived type |
 | `cvc-id.2` | An `xs:ID` value is used twice | Make the ids unique |
 | `cvc-identity-constraint.4.1`, `4.2.2` | Two elements have the same key | Make the keys unique |
+| `cvc-identity-constraint.4.2.1` | An element of a key has no valid value for a field | Add the value, or fix the one that is reported before it |
 | `cvc-identity-constraint.4.3` | A keyref names a key that doesn't exist | Add the target, or fix the reference |
 | `cvc-assertion`, `cvc-assertions-valid` | An assertion is false | Read the assertion in the message |
 
@@ -152,7 +171,7 @@ and goes on after the author; then the real title comes too late, and
 is reported as well:
 
 ```console
-$ sxml validate --schema=latch.xsd bad-content.xml 2>&1 | head -3
+$ sxml validate --schema=vane.xsd bad-content.xml 2>&1 | head -3
 bad-content.xml:1:6: cvc-au: attribute 'version' has the value '2', not its fixed value '3'
 bad-content.xml:3:5: cvc-complex-type.2.4: element 'author' is not allowed here; expected 'title'
 bad-content.xml:4:5: cvc-complex-type.2.4: element 'title' is not allowed here; expected 'author' or 'date'
@@ -161,10 +180,10 @@ bad-content.xml:4:5: cvc-complex-type.2.4: element 'title' is not allowed here; 
 A missing element costs one report, and so does an extra one:
 
 ```console
-$ sed '/<title abbrev/d' latch.xml | sxml validate --schema=latch.xsd -
+$ sed '/<title abbrev/d' vane.xml | sxml validate --schema=vane.xsd -
 -:10:5: cvc-complex-type.2.4: element 'seriesInfo' is not allowed here; expected 'title'
-$ sed 's|<area>Applications</area>|<area>Applications</area><status>draft</status>|' latch.xml \
-  | sxml validate --schema=latch.xsd -
+$ sed 's|<area>Applications</area>|<area>Applications</area><status>draft</status>|' vane.xml \
+  | sxml validate --schema=vane.xsd -
 -:21:30: cvc-complex-type.2.4: element 'status' is not allowed here; expected 'area', 'keyword' or 'abstract'
 ```
 
@@ -176,8 +195,8 @@ document breaks off. Here are the first twelve lines of the draft,
 with a wrong version:
 
 ```console
-$ head -12 latch.xml | sed 's/version="3"/version="three"/' > cut.xml
-$ sxml validate --schema=latch.xsd cut.xml
+$ head -12 vane.xml | sed 's/version="3"/version="three"/' > cut.xml
+$ sxml validate --schema=vane.xsd cut.xml
 cut.xml:7:6: cvc-datatype-valid.1.2.1: attribute 'version' has the value 'three', which is not valid for type 'xs:integer'
 cut.xml:13:1: not well-formed: the document ends or breaks off before a construct is complete (XML 1.0, section 2.1)
 ```
@@ -187,11 +206,11 @@ cut.xml:13:1: not well-formed: the document ends or breaks off before a construc
 With `--mode=lax`, a document whose document element has no
 declaration is not an error. sxml says that its validity is not known,
 and exits with status 0. The editorial note of the chapter's opening
-has no declaration in `latch.xsd`, which declares `cref` only inside
+has no declaration in `vane.xsd`, which declares `cref` only inside
 paragraphs:
 
 ```console
-$ sxml validate --schema=latch.xsd --mode=lax xsd-dtd.xml; echo "exit status $?"
+$ sxml validate --schema=vane.xsd --mode=lax xsd-dtd.xml; echo "exit status $?"
 xsd-dtd.xml: validity not known: the schema has no declaration of the document element (lax assessment)
 exit status 0
 ```
@@ -203,8 +222,8 @@ status of the schema and of each file, and each error with its code,
 line, column, byte offset and message:
 
 ```console
-$ sxml validate --schema=latch.xsd --format=json bad-xref.xml
-{"schema":{"documents":["latch.xsd"],"status":"valid"},"files":[{"file":"bad-xref.xml","status":"invalid","errors":[{"code":"cvc-identity-constraint.4.3","line":11,"column":27,"byte_offset":378,"message":"element 'xref': its key sequence is no key sequence of the referenced key (keyref 'xref-target')"},{"code":"cvc-identity-constraint.4.3","line":12,"column":41,"byte_offset":455,"message":"element 'xref': its key sequence is no key sequence of the referenced key (keyref 'xref-target')"}]}]}
+$ sxml validate --schema=vane.xsd --format=json bad-xref.xml
+{"schema":{"documents":["vane.xsd"],"status":"valid"},"files":[{"file":"bad-xref.xml","status":"invalid","errors":[{"code":"cvc-identity-constraint.4.3","line":11,"column":27,"byte_offset":375,"message":"element 'xref': its key sequence is no key sequence of the referenced key (keyref 'xref-target')"},{"code":"cvc-identity-constraint.4.3","line":12,"column":41,"byte_offset":452,"message":"element 'xref': its key sequence is no key sequence of the referenced key (keyref 'xref-target')"}]}]}
 $ sxml validate --schema=bad-schema.xsd --format=json xsd-dtd.xml
 {"schema":{"documents":["bad-schema.xsd"],"status":"invalid","errors":[{"document":"bad-schema.xsd","code":"src-attribute","line":8,"column":7,"byte_offset":344,"message":"An attribute's value is not allowed: use"}]},"files":[]}
 ```
@@ -215,9 +234,9 @@ or not well-formed, 2 for a mistake on the command line, and 3 when a
 file can't be read:
 
 ```console
-$ sxml validate --schema=latch.xsd latch.xml bad-xref.xml > /dev/null 2>&1; echo "exit status $?"
+$ sxml validate --schema=vane.xsd vane.xml bad-xref.xml > /dev/null 2>&1; echo "exit status $?"
 exit status 1
-$ sxml validate --schema=latch.xsd no-such-draft.xml; echo "exit status $?"
+$ sxml validate --schema=vane.xsd no-such-draft.xml; echo "exit status $?"
 sxml validate: cannot read 'no-such-draft.xml'
 exit status 3
 ```

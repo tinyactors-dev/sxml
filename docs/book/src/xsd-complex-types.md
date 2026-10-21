@@ -4,7 +4,7 @@
 
 A *complex type* describes an element that has attributes, children,
 or both. Its *content model* says which children it may have, how
-many, and in which order. This section reads the rest of `latch.xsd`
+many, and in which order. This section reads the rest of `vane.xsd`
 from the top, and finds every kind of content XSD has in the draft.
 
 ## Elements and their declarations
@@ -13,14 +13,14 @@ from the top, and finds every kind of content XSD has in the draft.
 declared directly in `xs:schema` is *global*: it can be the document
 element, and other declarations can refer to it with `ref`. The others
 are *local*: they exist only inside the content model where they are
-declared. In `latch.xsd`, `rfc` is the only global element, and every
+declared. In `vane.xsd`, `rfc` is the only global element, and every
 other element is local.
 
 A type can be *named*, with `xs:complexType name="section"` at the top
 level, and used by name, `type="section"`; or *anonymous*, written
 inside the element declaration, as for `rfc` and `middle`. Name a type
 when it's used in more than one place, or when you want to refer to it
-from XQuery or XSLT. `latch.xsd` names most of its types: `front` is
+from XQuery or XSLT. `vane.xsd` names most of its types: `front` is
 used by the draft and by every reference, `text` by every paragraph,
 `dt` and `dd`, and `section` by sections at every depth.
 
@@ -34,11 +34,11 @@ plain string; and `front` declares its own `title`, which is not the
 Here are the front matter and the section:
 
 ```xml
-{{#include ../examples/spec/latch.xsd:108:121}}
+{{#include ../examples/spec/vane.xsd:108:121}}
 ```
 
 ```xml
-{{#include ../examples/spec/latch.xsd:167:183}}
+{{#include ../examples/spec/vane.xsd:167:183}}
 ```
 
 Three *model groups* combine the children:
@@ -51,7 +51,7 @@ Three *model groups* combine the children:
   paragraph, a definition list or source code, in any order; then its
   subsections. Groups nest freely, so a choice inside a sequence is
   common.
-- `xs:all`: each child at most once, in any order. `latch.xsd` has
+- `xs:all`: each child at most once, in any order. `vane.xsd` has
   none, but xml2rfc's address is a good use: an email, a phone number
   and a web address, in whatever order the author wrote them.
 
@@ -97,7 +97,7 @@ $ sxml xquery --method=adaptive --expression='
     (validate { <contact fullname="Grace Hopper" surname="Hopper"/> })/@role/string()'
 "chair"
 $ sxml xquery --method=adaptive --expression='
-    import schema default element namespace "" at "latch.xsd";
+    import schema default element namespace "" at "vane.xsd";
     let $draft := validate {
       <rfc>
         <front><title>T</title><author fullname="A B" surname="B"/><date year="2026"/></front>
@@ -128,12 +128,12 @@ all four:
 Here are the mixed and the simple types:
 
 ```xml
-{{#include ../examples/spec/latch.xsd:65:106}}
+{{#include ../examples/spec/vane.xsd:65:106}}
 ```
 
 `xref` and `cref` are mixed types without a model group: text, but no
 child elements. That's how xml2rfc writes them: `<xref
-target="term-lock">lock</xref>` has the text a reader sees, and
+target="term-flag">flag</xref>` has the text a reader sees, and
 `<xref target="RFC2119"/>` has none, so the renderer writes the
 reference's name.
 
@@ -148,7 +148,7 @@ This draft breaks a rule of each kind:
 ```
 
 ```console
-$ sxml validate --schema=latch.xsd bad-content.xml
+$ sxml validate --schema=vane.xsd bad-content.xml
 bad-content.xml:1:6: cvc-au: attribute 'version' has the value '2', not its fixed value '3'
 bad-content.xml:3:5: cvc-complex-type.2.4: element 'author' is not allowed here; expected 'title'
 bad-content.xml:4:5: cvc-complex-type.2.4: element 'title' is not allowed here; expected 'author' or 'date'
@@ -186,7 +186,7 @@ When several types share attributes or children, name the shared part
 once. `xs:group` names a model group, and `xs:attributeGroup` a set of
 attributes:
 
-- `latch.xsd` names the inline elements `inline`, and `text` refers to
+- `vane.xsd` names the inline elements `inline`, and `text` refers to
   the group with `<xs:group ref="inline" .../>`. A schema for more of
   xml2rfc would refer to it from the other places that allow inline
   text, such as list items and table cells.

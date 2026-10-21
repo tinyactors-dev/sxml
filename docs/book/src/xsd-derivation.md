@@ -11,12 +11,12 @@ object-oriented languages.
 
 ## Extension
 
-`latch.xsd` already has two extensions, of a simple type. A `title` is
+`vane.xsd` already has two extensions, of a simple type. A `title` is
 an `xs:string` with an `abbrev` attribute, and a `sourcecode` is an
 `xs:string` with a `type` and a `name`:
 
 ```xml
-{{#include ../examples/spec/latch.xsd:159:165}}
+{{#include ../examples/spec/vane.xsd:159:165}}
 ```
 
 `xs:simpleContent` with `xs:extension` adds attributes to a simple
@@ -24,7 +24,7 @@ type, and the result is a complex type with simple content.
 
 An editor who works on the draft keeps a worksheet: the paragraphs to
 look at, some source code, and the day the next draft is due. Its
-schema, `xsd-derivation.xsd`, includes `latch.xsd` and derives new
+schema, `xsd-derivation.xsd`, includes `vane.xsd` and derives new
 types from the draft's:
 
 `xsd-derivation.xsd`:
@@ -162,7 +162,7 @@ $ sxml xquery --method=adaptive --context-item=xsd-worksheet.xml --expression='
 "sourcecode"
 ```
 
-In `latch.xsd`, a section's blocks are a choice of three local
+In `vane.xsd`, a section's blocks are a choice of three local
 elements. A substitution group is the open alternative: another schema
 that includes this one can add a member, a `table` say, and every
 content model that allows a `block` allows it too, without a change.
