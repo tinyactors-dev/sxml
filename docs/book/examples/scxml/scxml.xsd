@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- A subset of SCXML 1.0 (W3C Recommendation, 1 September 2015): the
-     elements and attributes lock.scxml uses, with the meanings of the
+     elements and attributes flag.scxml uses, with the meanings of the
      Recommendation's schema. Simplified: a transition has at most one
      target, so a key reference can check it (SCXML allows a list), and
      executable content is only assign, log, raise and send. As in the
      Recommendation, elements and attributes of other namespaces are
      allowed almost everywhere, and are validated when this schema knows
-     them (latch-data.xsd). -->
+     them (vane-data.xsd). -->
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
            xmlns:vc="http://www.w3.org/2007/XMLSchema-versioning"
            xmlns:sc="http://www.w3.org/2005/07/scxml"
@@ -14,7 +14,7 @@
            elementFormDefault="qualified"
            vc:minVersion="1.1">
 
-  <xs:import namespace="urn:example:latch" schemaLocation="latch-data.xsd"/>
+  <xs:import namespace="urn:example:vane" schemaLocation="vane-data.xsd"/>
 
   <xs:simpleType name="event-descriptors">
     <xs:list itemType="xs:token"/>

@@ -1,15 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- The services of the Latch system and who calls whom. A node is a box;
+<!-- The services of the Vane system and who calls whom. A node is a box;
      kind="store" draws a data store. An edge goes from the caller to the
      service it calls. The layout is computed: diagram.svg is the drawing. -->
-<diagram title="Latch services">
+<diagram title="Vane services">
   <node id="gateway" label="api-gateway"/>
-  <node id="locks" label="lock-service"/>
-  <node id="registry" label="lock-registry"/>
-  <node id="cache" label="door-cache" kind="store"/>
+  <node id="flags" label="flag-service"/>
+  <node id="registry" label="flag-registry"/>
+  <node id="cache" label="flag-cache" kind="store"/>
   <node id="database" label="postgresql" kind="store"/>
-  <edge from="gateway" to="locks" label="HTTP"/>
-  <edge from="locks" to="registry" label="HTTP"/>
-  <edge from="locks" to="cache" label="Redis"/>
+  <edge from="gateway" to="flags" label="HTTP"/>
+  <edge from="flags" to="registry" label="HTTP"/>
+  <edge from="flags" to="cache" label="Redis"/>
   <edge from="registry" to="database" label="SQL"/>
 </diagram>

@@ -1,10 +1,11 @@
-// A small client for the other services of the Latch system.
+// A small client for the other services of the Vane system.
 
-export interface Door {
-  id: string;
+export interface Flag {
+  key: string;
   name: string;
-  state: "locked" | "unlocked" | "lockout";
-  codes: string[];
+  state: "stable" | "rolling-out" | "paused";
+  percentage: number;
+  owners: string[];
 }
 
 export async function request(service: string, path: string, init?: RequestInit): Promise<unknown> {

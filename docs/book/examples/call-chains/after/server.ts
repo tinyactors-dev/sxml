@@ -1,15 +1,15 @@
-// The HTTP entry points of the lock service.
+// The HTTP entry points of the flag service.
 import { createServer } from "node:http";
-import { listDoors, unlockDoor } from "./doors.ts";
+import { listFlags, killFlag } from "./flags.ts";
 
 async function route(method: string, path: string, body: string): Promise<unknown> {
-  if (method === "GET" && path === "/doors") {
-    return listDoors();
+  if (method === "GET" && path === "/flags") {
+    return listFlags();
   }
-  const unlock = path.match(/^\/doors\/([^/]+)\/unlock$/);
-  if (method === "POST" && unlock !== null) {
-    const { code } = JSON.parse(body) as { code: string };
-    return { unlocked: await unlockDoor(unlock[1], code) };
+  const kill = path.match(/^\/flags\/([^/]+)\/kill$/);
+  if (method === "POST" && kill !== null) {
+    const { owner } = JSON.parse(body) as { owner: string };
+    return { killed: await killFlag(kill[1], owner) };
   }
   return { error: "not found" };
 }

@@ -2,38 +2,40 @@
 <!-- An Internet-Draft in the xml2rfc version 3 vocabulary (RFC 7991).
      A requirement is a paragraph with an anchor. Anchors are names given
      once, in the order the requirements were written, and never changed,
-     so that other documents (lock.scxml) can refer to them; the renderer
+     so that other documents (flag.scxml) can refer to them; the renderer
      numbers sections and requirements in document order. -->
 <rfc version="3" category="std" ipr="trust200902" submissionType="IETF"
-     docName="draft-example-latch-protocol-01">
+     docName="draft-example-vane-protocol-01">
   <front>
-    <title abbrev="Latch">The Latch Protocol for Remote Door Locks</title>
-    <seriesInfo name="Internet-Draft" value="draft-example-latch-protocol-01"/>
+    <title abbrev="Vane">The Vane Protocol for Feature Flag Rollouts</title>
+    <seriesInfo name="Internet-Draft" value="draft-example-vane-protocol-01"/>
     <author fullname="Ada Byron" initials="A." surname="Byron">
-      <organization>Example Locks</organization>
+      <organization>Example Software</organization>
       <address><email>ada@example.com</email></address>
     </author>
     <author fullname="Alan Mathison" initials="A." surname="Mathison">
-      <organization>Example Locks</organization>
+      <organization>Example Software</organization>
       <address><email>alan@example.com</email></address>
     </author>
     <date year="2026" month="October" day="21"/>
     <area>Applications</area>
-    <keyword>lock</keyword>
-    <keyword>access control</keyword>
+    <keyword>feature flag</keyword>
+    <keyword>progressive delivery</keyword>
     <abstract>
-      <t>This document specifies Latch, a line-based protocol between a
-      controller and the door locks it manages. It defines the states of a
-      lock, the messages that change them, and the lockout that protects a
-      lock against guessed codes.</t>
+      <t>This document specifies Vane, a line-based protocol between the
+      SDKs that evaluate feature flags and the evaluation service that
+      holds them. It defines the states of a flag, the messages that change
+      them, and the pause that protects users from a rollout that fails its
+      checks.</t>
     </abstract>
   </front>
   <middle>
     <section anchor="intro">
       <name>Introduction</name>
-      <t>A building has many doors, and each door has a lock. A
-      <xref target="term-controller">controller</xref> sends Latch messages
-      to the locks over a local network and receives their status.</t>
+      <t>An application has many features, and each feature has a flag. An
+      <xref target="term-sdk">SDK</xref> sends Vane messages to the
+      evaluation service over the network and receives the state of the
+      flags.</t>
       <section anchor="terminology">
         <name>Terminology</name>
         <t>The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL
@@ -42,75 +44,79 @@
         described in BCP 14 <xref target="RFC2119"/> <xref target="RFC8174"/>
         when, and only when, they appear in all capitals, as shown here.</t>
         <dl>
-          <dt anchor="term-lock">Lock</dt>
-          <dd>A device that holds a door closed and answers Latch messages.</dd>
-          <dt anchor="term-controller">Controller</dt>
-          <dd>The system that sends Latch messages to locks.</dd>
-          <dt anchor="term-code">Code</dt>
-          <dd>A string of four to eight digits that a person presents to
-          unlock a door.</dd>
-          <dt anchor="term-lockout">Lockout</dt>
-          <dd>A state in which a <xref target="term-lock">lock</xref>
-          refuses every code for a time.</dd>
+          <dt anchor="term-flag">Flag</dt>
+          <dd>A named switch in an application that turns a feature on for a
+          share of its users.</dd>
+          <dt anchor="term-sdk">SDK</dt>
+          <dd>The library in an application that sends Vane messages about
+          flags.</dd>
+          <dt anchor="term-percentage">Percentage</dt>
+          <dd>A whole number from 0 to 100 that an owner gives to roll a
+          flag out to that share of users.</dd>
+          <dt anchor="term-pause">Pause</dt>
+          <dd>A state in which a <xref target="term-flag">flag</xref>
+          refuses every rollout for a time.</dd>
         </dl>
       </section>
     </section>
     <section anchor="states">
-      <name>Lock States</name>
-      <t anchor="req-1">A <xref target="term-lock">lock</xref>
-      <bcp14>MUST</bcp14> be in exactly one of the states "locked",
-      "unlocked" and "lockout".</t>
-      <t anchor="req-2">A lock <bcp14>MUST</bcp14> start in the state
-      "locked" when it is powered on.</t>
-      <t anchor="req-3">An unlocked lock <bcp14>SHOULD</bcp14> return to the
-      state "locked" after ten seconds without a message.</t>
+      <name>Flag States</name>
+      <t anchor="req-1">A <xref target="term-flag">flag</xref>
+      <bcp14>MUST</bcp14> be in exactly one of the states "stable",
+      "rolling-out" and "paused".</t>
+      <t anchor="req-2">A flag <bcp14>MUST</bcp14> start in the state
+      "stable" when it is created.</t>
+      <t anchor="req-3">A rolling-out flag <bcp14>SHOULD</bcp14> return to the
+      state "stable" ten minutes after its rollout step began.</t>
     </section>
     <section anchor="messages">
       <name>Messages</name>
       <t>Each message is one line of ASCII text. The syntax uses ABNF
       <xref target="RFC5234"/>.</t>
-      <sourcecode type="abnf" name="latch.abnf"><![CDATA[
-message        = unlock-request / lock-request / status-request
-unlock-request = "UNLOCK" SP door-id SP code CRLF
-lock-request   = "LOCK" SP door-id CRLF
-status-request = "STATUS" SP door-id CRLF
-door-id        = 1*16(ALPHA / DIGIT / "-")
-code           = 4*8DIGIT
+      <sourcecode type="abnf" name="vane.abnf"><![CDATA[
+message         = rollout-request / kill-request / status-request
+rollout-request = "ROLLOUT" SP flag-key SP percentage CRLF
+kill-request    = "KILL" SP flag-key CRLF
+status-request  = "STATUS" SP flag-key CRLF
+flag-key        = 1*32(ALPHA / DIGIT / "-")
+percentage      = 1*3DIGIT
 ]]></sourcecode>
-      <section anchor="unlock">
-        <name>Unlock</name>
-        <t anchor="req-4">A lock <bcp14>MUST</bcp14> compare the
-        <xref target="term-code">code</xref> of an unlock request with its
-        stored codes in time that does not depend on the code.</t>
-        <t anchor="req-5">A lock <bcp14>MUST NOT</bcp14> unlock while it is
-        in <xref target="term-lockout">lockout</xref>
-        (<xref target="lockout"/>).</t>
-        <t anchor="req-9">A controller <bcp14>MAY</bcp14> send codes that are
-        time-based one-time passwords <xref target="RFC6238"/>.</t>
+      <section anchor="rollout">
+        <name>Rollout</name>
+        <t anchor="req-4">A service <bcp14>MUST</bcp14> check the guardrail
+        metrics of a flag before it applies the
+        <xref target="term-percentage">percentage</xref> of a rollout
+        request.</t>
+        <t anchor="req-5">A service <bcp14>MUST NOT</bcp14> roll out a flag
+        while it is in a <xref target="term-pause">pause</xref>
+        (<xref target="pause"/>).</t>
+        <t anchor="req-9">A service <bcp14>MAY</bcp14> ask an owner for a
+        time-based one-time password <xref target="RFC6238"/> before a
+        rollout.</t>
       </section>
       <section anchor="status">
         <name>Status</name>
-        <t anchor="req-6">A lock <bcp14>MUST</bcp14> answer a status request
-        with its state and the number of failed attempts since it last
-        unlocked.</t>
-        <t anchor="req-10">A controller <bcp14>SHOULD NOT</bcp14> send more
-        than one status request per second to a lock.</t>
+        <t anchor="req-6">A service <bcp14>MUST</bcp14> answer a status request
+        with the state of the flag and the number of failed checks since its
+        last rollout step.</t>
+        <t anchor="req-10">An SDK <bcp14>SHOULD NOT</bcp14> send more
+        than one status request per second for a flag.</t>
       </section>
     </section>
-    <section anchor="lockout">
-      <name>Lockout</name>
-      <t anchor="req-7">After three rejected codes in a row, a lock
-      <bcp14>MUST</bcp14> enter <xref target="term-lockout">lockout</xref>.</t>
-      <t anchor="req-8">A lockout <bcp14>SHOULD</bcp14> last five minutes.
-      <cref anchor="issue-1" source="AM">Should the controller be able to
+    <section anchor="pause">
+      <name>Pause</name>
+      <t anchor="req-7">After three failed checks in a row, a service
+      <bcp14>MUST</bcp14> put the flag in a <xref target="term-pause">pause</xref>.</t>
+      <t anchor="req-8">A pause <bcp14>SHOULD</bcp14> last five minutes.
+      <cref anchor="issue-1" source="AM">Should an owner be able to
       change the duration?</cref></t>
-      <t anchor="req-11">A lock <bcp14>MAY</bcp14> report a lockout to the
-      controller as soon as it begins.</t>
+      <t anchor="req-11">A service <bcp14>MAY</bcp14> report a pause to the
+      owners of the flag as soon as it begins.</t>
     </section>
     <section anchor="security">
       <name>Security Considerations</name>
-      <t>A code travels in clear text on the local network. Deployments
-      <bcp14>SHOULD</bcp14> carry Latch over an encrypted link.
+      <t>A rollout request travels in clear text on the network. Deployments
+      <bcp14>SHOULD</bcp14> carry Vane over an encrypted link.
       <cref anchor="issue-2" source="AB">This needs a requirement anchor of
       its own.</cref></t>
     </section>

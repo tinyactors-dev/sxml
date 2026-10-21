@@ -1,17 +1,17 @@
-// The lock registry knows every door and its state.
-import { request, type Door } from "./http.ts";
+// The flag registry knows every flag, its rules and its percentage.
+import { request, type Flag } from "./http.ts";
 
-export async function getDoorIds(): Promise<string[]> {
-  return (await request("lock-registry", "/door-ids")) as string[];
+export async function getFlagKeys(): Promise<string[]> {
+  return (await request("flag-registry", "/flag-keys")) as string[];
 }
 
-export async function getDoor(id: string): Promise<Door> {
-  return (await request("lock-registry", `/doors/${id}`)) as Door;
+export async function getFlag(key: string): Promise<Flag> {
+  return (await request("flag-registry", `/flags/${key}`)) as Flag;
 }
 
-export async function setState(id: string, state: Door["state"]): Promise<void> {
-  await request("lock-registry", `/doors/${id}/state`, {
+export async function setPercentage(key: string, percentage: number): Promise<void> {
+  await request("flag-registry", `/flags/${key}/percentage`, {
     method: "PUT",
-    body: JSON.stringify({ state }),
+    body: JSON.stringify({ percentage }),
   });
 }

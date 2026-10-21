@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:vane="urn:example:vane"
+       version="1.0" name="feature_flag" initial="stable" datamodel="ecmascript">
+
+  <vane:events>
+    <vane:event name="rollout.request" vane:payload="vane:rollout">
+      <p xmlns="http://www.w3.org/1999/xhtml">An owner asks for a new percentage.</p>
+    </vane:event>
+    <vane:event name="check.passed">
+      <p xmlns="http://www.w3.org/1999/xhtml">The guardrail metrics are within their limits.</p>
+    </vane:event>
+    <vane:event name="check.failed">
+      <p xmlns="http://www.w3.org/1999/xhtml">A guardrail metric is over its limit.</p>
+    </vane:event>
+    <vane:event name="kill.request">
+      <p xmlns="http://www.w3.org/1999/xhtml">An owner pulls the kill switch.</p>
+    </vane:event>
+    <vane:event name="status.request">
+      <p xmlns="http://www.w3.org/1999/xhtml">An SDK asks for the state.</p>
+    </vane:event>
+    <vane:event name="status.response" vane:payload="vane:status">
+      <p xmlns="http://www.w3.org/1999/xhtml">The service answers with the state.</p>
+    </vane:event>
+    <vane:event name="step.done">
+      <p xmlns="http://www.w3.org/1999/xhtml">Sent by the machine to itself when a rollout step has run.</p>
+    </vane:event>
+    <vane:event name="pause.expired">
+      <p xmlns="http://www.w3.org/1999/xhtml">Sent by the machine to itself when a pause ends.</p>
+    </vane:event>
+    <vane:event name="flag.archived">
+      <p xmlns="http://www.w3.org/1999/xhtml">An owner archived the flag.</p>
+    </vane:event>
+  </vane:events>
+
+  <datamodel>
+    <data id="failures" expr="0" vane:type="vane:failure-count"/>
+    <data id="maxFailures" expr="3" vane:type="vane:failure-limit"/>
+    <data id="stepSeconds" expr="600" vane:type="vane:seconds"/>
+    <data id="pauseSeconds" expr="300" vane:type="vane:seconds"/>
+  </datamodel>
+
+  <state id="stable" vane:implements="req-2">
+    <div xmlns="http://www.w3.org/1999/xhtml">
+      <p>The flag keeps its percentage. It waits for a rollout.</p>
+    </div>
+    <transition event="rollout.request" target="checking"/>
+    <transition event="status.request" vane:implements="req-6">
+      <send event="status.response"/>
+    </transition>
+  </state>
+
+  <state id="checking" vane:implements="req-4">
+    <div xmlns="http://www.w3.org/1999/xhtml">
+      <p>The service checks the guardrail metrics before it applies the new percentage.</p>
+    </div>
+    <transition event="check.passed" target="rolling-out">
+      <assign location="failures" expr="0"/>
+    </transition>
+    <transition event="check.failed" cond="failures + 1 &lt; maxFailures" target="stable">
+      <assign location="failures" expr="failures + 1"/>
+    </transition>
+    <transition event="check.failed" target="paused" vane:implements="req-7"/>
+  </state>
+
+  <state id="rolling-out" vane:implements="req-3">
+    <div xmlns="http://www.w3.org/1999/xhtml">
+      <p>The flag serves the new percentage. The step ends after
+      <var>stepSeconds</var> seconds, or when an owner kills it.</p>
+    </div>
+    <onentry>
+      <send event="step.done" delayexpr="stepSeconds + 's'"/>
+    </onentry>
+    <transition event="kill.request step.done" target="stable"/>
+    <transition event="flag.evaluated">
+      <log label="flag" expr="'evaluated'"/>
+    </transition>
+  </state>
+
+  <state id="paused" vane:implements="req-5 req-8">
+    <div xmlns="http://www.w3.org/1999/xhtml">
+      <p>The service refuses every rollout for <var>pauseSeconds</var> seconds.</p>
+    </div>
+    <onentry>
+      <send event="pause.expired" delayexpr="pauseSeconds + 's'"/>
+    </onentry>
+    <transition event="pause.expired" target="stable">
+      <assign location="failures" expr="0"/>
+    </transition>
+  </state>
+
+  <state id="archived">
+    <div xmlns="http://www.w3.org/1999/xhtml">
+      <p>The flag is archived. No SDK asks for it any more.</p>
+    </div>
+    <transition event="kill.request" target="stable"/>
+  </state>
+</scxml>

@@ -1,10 +1,10 @@
-// Doors read recently, kept in Redis for a minute.
+// Flags read recently, kept in Redis for a minute.
 import { createClient } from "redis";
-import type { Door } from "./http.ts";
+import type { Flag } from "./http.ts";
 
-const client = createClient({ url: "redis://door-cache:6379" });
+const client = createClient({ url: "redis://flag-cache:6379" });
 
-export async function getDoor(id: string): Promise<Door | undefined> {
-  const text = await client.get(`door:${id}`);
-  return text === null ? undefined : (JSON.parse(text) as Door);
+export async function getFlag(key: string): Promise<Flag | undefined> {
+  const text = await client.get(`flag:${key}`);
+  return text === null ? undefined : (JSON.parse(text) as Flag);
 }

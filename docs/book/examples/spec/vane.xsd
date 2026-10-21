@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- A schema for the subset of the xml2rfc version 3 vocabulary
-     (RFC 7991 and the RFC Editor's later v3 grammar) that latch.xml uses.
+     (RFC 7991 and the RFC Editor's later v3 grammar) that vane.xml uses.
      Elements and attributes keep xml2rfc's names and meanings; anything
      else of xml2rfc is left out. Anchors are checked with keys instead of
      xs:ID, so that queries see them as plain names. -->
