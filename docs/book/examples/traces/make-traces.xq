@@ -1,6 +1,8 @@
-(: Writes an archive of $count made-up requests to the old flag service,
-   one every 100 ms from $start, in the normal form ($form "tree"), or as
-   one flat list of spans that name their parents ($form "flat"). :)
+(: Writes an archive of $count made-up requests to the old version of the
+   Vane service, one every 100 ms from $start, in the normal form ($form
+   "tree"), or as one flat list of spans that name their parents ($form
+   "flat"). Two of every three requests are the backend SDK's
+   GET /api/getFlags, the third the console's POST /api/killFlag. :)
 declare variable $count external := 1000;
 declare variable $start external := "2026-10-21T09:00:00Z";
 declare variable $form external := "tree";
@@ -12,7 +14,9 @@ declare function local:span(
 ) as element(span) {
   <span id="{ $id }" service="{ $service }" name="{ $name }" kind="{ $kind }"
         start="{ $start }" duration="{ $duration }">{
-    $peer ! attribute peer { . }, $children
+    $peer ! attribute peer { . },
+    $peer[. = ("postgresql", "redis")] ! attribute db { . },
+    $children
   }</span>
 };
 
@@ -20,27 +24,28 @@ declare function local:span(
 declare function local:request(
   $trace as xs:integer, $route as xs:string, $query as xs:decimal
 ) as element(span) {
-  local:span(`{ $trace }.1`, "api-gateway", $route, "server", 0, $query + 16, (), (
-    local:span(`{ $trace }.2`, "api-gateway", $route, "client", 1, $query + 14, "flag-service", (
-      local:span(`{ $trace }.3`, "flag-service", $route, "server", 2, $query + 12, (),
-        if ($route = "GET /flags") then
-          local:span(`{ $trace }.4`, "flag-service", "GET /flags", "client", 4, $query + 8, "flag-registry",
-            local:span(`{ $trace }.5`, "flag-registry", "GET /flags", "server", 5, $query + 6, (),
-              local:span(`{ $trace }.6`, "flag-registry", "SELECT flags", "client", 7, $query, "postgresql", ())))
-        else (
-          local:span(`{ $trace }.4`, "flag-service", "GET", "client", 3, 2, "flag-cache", ()),
-          local:span(`{ $trace }.5`, "flag-service", "GET /flags/{key}", "client", 6, $query + 4, "flag-registry",
-            local:span(`{ $trace }.6`, "flag-registry", "GET /flags/{key}", "server", 7, $query + 2, (),
-              local:span(`{ $trace }.7`, "flag-registry", "SELECT flags", "client", 8, $query, "postgresql", ())))
-        )
-      )
-    ))
-  ))
+  if ($route = "GET /api/getFlags") then
+    local:span(`{ $trace }.1`, "storefront", $route, "client", 0, $query + 12, "vane",
+      local:span(`{ $trace }.2`, "vane", $route, "server", 1, $query + 10, (),
+        local:span(`{ $trace }.3`, "vane", "flags.listFlags", "internal", 2, $query + 7, (),
+          local:span(`{ $trace }.4`, "vane", "registry.getFlags", "internal", 3, $query + 4, (),
+            local:span(`{ $trace }.5`, "vane", "SELECT flags", "client", 5, $query, "postgresql", ())))))
+  else
+    local:span(`{ $trace }.1`, "vane-console", $route, "client", 0, $query + 23, "vane.example.com",
+      local:span(`{ $trace }.2`, "vane", $route, "server", 1, $query + 21, (),
+        local:span(`{ $trace }.3`, "vane", "flags.killFlag", "internal", 2, $query + 19, (), (
+          local:span(`{ $trace }.4`, "vane", "cache.getFlag", "internal", 3, 3, (),
+            local:span(`{ $trace }.5`, "vane", "GET", "client", 4, 2, "redis", ())),
+          local:span(`{ $trace }.6`, "vane", "registry.getFlag", "internal", 7, $query + 3, (),
+            local:span(`{ $trace }.7`, "vane", "SELECT flags", "client", 8, $query, "postgresql", ())),
+          local:span(`{ $trace }.8`, "vane", "registry.setPercentage", "internal", $query + 11, 8, (),
+            local:span(`{ $trace }.9`, "vane", "UPDATE flags", "client", $query + 12, 6, "postgresql", ()))
+        ))))
 };
 
 let $traces :=
   for $trace in 1 to xs:integer($count)
-  let $route := if ($trace mod 3 = 0) then "POST /flags/{key}/kill" else "GET /flags"
+  let $route := if ($trace mod 3 = 0) then "POST /api/killFlag" else "GET /api/getFlags"
   let $at := xs:dateTime($start) + xs:dayTimeDuration("PT0.1S") * ($trace - 1)
   return <trace id="{ $trace }" route="{ $route }" start="{ $at }">{
     local:request($trace, $route, 5 + $trace * 7919 mod 61)
@@ -52,8 +57,8 @@ return if ($form = "flat") then
   }</spans>
 else
   <traces source="make-traces.xq">
-    <service name="api-gateway" version="1.4.0"/>
-    <service name="flag-service" version="2.3.0"/>
-    <service name="flag-registry" version="1.9.2"/>
+    <service name="storefront" version="5.2.0"/>
+    <service name="vane" version="2.3.0"/>
+    <service name="vane-console" version="1.8.0"/>
     { $traces }
   </traces>

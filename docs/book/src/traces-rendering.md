@@ -5,7 +5,7 @@
 Text and JSON are right for tools; people reviewing a change want a
 page they can read and a picture. In this section the diff becomes an
 HTML report, written by an XSLT stylesheet, and a diagram of the
-services in each route, drawn by the drawing module of [Project:
+participants of each route, drawn by the drawing module of [Project:
 Drawing Diagrams with SVG](svg.md).
 
 ## The diff as XML
@@ -24,13 +24,11 @@ per field; a field that is empty becomes no attribute:
 $ sxml xquery --output=diff.xml diff-xml.xq
 $ cat diff.xml
 <diff before="before.json" after="after.json">
-  <version service="flag-service" before="2.3.0" after="2.4.0"/>
-  <version service="audit-service" after="0.3.1"/>
-  <change route="GET /flags" caller="flag-registry" callee="postgresql" before="1" after="5"/>
-  <change route="GET /flags" caller="flag-service" callee="flag-registry" before="1" after="5"/>
-  <change route="POST /flags/{key}/kill" caller="audit-service" callee="postgresql" before="0" after="1"/>
-  <change route="POST /flags/{key}/kill" caller="flag-service" callee="audit-service" before="0" after="1"/>
-  <change route="POST /flags/{key}/kill" caller="flag-service" callee="flag-cache" before="1" after="0"/>
+  <version service="vane" before="2.3.0" after="2.4.0"/>
+  <change route="GET /api/getFlags" caller="vane" callee="postgresql" before="1" after="5"/>
+  <change route="POST /api/killFlag" caller="vane" callee="hooks.example.com" before="0" after="1"/>
+  <change route="POST /api/killFlag" caller="vane" callee="postgresql" before="2" after="3"/>
+  <change route="POST /api/killFlag" caller="vane" callee="redis" before="1" after="0"/>
 </diff>
 ```
 
@@ -77,17 +75,12 @@ $ sxml transform report.xsl diff.xml
         <th>After</th>
       </tr>
       <tr>
-        <td>flag-service</td>
+        <td>vane</td>
         <td>2.3.0</td>
         <td>2.4.0</td>
       </tr>
-      <tr>
-        <td>audit-service</td>
-        <td>none</td>
-        <td>0.3.1</td>
-      </tr>
     </table>
-    <h2>GET /flags</h2>
+    <h2>GET /api/getFlags</h2>
     <table>
       <tr>
         <th>Caller</th>
@@ -96,19 +89,13 @@ $ sxml transform report.xsl diff.xml
         <th>After</th>
       </tr>
       <tr class="changed">
-        <td>flag-registry</td>
+        <td>vane</td>
         <td>postgresql</td>
         <td>1</td>
         <td>5</td>
       </tr>
-      <tr class="changed">
-        <td>flag-service</td>
-        <td>flag-registry</td>
-        <td>1</td>
-        <td>5</td>
-      </tr>
     </table>
-    <h2>POST /flags/{key}/kill</h2>
+    <h2>POST /api/killFlag</h2>
     <table>
       <tr>
         <th>Caller</th>
@@ -117,20 +104,20 @@ $ sxml transform report.xsl diff.xml
         <th>After</th>
       </tr>
       <tr class="added">
-        <td>audit-service</td>
-        <td>postgresql</td>
+        <td>vane</td>
+        <td>hooks.example.com</td>
         <td>0</td>
         <td>1</td>
       </tr>
-      <tr class="added">
-        <td>flag-service</td>
-        <td>audit-service</td>
-        <td>0</td>
-        <td>1</td>
+      <tr class="changed">
+        <td>vane</td>
+        <td>postgresql</td>
+        <td>2</td>
+        <td>3</td>
       </tr>
       <tr class="removed">
-        <td>flag-service</td>
-        <td>flag-cache</td>
+        <td>vane</td>
+        <td>redis</td>
         <td>1</td>
         <td>0</td>
       </tr>
@@ -139,7 +126,7 @@ $ sxml transform report.xsl diff.xml
 </html>
 ```
 
-## The services as a diagram
+## The participants as a diagram
 
 The drawing module of the SVG project draws any `diagram` of nodes and
 edges, and a `class` on a node or an edge marks it as `added`,
@@ -148,11 +135,13 @@ edges, and a `class` on a node or an edge marks it as `added`,
 projects use the same file.
 
 `participants.xq` makes the diagram of one route: a node for each
-service that takes part in it, before or after, and an edge for each
-call between two of them, labelled with its count. What only the new
-file has is `added`, what only the old one has is `removed`, and a call
-whose count changed is `changed`. A callee that recorded no spans of
-its own is drawn as a store:
+participant, before or after, and an edge for each call between two of
+them, labelled with its count. What only the new file has is `added`,
+what only the old one has is `removed`, and a call whose count changed
+is `changed`. A database is drawn as a store: a callee that some client
+span marks with `db`. The owners' webhook records no spans of its own
+either, but it is a web server, not a database, so it is drawn as a box
+like the programs:
 
 `participants.xq`:
 
@@ -161,21 +150,18 @@ its own is drawn as a store:
 ```
 
 ```console
-$ sxml xquery '--param=route=POST /flags/{key}/kill' --output=kill.xml participants.xq
+$ sxml xquery '--param=route=POST /api/killFlag' --output=kill.xml participants.xq
 $ cat kill.xml
-<diagram title="POST /flags/{key}/kill: before.json and after.json">
-  <node id="api-gateway" label="api-gateway"/>
-  <node id="flag-service" label="flag-service"/>
-  <node id="flag-cache" label="flag-cache" kind="store" class="removed"/>
-  <node id="flag-registry" label="flag-registry"/>
+<diagram title="POST /api/killFlag: before.json and after.json">
+  <node id="vane-console" label="vane-console"/>
+  <node id="vane" label="vane"/>
+  <node id="redis" label="redis" kind="store" class="removed"/>
   <node id="postgresql" label="postgresql" kind="store"/>
-  <node id="audit-service" label="audit-service" class="added"/>
-  <edge from="api-gateway" to="flag-service" label="1"/>
-  <edge from="flag-service" to="flag-cache" label="1 → 0" class="removed"/>
-  <edge from="flag-service" to="flag-registry" label="2"/>
-  <edge from="flag-registry" to="postgresql" label="2"/>
-  <edge from="flag-service" to="audit-service" label="0 → 1" class="added"/>
-  <edge from="audit-service" to="postgresql" label="0 → 1" class="added"/>
+  <node id="hooks.example.com" label="hooks.example.com" class="added"/>
+  <edge from="vane-console" to="vane" label="1"/>
+  <edge from="vane" to="redis" label="1 → 0" class="removed"/>
+  <edge from="vane" to="postgresql" label="2 → 3" class="changed"/>
+  <edge from="vane" to="hooks.example.com" label="0 → 1" class="added"/>
 </diagram>
 ```
 
@@ -202,11 +188,17 @@ same
 
 Listing the flags:
 
-![The services of GET /flags, before and after](../examples/traces/diff-flags.svg)
+![The participants of GET /api/getFlags, before and after](../examples/traces/diff-flags.svg)
 
 Killing a flag:
 
-![The services of POST /flags/{key}/kill, before and after](../examples/traces/diff-kill.svg)
+![The participants of POST /api/killFlag, before and after](../examples/traces/diff-kill.svg)
+
+The modules of the service are not in the drawings: a call from one
+module to another is a function call inside the one program, and its
+internal span is not a call. The drawings show what crosses the
+network, and that is where this change shows: more queries, a cache
+that is no longer read, and a new webhook.
 
 ## The drawings in the report
 

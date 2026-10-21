@@ -1,11 +1,12 @@
-(: The services that take part in one route, before and after, as a
-   diagram for draw.xqm: what was added, removed or changed has a class. :)
+(: The participants of one route, before and after, as a diagram for
+   draw.xqm: what was added, removed or changed has a class, and a
+   database is drawn as a store. :)
 import module namespace trace = "urn:example:trace" at "trace.xqm";
 declare option output:indent "yes";
 
 declare variable $before external := "before.json";
 declare variable $after external := "after.json";
-declare variable $route external := "GET /flags";
+declare variable $route external := "GET /api/getFlags";
 
 (: The calls of the route, from a map of cardinalities. :)
 declare function local:calls($cardinality as map(*)) as map(*) {
@@ -22,11 +23,11 @@ let $new := trace:load($after)
 let $old-calls := local:calls(trace:cardinality($old))
 let $new-calls := local:calls(trace:cardinality($new))
 let $calls := map:merge(($old-calls, $new-calls))
-let $services := ($old, $new)/service/@name
+let $databases := ($old, $new)//span[@db]/@peer
 return <diagram title="{ $route }: { $before } and { $after }">{
   for $name in distinct-values(map:items($calls) ! (?caller, ?callee))
   return <node id="{ $name }" label="{ $name }">{
-    if ($name = $services) then () else attribute kind { "store" },
+    if ($name = $databases) then attribute kind { "store" } else (),
     if (not(local:takes-part($name, $old-calls))) then attribute class { "added" }
     else if (not(local:takes-part($name, $new-calls))) then attribute class { "removed" }
     else ()

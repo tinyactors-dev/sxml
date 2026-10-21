@@ -1,5 +1,5 @@
 (: Reading OTLP JSON traces into a tree of spans, and the calls between
-   services that the tree shows. :)
+   the participants that the tree shows. :)
 module namespace trace = "urn:example:trace";
 
 (: ANCHOR: span :)
@@ -89,6 +89,7 @@ declare function trace:element(
         start="{ trace:milliseconds($span?start - $origin) }"
         duration="{ trace:milliseconds($span?end - $span?start) }">{
     $span?attributes?("server.address") ! attribute peer { . },
+    $span?attributes?("db.system.name") ! attribute db { . },
     for $child in $children($span?id)
     order by $child?start
     return trace:element($child, $children, $origin)
@@ -122,11 +123,13 @@ declare function trace:load($file as xs:string) as element(traces) {
 (: ANCHOR_END: load :)
 
 (: ANCHOR: calls :)
-(: A call from one service to another, made in a trace of one route. :)
+(: A call from a service to another participant, made in a trace of
+   one route. :)
 declare record trace:call(route as xs:string, caller as xs:string, callee as xs:string);
 
 (: Who a client span calls: the service of the server span it caused,
-   else the server it names (a database has no spans of its own). :)
+   else the server it names (a database or a webhook records no spans
+   of its own). :)
 declare function trace:callee($client as element(span)) as xs:string {
   string(($client/span[@kind = "server"]/@service, $client/@peer)[1])
 };
@@ -143,8 +146,9 @@ declare function trace:calls($traces as element(traces)) as trace:call* {
 (: ANCHOR_END: calls :)
 
 (: ANCHOR: cardinality :)
-(: How often each service calls another in one request of a route: a
-   map from "route: caller -> callee" to the call and its count. :)
+(: How often each service calls a participant in one request of a
+   route: a map from "route: caller -> callee" to the call and its
+   count. :)
 declare record trace:edge(
   route as xs:string, caller as xs:string, callee as xs:string,
   count as xs:decimal
@@ -164,7 +168,7 @@ declare function trace:cardinality($traces as element(traces)) as map(xs:string,
 (: ANCHOR_END: cardinality :)
 
 (: ANCHOR: diff :)
-(: A change in how often one service calls another, per request. :)
+(: A change in how often a service calls a participant, per request. :)
 declare record trace:change(
   route as xs:string, caller as xs:string, callee as xs:string,
   before as xs:decimal, after as xs:decimal

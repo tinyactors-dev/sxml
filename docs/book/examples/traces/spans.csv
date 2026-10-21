@@ -1,19 +1,14 @@
 Trace ID,Span ID,Parent ID,Service,Operation,Start Time,Duration (ms),Statement
-95cfc9416dff30ee,ad09d89327ec549f,,api-gateway,GET /flags,2026-10-21 09:00:00.000,110,
-95cfc9416dff30ee,de9fa8dcf75aa50e,ad09d89327ec549f,api-gateway,GET /flags,2026-10-21 09:00:00.001,108,
-95cfc9416dff30ee,8844ce6b8e39c14a,de9fa8dcf75aa50e,flag-service,GET /flags,2026-10-21 09:00:00.002,106,
-95cfc9416dff30ee,e73631555fa73aef,8844ce6b8e39c14a,flag-service,GET /flag-keys,2026-10-21 09:00:00.004,12,
-95cfc9416dff30ee,53c7b385ae6f5e6f,e73631555fa73aef,flag-registry,GET /flag-keys,2026-10-21 09:00:00.005,10,
-95cfc9416dff30ee,1c2230f71e9ca4c3,53c7b385ae6f5e6f,flag-registry,SELECT flags,2026-10-21 09:00:00.006,8,SELECT key FROM flags
-95cfc9416dff30ee,e3d2e09aac064e18,8844ce6b8e39c14a,flag-service,GET /flags/{key},2026-10-21 09:00:00.018,20,
-95cfc9416dff30ee,c7f30f509b22f4ca,e3d2e09aac064e18,flag-registry,GET /flags/{key},2026-10-21 09:00:00.019,18,
-95cfc9416dff30ee,62982530bd8bd355,c7f30f509b22f4ca,flag-registry,SELECT flags,2026-10-21 09:00:00.021,14,"SELECT key, name, state, percentage, owners FROM flags WHERE key = $1"
-95cfc9416dff30ee,b90e7d4d6d4161d9,8844ce6b8e39c14a,flag-service,GET /flags/{key},2026-10-21 09:00:00.040,20,
-95cfc9416dff30ee,ef1449419ecde453,b90e7d4d6d4161d9,flag-registry,GET /flags/{key},2026-10-21 09:00:00.041,18,
-95cfc9416dff30ee,694ca4f1d99fa8e5,ef1449419ecde453,flag-registry,SELECT flags,2026-10-21 09:00:00.043,14,"SELECT key, name, state, percentage, owners FROM flags WHERE key = $1"
-95cfc9416dff30ee,1cec0b63b0ac0f75,8844ce6b8e39c14a,flag-service,GET /flags/{key},2026-10-21 09:00:00.062,20,
-95cfc9416dff30ee,b3b0d075d76179a0,1cec0b63b0ac0f75,flag-registry,GET /flags/{key},2026-10-21 09:00:00.063,18,
-95cfc9416dff30ee,171548ba579183a2,b3b0d075d76179a0,flag-registry,SELECT flags,2026-10-21 09:00:00.065,14,"SELECT key, name, state, percentage, owners FROM flags WHERE key = $1"
-95cfc9416dff30ee,53e8c701fde4106a,8844ce6b8e39c14a,flag-service,GET /flags/{key},2026-10-21 09:00:00.084,20,
-95cfc9416dff30ee,68c9e72c9c458574,53e8c701fde4106a,flag-registry,GET /flags/{key},2026-10-21 09:00:00.085,18,
-95cfc9416dff30ee,a14ad12777c20942,68c9e72c9c458574,flag-registry,SELECT flags,2026-10-21 09:00:00.087,14,"SELECT key, name, state, percentage, owners FROM flags WHERE key = $1"
+95cfc9416dff30ee3edeae4b2c53e1c4,6a06eb67c8c7b1df,,storefront,GET /api/getFlags,2026-10-21 09:00:00.000,110,
+95cfc9416dff30ee3edeae4b2c53e1c4,4784b113aa8e01c1,6a06eb67c8c7b1df,vane,GET /api/getFlags,2026-10-21 09:00:00.001,108,
+95cfc9416dff30ee3edeae4b2c53e1c4,c078a6c13fbbb2b7,4784b113aa8e01c1,vane,flags.listFlags,2026-10-21 09:00:00.002,104,
+95cfc9416dff30ee3edeae4b2c53e1c4,4a09e0dc364b4ceb,c078a6c13fbbb2b7,vane,registry.getFlagKeys,2026-10-21 09:00:00.003,12,
+95cfc9416dff30ee3edeae4b2c53e1c4,59be2e375b69cde3,4a09e0dc364b4ceb,vane,SELECT flags,2026-10-21 09:00:00.005,8,SELECT key FROM flags
+95cfc9416dff30ee3edeae4b2c53e1c4,3916e2d3c40454dd,c078a6c13fbbb2b7,vane,registry.getFlag,2026-10-21 09:00:00.016,20,
+95cfc9416dff30ee3edeae4b2c53e1c4,68edbeb8d88faf5c,3916e2d3c40454dd,vane,SELECT flags,2026-10-21 09:00:00.018,16,"SELECT key, name, state, percentage, rules, owners FROM flags WHERE key = $1"
+95cfc9416dff30ee3edeae4b2c53e1c4,dfd3d40365e4135b,c078a6c13fbbb2b7,vane,registry.getFlag,2026-10-21 09:00:00.038,20,
+95cfc9416dff30ee3edeae4b2c53e1c4,57dd62522e2c9584,dfd3d40365e4135b,vane,SELECT flags,2026-10-21 09:00:00.040,16,"SELECT key, name, state, percentage, rules, owners FROM flags WHERE key = $1"
+95cfc9416dff30ee3edeae4b2c53e1c4,4c24544f121526f0,c078a6c13fbbb2b7,vane,registry.getFlag,2026-10-21 09:00:00.060,20,
+95cfc9416dff30ee3edeae4b2c53e1c4,9159d0f56a5d1864,4c24544f121526f0,vane,SELECT flags,2026-10-21 09:00:00.062,16,"SELECT key, name, state, percentage, rules, owners FROM flags WHERE key = $1"
+95cfc9416dff30ee3edeae4b2c53e1c4,62ba834a7e5ce7ca,c078a6c13fbbb2b7,vane,registry.getFlag,2026-10-21 09:00:00.082,20,
+95cfc9416dff30ee3edeae4b2c53e1c4,76953a3c0fdcb3fe,62ba834a7e5ce7ca,vane,SELECT flags,2026-10-21 09:00:00.084,16,"SELECT key, name, state, percentage, rules, owners FROM flags WHERE key = $1"

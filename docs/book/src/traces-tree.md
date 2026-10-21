@@ -2,7 +2,7 @@
 
 <!-- examples: traces -->
 
-An OTLP file is grouped the way exporters send spans: by the service
+An OTLP file is grouped the way exporters send spans: by the program
 that recorded them, then by the instrumentation library. The trees of
 the traces are not in it, only the parent ids that make them. In this
 section we take the file apart into one record per span, put the trees
@@ -19,12 +19,18 @@ $ sxml xquery --method=adaptive --expression='
     for member $resource in json-doc("before.json")?resourceSpans
     for member $scope in $resource?scopeSpans
     return `{ $resource?resource?attributes?1?value?stringValue }, { $scope?scope?name }: { array:size($scope?spans) } spans`'
-"api-gateway, @opentelemetry/instrumentation-http: 4 spans"
-"flag-service, @opentelemetry/instrumentation-http: 5 spans"
-"flag-service, @opentelemetry/instrumentation-redis: 1 spans"
-"flag-registry, @opentelemetry/instrumentation-http: 3 spans"
-"flag-registry, @opentelemetry/instrumentation-pg: 3 spans"
+"storefront, @vane/node: 1 spans"
+"vane, @opentelemetry/instrumentation-http: 2 spans"
+"vane, vane: 6 spans"
+"vane, @opentelemetry/instrumentation-pg: 3 spans"
+"vane, @opentelemetry/instrumentation-redis: 1 spans"
+"vane-console, @opentelemetry/instrumentation-fetch: 1 spans"
 ```
+
+The SDK and the console each recorded one span, their call to the
+service. The service's spans come from four libraries: HTTP for the
+requests it served, PostgreSQL and Redis for its queries, and its own
+scope, `vane`, for the functions of its modules.
 
 `$resource?resource?attributes?1` relies on `service.name` being the
 first attribute, which OTLP does not promise. Attributes are a list of
@@ -76,21 +82,23 @@ flattens a whole file, with the fields given by name:
 ```
 
 The service's name is found once per resource, and each of its spans
-gets it. The first client span:
+gets it. The first client span is the SDK's call, the root of the
+first trace; it has no parent, so its `parent` field is the empty
+sequence, which the adaptive output writes as `()`:
 
 ```console
 $ sxml xquery --method=adaptive --expression='
     import module namespace trace = "urn:example:trace" at "trace.xqm";
     trace:spans(json-doc("before.json"))[?kind = "client"][1]'
-{"trace":"48114dcf6840d1bd46460c4b1ce0d09d","id":"f1952a06701f65f9","parent":"9db4d10ecccc96f0","service":"api-gateway","name":"GET /flags","kind":"client","start":1792573200001000000,"end":1792573200049000000,"attributes":{"http.request.method":"GET","server.address":"flag-service","server.port":80,"url.full":"http://flag-service/flags","url.template":"/flags","http.response.status_code":200}}
+{"trace":"48114dcf6840d1bd46460c4b1ce0d09d","id":"edba4075f74ba88f","parent":(),"service":"storefront","name":"GET /api/getFlags","kind":"client","start":1792573200000000000,"end":1792573200050000000,"attributes":{"http.request.method":"GET","server.address":"vane","server.port":8080,"url.full":"http://vane:8080/api/getFlags?input=%7B%7D","url.template":"/api/getFlags","http.response.status_code":200}}
 ```
 
 ## A map from span id to span
 
 A span names its parent only by id. To find the parent of each span
 quickly, build a map from id to span once; `map:build` takes the items
-and a function that gives each item's key. Which service called each
-database?
+and a function that gives each item's key. Which function of the
+service made each database call?
 
 ```console
 $ sxml xquery --method=adaptive --expression='
@@ -100,11 +108,15 @@ $ sxml xquery --method=adaptive --expression='
     for $query in $spans[map:contains(?attributes, "db.system.name")]
     let $caller := $by-id($query?parent)
     return `{ $query?name } on { $query?attributes?("server.address") }, called by { $caller?service } in { $caller?name }`'
-"GET on flag-cache, called by flag-service in POST /flags/{key}/kill"
-"SELECT flags on postgresql, called by flag-registry in GET /flags"
-"SELECT flags on postgresql, called by flag-registry in GET /flags/{key}"
-"UPDATE flags on postgresql, called by flag-registry in PUT /flags/{key}/percentage"
+"SELECT flags on postgresql, called by vane in registry.getFlags"
+"SELECT flags on postgresql, called by vane in registry.getFlag"
+"UPDATE flags on postgresql, called by vane in registry.setPercentage"
+"GET on redis, called by vane in cache.getFlag"
 ```
+
+Every query has the same caller, the one Vane service; the parent says
+more: the module function that made the query, recorded as an internal
+span.
 
 Each lookup takes the same short time however many spans there are.
 Searching the spans for the parent instead, `$spans[?id =
@@ -154,7 +166,8 @@ collecting all the items with the same key. Then a function makes a
 The spans without a parent are the roots, one per trace. Each `trace`
 element has its route, the name of its root span, and its start; each
 span its start relative to the start of the trace and its duration,
-both in milliseconds, and, for a call, `peer`, the server it called.
+both in milliseconds, and, for a call, `peer`, the server it called,
+and, for a database call, `db`, the kind of database.
 A function that calls itself is fine here: a trace is a few levels
 deep.
 
@@ -177,36 +190,32 @@ deep.
 ```console
 $ sxml xquery --param=file=before.json normalize.xq
 <traces source="before.json">
-  <service name="api-gateway" version="1.4.0"/>
-  <service name="flag-service" version="2.3.0"/>
-  <service name="flag-registry" version="1.9.2"/>
-  <trace id="48114dcf6840d1bd46460c4b1ce0d09d" route="GET /flags" start="2026-10-21T09:00:00Z">
-    <span id="9db4d10ecccc96f0" service="api-gateway" name="GET /flags" kind="server" start="0" duration="50">
-      <span id="f1952a06701f65f9" service="api-gateway" name="GET /flags" kind="client" start="1" duration="48" peer="flag-service">
-        <span id="450bd70b42ff202b" service="flag-service" name="GET /flags" kind="server" start="2" duration="46">
-          <span id="9507aae4931c1a17" service="flag-service" name="GET /flags" kind="client" start="4" duration="41" peer="flag-registry">
-            <span id="2b3938e2ad2889ea" service="flag-registry" name="GET /flags" kind="server" start="5" duration="39">
-              <span id="bc26eff93c7d3107" service="flag-registry" name="SELECT flags" kind="client" start="7" duration="34" peer="postgresql"/>
-            </span>
+  <service name="storefront" version="5.2.0"/>
+  <service name="vane" version="2.3.0"/>
+  <service name="vane-console" version="1.8.0"/>
+  <trace id="48114dcf6840d1bd46460c4b1ce0d09d" route="GET /api/getFlags" start="2026-10-21T09:00:00Z">
+    <span id="edba4075f74ba88f" service="storefront" name="GET /api/getFlags" kind="client" start="0" duration="50" peer="vane">
+      <span id="1927a6f46640ec9e" service="vane" name="GET /api/getFlags" kind="server" start="1" duration="48">
+        <span id="877ed3a0b72c92c6" service="vane" name="flags.listFlags" kind="internal" start="2" duration="46">
+          <span id="448683a55e6803a1" service="vane" name="registry.getFlags" kind="internal" start="3" duration="43">
+            <span id="fb73f92d181aced2" service="vane" name="SELECT flags" kind="client" start="5" duration="39" peer="postgresql" db="postgresql"/>
           </span>
         </span>
       </span>
     </span>
   </trace>
-  <trace id="aaab30cfb7723ae45a23d581f962cc40" route="POST /flags/{key}/kill" start="2026-10-21T09:00:02Z">
-    <span id="c377adc01acf7ff5" service="api-gateway" name="POST /flags/{key}/kill" kind="server" start="0" duration="34">
-      <span id="595ed12c603e8700" service="api-gateway" name="POST /flags/{key}/kill" kind="client" start="1" duration="32" peer="flag-service">
-        <span id="a4c5b3440594b922" service="flag-service" name="POST /flags/{key}/kill" kind="server" start="2" duration="30">
-          <span id="ecb5733260ceb4b2" service="flag-service" name="GET" kind="client" start="3" duration="2" peer="flag-cache"/>
-          <span id="8662f3310d0158f0" service="flag-service" name="GET /flags/{key}" kind="client" start="6" duration="10" peer="flag-registry">
-            <span id="0cb733ec39d63363" service="flag-registry" name="GET /flags/{key}" kind="server" start="7" duration="8">
-              <span id="1822add2fe4ca68d" service="flag-registry" name="SELECT flags" kind="client" start="8" duration="6" peer="postgresql"/>
-            </span>
+  <trace id="aaab30cfb7723ae45a23d581f962cc40" route="POST /api/killFlag" start="2026-10-21T09:00:02Z">
+    <span id="53dc1509f5cf3ba5" service="vane-console" name="POST /api/killFlag" kind="client" start="0" duration="34" peer="vane.example.com">
+      <span id="f9206f822272e040" service="vane" name="POST /api/killFlag" kind="server" start="1" duration="32">
+        <span id="900884cd9fed676d" service="vane" name="flags.killFlag" kind="internal" start="2" duration="30">
+          <span id="5fdc37e904085e22" service="vane" name="cache.getFlag" kind="internal" start="3" duration="3">
+            <span id="0e7b40a994b31e11" service="vane" name="GET" kind="client" start="4" duration="1" peer="redis" db="redis"/>
           </span>
-          <span id="9cf360297e503c8d" service="flag-service" name="PUT /flags/{key}/percentage" kind="client" start="17" duration="14" peer="flag-registry">
-            <span id="b71d3117a25377cd" service="flag-registry" name="PUT /flags/{key}/percentage" kind="server" start="18" duration="12">
-              <span id="6bd326bf36cab938" service="flag-registry" name="UPDATE flags" kind="client" start="19" duration="10" peer="postgresql"/>
-            </span>
+          <span id="f82be3eb4c2b1180" service="vane" name="registry.getFlag" kind="internal" start="7" duration="9">
+            <span id="2f9fc0a36c747d78" service="vane" name="SELECT flags" kind="client" start="8" duration="7" peer="postgresql" db="postgresql"/>
+          </span>
+          <span id="03d74407bc202a98" service="vane" name="registry.setPercentage" kind="internal" start="17" duration="13">
+            <span id="bc2ed987977fa5c6" service="vane" name="UPDATE flags" kind="client" start="18" duration="11" peer="postgresql" db="postgresql"/>
           </span>
         </span>
       </span>
@@ -216,22 +225,26 @@ $ sxml xquery --param=file=before.json normalize.xq
 ```
 
 Now the shape of each request is plain to see. Listing the flags is a
-chain of single calls from the gateway down to PostgreSQL; killing a
-flag reads the cache, reads the flag from the registry, and sets its
-percentage to 0. The new version's file shows the change:
+chain from the SDK's call through the service's server span and two
+module functions, `flags.listFlags` and `registry.getFlags`, down to
+one PostgreSQL query; killing a flag reads the flag from Redis in the
+cache module, reads it again from PostgreSQL in the registry module,
+and sets its percentage to 0. The new version's file shows the change,
+in the children of `flags.listFlags`:
 
 ```console
 $ sxml xquery --param=file=after.json --output=after.xml normalize.xq
-$ sxml xpath --context-item=after.xml '//trace[@route = "GET /flags"]//span[@service = "flag-service"][@kind = "client"] ! `{@start} ms: {@name}, {@duration} ms`'
-"4 ms: GET /flag-keys, 12 ms"
-"18 ms: GET /flags/{key}, 20 ms"
-"40 ms: GET /flags/{key}, 20 ms"
-"62 ms: GET /flags/{key}, 20 ms"
-"84 ms: GET /flags/{key}, 20 ms"
+$ sxml xpath --context-item=after.xml '//span[@name = "flags.listFlags"]/span ! `{@start} ms: {@name}, {@duration} ms`'
+"3 ms: registry.getFlagKeys, 12 ms"
+"16 ms: registry.getFlag, 20 ms"
+"38 ms: registry.getFlag, 20 ms"
+"60 ms: registry.getFlag, 20 ms"
+"82 ms: registry.getFlag, 20 ms"
 ```
 
-One call for the keys, then one for each of the four flags, one after
-the other: the request now takes more than twice as long. This XML,
+One call of the registry module for the keys, then one for each of
+the four flags, one after the other, each with a query of its own: the
+request now takes more than twice as long. This XML,
 one `traces` element with its services and a tree of spans for each
 trace, is the *normal form* of a trace file, and the rest of the
 project works on it: ordinary paths and patterns find spans, their
