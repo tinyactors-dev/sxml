@@ -23,7 +23,7 @@ int main(void) {
         status = sxml_processor_parse_document(
             processor,
             &(sxml_xml_parse_request){
-                .input = read_file("latch.xml", draft_contents, sizeof draft_contents),
+                .input = read_file("vane.xml", draft_contents, sizeof draft_contents),
                 .diagnostic = &error_record.diagnostic,
             },
             &document);

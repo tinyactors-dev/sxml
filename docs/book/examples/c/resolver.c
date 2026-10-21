@@ -13,8 +13,8 @@ int main(void) {
 
     /* The only resource the query may read: the draft, held in memory. */
     sxml_resource_entry resources[] = {
-        {.uri = TEXT("https://example.org/drafts/latch.xml"),
-         .content = read_file("latch.xml", draft_contents, sizeof draft_contents)},
+        {.uri = TEXT("https://example.org/drafts/vane.xml"),
+         .content = read_file("vane.xml", draft_contents, sizeof draft_contents)},
     };
     sxml_resource_entry_view entries = {.resource_entries = resources,
                                         .resource_entry_count = 1};
@@ -39,12 +39,12 @@ int main(void) {
                 .expression_text = TEXT(
                     "declare option output:indent 'yes';\n"
                     "<keywords>{\n"
-                    "  for $t in doc('latch.xml')//t[@anchor]\n"
+                    "  for $t in doc('vane.xml')//t[@anchor]\n"
                     "  group by $keyword := string($t/bcp14)\n"
                     "  order by $keyword\n"
                     "  return <keyword name='{ $keyword }' count='{ count($t) }'/>\n"
                     "}</keywords>,\n"
-                    "doc-available('latch-00.xml')"),
+                    "doc-available('vane-00.xml')"),
                 .source_name = TEXT("keywords.xq"),
                 .static_context = {.static_base_uri = TEXT("https://example.org/drafts/")},
                 .error_record = &error_record,

@@ -5,7 +5,7 @@
 #include "sxml/xpath.h"
 
 /* The two drafts the same expression runs against, and room for each. */
-static const char *const draft_files[] = {"latch-00.xml", "latch.xml"};
+static const char *const draft_files[] = {"vane-00.xml", "vane.xml"};
 static unsigned char draft_contents[2][1 << 16];
 
 /* The values of $keyword for each run. */

@@ -7,8 +7,8 @@ and your programs can use the same library. It is portable C17, has no
 dependencies, never calls `malloc` behind your back, keeps no global
 state, and never recurses, so a deeply nested document cannot overflow
 your program's stack. This chapter shows the shape of the API with five
-small programs, most of them on the Latch draft. The examples are in
-`docs/book/examples/c`, where `latch.xml` and `latch-00.xml` are links to
+small programs, most of them on the Vane draft. The examples are in
+`docs/book/examples/c`, where `vane.xml` and `vane-00.xml` are links to
 the drafts in `docs/book/examples/spec`.
 
 ## Building against sxml
@@ -61,11 +61,11 @@ each one is in:
 
 ```console
 $ ./build/requirements
-"req-1 in Lock States"
-"req-2 in Lock States"
-"req-4 in Unlock"
+"req-1 in Flag States"
+"req-2 in Flag States"
+"req-4 in Rollout"
 "req-6 in Status"
-"req-7 in Lockout"
+"req-7 in Pause"
 ```
 
 The steps are the same in every program:
@@ -101,10 +101,10 @@ two key words:
 
 ```console
 $ ./build/compile_once
-latch-00.xml, SHOULD: "req-3 req-8"
-latch-00.xml, MAY: ""
-latch.xml, SHOULD: "req-3 req-8"
-latch.xml, MAY: "req-9 req-11"
+vane-00.xml, SHOULD: "req-3 req-8"
+vane-00.xml, MAY: ""
+vane.xml, SHOULD: "req-3 req-8"
+vane.xml, MAY: "req-9 req-11"
 ```
 
 The first draft has no MAY requirement; the second adds two.
@@ -128,7 +128,7 @@ implement `sxml_resource_resolver_operations` yourself.
 This program also shows XQuery. A query is compiled and evaluated like
 an expression, and it carries the serialization parameters its prolog
 declares. The program reads the draft into memory and serves it as
-`https://example.org/drafts/latch.xml`, and the query counts the
+`https://example.org/drafts/vane.xml`, and the query counts the
 requirements of each key word:
 
 `resolver.c`:
@@ -148,8 +148,8 @@ $ ./build/resolver
 </keywords>false
 ```
 
-`doc('latch.xml')` resolves against the query's base URI to the URI in
-the table. `latch-00.xml` is not in the table, so the query cannot see
+`doc('vane.xml')` resolves against the query's base URI to the URI in
+the table. `vane-00.xml` is not in the table, so the query cannot see
 it, though the file is right next to the program: the resolver decides,
 not the file system. XSLT (`sxml/xslt.h`) and XSD
 (`sxml/schema.h`) follow the same pattern: compile a stylesheet or a
@@ -174,7 +174,7 @@ $ ./build/errors
 6 * 7 => 42
 1 + => SXML_STATUS_STATIC_ERROR err:XPST0003 at 1:3: The text is not valid XPath 4.0 syntax (XPath 4.0, Appendix A)
 1 div 0 => SXML_STATUS_DYNAMIC_ERROR err:FOAR0001 at 1:1: division by zero (F&O 4.0, op:numeric-divide, op:numeric-integer-divide, op:numeric-mod)
-error(xs:QName('err:LATCH0001'), 'no requirement req-12') => SXML_STATUS_DYNAMIC_ERROR err:LATCH0001 at 1:1: no requirement req-12
+error(xs:QName('err:VANE0001'), 'no requirement req-12') => SXML_STATUS_DYNAMIC_ERROR err:VANE0001 at 1:1: no requirement req-12
 some $n in 1 to 100000000000 satisfies $n = 0 => SXML_STATUS_LIMIT_EXCEEDED: the evaluation took more steps than maximum_evaluation_step_count allows
 ```
 
