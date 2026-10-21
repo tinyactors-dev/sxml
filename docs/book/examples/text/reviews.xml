@@ -1,7 +1,0 @@
-<reviews>
-  <review id="1" lang="en">The parser handled every document we tried.</review>
-  <review id="2" lang="en">Parsing large files was slow at first, then fast.</review>
-  <review id="3" lang="en">Streaming keeps memory flat, even for huge inputs.</review>
-  <review id="4" lang="de">Der Parser läuft schnell und stabil.</review>
-  <review id="5" lang="en">Fast queries, and the memory use stays low.</review>
-</reviews>
