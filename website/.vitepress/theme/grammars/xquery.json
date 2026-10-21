@@ -1,0 +1,16 @@
+{
+  "name": "xquery",
+  "scopeName": "source.xquery",
+  "patterns": [
+    { "name": "comment.block.xquery", "begin": "\\(:", "end": ":\\)" },
+    { "name": "string.quoted.double.xquery", "match": "\"[^\"]*\"" },
+    { "name": "string.quoted.single.xquery", "match": "'[^']*'" },
+    { "name": "variable.other.xquery", "match": "\\$[A-Za-z_][\\w.-]*" },
+    { "match": "(</?)([A-Za-z_][\\w.:-]*)", "captures": { "1": { "name": "punctuation.definition.tag.xquery" }, "2": { "name": "entity.name.tag.xquery" } } },
+    { "name": "punctuation.definition.tag.xquery", "match": "/?>" },
+    { "name": "entity.other.attribute-name.xquery", "match": "\\b[A-Za-z_][\\w.-]*(?==\")" },
+    { "name": "keyword.control.xquery", "match": "\\b(for|let|in|at|where|order|by|ascending|descending|group|count|return|if|then|else|some|every|satisfies|declare|variable|function|external|as|instance|of|cast|treat|switch|case|default|typeswitch|try|catch)\\b(?![\\w.-]*\\()" },
+    { "name": "entity.name.function.xquery", "match": "\\b[A-Za-z_][\\w.:-]*(?=\\()" },
+    { "name": "constant.numeric.xquery", "match": "\\b\\d+(\\.\\d+)?\\b" }
+  ]
+}

@@ -1,0 +1,6 @@
+order: line+.
+line: quantity, -" x ", item, -" @ ", price, -#a.
+quantity: digit+.
+item: ["a"-"z"]+.
+price: digit+, ".", digit, digit.
+-digit: ["0"-"9"].

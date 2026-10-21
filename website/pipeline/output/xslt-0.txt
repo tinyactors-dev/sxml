@@ -1,0 +1,21 @@
+<table>
+  <tr>
+    <td>tea</td>
+    <td>2</td>
+    <td>7.00</td>
+  </tr>
+  <tr>
+    <td>scone</td>
+    <td>3</td>
+    <td>6.30</td>
+  </tr>
+  <tr>
+    <td>coffee</td>
+    <td>1</td>
+    <td>4.20</td>
+  </tr>
+  <tr>
+    <th colspan="2">Total</th>
+    <td>17.50</td>
+  </tr>
+</table>

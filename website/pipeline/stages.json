@@ -1,0 +1,101 @@
+{
+  "comment": "The pipeline on the landing page. Each stage shows its files (or, for a file an earlier stage wrote, that stage's output) and runs its commands in this directory. run.mjs runs them with sxml and writes what each prints to output/. Run it after changing anything here: node website/pipeline/run.mjs",
+  "stages": [
+    {
+      "id": "ixml",
+      "name": "Invisible XML",
+      "summary": "An Invisible XML grammar describes the order's text format. `fn:invisible-xml` compiles the grammar into a function, and the function turns the text into XML.",
+      "files": [
+        "order.txt",
+        "order.ixml"
+      ],
+      "commands": [
+        {
+          "run": "sxml xpath --method=xml 'invisible-xml(unparsed-text(\"order.ixml\"))(unparsed-text(\"order.txt\"))' -o order.xml --force",
+          "show": "sxml xpath --method=xml \\\n  'invisible-xml(unparsed-text(\"order.ixml\"))(unparsed-text(\"order.txt\"))' \\\n  -o order.xml"
+        },
+        {
+          "run": "sxml serialize --indent order.xml",
+          "lang": "xml"
+        }
+      ]
+    },
+    {
+      "id": "xsd",
+      "name": "XSD",
+      "summary": "An XSD 1.1 schema gives the elements types: a quantity is an `xs:positiveInteger` and a price an `xs:decimal`. A valid document prints nothing; an invalid one gets the line, the column and the rule it broke.",
+      "files": [
+        "order.xsd"
+      ],
+      "commands": [
+        {
+          "run": "sxml validate --schema=order.xsd order.xml",
+          "note": "valid: nothing printed, exit status 0"
+        },
+        {
+          "run": "sxml xpath --method=xml 'invisible-xml(unparsed-text(\"order.ixml\"))(unparsed-text(\"bad.txt\"))' -o bad.xml --force",
+          "hidden": true
+        },
+        {
+          "run": "cat bad.txt"
+        },
+        {
+          "run": "sxml validate --schema=order.xsd bad.xml",
+          "status": 1
+        }
+      ]
+    },
+    {
+      "id": "xpath",
+      "name": "XPath",
+      "summary": "XPath 4.0 expressions select nodes and compute values: the items that cost more than 3, and the item names joined with the arrow operator `=>`.",
+      "files": [
+        {
+          "name": "order.xml",
+          "output": "ixml-1"
+        }
+      ],
+      "commands": [
+        {
+          "run": "sxml xpath --context-item=order.xml '//line[price > 3]/item/string()'"
+        },
+        {
+          "run": "sxml xpath --context-item=order.xml '//item => string-join(\", \")'"
+        }
+      ]
+    },
+    {
+      "id": "xquery",
+      "name": "XQuery",
+      "summary": "An XQuery 4.0 FLWOR expression multiplies each line's quantity and price as `xs:decimal`, sorts the lines by amount and builds a new document from them.",
+      "files": [
+        "receipt.xq"
+      ],
+      "commands": [
+        {
+          "run": "sxml xquery --context-item=order.xml receipt.xq -o receipt.xml --force",
+          "show": "sxml xquery --context-item=order.xml receipt.xq -o receipt.xml"
+        },
+        {
+          "run": "sxml serialize --indent receipt.xml",
+          "lang": "xml"
+        }
+      ]
+    },
+    {
+      "id": "xslt",
+      "name": "XSLT",
+      "summary": "An XSLT 4.0 stylesheet matches the receipt's elements with template rules and writes an HTML table. `format-number` formats the amounts and their sum.",
+      "files": [
+        "receipt.xsl"
+      ],
+      "commands": [
+        {
+          "run": "sxml transform receipt.xsl receipt.xml",
+          "lang": "html",
+          "render": true
+        }
+      ]
+    }
+  ]
+}

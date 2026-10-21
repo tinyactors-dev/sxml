@@ -55,3 +55,16 @@
 .VPNavBarMenuLink{font-weight:500}
 .VPFooter{border-top:1px solid var(--border-1)!important;background:var(--bg-app)!important}
 .VPFooter a{color:var(--fg-1);text-decoration:underline;text-underline-offset:2px}
+
+/* Highlighted code of the pipeline (Shiki's CSS-variables theme): graphite
+   ink, pine for keywords and tags, ochre for strings. */
+:root{
+  --code-foreground:var(--code-fg);--code-background:transparent;
+  --code-token-keyword:var(--accent-fg);--code-token-function:#3E5F70;--code-token-constant:#3E5F70;
+  --code-token-string:#94650F;--code-token-string-expression:#94650F;--code-token-comment:var(--code-muted);
+  --code-token-parameter:var(--fg-1);--code-token-punctuation:var(--fg-3);--code-token-link:var(--accent-fg);
+}
+.dark{
+  --code-token-function:#9DB6C3;--code-token-constant:#9DB6C3;
+  --code-token-string:#D8A64E;--code-token-string-expression:#D8A64E;
+}

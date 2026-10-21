@@ -1,0 +1,1 @@
+bad.xml:1:14: cvc-datatype-valid.1.2.1: element 'quantity' has the value '0', which is not valid for type 'xs:positiveInteger'

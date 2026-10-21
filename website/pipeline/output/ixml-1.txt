@@ -1,0 +1,17 @@
+<order>
+  <line>
+    <quantity>2</quantity>
+    <item>tea</item>
+    <price>3.50</price>
+  </line>
+  <line>
+    <quantity>1</quantity>
+    <item>coffee</item>
+    <price>4.20</price>
+  </line>
+  <line>
+    <quantity>3</quantity>
+    <item>scone</item>
+    <price>2.10</price>
+  </line>
+</order>

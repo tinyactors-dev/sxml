@@ -1,0 +1,14 @@
+{
+  "name": "ixml",
+  "scopeName": "source.ixml",
+  "patterns": [
+    { "name": "comment.block.ixml", "begin": "\\{", "end": "\\}" },
+    { "name": "string.quoted.double.ixml", "match": "\"[^\"]*\"" },
+    { "name": "string.quoted.single.ixml", "match": "'[^']*'" },
+    { "name": "constant.character.ixml", "match": "#[0-9a-fA-F]+" },
+    { "match": "^\\s*([-@^]?)([A-Za-z_][\\w.-]*)\\s*(?=[:=])", "captures": { "1": { "name": "keyword.operator.mark.ixml" }, "2": { "name": "entity.name.function.rule.ixml" } } },
+    { "name": "keyword.operator.mark.ixml", "match": "[-@^](?=[\\w\"'#\\[])" },
+    { "name": "keyword.operator.repeat.ixml", "match": "[+*?]" },
+    { "name": "punctuation.separator.ixml", "match": "[:=;|,.\\[\\]()]" }
+  ]
+}
