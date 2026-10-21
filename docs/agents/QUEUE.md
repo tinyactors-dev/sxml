@@ -37,10 +37,10 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 
 ## Next
 
-- book-6..book-12 done (the Latch story). The owner (2026-10-21): no door
-  locks — re-theme to a feature-flag service. book-14: the new story, seed
-  data and rename table; then book-15..book-21 update the chapters; then
-  book-13 integrates.
+- book-14 done (D301): the Vane story (a feature-flag service), seed data,
+  rename table. book-15..book-20 running on the shared release build at
+  1a372bd; book-21 (traces, formats, JavaScript, performance) starts after
+  fix-3; then book-13 integrates.
 - fix-2 done: invalid identity-constraint fields are validation errors
   (XSD 3.11.4 cl. 4); global xsl:param values coerced to `as` (XTTE0590).
   For the chapter packets: xsd-typed-data.md can use typed params again,
