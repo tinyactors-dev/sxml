@@ -72,6 +72,9 @@ you implement or use.
 - Do not stage files for later (`git add`, `git mv`) in the shared index:
   someone else's index commit takes them. Rename with `git mv` and commit
   it in the same command (`git mv OLD NEW && git commit -m ... -- OLD NEW`).
+- Never move the shared branch back (`git reset`, `git commit --amend`,
+  `git rebase -i` of pushed commits): another agent's commit may be on
+  top. A commit that took something by mistake stays; report it.
 - **Never commit a shared ledger (DECISIONS, GLOSSARY, LOG, QUEUE, task
   files) by pathspec**: that takes everyone's uncommitted text with it,
   which has happened several times.
