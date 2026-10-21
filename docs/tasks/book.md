@@ -951,13 +951,18 @@ the files it adds; book-13 runs after all of them.
 | book-10 SVG | svg.md, svg-layout.md, svg-xquery.md, svg-xslt.md, svg-transform.md (new) | svg/: layout.xq, draw.xqm, draw.xq, layout.xsl, draw.xsl, dark.xsl, highlight.xsl, …; may regenerate diagram.svg | none | commit draw.xqm first |
 | book-11 Call chains | call-chains.md, call-chains-graph.md, call-chains-diff.md (new), source-code.md (one sentence) | call-chains/: graph.xqm, graph.xq, chains.xq, diff.xq, report.xsl, draw.xqm symlink | none | the drawing after book-10's draw.xqm |
 | book-12 Traces, formats, JavaScript, performance | traces.md, traces-tree.md, traces-cardinality.md, traces-diff.md, traces-rendering.md, traces-streaming.md (new; xslt-streaming.md removed), formats.md, javascript.md, performance.md | traces/: trace.xqm, *.xq, *.xsl, make-traces.xq, spans.csv, status.html, draw.xqm symlink; javascript/* (symlinks to before.json and latch.xml) | examples/xslt-streaming, examples/formats, examples/performance, docs/book/src/xslt-streaming.md | rendering after book-10's draw.xqm |
-| book-13 Integration (after all) | SUMMARY.md (section 4), appendix-cli.md (after cli-3), introduction.md (the Latch story, the projects, one directory per project), foreword.md (if needed), appendix-glossary.md (terms the packets report), appendix-differences.md, every "Chapter N" text, codegen*.md references only | removes orphaned example directories | — | after book-6 to book-12 |
+| book-13 Integration (after all), done | SUMMARY.md (section 4), appendix-cli.md (after cli-3), introduction.md (the Latch story, the projects, one directory per project), foreword.md (if needed), appendix-glossary.md (terms the packets report), appendix-differences.md, every "Chapter N" text, codegen*.md references only | removes orphaned example directories | — | after book-6 to book-12 |
 
 **book-13 done when**: `tools/check-book-examples.sh` on a release build
 of HEAD passes for the whole book (with SXML_JAVASCRIPT for Chapters 16
 and 18's Node section), `mdbook build docs/book` succeeds with no
 missing file, `grep -rn "Chapter [0-9]" docs/book/src` shows only
 correct numbers, and no example directory is unused.
+
+book-13 is done (2026-10-21, on the Vane story): the whole book, 882
+examples, matches on the release build of HEAD with SXML_JAVASCRIPT and
+SXML set; `mdbook build docs/book` succeeds and every internal link
+resolves; no "Chapter N" text is left; every example directory is used.
 
 Every rewrite packet is **done when** its chapter files pass the check on
 a release build of HEAD, it deleted the directories it replaces, and its

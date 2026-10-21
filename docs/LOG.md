@@ -4,6 +4,19 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- book-13 done: the rewritten book is integrated. SUMMARY.md is the
+  plan's (18 chapters, seven projects: the spec editing and publishing
+  projects, SVG, SCXML, call chains, traces, codegen); the introduction
+  tells the Vane story and how the five projects connect; the XSLT part
+  ends with a summary again (in xslt-project.md); the CLI appendix has
+  --code-language, --indent and the typed --param; the glossary gains
+  49 terms. All 882 examples match (release build of 8f07578, wasm
+  package built from HEAD), mdbook builds, links resolve, no "Chapter
+  N", no stray `echo $?`, no unused example directory. Found: the
+  XTTE0590 message cites XSLT 4.0 section 9.3, but the Editor's Draft
+  of 20 October 2026 defines it in 9.2.1 (The Required Type of a
+  Parameter); 9.5 is Global Variables and Parameters.
+
 - book-21 done: Project: Comparing Traces Before and After a Change
   (six traces*.md), JSON, CSV and HTML, sxml in JavaScript and
   Performance and Memory on the Vane story, 93 examples matching on the
