@@ -82,6 +82,10 @@ you implement or use.
 - Commit and push at every working milestone, not only at the end:
   sessions get interrupted. Push with `git push origin main`; if it is
   rejected, `git pull --rebase --autostash origin main` and push again.
+  Finish a rebase you start in the same command sequence: a rebase left
+  half-done in the shared tree blocks every agent and hides others'
+  uncommitted files in its autostash. If you find one, tell the
+  orchestrator instead of continuing or aborting it.
 
 ## Final report
 
