@@ -4,6 +4,12 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- book-20 done: the call-chains project (call-chains.md,
+  call-chains-graph.md, call-chains-diff.md, source-code.md's last
+  sentence) on the Vane story; kinds/lock.ts is kinds/flag.ts (class
+  Flag). The report still ends with flags.listFlags > registry:
+  1 -> 1 + n. 61 examples match.
+
 - book-19 done: the SVG project (svg.md, svg-layout.md, svg-xquery.md,
   svg-xslt.md, svg-transform.md) on the Vane story. states.xml draws
   four flag states (stable, checking, rolling-out, archived),
