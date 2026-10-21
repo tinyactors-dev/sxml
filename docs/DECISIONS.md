@@ -14239,6 +14239,40 @@ packets must not reopen.
   plan states (lock-service to lock-registry 1 -> 5 on GET /doors, a new
   audit-service, no door-cache).
 
+### D300. Record matching, optional fields and map:keys-where follow the 2026-10-20 drafts (packet fix-1)
+Recorded 2026-10-21, after D7, D226. The book packets reported three
+bugs: `{ } instance of record(*)` and `{"a": 1} instance of record(a)`
+are false (treat as raises XPDY0050), `record(a, b?)` and
+`b? as xs:boolean` are XPST0003, and map:keys-where is XPST0017. All
+three are what the editor's drafts of 2026-10-20 and the pinned QT4
+suite say, so the library keeps them; later packets do not reopen them.
+- **Matching** (XPath 4.0, 3.2.10.1): "A record R matches a structural
+  record type T" when R has an entry of the field's type for every
+  field and as many entries as T has fields; `record(*)` "matches any
+  record: that is, any map with a type annotation identifying it as a
+  record". A plain map is no record; coercion (3.4.2: `let $x as
+  record(...)`, arguments, results, `xsl:variable as`) makes one, filling
+  emptiable fields. So instance of, treat as and typeswitch need a value
+  that was coerced; RecordType-001a, -105 and -106 assert false for
+  plain maps.
+- **No optional or extensible fields**: `FieldDeclaration ::= FieldName
+  ("as" SequenceType)?`; a field whose type allows the empty sequence
+  may be absent before coercion. RecordType-007 and -012 to -014 expect
+  XPST0003.
+- **No map:keys-where**: F&O 4.0, 14.4 lists no such function, and
+  map:keys takes only the map; no QT4 or XT40 case names it.
+- **XT40's record set lags**: record-003 and -005 (changed 2026-04,
+  before PR 2566) coerce a three-field record to a two-field type,
+  which QT4's RecordType-016 (2026-07) makes XPTY0004; they stay failed.
+- **Measured** (release, HEAD 6ed649a, no library change): QT4 XP40/XQ40
+  prod-RecordType 17/23 (6 not run) and 23/23, ButWithExpr 26/26,
+  NamedRecordTypeDecl -/90 (the 4 failures are the module-path cases of
+  D226), CastExpr.composite and CastableExpr.composite 67/67,
+  misc-Subtyping -/118 (41 not run); XT40 record 40/47, unchanged.
+  Tests pin it: evaluator_test record_types_match_records, xquery_test
+  typeswitch-record, FunctionDecl-record and map-keys-where, three
+  syntax cases in xpath_static_test.
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): tagging and
