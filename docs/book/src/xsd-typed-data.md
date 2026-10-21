@@ -366,7 +366,8 @@ failed attempts:
   variable's type, `document-node(schema-element(sc:scxml))`, says that
   it must be a validated machine.
 - `match="schema-element(sc:scxml)"` matches by declaration, not only
-  by name.
+  by name; `match="element(*, sc:state)"` would match every element
+  whose type is `sc:state` or derived from it, whatever its name.
 - `xsl:validation="strict"` on `latch:status` validates the new
   element against its declaration as it is made: its facets, and its
   assertion.

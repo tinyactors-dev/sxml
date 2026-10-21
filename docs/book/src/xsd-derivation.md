@@ -120,6 +120,19 @@ $ sxml xquery --method=adaptive --context-item=xsd-worksheet.xml --expression='
 "req-7"
 ```
 
+A type can be *abstract* too. `abstract="true"` on a complex type
+means that no element may have that type itself, only a type derived
+from it; it is a type that exists to be derived from. Made abstract,
+`requirement` can no longer be named in `xsi:type`, while
+`changed-requirement` still can:
+
+```console
+$ sed 's/<xs:complexType name="requirement" mixed="true">/<xs:complexType name="requirement" mixed="true" abstract="true">/' \
+    xsd-derivation.xsd > abstract.xsd
+$ sxml validate --schema=abstract.xsd xsd-worksheet.xml
+xsd-worksheet.xml:2:3: cvc-type.2: the type of element 't' is abstract: type 'requirement'
+```
+
 ## Substitution groups
 
 `xsi:type` keeps one element name and varies the type. A *substitution
