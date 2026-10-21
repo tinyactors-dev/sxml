@@ -11,10 +11,11 @@ function* archive(count) {
     let text = '';
     for (let trace = start; trace < start + 1000 && trace <= count; trace += 1) {
       const query = 5 + ((trace * 7919) % 61);
-      text += `<trace id="${trace}" route="GET /flags">`
-        + `<span service="flag-service" kind="server" duration="${query + 12}">`
-        + `<span service="flag-registry" kind="client" duration="${query}" peer="postgresql"/>`
-        + '</span></trace>';
+      text += `<trace id="${trace}" route="GET /api/getFlags">`
+        + `<span service="storefront" kind="client" duration="${query + 12}" peer="vane">`
+        + `<span service="vane" kind="server" duration="${query + 10}">`
+        + `<span service="vane" kind="client" duration="${query}" peer="postgresql" db="postgresql"/>`
+        + '</span></span></trace>';
     }
     yield text;
   }

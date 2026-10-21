@@ -63,13 +63,16 @@ parsed by `JSON.parse`, as a variable:
 
 ```console
 $ node languages.mjs
-[{"service":"api-gateway","spans":4},{"service":"flag-service","spans":6},{"service":"flag-registry","spans":6}]
+[{"service":"storefront","spans":1},{"service":"vane","spans":12},{"service":"vane-console","spans":1}]
 Flag States: 2 MUST
 Rollout: 1 MUST
 Status: 1 MUST
 Pause: 1 MUST
 invalid [ 'cvc-enumeration-valid' ]
 ```
+
+The Vane service recorded twelve of the fourteen spans; the backend SDK
+in the storefront and the console recorded one each, their calls to it.
 
 `transform` also takes an initial mode or template, stylesheet
 parameters, and returns the result documents of `xsl:result-document`.
@@ -93,7 +96,7 @@ memory. Failures throw an `SxmlError` with the error code and location:
 
 ```console
 $ node resources.mjs
-[ '"api-gateway"', '"flag-service"', '"flag-registry"' ]
+[ '"storefront"', '"vane"', '"vane-console"' ]
 err:FOUT1170 1 1
 ```
 
