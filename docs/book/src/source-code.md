@@ -492,4 +492,5 @@ language files (`tree-sitter-rust.wasm`, from `tree-sitter build
 
 [Project: A Diff of Call Chains](call-chains.md) puts these pieces
 together on a whole program: it builds a call graph from the trees of
-every file of a TypeScript service and compares two versions of it.
+every file of a feature-flag service written in TypeScript and
+compares two versions of it.

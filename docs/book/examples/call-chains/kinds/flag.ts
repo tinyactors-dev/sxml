@@ -1,17 +1,17 @@
 // Three kinds of functions: methods, an arrow function assigned to a
 // const, and an arrow function passed as an argument.
-class Lock {
-  open(code: string): boolean {
-    return this.check(code) && log("open");
+class Flag {
+  evaluate(user: string): boolean {
+    return this.check(user) && log("evaluate");
   }
 
-  check(code: string): boolean {
-    return /^[0-9]{6}$/.test(code);
+  check(user: string): boolean {
+    return /^beta-/.test(user);
   }
 }
 
-const openAll = (locks: Lock[], code: string): boolean[] =>
-  locks.map((lock) => lock.open(code));
+const evaluateAll = (flags: Flag[], user: string): boolean[] =>
+  flags.map((flag) => flag.evaluate(user));
 
 function log(text: string): boolean {
   console.log(text);

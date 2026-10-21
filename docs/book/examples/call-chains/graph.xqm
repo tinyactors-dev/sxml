@@ -72,8 +72,8 @@ declare function graph:locals($function as element()) as xs:string* {
   $function//for_in_statement/identifier[@field = "left"]
 };
 
-(: The name a callee starts with: registry in registry.getDoor, door in
-   door.codes.includes, this in this.check; empty when it starts with a
+(: The name a callee starts with: registry in registry.getFlag, flag in
+   flag.owners.includes, this in this.check; empty when it starts with a
    value, as new Date().toISOString does. :)
 declare function graph:root($callee as element()) as element()? {
   if ($callee instance of element(member_expression))

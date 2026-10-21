@@ -24,7 +24,7 @@ and are not part of it:
 ```
 
 The test `not(@to = $chain/@from)` keeps a chain from going through a
-function twice. The lock service has no cycles, but a program with a
+function twice. The flag service has no cycles, but a program with a
 function that calls itself, or two that call each other, would
 otherwise have chains without end.
 
@@ -62,24 +62,24 @@ with a star after a function called in a loop:
 
 ```console
 $ sxml xquery --allow-file-access --param=directory=before chains.xq
-server.start > server.route > doors.listDoors > registry.getDoors > http.request
-server.start > server.route > doors.listDoors > doors.summarize
-server.start > server.route > doors.unlockDoor > cache.getDoor
-server.start > server.route > doors.unlockDoor > registry.getDoor > http.request
-server.start > server.route > doors.unlockDoor > doors.codeMatches
-server.start > server.route > doors.unlockDoor > registry.setState > http.request
+server.start > server.route > flags.listFlags > registry.getFlags > http.request
+server.start > server.route > flags.listFlags > flags.summarize
+server.start > server.route > flags.killFlag > cache.getFlag
+server.start > server.route > flags.killFlag > registry.getFlag > http.request
+server.start > server.route > flags.killFlag > flags.isOwner
+server.start > server.route > flags.killFlag > registry.setPercentage > http.request
 $ sxml xquery --allow-file-access --param=directory=after chains.xq
-server.start > server.route > doors.listDoors > registry.getDoorIds > http.request
-server.start > server.route > doors.listDoors > registry.getDoor* > http.request
-server.start > server.route > doors.listDoors > doors.summarize
-server.start > server.route > doors.unlockDoor > registry.getDoor > http.request
-server.start > server.route > doors.unlockDoor > doors.codeMatches
-server.start > server.route > doors.unlockDoor > registry.setState > http.request
-server.start > server.route > doors.unlockDoor > audit.record > http.request
+server.start > server.route > flags.listFlags > registry.getFlagKeys > http.request
+server.start > server.route > flags.listFlags > registry.getFlag* > http.request
+server.start > server.route > flags.listFlags > flags.summarize
+server.start > server.route > flags.killFlag > registry.getFlag > http.request
+server.start > server.route > flags.killFlag > flags.isOwner
+server.start > server.route > flags.killFlag > registry.setPercentage > http.request
+server.start > server.route > flags.killFlag > audit.record > http.request
 ```
 
 Six chains before, seven after. Every chain that reaches the network
-ends in `http.request`, and `cache.getDoor`, which calls Redis through a
+ends in `http.request`, and `cache.getFlag`, which calls Redis through a
 client of its own, was a chain of its own.
 
 ## Chains with recursion
@@ -168,25 +168,25 @@ The calls that changed:
 $ sxml xpath --context-item=diff.xml '/diff/call[@change] ! `{@change}: {@from} > {@to}{if (@repeated) then " (in a loop)" else ""}`'
 "added: audit.record > JSON.stringify"
 "added: audit.record > http.request"
-"removed: cache.getDoor > JSON.parse"
-"removed: cache.getDoor > client.get"
-"added: doors.listDoors > registry.getDoor (in a loop)"
-"added: doors.listDoors > registry.getDoorIds"
-"removed: doors.listDoors > registry.getDoors"
-"added: doors.unlockDoor > audit.record"
-"removed: doors.unlockDoor > cache.getDoor"
-"added: registry.getDoorIds > http.request"
-"removed: registry.getDoors > http.request"
+"removed: cache.getFlag > JSON.parse"
+"removed: cache.getFlag > client.get"
+"added: flags.killFlag > audit.record"
+"removed: flags.killFlag > cache.getFlag"
+"added: flags.listFlags > registry.getFlag (in a loop)"
+"added: flags.listFlags > registry.getFlagKeys"
+"removed: flags.listFlags > registry.getFlags"
+"added: registry.getFlagKeys > http.request"
+"removed: registry.getFlags > http.request"
 ```
 
-`doors.listDoors > registry.getDoor` is `added`, not `changed`: before
-the change, `listDoors` did not call `getDoor` at all.
+`flags.listFlags > registry.getFlag` is `added`, not `changed`: before
+the change, `listFlags` did not call `getFlag` at all.
 
 ## How often a module is called
 
 The question a reviewer asks of this change is how much more work a
 request makes, and that is a question about modules: `registry.ts`
-talks to the lock registry, `audit.ts` to the audit service, `cache.ts`
+talks to the flag registry, `audit.ts` to the audit service, `cache.ts`
 to Redis. For each function of both versions and each other module it
 calls, `local:modules` counts the calls before and after. A call in a
 loop counts as *n*, once per iteration:
@@ -202,13 +202,13 @@ result is the end of `diff.xml`:
 
 ```console
 $ sxml xpath --context-item=diff.xml '/diff/module ! `{@from} > {@name}: {@old} -> {@new}`'
-"doors.listDoors > registry: 1 -> 1 + n"
-"doors.unlockDoor > audit: 0 -> 1"
-"doors.unlockDoor > cache: 1 -> 0"
+"flags.listFlags > registry: 1 -> 1 + n"
+"flags.killFlag > audit: 0 -> 1"
+"flags.killFlag > cache: 1 -> 0"
 ```
 
-That is the prediction: listing the doors calls the registry once more
-for each door, unlocking a door calls the audit service once and the
+That is the prediction: listing the flags calls the registry once more
+for each flag, and the kill switch calls the audit service once and the
 cache no more.
 
 ## A text report
@@ -224,40 +224,40 @@ reads `diff.xml` as its context item and only formats:
 $ sxml xquery --context-item=diff.xml report.xq
 functions added:
   audit.record
-  registry.getDoorIds
+  registry.getFlagKeys
 
 functions removed:
-  cache.getDoor
-  registry.getDoors
+  cache.getFlag
+  registry.getFlags
 
 calls added:
   audit.record > JSON.stringify
   audit.record > http.request
-  doors.listDoors > registry.getDoor (in a loop)
-  doors.listDoors > registry.getDoorIds
-  doors.unlockDoor > audit.record
-  registry.getDoorIds > http.request
+  flags.killFlag > audit.record
+  flags.listFlags > registry.getFlag (in a loop)
+  flags.listFlags > registry.getFlagKeys
+  registry.getFlagKeys > http.request
 
 calls removed:
-  cache.getDoor > JSON.parse
-  cache.getDoor > client.get
-  doors.listDoors > registry.getDoors
-  doors.unlockDoor > cache.getDoor
-  registry.getDoors > http.request
+  cache.getFlag > JSON.parse
+  cache.getFlag > client.get
+  flags.killFlag > cache.getFlag
+  flags.listFlags > registry.getFlags
+  registry.getFlags > http.request
 
 chains added:
-  server.start > server.route > doors.listDoors > registry.getDoor* > http.request
-  server.start > server.route > doors.listDoors > registry.getDoorIds > http.request
-  server.start > server.route > doors.unlockDoor > audit.record > http.request
+  server.start > server.route > flags.killFlag > audit.record > http.request
+  server.start > server.route > flags.listFlags > registry.getFlag* > http.request
+  server.start > server.route > flags.listFlags > registry.getFlagKeys > http.request
 
 chains removed:
-  server.start > server.route > doors.listDoors > registry.getDoors > http.request
-  server.start > server.route > doors.unlockDoor > cache.getDoor
+  server.start > server.route > flags.killFlag > cache.getFlag
+  server.start > server.route > flags.listFlags > registry.getFlags > http.request
 
 Calls to other modules, before and after:
-  doors.listDoors > registry: 1 -> 1 + n
-  doors.unlockDoor > audit: 0 -> 1
-  doors.unlockDoor > cache: 1 -> 0
+  flags.listFlags > registry: 1 -> 1 + n
+  flags.killFlag > audit: 0 -> 1
+  flags.killFlag > cache: 1 -> 0
 ```
 
 ## An HTML report
@@ -288,19 +288,19 @@ $ sed -n '/Calls to other modules/,/<\/table>/p' report.html
         <th>after</th>
       </tr>
       <tr>
-        <td><code>doors.listDoors</code></td>
+        <td><code>flags.listFlags</code></td>
         <td><code>registry</code></td>
         <td>1</td>
         <td>1 + n</td>
       </tr>
       <tr>
-        <td><code>doors.unlockDoor</code></td>
+        <td><code>flags.killFlag</code></td>
         <td><code>audit</code></td>
         <td>0</td>
         <td>1</td>
       </tr>
       <tr>
-        <td><code>doors.unlockDoor</code></td>
+        <td><code>flags.killFlag</code></td>
         <td><code>cache</code></td>
         <td>1</td>
         <td>0</td>
@@ -335,17 +335,17 @@ $ sxml xquery --context-item=diff.xml diagram.xq --output=diagram.xml
 $ sxml xquery --context-item=diagram.xml draw.xq --output=calls.svg
 $ sxml xpath --context-item=calls.svg '//*:g[tokenize(@class) = ("added", "removed", "changed")] ! `{@class}: {@id}`'
 "edge added: edge-audit.record-http.request"
-"edge added: edge-doors.listDoors-registry.getDoor"
-"edge added: edge-doors.listDoors-registry.getDoorIds"
-"edge removed: edge-doors.listDoors-registry.getDoors"
-"edge added: edge-doors.unlockDoor-audit.record"
-"edge removed: edge-doors.unlockDoor-cache.getDoor"
-"edge added: edge-registry.getDoorIds-http.request"
-"edge removed: edge-registry.getDoors-http.request"
-"node service added: node-registry.getDoorIds"
-"node service removed: node-registry.getDoors"
+"edge added: edge-flags.killFlag-audit.record"
+"edge removed: edge-flags.killFlag-cache.getFlag"
+"edge added: edge-flags.listFlags-registry.getFlag"
+"edge added: edge-flags.listFlags-registry.getFlagKeys"
+"edge removed: edge-flags.listFlags-registry.getFlags"
+"edge added: edge-registry.getFlagKeys-http.request"
+"edge removed: edge-registry.getFlags-http.request"
 "node service added: node-audit.record"
-"node service removed: node-cache.getDoor"
+"node service removed: node-cache.getFlag"
+"node service added: node-registry.getFlagKeys"
+"node service removed: node-registry.getFlags"
 ```
 
 The added functions and calls are drawn green and thick, the removed
@@ -356,24 +356,26 @@ the drawing are the boxes with the same `y`:
 $ sxml xpath --context-item=calls.svg 'for $y in distinct-values(//*:rect/@y) return `{$y}: {string-join(//*:g[*:rect/@y = $y]/*:text, ", ")}`'
 "20: server.start"
 "120: server.route"
-"220: doors.listDoors, doors.unlockDoor"
-"320: doors.summarize, registry.getDoor, registry.getDoorIds, registry.getDoors, audit.record, cache.getDoor, doors.codeMatches, registry.setState"
+"220: flags.killFlag, flags.listFlags"
+"320: audit.record, cache.getFlag, flags.isOwner, registry.getFlag, registry.setPercentage, flags.summarize, registry.getFlagKeys, registry.getFlags"
 "420: http.request"
 ```
 
 The entry, the router, the two request handlers, the functions they
 call, and the HTTP client at the bottom, where every call to another
-service goes through. Before and after are one picture: the old
-`getDoors` and the new `getDoorIds` and `getDoor` side by side in the
-fourth row.
+service goes through. Before and after are one picture: in the fourth
+row the new `audit.record` stands beside the old `cache.getFlag`, and
+the new `getFlagKeys` beside the old `getFlags`, with `getFlag` among
+the functions both versions call.
 
 ## What the traces will say
 
-The diff predicts, from the code alone, that `GET /doors` makes one
-call to the lock registry and then one per door, that unlocking a door
+The diff predicts, from the code alone, that `GET /flags` makes one
+call to the flag registry and then one per flag, that killing a flag
 calls the audit service once, and that it no longer reads the cache.
-It cannot say how many doors there are, how long each call takes, or
+It cannot say how many flags there are, how long each call takes, or
 whether the audit service calls a database of its own. [Project:
 Comparing Traces Before and After a Change](traces.md) answers those
-from traces recorded by the running service, and with four doors, one
-call to the registry becomes five.
+from traces recorded by the running service. The line they check is
+`flags.listFlags > registry: 1 -> 1 + n`, and with four flags, one call
+to the registry becomes five.

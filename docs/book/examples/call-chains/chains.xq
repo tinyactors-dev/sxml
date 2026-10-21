@@ -1,5 +1,5 @@
 (: The call chains of the TypeScript files in a directory, one per line:
-   one version of the lock service, before or after. The chains are made
+   one version of the flag service, before or after. The chains are made
    with a worklist, or with --param=method=recursive by recursion. :)
 import module namespace graph = "urn:example:graph" at "graph.xqm";
 
