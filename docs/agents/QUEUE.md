@@ -37,9 +37,8 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 
 ## Next
 
-- book-14 done (D301); book-15..book-20 done (Vane). book-21 (traces,
-  formats, JavaScript, performance) running on the shared build at
-  8f07578; then book-13 integrates. For book-13: a separate `$ echo $?`
+- book-14..book-21 done (the book on Vane). book-13 (integration: SUMMARY,
+  introduction, appendices, glossary, whole-book check) running. For book-13: a separate `$ echo $?`
   line always prints 0 (each command runs in a fresh shell); join it to its
   command (book-17 fixed its chapters).
 - fix-2 done: invalid identity-constraint fields are validation errors
