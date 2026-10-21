@@ -1,0 +1,15 @@
+<rfc version="2">
+  <front>
+    <author fullname="Ada Byron" surname="Byron"/>
+    <title>Latch in Brief</title>
+    <date year="2026">October</date>
+    See the mailing list.
+  </front>
+  <middle>
+    <section>
+      <name>Introduction</name>
+      <t keyword="MUST">A lock <bcp14>MUST</bcp14> lock.</t>
+      <name>Again</name>
+    </section>
+  </middle>
+</rfc>

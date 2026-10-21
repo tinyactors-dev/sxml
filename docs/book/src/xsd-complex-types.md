@@ -1,31 +1,11 @@
 # Complex Types and Content Models
 
-<!-- examples: xsd -->
+<!-- examples: spec -->
 
 A *complex type* describes an element that has attributes, children,
 or both. Its *content model* says which children it may have, how
-many, and in which order. This section builds a schema for the
-library's events, and uses every kind of content XSD has.
-
-## The schema
-
-`events.xsd`:
-
-```xml
-{{#include ../examples/xsd/events.xsd}}
-```
-
-And a document it describes:
-
-`events.xml`:
-
-```xml
-{{#include ../examples/xsd/events.xml}}
-```
-
-```console
-$ sxml validate --schema=events.xsd events.xml
-```
+many, and in which order. This section reads the rest of `latch.xsd`
+from the top, and finds every kind of content XSD has in the draft.
 
 ## Elements and their declarations
 
@@ -33,98 +13,167 @@ $ sxml validate --schema=events.xsd events.xml
 declared directly in `xs:schema` is *global*: it can be the document
 element, and other declarations can refer to it with `ref`. The others
 are *local*: they exist only inside the content model where they are
-declared. In `events.xsd`, `events` is global and everything else is
-local.
+declared. In `latch.xsd`, `rfc` is the only global element, and every
+other element is local.
 
-A type can be *named*, with `xs:complexType name="event"` at the top
-level, and used by name, `type="event"`; or *anonymous*, written inside
-the element declaration, as for `events`. Name a type when it's used in
-more than one place, or when you want to refer to it from XQuery or
-XSLT.
+A type can be *named*, with `xs:complexType name="section"` at the top
+level, and used by name, `type="section"`; or *anonymous*, written
+inside the element declaration, as for `rfc` and `middle`. Name a type
+when it's used in more than one place, or when you want to refer to it
+from XQuery or XSLT. `latch.xsd` names most of its types: `front` is
+used by the draft and by every reference, `text` by every paragraph,
+`dt` and `dd`, and `section` by sections at every depth.
+
+Local declarations can give the same name different types in different
+places. `t` in a section has the type `text`; `name` in a section is a
+plain string; and `front` declares its own `title`, which is not the
+`title` of anything else.
 
 ## Sequences, choices and all
 
+Here are the front matter and the section:
+
+```xml
+{{#include ../examples/spec/latch.xsd:108:121}}
+```
+
+```xml
+{{#include ../examples/spec/latch.xsd:167:183}}
+```
+
 Three *model groups* combine the children:
 
-- `xs:sequence`: the children in this order. An event has a title, then
-  its dates, then the rest.
-- `xs:choice`: exactly one of the alternatives. An event has a `date`,
-  or a `from` and an `until`; the second alternative is itself a
-  sequence. Groups nest freely.
-- `xs:all`: each child at most once, in any order. A contact's email
-  and phone can come in either order, as the first event shows.
+- `xs:sequence`: the children in this order. The front matter has a
+  title, then the series information, the authors, the date, and the
+  rest.
+- `xs:choice`: exactly one of the alternatives, each time the choice
+  occurs. After its `name`, a section has any number of blocks, each a
+  paragraph, a definition list or source code, in any order; then its
+  subsections. Groups nest freely, so a choice inside a sequence is
+  common.
+- `xs:all`: each child at most once, in any order. `latch.xsd` has
+  none, but xml2rfc's address is a good use: an email, a phone number
+  and a web address, in whatever order the author wrote them.
 
 `minOccurs` and `maxOccurs` on an element or a group say how often it
 may occur. Both are 1 by default; `minOccurs="0"` makes it optional, and
-`maxOccurs="unbounded"` removes the upper limit. An event can have up to
-three speakers.
+`maxOccurs="unbounded"` removes the upper limit. A draft has one or more
+authors and zero or more keywords; on the section's choice, the two
+attributes let the choice repeat.
+
+`xsd-author.xsd` describes an author with a fuller address:
+
+`xsd-author.xsd`:
+
+```xml
+{{#include ../examples/spec/xsd-author.xsd}}
+```
+
+The address may list its children in any order, but each only once:
+
+```console
+$ echo '<author fullname="Ada Byron" surname="Byron"><address><uri>https://example.com/</uri><email>ada@example.com</email></address></author>' | sxml validate --schema=xsd-author.xsd -
+$ echo '<author fullname="Ada Byron" surname="Byron"><address><email>ada@example.com</email><phone>1</phone><phone>2</phone></address></author>' | sxml validate --schema=xsd-author.xsd -
+-:1:101: cvc-complex-type.2.4: element 'phone' is not allowed here; expected 'uri'
+```
 
 ## Attributes
 
 `xs:attribute` declares an attribute of a complex type, always with a
-simple type. Attributes are optional unless `use="required"`. A
+simple type. Attributes are optional unless `use="required"`: every
+section must have an `anchor`, while a paragraph may have one. A
 `default` value is added when the attribute is missing; a `fixed` value
 is added too, and an attribute that is there must have exactly that
-value.
+value. The `version` of `rfc` is fixed at 3.
 
-The default is part of the validated document. The first event has no
-`kind`, but after validation it has `talk`:
+The default is part of the validated document. A contact of
+`xsd-author.xsd` that doesn't say its role has the role `chair` after
+validation, and a draft that doesn't say its version has version 3, an
+integer:
 
 ```console
-$ sxml xquery --method=adaptive --context-item=events.xml --expression='
-    import schema default element namespace "" at "events.xsd";
-    (validate { / })//event ! string(@kind)'
-"talk"
-"workshop"
+$ sxml xquery --method=adaptive --expression='
+    import schema default element namespace "" at "xsd-author.xsd";
+    (validate { <contact fullname="Grace Hopper" surname="Hopper"/> })/@role/string()'
+"chair"
+$ sxml xquery --method=adaptive --expression='
+    import schema default element namespace "" at "latch.xsd";
+    let $draft := validate {
+      <rfc>
+        <front><title>T</title><author fullname="A B" surname="B"/><date year="2026"/></front>
+        <middle><section anchor="intro"><name>Introduction</name></section></middle>
+      </rfc>
+    }
+    return ($draft/@version/string(), type-of(data($draft/@version)))'
+"3"
+"xs:integer"
 ```
 
 ## Four kinds of content
 
-The content of a complex type is one of four kinds:
+The content of a complex type is one of four kinds, and the draft has
+all four:
 
 - **Element-only**: children, and no text except whitespace between
-  them. That's `event` and `contact`.
+  them. That's `front`, `section` and `rfc`.
 - **Mixed**: children with text between them, with `mixed="true"`.
-  That's `text`, the type of `about`, which allows `em` and `book`
+  That's `text`, the type of every paragraph, which allows the inline
   elements anywhere in its text, as often as you like.
 - **Simple**: text of a simple type, plus attributes, with
-  `xs:simpleContent`. A `fee` is a decimal with a `currency` attribute.
+  `xs:simpleContent`. A `title` is a string with an `abbrev` attribute;
+  a `sourcecode` is a string with a `type` and a `name`.
 - **Empty**: no content at all, only attributes. A complex type with no
-  model group is empty, as `cancelled` is.
+  model group is empty, as `date` and `seriesInfo` are.
+
+Here are the mixed and the simple types:
+
+```xml
+{{#include ../examples/spec/latch.xsd:65:106}}
+```
+
+`xref` and `cref` are mixed types without a model group: text, but no
+child elements. That's how xml2rfc writes them: `<xref
+target="term-lock">lock</xref>` has the text a reader sees, and
+`<xref target="RFC2119"/>` has none, so the renderer writes the
+reference's name.
 
 ## Mistakes in content
 
-This document breaks a rule of each kind:
+This draft breaks a rule of each kind:
 
-`bad-events.xml`:
+`bad-content.xml`:
 
 ```xml
-{{#include ../examples/xsd/bad-events.xml}}
+{{#include ../examples/spec/bad-content.xml}}
 ```
 
 ```console
-$ sxml validate --schema=events.xsd bad-events.xml
-bad-events.xml:2:3: cvc-complex-type.4: element 'event' lacks the required attribute 'id'
-bad-events.xml:5:5: cvc-complex-type.2.4: element 'contact' is not allowed here; expected 'until'
-bad-events.xml:7:18: cvc-complex-type.3.2.2: attribute 'room' is not allowed on element 'event'
-bad-events.xml:10:65: cvc-complex-type.2.4: element 'speaker' is not allowed here; expected 'about' or 'contact'
-bad-events.xml:16:14: cvc-complex-type.2.3: the text 'Ask at the desk.' is not allowed: element 'contact' has element-only content
-bad-events.xml:17:10: cvc-au: attribute 'currency' has the value 'USD', not its fixed value 'EUR'
-bad-events.xml:18:16: cvc-complex-type.2.1: the text 'Too few people' is not allowed: element 'cancelled' has empty content
+$ sxml validate --schema=latch.xsd bad-content.xml
+bad-content.xml:1:6: cvc-au: attribute 'version' has the value '2', not its fixed value '3'
+bad-content.xml:3:5: cvc-complex-type.2.4: element 'author' is not allowed here; expected 'title'
+bad-content.xml:4:5: cvc-complex-type.2.4: element 'title' is not allowed here; expected 'author' or 'date'
+bad-content.xml:5:23: cvc-complex-type.2.1: the text 'October' is not allowed: element 'date' has empty content
+bad-content.xml:5:37: cvc-complex-type.2.3: the text '     See the mailing list.   ' is not allowed: element 'front' has element-only content
+bad-content.xml:9:5: cvc-complex-type.4: element 'section' lacks the required attribute 'anchor'
+bad-content.xml:11:10: cvc-complex-type.3.2.2: attribute 'keyword' is not allowed on element 't'
+bad-content.xml:12:7: cvc-complex-type.2.4: element 'name' is not allowed here; expected 't', 'dl', 'sourcecode' or 'section'
 ```
 
 Read them in order:
 
-- The first event has no `id`, which is required.
-- It has a `from` without an `until`: having chosen the second
-  alternative of the choice, it must finish it.
-- The second event has an attribute that the type doesn't declare.
-  Unlike elements in some other schema languages, attributes must be
-  declared too.
-- It has four speakers, and the fourth is one too many: after three,
-  the schema expects `about` or `contact`.
-- The third event has text in an element-only `contact`, a fee in the
-  wrong currency, and text in an empty element.
+- The version is 2, not the fixed 3.
+- The author comes before the title. sxml takes the title as missing,
+  goes on after the author, and then finds the title too late.
+- The date has text, but its type is empty: the month belongs in the
+  `month` attribute.
+- The front matter has text between its elements; only whitespace is
+  allowed there.
+- The section has no anchor, which is required.
+- The paragraph has an attribute that `text` doesn't declare. Unlike
+  elements in some other schema languages, attributes must be declared
+  too.
+- The section has a second `name`, after a paragraph, where only
+  blocks and subsections may come.
 
 `cvc-complex-type.2.4` is the message you'll see most. It says which
 element came where it isn't allowed, and lists the elements that the
@@ -134,21 +183,19 @@ fix.
 ## Reusing parts of content models
 
 When several types share attributes or children, name the shared part
-once. `xs:attributeGroup` names a set of attributes, and `xs:group` a
-model group:
+once. `xs:group` names a model group, and `xs:attributeGroup` a set of
+attributes:
 
-`article.xsd`:
-
-```xml
-{{#include ../examples/xsd/article.xsd}}
-```
-
-Both `article` and `review` have the credits and the dates:
+- `latch.xsd` names the inline elements `inline`, and `text` refers to
+  the group with `<xs:group ref="inline" .../>`. A schema for more of
+  xml2rfc would refer to it from the other places that allow inline
+  text, such as list items and table cells.
+- `xsd-author.xsd` names the attributes of a person `names`, and both
+  `author` and `contact` refer to them.
 
 ```console
-$ echo '<article created="2026-10-20"><title>New books</title><author>Ada</author><editor>Grace</editor></article>' | sxml validate --schema=article.xsd -
-$ echo '<review><author>Alan</author><rating>5</rating></review>' | sxml validate --schema=article.xsd -
--:1:1: cvc-complex-type.4: element 'review' lacks the required attribute 'created'
+$ echo '<contact surname="Hopper"/>' | sxml validate --schema=xsd-author.xsd -
+-:1:1: cvc-complex-type.4: element 'contact' lacks the required attribute 'fullname'
 ```
 
 A reference to a group is the same as writing its content in that

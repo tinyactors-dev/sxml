@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- An author with more of xml2rfc's address: an xs:all, whose children
+     may come in any order, and an attribute group shared by two types. -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+
+  <!-- The names of a person, as xml2rfc writes them. -->
+  <xs:attributeGroup name="names">
+    <xs:attribute name="fullname" type="xs:string" use="required"/>
+    <xs:attribute name="initials" type="xs:string"/>
+    <xs:attribute name="surname" type="xs:string" use="required"/>
+  </xs:attributeGroup>
+
+  <xs:complexType name="address">
+    <xs:all>
+      <xs:element name="email" type="xs:string"/>
+      <xs:element name="phone" type="xs:string" minOccurs="0"/>
+      <xs:element name="uri" type="xs:anyURI" minOccurs="0"/>
+    </xs:all>
+  </xs:complexType>
+
+  <xs:element name="author">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="organization" type="xs:string" minOccurs="0"/>
+        <xs:element name="address" type="address" minOccurs="0"/>
+      </xs:sequence>
+      <xs:attributeGroup ref="names"/>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- A contact of the working group: the same names, no address. -->
+  <xs:element name="contact">
+    <xs:complexType>
+      <xs:attributeGroup ref="names"/>
+      <xs:attribute name="role" type="xs:token" default="chair"/>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>
