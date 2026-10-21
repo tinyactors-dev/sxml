@@ -661,9 +661,10 @@ sxml is released under the MIT License; see [LICENSE](LICENSE).
 - [The sxml Book](docs/book/src/SUMMARY.md): a guide to sxml and its
   languages, from installing it to XPath, XQuery, XSLT, XSD, other
   formats, and embedding it in C and JavaScript, taught on projects
-  around one made-up feature-flag service: a specification kept in
-  xml2rfc XML, SVG diagrams, a self-describing SCXML machine, a diff of
-  call chains and a diff of OpenTelemetry traces. Its examples are in
+  around one made-up feature-flag service and its two SDKs: a
+  specification kept in xml2rfc XML, SVG diagrams, a self-describing
+  SCXML machine, a diff of call chains, a diff of OpenTelemetry traces,
+  and SDK clients generated from a schema. Its examples are in
   `docs/book/examples/`, one directory per project, and
   `tools/check-book-examples.sh` re-runs them. Build it with
   `mise run book` (or `mdbook build docs/book`); `mise run book:serve`

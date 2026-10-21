@@ -1,4 +1,4 @@
-# Project: Generating Code from a Schema
+# Project: Generating Vane's SDKs from a Schema
 
 <!-- examples: codegen -->
 

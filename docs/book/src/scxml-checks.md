@@ -65,7 +65,7 @@ nobody wrote down what it means, or who sends it. `flag.archived` is
 declared but nothing handles it, sends it or raises it.
 
 `status.response` is declared and sent, but no transition waits for it:
-the service sends it to the SDK. A check that compared only
+the service sends it to the SDK that asked. A check that compared only
 declared and handled events would report it as unused, which it is
 not; counting `send` as a use is what tells an outgoing event from a
 forgotten one.

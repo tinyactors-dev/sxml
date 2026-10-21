@@ -117,5 +117,5 @@ it is in [Working with Text](text.md), with the other ways of working
 with text. Windows, the FLWOR clauses for runs of neighbouring items,
 are taught on trace data in
 [Who Calls Whom, and How Often](traces-cardinality.md), and
-[Project: Generating Code from a Schema](codegen.md) uses XQuery to
+[Project: Generating Vane's SDKs from a Schema](codegen.md) uses XQuery to
 build the tree of a TypeScript program.

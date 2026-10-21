@@ -68,7 +68,7 @@
 - [Embedding sxml in C](c.md)
 - [sxml in JavaScript](javascript.md)
 - [Performance and Memory](performance.md)
-- [Project: Generating Code from a Schema](codegen.md)
+- [Project: Generating Vane's SDKs from a Schema](codegen.md)
     - [Building a Tree of the Program with XQuery](codegen-typescript.md)
     - [Printing the Tree with XSLT](codegen-printer.md)
     - [Running the Generated Code](codegen-running.md)

@@ -7,6 +7,9 @@ declaration may appear only through its substitution group.
 **Accumulator.** In XSLT, a value that is updated as the processor moves
 through a document, by rules that match nodes. Works while streaming.
 
+**Admin API.** In Vane, the remote functions that the console calls to
+change flags: the commands `rollOutFlag` and `killFlag`.
+
 **Anchor.** In an xml2rfc document, the name of a section, paragraph,
 term or reference, given by its `anchor` attribute; `xref` refers to
 it with `target`. Anchors are names, not numbers: the renderer numbers
@@ -23,8 +26,17 @@ on. Each has a type.
 constructed element with expressions in curly braces, such as
 `href="{$page}"`.
 
+**Audit module.** The module of the Vane service that records every
+change of a flag: it writes an event to the audit log in PostgreSQL and
+posts it to the owners' webhook.
+
 **Axis.** The direction of a step in a path: `child`, `attribute`,
 `descendant`, `parent`, `ancestor`, the sibling axes and others.
+
+**Backend SDK.** In Vane, `@vane/node`, the SDK for applications on a
+server: it downloads every flag with its rules (`getFlags`), evaluates
+the flags itself, keeps them in a cache and keeps the cache current from
+the update stream.
 
 **BCP 14 key word.** One of the words of RFC 2119 and RFC 8174 that say
 how strong a requirement is: MUST, MUST NOT, REQUIRED, SHALL, SHALL
@@ -48,6 +60,10 @@ node for each function and an edge for each call.
 
 **Cardinality.** In the traces project, how many times one participant
 calls another in a request.
+
+**Client module.** In the codegen project, a generated TypeScript module
+for one caller of the API, such as the frontend SDK, with one async
+function for each remote function that caller may call.
 
 **Collation.** Rules for comparing and sorting strings, named by a URI.
 
@@ -100,6 +116,9 @@ server.
 the specifications. The same code means the same problem in every
 processor.
 
+**Evaluation API.** In Vane, the remote functions that the SDKs call to
+read flags: the queries `getFlags`, `evaluateFlags` and `getStatus`.
+
 **Executable content.** In SCXML, the actions that run on a transition
 and when a state is entered or left: `assign`, `log`, `raise`, `send`
 and others.
@@ -112,11 +131,16 @@ as `pattern`, `maxLength` or `minInclusive`.
 
 **Feature flag.** A switch in a running application that turns a
 feature on or off for some of its users without a new release. In
-Vane, the book's example system, an SDK asks the evaluation service
-whether a flag is on for a user.
+Vane, the book's example product, the backend SDK evaluates the flags
+itself, and the frontend SDK asks the Vane service whether each flag is
+on for a user.
 
 **FLWOR expression.** XQuery's expression of `for`, `let`, `where`,
 `order by`, `group by`, `count`, window clauses and `return`.
+
+**Frontend SDK.** In Vane, `@vane/browser`, the SDK for browser pages:
+it asks the Vane service whether each flag is on for the user in front
+of it (`evaluateFlags`).
 
 **Frontier.** In a breadth-first search, the nodes found in the last
 round, from which the next round goes on. The search ends when the
@@ -138,6 +162,9 @@ priorities.
 a span, such as the instrumentation for HTTP or for PostgreSQL. In OTLP,
 a resource's spans are grouped by scope.
 
+**Internal span.** A span of work inside one program, such as one
+function of a module. It is not a call, so it has no callee.
+
 **Internet-Draft.** A working document of the IETF, the body that
 publishes the RFCs. Drafts are named like
 `draft-example-vane-protocol-01`, the last part being the version, and
@@ -147,8 +174,8 @@ expire after six months.
 function (maps and arrays are functions).
 
 **Kill switch.** A way to turn a feature flag off at once for every
-user. In Vane, a request to a flag's `kill` route from one of its
-owners.
+user. In Vane, the `killFlag` command of the admin API, which the
+console sends for one of the flag's owners.
 
 **Layout.** In the SVG project, the place of each box of a diagram,
 computed from the graph: its rank gives its row, and the rows are
@@ -176,8 +203,9 @@ stand for one function of a module.
 comment, processing instruction or namespace node.
 
 **Normal form.** In the traces project, a trace file as XML: one
-`traces` element with the services and a tree of spans for each trace.
-The later queries and stylesheets work on it.
+`traces` element with a `service` element for each program that
+recorded spans and a tree of `span` elements for each trace. The later
+queries and stylesheets work on it.
 
 **Open content.** In XSD 1.1, elements that a content model does not
 name allowed among the ones it does, by a wildcard in `xs:openContent`.
@@ -185,7 +213,7 @@ name allowed among the ones it does, by a wildcard in `xs:openContent`.
 **Optional feature.** A part of the sxml library that a program opts
 into, such as HTML parsing or UCA collations.
 
-**OTLP.** The OpenTelemetry Protocol, how services send their spans to
+**OTLP.** The OpenTelemetry Protocol, how programs send their spans to
 a collector. Its JSON encoding is the format of the traces project's
 files.
 
@@ -201,7 +229,7 @@ components are private unless it makes them public.
 **Palette.** In the SVG project, a map from each colour of a drawing to
 the one that replaces it, as a dark theme does.
 
-**Participant.** In the traces project, a service or database that
+**Participant.** In the traces project, a program, database or webhook that
 takes part in a request, as the caller or the callee of a call.
 
 **Pattern.** In XSLT, a condition on a node, written like a path, that
@@ -232,8 +260,10 @@ distance, in edges, from the nodes at the top, found by a breadth-first
 search.
 
 **Remote function.** A function that runs on a server and that a
-client, such as a browser page, calls as if it were local. In this
-book's project, a *query* reads data and a *command* changes it.
+client, such as a browser page, calls as if it were local, over one
+HTTP route. Vane's API is a set of remote functions: a *query* reads
+data and goes over the network as a GET request, a *command* changes
+data and goes as a POST request.
 
 **Requirement.** In a specification, a statement that an
 implementation must, should or may do something, with a BCP 14 key
@@ -281,9 +311,10 @@ method.
 **Simple type.** In XSD, a type of text: a built-in type such as
 `xs:date`, or a restriction, list or union of others.
 
-**Span, span kind.** In tracing, one operation of a service, with a
+**Span, span kind.** In tracing, one operation of a program, with a
 name, a start, an end and a parent. Its kind says what it is: a
-*server* span handles a request, a *client* span calls something else.
+*server* span handles a request, a *client* span calls something else,
+an *internal* span is work inside the program.
 
 **State machine.** A system that is in one of a set of states at a time
 and moves between them on events, by transitions.
@@ -319,7 +350,7 @@ document declares.
 **Template rule.** In XSLT, a rule with a pattern and a body that makes
 the output for the nodes the pattern matches.
 
-**Trace.** All the spans of one request through a system of services,
+**Trace.** All the spans of one request through a system,
 which share a trace id: a tree of spans.
 
 **Typed value.** The atomic value of a node: for a validated node, of the
@@ -329,8 +360,19 @@ type its schema gives it; otherwise untyped.
 `xs:untypedAtomic`. Converted where they are used: to numbers in
 arithmetic, to strings in string comparisons.
 
+**Update stream.** In Vane, the connection an SDK holds open to the
+Vane service, on which the service sends a line whenever a flag rolls
+out or is killed, and an SDK asks for the status of a flag. The Vane
+protocol defines its messages.
+
 **Validation.** Checking a document against a schema, which also gives
 its nodes their types.
+
+**Vane.** The made-up feature-flag product of the book's projects: one
+service, `vane`, a TypeScript program on Node.js made of modules (api,
+flags, registry, cache, rollout, audit) over PostgreSQL and Redis. It
+offers an evaluation API to its two SDKs, `@vane/browser` and
+`@vane/node`, an admin API to its console, and an update stream.
 
 **viewBox.** The attribute of an `svg` element that gives the area of
 its coordinates that is drawn (left, top, width and height). Changing
