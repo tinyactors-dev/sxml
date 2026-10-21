@@ -76,3 +76,15 @@ run = "mdbook serve docs/book"
 [tasks."book:check"]
 description = "Re-run every example of the book against build/release and compare the outputs"
 run = "tools/check-book-examples.sh"
+
+[tasks.site]
+description = "Build sxml.tinyactors.dev into build/site: the landing page (website/, VitePress) and the book at /book/ (needs mdbook)"
+run = [
+    "npm ci --prefix website --no-audit --no-fund",
+    "npm run --prefix website build",
+    "mdbook build docs/book --dest-dir ../../build/site/book",
+]
+
+[tasks."site:dev"]
+description = "Serve the landing page on http://localhost:5173, rebuilt as its files change (the book is served by book:serve)"
+run = ["npm ci --prefix website --no-audit --no-fund", "npm run --prefix website dev"]

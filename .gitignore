@@ -10,3 +10,6 @@ __pycache__/
 # SwiftPM build trees and state (Package.swift, D238).
 /.build/
 /.swiftpm/
+
+# The website's npm packages (website/, mise run site).
+/website/node_modules/

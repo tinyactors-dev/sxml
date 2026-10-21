@@ -11,5 +11,12 @@ build-dir = "../../build/book"
 create-missing = false
 
 [output.html]
-git-repository-url = "https://github.com/dhamidi/sxml"
-edit-url-template = "https://github.com/dhamidi/sxml/edit/main/docs/book/{path}"
+git-repository-url = "https://github.com/tinyactors-dev/sxml"
+edit-url-template = "https://github.com/tinyactors-dev/sxml/edit/main/docs/book/{path}"
+# The book is served at https://sxml.tinyactors.dev/book/, beside the
+# website (website/, mise run site), whose look style/ follows.
+site-url = "/book/"
+default-theme = "light"
+preferred-dark-theme = "coal"
+additional-css = ["style/sxml.css"]
+additional-js = ["style/sxml.js"]

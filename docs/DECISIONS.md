@@ -14410,6 +14410,24 @@ the change table and the packets.
   book-15 to book-21: regenerate every output, read it, prose matches,
   the search words find nothing); book-29 integrates.
 
+### D304. The website: sxml.tinyactors.dev on GitHub Pages
+
+Recorded 2026-10-21, at the owner's request, after the repository moved to
+tinyactors-dev/sxml.
+
+- **The site** is a VitePress landing page in `website/` (what sxml is,
+  its design rules, streaming, conformance, where it runs) with the book
+  at `/book/`, built by mdbook beside it. `mise run site` builds both
+  into `build/site`. Every claim on the landing page is the README's
+  (Quick start, Examples, Conformance, Design); change them together.
+- **The look** is the tinyactors design system (vellum, graphite, pine;
+  Newsreader and IBM Plex, self-hosted in `website/public/fonts/`).
+  `docs/book/style/` gives the book the same colours and type.
+- **Hosting**: `.github/workflows/pages.yml` builds the site on pushes to
+  `main` that touch it and pushes it to the `gh-pages` branch, which
+  GitHub Pages serves under the custom domain in `website/public/CNAME`.
+  It runs while the CI workflow stays disabled (D123): it builds no C.
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): tagging and

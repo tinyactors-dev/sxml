@@ -1,0 +1,57 @@
+/* The tinyactors design system (tokens/colors.css, typography.css), mapped
+   onto VitePress's default theme: vellum paper, graphite ink, pine as the
+   one accent; umber stock in the dark theme. */
+:root{
+  --vellum-50:#FAF6EE;--vellum-100:#F4EEE2;--vellum-150:#EEE7D9;--vellum-200:#E7DECD;--vellum-300:#DACEB8;--vellum-400:#C9BAA0;
+  --graphite-400:#978B7B;--graphite-500:#766C60;--graphite-600:#5C544B;--graphite-800:#3A342E;--graphite-900:#2A2622;
+  --umber-1000:#120D09;--umber-950:#18120D;--umber-900:#201811;--umber-850:#281E16;--umber-800:#31251B;--umber-700:#45362A;--umber-600:#5B4838;--umber-500:#7C6752;
+  --parchment-100:#F1E6D2;--parchment-300:#CBBBA2;--parchment-500:#A38F76;
+  --pine-100:#D8E8DF;--pine-300:#86C4AB;--pine-400:#5FAE8F;--pine-500:#1F5E4A;--pine-600:#194D3D;--pine-700:#133D30;--pine-900:#12302A;
+
+  --bg-app:var(--vellum-100);--surface-1:var(--vellum-50);--surface-2:var(--vellum-150);--surface-3:var(--vellum-200);
+  --fg-1:var(--graphite-900);--fg-2:var(--graphite-600);--fg-3:var(--graphite-500);--fg-4:var(--graphite-400);
+  --border-1:var(--vellum-300);--border-2:var(--vellum-400);--rule:var(--graphite-900);
+  --accent:var(--pine-500);--accent-hover:var(--pine-600);--accent-press:var(--pine-700);--accent-fg:var(--pine-600);--accent-subtle:var(--pine-100);
+  --fg-on-accent:#FFF8F0;
+  --surface-code:var(--vellum-150);--code-fg:var(--graphite-900);--code-muted:var(--graphite-400);
+  --grid-minor:rgba(120,96,64,.09);--grid-major:rgba(120,96,64,.17);
+
+  --font-sans:'IBM Plex Sans',system-ui,sans-serif;
+  --font-mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+  --font-serif:'Newsreader',Georgia,serif;
+  --tracking-display:-0.02em;--tracking-label:0.12em;
+  --ease-step:cubic-bezier(.2,0,0,1);
+  --bg-grid:linear-gradient(var(--grid-major) 1px,transparent 1px) -1px -1px/40px 40px,linear-gradient(90deg,var(--grid-major) 1px,transparent 1px) -1px -1px/40px 40px,linear-gradient(var(--grid-minor) 1px,transparent 1px) -1px -1px/8px 8px,linear-gradient(90deg,var(--grid-minor) 1px,transparent 1px) -1px -1px/8px 8px;
+}
+.dark{
+  --bg-app:var(--umber-950);--surface-1:var(--umber-900);--surface-2:var(--umber-850);--surface-3:var(--umber-800);
+  --fg-1:var(--parchment-100);--fg-2:var(--parchment-300);--fg-3:var(--parchment-500);--fg-4:var(--umber-500);
+  --border-1:var(--umber-700);--border-2:var(--umber-600);--rule:var(--parchment-300);
+  --accent:var(--pine-400);--accent-hover:var(--pine-300);--accent-press:var(--pine-500);--accent-fg:var(--pine-300);--accent-subtle:var(--pine-900);
+  --fg-on-accent:var(--umber-1000);
+  --surface-code:var(--umber-1000);--code-fg:var(--parchment-100);--code-muted:var(--umber-500);
+  --grid-minor:rgba(241,230,210,.045);--grid-major:rgba(241,230,210,.09);
+}
+
+:root,.dark{
+  --vp-font-family-base:var(--font-sans);
+  --vp-font-family-mono:var(--font-mono);
+  --vp-c-bg:var(--bg-app);--vp-c-bg-alt:var(--surface-2);--vp-c-bg-elv:var(--surface-1);--vp-c-bg-soft:var(--surface-1);
+  --vp-c-text-1:var(--fg-1);--vp-c-text-2:var(--fg-2);--vp-c-text-3:var(--fg-3);
+  --vp-c-border:var(--border-2);--vp-c-divider:var(--border-1);--vp-c-gutter:var(--border-1);
+  --vp-c-brand-1:var(--accent-fg);--vp-c-brand-2:var(--accent-hover);--vp-c-brand-3:var(--accent);--vp-c-brand-soft:var(--accent-subtle);
+  --vp-c-default-soft:var(--surface-2);
+  --vp-nav-bg-color:color-mix(in srgb,var(--bg-app) 88%,transparent);
+  --vp-code-block-bg:var(--surface-code);
+  --vp-button-brand-bg:var(--accent);--vp-button-brand-text:var(--fg-on-accent);--vp-button-brand-border:transparent;
+  --vp-button-brand-hover-bg:var(--accent-hover);--vp-button-brand-hover-text:var(--fg-on-accent);
+  --vp-button-brand-active-bg:var(--accent-press);
+}
+
+/* The sticky header: translucent paper over a hairline. */
+.VPNav .VPNavBar:not(.home.top),.VPNavBar.has-sidebar{background:var(--vp-nav-bg-color)!important;backdrop-filter:blur(8px)}
+.VPNavBar .title{font:500 18px var(--font-mono);letter-spacing:-0.04em}
+.VPNavBar .divider-line{background:var(--border-1)!important}
+.VPNavBarMenuLink{font-weight:500}
+.VPFooter{border-top:1px solid var(--border-1)!important;background:var(--bg-app)!important}
+.VPFooter a{color:var(--fg-1);text-decoration:underline;text-underline-offset:2px}

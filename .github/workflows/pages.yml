@@ -1,0 +1,59 @@
+# Publishes https://sxml.tinyactors.dev: the landing page (website/,
+# VitePress) with the book (docs/book, mdbook) at /book/, built by
+# `mise run site` into build/site and pushed to the gh-pages branch, which
+# GitHub Pages serves. website/public/CNAME names the custom domain.
+name: pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - website/**
+      - docs/book/**
+      - mise.toml
+      - .github/workflows/pages.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+env:
+  MDBOOK_VERSION: "0.4.52"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            website
+            docs/book
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+      - name: Install mdbook
+        run: |
+          mkdir -p "$RUNNER_TEMP/mdbook"
+          curl -sSL "https://github.com/rust-lang/mdBook/releases/download/v${MDBOOK_VERSION}/mdbook-v${MDBOOK_VERSION}-x86_64-unknown-linux-gnu.tar.gz" | tar -xz -C "$RUNNER_TEMP/mdbook"
+          echo "$RUNNER_TEMP/mdbook" >> "$GITHUB_PATH"
+      # The same steps as `mise run site` (mise.toml).
+      - name: Build the site
+        run: |
+          npm ci --prefix website --no-audit --no-fund
+          npm run --prefix website build
+          mdbook build docs/book --dest-dir ../../build/site/book
+      - uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: build/site
+          publish_branch: gh-pages
+          force_orphan: true
+          user_name: github-actions[bot]
+          user_email: 41898282+github-actions[bot]@users.noreply.github.com
