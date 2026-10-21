@@ -4,6 +4,19 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- book-11 done (D299): Project: A Diff of Call Chains, three new
+  chapters (call-chains.md, call-chains-graph.md, call-chains-diff.md)
+  and one closing sentence in source-code.md. call-chains/graph.xqm
+  builds the lock service's call graph from sxml:parse-code trees
+  (functions, calls, callees through namespace and named imports,
+  locals filtered, externals, passed functions, calls in loops) and its
+  chains (a while-do worklist and a recursive function, the same);
+  diff.xq, report.xq, report.xsl and diagram.xq (drawn with
+  ../svg/draw.xqm) give the diff, ending with the prediction the traces
+  check (listDoors > registry: 1 -> 1 + n). 29 examples match. Found:
+  optional record fields (`record(a, b?)`, `b? as T`) are a syntax
+  error.
+
 - book-6 done (D299): Getting Started and Finding Things with XPath on
   the Latch draft. Getting Started runs on getting-started/draft.xml, a
   ten-line cut (draft.xsd, broken.xml, invalid.xml, requirements.xq,
