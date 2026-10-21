@@ -37,12 +37,8 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 
 ## Next
 
-- stream-2: a streamed html/xhtml writer (D295's leftover).
-- cli-3: fn:collection and fn:uri-collection in the sxml command.
-- book-5: plan the book's restructuring around five projects (RFC-style
-  specs, SVG diagrams, SCXML with schemas and XHTML, call-chain diffs,
-  OTel trace diffs; owner, 2026-10-21) and build their data; the chapter
-  rewrites follow in parallel packets from docs/tasks/book.md.
+- book-6..book-12 (parallel), then book-13: the book rewritten around the
+  Latch projects, per docs/tasks/book.md (D299); waiting for the owner's go.
 - Phase 6 (D238, `docs/tasks/phase-6.md`), packets that run here:
   - wave 1, together: 6.2 host shim (`bindings/host/`; JavaScript
     tests and sizes unchanged); 6.3 Android build (four ABIs at API 24,
@@ -387,6 +383,12 @@ parts. 20,000 x 1 KB text: out of memory -> 11.0 MB, 0.55 s. A streamed
 element grants 500 steps; createProcessor({ maximumEvaluationStepCount }).
 93 MB streamed identity: CLI 23.2 s / 11 MB, Node 52.6 s / 10.7 MB. Left:
 no streamed writer for html (a tree, now linear).
+
+stream-2 (D297): html and xhtml serialized while streamed (indent=no):
+29.8 -> 10.9 MB for 20,000 x 1 KB; indent=yes (XSLT's html default) and
+XHTML with doctype-system/standalone/canonical keep the tree. cli-3
+(D298): fn:collection/fn:uri-collection over local directories
+(select, recurse, on-error), --collection; XML documents only.
 
 Platform and tooling:
 - macOS, Windows and MSVC have never been built; `_getcwd` is untested.
