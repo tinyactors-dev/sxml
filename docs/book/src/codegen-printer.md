@@ -76,87 +76,104 @@ Functions and Packages](xslt-packages.md):
 $ mkdir out
 $ sxml transform --result-directory=out print.xsl generated/program.xml
 $ ls out
-client.ts
+browser.ts
+console.ts
+node.ts
 server.ts
 types.ts
 ```
 
-The client has one async function for each remote function. It checks
-the input before it sends it, so a wrong value fails at once, in the
-browser, and checks the output, so a server that answers with something
-else can't go unnoticed:
+A client module has one async function for each remote function that
+its client offers. The frontend SDK's has two. Each function checks the
+input before it sends it, so a wrong value fails at once, in the
+browser, and checks the output, so a service that answers with
+something else can't go unnoticed:
 
 ```console
-$ cat out/client.ts
+$ cat out/browser.ts
 // Generated from the API description by program.xq and print.xsl. Do not edit.
 import { call, expect } from "../runtime.ts";
-import type { BookRequest, Book, BookSearch, BookList, LoanRequest, Loan } from "./types.ts";
-import { checkBookRequest, checkBook, checkBookSearch, checkBookList, checkLoanRequest, checkLoan } from "./types.ts";
+import type { EvaluationContext, Evaluations, StatusRequest, FlagStatus } from "./types.ts";
+import { checkEvaluationContext, checkEvaluations, checkStatusRequest, checkFlagStatus } from "./types.ts";
 
-/** Finds one book by its id. */
-export async function getBook(input: BookRequest): Promise<Book> {
-  expect<BookRequest>(input, checkBookRequest);
-  const output = await call("getBook", "query", input);
-  return expect<Book>(output, checkBook);
+/** Whether each flag is on for one user, for an SDK in a browser page. */
+export async function evaluateFlags(input: EvaluationContext): Promise<Evaluations> {
+  expect<EvaluationContext>(input, checkEvaluationContext);
+  const output = await call("evaluateFlags", "query", input);
+  return expect<Evaluations>(output, checkEvaluations);
 }
 
-/** Lists the books of a genre, or all books. */
-export async function searchBooks(input: BookSearch): Promise<BookList> {
-  expect<BookSearch>(input, checkBookSearch);
-  const output = await call("searchBooks", "query", input);
-  return expect<BookList>(output, checkBookList);
-}
-
-/** Lends a book to a member for some days. */
-export async function borrowBook(input: LoanRequest): Promise<Loan> {
-  expect<LoanRequest>(input, checkLoanRequest);
-  const output = await call("borrowBook", "command", input);
-  return expect<Loan>(output, checkLoan);
+/** The state of one flag and its failed checks since the last rollout step. */
+export async function getStatus(input: StatusRequest): Promise<FlagStatus> {
+  expect<StatusRequest>(input, checkStatusRequest);
+  const output = await call("getStatus", "query", input);
+  return expect<FlagStatus>(output, checkFlagStatus);
 }
 ```
 
-A page imports `getBook` and calls it like any other function; that it
-runs on the server is a detail of how it is made. The server side is an
-interface, which the server's own code implements, and a handler that
-routes each request to it, with the checks around it:
+The frontend SDK imports `evaluateFlags` and calls it like any other
+function; that it runs in the service is a detail of how it is made.
+`node.ts` and `console.ts` look the same, with the functions of the
+backend SDK and of the console, and `getStatus` is in both SDKs'
+modules. The service's side is an interface, which the service's own
+code implements, and a handler that routes each request to it, with
+the checks around it. It has every function, whichever client calls
+it: a request is checked by the service whether or not it came through
+a generated client.
 
 ```console
 $ cat out/server.ts
 // Generated from the API description by program.xq and print.xsl. Do not edit.
 import { serve } from "../runtime.ts";
-import type { BookRequest, Book, BookSearch, BookList, LoanRequest, Loan } from "./types.ts";
-import { checkBookRequest, checkBook, checkBookSearch, checkBookList, checkLoanRequest, checkLoan } from "./types.ts";
+import type { FlagsRequest, FlagSet, EvaluationContext, Evaluations, StatusRequest, FlagStatus, RolloutRequest, KillRequest, KillResult } from "./types.ts";
+import { checkFlagsRequest, checkFlagSet, checkEvaluationContext, checkEvaluations, checkStatusRequest, checkFlagStatus, checkRolloutRequest, checkKillRequest, checkKillResult } from "./types.ts";
 
-/** What the server does: one method for each remote function. */
+/** What the service does: one method for each remote function. */
 export interface Implementation {
-  /** Finds one book by its id. */
-  getBook(input: BookRequest): Promise<Book>;
-  /** Lists the books of a genre, or all books. */
-  searchBooks(input: BookSearch): Promise<BookList>;
-  /** Lends a book to a member for some days. */
-  borrowBook(input: LoanRequest): Promise<Loan>;
+  /** Every flag with its rules, for an SDK that evaluates flags itself. */
+  getFlags(input: FlagsRequest): Promise<FlagSet>;
+  /** Whether each flag is on for one user, for an SDK in a browser page. */
+  evaluateFlags(input: EvaluationContext): Promise<Evaluations>;
+  /** The state of one flag and its failed checks since the last rollout step. */
+  getStatus(input: StatusRequest): Promise<FlagStatus>;
+  /** Rolls a flag out to a new percentage once its guardrail checks pass. */
+  rollOutFlag(input: RolloutRequest): Promise<FlagStatus>;
+  /** Turns a flag off for every user at once. */
+  killFlag(input: KillRequest): Promise<KillResult>;
 }
 
 /** A Node.js request listener that checks every input and output. */
 export function createHandler(implementation: Implementation) {
   return serve({
-    getBook: {
+    getFlags: {
       kind: "query",
-      checkInput: checkBookRequest,
-      checkOutput: checkBook,
-      run: (input) => implementation.getBook(input),
+      checkInput: checkFlagsRequest,
+      checkOutput: checkFlagSet,
+      run: (input) => implementation.getFlags(input),
     },
-    searchBooks: {
+    evaluateFlags: {
       kind: "query",
-      checkInput: checkBookSearch,
-      checkOutput: checkBookList,
-      run: (input) => implementation.searchBooks(input),
+      checkInput: checkEvaluationContext,
+      checkOutput: checkEvaluations,
+      run: (input) => implementation.evaluateFlags(input),
     },
-    borrowBook: {
+    getStatus: {
+      kind: "query",
+      checkInput: checkStatusRequest,
+      checkOutput: checkFlagStatus,
+      run: (input) => implementation.getStatus(input),
+    },
+    rollOutFlag: {
       kind: "command",
-      checkInput: checkLoanRequest,
-      checkOutput: checkLoan,
-      run: (input) => implementation.borrowBook(input),
+      checkInput: checkRolloutRequest,
+      checkOutput: checkFlagStatus,
+      run: (input) => implementation.rollOutFlag(input),
+    },
+    killFlag: {
+      kind: "command",
+      checkInput: checkKillRequest,
+      checkOutput: checkKillResult,
+      run: (input) => implementation.killFlag(input),
     },
   });
 }
@@ -167,19 +184,19 @@ rule as the statements: an `entry` is a line, inside one block more for
 each `object` around it.
 
 `types.ts` has every type of the schema, as in the pieces of the last
-section. The check for a loan request calls the checks of its three
+section. The check for a rollout request calls the checks of its three
 properties:
 
 ```console
-$ sed -n '/^export function checkLoanRequest/,/^}/p' out/types.ts
-export function checkLoanRequest(value: unknown, path: string, problems: string[]): value is LoanRequest {
+$ sed -n '/^export function checkRolloutRequest/,/^}/p' out/types.ts
+export function checkRolloutRequest(value: unknown, path: string, problems: string[]): value is RolloutRequest {
   if (!checkObject(value, path, problems)) return false;
   const count = problems.length;
-  checkBookId(value.book, path + ".book", problems);
-  checkMemberId(value.member, path + ".member", problems);
-  checkLoanDays(value.days, path + ".days", problems);
+  checkFlagKey(value.flag, path + ".flag", problems);
+  checkPercentage(value.percentage, path + ".percentage", problems);
+  checkOwner(value.owner, path + ".owner", problems);
   for (const key of Object.keys(value)) {
-    if (!["book", "member", "days"].includes(key)) problems.push(path + "." + key + ": is not allowed");
+    if (!["flag", "percentage", "owner"].includes(key)) problems.push(path + "." + key + ": is not allowed");
   }
   return problems.length === count;
 }
@@ -204,37 +221,37 @@ rule does:
 {{#include ../examples/codegen/braces.xsl}}
 ```
 
-The check of a book list, printed both ways:
+The check of a flag set, printed both ways:
 
 ```console
-$ sxml xquery --method=xml --expression='<module>{ doc("generated/program.xml")//function[@name = "checkBookList"] }</module>' > book-list.xml
-$ sxml transform print.xsl book-list.xml
-export function checkBookList(value: unknown, path: string, problems: string[]): value is BookList {
+$ sxml xquery --method=xml --expression='<module>{ doc("generated/program.xml")//function[@name = "checkFlagSet"] }</module>' > flag-set.xml
+$ sxml transform print.xsl flag-set.xml
+export function checkFlagSet(value: unknown, path: string, problems: string[]): value is FlagSet {
   if (!checkObject(value, path, problems)) return false;
   const count = problems.length;
-  if (Array.isArray(value.books)) {
-    value.books.forEach((item, index) => checkBook(item, path + ".books[" + index + "]", problems));
+  if (Array.isArray(value.flags)) {
+    value.flags.forEach((item, index) => checkFlagConfig(item, path + ".flags[" + index + "]", problems));
   } else {
-    problems.push(path + ".books: expected an array");
+    problems.push(path + ".flags: expected an array");
   }
   for (const key of Object.keys(value)) {
-    if (!["books"].includes(key)) problems.push(path + "." + key + ": is not allowed");
+    if (!["flags"].includes(key)) problems.push(path + "." + key + ": is not allowed");
   }
   return problems.length === count;
 }
-$ sxml transform braces.xsl book-list.xml
-export function checkBookList(value: unknown, path: string, problems: string[]): value is BookList {
+$ sxml transform braces.xsl flag-set.xml
+export function checkFlagSet(value: unknown, path: string, problems: string[]): value is FlagSet {
     if (!checkObject(value, path, problems)) {
         return false;
     }
     const count = problems.length;
-    if (Array.isArray(value.books)) {
-        value.books.forEach((item, index) => checkBook(item, path + ".books[" + index + "]", problems));
+    if (Array.isArray(value.flags)) {
+        value.flags.forEach((item, index) => checkFlagConfig(item, path + ".flags[" + index + "]", problems));
     } else {
-        problems.push(path + ".books: expected an array");
+        problems.push(path + ".flags: expected an array");
     }
     for (const key of Object.keys(value)) {
-        if (!["books"].includes(key)) {
+        if (!["flags"].includes(key)) {
             problems.push(path + "." + key + ": is not allowed");
         }
     }
