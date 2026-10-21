@@ -12,7 +12,7 @@ takes a stream of variable bindings and passes on a new stream, and
 Which requirements are recommendations, SHOULD or SHOULD NOT?
 
 ```console
-$ sxml xquery --context-item=latch.xml --method=adaptive --expression='
+$ sxml xquery --context-item=vane.xml --method=adaptive --expression='
     for $requirement in //t[@anchor]
     where starts-with($requirement/bcp14, "SHOULD")
     order by $requirement/@anchor
@@ -33,7 +33,7 @@ and `"req-10"` comes before `"req-3"` as `"10"` comes before `"3"` in a
 dictionary. Sort by the number in the anchor instead:
 
 ```console
-$ sxml xquery --context-item=latch.xml --method=adaptive --expression='
+$ sxml xquery --context-item=vane.xml --method=adaptive --expression='
     for $requirement in //t[@anchor]
     where starts-with($requirement/bcp14, "SHOULD")
     order by xs:integer(substring-after($requirement/@anchor, "req-"))
@@ -49,14 +49,17 @@ $ sxml xquery --context-item=latch.xml --method=adaptive --expression='
 making more bindings. Which requirements are long?
 
 ```console
-$ sxml xquery --context-item=latch.xml --method=adaptive --expression='
+$ sxml xquery --context-item=vane.xml --method=adaptive --expression='
     for $requirement in //t[@anchor]
     let $words := count(tokenize(normalize-space($requirement)))
     where $words > 15
     order by $words descending
     return `{$requirement/@anchor}: {$words} words`'
-"req-4: 23 words"
-"req-6: 20 words"
+"req-6: 24 words"
+"req-4: 19 words"
+"req-11: 17 words"
+"req-3: 16 words"
+"req-7: 16 words"
 ```
 
 The string value of a paragraph is all of its text, the words inside
@@ -69,20 +72,20 @@ requirements in document order, numbered as a reader of the draft sees
 them, with the section each one is in:
 
 ```console
-$ sxml xquery --context-item=latch.xml --method=adaptive --expression='
+$ sxml xquery --context-item=vane.xml --method=adaptive --expression='
     for $requirement at $position in //t[@anchor]
     return `{$position}. {$requirement/@anchor} ({$requirement/ancestor::section[1]/name})`'
-"1. req-1 (Lock States)"
-"2. req-2 (Lock States)"
-"3. req-3 (Lock States)"
-"4. req-4 (Unlock)"
-"5. req-5 (Unlock)"
-"6. req-9 (Unlock)"
+"1. req-1 (Flag States)"
+"2. req-2 (Flag States)"
+"3. req-3 (Flag States)"
+"4. req-4 (Rollout)"
+"5. req-5 (Rollout)"
+"6. req-9 (Rollout)"
 "7. req-6 (Status)"
 "8. req-10 (Status)"
-"9. req-7 (Lockout)"
-"10. req-8 (Lockout)"
-"11. req-11 (Lockout)"
+"9. req-7 (Pause)"
+"10. req-8 (Pause)"
+"11. req-11 (Pause)"
 ```
 
 The anchors and the positions differ: an anchor is a name given once,
@@ -99,30 +102,30 @@ times, as an `xref` that targets that anchor. For each use, a `let`
 finds the definition:
 
 ```console
-$ sxml xquery --context-item=latch.xml --method=adaptive --expression='
+$ sxml xquery --context-item=vane.xml --method=adaptive --expression='
     for $xref in //xref[starts-with(@target, "term-")]
     let $term := //dt[@anchor = $xref/@target]
     return `{$xref} -> {$term}, in {$xref/ancestor::*[@anchor][1]/@anchor}`'
-"controller -> Controller, in intro"
-"lock -> Lock, in terminology"
-"lock -> Lock, in req-1"
-"code -> Code, in req-4"
-"lockout -> Lockout, in req-5"
-"lockout -> Lockout, in req-7"
+"SDK -> SDK, in intro"
+"flag -> Flag, in terminology"
+"flag -> Flag, in req-1"
+"percentage -> Percentage, in req-4"
+"pause -> Pause, in req-5"
+"pause -> Pause, in req-7"
 ```
 
 `ancestor::*[@anchor][1]` is the nearest enclosing element with an
 anchor: a requirement, or else a section.
 
-A join can bring two documents together as well. `doc("latch-00.xml")`
+A join can bring two documents together as well. `doc("vane-00.xml")`
 reads the earlier draft. Anchors don't change between versions, so a
 requirement of the new draft finds its earlier version by its anchor,
 and comparing the text tells what changed:
 
 ```console
-$ sxml xquery --context-item=latch.xml --method=adaptive --expression='
+$ sxml xquery --context-item=vane.xml --method=adaptive --expression='
     for $new in //t[@anchor]
-    let $old := doc("latch-00.xml")//t[@anchor = $new/@anchor]
+    let $old := doc("vane-00.xml")//t[@anchor = $new/@anchor]
     where normalize-space($old) ne normalize-space($new)
     return `{$new/@anchor}: {if (empty($old)) then "added" else "changed"}`'
 "req-9: added"
@@ -140,7 +143,7 @@ new draft only; the project at the end of the chapter looks in both
 directions.
 
 `doc` reads a document by its URI. The `sxml` command resolves a relative
-URI against the working directory, so `latch-00.xml` is the file in the
+URI against the working directory, so `vane-00.xml` is the file in the
 directory you run the command from.
 [Files and the Outside World](files.md) explains how files are found.
 
@@ -151,14 +154,14 @@ it, the grouping variable holds the key, and every other variable holds
 *all* the values of its group:
 
 ```console
-$ sxml xquery --context-item=latch.xml --method=adaptive --expression='
+$ sxml xquery --context-item=vane.xml --method=adaptive --expression='
     for $requirement in //t[@anchor]
     group by $section := string($requirement/ancestor::section[1]/name)
     return $section || ": " || count($requirement)'
-"Lock States: 3"
-"Unlock: 3"
+"Flag States: 3"
+"Rollout: 3"
 "Status: 2"
-"Lockout: 3"
+"Pause: 3"
 ```
 
 Before `group by`, `$requirement` is one paragraph. After it,
@@ -189,7 +192,7 @@ false, unlike `where`, which only skips it. Which requirements come
 before the first SHOULD?
 
 ```console
-$ sxml xquery --context-item=latch.xml --method=adaptive --expression='
+$ sxml xquery --context-item=vane.xml --method=adaptive --expression='
     for $requirement in //t[bcp14]
     while $requirement/bcp14 ne "SHOULD"
     return string($requirement/@anchor)'

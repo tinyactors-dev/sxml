@@ -15,13 +15,13 @@ table of contents thinks in top-level sections. Here the requirements
 are grouped by the number of the top-level section they are in:
 
 ```console
-$ sxml xquery --context-item=latch.xml --method=adaptive --expression='
+$ sxml xquery --context-item=vane.xml --method=adaptive --expression='
     for $requirement in //t[@anchor]
     group by $number := count($requirement/ancestor::section[last()]/preceding-sibling::section) + 1
     return `{$number}. {$requirement[1]/ancestor::section[last()]/name}: {count($requirement)}`'
-"2. Lock States: 3"
+"2. Flag States: 3"
 "3. Messages: 5"
-"4. Lockout: 3"
+"4. Pause: 3"
 ```
 
 `ancestor::section[last()]` is the outermost section around a
@@ -38,7 +38,7 @@ A grouping variable can also be one that a `let` bound earlier. Then
 `group by $keyword` alone is enough:
 
 ```console
-$ sxml xquery --context-item=latch.xml --method=adaptive --expression='
+$ sxml xquery --context-item=vane.xml --method=adaptive --expression='
     for $requirement in //t[@anchor]
     let $keyword := string($requirement/bcp14)
     group by $keyword
@@ -60,22 +60,22 @@ With more than one key, a group is made for each combination of keys
 that occurs. These are the keywords of each section:
 
 ```console
-$ sxml xquery --context-item=latch.xml --method=adaptive --expression='
+$ sxml xquery --context-item=vane.xml --method=adaptive --expression='
     for $requirement in //t[@anchor]
     group by $section := string($requirement/ancestor::section[1]/name),
              $keyword := string($requirement/bcp14)
     order by $section, $keyword
     return `{$section}, {$keyword}: {count($requirement)}`'
-"Lock States, MUST: 2"
-"Lock States, SHOULD: 1"
-"Lockout, MAY: 1"
-"Lockout, MUST: 1"
-"Lockout, SHOULD: 1"
+"Flag States, MUST: 2"
+"Flag States, SHOULD: 1"
+"Pause, MAY: 1"
+"Pause, MUST: 1"
+"Pause, SHOULD: 1"
+"Rollout, MAY: 1"
+"Rollout, MUST: 1"
+"Rollout, MUST NOT: 1"
 "Status, MUST: 1"
 "Status, SHOULD NOT: 1"
-"Unlock, MAY: 1"
-"Unlock, MUST: 1"
-"Unlock, MUST NOT: 1"
 ```
 
 Combinations that don't occur, such as a MAY in Status, make no group.
@@ -88,48 +88,48 @@ for each group, `where` keeps some groups and drops others, and
 from where?
 
 ```console
-$ sxml xquery --context-item=latch.xml --method=adaptive --expression='
+$ sxml xquery --context-item=vane.xml --method=adaptive --expression='
     for $xref in //xref
     group by $target := string($xref/@target)
     where count($xref) > 1
     order by $target
     return $target || ": " || string-join($xref/ancestor::*[@anchor][1]/@anchor, ", ")'
-"term-lock: terminology, req-1"
-"term-lockout: req-5, req-7"
+"term-flag: terminology, req-1"
+"term-pause: req-5, req-7"
 ```
 
 How many requirements, and how many different keywords, does each
 section have?
 
 ```console
-$ sxml xquery --context-item=latch.xml --method=adaptive --expression='
+$ sxml xquery --context-item=vane.xml --method=adaptive --expression='
     for $requirement in //t[@anchor]
     group by $section := string($requirement/ancestor::section[1]/name)
     let $keywords := distinct-values($requirement/bcp14)
     order by count($keywords) descending, $section
     return `{$section}: {count($requirement)} requirements, {count($keywords)} keywords`'
-"Lockout: 3 requirements, 3 keywords"
-"Unlock: 3 requirements, 3 keywords"
-"Lock States: 3 requirements, 2 keywords"
+"Pause: 3 requirements, 3 keywords"
+"Rollout: 3 requirements, 3 keywords"
+"Flag States: 3 requirements, 2 keywords"
 "Status: 2 requirements, 2 keywords"
 ```
 
 Keys are compared as `distinct-values` compares them: strings by their
 characters, numbers as numbers. A `collation` after the key compares
 strings by other rules, for example without regard to case. A term is
-defined as "Lock" and used as "lock"; with this collation, the
+defined as "Flag" and used as "flag"; with this collation, the
 definition and its uses fall into one group:
 
 ```console
-$ sxml xquery --context-item=latch.xml --method=adaptive --expression='
+$ sxml xquery --context-item=vane.xml --method=adaptive --expression='
     for $word in (//dt, //xref[starts-with(@target, "term-")])
     group by $key := string($word)
         collation "http://www.w3.org/2005/xpath-functions/collation/html-ascii-case-insensitive"
     return $key || ": " || count($word)'
-"Lock: 3"
-"Controller: 2"
-"Code: 2"
-"Lockout: 3"
+"Flag: 3"
+"SDK: 2"
+"Percentage: 2"
+"Pause: 3"
 ```
 
 The key of a group is the key of its first member, here the `dt`, which
@@ -142,7 +142,7 @@ A key is atomized, as a function argument is. A node used as a key
 becomes its string value, not the node itself:
 
 ```console
-$ sxml xquery --context-item=latch.xml --method=adaptive --expression='
+$ sxml xquery --context-item=vane.xml --method=adaptive --expression='
     for $requirement in //t[@anchor]
     group by $chapter := $requirement/ancestor::section[last()]
     return $chapter/name'
@@ -161,7 +161,7 @@ paragraph without a `bcp14` lands in one group, whose key is the empty
 sequence:
 
 ```console
-$ sxml xquery --context-item=latch.xml --method=adaptive --expression='
+$ sxml xquery --context-item=vane.xml --method=adaptive --expression='
     for $paragraph in //t
     group by $keyword := $paragraph/bcp14/string()
     return `{ $keyword otherwise "(none)" }: { count($paragraph) }`'
@@ -183,7 +183,7 @@ Two values are an error. A paragraph with two keywords can't be put in
 one keyword's group:
 
 ```console
-$ sxml xquery --context-item=latch.xml --method=adaptive --expression='
+$ sxml xquery --context-item=vane.xml --method=adaptive --expression='
     for $paragraph in (//t, <t><bcp14>MUST</bcp14> and <bcp14>MAY</bcp14></t>)
     group by $keyword := $paragraph/bcp14
     return count($paragraph)'

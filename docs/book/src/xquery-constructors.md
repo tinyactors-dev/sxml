@@ -12,14 +12,14 @@ An element in a query is an element in the result. Curly braces inside
 it hold expressions, whose values become content:
 
 ```console
-$ sxml xquery --context-item=latch.xml --expression='<p>The draft has { count(//t[@anchor]) } requirements.</p>'
+$ sxml xquery --context-item=vane.xml --expression='<p>The draft has { count(//t[@anchor]) } requirements.</p>'
 <p>The draft has 11 requirements.</p>
 ```
 
 In an attribute, curly braces work the same way:
 
 ```console
-$ sxml xquery --context-item=latch.xml --expression='<a href="#{ (//t[@anchor])[1]/@anchor }" title="{ (//t[@anchor])[1]/bcp14 }">first</a>'
+$ sxml xquery --context-item=vane.xml --expression='<a href="#{ (//t[@anchor])[1]/@anchor }" title="{ (//t[@anchor])[1]/bcp14 }">first</a>'
 <a href="#req-1" title="MUST">first</a>
 ```
 
@@ -32,9 +32,9 @@ Atomic values become text, and neighbouring atomic values are separated
 by one space:
 
 ```console
-$ sxml xquery --context-item=latch.xml --expression='<keywords>{ //section[@anchor = "unlock"]//bcp14 }</keywords>'
+$ sxml xquery --context-item=vane.xml --expression='<keywords>{ //section[@anchor = "rollout"]//bcp14 }</keywords>'
 <keywords><bcp14>MUST</bcp14><bcp14>MUST NOT</bcp14><bcp14>MAY</bcp14></keywords>
-$ sxml xquery --context-item=latch.xml --expression='<keywords>{ //section[@anchor = "unlock"]//bcp14/string() }</keywords>'
+$ sxml xquery --context-item=vane.xml --expression='<keywords>{ //section[@anchor = "rollout"]//bcp14/string() }</keywords>'
 <keywords>MUST MUST NOT MAY</keywords>
 $ sxml xquery --expression='<p>{ "a", "b" }</p>, <p>{ "a" }{ "b" }</p>'
 <p>a b</p><p>ab</p>
@@ -55,14 +55,14 @@ section by section:
 ```
 
 ```console
-$ sxml xquery --context-item=latch.xml index.xq
-<requirements draft="draft-example-latch-protocol-01">
-  <section anchor="states" name="Lock States">
+$ sxml xquery --context-item=vane.xml index.xq
+<requirements draft="draft-example-vane-protocol-01">
+  <section anchor="states" name="Flag States">
     <requirement anchor="req-1">MUST</requirement>
     <requirement anchor="req-2">MUST</requirement>
     <requirement anchor="req-3">SHOULD</requirement>
   </section>
-  <section anchor="unlock" name="Unlock">
+  <section anchor="rollout" name="Rollout">
     <requirement anchor="req-4">MUST</requirement>
     <requirement anchor="req-5">MUST NOT</requirement>
     <requirement anchor="req-9">MAY</requirement>
@@ -71,7 +71,7 @@ $ sxml xquery --context-item=latch.xml index.xq
     <requirement anchor="req-6">MUST</requirement>
     <requirement anchor="req-10">SHOULD NOT</requirement>
   </section>
-  <section anchor="lockout" name="Lockout">
+  <section anchor="pause" name="Pause">
     <requirement anchor="req-7">MUST</requirement>
     <requirement anchor="req-8">SHOULD</requirement>
     <requirement anchor="req-11">MAY</requirement>
@@ -93,7 +93,7 @@ expression for it in braces), and the content in braces. Here each
 requirement becomes an element named after its keyword:
 
 ```console
-$ sxml xquery --context-item=latch.xml --expression='//t[@anchor] ! element { lower-case(translate(bcp14, " ", "-")) } { @anchor }'
+$ sxml xquery --context-item=vane.xml --expression='//t[@anchor] ! element { lower-case(translate(bcp14, " ", "-")) } { @anchor }'
 <must anchor="req-1"/><must anchor="req-2"/><should anchor="req-3"/><must anchor="req-4"/><must-not anchor="req-5"/><may anchor="req-9"/><must anchor="req-6"/><should-not anchor="req-10"/><must anchor="req-7"/><should anchor="req-8"/><may anchor="req-11"/>
 ```
 
@@ -106,8 +106,8 @@ attribute of it. `attribute`, `text`, `comment`, `document` and
 ```console
 $ sxml xquery --expression='let $name := "anchor" return element t { attribute { $name } { "req-12" }, "A new requirement." }'
 <t anchor="req-12">A new requirement.</t>
-$ sxml xquery --expression='<a>{ comment { "made by sxml" } }</a>, processing-instruction xml-stylesheet { "href=""latch.css""" }, text { "plain" }'
-<a><!--made by sxml--></a><?xml-stylesheet href="latch.css"?>plain
+$ sxml xquery --expression='<a>{ comment { "made by sxml" } }</a>, processing-instruction xml-stylesheet { "href=""vane.css""" }, text { "plain" }'
+<a><!--made by sxml--></a><?xml-stylesheet href="vane.css"?>plain
 ```
 
 A doubled quote, `""`, is a quote inside a string literal.
@@ -119,9 +119,9 @@ XML. In the prolog, `declare namespace` binds a prefix for the whole
 query:
 
 ```console
-$ sxml xquery --context-item=latch.xml --expression='<h:p xmlns:h="http://www.w3.org/1999/xhtml">{ count(//t[@anchor]) } requirements</h:p>'
+$ sxml xquery --context-item=vane.xml --expression='<h:p xmlns:h="http://www.w3.org/1999/xhtml">{ count(//t[@anchor]) } requirements</h:p>'
 <h:p xmlns:h="http://www.w3.org/1999/xhtml">11 requirements</h:p>
-$ sxml xquery --context-item=latch.xml --expression='declare namespace h = "http://www.w3.org/1999/xhtml"; <h:p>{ count(//t[@anchor]) } requirements</h:p>'
+$ sxml xquery --context-item=vane.xml --expression='declare namespace h = "http://www.w3.org/1999/xhtml"; <h:p>{ count(//t[@anchor]) } requirements</h:p>'
 <h:p xmlns:h="http://www.w3.org/1999/xhtml">11 requirements</h:p>
 ```
 
@@ -132,7 +132,7 @@ everyone once: the draft's elements are in no namespace, so `//t` now
 looks for XHTML `t` elements, and finds none:
 
 ```console
-$ sxml xquery --context-item=latch.xml --expression='declare default element namespace "http://www.w3.org/1999/xhtml"; <p>{ count(//t) }</p>'
+$ sxml xquery --context-item=vane.xml --expression='declare default element namespace "http://www.w3.org/1999/xhtml"; <p>{ count(//t) }</p>'
 <p xmlns="http://www.w3.org/1999/xhtml">0</p>
 ```
 
@@ -146,25 +146,25 @@ index as a page:
 ```
 
 ```console
-$ sxml xquery --context-item=latch.xml index-page.xq
+$ sxml xquery --context-item=vane.xml index-page.xq
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
-    <title>Requirements of draft-example-latch-protocol-01</title>
+    <title>Requirements of draft-example-vane-protocol-01</title>
   </head>
   <body>
-    <h1>The Latch Protocol for Remote Door Locks</h1>
+    <h1>The Vane Protocol for Feature Flag Rollouts</h1>
     <ul>
-      <li id="req-1"><b>MUST</b> in Lock States</li>
-      <li id="req-2"><b>MUST</b> in Lock States</li>
-      <li id="req-3"><b>SHOULD</b> in Lock States</li>
-      <li id="req-4"><b>MUST</b> in Unlock</li>
-      <li id="req-5"><b>MUST NOT</b> in Unlock</li>
-      <li id="req-9"><b>MAY</b> in Unlock</li>
+      <li id="req-1"><b>MUST</b> in Flag States</li>
+      <li id="req-2"><b>MUST</b> in Flag States</li>
+      <li id="req-3"><b>SHOULD</b> in Flag States</li>
+      <li id="req-4"><b>MUST</b> in Rollout</li>
+      <li id="req-5"><b>MUST NOT</b> in Rollout</li>
+      <li id="req-9"><b>MAY</b> in Rollout</li>
       <li id="req-6"><b>MUST</b> in Status</li>
       <li id="req-10"><b>SHOULD NOT</b> in Status</li>
-      <li id="req-7"><b>MUST</b> in Lockout</li>
-      <li id="req-8"><b>SHOULD</b> in Lockout</li>
-      <li id="req-11"><b>MAY</b> in Lockout</li>
+      <li id="req-7"><b>MUST</b> in Pause</li>
+      <li id="req-8"><b>SHOULD</b> in Pause</li>
+      <li id="req-11"><b>MAY</b> in Pause</li>
     </ul>
   </body>
 </html>
@@ -188,7 +188,7 @@ declarations decide how the result is written. With the json method,
 the requirements become JSON:
 
 ```console
-$ sxml xquery --context-item=latch.xml --expression='
+$ sxml xquery --context-item=vane.xml --expression='
     declare option output:method "json";
     declare option output:indent "yes";
     array { (//t[@anchor])[position() le 2] ! { "anchor": string(@anchor), "keyword": string(bcp14) } }'

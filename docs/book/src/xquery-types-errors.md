@@ -17,7 +17,7 @@ many, by comparing one value with the values of its `case` clauses. A
 eleven keywords, of three strengths:
 
 ```console
-$ sxml xquery --context-item=latch.xml --method=adaptive --expression='
+$ sxml xquery --context-item=vane.xml --method=adaptive --expression='
     for $keyword in distinct-values(//bcp14)
     return $keyword || ": " || (switch ($keyword)
       case "MUST" case "MUST NOT" case "REQUIRED" case "SHALL" case "SHALL NOT" return "absolute"
@@ -41,19 +41,19 @@ In XQuery 4.0, the value in parentheses can be left out. Then each
 `case` is a condition, and the first one that is true wins:
 
 ```console
-$ sxml xquery --context-item=latch.xml --method=adaptive --expression='
+$ sxml xquery --context-item=vane.xml --method=adaptive --expression='
     for $requirement in //t[@anchor]
     let $words := count(tokenize(normalize-space($requirement)))
     return `{$requirement/@anchor}: ` || (switch () {
-      case $words lt 12 return "short"
-      case $words lt 20 return "medium"
+      case $words lt 15 return "short"
+      case $words lt 18 return "medium"
       default return "long"
     })'
-"req-1: medium"
-"req-2: medium"
+"req-1: short"
+"req-2: short"
 "req-3: medium"
 "req-4: long"
-"req-5: short"
+"req-5: medium"
 "req-9: short"
 "req-6: long"
 "req-10: medium"
@@ -72,7 +72,7 @@ sequence type, and a variable in the `case` binds the value with that
 type. A section of the draft holds blocks of several kinds:
 
 ```console
-$ sxml xquery --context-item=latch.xml --method=adaptive --expression='
+$ sxml xquery --context-item=vane.xml --method=adaptive --expression='
     for $block in //section[@anchor = ("messages", "terminology")]/*
     return typeswitch ($block)
       case element(name) return "heading: " || $block
@@ -128,7 +128,7 @@ what documents without a schema give you, so the year of a reference,
 an attribute, works where an integer is required:
 
 ```console
-$ sxml xquery --context-item=latch.xml --method=adaptive --expression='
+$ sxml xquery --context-item=vane.xml --method=adaptive --expression='
     let $year as xs:integer := //reference[@anchor = "RFC2119"]//date/@year
     return 2026 - $year'
 29
@@ -139,9 +139,9 @@ when the value doesn't have the type, and otherwise gives the value
 unchanged:
 
 ```console
-$ sxml xquery --context-item=latch.xml --expression='//t[@anchor = "req-1"]/bcp14 treat as element(bcp14)'
+$ sxml xquery --context-item=vane.xml --expression='//t[@anchor = "req-1"]/bcp14 treat as element(bcp14)'
 <bcp14>MUST</bcp14>
-$ sxml xquery --context-item=latch.xml --expression='//t[@anchor = "req-1"]/@anchor treat as element(bcp14)'
+$ sxml xquery --context-item=vane.xml --expression='//t[@anchor = "req-1"]/@anchor treat as element(bcp14)'
 expression:1:1: err:XPDY0050: The value of a treat expression does not match its type (XPath 4.0, section 4.16.6)
 ```
 
@@ -152,7 +152,7 @@ When the same type appears in many signatures, give it a name.
 fixed strings, which is just what the BCP 14 keywords are:
 
 ```console
-$ sxml xquery --context-item=latch.xml --method=adaptive --expression='
+$ sxml xquery --context-item=vane.xml --method=adaptive --expression='
     declare type local:keyword as enum("MUST", "MUST NOT", "SHOULD", "SHOULD NOT", "MAY");
     declare function local:is-absolute($keyword as local:keyword) as xs:boolean {
       starts-with($keyword, "MUST")
@@ -205,7 +205,7 @@ no context item, so a path inside a function can't start from the
 document:
 
 ```console
-$ sxml xquery --context-item=latch.xml --expression='
+$ sxml xquery --context-item=vane.xml --expression='
     declare function local:requirements() { //t[@anchor] };
     count(local:requirements())'
 expression:2:45: err:XPDY0002: the focus is absent in a function body
@@ -223,8 +223,8 @@ specifications, and `|` lists several codes. The number in an anchor
 such as `req-7` is easy to take out, but a term's anchor has none:
 
 ```console
-$ sxml xquery --context-item=latch.xml --method=adaptive --expression='
-    for $anchor in ("req-7", "term-lock")
+$ sxml xquery --context-item=vane.xml --method=adaptive --expression='
+    for $anchor in ("req-7", "term-flag")
     return try { xs:integer(substring-after($anchor, "req-")) } catch err:FORG0001 | err:XPTY0004 { -1 }'
 7
 -1
@@ -237,7 +237,7 @@ value that came with it, and `$err:module`, `$err:line-number` and
 in one map:
 
 ```console
-$ sxml xquery --method=adaptive --expression='try { xs:integer(substring-after("term-lock", "req-")) } catch * { $err:map }'
+$ sxml xquery --method=adaptive --expression='try { xs:integer(substring-after("term-flag", "req-")) } catch * { $err:map }'
 {"code":#Q{http://www.w3.org/2005/xqt-errors}FORG0001,"description":"the value is not in the lexical space or value space of the target type","module":"expression","line-number":1,"column-number":7}
 ```
 
@@ -259,18 +259,18 @@ missing anchor into a line of the report instead of a failure:
 ```
 
 ```console
-$ sxml xquery --context-item=latch.xml resolve.xq
-intro: the term "Controller"
+$ sxml xquery --context-item=vane.xml resolve.xq
+intro: the term "SDK"
 terminology: [RFC2119]
 terminology: [RFC8174]
-terminology: the term "Lock"
-req-1: the term "Lock"
+terminology: the term "Flag"
+req-1: the term "Flag"
 messages: [RFC5234]
-req-4: the term "Code"
-req-5: the term "Lockout"
-req-5: Section "Lockout"
+req-4: the term "Percentage"
+req-5: the term "Pause"
+req-5: Section "Pause"
 req-9: [RFC6238]
-req-7: the term "Lockout"
+req-7: the term "Pause"
 ```
 
 Every reference of the draft resolves. To see the error at work, break a
@@ -278,9 +278,9 @@ copy of the draft: `sed` renames one target to an anchor that nobody
 defines.
 
 ```console
-$ sed 's/target="term-code"/target="term-pin"/' latch.xml > broken.xml
+$ sed 's/target="term-percentage"/target="term-share"/' vane.xml > broken.xml
 $ sxml xquery --context-item=broken.xml resolve.xq | grep req-4
-req-4: No element has the anchor term-pin
+req-4: No element has the anchor term-share
 ```
 
 The query went on after the error, and reported every reference; the
@@ -295,7 +295,7 @@ ends the query, and the `sxml` command reports it with its code and
 description, and exits with status 1:
 
 ```console
-$ sxml xquery --context-item=latch.xml --expression='
+$ sxml xquery --context-item=vane.xml --expression='
     declare namespace spec = "urn:example:spec";
     //*[@anchor = "req-12"] otherwise error(xs:QName("spec:dangling"), "No element has the anchor req-12")'; echo "exit status $?"
 expression:3:39: spec:dangling: No element has the anchor req-12
@@ -306,7 +306,7 @@ exit status 1
 
 Raising errors is the right thing to do much more often than you might
 think. A query that silently returns nothing for bad input is hard to
-debug; one that says "No element has the anchor term-pin" is not. Some
+debug; one that says "No element has the anchor term-share" is not. Some
 habits help:
 
 - Declare the types of parameters and results. The error then happens
@@ -322,7 +322,7 @@ message. Its value must be empty. The month of a reference is a name,
 so it isn't an integer:
 
 ```console
-$ sxml xquery --context-item=latch.xml --method=adaptive --expression='
+$ sxml xquery --context-item=vane.xml --method=adaptive --expression='
     try { xs:integer(//reference[@anchor = "RFC2119"]//date/@month) }
     catch err:FORG0001 { "the month is a name" }
     finally { message("checked the month") }'
@@ -336,7 +336,7 @@ its input unchanged and writes it, after its label, to standard error;
 as the adaptive method shows them, so strings are in quotes:
 
 ```console
-$ sxml xquery --context-item=latch.xml --method=adaptive --expression='
+$ sxml xquery --context-item=vane.xml --method=adaptive --expression='
     let $total := trace(count(//t[@anchor]), "requirements")
     return (message("halfway"), $total * 2)'
 requirements: 11

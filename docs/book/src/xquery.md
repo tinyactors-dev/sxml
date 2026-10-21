@@ -14,15 +14,15 @@ expression is an XQuery query, and XQuery adds:
 - **updates**, which insert, delete, replace and rename nodes.
 
 This chapter works on the same document as
-[Finding Things with XPath](xpath.md): the Latch protocol, an
+[Finding Things with XPath](xpath.md): the Vane protocol, an
 Internet-Draft written in XML. Its requirements are paragraphs with an
 anchor and a BCP 14 keyword:
 
 ```xml
-{{#include ../examples/spec/latch.xml:100:109}}
+{{#include ../examples/spec/vane.xml:106:115}}
 ```
 
-There is an earlier version of the draft too, `latch-00.xml`, and the
+There is an earlier version of the draft too, `vane-00.xml`, and the
 chapter compares the two. The examples run in
 `docs/book/examples/spec`, the directory of the specification project.
 By the end of the chapter we'll have a small toolkit for that project: a
@@ -35,7 +35,7 @@ the draft in place, one named node at a time, instead of rewriting it.
 A query usually lives in a file, ending in `.xq`. `sxml xquery` runs it:
 
 ```console
-$ sxml xquery --context-item=latch.xml keywords.xq
+$ sxml xquery --context-item=vane.xml keywords.xq
 1. MUST (5): req-1, req-2, req-4, req-6, req-7
 2. MAY (2): req-9, req-11
 3. SHOULD (2): req-3, req-8
@@ -59,7 +59,7 @@ the end of the next section you'll be able to read every clause of it.
 The same query runs on the earlier draft, which had no MAY yet:
 
 ```console
-$ sxml xquery --context-item=latch-00.xml keywords.xq
+$ sxml xquery --context-item=vane-00.xml keywords.xq
 1. MUST (5): req-1, req-2, req-4, req-6, req-7
 2. SHOULD (2): req-3, req-8
 3. MUST NOT (1): req-5
@@ -71,8 +71,8 @@ method by default, as a query's result is usually XML; `--method`
 chooses another:
 
 ```console
-$ sxml xquery --context-item=latch.xml --expression='//section[@anchor = "lockout"]/name'
-<name>Lockout</name>
+$ sxml xquery --context-item=vane.xml --expression='//section[@anchor = "pause"]/name'
+<name>Pause</name>
 $ sxml xquery --expression='for $i in 1 to 3 return <item>{ $i }</item>'
 <item>1</item><item>2</item><item>3</item>
 $ sxml xquery --method=adaptive --expression='"one", 2'
