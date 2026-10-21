@@ -16,17 +16,17 @@ uses the `xml` method unless the query or the command line says
 otherwise. The same sequence, written by four methods:
 
 ```console
-$ sxml xquery --context-item=latch.xml --expression='//t[@anchor = "req-7"]/bcp14, 7, 11, "req-7", <ok/>'
+$ sxml xquery --context-item=vane.xml --expression='//t[@anchor = "req-7"]/bcp14, 7, 11, "req-7", <ok/>'
 <bcp14>MUST</bcp14>7 11 req-7<ok/>
-$ sxml xquery --context-item=latch.xml --method=text --expression='//t[@anchor = "req-7"]/bcp14, 7, 11, "req-7", <ok/>'
+$ sxml xquery --context-item=vane.xml --method=text --expression='//t[@anchor = "req-7"]/bcp14, 7, 11, "req-7", <ok/>'
 MUST7 11 req-7
-$ sxml xquery --context-item=latch.xml --method=adaptive --expression='//t[@anchor = "req-7"]/bcp14, 7, 11, "req-7", <ok/>'
+$ sxml xquery --context-item=vane.xml --method=adaptive --expression='//t[@anchor = "req-7"]/bcp14, 7, 11, "req-7", <ok/>'
 <bcp14>MUST</bcp14>
 7
 11
 "req-7"
 <ok/>
-$ sxml xquery --context-item=latch.xml --method=json --expression='[//t[@anchor = "req-7"]/bcp14, 7, 11, "req-7"]'
+$ sxml xquery --context-item=vane.xml --method=json --expression='[//t[@anchor = "req-7"]/bcp14, 7, 11, "req-7"]'
 ["<bcp14>MUST<\/bcp14>",7,11,"req-7"]
 ```
 
@@ -49,7 +49,7 @@ the prolog. Each one sets one *serialization parameter*. The prefix
 far started with two:
 
 ```console
-$ sxml xquery --context-item=latch.xml --expression='
+$ sxml xquery --context-item=vane.xml --expression='
     declare option output:method "text";
     declare option output:item-separator ", ";
     //t[@anchor][bcp14 = "MUST"]/@anchor ! string()'
@@ -90,12 +90,12 @@ $ sxml xquery --expression='
     declare option output:indent "yes";
     declare option output:omit-xml-declaration "no";
     declare option output:doctype-system "rfc2629-xhtml.ent";
-    <rfc version="3" docName="draft-example-latch-protocol-02"><front><title>The Latch Protocol</title></front></rfc>'
+    <rfc version="3" docName="draft-example-vane-protocol-02"><front><title>The Vane Protocol</title></front></rfc>'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE rfc SYSTEM "rfc2629-xhtml.ent">
-<rfc version="3" docName="draft-example-latch-protocol-02">
+<rfc version="3" docName="draft-example-vane-protocol-02">
   <front>
-    <title>The Latch Protocol</title>
+    <title>The Vane Protocol</title>
   </front>
 </rfc>
 ```
@@ -109,19 +109,19 @@ names elements whose content stays as it is:
 ```console
 $ sxml xquery --expression='
     declare option output:indent "yes";
-    <section><t><bcp14>MUST</bcp14><xref target="term-lock">locks</xref></t></section>'
+    <section><t><bcp14>MUST</bcp14><xref target="term-flag">flags</xref></t></section>'
 <section>
   <t>
     <bcp14>MUST</bcp14>
-    <xref target="term-lock">locks</xref>
+    <xref target="term-flag">flags</xref>
   </t>
 </section>
 $ sxml xquery --expression='
     declare option output:indent "yes";
     declare option output:suppress-indentation "t";
-    <section><t><bcp14>MUST</bcp14><xref target="term-lock">locks</xref></t></section>'
+    <section><t><bcp14>MUST</bcp14><xref target="term-flag">flags</xref></t></section>'
 <section>
-  <t><bcp14>MUST</bcp14><xref target="term-lock">locks</xref></t>
+  <t><bcp14>MUST</bcp14><xref target="term-flag">flags</xref></t>
 </section>
 ```
 
@@ -130,16 +130,16 @@ sections, as xml2rfc authors write code, so that `<` and `&` need no
 escaping:
 
 ```console
-$ sxml xquery --context-item=latch.xml --expression='
+$ sxml xquery --context-item=vane.xml --expression='
     declare option output:cdata-section-elements "sourcecode";
     //sourcecode'
-<sourcecode type="abnf" name="latch.abnf"><![CDATA[
-message        = unlock-request / lock-request / status-request
-unlock-request = "UNLOCK" SP door-id SP code CRLF
-lock-request   = "LOCK" SP door-id CRLF
-status-request = "STATUS" SP door-id CRLF
-door-id        = 1*16(ALPHA / DIGIT / "-")
-code           = 4*8DIGIT
+<sourcecode type="abnf" name="vane.abnf"><![CDATA[
+message         = rollout-request / kill-request / status-request
+rollout-request = "ROLLOUT" SP flag-key SP percentage CRLF
+kill-request    = "KILL" SP flag-key CRLF
+status-request  = "STATUS" SP flag-key CRLF
+flag-key        = 1*32(ALPHA / DIGIT / "-")
+percentage      = 1*3DIGIT
 ]]></sourcecode>
 ```
 
@@ -161,12 +161,12 @@ browsers need: a `<!DOCTYPE html>` at the start and a `meta` element for
 the encoding:
 
 ```console
-$ sxml xquery --context-item=latch.xml --method=xhtml index-page.xq | head -5
+$ sxml xquery --context-item=vane.xml --method=xhtml index-page.xq | head -5
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
     <meta charset="UTF-8"/>
-    <title>Requirements of draft-example-latch-protocol-01</title>
+    <title>Requirements of draft-example-vane-protocol-01</title>
 ```
 
 The `html` method writes HTML5 by the rules of HTML: empty elements such
@@ -174,15 +174,15 @@ as `<br>` and `<meta>` without a slash, the doctype, and the `meta`
 element:
 
 ```console
-$ sxml xquery --context-item=latch.xml --expression='
+$ sxml xquery --context-item=vane.xml --expression='
     declare option output:method "html";
     declare option output:indent "yes";
-    <html><head><title>Latch</title></head><body><p>{ count(//t[@anchor]) } requirements.<br/>{ count(//cref) } editorial notes.</p></body></html>'
+    <html><head><title>Vane</title></head><body><p>{ count(//t[@anchor]) } requirements.<br/>{ count(//cref) } editorial notes.</p></body></html>'
 <!DOCTYPE html>
 <html>
   <head>
     <meta charset="UTF-8">
-    <title>Latch</title>
+    <title>Vane</title>
   </head>
   <body>
     <p>11 requirements.<br>2 editorial notes.</p>
@@ -199,7 +199,7 @@ and numbers and booleans are what you'd expect. The entries of
 array of them (here the first two, to keep it short):
 
 ```console
-$ sxml xquery --context-item=latch.xml --expression='
+$ sxml xquery --context-item=vane.xml --expression='
     import module namespace spec = "urn:example:spec" at "spec.xqm";
     declare option output:method "json";
     declare option output:indent "yes";
@@ -210,14 +210,14 @@ $ sxml xquery --context-item=latch.xml --expression='
     "number": 1,
     "section": "2",
     "keyword": "MUST",
-    "text": "A lock MUST be in exactly one of the states \"locked\", \"unlocked\" and \"lockout\"."
+    "text": "A flag MUST be in exactly one of the states \"stable\", \"rolling-out\" and \"paused\"."
   },
   {
     "anchor": "req-2",
     "number": 2,
     "section": "2",
     "keyword": "MUST",
-    "text": "A lock MUST start in the state \"locked\" when it is powered on."
+    "text": "A flag MUST start in the state \"stable\" when it is created."
   }
 ]
 ```
@@ -231,7 +231,7 @@ a time:
 ```console
 $ sxml xquery --method=json --expression='{ "a": 1 }, { "b": 2 }'
 expression: err:SERE0023: the JSON method cannot write a sequence of more than one item
-$ sxml xquery --context-item=latch.xml --expression='
+$ sxml xquery --context-item=vane.xml --expression='
     import module namespace spec = "urn:example:spec" at "spec.xqm";
     declare option output:method "json";
     declare option output:json-lines "yes";
@@ -255,12 +255,12 @@ the `/` of end tags is escaped as `\/`, which JSON allows; set
 to `text` to write only the text of the node:
 
 ```console
-$ sxml xquery --context-item=latch.xml --expression='
+$ sxml xquery --context-item=vane.xml --expression='
     declare option output:method "json";
     declare option output:escape-solidus "no";
     { "keyword": //t[@anchor = "req-7"]/bcp14 }'
 {"keyword":"<bcp14>MUST</bcp14>"}
-$ sxml xquery --context-item=latch.xml --expression='
+$ sxml xquery --context-item=vane.xml --expression='
     declare option output:method "json";
     declare option output:json-node-output-method "text";
     { "keyword": //t[@anchor = "req-7"]/bcp14 }'
@@ -274,23 +274,23 @@ comma or a quote in them are quoted, and a quote inside is doubled. The
 index for a spreadsheet, with a header row:
 
 ```console
-$ sxml xquery --context-item=latch.xml --expression='
+$ sxml xquery --context-item=vane.xml --expression='
     import module namespace spec = "urn:example:spec" at "spec.xqm";
     declare option output:method "csv";
     ["anchor", "section", "keyword", "text"],
     spec:requirements(/) ! spec:entry(.) ! [?anchor, ?section, ?keyword, ?text]'
 anchor,section,keyword,text
-req-1,2,MUST,"A lock MUST be in exactly one of the states ""locked"", ""unlocked"" and ""lockout""."
-req-2,2,MUST,"A lock MUST start in the state ""locked"" when it is powered on."
-req-3,2,SHOULD,"An unlocked lock SHOULD return to the state ""locked"" after ten seconds without a message."
-req-4,3.1,MUST,A lock MUST compare the code of an unlock request with its stored codes in time that does not depend on the code.
-req-5,3.1,MUST NOT,A lock MUST NOT unlock while it is in lockout (Section 4).
-req-9,3.1,MAY,A controller MAY send codes that are time-based one-time passwords [RFC6238].
-req-6,3.2,MUST,A lock MUST answer a status request with its state and the number of failed attempts since it last unlocked.
-req-10,3.2,SHOULD NOT,A controller SHOULD NOT send more than one status request per second to a lock.
-req-7,4,MUST,"After three rejected codes in a row, a lock MUST enter lockout."
-req-8,4,SHOULD,A lockout SHOULD last five minutes.
-req-11,4,MAY,A lock MAY report a lockout to the controller as soon as it begins.
+req-1,2,MUST,"A flag MUST be in exactly one of the states ""stable"", ""rolling-out"" and ""paused""."
+req-2,2,MUST,"A flag MUST start in the state ""stable"" when it is created."
+req-3,2,SHOULD,"A rolling-out flag SHOULD return to the state ""stable"" ten minutes after its rollout step began."
+req-4,3.1,MUST,A service MUST check the guardrail metrics of a flag before it applies the percentage of a rollout request.
+req-5,3.1,MUST NOT,A service MUST NOT roll out a flag while it is in a pause (Section 4).
+req-9,3.1,MAY,A service MAY ask an owner for a time-based one-time password [RFC6238] before a rollout.
+req-6,3.2,MUST,A service MUST answer a status request with the state of the flag and the number of failed checks since its last rollout step.
+req-10,3.2,SHOULD NOT,An SDK SHOULD NOT send more than one status request per second for a flag.
+req-7,4,MUST,"After three failed checks in a row, a service MUST put the flag in a pause."
+req-8,4,SHOULD,A pause SHOULD last five minutes.
+req-11,4,MAY,A service MAY report a pause to the owners of the flag as soon as it begins.
 ```
 
 `?anchor` and the others are lookups on the context item, the entry, so
@@ -304,11 +304,11 @@ parameters in a map. That's how a query writes XML into a string, or
 JSON into an XML attribute:
 
 ```console
-$ sxml xquery --context-item=latch.xml --method=text --expression='
+$ sxml xquery --context-item=vane.xml --method=text --expression='
     serialize(//t[@anchor = "req-7"]/bcp14),
     serialize({ "anchor": "req-7", "keywords": array { //t[@anchor = "req-7"]/bcp14/string() } }, { "method": "json" })'
 <bcp14>MUST</bcp14> {"anchor":"req-7","keywords":["MUST"]}
-$ sxml xquery --context-item=latch.xml --expression='<requirement keywords="{ serialize(array { //t[@anchor = "req-7"]/bcp14/string() }, { "method": "json" }) }"/>'
+$ sxml xquery --context-item=vane.xml --expression='<requirement keywords="{ serialize(array { //t[@anchor = "req-7"]/bcp14/string() }, { "method": "json" }) }"/>'
 <requirement keywords="[&quot;MUST&quot;]"/>
 ```
 
@@ -321,12 +321,12 @@ The file is written only when the query succeeds, and a file that exists
 is kept unless you add `--force`:
 
 ```console
-$ sxml xquery --context-item=latch.xml --output=requirements.xml index.xq
+$ sxml xquery --context-item=vane.xml --output=requirements.xml index.xq
 $ grep -c '<requirement ' requirements.xml
 11
-$ sxml xquery --context-item=latch-00.xml --output=requirements.xml index.xq
+$ sxml xquery --context-item=vane-00.xml --output=requirements.xml index.xq
 sxml xquery: 'requirements.xml' exists; give --force to replace it
-$ sxml xquery --context-item=latch-00.xml --output=requirements.xml --force index.xq
+$ sxml xquery --context-item=vane-00.xml --output=requirements.xml --force index.xq
 $ grep -c '<requirement ' requirements.xml
 8
 ```
