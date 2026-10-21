@@ -8,14 +8,14 @@ in the repository. It is also `USAGE.md` in each release archive, and
 
 At a glance:
 
-| Command | What it does | Chapter |
+| Command | What it does | Taught in |
 | --- | --- | --- |
-| `sxml xpath [OPTIONS] EXPRESSION` | Evaluates an XPath 4.0 expression | [2](xpath.md) |
-| `sxml xquery [OPTIONS] [QUERY-FILE]` | Runs an XQuery 4.0 query, from a file or `--expression` | [3](xquery.md) |
-| `sxml transform [OPTIONS] STYLESHEET [INPUT]` | Runs an XSLT 4.0 transformation | [4](xslt.md) |
-| `sxml validate [--schema=SCHEMA]... FILE...` | Validates documents against an XSD 1.1 schema | [5](xsd.md) |
-| `sxml check [OPTIONS] FILE...` | Checks that documents are well-formed, or valid against their DTD | [1](the-sxml-command.md) |
-| `sxml serialize [OPTIONS] FILE` | Parses a document and writes it again | [1](the-sxml-command.md) |
+| `sxml xpath [OPTIONS] EXPRESSION` | Evaluates an XPath 4.0 expression | [Finding Things with XPath](xpath.md) |
+| `sxml xquery [OPTIONS] [QUERY-FILE]` | Runs an XQuery 4.0 query, from a file or `--expression` | [Writing Programs with XQuery](xquery.md) |
+| `sxml transform [OPTIONS] STYLESHEET [INPUT]` | Runs an XSLT 4.0 transformation | [Transforming with XSLT](xslt.md) |
+| `sxml validate [OPTIONS] FILE...` | Validates documents against an XSD 1.1 schema | [Validating with XSD](xsd.md) |
+| `sxml check [OPTIONS] FILE...` | Checks that documents are well-formed, or valid against their DTD | [The sxml Command](the-sxml-command.md) |
+| `sxml serialize [OPTIONS] FILE` | Parses a document and writes it again | [The sxml Command](the-sxml-command.md) |
 | `sxml version` | Prints the version | |
 | `sxml help [COMMAND]` | Shows help | |
 
@@ -25,7 +25,7 @@ The options you'll use most:
 | --- | --- | --- |
 | `--context-item=FILE` | `xpath`, `xquery` | The document the expression starts from |
 | `--expression=TEXT` | `xquery` | The query text, instead of a query file |
-| `--param=NAME=VALUE` | `xpath`, `xquery`, `transform` | Binds a variable or stylesheet parameter to an untyped value |
+| `--param=NAME=VALUE` | `xpath`, `xquery`, `transform` | Binds `$NAME` to VALUE as `xs:untypedAtomic`; an external variable or stylesheet parameter declared with an `as` type converts it, and text that does not convert is an error (`FORG0001` for a query, `XTTE0590` for a stylesheet parameter) |
 | `--method=METHOD` | `xpath`, `xquery`, `transform`, `serialize` | The output method: `adaptive`, `xml`, `xhtml`, `html`, `text`, `json` or `csv` |
 | `--output=FILE`, `-o FILE` | `xpath`, `xquery`, `transform`, `serialize` | Writes the result to a file, only when the command succeeds |
 | `--force` | the same | Lets `--output` replace a file that exists |
@@ -34,10 +34,12 @@ The options you'll use most:
 | `--allow-put` | `xquery` | Lets `fn:put` write files |
 | `--allow-file-access` | `xpath`, `xquery` | Makes the EXPath File functions available |
 | `--collection=DIR` | `xpath`, `xquery`, `transform` | The XML files of DIR are the default collection, `collection()` |
+| `--code-language=LIBRARY` | `xpath`, `xquery`, `transform` | Loads a tree-sitter language from a shared library for `sxml:parse-code`; repeatable |
 | `--external-entities`, `--validate-dtd` | `check` | Reads external DTDs and entities; validates against the DTD |
 | `--schema=SCHEMA` | `validate` | A schema document; repeat it to combine several into one schema |
 | `--use-schema-location` | `validate` | Also reads the schema documents a document's `xsi:schemaLocation` names |
 | `--mode=lax` | `validate` | Lax validation |
+| `--indent` | `serialize` | Indents the output |
 | `--format=json` | `check`, `validate`, `version` | A report as JSON, for programs |
 
 | Exit status | Meaning |

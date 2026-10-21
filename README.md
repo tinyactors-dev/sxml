@@ -242,7 +242,7 @@ $ sxml transform list.xsl books.xml
 ```
 
 `sxml help` lists every command. [The sxml Book](docs/book/src/SUMMARY.md)
-teaches the languages step by step.
+teaches the languages step by step, on small projects.
 [apps/sxml/README.md](apps/sxml/README.md) is the full reference.
 
 ## Examples
@@ -660,7 +660,12 @@ sxml is released under the MIT License; see [LICENSE](LICENSE).
 
 - [The sxml Book](docs/book/src/SUMMARY.md): a guide to sxml and its
   languages, from installing it to XPath, XQuery, XSLT, XSD, other
-  formats, and embedding it in C and JavaScript. Build it with
+  formats, and embedding it in C and JavaScript, taught on projects
+  around one made-up feature-flag service: a specification kept in
+  xml2rfc XML, SVG diagrams, a self-describing SCXML machine, a diff of
+  call chains and a diff of OpenTelemetry traces. Its examples are in
+  `docs/book/examples/`, one directory per project, and
+  `tools/check-book-examples.sh` re-runs them. Build it with
   `mise run book` (or `mdbook build docs/book`); `mise run book:serve`
   serves it locally.
 - [apps/sxml/README.md](apps/sxml/README.md): the `sxml` command.

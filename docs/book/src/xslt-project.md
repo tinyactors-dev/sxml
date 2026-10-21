@@ -239,3 +239,26 @@ The files in `site/` are still those of the last good run. Each step
 adds one guarantee, and the stylesheets can assume what the steps before
 them checked: that every target exists, that every key word is marked,
 that the draft has the structure the schema describes.
+
+## Summary
+
+XSLT transforms documents by rules:
+
+- template rules match nodes with patterns, and `xsl:apply-templates`
+  moves the processing on; the best rule wins by import precedence and
+  priority;
+- modes process the same nodes in different ways, and a mode with
+  `on-no-match="shallow-copy"` copies everything you don't change;
+- keys index documents, `xsl:number` numbers sections and requirements
+  by their position, and `xsl:for-each-group` groups by value or by
+  position;
+- result documents write many files, and imports, functions and
+  packages organize large stylesheets that share their rules;
+- a script of small checked steps turns one source into every form a
+  document is read in.
+
+XSLT can also transform files too large for memory, as they stream
+past; [Streaming Large Trace Files](traces-streaming.md) teaches it on
+the trace archives of the last project. Next, the diagram tool of
+[Project: Drawing Diagrams with SVG](svg.md) puts XQuery and XSLT
+together on a different kind of XML: pictures.

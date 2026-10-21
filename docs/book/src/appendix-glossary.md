@@ -1,7 +1,16 @@
 # Appendix C: Glossary
 
+**Abstract type.** In XSD, a type that no element may have itself, only
+a type derived from it (`abstract="true"`). An abstract element
+declaration may appear only through its substitution group.
+
 **Accumulator.** In XSLT, a value that is updated as the processor moves
 through a document, by rules that match nodes. Works while streaming.
+
+**Anchor.** In an xml2rfc document, the name of a section, paragraph,
+term or reference, given by its `anchor` attribute; `xref` refers to
+it with `target`. Anchors are names, not numbers: the renderer numbers
+sections and requirements by their position.
 
 **Assertion.** In XSD 1.1, an XPath condition that a valid element
 (`xs:assert`) or value (the `assertion` facet) must meet.
@@ -17,10 +26,36 @@ constructed element with expressions in curly braces, such as
 **Axis.** The direction of a step in a path: `child`, `attribute`,
 `descendant`, `parent`, `ancestor`, the sibling axes and others.
 
+**BCP 14 key word.** One of the words of RFC 2119 and RFC 8174 that say
+how strong a requirement is: MUST, MUST NOT, REQUIRED, SHALL, SHALL
+NOT, SHOULD, SHOULD NOT, RECOMMENDED, NOT RECOMMENDED, MAY and
+OPTIONAL. xml2rfc marks them with `bcp14`.
+
+**Boundary whitespace.** In an XQuery direct constructor, whitespace
+that stands alone between tags or enclosed expressions. It is dropped
+unless the query declares `boundary-space preserve`.
+
+**Breadth-first search.** Visiting a graph in rounds: first the start
+nodes, then the nodes one edge away from them, then two edges away,
+and so on, never visiting a node twice. Each round starts from the
+*frontier*.
+
+**Call chain.** A path of calls in a program, from an *entry* down to a
+function that calls no other function of the program.
+
+**Call graph.** Which function of a program calls which: a graph with a
+node for each function and an edge for each call.
+
+**Cardinality.** In the traces project, how many times one participant
+calls another in a request.
+
 **Collation.** Rules for comparing and sorting strings, named by a URI.
 
 **Complex type.** In XSD, the type of an element with attributes or
 children. Its *content model* says which children it may have.
+
+**Conditional type assignment.** In XSD 1.1, choosing an element's type
+by a condition on its attributes, with `xs:alternative`.
 
 **Constructor.** An expression that makes a new node (`<p>...</p>`,
 `element { ... } { ... }`), map or array.
@@ -28,6 +63,18 @@ children. Its *content model* says which children it may have.
 **Context item.** The item an expression is evaluated against: the
 document given with `--context-item`, or the item a predicate is
 testing. Written `.`.
+
+**Core rules.** The rules that RFC 5234, the ABNF standard, defines for
+every grammar in its Appendix B.1, such as `ALPHA`, `DIGIT`, `SP` and
+`CRLF`. A grammar uses them without defining them.
+
+**Default attributes.** In XSD 1.1, an attribute group that every
+complex type of a schema document gets, named by `defaultAttributes`
+on `xs:schema`.
+
+**Default collection.** The collection that `collection()` returns
+without an argument; for the sxml command, the XML files of the
+directory given with `--collection`.
 
 **Derivation.** Making an XSD type from another: by *restriction*,
 which narrows its values, or by *extension*, which adds content.
@@ -38,13 +85,24 @@ element.
 **Document order.** The order of the nodes of a document as they appear
 in its text. Path expressions return nodes in document order.
 
+**Editorial note.** A note to the authors and reviewers of a draft, not
+part of the published text: `cref` in xml2rfc.
+
 **Effective boolean value.** The true or false that a condition takes
 from any value: the empty sequence, the empty string, zero and NaN are
 false; a node is true.
 
+**Entry.** In a call graph, a function that no call of the program
+reaches, where call chains start, such as the function that starts a
+server.
+
 **Error code.** The name of an error, such as `err:XPTY0004`, defined by
 the specifications. The same code means the same problem in every
 processor.
+
+**Executable content.** In SCXML, the actions that run on a transition
+and when a state is entered or left: `assign`, `log`, `raise`, `send`
+and others.
 
 **External variable.** A variable of a query whose value comes from
 outside, such as `--param`; a parameter of the whole query.
@@ -52,14 +110,49 @@ outside, such as `--param`; a parameter of the whole query.
 **Facet.** A property of a simple type that restricts its values, such
 as `pattern`, `maxLength` or `minInclusive`.
 
+**Feature flag.** A switch in a running application that turns a
+feature on or off for some of its users without a new release. In
+Vane, the book's example system, an SDK asks the evaluation service
+whether a flag is on for a user.
+
 **FLWOR expression.** XQuery's expression of `for`, `let`, `where`,
 `order by`, `group by`, `count`, window clauses and `return`.
+
+**Frontier.** In a breadth-first search, the nodes found in the last
+round, from which the next round goes on. The search ends when the
+frontier leads to no new node.
+
+**Guardrail metric.** A measurement, such as an error rate, that must
+stay healthy while a feature flag is rolled out. Vane checks the
+guardrail metrics before each step, and pauses a flag after three failed
+checks in a row.
 
 **Identity constraint.** In XSD, a rule that values are unique
 (`xs:unique`, `xs:key`) or refer to a key (`xs:keyref`).
 
+**Import precedence.** In XSLT, the rule that a declaration in an
+importing stylesheet beats any declaration it imports, whatever their
+priorities.
+
+**Instrumentation scope.** In OpenTelemetry, the library that recorded
+a span, such as the instrumentation for HTTP or for PostgreSQL. In OTLP,
+a resource's spans are grouped by scope.
+
+**Internet-Draft.** A working document of the IETF, the body that
+publishes the RFCs. Drafts are named like
+`draft-example-vane-protocol-01`, the last part being the version, and
+expire after six months.
+
 **Item.** One member of a sequence: a node, an atomic value or a
 function (maps and arrays are functions).
+
+**Kill switch.** A way to turn a feature flag off at once for every
+user. In Vane, a request to a flag's `kill` route from one of its
+owners.
+
+**Layout.** In the SVG project, the place of each box of a diagram,
+computed from the graph: its rank gives its row, and the rows are
+centred.
 
 **Library module.** An XQuery module of declarations, with a namespace,
 that queries import.
@@ -70,20 +163,55 @@ keys.
 
 **Mode.** In XSLT, a set of template rules that are used together.
 
+**N+1.** A pattern of calls in which a program asks once for a list of
+keys and then once more for each item, instead of once for all of them:
+N + 1 calls where one would do.
+
+**Namespace import, named import.** In TypeScript, `import * as
+registry from "./registry.ts"` makes `registry` stand for a whole
+module; `import { listFlags } from "./flags.ts"` makes `listFlags`
+stand for one function of a module.
+
 **Node.** A part of a document: a document, element, attribute, text,
 comment, processing instruction or namespace node.
+
+**Normal form.** In the traces project, a trace file as XML: one
+`traces` element with the services and a tree of spans for each trace.
+The later queries and stylesheets work on it.
+
+**Open content.** In XSD 1.1, elements that a content model does not
+name allowed among the ones it does, by a wildcard in `xs:openContent`.
 
 **Optional feature.** A part of the sxml library that a program opts
 into, such as HTML parsing or UCA collations.
 
+**OTLP.** The OpenTelemetry Protocol, how services send their spans to
+a collector. Its JSON encoding is the format of the traces project's
+files.
+
 **Output method.** How a result is written: `xml`, `html`, `xhtml`,
 `text`, `json`, `csv` or `adaptive`.
+
+**Override.** In XSD 1.1, using a schema document with some of its
+components replaced, with `xs:override`.
 
 **Package.** In XSLT, a named, versioned stylesheet module whose
 components are private unless it makes them public.
 
+**Palette.** In the SVG project, a map from each colour of a drawing to
+the one that replaces it, as a dark theme does.
+
+**Participant.** In the traces project, a service or database that
+takes part in a request, as the caller or the callee of a call.
+
 **Pattern.** In XSLT, a condition on a node, written like a path, that
 says which nodes a template rule matches.
+
+**Pause.** In Vane, a time in which a flag refuses every rollout, after
+too many failed checks.
+
+**Payload.** The data an event carries. In the state-machine project,
+an event declaration names its payload's element in `vane-data.xsd`.
 
 **Pending update list.** The changes an updating XQuery expression makes,
 applied all together at the end of the query.
@@ -92,22 +220,54 @@ applied all together at the end of the query.
 expression, which keeps the items for which it is true.
 
 **Printer.** A program that writes a syntax tree as source text, with
-the keywords, punctuation and layout of the language. In Chapter 12, an
-XSLT stylesheet with one template rule for each kind of element.
+the keywords, punctuation and layout of the language. In [Printing the
+Tree with XSLT](codegen-printer.md), an XSLT stylesheet with one template
+rule for each kind of element.
 
 **Processor.** In the sxml library, the object that owns the names,
 types and values of everything compiled and evaluated with it.
+
+**Rank.** In the SVG project, the row of a node in a diagram: its
+distance, in edges, from the nodes at the top, found by a breadth-first
+search.
 
 **Remote function.** A function that runs on a server and that a
 client, such as a browser page, calls as if it were local. In this
 book's project, a *query* reads data and a *command* changes it.
 
+**Requirement.** In a specification, a statement that an
+implementation must, should or may do something, with a BCP 14 key
+word. In the book's draft, a `t` paragraph with an `anchor` and a
+`bcp14` element.
+
 **Resolver.** The function that a program gives the sxml library to
 answer requests for resources: documents, text, modules, schemas. sxml
 reads nothing else.
 
+**Resource.** In OpenTelemetry, what recorded a set of spans, usually a
+service, described by attributes such as `service.name` and
+`service.version`.
+
+**Result document.** In XSLT, an output besides the principal result,
+made with `xsl:result-document`; the sxml command writes them below
+`--result-directory`.
+
+**Rollout.** Turning a feature flag on for a growing percentage of
+users, in steps.
+
 **Schema.** A description of what valid documents of a kind contain. In
 this book, an XSD schema.
+
+**Schema-aware.** A processor that can validate documents inside a
+query or stylesheet and use the types the schema gives their nodes.
+sxml is schema-aware.
+
+**SCXML.** State Chart XML, the W3C's XML vocabulary for state
+machines.
+
+**Semantic conventions.** OpenTelemetry's agreed names and meanings of
+span attributes, such as `http.request.method`, `http.route` and
+`db.system.name`.
 
 **Sequence.** The value of every expression: zero or more items in
 order. Sequences don't nest.
@@ -120,6 +280,13 @@ method.
 
 **Simple type.** In XSD, a type of text: a built-in type such as
 `xs:date`, or a restriction, list or union of others.
+
+**Span, span kind.** In tracing, one operation of a service, with a
+name, a start, an end and a parent. Its kind says what it is: a
+*server* span handles a request, a *client* span calls something else.
+
+**State machine.** A system that is in one of a set of states at a time
+and moves between them on events, by transitions.
 
 **Static and dynamic errors.** A static error is found when an
 expression is compiled (a syntax error, an unknown function); a dynamic
@@ -138,6 +305,9 @@ The simplest way to write a line or two of code; for whole files, see
 **Substitution group.** In XSD, the global elements that may appear
 wherever their head element is allowed.
 
+**SVG.** Scalable Vector Graphics, the W3C's XML vocabulary for
+drawings, in the namespace `http://www.w3.org/2000/svg`.
+
 **Syntax tree.** A program as a tree of its parts. A *concrete* syntax
 tree, as `sxml:parse-code` returns, holds every token and space, so its
 string value is the source; an *abstract* one holds only the parts that
@@ -149,6 +319,9 @@ document declares.
 **Template rule.** In XSLT, a rule with a pattern and a body that makes
 the output for the nodes the pattern matches.
 
+**Trace.** All the spans of one request through a system of services,
+which share a trace id: a tree of spans.
+
 **Typed value.** The atomic value of a node: for a validated node, of the
 type its schema gives it; otherwise untyped.
 
@@ -159,8 +332,23 @@ arithmetic, to strings in string comparisons.
 **Validation.** Checking a document against a schema, which also gives
 its nodes their types.
 
+**viewBox.** The attribute of an `svg` element that gives the area of
+its coordinates that is drawn (left, top, width and height). Changing
+`width` and `height` but not `viewBox` scales the drawing.
+
+**Wildcard.** In XSD, `xs:any` or `xs:anyAttribute`: a place in a
+content model that allows elements or attributes by namespace instead
+of by name. `processContents` says whether they are validated.
+
 **Window clause.** A FLWOR clause that binds a variable to runs of
 consecutive items: tumbling windows don't overlap, sliding windows may.
 
+**Worklist.** The list of unfinished items in a loop that replaces a
+recursive function: the loop takes one off, and puts back what it finds
+still to do, until the list is empty.
+
 **XDM.** The XQuery and XPath Data Model, the model of values that
 XPath, XQuery and XSLT share.
+
+**xml2rfc.** The IETF's XML vocabulary for Internet-Drafts and RFCs
+(version 3, RFC 7991), and the tool that renders it as text and HTML.
