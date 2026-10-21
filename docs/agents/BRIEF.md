@@ -69,6 +69,9 @@ you implement or use.
 - All agents share one git index. Commit with an explicit pathspec in one
   command: `git commit -m "..." -- path1 path2`. Never `git add` and commit
   in two commands, and never `git commit -a`.
+- Do not stage files for later (`git add`, `git mv`) in the shared index:
+  someone else's index commit takes them. Rename with `git mv` and commit
+  it in the same command (`git mv OLD NEW && git commit -m ... -- OLD NEW`).
 - **Never commit a shared ledger (DECISIONS, GLOSSARY, LOG, QUEUE, task
   files) by pathspec**: that takes everyone's uncommitted text with it,
   which has happened several times.
