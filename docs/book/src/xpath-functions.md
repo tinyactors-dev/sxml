@@ -1,6 +1,6 @@
 # Functions and Operators
 
-<!-- examples: xpath -->
+<!-- examples: spec -->
 
 XPath comes with a large library of functions, defined in a companion
 specification, *XPath and XQuery Functions and Operators 4.0*. This
@@ -10,117 +10,182 @@ variables and loops.
 
 ## Strings
 
+The draft's name, its `docName`, says which version it is:
+`draft-example-latch-protocol-01` is version 01. The string functions
+take it apart:
+
 ```console
-$ sxml xpath 'contains("Dune", "un"), starts-with("Dune", "D"), substring("Hofstadter", 1, 4)'
+$ sxml xpath --context-item=latch.xml 'contains(/rfc/@docName, "latch"), starts-with(/rfc/@docName, "draft-"), substring(/rfc/@docName, 15, 5)'
 true()
 true()
-"Hofs"
-$ sxml xpath --context-item=library.xml 'string-join(//book[@year < 1970]/@id, ", ")'
-"taocp, dune, lhod"
+"latch"
+$ sxml xpath --context-item=latch.xml 'substring-after(/rfc/@docName, "draft-"), tokenize(/rfc/@docName, "-")[last()]'
+"example-latch-protocol-01"
+"01"
 ```
+
+`substring` counts characters from 1. `tokenize` splits a string at a
+separator, here `-`, and `[last()]` keeps the last part: the version.
+
+Paragraphs in XML are full of line breaks and indentation.
+`normalize-space` turns every run of whitespace into one space and
+removes it at both ends, which is what you want before you compare or
+print a paragraph:
+
+```console
+$ sxml xpath --context-item=latch.xml 'normalize-space(//t[@anchor = "req-3"])'
+"An unlocked lock SHOULD return to the state ""locked"" after ten seconds without a message."
+```
+
+The quotes from the paragraph are doubled: that is how a string literal
+in XPath writes a quote, and sxml writes strings so that you could paste
+them back into an expression.
 
 `string-join` joins a sequence with a separator, and `||` joins two
 strings. A *string template*, written between backticks, puts the values
 of expressions in curly braces into a string:
 
 ```console
-$ sxml xpath --context-item=library.xml '//shelf ! `{@name}: {count(book)} books`'
-"Computing: 3 books"
-"Fiction: 2 books"
+$ sxml xpath --context-item=latch.xml 'string-join(//section[@anchor = "lockout"]/t/@anchor, ", ")'
+"req-7, req-8, req-11"
+$ sxml xpath --context-item=latch.xml '/rfc/middle/section ! `{name}: {count(.//t[@anchor])} requirements`'
+"Introduction: 0 requirements"
+"Lock States: 3 requirements"
+"Messages: 5 requirements"
+"Lockout: 3 requirements"
+"Security Considerations: 0 requirements"
+"IANA Considerations: 0 requirements"
 ```
 
-Other string functions include `upper-case`, `lower-case`,
-`normalize-space`, `string-length`, `substring-before`,
-`substring-after`, `translate` and `char`.
+Messages has five because `.//t` also finds the requirements of its two
+subsections. Other string functions include `upper-case`, `lower-case`,
+`string-length`, `substring-before`, `translate` and `char`.
 
 ## Regular expressions
 
 `matches`, `replace` and `tokenize` take regular expressions, in the
-syntax of XML Schema with the usual extensions (`\d`, `\s`, `\w`, groups,
-and `$1` in replacements):
+syntax of XML Schema with the usual extensions (`\d`, `\s`, `\w`, `\b`
+for a word boundary, groups, and `$1` in replacements):
 
 ```console
-$ sxml xpath 'replace("2026-10-20", "(\d+)-(\d+)-(\d+)", "$3.$2.$1")'
-"20.10.2026"
-$ sxml xpath 'tokenize("logic, music, art", ",\s*")'
-"logic"
-"music"
-"art"
-$ sxml xpath --context-item=library.xml '//author ! tokenize(.)[last()]'
-"Hofstadter"
-"Knuth"
-"Abelson"
-"Sussman"
-"Herbert"
-"Guin"
+$ sxml xpath --context-item=latch.xml 'replace(/rfc/@docName, "-(\d+)$", "-02")'
+"draft-example-latch-protocol-02"
+$ sxml xpath 'tokenize("lock, access control", ",\s*")'
+"lock"
+"access control"
+$ sxml xpath --context-item=latch.xml '//author ! tokenize(@fullname)[last()]'
+"Byron"
+"Mathison"
+"Bradner"
+"Crocker"
+"Overell"
+"Leiba"
+"M'Raihi"
+"Machani"
+"Pei"
+"Rydell"
 ```
 
-With one argument, `tokenize` splits at whitespace.
+The first gives the name of the next version: `-(\d+)$` matches a dash
+and the digits at the end. With one argument, `tokenize` splits at
+whitespace.
+
+Regular expressions find a classic mistake in drafts: a key word that is
+written in capitals but not marked up. BCP 14 says the words have their
+special meaning only "when, and only when, they appear in all capitals",
+so a tool that lists requirements by their `bcp14` elements misses a
+MUST that is plain text. `\b` matches at the edges of words, so
+`\b(MUST|SHOULD|MAY)\b` finds the words but not "MUSTER". Look for them
+in the text nodes that are not inside a `bcp14`:
+
+```console
+$ sxml xpath 'matches("Deployments SHOULD carry Latch over an encrypted link.", "\b(MUST|SHOULD|MAY)\b"), matches("A lock should lock.", "\b(MUST|SHOULD|MAY)\b")'
+true()
+false()
+$ sxml xpath --context-item=latch.xml '//text()[not(parent::bcp14)][matches(., "\b(MUST|SHOULD|MAY)\b")] ! normalize-space()'
+"The key words ""MUST"", ""MUST NOT"", ""REQUIRED"", ""SHALL"", ""SHALL NOT"", ""SHOULD"", ""SHOULD NOT"", ""RECOMMENDED"", ""NOT RECOMMENDED"", ""MAY"", and ""OPTIONAL"" in this document are to be interpreted as described in BCP 14"
+```
+
+The one match is the paragraph of Terminology that lists the key words,
+where they are meant as words, not as requirements. Leave that section
+out, and nothing is left: the draft marks up every key word it uses.
+
+```console
+$ sxml xpath --context-item=latch.xml 'count(//text()[not(parent::bcp14)][not(ancestor::section[@anchor = "terminology"])][matches(., "\b(MUST|SHOULD|MAY)\b")])'
+0
+```
 
 ## Numbers
 
 ```console
-$ sxml xpath --context-item=library.xml 'count(//book), sum(//book/@pages), avg(//book/@pages)'
-5
-2.822e3
-5.644e2
+$ sxml xpath --context-item=latch.xml 'count(//t[@anchor]), sum((1, 2, 3)), avg((1, 2))'
+11
+6
+1.5
 $ sxml xpath 'abs(-3), floor(2.7), ceiling(2.1), round(2.5), round-half-to-even(2.5)'
 3
 2
 3
 3
 2
-$ sxml xpath 'format-number(1234567.891, "#,##0.00"), format-integer(1968, "I")'
-"1,234,567.89"
-"MCMLXVIII"
+$ sxml xpath 'format-number(5 div 11, "0%"), format-number(5 div 11, "0.0%"), format-number(1234.5, "#,##0.00"), format-integer(3, "w"), format-integer(11, "I")'
+"45%"
+"45.5%"
+"1,234.50"
+"three"
+"XI"
 ```
 
-`format-number` writes a number with a picture string, and
-`format-integer` writes integers as words, roman numerals or letters.
-Chapter 7 shows them in other languages.
+`format-number` writes a number with a picture string; with `%` in the
+picture it multiplies by a hundred first. `format-integer` writes
+integers as words, roman numerals or letters. "After three rejected
+codes" in req-7 is the number 3 in words. [Working with Text](text.md)
+shows both in other languages.
 
 ## Sequences
 
 Many functions work on whole sequences:
 
 ```console
-$ sxml xpath --context-item=library.xml 'distinct-values(//tag)'
-"logic"
-"music"
-"art"
-"algorithms"
-"lisp"
-"desert"
-"politics"
-"winter"
+$ sxml xpath --context-item=latch.xml 'distinct-values(//bcp14)'
+"MUST"
+"SHOULD"
+"MUST NOT"
+"MAY"
+"SHOULD NOT"
+$ sxml xpath --context-item=latch.xml 'index-of(//t[@anchor]/@anchor ! string(), "req-9")'
+6
+$ sxml xpath --context-item=latch.xml 'sort(//dt/string())'
+"Code"
+"Controller"
+"Lock"
+"Lockout"
+$ sxml xpath --context-item=latch.xml 'head(//t[@anchor]/@anchor ! string()), tail(//section[@anchor = "lockout"]/t/@anchor ! string())'
+"req-1"
+"req-8"
+"req-11"
 $ sxml xpath 'reverse(1 to 4)'
 4
 3
 2
 1
-$ sxml xpath 'index-of(("a", "b", "c", "b"), "b"), head((5, 6, 7)), tail((5, 6, 7))'
-2
-4
-5
-6
-7
-$ sxml xpath --context-item=library.xml 'sort(//book/title/string())'
-"Dune"
-"Godel, Escher, Bach"
-"Structure and Interpretation of Computer Programs"
-"The Art of Computer Programming"
-"The Left Hand of Darkness"
 ```
 
-`1 to 4` is the sequence of integers from 1 to 4. `empty` and `exists`
-test whether a sequence has items, and `otherwise` gives a fallback when
-the left side is empty:
+The draft uses five of BCP 14's key words. `index-of` gives the
+positions of a value in a sequence: req-9 is the sixth requirement in
+the document, although it was the ninth to be written. `head` is the
+first item and `tail` all the others. `1 to 4` is the sequence of
+integers from 1 to 4.
+
+`empty` and `exists` test whether a sequence has items, and `otherwise`
+gives a fallback when the left side is empty:
 
 ```console
-$ sxml xpath --context-item=library.xml 'empty(//book[@year < 1900])'
+$ sxml xpath --context-item=latch.xml 'empty(//t[bcp14 = "SHALL"]), exists(//cref)'
 true()
-$ sxml xpath --context-item=library.xml '//book[@year < 1900]/title otherwise "none"'
-"none"
+true()
+$ sxml xpath --context-item=latch.xml '//t[bcp14 = "SHALL"]/@anchor otherwise "no SHALL"'
+"no SHALL"
 ```
 
 ## The arrow operator
@@ -130,71 +195,79 @@ operator `=>` passes the value on its left as the first argument of the
 function on its right, so you can write a pipeline from left to right:
 
 ```console
-$ sxml xpath '"hello world" => upper-case() => tokenize()'
-"HELLO"
-"WORLD"
+$ sxml xpath --context-item=latch.xml '/rfc/@docName => tokenize("-") => reverse() => head()'
+"01"
 ```
 
 `=>` passes the whole sequence. `=!>` passes each item separately, as
 `!` does:
 
 ```console
-$ sxml xpath '("apple", "Banana", "cherry") =!> upper-case()'
-"APPLE"
-"BANANA"
-"CHERRY"
+$ sxml xpath --context-item=latch.xml '//dt =!> upper-case()'
+"LOCK"
+"CONTROLLER"
+"CODE"
+"LOCKOUT"
 ```
 
 ## Conditions
 
-`if` chooses between two values:
+`if` chooses between two values. A section with requirements of its own
+is normative; the others only explain:
 
 ```console
-$ sxml xpath --context-item=library.xml '//book ! (if (@year < 1970) then "old" else "new")'
-"new"
-"old"
-"new"
-"old"
-"old"
+$ sxml xpath --context-item=latch.xml '//section ! `{@anchor}: {if (t[@anchor]) then "normative" else "informative"}`'
+"intro: informative"
+"terminology: informative"
+"states: normative"
+"messages: informative"
+"unlock: normative"
+"status: normative"
+"lockout: normative"
+"security: informative"
+"iana: informative"
 ```
 
-`some` and `every` test a condition over a sequence:
+`some` and `every` test a condition over a sequence. Is there a
+paragraph with a key word but no anchor, and does every requirement
+have a key word?
 
 ```console
-$ sxml xpath --context-item=library.xml 'some $book in //book satisfies $book/@year < 1966'
+$ sxml xpath --context-item=latch.xml 'some $t in //t[bcp14] satisfies empty($t/@anchor), every $t in //t[@anchor] satisfies $t/bcp14'
 true()
-$ sxml xpath --context-item=library.xml 'every $book in //book satisfies $book/author'
 true()
 ```
+
+The first is the paragraph in Security Considerations again: a
+requirement that other documents cannot refer to, because it has no
+anchor.
 
 ## Variables and loops
 
 `let` binds a name to a value, and `for` evaluates an expression once
-for each item of a sequence. Variable names start with `$`:
+for each item of a sequence. Variable names start with `$`. Here is the
+share of each key word among the requirements:
 
 ```console
-$ sxml xpath --context-item=library.xml 'let $prices := //price ! xs:decimal(.) return max($prices) - min($prices)'
-170.01
-$ sxml xpath --context-item=library.xml 'for $book in //book return $book/@id || ": " || $book/@pages'
-"geb: 777"
-"taocp: 672"
-"sicp: 657"
-"dune: 412"
-"lhod: 304"
+$ sxml xpath --context-item=latch.xml 'let $requirements := //t[@anchor] for $keyword in distinct-values($requirements/bcp14) return `{$keyword}: {format-number(count($requirements[bcp14 = $keyword]) div count($requirements), "0%")}`'
+"MUST: 45%"
+"SHOULD: 18%"
+"MUST NOT: 9%"
+"MAY: 18%"
+"SHOULD NOT: 9%"
 ```
 
 A variable can also come from outside. `--param` binds one from the
 command line, as an untyped value:
 
 ```console
-$ sxml xpath --context-item=library.xml --param=before=1970 '//book[@year < $before]/@id/string()'
-"taocp"
-"dune"
-"lhod"
+$ sxml xpath --context-item=latch.xml --param=keyword=SHOULD '//t[bcp14 = $keyword]/@anchor/string()'
+"req-3"
+"req-8"
 ```
 
 XQuery builds on `for` and `let` with a much richer form, the FLWOR
-expression, in Chapter 3.
+expression, in [Writing Programs with XQuery](xquery.md).
 
 ## Namespaces of functions
 
@@ -204,9 +277,11 @@ maps and arrays are in `map` and `array`, mathematical functions in
 `math`, and the constructor functions of types in `xs`:
 
 ```console
-$ sxml xpath 'math:sqrt(2), math:pi()'
+$ sxml xpath --context-item=latch.xml 'fn:count(//t[@anchor]), xs:integer("11"), math:pow(2, 10), math:sqrt(2)'
+11
+11
+1.024e3
 1.4142135623730951e0
-3.141592653589793e0
 ```
 
 A name the processor doesn't know is a static error, raised before
