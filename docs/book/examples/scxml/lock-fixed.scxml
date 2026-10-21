@@ -1,0 +1,95 @@
+<scxml xmlns="http://www.w3.org/2005/07/scxml" xmlns:latch="urn:example:latch" version="1.0" name="door_lock" initial="locked" datamodel="ecmascript" latch:implements="req-1">
+
+  <latch:events>
+    <latch:event name="unlock.request" latch:payload="latch:credentials">
+      <p xmlns="http://www.w3.org/1999/xhtml">A person presents a code at the door.</p>
+    </latch:event>
+    <latch:event name="code.accepted">
+      <p xmlns="http://www.w3.org/1999/xhtml">The code matches one of the stored codes.</p>
+    </latch:event>
+    <latch:event name="code.rejected">
+      <p xmlns="http://www.w3.org/1999/xhtml">The code matches none of them.</p>
+    </latch:event>
+    <latch:event name="lock.request">
+      <p xmlns="http://www.w3.org/1999/xhtml">The controller asks the lock to lock.</p>
+    </latch:event>
+    <latch:event name="status.request">
+      <p xmlns="http://www.w3.org/1999/xhtml">The controller asks for the state.</p>
+    </latch:event>
+    <latch:event name="status.response" latch:payload="latch:status">
+      <p xmlns="http://www.w3.org/1999/xhtml">The lock answers with its state.</p>
+    </latch:event>
+    <latch:event name="timeout.relock">
+      <p xmlns="http://www.w3.org/1999/xhtml">Sent by the lock to itself after an unlock.</p>
+    </latch:event><latch:event name="door.opened"><p xmlns="http://www.w3.org/1999/xhtml">The door sensor reports that the door opened.</p></latch:event>
+    <latch:event name="lockout.expired">
+      <p xmlns="http://www.w3.org/1999/xhtml">Sent by the lock to itself when a lockout ends.</p>
+    </latch:event>
+    <latch:event name="bolt.jammed">
+      <p xmlns="http://www.w3.org/1999/xhtml">The motor could not move the bolt.</p>
+    </latch:event>
+  </latch:events>
+
+  <datamodel>
+    <data id="attempts" expr="0" latch:type="latch:attempt-count"/>
+    <data id="maxAttempts" expr="3" latch:type="latch:attempt-limit"/>
+    <data id="relockSeconds" expr="10" latch:type="latch:seconds"/>
+    <data id="lockoutSeconds" expr="300" latch:type="latch:seconds"/>
+  </datamodel>
+
+  <state id="locked" latch:implements="req-2"><transition event="bolt.jammed" target="jammed"/>
+    <div xmlns="http://www.w3.org/1999/xhtml">
+      <p>The bolt is thrown. The lock waits for a code.</p>
+    </div>
+    <transition event="unlock.request" target="checking"/>
+    <transition event="status.request" latch:implements="req-6">
+      <send event="status.response"/>
+    </transition>
+  </state>
+
+  <state id="checking" latch:implements="req-4">
+    <div xmlns="http://www.w3.org/1999/xhtml">
+      <p>The lock compares the code with its stored codes, in constant time.</p>
+    </div>
+    <transition event="code.accepted" target="unlocked">
+      <assign location="attempts" expr="0"/>
+    </transition>
+    <transition event="code.rejected" cond="attempts + 1 &lt; maxAttempts" target="locked">
+      <assign location="attempts" expr="attempts + 1"/>
+    </transition>
+    <transition event="code.rejected" target="lockout" latch:implements="req-7"/>
+  </state>
+
+  <state id="unlocked" latch:implements="req-3"><transition event="bolt.jammed" target="jammed"/>
+    <div xmlns="http://www.w3.org/1999/xhtml">
+      <p>The bolt is drawn. The lock locks again after
+      <var>relockSeconds</var> seconds, or when it is told to.</p>
+    </div>
+    <onentry>
+      <send event="timeout.relock" delayexpr="relockSeconds + 's'"/>
+    </onentry>
+    <transition event="lock.request timeout.relock" target="locked"/>
+    <transition event="door.opened">
+      <log label="door" expr="'opened'"/>
+    </transition>
+  </state>
+
+  <state id="lockout" latch:implements="req-5 req-8">
+    <div xmlns="http://www.w3.org/1999/xhtml">
+      <p>The lock refuses every code for <var>lockoutSeconds</var> seconds.</p>
+    </div>
+    <onentry>
+      <send event="lockout.expired" delayexpr="lockoutSeconds + 's'"/>
+    </onentry>
+    <transition event="lockout.expired" target="locked">
+      <assign location="attempts" expr="0"/>
+    </transition>
+  </state>
+
+  <state id="jammed">
+    <div xmlns="http://www.w3.org/1999/xhtml">
+      <p>The bolt is stuck. Someone has to come and look at it.</p>
+    </div>
+    <transition event="lock.request" target="locked"/>
+  </state>
+</scxml>
