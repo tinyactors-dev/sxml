@@ -7,7 +7,7 @@
   <xsl:output method="html" indent="yes"/>
 
   <!-- The earlier draft, compared by requirement anchor. -->
-  <xsl:param name="old" select="'latch-00.xml'"/>
+  <xsl:param name="old" select="'vane-00.xml'"/>
   <xsl:variable name="old-draft" select="doc($old)"/>
 
   <xsl:key name="requirement" match="t[@anchor]" use="@anchor"/>
@@ -36,7 +36,7 @@
         else 'changed'"/>
     <xsl:if test="$status != 'unchanged'">
       <tr class="{$status}">
-        <td><a href="latch.html#{@anchor}">{spec:number(.)}</a></td>
+        <td><a href="vane.html#{@anchor}">{spec:number(.)}</a></td>
         <td>{$status}</td>
         <td>
           <xsl:if test="$status = 'changed'">

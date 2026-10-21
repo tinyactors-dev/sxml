@@ -20,28 +20,29 @@ of element:
 chapter.) Run it, and look at the first part of the page:
 
 ```console
-$ sxml transform draft.xsl latch.xml | head -31
+$ sxml transform draft.xsl vane.xml | head -31
 <!DOCTYPE html>
 <html>
   <head>
     <meta charset="UTF-8">
-    <title>The Latch Protocol for Remote Door Locks</title>
+    <title>The Vane Protocol for Feature Flag Rollouts</title>
   </head>
   <body>
-    <h1>The Latch Protocol for Remote Door Locks</h1>
+    <h1>The Vane Protocol for Feature Flag Rollouts</h1>
     <ol class="toc">
       <li><a href="#intro">Introduction</a><ol><li><a href="#terminology">Terminology</a></li></ol></li>
-      <li><a href="#states">Lock States</a></li>
-      <li><a href="#messages">Messages</a><ol><li><a href="#unlock">Unlock</a></li><li><a href="#status">Status</a></li></ol></li>
-      <li><a href="#lockout">Lockout</a></li>
+      <li><a href="#states">Flag States</a></li>
+      <li><a href="#messages">Messages</a><ol><li><a href="#rollout">Rollout</a></li><li><a href="#status">Status</a></li></ol></li>
+      <li><a href="#pause">Pause</a></li>
       <li><a href="#security">Security Considerations</a></li>
       <li><a href="#iana">IANA Considerations</a></li>
     </ol>
     <section id="intro">
       <h2>Introduction</h2>
-      <p>A building has many doors, and each door has a lock. A
-      <a href="#term-controller">controller</a> sends Latch messages
-      to the locks over a local network and receives their status.</p>
+      <p>An application has many features, and each feature has a flag. An
+      <a href="#term-sdk">SDK</a> sends Vane messages to the
+      evaluation service over the network and receives the state of the
+      flags.</p>
       <section id="terminology">
         <h2>Terminology</h2>
         <p>The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL
@@ -50,8 +51,7 @@ $ sxml transform draft.xsl latch.xml | head -31
         described in BCP 14 <a href="#RFC2119">RFC2119</a> <a href="#RFC8174">RFC8174</a>
         when, and only when, they appear in all capitals, as shown here.</p>
         <dl>
-          <dt id="term-lock">Lock</dt>
-          <dd>A device that holds a door closed and answers Latch messages.</dd>
+          <dt id="term-flag">Flag</dt>
 ```
 
 Let's read it rule by rule:
@@ -98,10 +98,10 @@ So the `priority="1"` above isn't even needed; it just makes the intent
 clear. The requirements get an `id` and a class:
 
 ```console
-$ sxml transform draft.xsl latch.xml | grep -A2 'id="req-1"'
-      <p id="req-1" class="requirement">A <a href="#term-lock">lock</a>
-      <span class="bcp14 absolute">MUST</span> be in exactly one of the states "locked",
-      "unlocked" and "lockout".</p>
+$ sxml transform draft.xsl vane.xml | grep -A2 'id="req-1"'
+      <p id="req-1" class="requirement">A <a href="#term-flag">flag</a>
+      <span class="bcp14 absolute">MUST</span> be in exactly one of the states "stable",
+      "rolling-out" and "paused".</p>
 ```
 
 Patterns are not expressions that are evaluated from the top: a pattern
@@ -134,8 +134,8 @@ default. `notes` decides whether the editorial notes show, and
 `--param` sets it from the command line:
 
 ```console
-$ sxml transform --param=notes=show draft.xsl latch.xml | grep 'class="note"'
-      <span class="note">[AM: Should the controller be able to change the duration?]</span></p>
+$ sxml transform --param=notes=show draft.xsl vane.xml | grep 'class="note"'
+      <span class="note">[AM: Should an owner be able to change the duration?]</span></p>
       <span class="note">[AB: This needs a requirement anchor of its own.]</span></p>
 ```
 
@@ -179,12 +179,12 @@ node in the default mode. `--initial-mode` starts in another mode. The
 `toc` mode alone is a table of contents:
 
 ```console
-$ sxml transform --initial-mode=toc draft.xsl latch.xml
+$ sxml transform --initial-mode=toc draft.xsl vane.xml
 <ol class="toc">
   <li><a href="#intro">Introduction</a><ol><li><a href="#terminology">Terminology</a></li></ol></li>
-  <li><a href="#states">Lock States</a></li>
-  <li><a href="#messages">Messages</a><ol><li><a href="#unlock">Unlock</a></li><li><a href="#status">Status</a></li></ol></li>
-  <li><a href="#lockout">Lockout</a></li>
+  <li><a href="#states">Flag States</a></li>
+  <li><a href="#messages">Messages</a><ol><li><a href="#rollout">Rollout</a></li><li><a href="#status">Status</a></li></ol></li>
+  <li><a href="#pause">Pause</a></li>
   <li><a href="#security">Security Considerations</a></li>
   <li><a href="#iana">IANA Considerations</a></li>
 </ol>
@@ -194,14 +194,14 @@ And the `text` mode is the plain-text draft. Its result is text, not
 HTML, so `--method=text` replaces the stylesheet's output method:
 
 ```console
-$ sxml transform --initial-mode=text --method=text draft.xsl latch.xml | head -30
-The Latch Protocol for Remote Door Locks
+$ sxml transform --initial-mode=text --method=text draft.xsl vane.xml | head -30
+The Vane Protocol for Feature Flag Rollouts
 
 1.  Introduction
 
-   A building has many doors, and each door has a lock. A controller
-   sends Latch messages to the locks over a local network and receives
-   their status.
+   An application has many features, and each feature has a flag. An SDK
+   sends Vane messages to the evaluation service over the network and
+   receives the state of the flags.
 
 1.1.  Terminology
 
@@ -211,26 +211,25 @@ The Latch Protocol for Remote Door Locks
    14 [RFC2119] [RFC8174] when, and only when, they appear in all
    capitals, as shown here.
 
-   Lock
-      A device that holds a door closed and answers Latch messages.
+   Flag
+      A named switch in an application that turns a feature on for a
+      share of its users.
 
-   Controller
-      The system that sends Latch messages to locks.
+   SDK
+      The library in an application that sends Vane messages about
+      flags.
 
-   Code
-      A string of four to eight digits that a person presents to unlock
-      a door.
+   Percentage
+      A whole number from 0 to 100 that an owner gives to roll a flag
+      out to that share of users.
 
-   Lockout
-      A state in which a lock refuses every code for a time.
-
-2.  Lock States
-
-$ sxml transform --initial-mode=text --method=text draft.xsl latch.xml | grep 'in lockout ('
-   A lock MUST NOT unlock while it is in lockout ([lockout]).
+   Pause
+      A state in which a flag refuses every rollout for a time.
+$ sxml transform --initial-mode=text --method=text draft.xsl vane.xml | grep 'in a pause ('
+   A service MUST NOT roll out a flag while it is in a pause ([pause]).
 ```
 
-The reference to Section 4 still shows as `[lockout]`: an `xref`
+The reference to Section 4 still shows as `[pause]`: an `xref`
 without text needs a lookup of its target, the subject of the next
 section.
 

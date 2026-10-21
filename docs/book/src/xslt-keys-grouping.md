@@ -4,7 +4,7 @@
 
 ## Keys
 
-An `xref` without text, such as `<xref target="lockout"/>`, asks the
+An `xref` without text, such as `<xref target="pause"/>`, asks the
 renderer for the text: "Section 4" when it points to a section,
 "[RFC5234]" when it points to a reference. To write it, a stylesheet
 must find the element whose anchor is the target. A *key* is an index
@@ -18,18 +18,18 @@ which value, and the `key` function looks nodes up:
 ```
 
 ```console
-$ sxml transform xrefs.xsl latch.xml
-term-controller -> the term "Controller"
+$ sxml transform xrefs.xsl vane.xml
+term-sdk -> the term "SDK"
 RFC2119 -> [RFC2119]
 RFC8174 -> [RFC8174]
-term-lock -> the term "Lock"
-term-lock -> the term "Lock"
+term-flag -> the term "Flag"
+term-flag -> the term "Flag"
 RFC5234 -> [RFC5234]
-term-code -> the term "Code"
-term-lockout -> the term "Lockout"
-lockout -> Section 4
+term-percentage -> the term "Percentage"
+term-pause -> the term "Pause"
+pause -> Section 4
 RFC6238 -> [RFC6238]
-term-lockout -> the term "Lockout"
+term-pause -> the term "Pause"
 ```
 
 `key('anchor', @target)` finds the elements whose `@anchor` equals the
@@ -54,22 +54,22 @@ authors insert a section, every number after it changes, and every
 ```
 
 ```console
-$ sxml transform numbers.xsl latch.xml
+$ sxml transform numbers.xsl vane.xml
 1  Introduction
 1.1  Terminology
-2  Lock States
+2  Flag States
     R1 req-1: MUST
     R2 req-2: MUST
     R3 req-3: SHOULD
 3  Messages
-3.1  Unlock
+3.1  Rollout
     R4 req-4: MUST
     R5 req-5: MUST NOT
     R6 req-9: MAY
 3.2  Status
     R7 req-6: MUST
     R8 req-10: SHOULD NOT
-4  Lockout
+4  Pause
     R9 req-7: MUST
     R10 req-8: SHOULD
     R11 req-11: MAY
@@ -106,13 +106,14 @@ found with a second key:
 ```
 
 ```console
-$ sxml transform term-index.xsl latch.xml
-C
-  Code: 3.1
-  Controller: 1
-L
-  Lock: 1.1, 2
-  Lockout: 3.1, 4
+$ sxml transform term-index.xsl vane.xml
+F
+  Flag: 1.1, 2
+P
+  Pause: 3.1, 4
+  Percentage: 3.1
+S
+  SDK: 1
 ```
 
 `key('uses', @anchor)` gives every `xref` to the term, and
@@ -131,7 +132,7 @@ normative or informative:
 ```
 
 ```console
-$ sxml transform references.xsl latch.xml
+$ sxml transform references.xsl vane.xml
 Normative References
   [RFC8174] 2017 Ambiguity of Uppercase vs Lowercase in RFC 2119 Key Words
   [RFC5234] 2008 Augmented BNF for Syntax Specifications: ABNF
@@ -155,13 +156,13 @@ pattern, which turns the flat list into entries:
 ```
 
 ```console
-$ sxml transform glossary.xsl latch.xml
+$ sxml transform glossary.xsl vane.xml
 <?xml version="1.0" encoding="UTF-8"?>
 <glossary>
-  <entry term="Lock">A device that holds a door closed and answers Latch messages.</entry>
-  <entry term="Controller">The system that sends Latch messages to locks.</entry>
-  <entry term="Code">A string of four to eight digits that a person presents to unlock a door.</entry>
-  <entry term="Lockout">A state in which a lock refuses every code for a time.</entry>
+  <entry term="Flag">A named switch in an application that turns a feature on for a share of its users.</entry>
+  <entry term="SDK">The library in an application that sends Vane messages about flags.</entry>
+  <entry term="Percentage">A whole number from 0 to 100 that an owner gives to roll a flag out to that share of users.</entry>
+  <entry term="Pause">A state in which a flag refuses every rollout for a time.</entry>
 </glossary>
 ```
 

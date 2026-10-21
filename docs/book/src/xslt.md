@@ -9,7 +9,7 @@ a *pattern* that says which nodes it applies to. The processor walks the
 input, finds the best rule for each node, and the rules decide whether
 and how to go on to the children.
 
-That way of working fits documents well, and the Latch draft is a
+That way of working fits documents well, and the Vane draft is a
 document: paragraphs hold text, cross references, key words and notes
 in any order, and sections nest as deep as the authors like. Rules say
 what to do with each part without knowing the whole structure in
@@ -18,7 +18,7 @@ can import an old one and override only the rules it wants to change.
 
 A stylesheet is itself an XML document, with its instructions in the
 XSLT namespace, `http://www.w3.org/1999/XSL/Transform`, usually with the
-prefix `xsl`. This chapter turns the draft, `latch.xml` in
+prefix `xsl`. This chapter turns the draft, `vane.xml` in
 `docs/book/examples/spec`, into the things a specification needs: a
 copy for publication, an HTML page, a plain-text version in the style of
 an RFC, and indexes. Run the commands in that directory.
@@ -36,19 +36,19 @@ The smallest stylesheet has no rules at all:
 Even so, it does something:
 
 ```console
-$ sxml transform empty.xsl latch.xml | grep -v '^ *$' | head -12
+$ sxml transform empty.xsl vane.xml | grep -v '^ *$' | head -12
 <?xml version="1.0" encoding="UTF-8"?>
-    The Latch Protocol for Remote Door Locks
-      Example Locks
+    The Vane Protocol for Feature Flag Rollouts
+      Example Software
       ada@example.com
-      Example Locks
+      Example Software
       alan@example.com
     Applications
-    lock
-    access control
-      This document specifies Latch, a line-based protocol between a
-      controller and the door locks it manages. It defines the states of a
-      lock, the messages that change them, and the lockout that protects a
+    feature flag
+    progressive delivery
+      This document specifies Vane, a line-based protocol between the
+      SDKs that evaluate feature flags and the evaluation service that
+      holds them. It defines the states of a flag, the messages that change
 ```
 
 When no rule matches a node, a *built-in rule* applies. For elements
@@ -82,11 +82,11 @@ removed:
 ```
 
 ```console
-$ sxml transform publication.xsl latch.xml | head -4
-<?xml version="1.0" encoding="UTF-8"?><rfc version="3" category="std" ipr="trust200902" submissionType="IETF" docName="draft-example-latch-protocol-01">
+$ sxml transform publication.xsl vane.xml | head -4
+<?xml version="1.0" encoding="UTF-8"?><rfc version="3" category="std" ipr="trust200902" submissionType="IETF" docName="draft-example-vane-protocol-01">
   <front>
-    <title abbrev="Latch">The Latch Protocol for Remote Door Locks</title>
-    <seriesInfo name="Internet-Draft" value="draft-example-latch-protocol-01"/>
+    <title abbrev="Vane">The Vane Protocol for Feature Flag Rollouts</title>
+    <seriesInfo name="Internet-Draft" value="draft-example-vane-protocol-01"/>
 ```
 
 The rules with an empty body make nothing, so the notes, the comment and
@@ -96,15 +96,15 @@ comment whose parent is the document node, and the predicates on
 `section` say which section. Save the result and compare:
 
 ```console
-$ sxml transform --output=public.xml publication.xsl latch.xml
-$ sxml xpath --context-item=latch.xml 'count(//cref), count(//section)'
+$ sxml transform --output=public.xml publication.xsl vane.xml
+$ sxml xpath --context-item=vane.xml 'count(//cref), count(//section)'
 2
 9
 $ sxml xpath --context-item=public.xml 'count(//cref), count(//section)'
 0
 8
 $ sxml xpath --context-item=public.xml '//t[@anchor = "req-8"]'
-<t anchor="req-8">A lockout <bcp14>SHOULD</bcp14> last five minutes.
+<t anchor="req-8">A pause <bcp14>SHOULD</bcp14> last five minutes.
       </t>
 ```
 

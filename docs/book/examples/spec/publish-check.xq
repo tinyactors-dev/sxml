@@ -5,7 +5,7 @@ declare namespace spec = "urn:example:spec";
 declare option output:method "text";
 declare option output:item-separator "&#10;";
 
-declare variable $draft external := "latch.xml";
+declare variable $draft external := "vane.xml";
 declare variable $rfc := doc($draft)/rfc;
 
 (: The key words of BCP 14, as a regular expression of whole words. :)

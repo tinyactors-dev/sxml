@@ -20,18 +20,18 @@ sxml writes files only where you allow it. Without
 about each result document it did not write:
 
 ```console
-$ sxml transform pages.xsl latch.xml
+$ sxml transform pages.xsl vane.xml
 sxml transform: result document 'sections/intro.html' not written; give --result-directory
 sxml transform: result document 'sections/states.html' not written; give --result-directory
 sxml transform: result document 'sections/messages.html' not written; give --result-directory
-sxml transform: result document 'sections/lockout.html' not written; give --result-directory
+sxml transform: result document 'sections/pause.html' not written; give --result-directory
 sxml transform: result document 'sections/security.html' not written; give --result-directory
 sxml transform: result document 'sections/iana.html' not written; give --result-directory
 <ul>
   <li><a href="sections/intro.html">Introduction</a></li>
-  <li><a href="sections/states.html">Lock States</a></li>
+  <li><a href="sections/states.html">Flag States</a></li>
   <li><a href="sections/messages.html">Messages</a></li>
-  <li><a href="sections/lockout.html">Lockout</a></li>
+  <li><a href="sections/pause.html">Pause</a></li>
   <li><a href="sections/security.html">Security Considerations</a></li>
   <li><a href="sections/iana.html">IANA Considerations</a></li>
 </ul>
@@ -42,13 +42,13 @@ directory, and `--output` puts the principal result into a file too:
 
 ```console
 $ mkdir site
-$ sxml transform --result-directory=site --output=site/index.html pages.xsl latch.xml
+$ sxml transform --result-directory=site --output=site/index.html pages.xsl vane.xml
 $ find site -type f | sort
 site/index.html
 site/sections/iana.html
 site/sections/intro.html
-site/sections/lockout.html
 site/sections/messages.html
+site/sections/pause.html
 site/sections/security.html
 site/sections/states.html
 $ cat site/sections/messages.html
@@ -62,10 +62,9 @@ error. Run the same command again, and sxml refuses to replace the
 files without `--force`:
 
 ```console
-$ sxml transform --result-directory=site --output=site/index.html pages.xsl latch.xml
+$ sxml transform --result-directory=site --output=site/index.html pages.xsl vane.xml; echo $?
 sxml transform: 'site/index.html' exists; give --force to replace it
-$ echo $?
-0
+3
 ```
 
 ## Functions and packages
@@ -112,7 +111,7 @@ public functions, and nothing else:
 ```
 
 ```console
-$ sxml transform private.xsl latch.xml
+$ sxml transform private.xsl vane.xml
 private.xsl:7:29: err:XPST0008: the variable is not declared
 ```
 
@@ -149,10 +148,10 @@ that puts a link around the imported rule's text, which
 ```
 
 ```console
-$ sxml transform html.xsl latch.xml | grep -B1 -A1 'Section 4'
-        in <a href="#term-lockout">lockout</a>
-        (<a href="#lockout">Section 4</a>).</p>
-        <p id="req-9" class="requirement"><span class="number">R6</span> A controller <span class="bcp14 optional">MAY</span> send codes that are
+$ sxml transform html.xsl vane.xml | grep -B1 -A1 'Section 4'
+        while it is in a <a href="#term-pause">pause</a>
+        (<a href="#pause">Section 4</a>).</p>
+        <p id="req-9" class="requirement"><span class="number">R6</span> A service <span class="bcp14 optional">MAY</span> ask an owner for a
 ```
 
 An `xsl:use-package` must be in the principal stylesheet module, not
@@ -173,13 +172,14 @@ first line and the references at the end:
 ```
 
 ```console
-$ sxml transform text.xsl latch.xml | head -3
+$ sxml transform text.xsl vane.xml | head -3
 Internet-Draft                                              October 2026
 
-The Latch Protocol for Remote Door Locks
-$ sxml transform text.xsl latch.xml | grep 'Section 4'
-   A lock MUST NOT unlock while it is in lockout (Section 4).
-$ sxml transform text.xsl latch.xml | grep -A3 '^   \[RFC6238\]$'
+The Vane Protocol for Feature Flag Rollouts
+$ sxml transform text.xsl vane.xml | grep -A1 '(Section'
+   A service MUST NOT roll out a flag while it is in a pause (Section
+   4).
+$ sxml transform text.xsl vane.xml | grep -A3 '^   \[RFC6238\]$'
    [RFC6238]
       D. M'Raihi, S. Machani, M. Pei, J. Rydell, "TOTP: Time-Based
       One-Time Password Algorithm", May 2011,
@@ -200,12 +200,12 @@ check what a stylesheet makes, such as the line lengths of the
 plain-text draft:
 
 ```console
-$ sxml xpath --context-item=latch.xml 'let $lines := transform({ "stylesheet-location": "text.xsl", "source-node": . })?output => tokenize("\n") return (count($lines), max($lines ! string-length()))'
-112
+$ sxml xpath --context-item=vane.xml 'let $lines := transform({ "stylesheet-location": "text.xsl", "source-node": . })?output => tokenize("\n") return (count($lines), max($lines ! string-length()))'
+117
 72
 ```
 
-The plain text has 112 lines, counting the empty ones, and none is longer than 72 characters.
+The plain text has 117 lines, counting the empty ones, and none is longer than 72 characters.
 
 Large inputs are a subject of their own: a stylesheet whose mode is
 *streamable* reads its input once, without building a tree of it.

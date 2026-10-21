@@ -5,15 +5,15 @@
 #
 # Usage: sh publish.sh [DRAFT [EARLIER-DRAFT]]
 set -e
-draft=${1:-latch.xml}
-earlier=${2:-latch-00.xml}
+draft=${1:-vane.xml}
+earlier=${2:-vane-00.xml}
 
-sxml validate --schema=latch.xsd "$draft"
+sxml validate --schema=vane.xsd "$draft"
 sxml xquery --param=draft="$draft" publish-check.xq
 
 mkdir -p site
-sxml transform --force --output=site/latch.html html.xsl "$draft"
-sxml transform --force --output=site/latch.txt text.xsl "$draft"
+sxml transform --force --output=site/vane.html html.xsl "$draft"
+sxml transform --force --output=site/vane.txt text.xsl "$draft"
 sxml transform --force --output=site/requirements.json requirements.xsl "$draft"
 sxml transform --force --output=site/changes.html --param=old="$earlier" changes.xsl "$draft"
 echo "published $draft into site/"

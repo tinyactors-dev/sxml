@@ -284,25 +284,25 @@ paragraph. The line feed inside a paragraph becomes a space with
 ## The grammar in a specification
 
 Specifications define their syntax in ABNF (RFC 5234), and the grammar
-sits in the document as text. The Latch draft
+sits in the document as text. The Vane draft
 ([Transforming with XSLT](xslt.md) and the chapters before it use it) has
-the syntax of its messages in a `sourcecode` element; `latch.xml` here is
+the syntax of its messages in a `sourcecode` element; `vane.xml` here is
 a link to the draft:
 
 ```console
-$ sxml xpath --context-item=latch.xml --method=text '//sourcecode[@type = "abnf"]'
+$ sxml xpath --context-item=vane.xml --method=text '//sourcecode[@type = "abnf"]'
 
-message        = unlock-request / lock-request / status-request
-unlock-request = "UNLOCK" SP door-id SP code CRLF
-lock-request   = "LOCK" SP door-id CRLF
-status-request = "STATUS" SP door-id CRLF
-door-id        = 1*16(ALPHA / DIGIT / "-")
-code           = 4*8DIGIT
+message         = rollout-request / kill-request / status-request
+rollout-request = "ROLLOUT" SP flag-key SP percentage CRLF
+kill-request    = "KILL" SP flag-key CRLF
+status-request  = "STATUS" SP flag-key CRLF
+flag-key        = 1*32(ALPHA / DIGIT / "-")
+percentage      = 1*3DIGIT
 ```
 
 To a program, those lines are one string. A small grammar for ABNF
 rules turns them into XML: rule names, alternatives separated by `/`,
-sequences of elements, repetitions such as `1*16` and `4*8`, quoted
+sequences of elements, repetitions such as `1*32` and `1*3`, quoted
 strings and groups in parentheses:
 
 `abnf.ixml`:
@@ -318,10 +318,10 @@ which ABNF reads as an exact count. XPath extracts the text, and the
 grammar parses it:
 
 ```console
-$ sxml xquery --context-item=latch.xml --expression='declare option output:indent "yes"; invisible-xml(unparsed-text("abnf.ixml"))(string(//sourcecode[@type = "abnf"]))/rules/rule[@name = ("door-id", "code")]'
-<rule name="door-id">
+$ sxml xquery --context-item=vane.xml --expression='declare option output:indent "yes"; invisible-xml(unparsed-text("abnf.ixml"))(string(//sourcecode[@type = "abnf"]))/rules/rule[@name = ("flag-key", "percentage")]'
+<rule name="flag-key">
   <alternative>
-    <repeat min="1" max="16">
+    <repeat min="1" max="32">
       <group>
         <alternative>
           <ref name="ALPHA"/>
@@ -336,9 +336,9 @@ $ sxml xquery --context-item=latch.xml --expression='declare option output:inden
     </repeat>
   </alternative>
 </rule>
-<rule name="code">
+<rule name="percentage">
   <alternative>
-    <repeat min="4" max="8">
+    <repeat min="1" max="3">
       <ref name="DIGIT"/>
     </repeat>
   </alternative>
@@ -350,28 +350,28 @@ each rule use, and which names does the draft use without defining
 them?
 
 ```console
-$ sxml xquery --context-item=latch.xml --method=adaptive --expression='
+$ sxml xquery --context-item=vane.xml --method=adaptive --expression='
     let $rules := invisible-xml(unparsed-text("abnf.ixml"))(string(//sourcecode[@type = "abnf"]))//rule
     return (
       for $rule in $rules
       return `{$rule/@name} uses {string-join(distinct-values($rule//ref/@name), ", ")}`,
       `undefined: {string-join(distinct-values($rules//ref/@name[not(. = $rules/@name)]), ", ")}`
     )'
-"message uses unlock-request, lock-request, status-request"
-"unlock-request uses SP, door-id, code, CRLF"
-"lock-request uses SP, door-id, CRLF"
-"status-request uses SP, door-id, CRLF"
-"door-id uses ALPHA, DIGIT"
-"code uses DIGIT"
+"message uses rollout-request, kill-request, status-request"
+"rollout-request uses SP, flag-key, percentage, CRLF"
+"kill-request uses SP, flag-key, CRLF"
+"status-request uses SP, flag-key, CRLF"
+"flag-key uses ALPHA, DIGIT"
+"percentage uses DIGIT"
 "undefined: SP, CRLF, ALPHA, DIGIT"
 ```
 
 The four undefined names are the *core rules* of RFC 5234 (Appendix B.1),
 which every ABNF grammar may use, so the draft is complete. A misspelled
-rule name, `door_id` for `door-id`, would show up in the same list, and
+rule name, `flag_key` for `flag-key`, would show up in the same list, and
 a broken rule fails to parse with the line and column of the mistake:
 
 ```console
-$ sxml xpath 'invisible-xml(unparsed-text("abnf.ixml"))("pin = code / ")'
-<failed xmlns:ixml="http://invisiblexml.org/NS" ixml:state="failed"><line>1</line><column>14</column><position>14</position><end-of-input/><expected>"("</expected><expected>"*"</expected><expected>#20</expected><expected>'"'</expected><expected>["0"-"9"]</expected><expected>["A"-"Z"; "a"-"z"]</expected></failed>
+$ sxml xpath 'invisible-xml(unparsed-text("abnf.ixml"))("limit = percentage / ")'
+<failed xmlns:ixml="http://invisiblexml.org/NS" ixml:state="failed"><line>1</line><column>22</column><position>22</position><end-of-input/><expected>"("</expected><expected>"*"</expected><expected>#20</expected><expected>'"'</expected><expected>["0"-"9"]</expected><expected>["A"-"Z"; "a"-"z"]</expected></failed>
 ```
