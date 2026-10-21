@@ -395,9 +395,9 @@ with the type error for a parameter, `XTTE0590`:
 
 ```console
 $ sxml transform --param=state=archived status.xsl flag.scxml
-status.xsl: err:XTTE0590: The value does not match the required type of the parameter (XSLT 4.0, section 9.3)
+status.xsl: err:XTTE0590: The value does not match the required type of the parameter (XSLT 4.0, section 9.2.1)
 $ sxml transform --param=failures=-1 status.xsl flag.scxml
-status.xsl: err:XTTE0590: The value does not match the required type of the parameter (XSLT 4.0, section 9.3)
+status.xsl: err:XTTE0590: The value does not match the required type of the parameter (XSLT 4.0, section 9.2.1)
 ```
 
 The parameters' types check each value on its own. What they make

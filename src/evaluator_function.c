@@ -60,7 +60,7 @@ static const sxml_static_error sxml_template_parameter_error = {
     .code_local_name = SXML_BYTE_VIEW_INITIALIZER("XTTE0590"),
     .description = SXML_BYTE_VIEW_INITIALIZER(
         "The value does not match the required type of the parameter (XSLT "
-        "4.0, section 9.3)"),
+        "4.0, section 9.2.1)"),
 };
 
 static const sxml_static_error sxml_namespace_sensitive_coercion_error = {

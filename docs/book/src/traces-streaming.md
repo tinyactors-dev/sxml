@@ -167,7 +167,7 @@ anything is read:
 
 ```console
 $ sxml transform --param=threshold=fast first-slow.xsl archive.xml
-first-slow.xsl: err:XTTE0590: The value does not match the required type of the parameter (XSLT 4.0, section 9.3)
+first-slow.xsl: err:XTTE0590: The value does not match the required type of the parameter (XSLT 4.0, section 9.2.1)
 ```
 
 ## Grouping neighbours

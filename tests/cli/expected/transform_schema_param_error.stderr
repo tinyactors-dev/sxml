@@ -1,1 +1,1 @@
-xslt/schema-param.xsl: err:XTTE0590: The value does not match the required type of the parameter (XSLT 4.0, section 9.3)
+xslt/schema-param.xsl: err:XTTE0590: The value does not match the required type of the parameter (XSLT 4.0, section 9.2.1)
