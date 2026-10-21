@@ -29,7 +29,9 @@ and are kept with the sources:
 ```console
 $ sh generate.sh
 $ ls generated
-client.ts
+browser.ts
+console.ts
+node.ts
 openapi.json
 program.xml
 server.ts
@@ -57,15 +59,18 @@ generated code by hand: `diff` fails, and shows what differs.
 
 ## Checking the generated code
 
-The client and the server are printed from the same tree, so they
-should fit together: every function of the client has a method in the
-server's `Implementation` and a route in `createHandler`, and every
-name they import from `runtime.ts` is one that `runtime.ts` exports.
+The clients and the server are printed from the same tree, so they
+should fit together: every client module has the functions that the
+tree gives it, every function of a client has a method in the server's
+`Implementation`, every method is in some client and has a route in
+`createHandler`, and every name the modules import from `runtime.ts` is
+one that `runtime.ts` exports.
 The [Source Code as XML](source-code.md) chapter's `sxml:parse-code`
 can check that on the code itself, after it was printed, with
-tree-sitter's TypeScript grammar. `check.xq` parses the three
-TypeScript files and compares their parts, and also compares the
-client with the tree it was printed from:
+tree-sitter's TypeScript grammar. `check.xq` reads the names of the
+modules from the tree, parses each printed file once into a map from
+file name to syntax tree, and compares their parts, and the clients
+with the tree they were printed from:
 
 `check.xq`:
 
@@ -80,7 +85,7 @@ printer. On the files that are kept, everything fits:
 
 ```console
 $ sxml xquery --method=text check.xq
-3 functions: client, server and runtime agree
+5 functions in 3 clients: clients, server and runtime agree
 ```
 
 Someone who deletes a method from the server's interface by hand, in
@@ -88,9 +93,9 @@ a copy, finds out at once:
 
 ```console
 $ cp -r generated edited
-$ sed '/borrowBook(input: LoanRequest)/d' generated/server.ts > edited/server.ts
+$ sed '/killFlag(input: KillRequest)/d' generated/server.ts > edited/server.ts
 $ sxml xquery --method=text --param=directory=edited check.xq
-check.xq:35:8: local:mismatch: client function borrowBook has no method in Implementation
+check.xq:42:8: local:mismatch: console.ts: client function killFlag has no method in Implementation
 ```
 
 The check also guards the generator and the printer: a generator that
@@ -119,21 +124,26 @@ for the facets add their keywords to the type they belong to: `pattern`
 becomes a `pattern`, with the anchors that JSON Schema needs, and
 `minInclusive` becomes `minimum`. The rule with the priority -1 matches
 every other facet, and stops the transformation, as the XQuery
-generator does.
+generator does. The `clients` of a function become its `tags`, which
+OpenAPI tools use to group the operations, so a reader of the document
+sees the evaluation API of each SDK and the console's admin API.
 
 `generate.sh` writes the document to `generated/openapi.json`. The
-whole file is long; here are the paths, with their HTTP methods, and
-the type of the days:
+whole file is long; here are the paths, with their HTTP methods and
+tags, and the type of a flag key:
 
 ```console
 $ sxml xquery --method=adaptive --expression='
     for key $path value $operation in json-doc("generated/openapi.json")?paths
-    return $path || ": " || map:keys($operation)'
-"/api/getBook: get"
-"/api/searchBooks: get"
-"/api/borrowBook: post"
-$ sxml xpath --method=json 'json-doc("generated/openapi.json")?components?schemas?LoanDays'
-{"type":"integer","minimum":1,"maximum":28}
+    for key $method value $details in $operation
+    return `{ $path }: { $method } ({ string-join($details?tags?*, ", ") })`'
+"/api/getFlags: get (node)"
+"/api/evaluateFlags: get (browser)"
+"/api/getStatus: get (browser, node)"
+"/api/rollOutFlag: post (console)"
+"/api/killFlag: post (console)"
+$ sxml xpath --method=json 'json-doc("generated/openapi.json")?components?schemas?FlagKey'
+{"type":"string","pattern":"^(?:[a-z0-9][a-z0-9-]*)$","maxLength":64}
 ```
 
 Which language to use for which step is a matter of taste. XQuery
@@ -145,32 +155,42 @@ many files from one transformation.
 
 ## When the schema changes
 
-The library decides that a loan lasts at most 21 days, and that books
-can have a rating from 1 to 5. `library-2.xsd` is the next version of
-the schema:
+The Vane protocol's draft says that a flag key has at most 32
+characters, and the schema allowed 64: an SDK would accept a key that
+the update stream can't carry. And the frontend SDK wants to know why a
+flag is on or off for a user: through a rule, the percentage, the
+default, or because the flag is off. `vane-api-2.xsd` is the next
+version of the schema:
 
 ```console
-$ diff -U2 -L library.xsd -L library-2.xsd library.xsd library-2.xsd
---- library.xsd
-+++ library-2.xsd
-@@ -27,5 +27,12 @@
-     <xs:restriction base="xs:integer">
-       <xs:minInclusive value="1"/>
--      <xs:maxInclusive value="28"/>
-+      <xs:maxInclusive value="21"/>
+$ diff -U2 -L vane-api.xsd -L vane-api-2.xsd vane-api.xsd vane-api-2.xsd
+--- vane-api.xsd
++++ vane-api-2.xsd
+@@ -8,5 +8,5 @@
+     <xs:restriction base="xs:string">
+       <xs:pattern value="[a-z0-9][a-z0-9-]*"/>
+-      <xs:maxLength value="64"/>
++      <xs:maxLength value="32"/>
+     </xs:restriction>
+   </xs:simpleType>
+@@ -33,4 +33,13 @@
+   </xs:simpleType>
+
++  <xs:simpleType name="Reason">
++    <xs:restriction base="xs:string">
++      <xs:enumeration value="rule"/>
++      <xs:enumeration value="percentage"/>
++      <xs:enumeration value="default"/>
++      <xs:enumeration value="off"/>
 +    </xs:restriction>
 +  </xs:simpleType>
 +
-+  <xs:simpleType name="Rating">
-+    <xs:restriction base="xs:integer">
-+      <xs:minInclusive value="1"/>
-+      <xs:maxInclusive value="5"/>
-     </xs:restriction>
-   </xs:simpleType>
-@@ -37,4 +44,5 @@
-       <xs:element name="genre" type="Genre"/>
-       <xs:element name="available" type="xs:boolean"/>
-+      <xs:element name="rating" type="Rating" minOccurs="0"/>
+   <xs:simpleType name="Percentage">
+     <xs:restriction base="xs:integer">
+@@ -102,4 +111,5 @@
+       <xs:element name="flag" type="FlagKey"/>
+       <xs:element name="on" type="xs:boolean"/>
++      <xs:element name="reason" type="Reason" minOccurs="0"/>
      </xs:sequence>
    </xs:complexType>
 ```
@@ -179,7 +199,7 @@ Put it in place and generate again. The check of the last section now
 fails, and names the files that are out of date:
 
 ```console
-$ cp library-2.xsd library.xsd
+$ cp vane-api-2.xsd vane-api.xsd
 $ sh generate.sh next
 $ diff -rq generated next
 Files generated/openapi.json and next/openapi.json differ
@@ -187,7 +207,7 @@ Files generated/program.xml and next/program.xml differ
 Files generated/types.ts and next/types.ts differ
 ```
 
-The client and the server didn't change: no function's types did. The
+The clients and the server didn't change: no function's types did. The
 tree did, and so the types: the difference is exactly the change to
 the schema, written out in TypeScript:
 
@@ -195,65 +215,75 @@ the schema, written out in TypeScript:
 $ diff -u -L generated/types.ts -L next/types.ts generated/types.ts next/types.ts
 --- generated/types.ts
 +++ next/types.ts
-@@ -35,7 +35,17 @@
-   if (!checkInteger(value, path, problems)) return false;
+@@ -7,7 +7,7 @@
+   if (!checkString(value, path, problems)) return false;
    const count = problems.length;
-   if (value < 1) problems.push(path + ": must be at least 1");
--  if (value > 28) problems.push(path + ": must be at most 28");
-+  if (value > 21) problems.push(path + ": must be at most 21");
-+  return problems.length === count;
-+}
-+
-+export type Rating = number;
-+
-+export function checkRating(value: unknown, path: string, problems: string[]): value is Rating {
-+  if (!checkInteger(value, path, problems)) return false;
-+  const count = problems.length;
-+  if (value < 1) problems.push(path + ": must be at least 1");
-+  if (value > 5) problems.push(path + ": must be at most 5");
+   if (!/^(?:[a-z0-9][a-z0-9-]*)$/u.test(value)) problems.push(path + ": must match [a-z0-9][a-z0-9-]*");
+-  if (characterCount(value) > 64) problems.push(path + ": must have at most 64 characters");
++  if (characterCount(value) > 32) problems.push(path + ": must have at most 32 characters");
    return problems.length === count;
  }
 
-@@ -44,6 +54,7 @@
-   title: string;
-   genre: Genre;
-   available: boolean;
-+  rating?: Rating;
+@@ -38,6 +38,15 @@
+   return problems.length === count;
  }
 
- export function checkBook(value: unknown, path: string, problems: string[]): value is Book {
-@@ -53,8 +64,9 @@
-   checkString(value.title, path + ".title", problems);
-   checkGenre(value.genre, path + ".genre", problems);
-   checkBoolean(value.available, path + ".available", problems);
-+  if (value.rating !== undefined) checkRating(value.rating, path + ".rating", problems);
++export type Reason = "rule" | "percentage" | "default" | "off";
++
++export function checkReason(value: unknown, path: string, problems: string[]): value is Reason {
++  if (!checkString(value, path, problems)) return false;
++  const count = problems.length;
++  if (!["rule", "percentage", "default", "off"].includes(value)) problems.push(path + ": must be one of rule, percentage, default, off");
++  return problems.length === count;
++}
++
+ export type Percentage = number;
+
+ export function checkPercentage(value: unknown, path: string, problems: string[]): value is Percentage {
+@@ -187,6 +196,7 @@
+ export interface Evaluation {
+   flag: FlagKey;
+   on: boolean;
++  reason?: Reason;
+ }
+
+ export function checkEvaluation(value: unknown, path: string, problems: string[]): value is Evaluation {
+@@ -194,8 +204,9 @@
+   const count = problems.length;
+   checkFlagKey(value.flag, path + ".flag", problems);
+   checkBoolean(value.on, path + ".on", problems);
++  if (value.reason !== undefined) checkReason(value.reason, path + ".reason", problems);
    for (const key of Object.keys(value)) {
--    if (!["id", "title", "genre", "available"].includes(key)) problems.push(path + "." + key + ": is not allowed");
-+    if (!["id", "title", "genre", "available", "rating"].includes(key)) problems.push(path + "." + key + ": is not allowed");
+-    if (!["flag", "on"].includes(key)) problems.push(path + "." + key + ": is not allowed");
++    if (!["flag", "on", "reason"].includes(key)) problems.push(path + "." + key + ": is not allowed");
    }
    return problems.length === count;
  }
 ```
 
-The new limit is now in the browser's checks, in the server's, and in
-the OpenAPI document, from one edit:
+The new limit is now in the checks of both SDKs and of the console, in
+the service's, and in the OpenAPI document, from one edit:
 
 ```console
-$ sxml xpath --method=json 'json-doc("next/openapi.json")?components?schemas?LoanDays'
-{"type":"integer","minimum":1,"maximum":21}
+$ sxml xpath --method=json 'json-doc("next/openapi.json")?components?schemas?FlagKey'
+{"type":"string","pattern":"^(?:[a-z0-9][a-z0-9-]*)$","maxLength":32}
 ```
 
 A review of the change shows the schema and the generated code side by
 side, so a reviewer sees what the schema change means for the code. The
-rating is optional, so code written against the old types still
-compiles. Make it required, and the TypeScript compiler points at every
-place in the server's code that makes a book without one.
+reason is optional, so code written against the old types still
+compiles, and an SDK that doesn't know about reasons still accepts the
+answers of a service that sends them. Make it required, and the
+TypeScript compiler points at every place in the service's code that
+makes an evaluation without one.
 
 ## What we built
 
 From two small XML files, one validated by the other's schema, we made
-three TypeScript files and an OpenAPI document, which agree with each
-other because they come from the same place:
+five TypeScript files, the clients of Vane's two SDKs and its console,
+the service's request handler and the types they share, and an OpenAPI
+document, which agree with each other because they come from the same
+place:
 
 - an XSD schema whose simple types, facets and complex types became
   TypeScript types and runtime checks;
@@ -266,7 +296,7 @@ other because they come from the same place:
   the layout in one place, and a second style that imports it and
   changes two declarations;
 - a check that parses the generated code with `sxml:parse-code` and
-  compares the client, the server and the runtime;
+  compares the clients, the server and the runtime;
 - an XSLT stylesheet that writes JSON with template rules and maps;
 - a script that makes everything, and a comparison that shows whether
   the kept files are current.
