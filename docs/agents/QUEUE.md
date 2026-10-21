@@ -41,8 +41,11 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
   locks — re-theme to a feature-flag service. book-14: the new story, seed
   data and rename table; then book-15..book-21 update the chapters; then
   book-13 integrates.
-- fix-2: identity-constraint fields with invalid values (exit 4), XSLT
-  --param not coerced to its `as` type.
+- fix-2 done: invalid identity-constraint fields are validation errors
+  (XSD 3.11.4 cl. 4); global xsl:param values coerced to `as` (XTTE0590).
+  For the chapter packets: xsd-typed-data.md can use typed params again,
+  xsd-errors/xsd-identity the invalid-anchor example, traces drop the
+  --param workaround.
 - fix-3: TVT in xsl:text reading streamed nodes as empty; streaming
   fallbacks (iterate, for-each-group, count(//x)); the filter index for
   root child paths; parse-json number-parser.
