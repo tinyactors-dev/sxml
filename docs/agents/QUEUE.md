@@ -40,9 +40,10 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 - The book on Vane is done (book-5..book-21, book-13): 18 chapters, 882
   examples, mdbook build clean. Conformance appendix numbers date from
   20 October (a new report run would refresh them).
-- book-22: Vane as one fully featured service with frontend and backend
-  SDKs (owner, 2026-10-21): story, seeds, change table; chapter packets
-  book-23+ follow. For book-13: a separate `$ echo $?`
+- book-22 done (D303): Vane is one TypeScript service (modules) on
+  PostgreSQL and Redis with @vane/browser and @vane/node SDKs and a console;
+  codegen generates the SDK clients. book-23..book-28 running in parallel;
+  book-29 integrates. For book-13: a separate `$ echo $?`
   line always prints 0 (each command runs in a fresh shell); join it to its
   command (book-17 fixed its chapters).
 - fix-2 done: invalid identity-constraint fields are validation errors
