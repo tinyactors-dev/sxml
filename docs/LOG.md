@@ -4,6 +4,29 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- book-12 done (D299): Project: Comparing Traces Before and After a
+  Change (traces.md, traces-tree.md, traces-cardinality.md,
+  traces-diff.md, traces-rendering.md, traces-streaming.md) on the OTLP
+  seed files, plus JSON, CSV and HTML, sxml in JavaScript and
+  Performance and Memory on the traces data. traces/ gains trace.xqm
+  (records, the tree, calls, cardinality, diff, versions), normalize.xq,
+  cardinality.xq, timeline.xq, diff.xq, diff-json.xq, diff-xml.xq,
+  select.xq, participants.xq, drawing.xq, report.xsl, diff-doors.svg,
+  diff-unlock.svg, make-traces.xq, spans.xsl, counts.xsl, calls.xsl,
+  slowest.xsl, first-slow.xsl, fork.xsl, merge.xsl, spans-csv.xq,
+  durations.xq, spans.csv, status.html, slow-tree.xq, fast-tree.xq and
+  the draw.xqm symlink; javascript/ links before.json and latch.xml.
+  Windows moved here from xquery-grouping-windows.md, streaming from
+  xslt-streaming.md (removed, with examples/xslt-streaming,
+  examples/formats and examples/performance). 89 examples match
+  (release build of 044a912; JavaScript with a package built from it).
+  Found: a text value template inside xsl:text in a streamable template
+  reads streamed nodes as empty (count gives 0); `sxml transform
+  --param` values are not coerced to a global xsl:param's `as` type
+  (XPTY0004 on comparison); xsl:iterate and xsl:for-each-group over the
+  principal input, and count(//x) from the root, run on a tree (memory
+  grows with the input; results right).
+
 - fix-1 done (D300): the help examples of the sxml command (program,
   check, serialize, transform, validate, xpath, xquery) name the
   getting-started files of the Latch draft instead of books.xml. The
