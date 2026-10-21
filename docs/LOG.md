@@ -4,6 +4,19 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- book-28 done: the codegen project joins the Vane story. From
+  vane-api.xsd and api.xml (with clients), the program tree has types.ts,
+  one client module per name (browser.ts, console.ts, node.ts) and
+  server.ts, which checks every function; vane.ts is the service,
+  sdk.ts a piece of the backend SDK (one status request per second),
+  demo.ts calls through every client and is refused by the client and
+  by the service. check.xq checks each client (it used to read
+  $program/module from the document node, so its tree comparison never
+  ran); OpenAPI tags name the clients; the schema change is
+  vane-api-2.xsd. library.ts, library.xsd, library-2.xsd deleted. All
+  46 examples of the five files match (SXML_JAVASCRIPT empty); tsc
+  --strict passes.
+
 - book-24 done: the XSLT, XSD, text and ABNF chapters (xslt*.md,
   xsd.md, xsd-errors.md, xsd-identity.md, xsd-simple-types.md, text.md,
   ixml-tasks.md's ABNF section) on the one-service Vane draft. 14
