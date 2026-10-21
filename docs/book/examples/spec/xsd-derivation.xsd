@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- An editor's worksheet for the draft: blocks of the draft to work on,
+     and the day the next draft is due. It derives types from latch.xsd's
+     and makes the blocks a substitution group. -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+
+  <xs:include schemaLocation="latch.xsd"/>
+
+  <!-- Restriction: a requirement is a paragraph whose anchor is required. -->
+  <xs:complexType name="requirement" mixed="true">
+    <xs:complexContent>
+      <xs:restriction base="text">
+        <xs:group ref="inline" minOccurs="0" maxOccurs="unbounded"/>
+        <xs:attribute name="anchor" type="anchor" use="required"/>
+      </xs:restriction>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <!-- Extension: a changed requirement also says since which draft. -->
+  <xs:complexType name="changed-requirement" mixed="true" final="#all">
+    <xs:complexContent>
+      <xs:extension base="requirement">
+        <xs:attribute name="since" type="draft-name" use="required"/>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <!-- A substitution group: t, dl and sourcecode can stand in for block. -->
+  <xs:element name="block" abstract="true"/>
+  <xs:element name="t" type="text" substitutionGroup="block"/>
+  <xs:element name="dl" type="definition-list" substitutionGroup="block"/>
+  <xs:element name="sourcecode" type="sourcecode" substitutionGroup="block"/>
+
+  <xs:element name="worksheet">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element ref="block" maxOccurs="unbounded"/>
+        <xs:element name="due" type="xs:date" nillable="true"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

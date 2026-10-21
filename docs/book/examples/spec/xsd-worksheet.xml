@@ -1,0 +1,11 @@
+<worksheet xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <t xsi:type="requirement" anchor="req-3">An unlocked lock
+  <bcp14>SHOULD</bcp14> return to the state "locked" after ten
+  seconds without a message.</t>
+  <t xsi:type="changed-requirement" anchor="req-7"
+     since="draft-example-latch-protocol-01">After three rejected codes in
+  a row, a lock <bcp14>MUST</bcp14> enter lockout.</t>
+  <t>Check the lockout section against the state machine.</t>
+  <sourcecode type="abnf">code = 4*8DIGIT</sourcecode>
+  <due xsi:nil="true"/>
+</worksheet>
