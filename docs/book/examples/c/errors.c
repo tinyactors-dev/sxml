@@ -52,7 +52,7 @@ int main(void) {
     run(processor, TEXT("6 * 7"));
     run(processor, TEXT("1 +"));
     run(processor, TEXT("1 div 0"));
-    run(processor, TEXT("error(xs:QName('err:BOOK0001'), 'no such book')"));
+    run(processor, TEXT("error(xs:QName('err:LATCH0001'), 'no requirement req-12')"));
     run(processor, TEXT("some $n in 1 to 100000000000 satisfies $n = 0"));
     sxml_processor_destroy(processor);
     return 0;

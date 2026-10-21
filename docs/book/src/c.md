@@ -7,7 +7,9 @@ and your programs can use the same library. It is portable C17, has no
 dependencies, never calls `malloc` behind your back, keeps no global
 state, and never recurses, so a deeply nested document cannot overflow
 your program's stack. This chapter shows the shape of the API with five
-small programs. The examples are in `docs/book/examples/c`.
+small programs, most of them on the Latch draft. The examples are in
+`docs/book/examples/c`, where `latch.xml` and `latch-00.xml` are links to
+the drafts in `docs/book/examples/spec`.
 
 ## Building against sxml
 
@@ -34,27 +36,36 @@ $ cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSXML_SOURCE="$SXML" 
 $ cmake --build build > /dev/null
 ```
 
-The examples share a few lines of output code, in `output.h`:
+The examples share a few lines of input and output code, in `output.h`:
 
 ```c
 {{#include ../examples/c/output.h}}
 ```
 
 `sxml_byte_view` is how the API passes text: a pointer and a length,
-never a NUL-terminated string. Output goes to an `sxml_output_stream`,
-an interface you implement; this one writes to `stdout`.
+never a NUL-terminated string. sxml reads no files, so `read_file` reads
+a draft into memory the program owns and returns a view of its bytes.
+Output goes to an `sxml_output_stream`, an interface you implement; this
+one writes to `stdout`.
 
 ## A first program
 
-`books.c`:
+The first program prints the draft's MUST requirements and the section
+each one is in:
+
+`requirements.c`:
 
 ```c
-{{#include ../examples/c/books.c}}
+{{#include ../examples/c/requirements.c}}
 ```
 
 ```console
-$ ./build/books
-"The Art of Computer Programming"
+$ ./build/requirements
+"req-1 in Lock States"
+"req-2 in Lock States"
+"req-4 in Unlock"
+"req-6 in Status"
+"req-7 in Lockout"
 ```
 
 The steps are the same in every program:
@@ -62,7 +73,7 @@ The steps are the same in every program:
 1. Create a **processor**. It owns the names, types and values that
    everything else uses, and it holds what the host provides: the
    resource resolver, the clock, the trace sink and the limits.
-2. Parse documents with the processor.
+2. Parse documents with the processor, from bytes you give it.
 3. **Compile** an expression, a query or a stylesheet.
 4. **Evaluate** it, with a dynamic context: the context item and the
    values of variables.
@@ -78,7 +89,9 @@ you leave out are zero: the defaults.
 
 Compiling parses the expression, resolves its names, checks its types
 and optimizes it. Do it once, and evaluate the result as often as you
-like, with different documents and different variables:
+like, with different documents and different variables. This program
+compiles one expression and runs it on both drafts, once for each of
+two key words:
 
 `compile_once.c`:
 
@@ -88,22 +101,21 @@ like, with different documents and different variables:
 
 ```console
 $ ./build/compile_once
-library 1, before 1970:
-"The Art of Computer Programming"
-library 1, before 1966:
-
-library 2, before 1970:
-"Dune"
-"The Left Hand of Darkness"
-library 2, before 1966:
-"Dune"
+latch-00.xml, SHOULD: "req-3 req-8"
+latch-00.xml, MAY: ""
+latch.xml, SHOULD: "req-3 req-8"
+latch.xml, MAY: "req-9 req-11"
 ```
+
+The first draft has no MAY requirement; the second adds two.
 
 An external variable is *declared* when the expression is compiled, with
 its type, and *bound* each time it is evaluated. Names are interned once
 in the processor's name pool and then passed as small identifiers.
 Small integers, doubles and booleans are items that need no memory;
-strings and other values are made in the processor's item heap.
+strings and other values are made in the processor's item heap, as
+`sxml_atomic_item_make` makes each key word, and released when they are
+no longer needed.
 
 ## Resources and XQuery
 
@@ -115,7 +127,9 @@ implement `sxml_resource_resolver_operations` yourself.
 
 This program also shows XQuery. A query is compiled and evaluated like
 an expression, and it carries the serialization parameters its prolog
-declares:
+declares. The program reads the draft into memory and serves it as
+`https://example.org/drafts/latch.xml`, and the query counts the
+requirements of each key word:
 
 `resolver.c`:
 
@@ -125,15 +139,19 @@ declares:
 
 ```console
 $ ./build/resolver
-<loans>
-  <loan member="ada">Dune</loan>
-  <loan member="alan">Godel, Escher, Bach</loan>
-  <loan member="grace">Dune</loan>
-</loans>false
+<keywords>
+  <keyword name="MAY" count="2"/>
+  <keyword name="MUST" count="5"/>
+  <keyword name="MUST NOT" count="1"/>
+  <keyword name="SHOULD" count="2"/>
+  <keyword name="SHOULD NOT" count="1"/>
+</keywords>false
 ```
 
-`secret.xml` is not in the table, so the query cannot see it, whatever
-files there are on the machine. XSLT (`sxml/xslt.h`) and XSD
+`doc('latch.xml')` resolves against the query's base URI to the URI in
+the table. `latch-00.xml` is not in the table, so the query cannot see
+it, though the file is right next to the program: the resolver decides,
+not the file system. XSLT (`sxml/xslt.h`) and XSD
 (`sxml/schema.h`) follow the same pattern: compile a stylesheet or a
 schema once with a processor, then run transformations or validations
 with it.
@@ -156,7 +174,7 @@ $ ./build/errors
 6 * 7 => 42
 1 + => SXML_STATUS_STATIC_ERROR err:XPST0003 at 1:3: The text is not valid XPath 4.0 syntax (XPath 4.0, Appendix A)
 1 div 0 => SXML_STATUS_DYNAMIC_ERROR err:FOAR0001 at 1:1: division by zero (F&O 4.0, op:numeric-divide, op:numeric-integer-divide, op:numeric-mod)
-error(xs:QName('err:BOOK0001'), 'no such book') => SXML_STATUS_DYNAMIC_ERROR err:BOOK0001 at 1:1: no such book
+error(xs:QName('err:LATCH0001'), 'no requirement req-12') => SXML_STATUS_DYNAMIC_ERROR err:LATCH0001 at 1:1: no requirement req-12
 some $n in 1 to 100000000000 satisfies $n = 0 => SXML_STATUS_LIMIT_EXCEEDED: the evaluation took more steps than maximum_evaluation_step_count allows
 ```
 

@@ -8,6 +8,23 @@
 
 #define TEXT(literal) SXML_BYTE_VIEW_FROM_LITERAL(literal)
 
+/* Reads the file at path into contents, which holds capacity bytes, and
+   returns a view of what it read: empty when the file cannot be read or
+   does not fit. */
+static inline sxml_byte_view read_file(const char *path, unsigned char *contents,
+                                       size_t capacity) {
+    sxml_byte_view bytes = {.bytes = contents, .byte_count = 0};
+    FILE *file = fopen(path, "rb");
+    if (file != NULL) {
+        bytes.byte_count = fread(contents, 1, capacity, file);
+        if (!feof(file)) {
+            bytes.byte_count = 0;
+        }
+        fclose(file);
+    }
+    return bytes;
+}
+
 /* Serialized bytes go to an output stream; this one writes to stdout. */
 static sxml_status write_to_stdout(void *state, sxml_byte_view bytes) {
     (void)state;

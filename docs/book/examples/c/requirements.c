@@ -4,6 +4,9 @@
 #include "sxml/processor.h"
 #include "sxml/xpath.h"
 
+/* Room for the draft's bytes. */
+static unsigned char draft_contents[1 << 16];
+
 int main(void) {
     sxml_allocator allocator = sxml_default_allocator();
     sxml_error_record error_record = {0};
@@ -14,16 +17,13 @@ int main(void) {
         allocator, &(sxml_processor_configuration){.allocator = allocator},
         &processor);
 
-    /* 2. Parse a document. */
+    /* 2. Parse a document: the program reads the file, sxml parses it. */
     sxml_item document = {0};
     if (status == SXML_STATUS_OK) {
         status = sxml_processor_parse_document(
             processor,
             &(sxml_xml_parse_request){
-                .input = TEXT("<books>"
-                              "<book year='1979'>Godel, Escher, Bach</book>"
-                              "<book year='1968'>The Art of Computer Programming</book>"
-                              "</books>"),
+                .input = read_file("latch.xml", draft_contents, sizeof draft_contents),
                 .diagnostic = &error_record.diagnostic,
             },
             &document);
@@ -37,7 +37,7 @@ int main(void) {
             allocator,
             &(sxml_xpath_expression_configuration){
                 .processor = processor,
-                .expression_text = TEXT("//book[@year < 1975] ! string()"),
+                .expression_text = TEXT("//t[bcp14 = 'MUST'] ! `{@anchor} in {ancestor::section[1]/name}`"),
                 .error_record = &error_record,
             },
             &expression);

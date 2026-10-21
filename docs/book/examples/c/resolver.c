@@ -4,22 +4,20 @@
 #include "sxml/processor.h"
 #include "sxml/xquery.h"
 
-/* The only resources the query may read, held in memory. */
-static const sxml_resource_entry resources[] = {
-    {.uri = TEXT("https://example.org/books.xml"),
-     .content = TEXT("<books><book id='dune'>Dune</book>"
-                     "<book id='geb'>Godel, Escher, Bach</book></books>")},
-    {.uri = TEXT("https://example.org/loans.xml"),
-     .content = TEXT("<loans><loan book='dune' member='ada'/>"
-                     "<loan book='geb' member='alan'/>"
-                     "<loan book='dune' member='grace'/></loans>")},
-};
+/* Room for the draft's bytes. */
+static unsigned char draft_contents[1 << 16];
 
 int main(void) {
     sxml_allocator allocator = sxml_default_allocator();
     sxml_error_record error_record = {0};
+
+    /* The only resource the query may read: the draft, held in memory. */
+    sxml_resource_entry resources[] = {
+        {.uri = TEXT("https://example.org/drafts/latch.xml"),
+         .content = read_file("latch.xml", draft_contents, sizeof draft_contents)},
+    };
     sxml_resource_entry_view entries = {.resource_entries = resources,
-                                        .resource_entry_count = 2};
+                                        .resource_entry_count = 1};
 
     /* The resolver decides what fn:doc can see; nothing else is read. */
     sxml_processor *processor = NULL;
@@ -40,14 +38,15 @@ int main(void) {
                 .processor = processor,
                 .expression_text = TEXT(
                     "declare option output:indent 'yes';\n"
-                    "<loans>{\n"
-                    "  for $loan in doc('loans.xml')//loan\n"
-                    "  let $book := doc('books.xml')//book[@id = $loan/@book]\n"
-                    "  return <loan member='{ $loan/@member }'>{ string($book) }</loan>\n"
-                    "}</loans>,\n"
-                    "doc-available('secret.xml')"),
-                .source_name = TEXT("report.xq"),
-                .static_context = {.static_base_uri = TEXT("https://example.org/")},
+                    "<keywords>{\n"
+                    "  for $t in doc('latch.xml')//t[@anchor]\n"
+                    "  group by $keyword := string($t/bcp14)\n"
+                    "  order by $keyword\n"
+                    "  return <keyword name='{ $keyword }' count='{ count($t) }'/>\n"
+                    "}</keywords>,\n"
+                    "doc-available('latch-00.xml')"),
+                .source_name = TEXT("keywords.xq"),
+                .static_context = {.static_base_uri = TEXT("https://example.org/drafts/")},
                 .error_record = &error_record,
             },
             &query);
