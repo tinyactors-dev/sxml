@@ -107,7 +107,8 @@ typedef enum stream_point_kind {
        streamed xsl:source-document (glossary `streamed_prong`, D231): an
        xsl:sequence streamed in a pass of its own over the document. */
     SXML_STREAM_POINT_PRONG,
-    /* An xsl:iterate whose select is a path of steps (glossary
+    /* An xsl:iterate, or an xsl:for-each-group whose groups form as the
+       nodes pass, whose select is a path of steps (glossary
        `streamed_iteration`): its closure runs on each selected node, in
        its full window, as it passes; a break ends the reading. */
     SXML_STREAM_POINT_ITERATE,
@@ -1395,7 +1396,15 @@ static sxml_status is_path_point(const sxml_xslt_lowering *lowering, point_quest
     }
     const stream_grounding grounding =
         grounding_of(select->ast, finding.path, finding.has_attribute_step);
-    if (entry->kind == SXML_XSLT_AST_KIND_ITERATE) {
+    /* xsl:for-each-group whose groups form as the nodes pass: adjacent
+       keys or patterns, no xsl:sort (XSLT Streaming 4.0, 12.6.19). */
+    const bool groups_as_they_pass =
+        entry->kind == SXML_XSLT_AST_KIND_FOR_EACH_GROUP &&
+        !sxml_xslt_lowering_has_sort(lowering, node) &&
+        (has_attribute(lowering, node, SXML_XSLT_AST_ATTRIBUTE_GROUP_ADJACENT) ||
+         has_attribute(lowering, node, SXML_XSLT_AST_ATTRIBUTE_GROUP_STARTING_WITH) ||
+         has_attribute(lowering, node, SXML_XSLT_AST_ATTRIBUTE_GROUP_ENDING_WITH));
+    if (entry->kind == SXML_XSLT_AST_KIND_ITERATE || groups_as_they_pass) {
         /* The select is the path (XSLT Streaming 4.0, 12.6.22: striding):
            the closure runs on each node as it passes (D302). */
         const sxml_ast_node_index top = unwrap_parentheses(

@@ -1304,6 +1304,22 @@ typedef struct group_locals {
     sxml_xpath_lowering_block body_block;
     sxml_ir_atom body;
     size_t scope_mark;
+    /* A streamed grouping (glossary `streamed_iteration`, D302): the
+       body's closure (owned memories 0 and 1) and the step's (2 and 3),
+       the iteration's state and its outputs. */
+    bool is_streamed;
+    sxml_xslt_closure step_closure;
+    sxml_ir_atom body_function;
+    sxml_ir_atom pair;
+    sxml_ir_atom next_state;
+    sxml_ir_atom step_function;
+    sxml_ir_atom initial_state;
+    sxml_ir_atom outputs;
+    sxml_ir_atom final_state;
+    sxml_ir_atom last_output;
+    sxml_ir_atom reference;
+    /* The block of the result: the outputs a content LET (D166). */
+    sxml_xpath_lowering_block result_block;
 } group_locals;
 
 /* 14.1: XTSE1080, XTSE1090; the method. */
@@ -1536,9 +1552,17 @@ static sxml_status bind_guarded_match(sxml_xpath_lowerer *lowerer, group_locals 
                 &locals->key);
 }
 
-/* The pairs (MAP over the population) and the row's groups. */
-static sxml_status bind_groups(sxml_xpath_lowerer *lowerer, group_locals *locals,
-                               sxml_xpath_lowering_block *block) {
+/* A call of the grouping row over pairs, bound in block. */
+typedef struct row_call {
+    const group_locals *locals;
+    sxml_xpath_lowering_block *block;
+    sxml_ir_atom pairs;
+} row_call;
+
+static sxml_status bind_row(sxml_xpath_lowerer *lowerer, row_call call, sxml_ir_atom *groups);
+
+/* The pair [item, key] of the item of item_focus, bound in pair_block. */
+static sxml_status bind_pair(sxml_xpath_lowerer *lowerer, group_locals *locals, sxml_ir_atom *pair) {
     sxml_ir_atom item = {0};
     sxml_status status = read_focus_value(
         lowerer, (focus_value_read){.focus = &locals->item_focus, .block = &locals->pair_block},
@@ -1549,17 +1573,22 @@ static sxml_status bind_groups(sxml_xpath_lowerer *lowerer, group_locals *locals
         status = sxml_ir_unit_add_atoms(
             lowerer->unit, (sxml_ir_atom_view){.atoms = members, .atom_count = 2}, &member_list);
     }
-    sxml_ir_atom pair = {0};
-    if (status == SXML_STATUS_OK) {
-        status = bind(lowerer,
-                      (binding){.block = &locals->pair_block,
-                                .expression = {.expression_kind =
-                                                   SXML_IR_EXPRESSION_KIND_ARRAY_CONSTRUCTOR,
-                                               .array_constructor = {.array_form =
-                                                                         SXML_IR_ARRAY_FORM_SQUARE,
-                                                                     .members = member_list}}},
-                      &pair);
+    if (status != SXML_STATUS_OK) {
+        return status;
     }
+    return bind(lowerer,
+                (binding){.block = &locals->pair_block,
+                          .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_ARRAY_CONSTRUCTOR,
+                                         .array_constructor = {.array_form = SXML_IR_ARRAY_FORM_SQUARE,
+                                                               .members = member_list}}},
+                pair);
+}
+
+/* The pairs (MAP over the population) and the row's groups. */
+static sxml_status bind_groups(sxml_xpath_lowerer *lowerer, group_locals *locals,
+                               sxml_xpath_lowering_block *block) {
+    sxml_ir_atom pair = {0};
+    sxml_status status = bind_pair(lowerer, locals, &pair);
     sxml_ir_expression_index pair_body = {0};
     if (status == SXML_STATUS_OK) {
         status = finish_branch(lowerer, (branch_result){.block = &locals->pair_block, .value = pair},
@@ -1583,11 +1612,22 @@ static sxml_status bind_groups(sxml_xpath_lowerer *lowerer, group_locals *locals
                 .mappings = mappings},
             &pairs);
     }
-    sxml_ir_atom arguments[3] = {pairs, {0}, locals->collation};
-    if (status == SXML_STATUS_OK) {
-        status = sxml_xpath_lowerer_add_item_constant(
-            lowerer, sxml_atomic_item_from_integer((int64_t)locals->method), &arguments[1]);
+    if (status != SXML_STATUS_OK) {
+        return status;
     }
+    return bind_row(lowerer, (row_call){.locals = locals, .block = block, .pairs = pairs},
+                    &locals->groups);
+}
+
+/* The row over pairs, bound in block (src/xslt_group_internal.h). */
+static sxml_status bind_row(sxml_xpath_lowerer *lowerer, row_call call, sxml_ir_atom *groups) {
+    const group_locals *locals = call.locals;
+    const sxml_xslt_error_mapping_view mappings = {
+        .mappings = grouping_mappings,
+        .mapping_count = sizeof(grouping_mappings) / sizeof(grouping_mappings[0])};
+    sxml_ir_atom arguments[3] = {call.pairs, {0}, locals->collation};
+    sxml_status status = sxml_xpath_lowerer_add_item_constant(
+        lowerer, sxml_atomic_item_from_integer((int64_t)locals->method), &arguments[1]);
     sxml_ir_atom_list argument_list = {0};
     if (status == SXML_STATUS_OK) {
         status = sxml_ir_unit_add_atoms(
@@ -1599,7 +1639,7 @@ static sxml_status bind_groups(sxml_xpath_lowerer *lowerer, group_locals *locals
     return sxml_xslt_lowering_bind_mapped_expression(
         lowerer,
         &(sxml_xslt_mapped_expression){
-            .block = block,
+            .block = call.block,
             .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_STATIC_CALL,
                            .static_call = {.target = {.target_kind =
                                                           SXML_IR_FUNCTION_TARGET_KIND_NATIVE,
@@ -1607,7 +1647,7 @@ static sxml_status bind_groups(sxml_xpath_lowerer *lowerer, group_locals *locals
                                                           &sxml_xslt_for_each_group_function},
                                            .arguments = argument_list}},
             .mappings = mappings},
-        &locals->groups);
+        groups);
 }
 
 /* The body: the sequence constructor once per group (14.1). */
@@ -1670,6 +1710,366 @@ static sxml_status finish_group(sxml_xpath_lowering_machine *machine,
     return sxml_xpath_lowering_finish_frame(machine, frame, map);
 }
 
+/* ------------------------------------------------ Streamed grouping */
+
+/*
+ * A streamed xsl:for-each-group (glossary `streamed_iteration`, D302):
+ * group-adjacent, group-starting-with or group-ending-with over a
+ * streamed path of steps, without xsl:sort (XSLT Streaming 4.0, 12.6.19:
+ * grounded keys and patterns, the body consuming the current group). The
+ * population is not grounded first: a streamed iteration
+ * (sxml_xslt_lowering_call_streamed_iteration) gives each selected node,
+ * in its full window, to a step closure whose state is
+ *
+ *     [0, output, the pending group's pairs (an array), groups made, body]
+ *
+ * The row (src/xslt_group_internal.h) over the pending group's first pair
+ * (its last for group-ending-with) and the node's pair says whether the
+ * node starts a group; then the pending group is complete: the body
+ * closure, fn((), [current group, grouping key], position), gives the
+ * output. After the stream, the last pending group's body. So a group is
+ * held while it forms, never the population.
+ */
+
+#define ARRAY_FUNCTION "Q{http://www.w3.org/2005/xpath-functions/array}"
+
+/* The pending group's pairs are an array: array:append is persistent
+   (D37), so a group of n nodes forms in O(n log n). */
+
+/* The pending group's first pair (its last for group-ending-with), or
+   () before the first node: V:state. */
+#define STREAMED_REFERENCE_TEXT(END)                                                               \
+    "let $p := " GROUP_VARIABLE "state?3 return if (" ARRAY_FUNCTION "size($p) eq 0) then () "      \
+    "else " ARRAY_FUNCTION END "($p)"
+static const char streamed_first_text[] = STREAMED_REFERENCE_TEXT("head");
+static const char streamed_last_text[] = STREAMED_REFERENCE_TEXT("foot");
+
+/* The state after a node: V:state, V:pair, and the row's groups V:two. */
+#define STREAMED_STEP_TEXT(KEY)                                                                    \
+    "let $s := " GROUP_VARIABLE "state, $p := $s?3, $n := $s?4, $b := $s?5 return "              \
+    "if (exists(tail(" GROUP_VARIABLE "two))) then [0, $b((), [$p?* ! ?1, " KEY "], $n + 1), ["    \
+    GROUP_VARIABLE "pair], $n + 1, $b] else [0, (), " ARRAY_FUNCTION "append($p, " GROUP_VARIABLE \
+    "pair), $n, $b]"
+static const char streamed_keyed_step_text[] = STREAMED_STEP_TEXT("$p(1)?2");
+static const char streamed_pattern_step_text[] = STREAMED_STEP_TEXT("()");
+
+static const char streamed_initial_text[] = "[0, (), [], 0, " GROUP_VARIABLE "body]";
+
+/* The last group's output, from the final state V:final. */
+#define STREAMED_TAIL_TEXT(KEY)                                                                    \
+    "let $s := " GROUP_VARIABLE "final, $p := $s?3, $b := $s?5 return "                            \
+    "if (" ARRAY_FUNCTION "size($p) gt 0) then $b((), [$p?* ! ?1, " KEY "], $s?4 + 1) else ()"
+static const char streamed_keyed_tail_text[] = STREAMED_TAIL_TEXT("$p(1)?2");
+static const char streamed_pattern_tail_text[] = STREAMED_TAIL_TEXT("()");
+
+/* The body's closure: the sequence constructor with the group array as
+   $item, the group's number as $position (14.1). */
+static sxml_status lower_streamed_body(sxml_xpath_lowering_machine *machine,
+                                       sxml_xpath_lowering_frame *frame) {
+    sxml_xpath_lowerer *lowerer = machine->state;
+    group_locals *locals = frame->locals;
+    const sxml_xslt_lowering *lowering = locals->head.lowering;
+    sxml_status status = sxml_xslt_lowering_enter_closure(
+        machine, frame,
+        &(sxml_xslt_closure_start){.lowering = lowering,
+                                   .node = locals->head.node,
+                                   .memory_index = 0,
+                                   .closure = &locals->closure});
+    locals->group_slots = (sxml_ir_focus){
+        .context_value = {.value = SXML_XSLT_CLOSURE_FIRST_SLOT + 1U},
+        .context_position = {.value = SXML_XSLT_CLOSURE_FIRST_SLOT + 2U},
+        .context_size = {.value = 0}};
+    locals->body_block = (sxml_xpath_lowering_block){.first = {0}, .open_let = {0}};
+    if (status == SXML_STATUS_OK) {
+        status = bind_group_view(
+            lowering, (group_view_request){.block = &locals->body_block, .slots = locals->group_slots},
+            &locals->view);
+    }
+    locals->scope_mark = lowerer->scope_entry_count;
+    if (status == SXML_STATUS_OK) {
+        status = push_group_scope(
+            lowerer,
+            (group_scope){.view = &locals->view, .has_key = is_keyed_method(locals->method)});
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_xslt_lowering_call_sequence_constructor(
+        machine, &(sxml_xslt_sequence_constructor_call){
+                     .lowering = lowering,
+                     .first = sxml_xslt_lowering_first_constructor_child(lowering->ast,
+                                                                         locals->head.node),
+                     .block = &locals->body_block,
+                     .is_body = false,
+                     .destination = {.expression = NULL,
+                                     .atom = &locals->body,
+                                     .atom_block = &locals->body_block,
+                                     .focused = NULL},
+                     .focus = &locals->view.focus});
+}
+
+/* A closure's body, finished in block, and the closure left. */
+typedef struct closure_result {
+    sxml_xslt_closure *closure;
+    sxml_xpath_lowering_block *block;
+    sxml_ir_atom value;
+    sxml_ir_atom *function_item;
+} closure_result;
+
+/* Leaves a closure whose body reads no size; the function item is bound
+   in the frame's block. */
+static sxml_status leave_streamed_closure(sxml_xpath_lowerer *lowerer,
+                                          sxml_xpath_lowering_frame *frame, closure_result result) {
+    sxml_ir_expression_index body = {0};
+    sxml_status status = finish_branch(
+        lowerer, (branch_result){.block = result.block, .value = result.value}, &body);
+    sxml_ir_constant_index empty = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_ir_unit_add_constant(lowerer->unit, sxml_sequence_empty(), &empty);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_xslt_lowering_leave_closure(
+        lowerer,
+        &(sxml_xslt_closure_finish){
+            .closure = result.closure,
+            .body = body,
+            .block = frame->block,
+            .input = {.atom_kind = SXML_IR_ATOM_KIND_CONSTANT, .constant = empty}},
+        result.function_item);
+}
+
+/* The step closure: the node's grouping key or match, lowered with the
+   node as the focus (14.1). */
+static sxml_status lower_streamed_key(sxml_xpath_lowering_machine *machine,
+                                      sxml_xpath_lowering_frame *frame) {
+    group_locals *locals = frame->locals;
+    const sxml_xslt_lowering *lowering = locals->head.lowering;
+    const sxml_status status = sxml_xslt_lowering_enter_closure(
+        machine, frame,
+        &(sxml_xslt_closure_start){.lowering = lowering,
+                                   .node = locals->head.node,
+                                   .memory_index = 2,
+                                   .closure = &locals->step_closure});
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    locals->item_focus = locals->step_closure.focus;
+    locals->pair_block = (sxml_xpath_lowering_block){.first = {0}, .open_let = {0}};
+    if (!is_keyed_method(locals->method)) {
+        return lower_match(machine, frame);
+    }
+    return sxml_xslt_lowering_call_expression(
+        machine,
+        &(sxml_xslt_expression_call){.lowering = lowering,
+                                     .expression = locals->grouping->value.payload.expression,
+                                     .block = &locals->pair_block,
+                                     .atom = &locals->key,
+                                     .focus = &locals->item_focus});
+}
+
+/* The node's pair, and the row over the pending group's first (or last)
+   pair and it, in the step's block; then the next state's text. */
+static sxml_status lower_streamed_state(sxml_xpath_lowering_machine *machine,
+                                        sxml_xpath_lowering_frame *frame) {
+    sxml_xpath_lowerer *lowerer = machine->state;
+    group_locals *locals = frame->locals;
+    sxml_status status = bind_pair(lowerer, locals, &locals->pair);
+    const sxml_ir_atom state = sxml_ir_slot_atom((sxml_ir_slot){.value = SXML_XSLT_CLOSURE_FIRST_SLOT});
+    const sxml_ir_atom reference = locals->reference;
+    const sxml_ir_atom both[2] = {reference, locals->pair};
+    sxml_ir_atom_list list = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_ir_unit_add_atoms(lowerer->unit,
+                                        (sxml_ir_atom_view){.atoms = both, .atom_count = 2}, &list);
+    }
+    sxml_ir_atom pairs = {0};
+    if (status == SXML_STATUS_OK) {
+        status = bind(lowerer,
+                      (binding){.block = &locals->pair_block,
+                                .expression = {.expression_kind = SXML_IR_EXPRESSION_KIND_SEQUENCE,
+                                               .sequence = list}},
+                      &pairs);
+    }
+    sxml_ir_atom two = {0};
+    if (status == SXML_STATUS_OK) {
+        status = bind_row(lowerer,
+                          (row_call){.locals = locals, .block = &locals->pair_block, .pairs = pairs},
+                          &two);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    const text_variable variables[3] = {{.local_name = "state", .atom = state},
+                                        {.local_name = "pair", .atom = locals->pair},
+                                        {.local_name = "two", .atom = two}};
+    return call_text(machine,
+                     &(text_call){.lowering = locals->head.lowering,
+                                  .text = is_keyed_method(locals->method) ? streamed_keyed_step_text
+                                                                          : streamed_pattern_step_text,
+                                  .variables = variables,
+                                  .variable_count = 3,
+                                  .block = &locals->pair_block,
+                                  .atom = &locals->next_state});
+}
+
+/* The outputs of the iteration, then the last group's. */
+static sxml_status finish_streamed_group(sxml_xpath_lowering_machine *machine,
+                                         sxml_xpath_lowering_frame *frame) {
+    sxml_xpath_lowerer *lowerer = machine->state;
+    group_locals *locals = frame->locals;
+    const sxml_ir_atom parts[2] = {locals->outputs, locals->last_output};
+    sxml_ir_atom_list list = {0};
+    const sxml_status status = sxml_ir_unit_add_atoms(
+        lowerer->unit, (sxml_ir_atom_view){.atoms = parts, .atom_count = 2}, &list);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_ir_expression_index result = {0};
+    sxml_status added = sxml_xslt_lowering_add_expression(
+        lowerer,
+        (sxml_ir_expression){.expression_kind = SXML_IR_EXPRESSION_KIND_SEQUENCE, .sequence = list},
+        &result);
+    sxml_ir_expression_index expression = {0};
+    if (added == SXML_STATUS_OK) {
+        added = sxml_xpath_lowerer_finish_block(
+            lowerer,
+            (sxml_xpath_lowering_block_result){.block = locals->result_block, .result = result},
+            &expression);
+    }
+    if (added != SXML_STATUS_OK) {
+        return added;
+    }
+    return sxml_xpath_lowering_finish_frame(machine, frame, expression);
+}
+
+/* The steps of a streamed grouping, after the collation. */
+typedef enum streamed_group_step {
+    SXML_XSLT_STREAMED_GROUP_STEP_BODY = 16,
+    SXML_XSLT_STREAMED_GROUP_STEP_KEY,
+    SXML_XSLT_STREAMED_GROUP_STEP_KEY_VALUE,
+    SXML_XSLT_STREAMED_GROUP_STEP_REFERENCE,
+    SXML_XSLT_STREAMED_GROUP_STEP_STATE,
+    SXML_XSLT_STREAMED_GROUP_STEP_CLOSE,
+    SXML_XSLT_STREAMED_GROUP_STEP_ITERATION,
+    SXML_XSLT_STREAMED_GROUP_STEP_TAIL,
+    SXML_XSLT_STREAMED_GROUP_STEP_FINISH,
+} streamed_group_step;
+
+static sxml_status step_streamed_group(sxml_xpath_lowering_machine *machine,
+                                       sxml_xpath_lowering_frame *frame, step_outcome *outcome) {
+    sxml_xpath_lowerer *lowerer = machine->state;
+    group_locals *locals = frame->locals;
+    const sxml_xslt_lowering *lowering = locals->head.lowering;
+    const bool is_keyed = is_keyed_method(locals->method);
+    sxml_status status = SXML_STATUS_OK;
+    outcome->is_pushed = true;
+    switch ((streamed_group_step)frame->step) {
+    case SXML_XSLT_STREAMED_GROUP_STEP_BODY:
+        frame->step = SXML_XSLT_STREAMED_GROUP_STEP_KEY;
+        return lower_streamed_body(machine, frame);
+    case SXML_XSLT_STREAMED_GROUP_STEP_KEY:
+        frame->step = SXML_XSLT_STREAMED_GROUP_STEP_KEY_VALUE;
+        sxml_xpath_lowerer_pop_variables(lowerer, locals->scope_mark);
+        status = leave_streamed_closure(lowerer, frame,
+                                        (closure_result){.closure = &locals->closure,
+                                                         .block = &locals->body_block,
+                                                         .value = locals->body,
+                                                         .function_item = &locals->body_function});
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        return lower_streamed_key(machine, frame);
+    case SXML_XSLT_STREAMED_GROUP_STEP_KEY_VALUE: {
+        frame->step = SXML_XSLT_STREAMED_GROUP_STEP_REFERENCE;
+        if (!is_keyed) {
+            outcome->is_pushed = false;
+            return bind_guarded_match(lowerer, locals);
+        }
+        const text_variable variables[1] = {{.local_name = "key", .atom = locals->key}};
+        return call_text(machine, &(text_call){.lowering = lowering,
+                                               .text = grouping_key_text,
+                                               .variables = variables,
+                                               .variable_count = 1,
+                                               .block = &locals->pair_block,
+                                               .atom = &locals->key});
+    }
+    case SXML_XSLT_STREAMED_GROUP_STEP_REFERENCE: {
+        frame->step = SXML_XSLT_STREAMED_GROUP_STEP_STATE;
+        /* 14.1: a pattern ends a group after its match, so the last pair
+           decides; otherwise the first pair's key or the node's match. */
+        const text_variable variables[1] = {
+            {.local_name = "state",
+             .atom = sxml_ir_slot_atom((sxml_ir_slot){.value = SXML_XSLT_CLOSURE_FIRST_SLOT})}};
+        return call_text(machine,
+                         &(text_call){.lowering = lowering,
+                                      .text = locals->method == SXML_XSLT_GROUPING_METHOD_ENDING_WITH
+                                                  ? streamed_last_text
+                                                  : streamed_first_text,
+                                      .variables = variables,
+                                      .variable_count = 1,
+                                      .block = &locals->pair_block,
+                                      .atom = &locals->reference});
+    }
+    case SXML_XSLT_STREAMED_GROUP_STEP_STATE:
+        frame->step = SXML_XSLT_STREAMED_GROUP_STEP_CLOSE;
+        return lower_streamed_state(machine, frame);
+    case SXML_XSLT_STREAMED_GROUP_STEP_CLOSE: {
+        frame->step = SXML_XSLT_STREAMED_GROUP_STEP_ITERATION;
+        status = leave_streamed_closure(lowerer, frame,
+                                        (closure_result){.closure = &locals->step_closure,
+                                                         .block = &locals->pair_block,
+                                                         .value = locals->next_state,
+                                                         .function_item = &locals->step_function});
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        const text_variable variables[1] = {{.local_name = "body", .atom = locals->body_function}};
+        return call_text(machine, &(text_call){.lowering = lowering,
+                                               .text = streamed_initial_text,
+                                               .variables = variables,
+                                               .variable_count = 1,
+                                               .block = frame->block,
+                                               .atom = &locals->initial_state});
+    }
+    case SXML_XSLT_STREAMED_GROUP_STEP_ITERATION:
+        frame->step = SXML_XSLT_STREAMED_GROUP_STEP_TAIL;
+        locals->result_block = (sxml_xpath_lowering_block){.first = {0}, .open_let = {0}};
+        return sxml_xslt_lowering_call_streamed_iteration(
+            machine, &(sxml_xslt_streamed_iteration_call){.lowering = lowering,
+                                                          .node = locals->head.node,
+                                                          .block = &locals->result_block,
+                                                          .closure = locals->step_function,
+                                                          .initial_state = locals->initial_state,
+                                                          .outputs = &locals->outputs,
+                                                          .final_state = &locals->final_state});
+    case SXML_XSLT_STREAMED_GROUP_STEP_TAIL: {
+        frame->step = SXML_XSLT_STREAMED_GROUP_STEP_FINISH;
+        sxml_xpath_lowering_content_mark mark = {.goes_on = true};
+        status = sxml_xpath_lowerer_mark_content_let(
+            lowerer,
+            (sxml_xpath_lowering_content_item){
+                .block = &locals->result_block, .open_let_before = {0}, .atom = locals->outputs},
+            &mark);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        const text_variable variables[1] = {{.local_name = "final", .atom = locals->final_state}};
+        return call_text(machine, &(text_call){.lowering = lowering,
+                                               .text = is_keyed ? streamed_keyed_tail_text
+                                                                : streamed_pattern_tail_text,
+                                               .variables = variables,
+                                               .variable_count = 1,
+                                               .block = &locals->result_block,
+                                               .atom = &locals->last_output});
+    }
+    case SXML_XSLT_STREAMED_GROUP_STEP_FINISH:
+        return finish_streamed_group(machine, frame);
+    }
+    return SXML_STATUS_INVALID_ARGUMENT;
+}
+
 typedef enum group_step {
     SXML_XSLT_GROUP_STEP_SELECT,
     SXML_XSLT_GROUP_STEP_COLLATION,
@@ -1688,6 +2088,9 @@ static sxml_status step_group(sxml_xpath_lowering_machine *machine,
     const sxml_xslt_lowering *lowering = locals->head.lowering;
     const sxml_xslt_ast_node_index node = locals->head.node;
     sxml_status status = SXML_STATUS_OK;
+    if (frame->step >= (uint32_t)SXML_XSLT_STREAMED_GROUP_STEP_BODY) {
+        return step_streamed_group(machine, frame, outcome);
+    }
     outcome->is_pushed = true;
     switch ((group_step)frame->step) {
     case SXML_XSLT_GROUP_STEP_SELECT: {
@@ -1695,6 +2098,12 @@ static sxml_status step_group(sxml_xpath_lowering_machine *machine,
         status = read_grouping(locals);
         if (status != SXML_STATUS_OK) {
             return status;
+        }
+        if (sxml_xslt_is_stream_point(lowering, node)) {
+            /* A streamed grouping: the select is lowered as its chain. */
+            locals->is_streamed = true;
+            outcome->is_pushed = false;
+            return SXML_STATUS_OK;
         }
         const sxml_xslt_ast_attribute *select =
             find_attribute(lowering, node, SXML_XSLT_AST_ATTRIBUTE_SELECT);
@@ -1724,6 +2133,11 @@ static sxml_status step_group(sxml_xpath_lowering_machine *machine,
             lowerer, (sxml_byte_view){.bytes = NULL, .byte_count = 0}, &locals->collation);
     }
     case SXML_XSLT_GROUP_STEP_KEY:
+        if (locals->is_streamed) {
+            frame->step = (uint32_t)SXML_XSLT_STREAMED_GROUP_STEP_BODY;
+            outcome->is_pushed = false;
+            return SXML_STATUS_OK;
+        }
         frame->step = SXML_XSLT_GROUP_STEP_KEY_VALUE;
         locals->item_focus =
             (sxml_xpath_lowering_focus){.kind = SXML_XPATH_LOWERING_FOCUS_KIND_SLOTS};

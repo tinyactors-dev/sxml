@@ -1281,6 +1281,27 @@ static const principal_case principal_cases[] = {
                    "else 0)'/></xsl:next-iteration></xsl:otherwise></xsl:choose>"
                    "</xsl:iterate></n></xsl:template>",
                    DECLARATION "<n>20000</n>"),
+    /* Every record an output, delivered as it is made: the outputs are a
+       content LET (D166), not held. */
+    PRINCIPAL_CASE("shallow-skip",
+                   "<xsl:template match='/'><n><xsl:iterate select='records/record'>"
+                   "<r><xsl:value-of select='@id'/></r></xsl:iterate></n></xsl:template>",
+                   NULL),
+    /* xsl:for-each-group whose groups form as the records pass (D302):
+       adjacent keys, and groups starting with a pattern. A group is held
+       while it forms: these have 10 and 100 records. */
+    PRINCIPAL_CASE("shallow-skip",
+                   "<xsl:template match='/'><n><xsl:for-each-group select='records/record' "
+                   "group-adjacent='@id idiv 10'><g k='{current-grouping-key()}' "
+                   "p='{position()}'><xsl:value-of select='sum(current-group()/price)'/></g>"
+                   "</xsl:for-each-group></n></xsl:template>",
+                   NULL),
+    PRINCIPAL_CASE("shallow-skip",
+                   "<xsl:template match='/'><n><xsl:for-each-group select='records/record' "
+                   "group-starting-with='record[@id mod 100 = 0]'><g id='{@id}'>"
+                   "<xsl:value-of select='count(current-group())'/></g>"
+                   "</xsl:for-each-group></n></xsl:template>",
+                   NULL),
 };
 
 static void test_principal_source_streams_in_bounded_memory(sxml_test_state *state) {

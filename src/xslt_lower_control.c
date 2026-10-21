@@ -3699,6 +3699,9 @@ typedef struct iterate_locals {
        given to the chain of STREAMs instead of fn:scan. */
     bool is_streamed;
     sxml_ir_atom closure_item;
+    /* Its block: the chain's outputs a content LET (D166), so a
+       delivering task delivers them as they are made. */
+    sxml_xpath_lowering_block result_block;
     sxml_ir_atom final_state;
     sxml_ir_atom outputs;
     sxml_xpath_lowering_block completion_block;
@@ -4464,6 +4467,7 @@ static sxml_status finish_iterate(sxml_xpath_lowering_machine *machine,
                                   sxml_xpath_lowering_frame *frame) {
     sxml_xpath_lowerer *lowerer = machine->state;
     iterate_locals *locals = frame->locals;
+    sxml_xpath_lowering_block *block = locals->is_streamed ? &locals->result_block : frame->block;
     sxml_ir_atom results[2] = {locals->outputs, {0}};
     size_t result_count = 1;
     sxml_status status = SXML_STATUS_OK;
@@ -4472,7 +4476,7 @@ static sxml_status finish_iterate(sxml_xpath_lowering_machine *machine,
         sxml_ir_atom control = {0};
         status = bind_member(
             lowerer,
-            (member_request){.block = frame->block, .array = locals->final_state, .position = 1},
+            (member_request){.block = block, .array = locals->final_state, .position = 1},
             &control);
         conditional_parts parts = {.condition = control};
         sxml_xpath_lowering_block stopped_block = {.first = {0}, .open_let = {0}};
@@ -4494,7 +4498,7 @@ static sxml_status finish_iterate(sxml_xpath_lowering_machine *machine,
         if (status == SXML_STATUS_OK) {
             status =
                 bind(lowerer,
-                     (binding){.block = frame->block, .expression = conditional_expression(parts)},
+                     (binding){.block = block, .expression = conditional_expression(parts)},
                      &results[1]);
             result_count = 2;
         }
@@ -4507,7 +4511,22 @@ static sxml_status finish_iterate(sxml_xpath_lowering_machine *machine,
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    return finish_with_expression(machine, frame, result);
+    if (!locals->is_streamed) {
+        return finish_with_expression(machine, frame, result);
+    }
+    sxml_ir_expression_index last = {0};
+    sxml_ir_expression_index expression = {0};
+    status = sxml_xslt_lowering_add_expression(lowerer, result, &last);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_finish_block(
+            lowerer,
+            (sxml_xpath_lowering_block_result){.block = locals->result_block, .result = last},
+            &expression);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_xpath_lowering_finish_frame(machine, frame, expression);
 }
 
 static sxml_status continue_iterate(sxml_xpath_lowering_machine *machine,
@@ -4545,11 +4564,12 @@ static sxml_status continue_iterate(sxml_xpath_lowering_machine *machine,
             if (status == SXML_STATUS_OK && locals->is_streamed) {
                 /* The outputs and the last state from the chain (D302). */
                 frame->step = SXML_XSLT_ITERATE_STEP_STREAMED;
+                locals->result_block = (sxml_xpath_lowering_block){.first = {0}, .open_let = {0}};
                 return sxml_xslt_lowering_call_streamed_iteration(
                     machine, &(sxml_xslt_streamed_iteration_call){
                                  .lowering = locals->head.lowering,
                                  .node = locals->head.node,
-                                 .block = frame->block,
+                                 .block = &locals->result_block,
                                  .closure = locals->closure_item,
                                  .initial_state = locals->initial_state,
                                  .outputs = &locals->outputs,
@@ -4558,6 +4578,14 @@ static sxml_status continue_iterate(sxml_xpath_lowering_machine *machine,
             if (status == SXML_STATUS_OK) {
                 status = bind_outputs(lowerer, frame);
             }
+        } else {
+            sxml_xpath_lowering_content_mark mark = {.goes_on = true};
+            status = sxml_xpath_lowerer_mark_content_let(
+                lowerer,
+                (sxml_xpath_lowering_content_item){.block = &locals->result_block,
+                                                   .open_let_before = {0},
+                                                   .atom = locals->outputs},
+                &mark);
         }
         frame->step = SXML_XSLT_ITERATE_STEP_COMPLETION;
         step_outcome outcome = {.is_pushed = false};

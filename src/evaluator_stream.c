@@ -2242,7 +2242,9 @@ static sxml_status sxml_stream_push_focused(sxml_dynamic_context *dynamic_contex
             dynamic_context, focus.context_position,
             sxml_sequence_from_item(sxml_atomic_item_from_integer((int64_t)push.position)));
     }
-    if (push.phase == SXML_STREAM_PHASE_BODY && task->delivers_content) {
+    /* A folded body's value is the fold's, never content (D223, D302). */
+    if (push.phase == SXML_STREAM_PHASE_BODY && task->delivers_content &&
+        state->stream->fold.value == 0) {
         return sxml_evaluator_machine_push_content(dynamic_context, push.expression);
     }
     return sxml_evaluator_machine_push_expression(dynamic_context, push.expression);
