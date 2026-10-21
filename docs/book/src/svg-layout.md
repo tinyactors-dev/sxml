@@ -17,12 +17,14 @@ as a whole.
 ## Ranks
 
 The *rank* of a node is its row: how many edges away it is from the top.
-The top row starts with the nodes without incoming edges. XPath finds
-them, and the nodes one edge further:
+The top row starts with the nodes without incoming edges, here the two
+SDKs. XPath finds them, and the nodes one edge further from the `flags`
+module:
 
 ```console
 $ sxml xpath --context-item=diagram.xml '//node[not(@id = //edge/@to)]/@id/string()'
-"gateway"
+"browser"
+"node"
 $ sxml xpath --context-item=diagram.xml '//edge[@from = "flags"]/@to/string()'
 "registry"
 "cache"
@@ -36,8 +38,8 @@ first map from a sequence of keys and a function that gives each key's
 value; `fn { 0 }` is a function that ignores its argument:
 
 ```console
-$ sxml xpath --context-item=diagram.xml 'map:build(("gateway", "flags"), value := fn { 0 })'
-{"gateway":0,"flags":0}
+$ sxml xpath --context-item=diagram.xml 'map:build(("browser", "node"), value := fn { 0 })'
+{"browser":0,"node":0}
 ```
 
 Here is the search as two functions of `draw.xqm`:
@@ -64,7 +66,7 @@ module's namespace and file, and `--method=adaptive` shows the map:
 
 ```console
 $ sxml xquery --method=adaptive --context-item=diagram.xml --expression='import module namespace draw = "urn:example:draw" at "draw.xqm"; draw:ranks(/diagram)'
-{"gateway":0,"flags":1,"registry":2,"cache":2,"database":3}
+{"browser":0,"node":0,"api":1,"flags":2,"registry":3,"cache":3,"postgresql":4,"redis":4}
 ```
 
 A diagram with cycles works the same way. `states.xml` has four states
@@ -106,7 +108,7 @@ pass number *p* ranks the nodes one edge away from rank *p* − 1:
 
 ```console
 $ sxml xquery --method=adaptive --context-item=diagram.xml ranks-fold.xq
-{"gateway":0,"flags":1,"registry":2,"cache":2,"database":3}
+{"browser":0,"node":0,"api":1,"flags":2,"registry":3,"cache":3,"postgresql":4,"redis":4}
 $ sxml xquery --method=adaptive --context-item=states.xml ranks-fold.xq
 {"stable":0,"archived":0,"checking":1,"rolling-out":2}
 ```
@@ -137,10 +139,11 @@ sequence):
 
 ```console
 $ sxml xquery --method=adaptive --context-item=diagram.xml rows.xq
-["gateway"]
+["browser","node"]
+["api"]
 ["flags"]
 ["registry","cache"]
-["database"]
+["postgresql","redis"]
 $ sxml xquery --method=adaptive --context-item=states.xml rows.xq
 ["stable","archived"]
 ["checking"]
@@ -183,15 +186,17 @@ starts half of its free space in from the left. The width of a row is a
 small function, kept in a variable so that it can be used twice:
 
 ```console
-$ sxml xpath 'let $row-width := fn($row as array(*)) { array:size($row) * 140 + (array:size($row) - 1) * 40 } return (["gateway"], ["registry", "cache"]) ! $row-width(.)'
+$ sxml xpath 'let $row-width := fn($row as array(*)) { array:size($row) * 140 + (array:size($row) - 1) * 40 } return (["api"], ["registry", "cache"]) ! $row-width(.)'
 140
 320
 ```
 
-For the services the widest row is 320, so the drawing is 360 wide. The
+For the Vane diagram the widest rows have two boxes, 320, so the
+drawing is 360 wide. The
 row of one box starts at (360 − 140) / 2 = 110, and the row of two at
 (360 − 320) / 2 = 20. Rows are 40 high with 60 between them, so row *r*
-(counting from 1) is at *y* = 20 + (*r* − 1) × 100. Here is all of it:
+(counting from 1) is at *y* = 20 + (*r* − 1) × 100, and five rows make
+the drawing 2 × 20 + 5 × 40 + 4 × 60 = 480 high. Here is all of it:
 
 ```xquery
 {{#include ../examples/svg/draw.xqm:layout}}
@@ -204,11 +209,11 @@ members of one row's array. Each pair gives a one-entry map, and
 
 ```console
 $ sxml xquery --method=adaptive --context-item=diagram.xml --expression='import module namespace draw = "urn:example:draw" at "draw.xqm"; draw:layout(/diagram)'
-{"width":360,"height":380,"places":{"gateway":{"x":110,"y":20},"flags":{"x":110,"y":120},"registry":{"x":20,"y":220},"cache":{"x":200,"y":220},"database":{"x":110,"y":320}}}
+{"width":360,"height":480,"places":{"browser":{"x":20,"y":20},"node":{"x":200,"y":20},"api":{"x":110,"y":120},"flags":{"x":110,"y":220},"registry":{"x":20,"y":320},"cache":{"x":200,"y":320},"postgresql":{"x":20,"y":420},"redis":{"x":200,"y":420}}}
 ```
 
 These are the numbers in `diagram.svg`: the `rect` of `registry` is at
-`x="20" y="220"`.
+`x="20" y="320"`.
 
 ## Where the lines go
 
@@ -230,13 +235,16 @@ way is hidden under it, because the boxes are drawn last; a bigger tool
 would route it around.
 
 ```console
-$ sxml xquery --method=adaptive --expression='import module namespace draw = "urn:example:draw" at "draw.xqm"; draw:line(draw:place(110, 120), draw:place(20, 220)), draw:loop(draw:place(20, 20))'
+$ sxml xquery --method=adaptive --expression='import module namespace draw = "urn:example:draw" at "draw.xqm"; draw:line(draw:place(110, 220), draw:place(20, 320)), draw:loop(draw:place(20, 20))'
 180
-160
+260
 90
-220
+320
 "M 40 60 C 40 84, 70 84, 70 60"
 ```
+
+The first four numbers are the edge from `flags` down to `registry`, as
+`diagram.svg` draws it: from (180, 260) to (90, 320).
 
 ## The layout as XML
 
@@ -254,19 +262,27 @@ the line (or the loop's path, `d`) on each `edge`:
 Attributes are copied from the description and made with computed
 attribute constructors: `attribute { $name } { … }` takes its name from
 an expression, which is how the four ends of a line get their names.
+An edge between two modules has no `label` in the description, so it
+has none here either: `$edge/@*` copies the attributes there are.
 
 ```console
 $ sxml xquery --context-item=diagram.xml layout.xq
-<diagram title="Vane services" width="360" height="380">
-  <node id="gateway" label="api-gateway" x="110" y="20"/>
-  <node id="flags" label="flag-service" x="110" y="120"/>
-  <node id="registry" label="flag-registry" x="20" y="220"/>
-  <node id="cache" label="flag-cache" kind="store" x="200" y="220"/>
-  <node id="database" label="postgresql" kind="store" x="110" y="320"/>
-  <edge from="gateway" to="flags" label="HTTP" x1="180" y1="60" x2="180" y2="120"/>
-  <edge from="flags" to="registry" label="HTTP" x1="180" y1="160" x2="90" y2="220"/>
-  <edge from="flags" to="cache" label="Redis" x1="180" y1="160" x2="270" y2="220"/>
-  <edge from="registry" to="database" label="SQL" x1="90" y1="260" x2="180" y2="320"/>
+<diagram title="Vane" width="360" height="480">
+  <node id="browser" label="@vane/browser" x="20" y="20"/>
+  <node id="node" label="@vane/node" x="200" y="20"/>
+  <node id="api" label="vane/api" x="110" y="120"/>
+  <node id="flags" label="vane/flags" x="110" y="220"/>
+  <node id="registry" label="vane/registry" x="20" y="320"/>
+  <node id="cache" label="vane/cache" x="200" y="320"/>
+  <node id="postgresql" label="postgresql" kind="store" x="20" y="420"/>
+  <node id="redis" label="redis" kind="store" x="200" y="420"/>
+  <edge from="browser" to="api" label="HTTP" x1="90" y1="60" x2="180" y2="120"/>
+  <edge from="node" to="api" label="HTTP" x1="270" y1="60" x2="180" y2="120"/>
+  <edge from="api" to="flags" x1="180" y1="160" x2="180" y2="220"/>
+  <edge from="flags" to="registry" x1="180" y1="260" x2="90" y2="320"/>
+  <edge from="flags" to="cache" x1="180" y1="260" x2="270" y2="320"/>
+  <edge from="registry" to="postgresql" label="SQL" x1="90" y1="360" x2="90" y2="420"/>
+  <edge from="cache" to="redis" label="Redis" x1="270" y1="360" x2="270" y2="420"/>
 </diagram>
 ```
 

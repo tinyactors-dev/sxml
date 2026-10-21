@@ -17,13 +17,13 @@ It reads the description with coordinates added, which
 
 ```console
 $ sxml xquery --context-item=diagram.xml --output=laid-out.xml layout.xq
-$ sxml xpath --context-item=laid-out.xml '/diagram/@width/string(), //node[@id = "cache"]/@*!string()'
+$ sxml xpath --context-item=laid-out.xml '/diagram/@width/string(), //node[@id = "redis"]/@*!string()'
 "360"
-"cache"
-"flag-cache"
+"redis"
+"redis"
 "store"
 "200"
-"220"
+"420"
 ```
 
 ## The stylesheet
@@ -78,10 +78,13 @@ the parameter with its default, 6:
 
 ```console
 $ sxml transform draw.xsl laid-out.xml --output=drawn.svg
-$ sxml xpath --context-item=drawn.svg '//*:g[@id = ("node-flags", "node-cache")] ! `{@id}: {@class}, rx {*:rect/@rx}`'
-"node-flags: service, rx 6"
-"node-cache: store, rx 20"
+$ sxml xpath --context-item=drawn.svg '//*:g[@id = ("node-cache", "node-redis")] ! `{@id}: {@class}, rx {*:rect/@rx}`'
+"node-cache: service, rx 6"
+"node-redis: store, rx 20"
 ```
+
+The cache module is a box like the other modules; Redis, where it keeps
+its data, is the store.
 
 The class is an attribute value template with a sequence in it,
 `{(@kind, 'service')[1], @class}`: the values are joined with spaces, and
@@ -92,8 +95,8 @@ a missing `class` adds nothing.
 ```console
 $ sxml transform draw.xsl laid-out.xml
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="360" height="380" viewBox="0 0 360 380">
-  <title>Vane services</title>
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="480" viewBox="0 0 360 480">
+  <title>Vane</title>
   <style>
         .nodes rect { fill: #eef3fb; stroke: #3b5b92; stroke-width: 1.5 }
         .nodes .store rect { fill: #f6efe3; stroke: #8a6a2f }
@@ -107,43 +110,61 @@ $ sxml transform draw.xsl laid-out.xml
     </marker>
   </defs>
   <g class="edges">
-    <line id="edge-gateway-flags" x1="180" y1="60" x2="180" y2="120" marker-end="url(#arrow)"/>
-    <line id="edge-flags-registry" x1="180" y1="160" x2="90" y2="220" marker-end="url(#arrow)"/>
-    <line id="edge-flags-cache" x1="180" y1="160" x2="270" y2="220" marker-end="url(#arrow)"/>
-    <line id="edge-registry-database" x1="90" y1="260" x2="180" y2="320" marker-end="url(#arrow)"/>
+    <line id="edge-browser-api" x1="90" y1="60" x2="180" y2="120" marker-end="url(#arrow)"/>
+    <line id="edge-node-api" x1="270" y1="60" x2="180" y2="120" marker-end="url(#arrow)"/>
+    <line id="edge-api-flags" x1="180" y1="160" x2="180" y2="220" marker-end="url(#arrow)"/>
+    <line id="edge-flags-registry" x1="180" y1="260" x2="90" y2="320" marker-end="url(#arrow)"/>
+    <line id="edge-flags-cache" x1="180" y1="260" x2="270" y2="320" marker-end="url(#arrow)"/>
+    <line id="edge-registry-postgresql" x1="90" y1="360" x2="90" y2="420" marker-end="url(#arrow)"/>
+    <line id="edge-cache-redis" x1="270" y1="360" x2="270" y2="420" marker-end="url(#arrow)"/>
   </g>
   <g class="nodes">
-    <g id="node-gateway" class="service">
-      <rect x="110" y="20" width="140" height="40" rx="6"/>
-      <text x="180" y="45" text-anchor="middle">api-gateway</text>
+    <g id="node-browser" class="service">
+      <rect x="20" y="20" width="140" height="40" rx="6"/>
+      <text x="90" y="45" text-anchor="middle">@vane/browser</text>
+    </g>
+    <g id="node-node" class="service">
+      <rect x="200" y="20" width="140" height="40" rx="6"/>
+      <text x="270" y="45" text-anchor="middle">@vane/node</text>
+    </g>
+    <g id="node-api" class="service">
+      <rect x="110" y="120" width="140" height="40" rx="6"/>
+      <text x="180" y="145" text-anchor="middle">vane/api</text>
     </g>
     <g id="node-flags" class="service">
-      <rect x="110" y="120" width="140" height="40" rx="6"/>
-      <text x="180" y="145" text-anchor="middle">flag-service</text>
+      <rect x="110" y="220" width="140" height="40" rx="6"/>
+      <text x="180" y="245" text-anchor="middle">vane/flags</text>
     </g>
     <g id="node-registry" class="service">
-      <rect x="20" y="220" width="140" height="40" rx="6"/>
-      <text x="90" y="245" text-anchor="middle">flag-registry</text>
+      <rect x="20" y="320" width="140" height="40" rx="6"/>
+      <text x="90" y="345" text-anchor="middle">vane/registry</text>
     </g>
-    <g id="node-cache" class="store">
-      <rect x="200" y="220" width="140" height="40" rx="20"/>
-      <text x="270" y="245" text-anchor="middle">flag-cache</text>
+    <g id="node-cache" class="service">
+      <rect x="200" y="320" width="140" height="40" rx="6"/>
+      <text x="270" y="345" text-anchor="middle">vane/cache</text>
     </g>
-    <g id="node-database" class="store">
-      <rect x="110" y="320" width="140" height="40" rx="20"/>
-      <text x="180" y="345" text-anchor="middle">postgresql</text>
+    <g id="node-postgresql" class="store">
+      <rect x="20" y="420" width="140" height="40" rx="20"/>
+      <text x="90" y="445" text-anchor="middle">postgresql</text>
+    </g>
+    <g id="node-redis" class="store">
+      <rect x="200" y="420" width="140" height="40" rx="20"/>
+      <text x="270" y="445" text-anchor="middle">redis</text>
     </g>
   </g>
   <g class="labels">
-    <text x="186" y="94">HTTP</text>
-    <text x="141" y="194">HTTP</text>
-    <text x="231" y="194">Redis</text>
-    <text x="141" y="294">SQL</text>
+    <text x="141" y="94">HTTP</text>
+    <text x="231" y="94">HTTP</text>
+    <text x="96" y="394">SQL</text>
+    <text x="276" y="394">Redis</text>
   </g>
 </svg>
 ```
 
-The boxes, lines and labels are where the XQuery drawing has them; only
+The labels layer has four texts, not seven: the stylesheet applies the
+`labels` mode only to `edge[@label]`, and the three edges between
+modules have no label. The boxes, lines and labels are where the XQuery
+drawing has them; only
 the grouping and the style differ. Arithmetic on attributes works because
 an attribute of an untyped document is untyped: `@x + 70` converts it to
 a number. The two steps also run as one pipeline, the layout's output
@@ -171,8 +192,8 @@ gives itself `priority="1"` to win:
 
 ```console
 $ sxml transform draw.xsl diagram.xml
-Vane services: no layout; run layout.xq first
-draw.xsl:43:5: err:XTMM9000: Vane services: no layout; run layout.xq first
+Vane: no layout; run layout.xq first
+draw.xsl:43:5: err:XTMM9000: Vane: no layout; run layout.xq first
 ```
 
 ## Matching SVG
@@ -192,17 +213,23 @@ Run on both drawings, it shows that they agree:
 
 ```console
 $ sxml transform boxes.xsl diagram.svg
-110,20 api-gateway
-110,120 flag-service
-20,220 flag-registry
-200,220 flag-cache
-110,320 postgresql
+20,20 @vane/browser
+200,20 @vane/node
+110,120 vane/api
+110,220 vane/flags
+20,320 vane/registry
+200,320 vane/cache
+20,420 postgresql
+200,420 redis
 $ sxml transform boxes.xsl drawn.svg
-110,20 api-gateway
-110,120 flag-service
-20,220 flag-registry
-200,220 flag-cache
-110,320 postgresql
+20,20 @vane/browser
+200,20 @vane/node
+110,120 vane/api
+110,220 vane/flags
+20,320 vane/registry
+200,320 vane/cache
+20,420 postgresql
+200,420 redis
 ```
 
 Without `xpath-default-namespace`, `//rect` would look for `rect` in no

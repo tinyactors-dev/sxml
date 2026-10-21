@@ -31,7 +31,7 @@ names in paths too. That is a trap when the input has no namespace:
 
 ```console
 $ sxml xquery --context-item=diagram.xml --expression='declare default element namespace "http://www.w3.org/2000/svg"; count(//node), count(//Q{}node)'
-0 5
+0 8
 ```
 
 `//node` now looks for SVG `node` elements and finds none. `Q{}node`
@@ -47,17 +47,23 @@ namespace declared once:
 
 ```console
 $ sxml xquery --context-item=diagram.xml boxes.xq
-<svg xmlns="http://www.w3.org/2000/svg" width="180" height="320">
+<svg xmlns="http://www.w3.org/2000/svg" width="180" height="500">
   <rect x="20" y="20" width="140" height="40" fill="#eef3fb" stroke="#3b5b92"/>
-  <text x="90" y="45" text-anchor="middle">api-gateway</text>
+  <text x="90" y="45" text-anchor="middle">@vane/browser</text>
   <rect x="20" y="80" width="140" height="40" fill="#eef3fb" stroke="#3b5b92"/>
-  <text x="90" y="105" text-anchor="middle">flag-service</text>
+  <text x="90" y="105" text-anchor="middle">@vane/node</text>
   <rect x="20" y="140" width="140" height="40" fill="#eef3fb" stroke="#3b5b92"/>
-  <text x="90" y="165" text-anchor="middle">flag-registry</text>
+  <text x="90" y="165" text-anchor="middle">vane/api</text>
   <rect x="20" y="200" width="140" height="40" fill="#eef3fb" stroke="#3b5b92"/>
-  <text x="90" y="225" text-anchor="middle">flag-cache</text>
+  <text x="90" y="225" text-anchor="middle">vane/flags</text>
   <rect x="20" y="260" width="140" height="40" fill="#eef3fb" stroke="#3b5b92"/>
-  <text x="90" y="285" text-anchor="middle">postgresql</text>
+  <text x="90" y="285" text-anchor="middle">vane/registry</text>
+  <rect x="20" y="320" width="140" height="40" fill="#eef3fb" stroke="#3b5b92"/>
+  <text x="90" y="345" text-anchor="middle">vane/cache</text>
+  <rect x="20" y="380" width="140" height="40" fill="#eef3fb" stroke="#3b5b92"/>
+  <text x="90" y="405" text-anchor="middle">postgresql</text>
+  <rect x="20" y="440" width="140" height="40" fill="#eef3fb" stroke="#3b5b92"/>
+  <text x="90" y="465" text-anchor="middle">redis</text>
 </svg>
 ```
 
@@ -119,12 +125,15 @@ and draws stores as ellipses:
 
 ```console
 $ sxml xquery --context-item=diagram.xml shapes.xq
-<svg xmlns="http://www.w3.org/2000/svg" width="360" height="380">
-  <rect x="110" y="20" width="140" height="40" fill="none" stroke="black"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="480">
+  <rect x="20" y="20" width="140" height="40" fill="none" stroke="black"/>
+  <rect x="200" y="20" width="140" height="40" fill="none" stroke="black"/>
   <rect x="110" y="120" width="140" height="40" fill="none" stroke="black"/>
-  <rect x="20" y="220" width="140" height="40" fill="none" stroke="black"/>
-  <ellipse cx="270" cy="240" rx="70" ry="20" fill="none" stroke="black"/>
-  <ellipse cx="180" cy="340" rx="70" ry="20" fill="none" stroke="black"/>
+  <rect x="110" y="220" width="140" height="40" fill="none" stroke="black"/>
+  <rect x="20" y="320" width="140" height="40" fill="none" stroke="black"/>
+  <rect x="200" y="320" width="140" height="40" fill="none" stroke="black"/>
+  <ellipse cx="90" cy="440" rx="70" ry="20" fill="none" stroke="black"/>
+  <ellipse cx="270" cy="440" rx="70" ry="20" fill="none" stroke="black"/>
 </svg>
 ```
 
@@ -187,7 +196,7 @@ and to compare:
 $ sxml xquery --context-item=diagram.xml --expression='import module namespace draw = "urn:example:draw" at "draw.xqm"; draw:svg(/diagram)' | wc -l
 7
 $ sxml xquery --context-item=diagram.xml draw.xq | wc -l
-51
+72
 ```
 
 `--output` writes the result to a file, and only when the query
@@ -212,9 +221,15 @@ sxml xquery: 'drawn.svg' exists; give --force to replace it
 
 The optional `class` attribute of a node or an edge is copied to its
 group, and the three classes `added`, `removed` and `changed` get their
-own style rules. `change.xml` is the services after a change to
-flag-service: it no longer reads the flag cache, it records each kill
-with a new audit service, and the way it calls the registry changed.
+own style rules. `change.xml` is the Vane system after a change to the
+`flags` module: a kill no longer reads its flag from the `cache` module,
+each kill is recorded by a new `audit` module, which writes to
+PostgreSQL and posts to the owners' webhook at hooks.example.com, and
+the way `flags` calls the registry changed. The cache module stays, and
+Redis with it, because other modules still use it; only the edge from
+`flags` goes. The nodes of each row are in an order that keeps the
+lines from crossing: the layout keeps the order of the description, so
+the author can still decide that much.
 
 `change.xml`:
 
@@ -232,21 +247,26 @@ $ sxml xpath --context-item=change.svg '//*:style/string()'
     .edge line { stroke: #555555; stroke-width: 1.5 }
     .edge text { font: 12px sans-serif; fill: #555555 }
     .changed rect, .changed line, .changed path { stroke: #b26a00; stroke-width: 3 }
-    .removed rect, .removed line, .removed path { stroke: #c62828; stroke-dasharray: 6 4 }
     .added rect, .added line, .added path { stroke: #2e7d32; stroke-width: 3 }
+    .removed rect, .removed line, .removed path { stroke: #c62828; stroke-dasharray: 6 4 }
   "
 $ sxml xpath --context-item=change.svg '//*:g[tokenize(@class) = ("added", "removed", "changed")] ! `{@id}: {@class}`'
-"edge-flags-registry: edge changed"
 "edge-flags-cache: edge removed"
+"edge-flags-registry: edge changed"
 "edge-flags-audit: edge added"
-"edge-audit-database: edge added"
+"edge-audit-postgresql: edge added"
+"edge-audit-hooks: edge added"
 "node-flags: node service changed"
-"node-cache: node store removed"
 "node-audit: node service added"
+"node-hooks: node service added"
 ```
 
-The added service is drawn with a thick green outline, the removed store
-with a dashed red one, and the changed ones in amber. A rule written
+The added module and the webhook, and the three edges to and from the
+audit module, are drawn with a thick green line, the removed edge with a
+dashed red one, and the changed module and edge in amber. Each class
+rule is in the style once, in the order the classes first appear in the
+description: `changed` on `flags`, `added` on `audit`, `removed` on the
+first edge. A rule written
 later in the style wins over an earlier one of the same weight, which is
 why the class rules come last.
 

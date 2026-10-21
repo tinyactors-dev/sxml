@@ -1,18 +1,29 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- The services after the change to flag-service 2.4.0: it no longer
-     reads the flag cache, it records each kill with a new audit service,
-     and its calls to the registry changed. -->
-<diagram title="Vane services after the change">
-  <node id="gateway" label="api-gateway"/>
-  <node id="flags" label="flag-service" class="changed"/>
-  <node id="registry" label="flag-registry"/>
-  <node id="cache" label="flag-cache" kind="store" class="removed"/>
-  <node id="audit" label="audit-service" class="added"/>
-  <node id="database" label="postgresql" kind="store"/>
-  <edge from="gateway" to="flags" label="HTTP"/>
-  <edge from="flags" to="registry" label="HTTP" class="changed"/>
-  <edge from="flags" to="cache" label="Redis" class="removed"/>
-  <edge from="flags" to="audit" label="HTTP" class="added"/>
-  <edge from="registry" to="database" label="SQL"/>
-  <edge from="audit" to="database" label="SQL" class="added"/>
+<!-- The Vane system after the change to vane 2.4.0: the flags module no
+     longer reads a kill's flag from the cache module (which stays, with
+     Redis: other modules use it), it records each kill with the new audit
+     module, which writes to PostgreSQL and posts to the owners' webhook,
+     and its calls to the registry module changed. The nodes of a row are
+     in an order that keeps the lines from crossing. -->
+<diagram title="Vane after the change">
+  <node id="browser" label="@vane/browser"/>
+  <node id="node" label="@vane/node"/>
+  <node id="api" label="vane/api"/>
+  <node id="flags" label="vane/flags" class="changed"/>
+  <node id="cache" label="vane/cache"/>
+  <node id="registry" label="vane/registry"/>
+  <node id="audit" label="vane/audit" class="added"/>
+  <node id="redis" label="redis" kind="store"/>
+  <node id="postgresql" label="postgresql" kind="store"/>
+  <node id="hooks" label="hooks.example.com" class="added"/>
+  <edge from="browser" to="api" label="HTTP"/>
+  <edge from="node" to="api" label="HTTP"/>
+  <edge from="api" to="flags"/>
+  <edge from="flags" to="cache" class="removed"/>
+  <edge from="flags" to="registry" class="changed"/>
+  <edge from="flags" to="audit" class="added"/>
+  <edge from="cache" to="redis" label="Redis"/>
+  <edge from="registry" to="postgresql" label="SQL"/>
+  <edge from="audit" to="postgresql" label="SQL" class="added"/>
+  <edge from="audit" to="hooks" label="HTTP" class="added"/>
 </diagram>

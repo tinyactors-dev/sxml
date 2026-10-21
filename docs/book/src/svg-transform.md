@@ -77,7 +77,7 @@ $ sxml xquery --context-item=change.xml draw.xq | sxml transform dark.xsl - | sx
 
 ## Highlighting a node
 
-To point at one service in a review, highlight it and the edges that
+To point at one module in a review, highlight it and the edges that
 start or end at it, and fade the rest. Which node is a *stylesheet
 parameter*, given on the command line:
 
@@ -96,8 +96,9 @@ works from them. A node's group has the id `node-ID`, and an edge's
 group `edge-FROM-TO`. The variable `$ids` collects the node ids, and
 `$highlighted` the ids of the groups to highlight: the node's own, and
 for every node M the two possible edges between it and M. Matching
-whole ids, rather than looking for the node's id somewhere inside an
-edge's id, keeps a node `flag` from matching an edge of `flags`.
+whole ids, rather than looking for the node's id somewhere inside a
+group's id, matters here: the backend SDK's node has the id `node`, and
+`contains(@id, 'node')` would be true of every node's group.
 
 A template rule whose pattern uses a variable is fine in XSLT: `g[@id =
 $highlighted]` matches the groups to change, which get the class
@@ -108,14 +109,14 @@ selects the groups without the class.
 $ sxml transform --param=node=registry highlight.xsl diagram.svg --output=highlight.svg
 $ sxml xpath --context-item=highlight.svg '//*:g[contains-token(@class, "highlight")]/@id/string()'
 "edge-flags-registry"
-"edge-registry-database"
+"edge-registry-postgresql"
 "node-registry"
 ```
 
 `as="xs:string"` on the parameter converts the value given, and
 `required="yes"` makes a missing one an error. A node the drawing
-doesn't have, such as the audit service that only the services after
-the change have, is not an error, but worth a word, which `xsl:message`
+doesn't have, such as the audit module, which only the drawing after
+the change has, is not an error, but worth a word, which `xsl:message`
 writes to standard error while the transformation goes on:
 
 ```console
@@ -194,7 +195,7 @@ $ sxml transform strip.xsl legend.svg
   </defs>
   <g>
     <rect x="10" y="10" width="100" height="30" rx="6" fill="url(#fade)" stroke="#3b5b92"/>
-    <text x="60" y="30" text-anchor="middle" font-size="12">service</text>
+    <text x="60" y="30" text-anchor="middle" font-size="12">module</text>
     <rect x="10" y="48" width="100" height="30" rx="15" fill="#f6efe3" stroke="#8a6a2f"/>
     <text x="60" y="68" text-anchor="middle" font-size="12">store</text>
   </g>
@@ -227,15 +228,18 @@ query, the XQuery counterpart of `xmlns:svg` on a stylesheet:
 $ sxml xquery --context-item=diagram.svg texts.xq
 HTTP
 HTTP
-Redis
 SQL
-api-gateway
-flag-service
-flag-registry
-flag-cache
+Redis
+@vane/browser
+@vane/node
+vane/api
+vane/flags
+vane/registry
+vane/cache
 postgresql
+redis
 $ sxml xquery --context-item=legend.svg texts.xq
-service
+module
 store
 ```
 
@@ -258,7 +262,7 @@ lines and text alike:
 
 ```console
 $ sxml transform scale.xsl diagram.svg | head -1
-<svg xmlns="http://www.w3.org/2000/svg" width="720" height="760" viewBox="0 0 360 380">
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="960" viewBox="0 0 360 480">
 $ sxml transform --param=factor=0.5 scale.xsl box.svg | head -1
 <svg xmlns="http://www.w3.org/2000/svg" width="100" height="70" viewBox="0 0 200 140">
 ```

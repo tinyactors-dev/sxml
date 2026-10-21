@@ -9,6 +9,6 @@
     </marker>
   </defs>
   <rect x="30" y="20" width="140" height="40" rx="6"/>
-  <text x="100" y="45" text-anchor="middle">flag-service</text>
+  <text x="100" y="45" text-anchor="middle">vane/flags</text>
   <line x1="100" y1="60" x2="100" y2="120" stroke="black" marker-end="url(#arrow)"/>
 </svg>

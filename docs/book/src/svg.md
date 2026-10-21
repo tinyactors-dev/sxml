@@ -10,9 +10,10 @@ that kind from the parts of this book. The description is XML, the
 layout is computed by XQuery, and the picture is SVG, which is XML too,
 so the same tools can write it, check it and change it afterwards.
 
-The diagram we'll draw is the Vane system's services and who calls whom.
-Later projects draw other things with the same code: the flag's state
-machine, a diff of call chains, and a diff of traces.
+The diagram we'll draw is the Vane system and who calls whom in it: the
+two SDKs, the modules of the Vane service, and the stores the service
+keeps its data in. Later projects draw other things with the same code:
+the flag's state machine, a diff of call chains, and a diff of traces.
 
 The files are in `docs/book/examples/svg`.
 
@@ -67,7 +68,7 @@ $ sxml xpath --context-item=box.svg '/*/* ! local-name()'
 A diagram is described by a small vocabulary of our own, without a
 namespace: a `diagram` with a `title`, a `node` for each box (an `id`,
 a `label`, and `kind="store"` for a data store), and an `edge` for each
-arrow, from the caller to the service it calls:
+arrow, from the caller to what it calls:
 
 `diagram.xml`:
 
@@ -75,8 +76,17 @@ arrow, from the caller to the service it calls:
 {{#include ../examples/svg/diagram.xml}}
 ```
 
-Nothing in it says where a box goes. That is the tool's job, and its
-result is this drawing:
+The Vane service is one program, so its parts are modules, not
+services; each module is a box of its own, labelled `vane/MODULE`. The
+prefix says that the boxes are parts of one program. A box drawn around
+them would say it too, but it would need a second kind of node and a
+layout that nests boxes inside boxes, new machinery for one picture; the
+labels do the job with what the vocabulary already has. The two SDKs
+call the service over HTTP, the modules call each other directly (those
+edges have no label), and two modules talk to the stores.
+
+Nothing in the description says where a box goes. That is the tool's
+job, and its result is this drawing:
 
 `diagram.svg`:
 
@@ -84,23 +94,24 @@ result is this drawing:
 {{#include ../examples/svg/diagram.svg}}
 ```
 
-The services are in rows: api-gateway at the top, what it calls below
-it, and so on down to the database. Each node is a group `g` with a
-`rect` and a `text`; each edge is a group with a `line` and the edge's
-label at its middle. The groups have ids made from the description
-(`node-registry`, `edge-flags-cache`) and classes (`node`, `service`,
-`store`, `edge`) that the five style rules use. Stores have rounder
-corners.
+The boxes are in five rows: the two SDKs at the top, the `api` module
+they call below them, and so on down to PostgreSQL and Redis. Each node
+is a group `g` with a `rect` and a `text`; each edge is a group with a
+`line` and, when the edge has one, its label at the middle. The groups
+have ids made from the description (`node-registry`, `edge-flags-cache`)
+and classes (`node`, `service`, `store`, `edge`) that the five style
+rules use: `service` is the class of every box that is not a store, an
+SDK or a module alike. Stores have rounder corners.
 
 Both files are ordinary XML:
 
 ```console
 $ sxml check diagram.xml diagram.svg
 $ sxml xpath --context-item=diagram.xml 'count(//node), count(//edge), //node[@kind = "store"]/@label/string()'
-5
-4
-"flag-cache"
+8
+7
 "postgresql"
+"redis"
 ```
 
 An XPath expression over the drawing has to say the namespace. A name
@@ -112,17 +123,23 @@ itself:
 ```console
 $ sxml xpath --context-item=diagram.svg 'count(//rect), count(//*:rect)'
 0
-5
+8
 $ sxml xpath --context-item=diagram.svg '//Q{http://www.w3.org/2000/svg}g/@id/string()'
-"edge-gateway-flags"
+"edge-browser-api"
+"edge-node-api"
+"edge-api-flags"
 "edge-flags-registry"
 "edge-flags-cache"
-"edge-registry-database"
-"node-gateway"
+"edge-registry-postgresql"
+"edge-cache-redis"
+"node-browser"
+"node-node"
+"node-api"
 "node-flags"
 "node-registry"
 "node-cache"
-"node-database"
+"node-postgresql"
+"node-redis"
 ```
 
 ## The plan
