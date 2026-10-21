@@ -4,6 +4,19 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- book-21 done: Project: Comparing Traces Before and After a Change
+  (six traces*.md), JSON, CSV and HTML, sxml in JavaScript and
+  Performance and Memory on the Vane story, 93 examples matching on the
+  release build of HEAD (javascript.md with a wasm package built from
+  HEAD). Renamed diff-doors.svg/diff-unlock.svg to
+  diff-flags.svg/diff-kill.svg (regenerated); the trace diff still
+  confirms flags.listFlags > registry 1 -> 1 + n (1 call becomes 5).
+  With fix-3: the xsl:iterate caveat is gone (11 MB), a new streamed
+  xsl:for-each-group group-adjacent example (seconds.xsl, 10 MB),
+  child paths indexed like //span; with fix-2: first-slow.xsl's
+  threshold is typed (XTTE0590 shown). formats.md shows parse-json's
+  number-format.
+
 - fix-3 done (D302): streaming and index fixes from book-12. xsl:text's
   text value templates are absorbed (Streaming 4.0, 12.6.40: was 0, now
   the count, or XTSE3430); xsl:iterate and xsl:for-each-group (adjacent,
