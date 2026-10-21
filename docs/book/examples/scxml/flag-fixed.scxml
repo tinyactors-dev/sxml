@@ -1,95 +1,95 @@
-<scxml xmlns="http://www.w3.org/2005/07/scxml" xmlns:latch="urn:example:latch" version="1.0" name="door_lock" initial="locked" datamodel="ecmascript" latch:implements="req-1">
+<scxml xmlns="http://www.w3.org/2005/07/scxml" xmlns:vane="urn:example:vane" version="1.0" name="feature_flag" initial="stable" datamodel="ecmascript" vane:implements="req-1">
 
-  <latch:events>
-    <latch:event name="unlock.request" latch:payload="latch:credentials">
-      <p xmlns="http://www.w3.org/1999/xhtml">A person presents a code at the door.</p>
-    </latch:event>
-    <latch:event name="code.accepted">
-      <p xmlns="http://www.w3.org/1999/xhtml">The code matches one of the stored codes.</p>
-    </latch:event>
-    <latch:event name="code.rejected">
-      <p xmlns="http://www.w3.org/1999/xhtml">The code matches none of them.</p>
-    </latch:event>
-    <latch:event name="lock.request">
-      <p xmlns="http://www.w3.org/1999/xhtml">The controller asks the lock to lock.</p>
-    </latch:event>
-    <latch:event name="status.request">
-      <p xmlns="http://www.w3.org/1999/xhtml">The controller asks for the state.</p>
-    </latch:event>
-    <latch:event name="status.response" latch:payload="latch:status">
-      <p xmlns="http://www.w3.org/1999/xhtml">The lock answers with its state.</p>
-    </latch:event>
-    <latch:event name="timeout.relock">
-      <p xmlns="http://www.w3.org/1999/xhtml">Sent by the lock to itself after an unlock.</p>
-    </latch:event><latch:event name="door.opened"><p xmlns="http://www.w3.org/1999/xhtml">The door sensor reports that the door opened.</p></latch:event>
-    <latch:event name="lockout.expired">
-      <p xmlns="http://www.w3.org/1999/xhtml">Sent by the lock to itself when a lockout ends.</p>
-    </latch:event>
-    <latch:event name="bolt.jammed">
-      <p xmlns="http://www.w3.org/1999/xhtml">The motor could not move the bolt.</p>
-    </latch:event>
-  </latch:events>
+  <vane:events>
+    <vane:event name="rollout.request" vane:payload="vane:rollout">
+      <p xmlns="http://www.w3.org/1999/xhtml">An owner asks for a new percentage.</p>
+    </vane:event>
+    <vane:event name="check.passed">
+      <p xmlns="http://www.w3.org/1999/xhtml">The guardrail metrics are within their limits.</p>
+    </vane:event>
+    <vane:event name="check.failed">
+      <p xmlns="http://www.w3.org/1999/xhtml">A guardrail metric is over its limit.</p>
+    </vane:event>
+    <vane:event name="kill.request">
+      <p xmlns="http://www.w3.org/1999/xhtml">An owner pulls the kill switch.</p>
+    </vane:event>
+    <vane:event name="status.request">
+      <p xmlns="http://www.w3.org/1999/xhtml">An SDK asks for the state.</p>
+    </vane:event>
+    <vane:event name="status.response" vane:payload="vane:status">
+      <p xmlns="http://www.w3.org/1999/xhtml">The service answers with the state.</p>
+    </vane:event>
+    <vane:event name="step.done">
+      <p xmlns="http://www.w3.org/1999/xhtml">Sent by the machine to itself when a rollout step has run.</p>
+    </vane:event><vane:event name="flag.evaluated"><p xmlns="http://www.w3.org/1999/xhtml">An SDK reports that it evaluated the flag.</p></vane:event>
+    <vane:event name="pause.expired">
+      <p xmlns="http://www.w3.org/1999/xhtml">Sent by the machine to itself when a pause ends.</p>
+    </vane:event>
+    <vane:event name="flag.archived">
+      <p xmlns="http://www.w3.org/1999/xhtml">An owner archived the flag.</p>
+    </vane:event>
+  </vane:events>
 
   <datamodel>
-    <data id="attempts" expr="0" latch:type="latch:attempt-count"/>
-    <data id="maxAttempts" expr="3" latch:type="latch:attempt-limit"/>
-    <data id="relockSeconds" expr="10" latch:type="latch:seconds"/>
-    <data id="lockoutSeconds" expr="300" latch:type="latch:seconds"/>
+    <data id="failures" expr="0" vane:type="vane:failure-count"/>
+    <data id="maxFailures" expr="3" vane:type="vane:failure-limit"/>
+    <data id="stepSeconds" expr="600" vane:type="vane:seconds"/>
+    <data id="pauseSeconds" expr="300" vane:type="vane:seconds"/>
   </datamodel>
 
-  <state id="locked" latch:implements="req-2"><transition event="bolt.jammed" target="jammed"/>
+  <state id="stable" vane:implements="req-2"><transition event="flag.archived" target="archived"/>
     <div xmlns="http://www.w3.org/1999/xhtml">
-      <p>The bolt is thrown. The lock waits for a code.</p>
+      <p>The flag keeps its percentage. It waits for a rollout.</p>
     </div>
-    <transition event="unlock.request" target="checking"/>
-    <transition event="status.request" latch:implements="req-6">
+    <transition event="rollout.request" target="checking"/>
+    <transition event="status.request" vane:implements="req-6">
       <send event="status.response"/>
     </transition>
   </state>
 
-  <state id="checking" latch:implements="req-4">
+  <state id="checking" vane:implements="req-4">
     <div xmlns="http://www.w3.org/1999/xhtml">
-      <p>The lock compares the code with its stored codes, in constant time.</p>
+      <p>The service checks the guardrail metrics before it applies the new percentage.</p>
     </div>
-    <transition event="code.accepted" target="unlocked">
-      <assign location="attempts" expr="0"/>
+    <transition event="check.passed" target="rolling-out">
+      <assign location="failures" expr="0"/>
     </transition>
-    <transition event="code.rejected" cond="attempts + 1 &lt; maxAttempts" target="locked">
-      <assign location="attempts" expr="attempts + 1"/>
+    <transition event="check.failed" cond="failures + 1 &lt; maxFailures" target="stable">
+      <assign location="failures" expr="failures + 1"/>
     </transition>
-    <transition event="code.rejected" target="lockout" latch:implements="req-7"/>
+    <transition event="check.failed" target="paused" vane:implements="req-7"/>
   </state>
 
-  <state id="unlocked" latch:implements="req-3"><transition event="bolt.jammed" target="jammed"/>
+  <state id="rolling-out" vane:implements="req-3">
     <div xmlns="http://www.w3.org/1999/xhtml">
-      <p>The bolt is drawn. The lock locks again after
-      <var>relockSeconds</var> seconds, or when it is told to.</p>
+      <p>The flag serves the new percentage. The step ends after
+      <var>stepSeconds</var> seconds, or when an owner kills it.</p>
     </div>
     <onentry>
-      <send event="timeout.relock" delayexpr="relockSeconds + 's'"/>
+      <send event="step.done" delayexpr="stepSeconds + 's'"/>
     </onentry>
-    <transition event="lock.request timeout.relock" target="locked"/>
-    <transition event="door.opened">
-      <log label="door" expr="'opened'"/>
+    <transition event="kill.request step.done" target="stable"/>
+    <transition event="flag.evaluated">
+      <log label="flag" expr="'evaluated'"/>
     </transition>
   </state>
 
-  <state id="lockout" latch:implements="req-5 req-8">
+  <state id="paused" vane:implements="req-5 req-8"><transition event="flag.archived" target="archived"/>
     <div xmlns="http://www.w3.org/1999/xhtml">
-      <p>The lock refuses every code for <var>lockoutSeconds</var> seconds.</p>
+      <p>The service refuses every rollout for <var>pauseSeconds</var> seconds.</p>
     </div>
     <onentry>
-      <send event="lockout.expired" delayexpr="lockoutSeconds + 's'"/>
+      <send event="pause.expired" delayexpr="pauseSeconds + 's'"/>
     </onentry>
-    <transition event="lockout.expired" target="locked">
-      <assign location="attempts" expr="0"/>
+    <transition event="pause.expired" target="stable">
+      <assign location="failures" expr="0"/>
     </transition>
   </state>
 
-  <state id="jammed">
+  <state id="archived">
     <div xmlns="http://www.w3.org/1999/xhtml">
-      <p>The bolt is stuck. Someone has to come and look at it.</p>
+      <p>The flag is archived. No SDK asks for it any more.</p>
     </div>
-    <transition event="lock.request" target="locked"/>
+    <transition event="kill.request" target="stable"/>
   </state>
 </scxml>

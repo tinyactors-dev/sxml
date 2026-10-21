@@ -1,20 +1,20 @@
-<rfc version="3" docName="draft-example-latch-brief-00">
+<rfc version="3" docName="draft-example-vane-brief-00">
   <front>
-    <title>Latch in Brief</title>
-    <seriesInfo name="Internet-Draft" value="draft-example-latch-brief-00"/>
+    <title>Vane in Brief</title>
+    <seriesInfo name="Internet-Draft" value="draft-example-vane-brief-00"/>
     <author fullname="Ada Byron" surname="Byron"/>
     <date year="2026" month="October"/>
   </front>
   <middle>
     <section anchor="states">
-      <name>Lock States</name>
-      <t anchor="req-1">A lock <bcp14>MUST</bcp14> start locked.</t>
-      <t anchor="req-1">A lock <bcp14>MUST</bcp14> answer a status request.</t>
-      <t anchor="req-3">A lock <bcp14>SHOULD</bcp14> lock again.</t>
+      <name>Flag States</name>
+      <t anchor="req-1">A flag <bcp14>MUST</bcp14> start stable.</t>
+      <t anchor="req-1">A service <bcp14>MUST</bcp14> answer a status request.</t>
+      <t anchor="req-3">A flag <bcp14>SHOULD</bcp14> return to stable.</t>
     </section>
     <section anchor="states">
-      <name>Lockout</name>
-      <t>A lockout lasts five minutes.</t>
+      <name>Pause</name>
+      <t>A pause lasts five minutes.</t>
     </section>
   </middle>
 </rfc>

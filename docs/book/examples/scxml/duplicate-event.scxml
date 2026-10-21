@@ -1,17 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- A machine that declares one of its events twice. -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
-       xmlns:latch="urn:example:latch"
-       version="1.0" name="small_lock" initial="locked">
-  <latch:events>
-    <latch:event name="lock.request"/>
-    <latch:event name="unlock.request" latch:payload="latch:credentials"/>
-    <latch:event name="lock.request"/>
-  </latch:events>
-  <state id="locked">
-    <transition event="unlock.request" target="unlocked"/>
+       xmlns:vane="urn:example:vane"
+       version="1.0" name="small_flag" initial="stable">
+  <vane:events>
+    <vane:event name="kill.request"/>
+    <vane:event name="rollout.request" vane:payload="vane:rollout"/>
+    <vane:event name="kill.request"/>
+  </vane:events>
+  <state id="stable">
+    <transition event="rollout.request" target="rolling-out"/>
   </state>
-  <state id="unlocked">
-    <transition event="lock.request" target="locked"/>
+  <state id="rolling-out">
+    <transition event="kill.request" target="stable"/>
   </state>
 </scxml>

@@ -1,4 +1,4 @@
-(: A Latch machine (the context item) as a diagram description for
+(: A Vane machine (the context item) as a diagram description for
    draw.xqm: a node for each state, the initial state first, and an edge
    for each pair of states that transitions connect, labelled with their
    events. A transition without a target is an edge from its state to
@@ -6,7 +6,7 @@
    get the class "added", and the parts only FILE has the class
    "removed". :)
 declare default element namespace "http://www.w3.org/2005/07/scxml";
-declare namespace latch = "urn:example:latch";
+declare namespace vane = "urn:example:vane";
 declare option output:indent "yes";
 
 declare variable $before as xs:string external := "";

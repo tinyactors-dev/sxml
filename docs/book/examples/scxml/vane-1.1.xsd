@@ -1,27 +1,27 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- XSD 1.1 on the latch annotations: latch-data.xsd, overridden and
+<!-- XSD 1.1 on the vane annotations: vane-data.xsd, overridden and
      extended. Give it to the validator together with scxml.xsd: its
-     override then stands for latch-data.xsd, which scxml.xsd imports. -->
+     override then stands for vane-data.xsd, which scxml.xsd imports. -->
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
            xmlns:vc="http://www.w3.org/2007/XMLSchema-versioning"
-           xmlns:latch="urn:example:latch"
-           targetNamespace="urn:example:latch"
+           xmlns:vane="urn:example:vane"
+           targetNamespace="urn:example:vane"
            elementFormDefault="qualified"
-           defaultAttributes="latch:traced"
+           defaultAttributes="vane:traced"
            vc:minVersion="1.1">
 
-  <xs:override schemaLocation="latch-data.xsd">
+  <xs:override schemaLocation="vane-data.xsd">
     <!-- An event's type depends on whether it carries a payload. -->
     <xs:element name="events">
       <xs:complexType>
         <xs:sequence>
-          <xs:element name="event" type="latch:event" maxOccurs="unbounded">
-            <xs:alternative test="@latch:payload" type="latch:event-with-payload"/>
+          <xs:element name="event" type="vane:event" maxOccurs="unbounded">
+            <xs:alternative test="@vane:payload" type="vane:event-with-payload"/>
           </xs:element>
         </xs:sequence>
       </xs:complexType>
       <xs:unique name="event-name">
-        <xs:selector xpath="latch:event"/>
+        <xs:selector xpath="vane:event"/>
         <xs:field xpath="@name"/>
       </xs:unique>
     </xs:element>
@@ -34,17 +34,17 @@
           <xs:any namespace="##other" processContents="lax"/>
         </xs:openContent>
         <xs:sequence>
-          <xs:element name="door" type="latch:door-id"/>
-          <xs:element name="state" type="latch:state"/>
-          <xs:element name="failed-attempts" type="latch:attempt-count"/>
-          <xs:element name="retry-after" type="latch:seconds" minOccurs="0"/>
+          <xs:element name="flag" type="vane:flag-key"/>
+          <xs:element name="state" type="vane:state"/>
+          <xs:element name="failed-checks" type="vane:failure-count"/>
+          <xs:element name="retry-after" type="vane:seconds" minOccurs="0"/>
         </xs:sequence>
-        <xs:assert test="exists(latch:retry-after) = (latch:state = 'lockout')"/>
+        <xs:assert test="exists(vane:retry-after) = (vane:state = 'paused')"/>
       </xs:complexType>
     </xs:element>
   </xs:override>
 
-  <!-- A delay as SCXML writes it, such as "10s" or "250ms", of at most
+  <!-- A delay as SCXML writes it, such as "600s" or "250ms", of at most
        an hour: the pattern checks the form, the assertion the size. -->
   <xs:simpleType name="delay">
     <xs:restriction base="xs:string">
@@ -63,7 +63,7 @@
 
   <!-- Every complex type of this document gets these attributes. -->
   <xs:attributeGroup name="traced">
-    <xs:attribute ref="latch:implements"/>
+    <xs:attribute ref="vane:implements"/>
   </xs:attributeGroup>
 
   <!-- An event without a payload: the XHTML description is optional. -->
@@ -73,19 +73,19 @@
               minOccurs="0" maxOccurs="unbounded"/>
     </xs:sequence>
     <xs:attribute name="name" type="xs:token" use="required"/>
-    <xs:attribute ref="latch:payload"/>
+    <xs:attribute ref="vane:payload"/>
   </xs:complexType>
 
   <!-- An event with a payload must say in XHTML what it carries. -->
   <xs:complexType name="event-with-payload">
     <xs:complexContent>
-      <xs:restriction base="latch:event">
+      <xs:restriction base="vane:event">
         <xs:sequence>
           <xs:any namespace="http://www.w3.org/1999/xhtml" processContents="lax"
                   minOccurs="1" maxOccurs="unbounded"/>
         </xs:sequence>
         <xs:attribute name="name" type="xs:token" use="required"/>
-        <xs:attribute ref="latch:payload" use="required"/>
+        <xs:attribute ref="vane:payload" use="required"/>
       </xs:restriction>
     </xs:complexContent>
   </xs:complexType>

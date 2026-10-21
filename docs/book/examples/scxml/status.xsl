@@ -1,18 +1,19 @@
-<!-- The status a lock in a given state answers with, made from the
+<!-- The status a flag in a given state answers with, made from the
      machine's data and validated as it is made. -->
 <xsl:stylesheet version="4.0" expand-text="yes"
     xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
     xmlns:sc="http://www.w3.org/2005/07/scxml"
-    xmlns:latch="urn:example:latch"
+    xmlns:vane="urn:example:vane"
     exclude-result-prefixes="sc">
   <xsl:import-schema namespace="http://www.w3.org/2005/07/scxml"
                      schema-location="scxml.xsd"/>
   <xsl:output method="xml" indent="yes"/>
 
-  <!-- The parameters are text; the status made from them is checked. -->
-  <xsl:param name="door" select="'front'"/>
-  <xsl:param name="state" select="'locked'"/>
-  <xsl:param name="attempts" select="0"/>
+  <!-- Typed parameters: a value given with param=value is converted to
+       the type, and one that is not of it stops the transformation. -->
+  <xsl:param name="flag" as="vane:flag-key" select="'new-checkout'"/>
+  <xsl:param name="state" as="vane:state" select="'stable'"/>
+  <xsl:param name="failures" as="vane:failure-count" select="0"/>
 
   <!-- Validate the input, so that its values have the schema's types. -->
   <xsl:template match="/">
@@ -24,13 +25,13 @@
 
   <!-- The new status is validated against its declaration as it is made. -->
   <xsl:template match="schema-element(sc:scxml)">
-    <latch:status xsl:validation="strict">
-      <latch:door>{$door}</latch:door>
-      <latch:state>{$state}</latch:state>
-      <latch:failed-attempts>{$attempts}</latch:failed-attempts>
-      <xsl:if test="$state = 'lockout'">
-        <latch:retry-after>{sc:datamodel/sc:data[@id = 'lockoutSeconds']/@expr}</latch:retry-after>
+    <vane:status xsl:validation="strict">
+      <vane:flag>{$flag}</vane:flag>
+      <vane:state>{$state}</vane:state>
+      <vane:failed-checks>{$failures}</vane:failed-checks>
+      <xsl:if test="$state = 'paused'">
+        <vane:retry-after>{sc:datamodel/sc:data[@id = 'pauseSeconds']/@expr}</vane:retry-after>
       </xsl:if>
-    </latch:status>
+    </vane:status>
   </xsl:template>
 </xsl:stylesheet>

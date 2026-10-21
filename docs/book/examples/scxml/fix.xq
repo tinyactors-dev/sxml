@@ -1,20 +1,20 @@
-(: Fixes the flaws check.xq finds in lock.scxml, and changes nothing else. :)
+(: Fixes the flaws check.xq finds in flag.scxml, and changes nothing else. :)
 declare default element namespace "http://www.w3.org/2005/07/scxml";
-declare namespace latch = "urn:example:latch";
+declare namespace vane = "urn:example:vane";
 
 . transform with {
-  (: The machine as a whole keeps a lock in exactly one state. :)
-  insert node attribute latch:implements { "req-1" } into scxml,
+  (: The machine as a whole keeps a flag in exactly one state. :)
+  insert node attribute vane:implements { "req-1" } into scxml,
 
-  (: Declare the event the unlocked state handles. :)
+  (: Declare the event the rolling-out state handles. :)
   insert node
-    <latch:event name="door.opened">
-      <p xmlns="http://www.w3.org/1999/xhtml">The door sensor reports that the door opened.</p>
-    </latch:event>
-    after .//latch:event[@name = "timeout.relock"],
+    <vane:event name="flag.evaluated">
+      <p xmlns="http://www.w3.org/1999/xhtml">An SDK reports that it evaluated the flag.</p>
+    </vane:event>
+    after .//vane:event[@name = "step.done"],
 
-  (: A jammed bolt leads to the jammed state. :)
-  for $state in .//state[@id = ("locked", "unlocked")]
-  return insert node <transition event="bolt.jammed" target="jammed"/>
+  (: An owner can archive a flag that is stable or paused. :)
+  for $state in .//state[@id = ("stable", "paused")]
+  return insert node <transition event="flag.archived" target="archived"/>
     as first into $state
 }

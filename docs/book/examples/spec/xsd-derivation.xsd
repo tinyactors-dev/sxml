@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- An editor's worksheet for the draft: blocks of the draft to work on,
-     and the day the next draft is due. It derives types from latch.xsd's
+     and the day the next draft is due. It derives types from vane.xsd's
      and makes the blocks a substitution group. -->
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
 
-  <xs:include schemaLocation="latch.xsd"/>
+  <xs:include schemaLocation="vane.xsd"/>
 
   <!-- Restriction: a requirement is a paragraph whose anchor is required. -->
   <xs:complexType name="requirement" mixed="true">

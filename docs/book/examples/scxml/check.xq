@@ -1,14 +1,14 @@
-(: Checks of a Latch machine that its schemas cannot make. The context
-   item is the machine; the draft it implements is latch.xml. Prints one
+(: Checks of a Vane machine that its schemas cannot make. The context
+   item is the machine; the draft it implements is vane.xml. Prints one
    line for each problem, and nothing when there is none. :)
 import schema namespace sc = "http://www.w3.org/2005/07/scxml" at "scxml.xsd";
-declare namespace latch = "urn:example:latch";
+declare namespace vane = "urn:example:vane";
 declare namespace xsi = "http://www.w3.org/2001/XMLSchema-instance";
 declare option output:method "text";
 declare option output:item-separator "&#10;";
 
 declare variable $machine := validate { / };
-declare variable $draft := doc("latch.xml");
+declare variable $draft := doc("vane.xml");
 
 (: Every state the machine can get to: start with the initial state, and
    add the targets of the reached states' transitions, once per state. :)
@@ -24,13 +24,13 @@ declare function local:reachable() as xs:string* {
     })
 };
 
-let $declared := $machine//latch:event/@name ! string()
+let $declared := $machine//vane:event/@name ! string()
 let $handled := $machine//sc:transition/data(@event) ! string()
 let $sent := $machine//(sc:send | sc:raise)/@event ! string()
 let $reachable := local:reachable()
 let $anchors := $draft//t/@anchor ! string()
-let $implemented := $machine//@latch:implements ! data()
-let $schema := doc("latch-data.xsd")/xs:schema
+let $implemented := $machine//@vane:implements ! data()
+let $schema := doc("vane-data.xsd")/xs:schema
 let $payloads := $schema/xs:element/@name ! QName($schema/@targetNamespace, .)
 return (
   (: States that no path from the initial state reaches. :)
@@ -42,27 +42,27 @@ return (
   (: Declared events that nothing handles, sends or raises. :)
   $declared[not(. = ($handled, $sent))] ! `unused event: {.}`,
 
-  (: Payloads that name no global element of latch-data.xsd. :)
-  $machine//latch:event[@latch:payload]
-    [not(data(@latch:payload) = $payloads)]
-    ! `unknown payload: {@latch:payload} of {@name}`,
+  (: Payloads that name no global element of vane-data.xsd. :)
+  $machine//vane:event[@vane:payload]
+    [not(data(@vane:payload) = $payloads)]
+    ! `unknown payload: {@vane:payload} of {@name}`,
 
   (: Data items whose type the schema does not have, or whose value is
      not one of their type. :)
   for $data in $machine//sc:data
-  let $type := data($data/@latch:type)
+  let $type := data($data/@vane:type)
   return if (empty(function-lookup($type, 1))) then
-    `unknown type: {$data/@latch:type} of {$data/@id}`
+    `unknown type: {$data/@vane:type} of {$data/@id}`
   else try {
     (validate {
-      element latch:value {
+      element vane:value {
         namespace type { namespace-uri-from-QName($type) },
         attribute xsi:type { "type:" || local-name-from-QName($type) },
         string($data/@expr)
       }
     }) ! ()
   } catch err:XQDY0027 {
-    `bad value: {$data/@id} = {$data/@expr} is not a {$data/@latch:type}`
+    `bad value: {$data/@id} = {$data/@expr} is not a {$data/@vane:type}`
   },
 
   (: Anchors the machine names that the draft does not have. :)

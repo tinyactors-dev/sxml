@@ -1,6 +1,6 @@
 <worksheet xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-  <t xsi:type="requirement">A lock <bcp14>MUST</bcp14> lock.</t>
-  <t xsi:type="changed-requirement" anchor="req-8">A lockout
+  <t xsi:type="requirement">A flag <bcp14>MUST</bcp14> start stable.</t>
+  <t xsi:type="changed-requirement" anchor="req-8">A pause
   <bcp14>SHOULD</bcp14> last five minutes.</t>
   <t xsi:type="xs:string" xmlns:xs="http://www.w3.org/2001/XMLSchema">Plain.</t>
   <block/>

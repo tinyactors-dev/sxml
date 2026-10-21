@@ -1,16 +1,16 @@
-<rfc version="3" docName="draft-example-latch-brief-00">
+<rfc version="3" docName="draft-example-vane-brief-00">
   <front>
-    <title>Latch in Brief</title>
-    <seriesInfo name="Internet-Draft" value="draft-example-latch-brief-00"/>
+    <title>Vane in Brief</title>
+    <seriesInfo name="Internet-Draft" value="draft-example-vane-brief-00"/>
     <author fullname="Ada Byron" surname="Byron"/>
     <date year="2026" month="October"/>
   </front>
   <middle>
     <section anchor="states">
-      <name>Lock States</name>
-      <t anchor="req-1">A <xref target="term-lock">lock</xref>
-      <bcp14>MUST</bcp14> start locked (<xref target="lockout"/>).</t>
-      <t anchor="req-2">Codes are compared as <xref target="RFC2119">BCP
+      <name>Flag States</name>
+      <t anchor="req-1">A <xref target="term-flag">flag</xref>
+      <bcp14>MUST</bcp14> start stable (<xref target="pause"/>).</t>
+      <t anchor="req-2">Key words are read as <xref target="RFC2119">BCP
       14</xref> says.</t>
     </section>
   </middle>

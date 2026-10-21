@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Lists and unions over the simple types of latch.xsd. A summary of a
+<!-- Lists and unions over the simple types of vane.xsd. A summary of a
      draft names the key words it uses and the day of its next meeting:
        <summary levels="MUST SHOULD MAY" meeting="21"/> -->
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
 
-  <xs:include schemaLocation="latch.xsd"/>
+  <xs:include schemaLocation="vane.xsd"/>
 
   <!-- A list: key words separated by spaces, at most four of them. -->
   <xs:simpleType name="levels">

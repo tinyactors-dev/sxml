@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- A small machine with mistakes in its state ids and targets. -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
-       version="1.0" name="small_lock" initial="closed">
-  <state id="locked">
-    <transition event="code.accepted" target="unlock"/>
+       version="1.0" name="small_flag" initial="off">
+  <state id="stable">
+    <transition event="check.passed" target="rolling"/>
   </state>
-  <state id="unlocked">
-    <transition event="lock.request" target="locked"/>
+  <state id="rolling-out">
+    <transition event="kill.request" target="stable"/>
   </state>
-  <state id="locked" initial="bolted">
-    <state id="bolted"/>
+  <state id="stable" initial="steady">
+    <state id="steady"/>
   </state>
 </scxml>

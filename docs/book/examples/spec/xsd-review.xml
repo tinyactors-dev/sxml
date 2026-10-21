@@ -2,17 +2,17 @@
      vocabulary has no schema; the draft inside it has one. -->
 <review by="Grace Hopper">
   <note>Is "MIGHT" one of the key words?</note>
-  <rfc docName="draft-example-latch-brief-00">
+  <rfc docName="draft-example-vane-brief-00">
     <front>
-      <title>Latch in Brief</title>
-      <seriesInfo name="Internet-Draft" value="draft-example-latch-brief-00"/>
+      <title>Vane in Brief</title>
+      <seriesInfo name="Internet-Draft" value="draft-example-vane-brief-00"/>
       <author fullname="Ada Byron" surname="Byron"/>
       <date year="2026"/>
     </front>
     <middle>
       <section anchor="intro">
         <name>Introduction</name>
-        <t>A lock <bcp14>MIGHT</bcp14> refuse a code.</t>
+        <t>A service <bcp14>MIGHT</bcp14> refuse a rollout.</t>
       </section>
     </middle>
   </rfc>

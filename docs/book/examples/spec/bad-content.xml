@@ -1,14 +1,14 @@
 <rfc version="2">
   <front>
     <author fullname="Ada Byron" surname="Byron"/>
-    <title>Latch in Brief</title>
+    <title>Vane in Brief</title>
     <date year="2026">October</date>
     See the mailing list.
   </front>
   <middle>
     <section>
       <name>Introduction</name>
-      <t keyword="MUST">A lock <bcp14>MUST</bcp14> lock.</t>
+      <t keyword="MUST">A flag <bcp14>MUST</bcp14> start stable.</t>
       <name>Again</name>
     </section>
   </middle>
