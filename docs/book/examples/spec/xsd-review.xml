@@ -1,0 +1,19 @@
+<!-- A review: a reviewer's notes around a short draft. The review
+     vocabulary has no schema; the draft inside it has one. -->
+<review by="Grace Hopper">
+  <note>Is "MIGHT" one of the key words?</note>
+  <rfc docName="draft-example-latch-brief-00">
+    <front>
+      <title>Latch in Brief</title>
+      <seriesInfo name="Internet-Draft" value="draft-example-latch-brief-00"/>
+      <author fullname="Ada Byron" surname="Byron"/>
+      <date year="2026"/>
+    </front>
+    <middle>
+      <section anchor="intro">
+        <name>Introduction</name>
+        <t>A lock <bcp14>MIGHT</bcp14> refuse a code.</t>
+      </section>
+    </middle>
+  </rfc>
+</review>

@@ -1,0 +1,5 @@
+<!DOCTYPE cref [
+  <!ELEMENT cref (#PCDATA)>
+  <!ATTLIST cref anchor ID #REQUIRED source CDATA #IMPLIED>
+]>
+<cref source="AM">Should the controller be able to change the duration?</cref>
