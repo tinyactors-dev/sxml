@@ -1,6 +1,6 @@
 sxml xpath - Evaluate an XPath 4.0 expression
 
-Usage: sxml xpath [--context-item=FILE] [--param=NAME=VALUE]... [--method=METHOD] [--allow-file-access] [--code-language=LIBRARY]... [--output=FILE] [--force] EXPRESSION
+Usage: sxml xpath [--context-item=FILE] [--param=NAME=VALUE]... [--method=METHOD] [--allow-file-access] [--collection=DIR] [--code-language=LIBRARY]... [--output=FILE] [--force] EXPRESSION
 
 Evaluates EXPRESSION as XPath 4.0 and writes the result to standard
 output, by the adaptive method with one item per line unless --method
@@ -30,6 +30,7 @@ Options:
       --param=NAME=VALUE       Bind $NAME to xs:untypedAtomic(VALUE) (repeatable)
       --method=METHOD          Serialization method of the result (one of: adaptive, xml, xhtml, html, text, json, csv; default: adaptive)
       --allow-file-access      Let the query read and write files (EXPath File functions)
+      --collection=DIR         Directory whose XML files are the default collection
       --code-language=LIBRARY  Load a tree-sitter language for sxml:parse-code from a shared library (repeatable)
   -o, --output=FILE            Write the result to FILE instead of standard output
       --force                  Replace files that exist instead of refusing

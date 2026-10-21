@@ -588,6 +588,7 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `collection` | The sequence of items `fn:collection` returns for a URI |
 | `uri_collection` | The sequence of `xs:anyURI` items `fn:uri-collection` returns for a URI |
 | `default_collection` | The collection (or URI collection) for a call without a URI (XPath 4.0, section 2.2.2) |
+| `directory_collection` | The `sxml` command's collection of a local directory (D298): the XML documents (`fn:collection`) or the URIs (`fn:uri-collection`) of its files that a collection URI's `select`, `recurse` and `on-error` parameters choose, sorted by path |
 | `target_namespace_uri` | The namespace of an XQuery library module that `import module` asks for |
 | `package_version` | The versions of an XSLT package that `xsl:use-package` accepts (XSLT 4.0, "Versions of a Package") |
 | `trace_sink` | Host interface receiving the output of `fn:trace`, `fn:message` and `xsl:message` |

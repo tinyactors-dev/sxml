@@ -1,0 +1,1 @@
+expression:1:1: err:FODC0002: A collection URI's parameters are select=PATTERN, recurse=yes|no and on-error=fail|ignore

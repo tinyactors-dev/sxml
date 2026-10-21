@@ -9,6 +9,9 @@
 #include "sxml/xdm.h"
 #include "sxml/xpath.h"
 
+#include <stdbool.h>
+#include <stdint.h>
+
 /*
  * What the query commands, sxml xpath and sxml xquery, share
  * (apps/sxml/README.md): a processor whose resource resolver reads local
@@ -80,10 +83,68 @@ typedef enum sxml_parameter_binding {
     SXML_PARAMETER_BINDING_NONE,
 } sxml_parameter_binding;
 
+/*
+ * The --collection option of sxml xpath, sxml xquery and sxml transform
+ * (D298): the default collection, a directory with the parameters of a
+ * collection URI after "?".
+ */
+#define SXML_QUERY_COLLECTION_OPTION                                           \
+    {                                                                          \
+        .long_name = SXML_BYTE_VIEW_INITIALIZER("collection"),                 \
+        .short_name = 0, .value_kind = SXML_CLI_VALUE_KIND_TEXT,               \
+        .value_name = SXML_BYTE_VIEW_INITIALIZER("DIR"),                       \
+        .choices = {.texts = NULL, .text_count = 0},                           \
+        .default_value = {.bytes = NULL, .byte_count = 0},                     \
+        .multiplicity = SXML_CLI_OPTION_AT_MOST_ONCE,                          \
+        .summary = SXML_BYTE_VIEW_INITIALIZER(                                 \
+            "Directory whose XML files are the default collection"),           \
+    }
+
+/* What a collection URI asks for (glossary directory_collection; D298):
+   file://DIRECTORY?select=PATTERN&recurse=yes|no&on-error=fail|ignore. */
+typedef struct sxml_query_collection_query {
+    /* The URI before "?"; after sxml_query_resolve_collection normalizes
+       it, owned and ending with "/". */
+    sxml_byte_view directory_uri;
+    /* The directory's path, borrowed from directory_uri. */
+    sxml_byte_view directory_path;
+    /* The names of the files in it: "*" any characters, "?" one; "*.xml"
+       when not given. Borrowed from the URI. */
+    sxml_byte_view select;
+    /* recurse=yes: the files of the subdirectories too. */
+    bool recurses;
+    /* on-error=ignore: a file that is not well-formed is left out, instead
+       of making the collection unavailable (FODC0002). */
+    bool ignores_errors;
+    /* Why the URI names no collection, static text; empty when it does. */
+    sxml_byte_view refusal;
+} sxml_query_collection_query;
+
+/* Reads a collection URI into *query (refusal set when it is not one:
+   not file://, a fragment, an unknown parameter). Borrows from uri. */
+void sxml_query_read_collection_uri(sxml_byte_view uri, sxml_query_collection_query *query);
+
 /* The resolver's state. */
 typedef struct sxml_query_file_resolver {
     const sxml_cli_invocation *invocation;
+    /* The --collection URI, owned by the run; empty without the option. */
+    sxml_byte_view default_collection_uri;
+    /* The collection being resolved. */
+    sxml_query_collection_query collection_query;
+    /* The description of an unavailable collection, valid until the next
+       request. */
+    uint8_t description[512];
 } sxml_query_file_resolver;
+
+/*
+ * Answers a COLLECTION or URI_COLLECTION request (query_collection.c):
+ * the documents or URIs of the files of the directory the URI names, in
+ * the order of their paths, or NONE with a description. Returns the
+ * allocator's and the processor's failures.
+ */
+SXML_NODISCARD sxml_status sxml_query_resolve_collection(sxml_query_file_resolver *resolver,
+                                                         const sxml_resource_request *request,
+                                                         sxml_resource *resource);
 
 /* Writes to *uri the file URI of a file named on the command line, the
    base URI its relative references resolve against (RFC 3986, section

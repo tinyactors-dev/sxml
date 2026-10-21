@@ -1,6 +1,6 @@
 sxml xquery - Run an XQuery 4.0 query
 
-Usage: sxml xquery [--context-item=FILE] [--expression=TEXT] [--param=NAME=VALUE]... [--method=METHOD] [--allow-file-access] [--allow-put] [--code-language=LIBRARY]... [--output=FILE] [--force] [QUERY-FILE]
+Usage: sxml xquery [--context-item=FILE] [--expression=TEXT] [--param=NAME=VALUE]... [--method=METHOD] [--allow-file-access] [--collection=DIR] [--allow-put] [--code-language=LIBRARY]... [--output=FILE] [--force] [QUERY-FILE]
 
 Runs the XQuery 4.0 main module in QUERY-FILE, or the query that
 --expression gives, and writes the result to standard output. The
@@ -39,6 +39,7 @@ Options:
       --param=NAME=VALUE       Bind external variable $NAME to xs:untypedAtomic(VALUE) (repeatable)
       --method=METHOD          Serialization method of the result, replacing the query's (one of: adaptive, xml, xhtml, html, text, json, csv)
       --allow-file-access      Let the query read and write files (EXPath File functions)
+      --collection=DIR         Directory whose XML files are the default collection
       --allow-put              Let fn:put write the documents it stores to local files
       --code-language=LIBRARY  Load a tree-sitter language for sxml:parse-code from a shared library (repeatable)
   -o, --output=FILE            Write the result to FILE instead of standard output

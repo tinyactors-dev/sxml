@@ -26,6 +26,7 @@
 
 #include <stdalign.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <string.h>
 #include <time.h>
 
@@ -1969,29 +1970,62 @@ static sxml_status sxml_loader_keep_collection(sxml_processor_document_loader *l
 }
 
 /* Keeps the document nodes of a collection that have a document URI
-   among the documents loaded, unless one of that URI is: fn:doc of their
-   document-uri then gives the same nodes (F&O 4.0, 17.1.3: "the
-   documents ... are available documents"; QT4 collection-009). */
+   among the documents loaded, and puts in *items, in their place, the
+   document already loaded for that URI: fn:doc of a document-uri then
+   gives the same node as the collection, whichever is called first (F&O
+   4.0, 17.1.3: "the documents ... are available documents"; QT4
+   collection-009; D298). *items is in/out, owned. */
 static sxml_status sxml_loader_keep_collection_documents(sxml_processor_document_loader *loader,
-                                                         sxml_sequence items) {
-    sxml_sequence_iterator iterator = sxml_sequence_iterator_start(items);
-    sxml_status status = SXML_STATUS_OK;
-    for (;;) {
+                                                         sxml_sequence *items) {
+    sxml_processor *processor = loader->configuration.evaluation_environment.processor;
+    uint64_t item_count = 0;
+    sxml_status status = sxml_sequence_count(*items, NULL, &item_count);
+    size_t byte_count = 0;
+    if (status == SXML_STATUS_OK) {
+        status = item_count > SIZE_MAX / sizeof(sxml_item)
+                     ? SXML_STATUS_ARITHMETIC_OVERFLOW
+                     : sxml_size_multiply((size_t)item_count + 1, sizeof(sxml_item), &byte_count);
+    }
+    void *memory = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_allocator_allocate(
+            processor->allocator,
+            (sxml_allocation_request){.byte_count = byte_count, .alignment = alignof(sxml_item)},
+            &memory);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    /* Borrowed: the old sequence's items and the loader's documents. */
+    sxml_item *members = memory;
+    size_t member_count = 0;
+    bool is_replaced = false;
+    sxml_sequence_iterator iterator = sxml_sequence_iterator_start(*items);
+    while (member_count < item_count) {
         sxml_iteration_step step = {.has_item = false};
         status = sxml_sequence_iterator_next(&iterator, NULL, &step);
         if (status != SXML_STATUS_OK || !step.has_item) {
             break;
         }
+        members[member_count] = step.item;
+        member_count += 1;
         sxml_node_reference document;
         sxml_tree_description tree;
         if (!sxml_item_is_document_node(step.item) ||
             sxml_item_get_node(step.item, &document) != SXML_STATUS_OK ||
             sxml_tree_describe(document.tree, &tree) != SXML_STATUS_OK ||
-            tree.document_uri.byte_count == 0 ||
-            sxml_loader_find_document(loader, (sxml_kept_document_key){
-                                                  .uri = tree.document_uri,
-                                                  .preparation_number = 0})
-                .is_found) {
+            tree.document_uri.byte_count == 0) {
+            continue;
+        }
+        const sxml_document_lookup lookup = sxml_loader_find_document(
+            loader, (sxml_kept_document_key){.uri = tree.document_uri, .preparation_number = 0});
+        sxml_node_reference found = {.tree = NULL, .node_index = {0}, .namespace_number = 0};
+        if (lookup.is_found) {
+            /* Another tree unless the collection gave the loaded node. */
+            is_replaced = is_replaced ||
+                          sxml_item_get_node(lookup.document_node, &found) != SXML_STATUS_OK ||
+                          found.tree != document.tree;
+            members[member_count - 1] = lookup.document_node;
             continue;
         }
         status = sxml_loader_keep_document(
@@ -2001,6 +2035,17 @@ static sxml_status sxml_loader_keep_collection_documents(sxml_processor_document
             break;
         }
     }
+    sxml_sequence replacement = sxml_sequence_empty();
+    if (status == SXML_STATUS_OK && is_replaced) {
+        status = sxml_sequence_make_vector(
+            processor->item_heap,
+            (sxml_item_view){.items = members, .item_count = member_count}, &replacement);
+        if (status == SXML_STATUS_OK) {
+            sxml_sequence_release(*items);
+            *items = replacement;
+        }
+    }
+    sxml_allocator_release(processor->allocator, memory);
     return status;
 }
 
@@ -2033,13 +2078,29 @@ static sxml_status sxml_loader_resolve_collection(sxml_processor_document_loader
     }
     switch (resource.resource_form) {
     case SXML_RESOURCE_FORM_NONE:
+        /* The resolver's reason, copied: it is borrowed only until the
+           release below. */
         collection->description = SXML_BYTE_VIEW_FROM_LITERAL("No such collection");
+        if (resource.description.byte_count > 0) {
+            status = sxml_allocator_allocate(
+                environment->processor->allocator,
+                (sxml_allocation_request){.byte_count = resource.description.byte_count,
+                                          .alignment = 1},
+                &collection->description_memory);
+            if (status == SXML_STATUS_OK) {
+                memcpy(collection->description_memory, resource.description.bytes,
+                       resource.description.byte_count);
+                collection->description =
+                    (sxml_byte_view){.bytes = collection->description_memory,
+                                     .byte_count = resource.description.byte_count};
+            }
+        }
         break;
     case SXML_RESOURCE_FORM_SEQUENCE:
-        key->items = resource.items;
         status = key->resource_kind == SXML_RESOURCE_KIND_COLLECTION
-                     ? sxml_loader_keep_collection_documents(loader, resource.items)
+                     ? sxml_loader_keep_collection_documents(loader, &resource.items)
                      : SXML_STATUS_OK;
+        key->items = resource.items;
         if (status == SXML_STATUS_OK) {
             status = sxml_loader_keep_collection(loader, key);
         }
@@ -2074,7 +2135,8 @@ sxml_status sxml_processor_document_loader_load_collection(
     sxml_loaded_collection *collection) {
     *collection = (sxml_loaded_collection){.is_available = false,
                                            .items = sxml_sequence_empty(),
-                                           .description = {.bytes = NULL, .byte_count = 0}};
+                                           .description = {.bytes = NULL, .byte_count = 0},
+                                           .description_memory = NULL};
     sxml_uri_resolution resolution = {.uri = {.bytes = NULL, .byte_count = 0}, .memory = NULL};
     if (!request->is_default_collection) {
         const sxml_status status = sxml_loader_resolve_uri(
@@ -2113,6 +2175,14 @@ sxml_status sxml_processor_document_loader_load_collection(
     sxml_allocator_release(loader->configuration.evaluation_environment.processor->allocator,
                            resolution.memory);
     return status;
+}
+
+void sxml_processor_document_loader_release_collection(sxml_processor_document_loader *loader,
+                                                       sxml_loaded_collection *collection) {
+    sxml_allocator_release(loader->configuration.evaluation_environment.processor->allocator,
+                           collection->description_memory);
+    collection->description_memory = NULL;
+    collection->description = (sxml_byte_view){.bytes = NULL, .byte_count = 0};
 }
 
 sxml_status sxml_processor_document_loader_trace(const sxml_processor_document_loader *loader,

@@ -524,8 +524,12 @@ typedef struct sxml_loaded_collection {
     bool is_available;
     /* Owned when is_available. */
     sxml_sequence items;
-    /* Why not, for the error description; borrowed from static data. */
+    /* Why not, for the error description: static text, or the resolver's
+       description copied into description_memory. */
     sxml_byte_view description;
+    /* Owned, or NULL: give it back with
+       sxml_processor_document_loader_release_collection. */
+    void *description_memory;
 } sxml_loaded_collection;
 
 /*
@@ -540,6 +544,11 @@ typedef struct sxml_loaded_collection {
 SXML_NODISCARD sxml_status sxml_processor_document_loader_load_collection(
     sxml_processor_document_loader *loader, const sxml_collection_request *request,
     sxml_loaded_collection *collection);
+
+/* Gives back collection->description_memory, after the description has
+   been reported; the items are the caller's. */
+void sxml_processor_document_loader_release_collection(sxml_processor_document_loader *loader,
+                                                       sxml_loaded_collection *collection);
 
 /*
  * Hands event to the environment's trace sink (fn:trace, fn:message);

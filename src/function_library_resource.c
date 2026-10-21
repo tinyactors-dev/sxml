@@ -633,8 +633,12 @@ static sxml_status read_collection(const sxml_function_call *call,
         return status;
     }
     if (!collection.is_available) {
-        return report_described(call, (described_error){.error = &collection_not_available_error,
-                                                        .description = collection.description});
+        /* The resolver's reason, when it gives one (the CLI: a file of the
+           directory that is not well-formed). */
+        status = report_described(call, (described_error){.error = &collection_not_available_error,
+                                                          .description = collection.description});
+        sxml_processor_document_loader_release_collection(loader, &collection);
+        return status;
     }
     *result = collection.items;
     return SXML_STATUS_OK;

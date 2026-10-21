@@ -33,6 +33,7 @@ The options you'll use most:
 | `--initial-template=NAME`, `--initial-mode=NAME` | `transform` | Where the transformation starts |
 | `--allow-put` | `xquery` | Lets `fn:put` write files |
 | `--allow-file-access` | `xpath`, `xquery` | Makes the EXPath File functions available |
+| `--collection=DIR` | `xpath`, `xquery`, `transform` | The XML files of DIR are the default collection, `collection()` |
 | `--external-entities`, `--validate-dtd` | `check` | Reads external DTDs and entities; validates against the DTD |
 | `--schema=SCHEMA` | `validate` | A schema document; repeat it to combine several into one schema |
 | `--use-schema-location` | `validate` | Also reads the schema documents a document's `xsi:schemaLocation` names |

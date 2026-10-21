@@ -88,6 +88,7 @@ static const sxml_cli_option sxml_xquery_options[] = {
             "Serialization method of the result, replacing the query's"),
     },
     SXML_QUERY_FILE_ACCESS_OPTION,
+    SXML_QUERY_COLLECTION_OPTION,
     {
         .long_name = SXML_BYTE_VIEW_INITIALIZER("allow-put"),
         .short_name = 0,

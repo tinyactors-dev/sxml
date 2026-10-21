@@ -173,20 +173,15 @@ static sxml_status sxml_query_serve_cldr_data(const sxml_query_file_resolver *re
 
 static sxml_status sxml_query_resolve_file(void *state, const sxml_resource_request *request,
                                            sxml_resource *resource) {
+    if (request->resource_kind == SXML_RESOURCE_KIND_COLLECTION ||
+        request->resource_kind == SXML_RESOURCE_KIND_URI_COLLECTION) {
+        /* A directory's documents or URIs, as a SEQUENCE (D298). */
+        return sxml_query_resolve_collection(state, request, resource);
+    }
     const sxml_query_file_resolver *resolver = state;
     if (request->resource_kind == SXML_RESOURCE_KIND_COLLATION_DATA ||
         request->resource_kind == SXML_RESOURCE_KIND_LOCALE_DATA) {
         return sxml_query_serve_cldr_data(resolver, request, resource);
-    }
-    if (request->resource_kind == SXML_RESOURCE_KIND_COLLECTION ||
-        request->resource_kind == SXML_RESOURCE_KIND_URI_COLLECTION) {
-        /* A collection is a SEQUENCE, never a file's bytes
-           (include/sxml/processor.h): the program has none, so
-           fn:collection and fn:uri-collection raise FODC0002 (F&O 4.0,
-           17.1.3, 17.1.4) for every URI, relative or absolute. */
-        resource->resource_form = SXML_RESOURCE_FORM_NONE;
-        resource->description = SXML_TEXT("The sxml command has no collections");
-        return SXML_STATUS_OK;
     }
     uint8_t zoneinfo_path[SXML_QUERY_ZONEINFO_PATH_CAPACITY];
     const sxml_byte_view path = request->resource_kind == SXML_RESOURCE_KIND_TIMEZONE_DATA
@@ -1069,6 +1064,76 @@ static sxml_status sxml_query_bind_feature_namespaces(sxml_query_run *run) {
     return status;
 }
 
+/* Reads --collection=DIR[?PARAMETERS] into the resolver's default
+   collection URI (D298): DIR relative to the working directory, checked
+   to be a directory, and the parameters of a collection URI. */
+static sxml_cli_exit_code sxml_query_read_default_collection(sxml_query_run *run) {
+    const sxml_cli_invocation *invocation = run->invocation;
+    sxml_byte_view value = {.bytes = NULL, .byte_count = 0};
+    if (!sxml_query_find_text_option(invocation, SXML_TEXT("collection"), &value)) {
+        return SXML_CLI_EXIT_SUCCESS;
+    }
+    const uint8_t *question_mark =
+        value.byte_count == 0 ? NULL : memchr(value.bytes, '?', value.byte_count);
+    const sxml_byte_view directory = {
+        .bytes = value.bytes,
+        .byte_count = question_mark == NULL ? value.byte_count
+                                            : (size_t)(question_mark - value.bytes)};
+    const sxml_byte_view parameters = {.bytes = value.bytes + directory.byte_count,
+                                       .byte_count = value.byte_count - directory.byte_count};
+    if (directory.byte_count == 0) {
+        return sxml_cli_invocation_report_usage_error(
+            invocation, SXML_TEXT("--collection needs a directory"));
+    }
+    sxml_byte_view directory_uri = {.bytes = NULL, .byte_count = 0};
+    if (sxml_query_make_file_uri(invocation, directory, &directory_uri) != SXML_STATUS_OK) {
+        return SXML_CLI_EXIT_INTERNAL_ERROR;
+    }
+    void *memory = NULL;
+    sxml_status status = sxml_allocator_allocate(
+        invocation->allocator,
+        (sxml_allocation_request){.byte_count = directory_uri.byte_count + parameters.byte_count,
+                                  .alignment = 1},
+        &memory);
+    if (status == SXML_STATUS_OK) {
+        memcpy(memory, directory_uri.bytes, directory_uri.byte_count);
+        if (parameters.byte_count > 0) {
+            memcpy((uint8_t *)memory + directory_uri.byte_count, parameters.bytes,
+                   parameters.byte_count);
+        }
+        run->resolver.default_collection_uri =
+            (sxml_byte_view){.bytes = memory,
+                             .byte_count = directory_uri.byte_count + parameters.byte_count};
+    }
+    sxml_allocator_release(invocation->allocator, (void *)directory_uri.bytes);
+    if (status != SXML_STATUS_OK) {
+        return SXML_CLI_EXIT_INTERNAL_ERROR;
+    }
+    sxml_query_collection_query query;
+    sxml_query_read_collection_uri(run->resolver.default_collection_uri, &query);
+    if (query.refusal.byte_count > 0) {
+        return sxml_cli_invocation_report_usage_error(
+            invocation, SXML_TEXT("--collection takes DIR, then optionally "
+                                  "?select=PATTERN&recurse=yes|no&on-error=fail|ignore"));
+    }
+    const sxml_file_system file_system = invocation->file_system;
+    sxml_file_description description = {.file_kind = SXML_FILE_KIND_NONE,
+                                         .byte_count = 0,
+                                         .modified_seconds = 0,
+                                         .modified_nanoseconds = 0};
+    if (file_system.operations != NULL &&
+        (file_system.operations->describe(file_system.state, directory, &description) !=
+             SXML_STATUS_OK ||
+         description.file_kind != SXML_FILE_KIND_DIRECTORY)) {
+        sxml_query_run_write_prefix(run);
+        sxml_cli_writer_write(invocation->standard_error, SXML_TEXT("cannot read directory "));
+        sxml_cli_writer_write_quoted(invocation->standard_error, directory);
+        sxml_cli_writer_write_byte(invocation->standard_error, '\n');
+        return SXML_CLI_EXIT_INPUT_OUTPUT_ERROR;
+    }
+    return SXML_CLI_EXIT_SUCCESS;
+}
+
 sxml_cli_exit_code sxml_query_run_start(sxml_query_run *run) {
     const sxml_cli_invocation *invocation = run->invocation;
     run->resolver = (sxml_query_file_resolver){.invocation = invocation};
@@ -1145,7 +1210,10 @@ sxml_cli_exit_code sxml_query_run_start(sxml_query_run *run) {
     if (run->parameter_binding == SXML_PARAMETER_BINDING_NONE) {
         return SXML_CLI_EXIT_SUCCESS;
     }
-    sxml_cli_exit_code exit_code = sxml_query_read_parameters(run);
+    sxml_cli_exit_code exit_code = sxml_query_read_default_collection(run);
+    if (exit_code == SXML_CLI_EXIT_SUCCESS) {
+        exit_code = sxml_query_read_parameters(run);
+    }
     if (exit_code == SXML_CLI_EXIT_SUCCESS) {
         exit_code = sxml_query_read_context_item(run);
     }
@@ -1162,6 +1230,8 @@ sxml_cli_exit_code sxml_query_run_finish(sxml_query_run *run, sxml_cli_exit_code
     sxml_allocator_release(allocator, run->declarations);
     sxml_allocator_release(allocator, run->bindings);
     sxml_allocator_release(allocator, (void *)run->static_base_uri.bytes);
+    sxml_allocator_release(allocator, (void *)run->resolver.default_collection_uri.bytes);
+    run->resolver.default_collection_uri = (sxml_byte_view){.bytes = NULL, .byte_count = 0};
     if (run->has_context_item) {
         sxml_item_release(run->context_item);
     }

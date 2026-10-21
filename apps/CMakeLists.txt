@@ -68,6 +68,7 @@ add_library(sxml_program STATIC
     sxml/command_xpath.c
     sxml/command_xquery.c
     sxml/program.c
+    sxml/query_collection.c
     sxml/query_command.c
 )
 target_include_directories(sxml_program PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/sxml")

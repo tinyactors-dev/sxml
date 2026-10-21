@@ -96,41 +96,47 @@ the key `"ada"`; `?name` then takes the member's name.
 ## Many documents
 
 XQuery's `collection` function returns a whole set of documents by one
-URI, which processors map to a database, a directory or a list.
-The `sxml` command has no collections, and `collection` raises
-`err:FODC0002` for any URI:
+URI. What the URI names is up to the processor: a database, a list, or
+for the `sxml` command a directory. `collection("branches")` gives the
+document of every `.xml` file in `branches`, sorted by name:
 
 ```console
-$ sxml xquery --expression='collection("branches")'
-expression:1:1: err:FODC0002: No such collection
-```
-
-There are two good ways around it.
-
-The first is to pass the file names to the query, as an external
-variable (the next part of this section explains those):
-
-```console
-$ sxml xquery --method=adaptive --param=files="branches/north.xml branches/south.xml" --expression='
-    declare variable $files external;
-    for $file in tokenize($files)
-    return doc($file)//loan/@book/string()'
-"dune"
-"sicp"
-"geb"
-```
-
-The second lists a directory with the EXPath File functions, which need
-`--allow-file-access`. `file:list` returns the names of the files that
-match a pattern, in no particular order, so sort them:
-
-```console
-$ sxml xquery --method=adaptive --allow-file-access --expression='
-    for $file in sort(file:list("branches", false(), "*.xml"))
-    let $loans := doc("branches/" || $file)/loans
+$ sxml xquery --method=adaptive --expression='
+    for $loans in collection("branches")/loans
     return $loans/@branch || ": " || count($loans/loan)'
 "North: 2"
 "South: 1"
+```
+
+The documents are the ones `doc` reads for the same files, so
+`doc("branches/north.xml") is collection("branches")[1]` is true, and
+`document-uri` tells which file each came from. `uri-collection` gives
+those URIs without reading the files.
+
+Parameters after a `?` change what the directory gives, separated by
+`;`. `select` names the files (`*` stands for any characters), so
+`uri-collection` can find files that are not XML, for the functions
+that read them; `recurse=yes` takes the files of subdirectories too:
+
+```console
+$ sxml xquery --method=adaptive --expression='
+    for $uri in uri-collection(".?select=*.json")
+    return json-doc($uri)?ada?name'
+"Ada Lovelace"
+```
+
+A file that is not well-formed stops `collection` with
+`err:FODC0002`, which names the file and the line; with
+`on-error=ignore` it is left out instead.
+
+`--collection=DIR` makes a directory the *default collection*, the one
+`collection()` returns without an argument. The query then does not
+name the directory, and the same query reads another one next time:
+
+```console
+$ sxml xquery --method=adaptive --collection=branches --expression='
+    count(collection()//loan)'
+3
 ```
 
 ## External variables

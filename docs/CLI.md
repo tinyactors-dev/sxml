@@ -97,6 +97,46 @@ Every written file:
   before the work starts and again when committing). `--force` without one
   of these options is a usage error.
 
+### Collections
+
+Decided in D298 (packet cli-3). F&O 4.0 (17.1.3, 17.1.4) leaves what a
+collection URI names to the implementation; in `sxml` it names a local
+directory, read as `fn:doc` reads a file: no flag, no network.
+
+- **A collection URI is a directory**, relative to the static base URI
+  (the working directory, or the stylesheet's or module's location), with
+  optional parameters after `?`, separated by `;` or `&`:
+  `select=PATTERN` (file names; `*` any characters, `?` one; default
+  `*.xml`), `recurse=yes|no` (subdirectories too; default `no`) and
+  `on-error=fail|ignore` (default `fail`). Another parameter, a fragment,
+  another scheme than `file:` or a path that is not a directory raise
+  FODC0002 with the reason.
+- **`fn:uri-collection`** gives the `xs:anyURI` of every selected file,
+  sorted by path relative to the directory (byte order, which is code
+  point order); nothing is read. The URI is the directory's URI and the
+  relative path, the form `fn:doc` maps back to the same file.
+- **`fn:collection`** gives the document node of each of those files,
+  in the same order, parsed as XML as `fn:doc` parses a file (external
+  entities through the same resolver). Their document URIs are those
+  URIs, and `fn:doc` of one gives the same node, whichever is called
+  first. A file that cannot be read or is not well-formed makes the
+  collection unavailable (FODC0002, naming `FILE:LINE:COLUMN`), or with
+  `on-error=ignore` is left out. A collection holds documents only: JSON,
+  text and other files are reached through `fn:uri-collection` and
+  `fn:json-doc`, `fn:unparsed-text` or `fn:unparsed-binary`, one intent
+  each, never a format guessed from a file name.
+- **The default collection** (`fn:collection()`, `fn:uri-collection()`,
+  XPath 4.0, 2.2.2) is the one `--collection=DIR` names on `xpath`,
+  `xquery` and `transform`: DIR relative to the working directory,
+  optionally followed by the parameters above (`--collection='docs?recurse=yes'`).
+  A DIR that is not a directory exits 3, an unknown parameter is a usage
+  error; without the option there is no default collection (FODC0002).
+- Symbolic links are followed; with `recurse=yes` a directory reached
+  twice (a link back up) is listed once.
+- Listing needs the platform's file system (`apps/sxml/platform_file_system.c`);
+  where it has none (Windows today, D200), every collection raises
+  FODC0002.
+
 ### Output
 
 - Results go to standard output; diagnostics, warnings and usage errors to

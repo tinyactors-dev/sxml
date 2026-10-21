@@ -231,9 +231,24 @@ sxml_add_cli_test(xquery_module_error EXIT_CODE 1 ARGUMENTS xquery import-broken
 sxml_add_cli_test(xquery_module_missing EXIT_CODE 1 ARGUMENTS xquery import-missing.xq)
 # A dynamic error in a library module names the module's file (D271).
 sxml_add_cli_test(xquery_module_dynamic_error EXIT_CODE 1 ARGUMENTS xquery import-failing.xq)
-# The program has no collections: FODC0002 for any URI (D271).
+# Collections are directories (D298): the XML files, in name order, as
+# the documents fn:doc gives; select, recurse and on-error parameters; the
+# default collection of --collection. A file is not a collection.
 sxml_add_cli_test(xquery_collection_relative EXIT_CODE 1 ARGUMENTS xquery "--expression=collection('books.xml')")
 sxml_add_cli_test(xpath_uri_collection_relative EXIT_CODE 1 ARGUMENTS xpath "uri-collection('books.xml')")
+sxml_add_cli_test(xquery_collection_directory EXIT_CODE 0 ARGUMENTS xquery "--expression=collection('collection')/branch ! (@name || ': ' || count(loan))")
+sxml_add_cli_test(xpath_uri_collection_recurse EXIT_CODE 0 ARGUMENTS xpath "uri-collection('collection?recurse=yes') ! substring-after(., '/collection/')")
+sxml_add_cli_test(xpath_uri_collection_select EXIT_CODE 0 ARGUMENTS xpath "uri-collection('collection?select=*.txt') ! normalize-space(unparsed-text(.))")
+sxml_add_cli_test(xquery_collection_documents EXIT_CODE 0 ARGUMENTS xquery "--expression=doc('collection/south.xml') is collection('collection')[2], collection('collection')[1] is doc('collection/north.xml'), document-uri(collection('collection')[1]) = resolve-uri('collection/north.xml')")
+sxml_add_cli_test(xquery_collection_not_well_formed EXIT_CODE 1 ARGUMENTS xquery "--expression=collection('collection-broken')")
+sxml_add_cli_test(xquery_collection_ignore_errors EXIT_CODE 0 ARGUMENTS xquery "--expression=collection('collection-broken?on-error=ignore')")
+sxml_add_cli_test(xpath_collection_unknown_parameter EXIT_CODE 1 ARGUMENTS xpath "collection('collection?sort=no')")
+sxml_add_cli_test(xpath_collection_no_default EXIT_CODE 1 ARGUMENTS xpath "collection()")
+sxml_add_cli_test(xpath_collection_default EXIT_CODE 0 ARGUMENTS xpath --collection=collection "count(collection()), uri-collection() ! substring-after(., '/collection/')")
+sxml_add_cli_test(xquery_collection_default_parameters EXIT_CODE 0 ARGUMENTS xquery "--collection=collection?recurse=yes" "--expression=collection()/branch/@name/string()")
+sxml_add_cli_test(xquery_collection_missing_directory EXIT_CODE 3 ARGUMENTS xquery --collection=missing "--expression=1")
+sxml_add_cli_test(xquery_collection_bad_option EXIT_CODE 2 ARGUMENTS xquery "--collection=collection?sort=no" "--expression=1")
+sxml_add_cli_test(transform_collection_default EXIT_CODE 0 ARGUMENTS transform --collection=collection xslt/collection.xsl)
 # fn:trace and fn:message write to standard error (D271).
 sxml_add_cli_test(xquery_trace EXIT_CODE 0 ARGUMENTS xquery "--expression=trace(1 + 1, 'sum'), message(('a', 'b'))")
 sxml_add_cli_test(xpath_trace EXIT_CODE 0 ARGUMENTS xpath "trace(//book/@id/string(), 'ids')" --context-item=books.xml)
