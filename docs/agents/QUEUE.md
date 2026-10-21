@@ -37,10 +37,9 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 
 ## Next
 
-- book-14 done (D301): the Vane story (a feature-flag service), seed data,
-  rename table. book-15..book-20 running on the shared release build at
-  1a372bd; book-21 (traces, formats, JavaScript, performance) starts after
-  fix-3; then book-13 integrates. For book-13: a separate `$ echo $?`
+- book-14 done (D301); book-15..book-20 done (Vane). book-21 (traces,
+  formats, JavaScript, performance) running on the shared build at
+  8f07578; then book-13 integrates. For book-13: a separate `$ echo $?`
   line always prints 0 (each command runs in a fresh shell); join it to its
   command (book-17 fixed its chapters).
 - fix-2 done: invalid identity-constraint fields are validation errors
@@ -48,9 +47,11 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
   For the chapter packets: xsd-typed-data.md can use typed params again,
   xsd-errors/xsd-identity the invalid-anchor example, traces drop the
   --param workaround.
-- fix-3: TVT in xsl:text reading streamed nodes as empty; streaming
-  fallbacks (iterate, for-each-group, count(//x)); the filter index for
-  root child paths; parse-json number-parser.
+- fix-3 done (D302): TVTs in xsl:text stream (was a silent 0);
+  xsl:iterate and xsl:for-each-group (adjacent/starting/ending) stream in
+  about 11 MB; count(//x) below the root is XTSE3430 per 12.9.21; child
+  paths from the root indexed (21.9 s -> 0.30 s); number-parser is not in
+  F&O 4.0 (number-format is).
 - fix-1 done (D300): CLI help examples; the record and map:keys-where
   reports follow the drafts (not bugs).
 - Phase 6 (D238, `docs/tasks/phase-6.md`), packets that run here:
