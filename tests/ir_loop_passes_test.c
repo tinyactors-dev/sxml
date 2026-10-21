@@ -281,6 +281,46 @@ static const golden_case golden_cases[] = {
      "          (let $11 (map $9 (focus $10 _ _)\n"
      "                     (step $10 child element(b)))\n"
      "            (document-order $11)))))))\n"},
+    /* Child paths from the root (D302): the steps' MAPs run over all
+       origins together and move out of the loop, so the FILTER's input is
+       the same each time and its index is found again. */
+    {"declare variable $c external; for $x in $c return /a/b[@k = $x/@j]",
+     "(function 1 main (parameters 0) (captures) (slots 18) (focus $2 _ _)\n"
+     "  (let $17 (quantified some $18 $global:1\n"
+     "             true())\n"
+     "    (let $3 (conditional $17\n"
+     "              (step $2 self node())\n"
+     "              (sequence))\n"
+     "      (let $4 (conditional $17\n"
+     "                (static-call fn:root#1 $3)\n"
+     "                (sequence))\n"
+     "        (let $5 (conditional $17\n"
+     "                  (treat $4 (document-node() | jnode()))\n"
+     "                  (sequence))\n"
+     "          (let $7 (conditional $17\n"
+     "                    (map $5 (focus $6 _ _)\n"
+     "                      (step $6 child element(a)))\n"
+     "                    (sequence))\n"
+     "            (let $9 (conditional $17\n"
+     "                      (map $7 (focus $8 _ _)\n"
+     "                        (step $8 child element(b)))\n"
+     "                      (sequence))\n"
+     "              (map $global:1 (focus $1 _ _)\n"
+     "                (let $15 (filter $9 (focus $10 _ _)\n"
+     "                           (let $11 (step $10 attribute attribute(k))\n"
+     "                             (let $13 (map $1 (focus $12 _ _)\n"
+     "                                        (step $12 attribute attribute(j)))\n"
+     "                               (let $14 (document-order $13)\n"
+     "                                 (binary general-equal $11 $14))))\n"
+     "                           (index general-equal\n"
+     "                             (let $11 (step $10 attribute attribute(k))\n"
+     "                               $11)\n"
+     "                             (let $13 (map $1 (focus $12 _ _)\n"
+     "                                        (step $12 attribute attribute(j)))\n"
+     "                               (let $14 (document-order $13)\n"
+     "                                 $14))))\n"
+     "                  (let $16 (document-order $15)\n"
+     "                    (document-order $16)))))))))))\n"},
     /* A probe that is no constant is indexed before a constant one. */
     {"declare variable $c external; for $x in $c return $c[@a = 'x' and @k = $x/@k]",
      "(function 1 main (parameters 0) (captures) (slots 9)\n"
@@ -463,6 +503,15 @@ static const value_case value_cases[] = {
     {"let $s := (1 to 30) ! <e k='{. mod 4}'/> "
      "return for $i in 1 to 3 return count($s[@k = (string($i), '0', string($i))])",
      "15 15 14"},
+    /* Child paths over several origins (D302): the same nodes, in
+       document order, nested origins included. */
+    {"let $d := document { <r>{(1 to 20) ! <g n='{.}'>{(1 to 3) ! <e k='{. mod 2}' n='{.}'/>}"
+     "</g>}</r> } return for $i in 0 to 1 return count($d/r/g/e[@k = string($i)])",
+     "20 40"},
+    {"let $d := document { <a k='1'><a k='0'><a k='1'/></a><b/><a k='1'/></a> } "
+     "return for $i in ('1', '1') return string-join(($d//a/a[@k = $i]) ! path(.), ' ')",
+     "\"/Q{}a[1]/Q{}a[1]/Q{}a[1] /Q{}a[1]/Q{}a[2]\" "
+     "\"/Q{}a[1]/Q{}a[1]/Q{}a[1] /Q{}a[1]/Q{}a[2]\""},
     /* A numeric probe: untyped keys compare as numbers (4.11.2). */
     {"let $s := (1 to 20) ! <e n='{.}.0'/> "
      "return for $i in 1 to 3 return count($s[@n = $i])",

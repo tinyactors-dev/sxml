@@ -2246,6 +2246,130 @@ static sxml_status shorten_descendant_path(loop_pass *pass, const slot_census *c
     return status;
 }
 
+/*
+ * Child paths from many origins (glossary `descendant_path`, D302).
+ * "E/T[P]..." is a MAP over E's nodes that steps to each node's T
+ * children and filters them apart:
+ *
+ *     LET(m, MAP(E, g, LET(c, STEP(g, child, T), FILTER(c, h, P)...)),
+ *       DOCUMENT_ORDER(m))
+ *
+ * When T selects XNodes only, the links after the step go on from each
+ * node alone (link_is_per_node: by-item filters, path steps, document
+ * order), and the intermediate values are read once, the links run once
+ * over the children of all of E's nodes together:
+ *
+ *     LET(m, LET(c, MAP(E, g, STEP(g, child, T)), FILTER(c, h, P)...),
+ *       DOCUMENT_ORDER(m))
+ *
+ * The nodes are the same, and the DOCUMENT_ORDER after them puts them in
+ * the same order (XPath 4.0, 4.6.2: a path's result is in document order
+ * whatever the order of its steps' values). The FILTER's input then no
+ * longer depends on an enclosing loop's variables when E does not, as for
+ * the descendant pass: the hoist pass computes it once and a filter index
+ * finds the same input each time ("/spans/span[@parent = $span/@id]").
+ * Errors: E's nodes are required as before; P runs for the same nodes.
+ */
+/* A LET whose body is still to walk: its variable is the value before. */
+typedef struct pending_link {
+    sxml_ir_slot variable;
+    sxml_ir_expression_index body;
+} pending_link;
+
+static sxml_status pull_child_path_links(loop_pass *pass, const slot_census *census,
+                                         sxml_ir_expression_index ordering_index) {
+    const sxml_ir_expression ordering = expression_at(pass, ordering_index);
+    const sxml_ir_expression_index map_let = single_let_of(census, ordering.document_order.input);
+    if (map_let.value == 0 || read_count_of(census, ordering.document_order.input.slot) != 1) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_ir_expression_index index = expression_at(pass, map_let).let.bound_expression;
+    const sxml_ir_expression outer = expression_at(pass, index);
+    if (outer.expression_kind != SXML_IR_EXPRESSION_KIND_MAP || is_left_alone(pass, index)) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_ir_map *map = &outer.map;
+    if (map->flags != (uint32_t)SXML_IR_MAP_REQUIRES_NODES ||
+        map->focus.context_position.value != 0 || map->focus.context_size.value != 0 ||
+        map->focus.context_value.value == 0 ||
+        read_count_of(census, map->focus.context_value) != 1) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_ir_expression body = expression_at(pass, map->body);
+    if (body.expression_kind != SXML_IR_EXPRESSION_KIND_LET || body.let.is_content) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_ir_expression child_step = expression_at(pass, body.let.bound_expression);
+    if (child_step.expression_kind != SXML_IR_EXPRESSION_KIND_STEP ||
+        child_step.step.axis != SXML_AXIS_CHILD ||
+        child_step.step.origin.atom_kind != SXML_IR_ATOM_KIND_SLOT ||
+        child_step.step.origin.slot.value != map->focus.context_value.value ||
+        !sxml_type_registry_is_subtype(
+            pass->request->type_registry,
+            (sxml_type_pair){.derived_type = child_step.step.node_test,
+                             .base_type = sxml_builtin_type_identifier(SXML_TYPE_NODE)})) {
+        return SXML_STATUS_OK;
+    }
+    /* The links after the step, LETs of LETs flattened: each reads the
+       value before it once and goes on from each node alone. Only a path
+       with a FILTER gains (its input is then one sequence). */
+    sxml_ir_expression_index cursor = body.let.body;
+    sxml_ir_slot previous = body.let.variable;
+    pending_link pending[16];
+    size_t pending_count = 0;
+    bool has_filter = false;
+    sxml_status status = SXML_STATUS_OK;
+    for (;;) {
+        const sxml_ir_expression link = expression_at(pass, cursor);
+        if (link.expression_kind == SXML_IR_EXPRESSION_KIND_LET) {
+            if (link.let.is_content || pending_count == sizeof(pending) / sizeof(pending[0])) {
+                return SXML_STATUS_OK;
+            }
+            pending[pending_count] =
+                (pending_link){.variable = link.let.variable, .body = link.let.body};
+            pending_count += 1;
+            cursor = link.let.bound_expression;
+            continue;
+        }
+        has_filter = has_filter || link.expression_kind == SXML_IR_EXPRESSION_KIND_FILTER;
+        pass_answer is_per_node = {.is_true = false};
+        status = link_is_per_node(
+            pass, (path_link){.census = census, .index = cursor, .previous = previous},
+            &is_per_node);
+        if (status != SXML_STATUS_OK || !is_per_node.is_true) {
+            return status;
+        }
+        if (pending_count == 0) {
+            break;
+        }
+        pending_count -= 1;
+        previous = pending[pending_count].variable;
+        cursor = pending[pending_count].body;
+    }
+    if (!has_filter) {
+        return SXML_STATUS_OK;
+    }
+    /* The three places are reused: the MAP's becomes the LET, the step's
+       the MAP, the LET's the step. */
+    const sxml_ir_expression_index step_index = body.let.bound_expression;
+    sxml_ir_expression pulled_let = body;
+    pulled_let.let.bound_expression = step_index;
+    sxml_ir_expression children_map = outer;
+    children_map.map.body = map->body;
+    status = sxml_ir_unit_replace_expression(
+        pass->unit, &(sxml_ir_expression_replacement){.index = map->body, .expression = child_step});
+    if (status == SXML_STATUS_OK) {
+        status = sxml_ir_unit_replace_expression(
+            pass->unit,
+            &(sxml_ir_expression_replacement){.index = step_index, .expression = children_map});
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_ir_unit_replace_expression(
+            pass->unit, &(sxml_ir_expression_replacement){.index = index, .expression = pulled_let});
+    }
+    return status;
+}
+
 /* ---------------------------------------------------- Item demands */
 
 /* Where an expression sits in its parent, for the demand pass. */
@@ -3105,11 +3229,15 @@ sxml_status sxml_ir_shorten_descendant_paths(const sxml_ir_pass_request *request
              status == SXML_STATUS_OK && expression_number < expression_count;
              expression_number += 1) {
             const sxml_ir_expression_index index = {.value = expression_number};
-            if (pass.owners[expression_number] != function_number || is_left_alone(&pass, index) ||
-                expression_at(&pass, index).expression_kind != SXML_IR_EXPRESSION_KIND_MAP) {
+            if (pass.owners[expression_number] != function_number || is_left_alone(&pass, index)) {
                 continue;
             }
-            status = shorten_descendant_path(&pass, &census, index);
+            const sxml_ir_expression_kind kind = expression_at(&pass, index).expression_kind;
+            if (kind == SXML_IR_EXPRESSION_KIND_MAP) {
+                status = shorten_descendant_path(&pass, &census, index);
+            } else if (kind == SXML_IR_EXPRESSION_KIND_DOCUMENT_ORDER) {
+                status = pull_child_path_links(&pass, &census, index);
+            }
         }
         slot_census_finalize(&pass, &census);
     }
