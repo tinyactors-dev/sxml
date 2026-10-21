@@ -16,6 +16,13 @@ not tagged yet, or into the next minor release.
 
 ### Added (Phase 7)
 
+- **Streamed html and xhtml output** (D297): a streamed transformation
+  with `method="html"` or `method="xhtml"` and `indent="no"` is written
+  as it is made, in bounded memory, byte for byte as before; with
+  indentation (the default for these methods in XSLT) the result tree
+  is still built, since indentation looks at all of an element's
+  children.
+
 - **Collections in the `sxml` command** (D298): `fn:collection("dir")`
   gives the XML documents of a directory, sorted by name, and
   `fn:uri-collection` their URIs; `?select=`, `recurse=yes` and

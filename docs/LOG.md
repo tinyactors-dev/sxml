@@ -4,6 +4,15 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- stream-2 done (D297): the html and xhtml methods are serialized as
+  a streamed principal result is made, reusing the xml method's
+  windows; the doctype, include-content-type's meta, prefix
+  normalization and late-interned namespaces with bounded state.
+  indent=yes (XSLT's default for html) still builds the tree: its rule
+  looks ahead to the last child. 20,000 x 1 KB, html indent=no: 29.8 ->
+  10.9 MB (one long text node 59.1 -> 10.9 MB), byte-identical. XT40
+  whole catalog: no outcome differs.
+
 - cli-3 done (D298): fn:collection and fn:uri-collection in the sxml
   command. A collection URI is a local directory (select=, recurse=,
   on-error= after "?"), sorted by path; collection documents are fn:doc's
