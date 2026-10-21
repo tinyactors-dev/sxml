@@ -37,8 +37,17 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 
 ## Next
 
-- book-6..book-12 (parallel), then book-13: the book rewritten around the
-  Latch projects, per docs/tasks/book.md (D299); running (owner, 2026-10-21).
+- book-6..book-12 done (the Latch story). The owner (2026-10-21): no door
+  locks — re-theme to a feature-flag service. book-14: the new story, seed
+  data and rename table; then book-15..book-21 update the chapters; then
+  book-13 integrates.
+- fix-2: identity-constraint fields with invalid values (exit 4), XSLT
+  --param not coerced to its `as` type.
+- fix-3: TVT in xsl:text reading streamed nodes as empty; streaming
+  fallbacks (iterate, for-each-group, count(//x)); the filter index for
+  root child paths; parse-json number-parser.
+- fix-1 done (D300): CLI help examples; the record and map:keys-where
+  reports follow the drafts (not bugs).
 - Phase 6 (D238, `docs/tasks/phase-6.md`), packets that run here:
   - wave 1, together: 6.2 host shim (`bindings/host/`; JavaScript
     tests and sizes unchanged); 6.3 Android build (four ABIs at API 24,
