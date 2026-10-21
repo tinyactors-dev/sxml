@@ -4,6 +4,17 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- book-5 done (D299): the plan for the book around five projects of one
+  story (Latch door locks), `docs/tasks/book.md`: the new SUMMARY (18
+  chapters, seven projects), each chapter's data and features in order,
+  a coverage table from every current chapter, and the packets book-6
+  to book-12 (parallel) and book-13 (integration). Seed data in
+  `docs/book/examples/`: spec (an xml2rfc v3 draft, two revisions, its
+  XSD), svg (a graph and its drawing), scxml (a typed, documented lock
+  machine with two schemas), call-chains (TypeScript before and after),
+  traces (OTLP JSON, 16 and 30 spans); all checked with a release
+  build.
+
 - 4.32 done (D296): XSLT streaming conformance. The newest draft moved
   streamability into XSLT Streaming 4.0: XTSE3155, fn:filter as
   filter(N, I); fn:snapshot keeps a document's unparsed entities;

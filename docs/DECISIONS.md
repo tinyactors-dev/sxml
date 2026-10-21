@@ -14066,6 +14066,61 @@ outcome); XQ40 46,158 and XP40 32,815 as before. Commits d67e37f,
   capture-206 (D236); merge-017, -054, -067 and the three merge-097
   cases are not streaming causes.
 
+### D299. The book teaches with five projects of one story (packet book-5)
+Recorded 2026-10-21, after D257, D270, D282, D292. The owner: restructure
+the book around useful examples (structured specifications kept in XML,
+creating and transforming SVG, SCXML annotated with data schemas and
+XHTML, a diff of call chains through the tree-sitter bridge, a diff of
+OTel traces before and after a change) instead of the library/loans data.
+The plan is `docs/tasks/book.md`; this record keeps the choices later
+packets must not reopen.
+- **One story.** The five projects belong to one made-up system, Latch
+  (door locks, a controller, services): the draft's requirement anchors
+  are what the machine's `latch:implements` names, the code change of
+  call-chains is the change the traces record, and one diagram
+  vocabulary draws services, the machine and both diffs.
+- **Project directories are example directories.** `docs/book/examples/`
+  gains spec, svg, scxml, call-chains and traces; every chapter file that
+  uses a project names its directory in `<!-- examples: -->`, so a
+  reader runs a project's commands from one place. Their seed files
+  (committed by book-5) are frozen during the rewrite; packets add files
+  under names the plan gives them, never list a project root, and reach
+  another project's file through a relative symlink
+  (check-book-examples.sh's copytree follows it). Rejected: per-chapter
+  directories with copies of the data (copies drift) and a multi-directory
+  `examples:` comment (readers could not run the commands from one
+  directory).
+- **The spec is xml2rfc v3**, a subset (RFC 7991 and the RFC Editor's
+  current grammar, no namespace), not an own vocabulary: it is what IETF
+  authors write and xml2rfc renders it. Requirements are anchored `t`
+  paragraphs with `bcp14`; anchors are names given once (not in
+  document order), the renderer numbers by position; anchors are checked
+  with xs:unique and xs:keyref, not xs:ID. Two drafts, -00 and -01, so a
+  requirement diff by anchor works.
+- **SCXML**: SCXML 1.0 with `datamodel="ecmascript"`; the
+  self-description is in `urn:example:latch` (event declarations with
+  payload element names, `latch:type` on data, `latch:implements`,
+  XHTML in states), checked by a subset of the Recommendation's schema
+  (one target per transition, so a keyref can check it) importing
+  latch-data.xsd. The seed machine has four flaws that are valid XSD but
+  found by the schema-aware checks.
+- **Structure**: 18 chapters, seven of them projects; the three
+  languages are taught on the spec, each ending with a project section;
+  SVG follows XSLT, the SCXML project follows XSD, call chains come
+  before traces. Windows move from the XQuery chapter to the traces
+  project, streaming from the XSLT chapter to it, and the codegen
+  project and the iXML part stay (plus one ABNF task).
+- **Packets**: book-6 to book-12 rewrite in parallel, each owning its
+  chapter files and the example files it adds; book-13 then owns
+  SUMMARY.md, the introduction, the appendices and every "Chapter N"
+  text (cross references are by title meanwhile).
+- **Verified**: release build of HEAD: both drafts and the machine
+  validate; broken copies give the expected cvc codes; the ten
+  TypeScript files parse without ERROR nodes; json-doc reads 16 and 30
+  spans; sketch queries give the call-chain diff and the trace diff the
+  plan states (lock-service to lock-registry 1 -> 5 on GET /doors, a new
+  audit-service, no door-cache).
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): tagging and

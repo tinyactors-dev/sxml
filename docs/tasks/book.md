@@ -1,7 +1,7 @@
 # The book around five projects (plan, packet book-5)
 
 Internal: this file is not part of the book. It plans the rewrite of
-`docs/book` that the owner asked for on 2026-10-21 (D297):
+`docs/book` that the owner asked for on 2026-10-21 (D299):
 
 > restructure the content of the book around useful examples instead of
 > the current ones: 1. keeping structured specifications for projects
