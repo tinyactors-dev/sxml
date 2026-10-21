@@ -188,11 +188,11 @@ same
 
 Listing the flags:
 
-![The participants of GET /api/getFlags, before and after](../examples/traces/diff-flags.svg)
+![The participants of GET /api/getFlags, before and after](figures/traces/diff-flags.svg)
 
 Killing a flag:
 
-![The participants of POST /api/killFlag, before and after](../examples/traces/diff-kill.svg)
+![The participants of POST /api/killFlag, before and after](figures/traces/diff-kill.svg)
 
 The modules of the service are not in the drawings: a call from one
 module to another is a function call inside the one program, and its

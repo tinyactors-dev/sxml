@@ -30,6 +30,8 @@ picture. Here is one box with a label and an arrow:
 {{#include ../examples/svg/box.svg}}
 ```
 
+![box.svg: a box labelled vane/flags with an arrow pointing down from it](figures/svg/box.svg)
+
 The root `svg` element gives the size of the picture (`width`, `height`)
 and its coordinate system (`viewBox`: the left, top, width and height of
 the area drawn). Coordinates grow to the right and *down*: (0, 0) is the

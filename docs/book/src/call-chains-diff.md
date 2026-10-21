@@ -354,6 +354,8 @@ $ sxml xpath --context-item=calls.svg '//*:g[tokenize(@class) = ("added", "remov
 "node service removed: node-registry.getFlags"
 ```
 
+![Both call chains in one drawing: api.start, api.route and the two handlers at the top, the added functions and calls in green, the removed ones dashed in red, and db.query at the bottom](figures/call-chains/calls.svg)
+
 The added functions and calls are drawn green and thick, the removed
 ones red and dashed, and the call in the loop is labelled. The rows of
 the drawing are the boxes with the same `y`:

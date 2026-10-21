@@ -125,7 +125,7 @@ $ grep -A3 'id="edge-stable-stable"' flag.svg
   </g>
 ```
 
-Open `flag.svg` in a browser to see the drawing.
+![The flag's state machine: stable, archived, checking, rolling-out and paused, with labelled transitions between them and loops below stable and rolling-out](figures/scxml/flag.svg)
 
 ## Drawing a change
 
@@ -153,6 +153,8 @@ $ grep -A3 'class="edge added"' changes.svg
     <text x="306" y="194">flag.archived</text>
   </g>
 ```
+
+![The fixed machine against the seed: the two new flag.archived transitions in green, with archived moved into the second row](figures/scxml/changes.svg)
 
 The two new transitions on `flag.archived` are the change, and they
 move `archived` into the second row: it now has incoming edges, at

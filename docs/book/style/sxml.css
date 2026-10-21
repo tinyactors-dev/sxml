@@ -93,3 +93,8 @@ blockquote{border-radius:0}
     --search-mark-bg:#12302A;
 }
 .coal code,.coal pre,.coal .hljs{background:#120D09}
+
+/* Figures (src/figures/, kept equal to the files the examples write by
+   tools/check-book-examples.sh) carry their own colours, so they sit on
+   paper in every theme. */
+.content main img[src^="figures/"]{display:block;max-width:100%;height:auto;margin:1.6em auto;padding:16px;background:#FFFFFF;border:1px solid var(--table-border-color);border-radius:2px;box-sizing:border-box}

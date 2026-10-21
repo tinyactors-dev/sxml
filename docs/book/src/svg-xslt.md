@@ -83,6 +83,8 @@ $ sxml xpath --context-item=drawn.svg '//*:g[@id = ("node-cache", "node-redis")]
 "node-redis: store, rx 20"
 ```
 
+![The Vane system as the stylesheet draws it: the modules as boxes, PostgreSQL and Redis as rounded stores](figures/svg/drawn.svg)
+
 The cache module is a box like the other modules; Redis, where it keeps
 its data, is the store.
 
@@ -179,6 +181,8 @@ $ sxml xpath --context-item=states.svg '//*:g[@class = "labels"]/*:text ! `{.} a
 "step.done at 171,144"
 "kill.request at 186,44"
 ```
+
+![The states of states.xml: stable and archived in the top row, checking below them, rolling-out at the bottom, with their labelled transitions](figures/svg/states.svg)
 
 ## A rule for input that is wrong
 

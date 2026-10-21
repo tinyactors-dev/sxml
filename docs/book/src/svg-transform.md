@@ -65,6 +65,8 @@ $ sxml xpath --context-item=dark.svg '/*/@style/string(), //*:style/string()'
   "
 ```
 
+![The Vane system on a dark background: dark boxes with light outlines and light text](figures/svg/dark.svg)
+
 The palette works on any drawing that uses these colours. The rules for
 `added`, `removed` and `changed` use colours that are not in it, and stay
 as they are, readable on dark too:
@@ -113,6 +115,8 @@ $ sxml xpath --context-item=highlight.svg '//*:g[contains-token(@class, "highlig
 "node-registry"
 ```
 
+![The Vane system with vane/registry, its edges and PostgreSQL in red, and everything else faded](figures/svg/highlight.svg)
+
 `as="xs:string"` on the parameter converts the value given, and
 `required="yes"` makes a missing one an error. A node the drawing
 doesn't have, such as the audit module, which only the drawing after
@@ -150,6 +154,8 @@ on everything:
 ```xml
 {{#include ../examples/svg/legend.svg}}
 ```
+
+![A legend: a box labelled module and a rounded box labelled store](figures/svg/legend.svg)
 
 `strip.xsl` removes all that. Removing a node is a template rule with
 no content: the node matches, and nothing is written for it.

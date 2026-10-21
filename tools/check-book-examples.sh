@@ -17,6 +17,13 @@
 #   SXML        the sxml source the C chapter builds: the repository root,
 #               unless SXML is set already (to a snapshot of HEAD, say)
 #
+# A chapter shows a file its commands write as a picture with a Markdown
+# image of docs/book/src/figures/NAME/FILE on a line of its own:
+#   ![What the drawing shows](figures/NAME/FILE)
+# NAME is the chapter's example directory and FILE the file's path in its
+# copy. The picture must equal the file as it is after the last command
+# above the image; --update copies the file there.
+#
 # A chapter file with the comment <!-- requires: javascript --> runs its
 # examples with Node.js against the JavaScript package: set
 # SXML_JAVASCRIPT to a built package directory (bindings/javascript after
@@ -41,7 +48,9 @@ set -eu
 
 repository_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 exec python3 -I - "$repository_root" "$@" <<'PYTHON'
+import filecmp
 import os
+import re
 import shlex
 import shutil
 import subprocess
@@ -135,6 +144,17 @@ def parse_examples(lines):
         yield current
 
 
+FIGURE = re.compile(r"!\[[^\]]*\]\(figures/([^/)]+)/([^)]+)\)\s*$")
+
+
+def parse_figures(lines):
+    """Yields (line index, example directory name, file) for each figure."""
+    for line_index, line in enumerate(lines):
+        match = FIGURE.match(line.strip())
+        if match:
+            yield line_index, match.group(1), match.group(2)
+
+
 def requires_javascript(lines):
     return any(line.strip() == "<!-- requires: javascript -->" for line in lines)
 
@@ -187,7 +207,39 @@ for chapter_file in chapter_files:
         os.makedirs(os.path.dirname(package_link), exist_ok=True)
         os.symlink(os.path.abspath(javascript_package), package_link)
     replacements = []
-    for example in examples:
+    figures = list(parse_figures(lines))
+    for figure_line, figure_name, _ in figures:
+        if figure_name != name:
+            failures += 1
+            print(f"{relative_chapter}:{figure_line + 1}: a figure of figures/{figure_name}/, "
+                  f"but the chapter's examples are {name}")
+
+    def check_figures(figures, after_line, before_line):
+        """Compares the figures between two lines with the files in the
+        copy (or, with --update, copies the files); returns the failures."""
+        figure_failures = 0
+        for figure_line, figure_name, figure_file in figures:
+            if not after_line < figure_line < before_line or figure_name != name:
+                continue
+            written = os.path.join(work_directory, figure_file)
+            shown = os.path.join(book_source, "figures", figure_name, figure_file)
+            if not os.path.isfile(written):
+                figure_failures += 1
+                print(f"{relative_chapter}:{figure_line + 1}: the commands wrote no {figure_file}")
+            elif not (os.path.isfile(shown) and filecmp.cmp(written, shown, shallow=False)):
+                if update:
+                    os.makedirs(os.path.dirname(shown), exist_ok=True)
+                    shutil.copyfile(written, shown)
+                    print(f"{relative_chapter}: updated figure figures/{figure_name}/{figure_file}")
+                else:
+                    figure_failures += 1
+                    print(f"{relative_chapter}:{figure_line + 1}: figures/{figure_name}/{figure_file} "
+                          f"differs from the {figure_file} the commands wrote")
+        return figure_failures
+
+    # A figure above the first command shows a file of the example directory.
+    failures += check_figures(figures, -1, examples[0]["line"])
+    for example_index, example in enumerate(examples):
         command_count += 1
         try:
             completed = subprocess.run(
@@ -215,6 +267,8 @@ for chapter_file in chapter_files:
                 print("  actual:")
                 for line in actual_lines:
                     print("    " + line)
+        next_line = examples[example_index + 1]["line"] if example_index + 1 < len(examples) else len(lines)
+        failures += check_figures(figures, example["line"], next_line)
     shutil.rmtree(work_root)
     if replacements:
         for start, end, actual_lines in reversed(replacements):

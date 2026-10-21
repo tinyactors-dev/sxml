@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="280" viewBox="0 0 360 280">
+  <title>Flag states</title>
+  <style>
+        .nodes rect { fill: #eef3fb; stroke: #3b5b92; stroke-width: 1.5 }
+        .nodes .store rect { fill: #f6efe3; stroke: #8a6a2f }
+        .nodes text { font: 14px sans-serif; fill: #1b1b1b }
+        .edges line, .edges path { fill: none; stroke: #555555; stroke-width: 1.5 }
+        .labels text { font: 12px sans-serif; fill: #555555 }
+      </style>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#555555"/>
+    </marker>
+  </defs>
+  <g class="edges">
+    <line id="edge-stable-checking" x1="90" y1="60" x2="180" y2="120" marker-end="url(#arrow)"/>
+    <line id="edge-checking-rolling-out" x1="180" y1="160" x2="180" y2="220" marker-end="url(#arrow)"/>
+    <line id="edge-checking-stable" x1="210" y1="120" x2="120" y2="60" marker-end="url(#arrow)"/>
+    <line id="edge-rolling-out-stable" x1="210" y1="220" x2="120" y2="60" marker-end="url(#arrow)"/>
+    <line id="edge-archived-stable" x1="200" y1="40" x2="160" y2="40" marker-end="url(#arrow)"/>
+  </g>
+  <g class="nodes">
+    <g id="node-stable" class="service">
+      <rect x="20" y="20" width="140" height="40" rx="6"/>
+      <text x="90" y="45" text-anchor="middle">stable</text>
+    </g>
+    <g id="node-checking" class="service">
+      <rect x="110" y="120" width="140" height="40" rx="6"/>
+      <text x="180" y="145" text-anchor="middle">checking</text>
+    </g>
+    <g id="node-rolling-out" class="service">
+      <rect x="110" y="220" width="140" height="40" rx="6"/>
+      <text x="180" y="245" text-anchor="middle">rolling-out</text>
+    </g>
+    <g id="node-archived" class="service">
+      <rect x="200" y="20" width="140" height="40" rx="6"/>
+      <text x="270" y="45" text-anchor="middle">archived</text>
+    </g>
+  </g>
+  <g class="labels">
+    <text x="141" y="94">rollout.request</text>
+    <text x="186" y="194">check.passed</text>
+    <text x="171" y="94">check.failed</text>
+    <text x="171" y="144">step.done</text>
+    <text x="186" y="44">kill.request</text>
+  </g>
+</svg>

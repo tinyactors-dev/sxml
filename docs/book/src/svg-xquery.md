@@ -209,6 +209,8 @@ $ diff drawn.svg diagram.svg && echo same
 same
 ```
 
+![The Vane system: the two SDKs call vane/api, which calls vane/flags; flags calls vane/registry and vane/cache, which keep their data in PostgreSQL and Redis](figures/svg/diagram.svg)
+
 `--output` won't replace a file that exists unless `--force` is given,
 so an old drawing is never lost by accident:
 
@@ -261,6 +263,8 @@ $ sxml xpath --context-item=change.svg '//*:g[tokenize(@class) = ("added", "remo
 "node-hooks: node service added"
 ```
 
+![The Vane system after the change: vane/flags in amber, the new vane/audit module, hooks.example.com and their edges in green, and the edge from flags to cache dashed in red](figures/svg/change.svg)
+
 The added module and the webhook, and the three edges to and from the
 audit module, are drawn with a thick green line, the removed edge with a
 dashed red one, and the changed module and edge in amber. Each class
@@ -296,3 +300,5 @@ $ sxml xpath --context-item=loop.svg '//*:path[not(ancestor::*:defs)]/@d/string(
 "M 40 60 C 40 84, 70 84, 70 60"
 true()
 ```
+
+![One box, flag, with a loop below it labelled status.request](figures/svg/loop.svg)
