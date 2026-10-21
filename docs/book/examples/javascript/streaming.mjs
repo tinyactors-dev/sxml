@@ -11,9 +11,9 @@ function* archive(count) {
     let text = '';
     for (let trace = start; trace < start + 1000 && trace <= count; trace += 1) {
       const query = 5 + ((trace * 7919) % 61);
-      text += `<trace id="${trace}" route="GET /doors">`
-        + `<span service="lock-service" kind="server" duration="${query + 12}">`
-        + `<span service="lock-registry" kind="client" duration="${query}" peer="postgresql"/>`
+      text += `<trace id="${trace}" route="GET /flags">`
+        + `<span service="flag-service" kind="server" duration="${query + 12}">`
+        + `<span service="flag-registry" kind="client" duration="${query}" peer="postgresql"/>`
         + '</span></trace>';
     }
     yield text;

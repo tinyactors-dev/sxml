@@ -26,7 +26,7 @@ serialization. `load()` loads it from beside the package's JavaScript;
 
 As in C, everything starts with a processor. `parse` makes a document,
 `compile` compiles an expression once, and `evaluate` runs it with a
-context and variables. The examples read the Latch draft of [Finding
+context and variables. The examples read the Vane draft of [Finding
 Things with XPath](xpath.md) and the traces of [Project: Comparing
 Traces Before and After a Change](traces.md); the example directory
 links to both files.
@@ -63,11 +63,11 @@ parsed by `JSON.parse`, as a variable:
 
 ```console
 $ node languages.mjs
-[{"service":"api-gateway","spans":4},{"service":"lock-service","spans":6},{"service":"lock-registry","spans":6}]
-Lock States: 2 MUST
-Unlock: 1 MUST
+[{"service":"api-gateway","spans":4},{"service":"flag-service","spans":6},{"service":"flag-registry","spans":6}]
+Flag States: 2 MUST
+Rollout: 1 MUST
 Status: 1 MUST
-Lockout: 1 MUST
+Pause: 1 MUST
 invalid [ 'cvc-enumeration-valid' ]
 ```
 
@@ -93,7 +93,7 @@ memory. Failures throw an `SxmlError` with the error code and location:
 
 ```console
 $ node resources.mjs
-[ '"api-gateway"', '"lock-service"', '"lock-registry"' ]
+[ '"api-gateway"', '"flag-service"', '"flag-registry"' ]
 err:FOUT1170 1 1
 ```
 

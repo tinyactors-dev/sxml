@@ -103,7 +103,7 @@ $ sxml xquery --context-item=spans.xml --method=adaptive fast-tree.xq
 1900
 ```
 
-With 1,000 traces (6,333 spans), the first query takes 2.3 seconds and
+With 1,000 traces (6,333 spans), the first query takes 2.9 seconds and
 the second 0.2 seconds. With 10,000 traces, the first takes four and a
 half minutes, the second 1.5 seconds. In XSLT, `xsl:key` does the same
 job ([Keys, Numbers and Grouping](xslt-keys-grouping.md)).
@@ -112,9 +112,12 @@ sxml builds such an index itself when a condition in a loop compares
 something of the item alone with something that does not depend on it,
 and the items do not change between turns of the loop. Written as one
 expression, `for $span in //span return //span[@parent = $span/@id]`,
-the search over 3,000 traces takes 0.35 seconds: the left side depends
+the search over 3,000 traces takes 0.33 seconds: the left side depends
 only on the span looked at, the right side only on `$span`, so sxml
-sorts the spans by `@parent` once and looks each id up. In
+sorts the spans by `@parent` once and looks each id up. A path of child
+steps does as well as `//span`: `/spans/span[@parent = $span/@id]`,
+from the root, and `spans/span[@parent = $span/@id]`, from the
+document node in the focus, are indexed the same way. In
 `slow-tree.xq` the search is inside a function that is called anew for
 each span, and in a condition such as `@parent - $span/@id = 0` the
 two sides are mixed; then sxml has to search.

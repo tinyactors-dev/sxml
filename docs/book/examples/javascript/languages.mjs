@@ -19,7 +19,7 @@ const request = JSON.parse(readFileSync('before.json', 'utf8'));
 console.log(query.run({ variables: { request } }));
 
 // XSLT: compile a stylesheet once, transform many documents.
-const draft = processor.parse(readFileSync('latch.xml', 'utf8'));
+const draft = processor.parse(readFileSync('vane.xml', 'utf8'));
 const stylesheet = processor.compileStylesheet(`
 <xsl:stylesheet version="4.0" expand-text="yes"
     xmlns:xsl="http://www.w3.org/1999/XSL/Transform">

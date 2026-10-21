@@ -5,7 +5,7 @@ import { load } from '@tinyactors/sxml';
 const sxml = await load();
 const processor = sxml.createProcessor();
 
-const draft = processor.parse(readFileSync('latch.xml', 'utf8'));
+const draft = processor.parse(readFileSync('vane.xml', 'utf8'));
 
 // Compile once...
 const anchors = processor.compile('//t[bcp14 = $keyword]/@anchor ! string()', {
