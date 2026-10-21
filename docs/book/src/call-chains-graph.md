@@ -13,7 +13,7 @@ something named `registry`.
 
 This section builds the library module `graph.xqm` (namespace
 `urn:example:graph`) one function at a time, and ends with the call
-graph of both versions of the flag service as XML.
+graph of both versions of the Vane service as XML.
 
 ## Functions
 
@@ -23,10 +23,10 @@ In TypeScript's grammar a function declared with `function` is a
 
 ```console
 $ sxml xpath 'sxml:parse-code(unparsed-text("after/flags.ts"), "typescript", { "positions": true() })//function_declaration ! `{@line}: {identifier}`'
-"12: summarize"
-"16: listFlags"
-"25: isOwner"
-"29: killFlag"
+"14: summarize"
+"18: listFlags"
+"27: isOwner"
+"31: killFlag"
 ```
 
 The exported functions are inside an `export_statement`, the others
@@ -57,18 +57,18 @@ field `function`. Its text is the callee as the code writes it:
 
 ```console
 $ sxml xpath 'sxml:parse-code(unparsed-text("after/flags.ts"), "typescript", { "positions": true() })//call_expression ! `{@line}: {*[@field = "function"]}`'
-"17: registry.getFlagKeys"
-"20: flags.push"
-"20: registry.getFlag"
-"22: flags.map"
-"26: flag.owners.includes"
-"30: registry.getFlag"
-"31: isOwner"
-"34: registry.setPercentage"
-"35: audit.record"
+"19: registry.getFlagKeys"
+"22: flags.push"
+"22: registry.getFlag"
+"24: flags.map"
+"28: flag.owners.includes"
+"32: registry.getFlag"
+"33: isOwner"
+"36: registry.setPercentage"
+"37: audit.record"
 ```
 
-Line 20 has two calls, one inside the other: `flags.push(await
+Line 22 has two calls, one inside the other: `flags.push(await
 registry.getFlag(key))`. The callee is either an `identifier`
 (`isOwner`) or a `member_expression`, whose `object` and
 `property` fields are the two sides of the dot:
@@ -84,7 +84,8 @@ modules of the program, and `isOwner` a function of the same
 module. `flags.push`, `flags.map` and `flag.owners.includes` call
 methods of local values, an array and a string array, which are not
 part of the program's structure. And other files have calls of
-functions outside the program: `fetch`, `JSON.parse`, `createServer`.
+functions outside the program: `fetch`, `JSON.parse`, `createServer`,
+and `pool.query`, the PostgreSQL pool's method that `db.ts` calls.
 
 ## Resolving a callee
 
@@ -95,17 +96,17 @@ In `flags.ts`:
 $ sxml xpath 'sxml:parse-code(unparsed-text("after/flags.ts"), "typescript")//import_statement ! `{.//(namespace_import/identifier | import_specifier/*[@field = "name"])} from {string/string_fragment}`'
 "registry from ./registry.ts"
 "audit from ./audit.ts"
-"Flag from ./http.ts"
+"Flag from ./db.ts"
 ```
 
 A *namespace import*, `import * as registry from "./registry.ts"`,
 makes `registry` stand for the module `registry`, so the call
 `registry.getFlag` is the function `registry.getFlag`. A *named
-import*, `import { listFlags } from "./flags.ts"` in `server.ts`, makes
+import*, `import { listFlags } from "./flags.ts"` in `api.ts`, makes
 `listFlags` stand for the function `flags.listFlags`. `graph:imports`
 makes a map from each imported name to what it stands for. Imports
-from packages, `node:http` and `redis`, are not modules of the program,
-so they are left out, and calls to them become external:
+from packages, `node:http`, `redis` and `pg`, are not modules of the
+program, so they are left out, and calls to them become external:
 
 ```xquery
 {{#include ../examples/call-chains/graph.xqm:imports}}
@@ -143,8 +144,8 @@ In order:
    such as `registry.cache.get`.
 4. A callee that starts with a local name or with a value, as in
    `flag.owners.includes` or `new Date().toISOString`, is left out.
-   Anything else, `JSON.parse` or `client.get` on a const of the
-   module, is external.
+   Anything else, `JSON.parse`, or `client.get` and `pool.query` on a
+   const of the module, is external.
 
 ## Functions passed as values
 
@@ -205,44 +206,48 @@ external variable:
 ```console
 $ sxml xquery --allow-file-access --param=directory=after graph.xq
 <graph>
-  <function id="audit.record" line="4"/>
-  <function id="flags.summarize" line="12"/>
-  <function id="flags.listFlags" line="16"/>
-  <function id="flags.isOwner" line="25"/>
-  <function id="flags.killFlag" line="29"/>
-  <function id="http.request" line="11"/>
-  <function id="registry.getFlagKeys" line="4"/>
-  <function id="registry.getFlag" line="8"/>
-  <function id="registry.setPercentage" line="12"/>
-  <function id="server.route" line="5"/>
-  <function id="server.start" line="17"/>
-  <call from="audit.record" to="http.request" line="5"/>
-  <call from="audit.record" to="JSON.stringify" line="7" external="true"/>
-  <call from="flags.listFlags" to="registry.getFlagKeys" line="17"/>
-  <call from="flags.listFlags" to="registry.getFlag" line="20" repeated="true"/>
-  <call from="flags.listFlags" to="flags.summarize" line="22" passed="true"/>
-  <call from="flags.killFlag" to="registry.getFlag" line="30"/>
-  <call from="flags.killFlag" to="flags.isOwner" line="31"/>
-  <call from="flags.killFlag" to="registry.setPercentage" line="34"/>
-  <call from="flags.killFlag" to="audit.record" line="35"/>
-  <call from="http.request" to="fetch" line="12" external="true"/>
-  <call from="registry.getFlagKeys" to="http.request" line="5"/>
-  <call from="registry.getFlag" to="http.request" line="9"/>
-  <call from="registry.setPercentage" to="http.request" line="13"/>
-  <call from="registry.setPercentage" to="JSON.stringify" line="15" external="true"/>
-  <call from="server.route" to="flags.listFlags" line="7"/>
-  <call from="server.route" to="JSON.parse" line="11" external="true"/>
-  <call from="server.route" to="flags.killFlag" line="12"/>
-  <call from="server.start" to="createServer" line="18" external="true"/>
-  <call from="server.start" to="server.route" line="23"/>
-  <call from="server.start" to="JSON.stringify" line="25" external="true"/>
+  <function id="api.route" line="6"/>
+  <function id="api.start" line="17"/>
+  <function id="audit.record" line="7"/>
+  <function id="db.query" line="21"/>
+  <function id="flags.summarize" line="14"/>
+  <function id="flags.listFlags" line="18"/>
+  <function id="flags.isOwner" line="27"/>
+  <function id="flags.killFlag" line="31"/>
+  <function id="registry.getFlagKeys" line="7"/>
+  <function id="registry.getFlag" line="12"/>
+  <function id="registry.setPercentage" line="17"/>
+  <call from="api.route" to="flags.listFlags" line="8"/>
+  <call from="api.route" to="JSON.parse" line="11" external="true"/>
+  <call from="api.route" to="flags.killFlag" line="12"/>
+  <call from="api.start" to="createServer" line="18" external="true"/>
+  <call from="api.start" to="api.route" line="23"/>
+  <call from="api.start" to="JSON.stringify" line="25" external="true"/>
+  <call from="audit.record" to="db.query" line="8"/>
+  <call from="audit.record" to="fetch" line="9" external="true"/>
+  <call from="audit.record" to="JSON.stringify" line="11" external="true"/>
+  <call from="db.query" to="pool.query" line="22" external="true"/>
+  <call from="flags.listFlags" to="registry.getFlagKeys" line="19"/>
+  <call from="flags.listFlags" to="registry.getFlag" line="22" repeated="true"/>
+  <call from="flags.listFlags" to="flags.summarize" line="24" passed="true"/>
+  <call from="flags.killFlag" to="registry.getFlag" line="32"/>
+  <call from="flags.killFlag" to="flags.isOwner" line="33"/>
+  <call from="flags.killFlag" to="registry.setPercentage" line="36"/>
+  <call from="flags.killFlag" to="audit.record" line="37"/>
+  <call from="registry.getFlagKeys" to="db.query" line="8"/>
+  <call from="registry.getFlag" to="db.query" line="13"/>
+  <call from="registry.setPercentage" to="db.query" line="18"/>
 </graph>
 ```
 
-`server.start` calls `server.route` from inside the arrow function it
+`api.start` calls `api.route` from inside the arrow function it
 passes to `createServer`; the arrow function has no name, so the call
-belongs to `start`. The calls `flags.push`, `response.json`,
-`path.match` and the others on local values are not there.
+belongs to `start`. The calls `flags.push`, `rows.map`,
+`response.end` and the others on local values are not there.
+`pool.query` is: `pool` is a const of the module `db`, not a local of
+`query`, and the pool belongs to the `pg` package, so the call is
+external. Every function that sends SQL calls `db.query`, and the
+audit module's `fetch` is the call to the owners' webhook.
 
 ## Asking the graph
 
@@ -257,8 +262,8 @@ Who calls `registry.getFlag`, and where?
 
 ```console
 $ sxml xpath --context-item=after.xml '//call[@to = "registry.getFlag"] ! `{@from}, line {@line}{if (@repeated) then ", in a loop" else ""}`'
-"flags.listFlags, line 20, in a loop"
-"flags.killFlag, line 30"
+"flags.listFlags, line 22, in a loop"
+"flags.killFlag, line 32"
 ```
 
 Which functions does no call reach? Those are where the program is
@@ -266,17 +271,18 @@ entered:
 
 ```console
 $ sxml xpath --context-item=after.xml '//function[not(@id = //call/@to)]/@id/string()'
-"server.start"
+"api.start"
 ```
 
 Which functions outside the program does it use?
 
 ```console
 $ sxml xpath --context-item=after.xml 'distinct-values(//call[@external]/@to)'
-"JSON.stringify"
-"fetch"
 "JSON.parse"
 "createServer"
+"JSON.stringify"
+"fetch"
+"pool.query"
 ```
 
 ## What a call graph from the code cannot see
@@ -310,6 +316,6 @@ the types. The code has them (`flags: Flag[]`), and a longer query could follow
 the type annotations to the class. Other calls no query of the code
 can resolve: a function chosen at run time, from a map of handlers or
 by a name in a string. A call graph from the code is a good
-approximation, and for this project it is exact: the flag service
+approximation, and for this project it is exact: the Vane service
 calls its modules through namespace and named imports, and everything
 else is a local value or outside the program.

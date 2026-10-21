@@ -13,7 +13,7 @@ report, an HTML page and a drawing.
 ## Entries and next calls
 
 A chain starts at an *entry*, a function that no call of the program
-reaches, and the graph's queries found one: `server.start`. A chain is
+reaches, and the graph's queries found one: `api.start`. A chain is
 a sequence of `call` elements, each going on from where the one before
 it ended. What can follow a chain are the calls of its last function to
 functions of the program; external calls such as `fetch` end a chain
@@ -24,7 +24,7 @@ and are not part of it:
 ```
 
 The test `not(@to = $chain/@from)` keeps a chain from going through a
-function twice. The flag service has no cycles, but a program with a
+function twice. The Vane service has no cycles, but a program with a
 function that calls itself, or two that call each other, would
 otherwise have chains without end.
 
@@ -62,25 +62,28 @@ with a star after a function called in a loop:
 
 ```console
 $ sxml xquery --allow-file-access --param=directory=before chains.xq
-server.start > server.route > flags.listFlags > registry.getFlags > http.request
-server.start > server.route > flags.listFlags > flags.summarize
-server.start > server.route > flags.killFlag > cache.getFlag
-server.start > server.route > flags.killFlag > registry.getFlag > http.request
-server.start > server.route > flags.killFlag > flags.isOwner
-server.start > server.route > flags.killFlag > registry.setPercentage > http.request
+api.start > api.route > flags.listFlags > registry.getFlags > db.query
+api.start > api.route > flags.listFlags > flags.summarize
+api.start > api.route > flags.killFlag > cache.getFlag
+api.start > api.route > flags.killFlag > registry.getFlag > db.query
+api.start > api.route > flags.killFlag > flags.isOwner
+api.start > api.route > flags.killFlag > registry.setPercentage > db.query
 $ sxml xquery --allow-file-access --param=directory=after chains.xq
-server.start > server.route > flags.listFlags > registry.getFlagKeys > http.request
-server.start > server.route > flags.listFlags > registry.getFlag* > http.request
-server.start > server.route > flags.listFlags > flags.summarize
-server.start > server.route > flags.killFlag > registry.getFlag > http.request
-server.start > server.route > flags.killFlag > flags.isOwner
-server.start > server.route > flags.killFlag > registry.setPercentage > http.request
-server.start > server.route > flags.killFlag > audit.record > http.request
+api.start > api.route > flags.listFlags > registry.getFlagKeys > db.query
+api.start > api.route > flags.listFlags > registry.getFlag* > db.query
+api.start > api.route > flags.listFlags > flags.summarize
+api.start > api.route > flags.killFlag > registry.getFlag > db.query
+api.start > api.route > flags.killFlag > flags.isOwner
+api.start > api.route > flags.killFlag > registry.setPercentage > db.query
+api.start > api.route > flags.killFlag > audit.record > db.query
 ```
 
-Six chains before, seven after. Every chain that reaches the network
-ends in `http.request`, and `cache.getFlag`, which calls Redis through a
-client of its own, was a chain of its own.
+Six chains before, seven after. Every chain that reaches PostgreSQL
+ends in `db.query`, the one function that holds the pool, and
+`cache.getFlag`, which reads Redis through a client of its own, ended a
+chain of its own. The new chain through `audit.record` ends in
+`db.query` too: the module's call to the owners' webhook is `fetch`, an
+external call, which ends no chain and is not part of one.
 
 ## Chains with recursion
 
@@ -158,7 +161,7 @@ variables, `before` and `after` unless they are given:
 $ sxml xquery --allow-file-access diff.xq --output=diff.xml
 $ sxml xpath --context-item=diff.xml 'for $kind in ("function", "call", "chain") return `{$kind}s: {count(/diff/*[local-name() = $kind][@change = "added"])} added, {count(/diff/*[local-name() = $kind][@change = "removed"])} removed`'
 "functions: 2 added, 2 removed"
-"calls: 6 added, 5 removed"
+"calls: 7 added, 5 removed"
 "chains: 3 added, 2 removed"
 ```
 
@@ -167,7 +170,8 @@ The calls that changed:
 ```console
 $ sxml xpath --context-item=diff.xml '/diff/call[@change] ! `{@change}: {@from} > {@to}{if (@repeated) then " (in a loop)" else ""}`'
 "added: audit.record > JSON.stringify"
-"added: audit.record > http.request"
+"added: audit.record > db.query"
+"added: audit.record > fetch"
 "removed: cache.getFlag > JSON.parse"
 "removed: cache.getFlag > client.get"
 "added: flags.killFlag > audit.record"
@@ -175,8 +179,8 @@ $ sxml xpath --context-item=diff.xml '/diff/call[@change] ! `{@change}: {@from} 
 "added: flags.listFlags > registry.getFlag (in a loop)"
 "added: flags.listFlags > registry.getFlagKeys"
 "removed: flags.listFlags > registry.getFlags"
-"added: registry.getFlagKeys > http.request"
-"removed: registry.getFlags > http.request"
+"added: registry.getFlagKeys > db.query"
+"removed: registry.getFlags > db.query"
 ```
 
 `flags.listFlags > registry.getFlag` is `added`, not `changed`: before
@@ -185,9 +189,10 @@ the change, `listFlags` did not call `getFlag` at all.
 ## How often a module is called
 
 The question a reviewer asks of this change is how much more work a
-request makes, and that is a question about modules: `registry.ts`
-talks to the flag registry, `audit.ts` to the audit service, `cache.ts`
-to Redis. For each function of both versions and each other module it
+request makes, and that is a question about modules: a call to the
+registry module is a query to PostgreSQL, a call to the audit module a
+query and a request to the owners' webhook, a call to the cache module
+a read from Redis. For each function of both versions and each other module it
 calls, `local:modules` counts the calls before and after. A call in a
 loop counts as *n*, once per iteration:
 
@@ -207,9 +212,9 @@ $ sxml xpath --context-item=diff.xml '/diff/module ! `{@from} > {@name}: {@old} 
 "flags.killFlag > cache: 1 -> 0"
 ```
 
-That is the prediction: listing the flags calls the registry once more
-for each flag, and the kill switch calls the audit service once and the
-cache no more.
+That is the prediction: listing the flags calls the registry module,
+and so PostgreSQL, once more for each flag, and the kill switch calls
+the audit module once and the cache module no more.
 
 ## A text report
 
@@ -232,27 +237,28 @@ functions removed:
 
 calls added:
   audit.record > JSON.stringify
-  audit.record > http.request
+  audit.record > db.query
+  audit.record > fetch
   flags.killFlag > audit.record
   flags.listFlags > registry.getFlag (in a loop)
   flags.listFlags > registry.getFlagKeys
-  registry.getFlagKeys > http.request
+  registry.getFlagKeys > db.query
 
 calls removed:
   cache.getFlag > JSON.parse
   cache.getFlag > client.get
   flags.killFlag > cache.getFlag
   flags.listFlags > registry.getFlags
-  registry.getFlags > http.request
+  registry.getFlags > db.query
 
 chains added:
-  server.start > server.route > flags.killFlag > audit.record > http.request
-  server.start > server.route > flags.listFlags > registry.getFlag* > http.request
-  server.start > server.route > flags.listFlags > registry.getFlagKeys > http.request
+  api.start > api.route > flags.killFlag > audit.record > db.query
+  api.start > api.route > flags.listFlags > registry.getFlag* > db.query
+  api.start > api.route > flags.listFlags > registry.getFlagKeys > db.query
 
 chains removed:
-  server.start > server.route > flags.killFlag > cache.getFlag
-  server.start > server.route > flags.listFlags > registry.getFlags > http.request
+  api.start > api.route > flags.killFlag > cache.getFlag
+  api.start > api.route > flags.listFlags > registry.getFlags > db.query
 
 Calls to other modules, before and after:
   flags.listFlags > registry: 1 -> 1 + n
@@ -328,20 +334,20 @@ with the change as the class and the label `loop` on a repeated call:
 `draw.xqm` puts the first node in the top row, so the functions are
 ordered as the chains first go through them: `index-of` gives each
 function its position in the distinct functions of all chains, and the
-entry, `server.start`, comes first.
+entry, `api.start`, comes first.
 
 ```console
 $ sxml xquery --context-item=diff.xml diagram.xq --output=diagram.xml
 $ sxml xquery --context-item=diagram.xml draw.xq --output=calls.svg
 $ sxml xpath --context-item=calls.svg '//*:g[tokenize(@class) = ("added", "removed", "changed")] ! `{@class}: {@id}`'
-"edge added: edge-audit.record-http.request"
+"edge added: edge-audit.record-db.query"
 "edge added: edge-flags.killFlag-audit.record"
 "edge removed: edge-flags.killFlag-cache.getFlag"
 "edge added: edge-flags.listFlags-registry.getFlag"
 "edge added: edge-flags.listFlags-registry.getFlagKeys"
 "edge removed: edge-flags.listFlags-registry.getFlags"
-"edge added: edge-registry.getFlagKeys-http.request"
-"edge removed: edge-registry.getFlags-http.request"
+"edge added: edge-registry.getFlagKeys-db.query"
+"edge removed: edge-registry.getFlags-db.query"
 "node service added: node-audit.record"
 "node service removed: node-cache.getFlag"
 "node service added: node-registry.getFlagKeys"
@@ -354,28 +360,30 @@ the drawing are the boxes with the same `y`:
 
 ```console
 $ sxml xpath --context-item=calls.svg 'for $y in distinct-values(//*:rect/@y) return `{$y}: {string-join(//*:g[*:rect/@y = $y]/*:text, ", ")}`'
-"20: server.start"
-"120: server.route"
+"20: api.start"
+"120: api.route"
 "220: flags.killFlag, flags.listFlags"
 "320: audit.record, cache.getFlag, flags.isOwner, registry.getFlag, registry.setPercentage, flags.summarize, registry.getFlagKeys, registry.getFlags"
-"420: http.request"
+"420: db.query"
 ```
 
 The entry, the router, the two request handlers, the functions they
-call, and the HTTP client at the bottom, where every call to another
-service goes through. Before and after are one picture: in the fourth
+call, and `db.query` at the bottom, which every query to PostgreSQL
+goes through. Before and after are one picture: in the fourth
 row the new `audit.record` stands beside the old `cache.getFlag`, and
 the new `getFlagKeys` beside the old `getFlags`, with `getFlag` among
 the functions both versions call.
 
 ## What the traces will say
 
-The diff predicts, from the code alone, that `GET /flags` makes one
-call to the flag registry and then one per flag, that killing a flag
-calls the audit service once, and that it no longer reads the cache.
-It cannot say how many flags there are, how long each call takes, or
-whether the audit service calls a database of its own. [Project:
-Comparing Traces Before and After a Change](traces.md) answers those
-from traces recorded by the running service. The line they check is
-`flags.listFlags > registry: 1 -> 1 + n`, and with four flags, one call
-to the registry becomes five.
+The diff predicts, from the code alone, that `GET /api/getFlags` makes
+one call to the registry module, one query to PostgreSQL, and then one
+more per flag; that killing a flag calls the audit module once, which
+writes to PostgreSQL and calls the owners' webhook; and that it no
+longer reads Redis. It cannot say how many flags there are, how long
+each query takes, or whether a call of `killFlag` found its flag in the
+cache before the change. [Project: Comparing Traces Before and After a
+Change](traces.md) answers those from traces recorded by the running
+service. The line they check is
+`flags.listFlags > registry: 1 -> 1 + n`, and with four flags, one
+query to PostgreSQL becomes five.

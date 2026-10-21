@@ -46,7 +46,8 @@ declare function graph:module-name($path as xs:string) as xs:string {
 (: ANCHOR: imports :)
 (: What the imported names of a module stand for: a namespace import
    names a module, a named import a function of a module. Imports from
-   packages (node:http, redis) are left out: calls to them are external. :)
+   packages (node:http, redis, pg) are left out: calls to them are
+   external. :)
 declare function graph:imports($program as element(program)) as map(*) {
   map:merge(
     for $import in $program/import_statement
