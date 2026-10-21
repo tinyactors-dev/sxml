@@ -13,6 +13,7 @@ xquery version "4.0";
  :)
 module namespace draw = "urn:example:draw";
 
+(: ANCHOR: sizes :)
 (: The sizes of the drawing, in SVG user units. :)
 declare variable $draw:box-width := 140;
 declare variable $draw:box-height := 40;
@@ -29,7 +30,9 @@ declare record draw:layout(
   height as xs:integer,
   places as map(xs:string, draw:place)
 );
+(: ANCHOR_END: sizes :)
 
+(: ANCHOR: style :)
 (: The style rules every drawing has. :)
 declare variable $draw:style := `
     .node rect {{ fill: #eef3fb; stroke: #3b5b92; stroke-width: 1.5 }}
@@ -46,7 +49,9 @@ declare variable $draw:class-rules := {
   "removed": ".removed rect, .removed line, .removed path { stroke: #c62828; stroke-dasharray: 6 4 }",
   "changed": ".changed rect, .changed line, .changed path { stroke: #b26a00; stroke-width: 3 }"
 };
+(: ANCHOR_END: style :)
 
+(: ANCHOR: ranks :)
 (:~ The ids of the nodes one edge away from the last rank found. :)
 declare %private function draw:next(
   $diagram as element(diagram),
@@ -73,7 +78,9 @@ declare function draw:ranks($diagram as element(diagram)) as map(xs:string, xs:i
   let $rest := $diagram/node/@id[not(map:contains($reached, .))]
   return map:merge(($reached, map:build($rest, string#1, fn { max(map:items($reached)) + 1 })))
 };
+(: ANCHOR_END: ranks :)
 
+(: ANCHOR: layout :)
 (:~ The layout of a diagram: the size of the drawing and where each box goes. :)
 declare function draw:layout($diagram as element(diagram)) as draw:layout {
   let $ranks := draw:ranks($diagram)
@@ -102,7 +109,36 @@ declare function draw:layout($diagram as element(diagram)) as draw:layout {
   )
   return draw:layout($width, $height, $places)
 };
+(: ANCHOR_END: layout :)
 
+(: ANCHOR: line :)
+(:~ The ends of an edge's line (x1, y1, x2, y2), or nothing for an edge
+    from a node to itself. :)
+declare function draw:line($from as draw:place, $to as draw:place) as xs:integer* {
+  let $half := $draw:box-width idiv 2
+  let $middle := $draw:box-height idiv 2
+  return if ($from?x = $to?x and $from?y = $to?y) then ()
+    else if ($to?y > $from?y) then      (: down: bottom centre to top centre :)
+      ($from?x + $half, $from?y + $draw:box-height, $to?x + $half, $to?y)
+    else if ($to?y < $from?y) then      (: up: right of the centre, so that it
+                                           does not cover an edge going down :)
+      ($from?x + $half + 30, $from?y, $to?x + $half + 30, $to?y + $draw:box-height)
+    else if ($to?x > $from?x) then      (: across, to the right :)
+      ($from?x + $draw:box-width, $from?y + $middle, $to?x, $to?y + $middle)
+    else                                (: across, to the left :)
+      ($from?x, $from?y + $middle, $to?x + $draw:box-width, $to?y + $middle)
+};
+
+(:~ The path of an edge from a node to itself: a loop below the box, left
+    of the edges that leave its centre. :)
+declare function draw:loop($place as draw:place) as xs:string {
+  let $left := $place?x + 20
+  let $bottom := $place?y + $draw:box-height
+  return `M {$left} {$bottom} C {$left} {$bottom + 24}, {$left + 30} {$bottom + 24}, {$left + 30} {$bottom}`
+};
+(: ANCHOR_END: line :)
+
+(: ANCHOR: node :)
 (:~ One node: a group with a box and its label. :)
 declare function draw:node($node as element(node), $place as draw:place) as element() {
   let $kind := ($node/@kind, "service")[1]
@@ -115,45 +151,30 @@ declare function draw:node($node as element(node), $place as draw:place) as elem
           text-anchor="middle">{ $node/@label/string() }</text>
   </g>
 };
+(: ANCHOR_END: node :)
 
-(:~ One edge: a group with a line (or, from a node to itself, a loop)
-    and its label. :)
+(: ANCHOR: edge :)
+(:~ One edge: a group with a line (or a loop) and its label. :)
 declare function draw:edge($edge as element(edge), $places as map(*)) as element() {
   let $from := $places($edge/@from)
-  let $to := $places($edge/@to)
-  let $half := $draw:box-width idiv 2
-  let $line := (
-    if ($edge/@from = $edge/@to) then ()
-    else if ($to?y > $from?y) then        (: down: bottom centre to top centre :)
-      ($from?x + $half, $from?y + $draw:box-height, $to?x + $half, $to?y)
-    else if ($to?y < $from?y) then        (: up: beside the centre, so that it does
-                                             not cover an edge going down :)
-      ($from?x + $half + 30, $from?y, $to?x + $half + 30, $to?y + $draw:box-height)
-    else if ($to?x > $from?x) then        (: across, to the right :)
-      ($from?x + $draw:box-width, $from?y + 20, $to?x, $to?y + 20)
-    else                                  (: across, to the left :)
-      ($from?x, $from?y + 20, $to?x + $draw:box-width, $to?y + 20)
-  )
+  let $line := draw:line($from, $places($edge/@to))
+  let $label := $edge/@label/string()
   return <g xmlns="http://www.w3.org/2000/svg"
             class="{ "edge", $edge/@class }" id="edge-{ $edge/@from }-{ $edge/@to }">{
     if (empty($line)) then (
-      (: a loop below the box, left of the edges that leave its centre :)
-      let $left := $from?x + 20
-      let $bottom := $from?y + $draw:box-height
-      return (
-        <path d="M { $left } { $bottom } C { $left } { $bottom + 24 }, { $left + 30 } { $bottom + 24 }, { $left + 30 } { $bottom }"
-              marker-end="url(#arrow)"/>,
-        $edge/@label ! <text x="{ $left + 36 }" y="{ $bottom + 20 }">{ string() }</text>
-      )
+      <path d="{ draw:loop($from) }" marker-end="url(#arrow)"/>,
+      $label ! <text x="{ $from?x + 56 }" y="{ $from?y + 60 }">{ . }</text>
     ) else (
       <line x1="{ $line[1] }" y1="{ $line[2] }" x2="{ $line[3] }" y2="{ $line[4] }"
             marker-end="url(#arrow)"/>,
-      $edge/@label ! <text x="{ ($line[1] + $line[3]) idiv 2 + 6 }"
-                           y="{ ($line[2] + $line[4]) idiv 2 + 4 }">{ string() }</text>
+      $label ! <text x="{ ($line[1] + $line[3]) idiv 2 + 6 }"
+                     y="{ ($line[2] + $line[4]) idiv 2 + 4 }">{ . }</text>
     )
   }</g>
 };
+(: ANCHOR_END: edge :)
 
+(: ANCHOR: svg :)
 (:~ The drawing of a diagram: edges first, so that boxes cover their ends. :)
 declare function draw:svg($diagram as element(diagram)) as element() {
   let $layout := draw:layout($diagram)
@@ -161,8 +182,8 @@ declare function draw:svg($diagram as element(diagram)) as element() {
   let $nodes := $diagram/node
   let $edges := $diagram/edge
   let $features := distinct-values((
-    if ($diagram/edge[@from = @to]) { "loop" },
-    $diagram/*/@class ! tokenize(.)
+    if ($edges[@from = @to]) { "loop" },
+    ($nodes, $edges)/@class ! tokenize(.)
   ))
   return <svg xmlns="http://www.w3.org/2000/svg" width="{ $layout?width }"
               height="{ $layout?height }" viewBox="0 0 { $layout?width } { $layout?height }">
@@ -180,3 +201,4 @@ declare function draw:svg($diagram as element(diagram)) as element() {
     { $nodes ! draw:node(., $layout?places(@id)) }
   </svg>
 };
+(: ANCHOR_END: svg :)
