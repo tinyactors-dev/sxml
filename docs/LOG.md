@@ -4,6 +4,13 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- book-16 done: Writing Programs with XQuery (xquery*.md, eleven
+  files) on the Vane story, with the spec project's query files
+  (spec.xqm, edit.xqm, check.xq, changes.xq and the section queries).
+  The update lessons rename the term SDK to Client, add "An owner of a
+  flag MAY end a pause early", move Status before Rollout; the edit
+  session makes drafts/vane-02.xml. 169 examples match.
+
 - book-15 done: Getting Started and Finding Things with XPath
   (getting-started.md, installation.md, hello-xpath.md,
   the-sxml-command.md, xpath*.md) on the Vane story. getting-started's
