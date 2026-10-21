@@ -22,20 +22,21 @@
     <keyword>feature flag</keyword>
     <keyword>progressive delivery</keyword>
     <abstract>
-      <t>This document specifies Vane, a line-based protocol between the
-      SDKs that evaluate feature flags and the evaluation service that
-      holds them. It defines the states of a flag, the messages that change
-      them, and the pause that protects users from a rollout that fails its
-      checks.</t>
+      <t>This document specifies Vane, the protocol between the SDKs that
+      evaluate feature flags in applications and the Vane service that
+      holds the flags. It defines the states of a flag, the messages of the
+      update stream that keeps the cache of each SDK current, and the pause
+      that protects users from a rollout that fails its checks.</t>
     </abstract>
   </front>
   <middle>
     <section anchor="intro">
       <name>Introduction</name>
       <t>An application has many features, and each feature has a flag. An
-      <xref target="term-sdk">SDK</xref> sends Vane messages to the
-      evaluation service over the network and receives the state of the
-      flags.</t>
+      <xref target="term-sdk">SDK</xref> in the application keeps the flags
+      in a cache and evaluates them for each user. It holds an update stream
+      open to the Vane service, which sends a message on it whenever a flag
+      changes, and it asks the service for the status of a flag.</t>
       <section anchor="terminology">
         <name>Terminology</name>
         <t>The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL
@@ -48,11 +49,13 @@
           <dd>A named switch in an application that turns a feature on for a
           share of its users.</dd>
           <dt anchor="term-sdk">SDK</dt>
-          <dd>The library in an application that sends Vane messages about
-          flags.</dd>
+          <dd>The library in an application that evaluates flags from its
+          cache and keeps the cache current with Vane messages.</dd>
           <dt anchor="term-percentage">Percentage</dt>
           <dd>A whole number from 0 to 100 that an owner gives to roll a
-          flag out to that share of users.</dd>
+          flag out to that share of users. An SDK puts a user in the share by
+          a hash of the flag and the user, so the user stays in it while the
+          percentage grows.</dd>
           <dt anchor="term-pause">Pause</dt>
           <dd>A state in which a <xref target="term-flag">flag</xref>
           refuses every rollout for a time.</dd>
@@ -71,15 +74,16 @@
     </section>
     <section anchor="messages">
       <name>Messages</name>
-      <t>Each message is one line of ASCII text. The syntax uses ABNF
-      <xref target="RFC5234"/>.</t>
+      <t>Each message is one line of ASCII text on the update stream: the
+      service sends ROLLOUT and KILL, an SDK sends STATUS. The syntax uses
+      ABNF <xref target="RFC5234"/>.</t>
       <sourcecode type="abnf" name="vane.abnf"><![CDATA[
-message         = rollout-request / kill-request / status-request
-rollout-request = "ROLLOUT" SP flag-key SP percentage CRLF
-kill-request    = "KILL" SP flag-key CRLF
-status-request  = "STATUS" SP flag-key CRLF
-flag-key        = 1*32(ALPHA / DIGIT / "-")
-percentage      = 1*3DIGIT
+message        = rollout-update / kill-update / status-request
+rollout-update = "ROLLOUT" SP flag-key SP percentage CRLF
+kill-update    = "KILL" SP flag-key CRLF
+status-request = "STATUS" SP flag-key CRLF
+flag-key       = 1*32(ALPHA / DIGIT / "-")
+percentage     = 1*3DIGIT
 ]]></sourcecode>
       <section anchor="rollout">
         <name>Rollout</name>
@@ -100,7 +104,8 @@ percentage      = 1*3DIGIT
         with the state of the flag and the number of failed checks since its
         last rollout step.</t>
         <t anchor="req-10">An SDK <bcp14>SHOULD NOT</bcp14> send more
-        than one status request per second for a flag.</t>
+        than one status request per second for a flag; it uses its cached
+        answer in between.</t>
       </section>
     </section>
     <section anchor="pause">
@@ -115,7 +120,7 @@ percentage      = 1*3DIGIT
     </section>
     <section anchor="security">
       <name>Security Considerations</name>
-      <t>A rollout request travels in clear text on the network. Deployments
+      <t>Vane messages travel in clear text on the network. Deployments
       <bcp14>SHOULD</bcp14> carry Vane over an encrypted link.
       <cref anchor="issue-2" source="AB">This needs a requirement anchor of
       its own.</cref></t>

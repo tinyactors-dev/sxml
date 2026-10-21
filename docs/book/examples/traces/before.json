@@ -3,74 +3,28 @@
     {
       "resource": {
         "attributes": [
-          { "key": "service.name", "value": { "stringValue": "api-gateway" } },
-          { "key": "service.version", "value": { "stringValue": "1.4.0" } },
+          { "key": "service.name", "value": { "stringValue": "storefront" } },
+          { "key": "service.version", "value": { "stringValue": "5.2.0" } },
           { "key": "deployment.environment.name", "value": { "stringValue": "staging" } }
         ]
       },
       "scopeSpans": [
         {
-          "scope": { "name": "@opentelemetry/instrumentation-http", "version": "0.57.0" },
+          "scope": { "name": "@vane/node", "version": "1.4.0" },
           "spans": [
             {
               "traceId": "48114dcf6840d1bd46460c4b1ce0d09d",
-              "spanId": "9db4d10ecccc96f0",
-              "name": "GET /flags",
-              "kind": 2,
+              "spanId": "edba4075f74ba88f",
+              "name": "GET /api/getFlags",
+              "kind": 3,
               "startTimeUnixNano": "1792573200000000000",
               "endTimeUnixNano": "1792573200050000000",
               "attributes": [
                 { "key": "http.request.method", "value": { "stringValue": "GET" } },
-                { "key": "http.route", "value": { "stringValue": "/flags" } },
-                { "key": "url.path", "value": { "stringValue": "/flags" } },
-                { "key": "http.response.status_code", "value": { "intValue": "200" } }
-              ]
-            },
-            {
-              "traceId": "48114dcf6840d1bd46460c4b1ce0d09d",
-              "spanId": "f1952a06701f65f9",
-              "parentSpanId": "9db4d10ecccc96f0",
-              "name": "GET /flags",
-              "kind": 3,
-              "startTimeUnixNano": "1792573200001000000",
-              "endTimeUnixNano": "1792573200049000000",
-              "attributes": [
-                { "key": "http.request.method", "value": { "stringValue": "GET" } },
-                { "key": "server.address", "value": { "stringValue": "flag-service" } },
-                { "key": "server.port", "value": { "intValue": "80" } },
-                { "key": "url.full", "value": { "stringValue": "http://flag-service/flags" } },
-                { "key": "url.template", "value": { "stringValue": "/flags" } },
-                { "key": "http.response.status_code", "value": { "intValue": "200" } }
-              ]
-            },
-            {
-              "traceId": "aaab30cfb7723ae45a23d581f962cc40",
-              "spanId": "c377adc01acf7ff5",
-              "name": "POST /flags/{key}/kill",
-              "kind": 2,
-              "startTimeUnixNano": "1792573202000000000",
-              "endTimeUnixNano": "1792573202034000000",
-              "attributes": [
-                { "key": "http.request.method", "value": { "stringValue": "POST" } },
-                { "key": "http.route", "value": { "stringValue": "/flags/{key}/kill" } },
-                { "key": "url.path", "value": { "stringValue": "/flags/new-checkout/kill" } },
-                { "key": "http.response.status_code", "value": { "intValue": "200" } }
-              ]
-            },
-            {
-              "traceId": "aaab30cfb7723ae45a23d581f962cc40",
-              "spanId": "595ed12c603e8700",
-              "parentSpanId": "c377adc01acf7ff5",
-              "name": "POST /flags/{key}/kill",
-              "kind": 3,
-              "startTimeUnixNano": "1792573202001000000",
-              "endTimeUnixNano": "1792573202033000000",
-              "attributes": [
-                { "key": "http.request.method", "value": { "stringValue": "POST" } },
-                { "key": "server.address", "value": { "stringValue": "flag-service" } },
-                { "key": "server.port", "value": { "intValue": "80" } },
-                { "key": "url.full", "value": { "stringValue": "http://flag-service/flags/new-checkout/kill" } },
-                { "key": "url.template", "value": { "stringValue": "/flags/{key}/kill" } },
+                { "key": "server.address", "value": { "stringValue": "vane" } },
+                { "key": "server.port", "value": { "intValue": "8080" } },
+                { "key": "url.full", "value": { "stringValue": "http://vane:8080/api/getFlags?input=%7B%7D" } },
+                { "key": "url.template", "value": { "stringValue": "/api/getFlags" } },
                 { "key": "http.response.status_code", "value": { "intValue": "200" } }
               ]
             }
@@ -81,7 +35,7 @@
     {
       "resource": {
         "attributes": [
-          { "key": "service.name", "value": { "stringValue": "flag-service" } },
+          { "key": "service.name", "value": { "stringValue": "vane" } },
           { "key": "service.version", "value": { "stringValue": "2.3.0" } },
           { "key": "deployment.environment.name", "value": { "stringValue": "staging" } }
         ]
@@ -92,83 +46,170 @@
           "spans": [
             {
               "traceId": "48114dcf6840d1bd46460c4b1ce0d09d",
-              "spanId": "450bd70b42ff202b",
-              "parentSpanId": "f1952a06701f65f9",
-              "name": "GET /flags",
+              "spanId": "1927a6f46640ec9e",
+              "parentSpanId": "edba4075f74ba88f",
+              "name": "GET /api/getFlags",
               "kind": 2,
+              "startTimeUnixNano": "1792573200001000000",
+              "endTimeUnixNano": "1792573200049000000",
+              "attributes": [
+                { "key": "http.request.method", "value": { "stringValue": "GET" } },
+                { "key": "http.route", "value": { "stringValue": "/api/getFlags" } },
+                { "key": "url.path", "value": { "stringValue": "/api/getFlags" } },
+                { "key": "url.query", "value": { "stringValue": "input=%7B%7D" } },
+                { "key": "http.response.status_code", "value": { "intValue": "200" } }
+              ]
+            },
+            {
+              "traceId": "aaab30cfb7723ae45a23d581f962cc40",
+              "spanId": "f9206f822272e040",
+              "parentSpanId": "53dc1509f5cf3ba5",
+              "name": "POST /api/killFlag",
+              "kind": 2,
+              "startTimeUnixNano": "1792573202001000000",
+              "endTimeUnixNano": "1792573202033000000",
+              "attributes": [
+                { "key": "http.request.method", "value": { "stringValue": "POST" } },
+                { "key": "http.route", "value": { "stringValue": "/api/killFlag" } },
+                { "key": "url.path", "value": { "stringValue": "/api/killFlag" } },
+                { "key": "http.response.status_code", "value": { "intValue": "200" } }
+              ]
+            }
+          ]
+        },
+        {
+          "scope": { "name": "vane", "version": "2.3.0" },
+          "spans": [
+            {
+              "traceId": "48114dcf6840d1bd46460c4b1ce0d09d",
+              "spanId": "877ed3a0b72c92c6",
+              "parentSpanId": "1927a6f46640ec9e",
+              "name": "flags.listFlags",
+              "kind": 1,
               "startTimeUnixNano": "1792573200002000000",
               "endTimeUnixNano": "1792573200048000000",
               "attributes": [
-                { "key": "http.request.method", "value": { "stringValue": "GET" } },
-                { "key": "http.route", "value": { "stringValue": "/flags" } },
-                { "key": "url.path", "value": { "stringValue": "/flags" } },
-                { "key": "http.response.status_code", "value": { "intValue": "200" } }
+                { "key": "code.function.name", "value": { "stringValue": "flags.listFlags" } }
               ]
             },
             {
               "traceId": "48114dcf6840d1bd46460c4b1ce0d09d",
-              "spanId": "9507aae4931c1a17",
-              "parentSpanId": "450bd70b42ff202b",
-              "name": "GET /flags",
-              "kind": 3,
-              "startTimeUnixNano": "1792573200004000000",
-              "endTimeUnixNano": "1792573200045000000",
+              "spanId": "448683a55e6803a1",
+              "parentSpanId": "877ed3a0b72c92c6",
+              "name": "registry.getFlags",
+              "kind": 1,
+              "startTimeUnixNano": "1792573200003000000",
+              "endTimeUnixNano": "1792573200046000000",
               "attributes": [
-                { "key": "http.request.method", "value": { "stringValue": "GET" } },
-                { "key": "server.address", "value": { "stringValue": "flag-registry" } },
-                { "key": "server.port", "value": { "intValue": "80" } },
-                { "key": "url.full", "value": { "stringValue": "http://flag-registry/flags" } },
-                { "key": "url.template", "value": { "stringValue": "/flags" } },
-                { "key": "http.response.status_code", "value": { "intValue": "200" } }
+                { "key": "code.function.name", "value": { "stringValue": "registry.getFlags" } }
               ]
             },
             {
               "traceId": "aaab30cfb7723ae45a23d581f962cc40",
-              "spanId": "a4c5b3440594b922",
-              "parentSpanId": "595ed12c603e8700",
-              "name": "POST /flags/{key}/kill",
-              "kind": 2,
+              "spanId": "900884cd9fed676d",
+              "parentSpanId": "f9206f822272e040",
+              "name": "flags.killFlag",
+              "kind": 1,
               "startTimeUnixNano": "1792573202002000000",
               "endTimeUnixNano": "1792573202032000000",
               "attributes": [
-                { "key": "http.request.method", "value": { "stringValue": "POST" } },
-                { "key": "http.route", "value": { "stringValue": "/flags/{key}/kill" } },
-                { "key": "url.path", "value": { "stringValue": "/flags/new-checkout/kill" } },
-                { "key": "http.response.status_code", "value": { "intValue": "200" } }
+                { "key": "code.function.name", "value": { "stringValue": "flags.killFlag" } },
+                { "key": "vane.flag.key", "value": { "stringValue": "new-checkout" } }
               ]
             },
             {
               "traceId": "aaab30cfb7723ae45a23d581f962cc40",
-              "spanId": "8662f3310d0158f0",
-              "parentSpanId": "a4c5b3440594b922",
-              "name": "GET /flags/{key}",
-              "kind": 3,
-              "startTimeUnixNano": "1792573202006000000",
+              "spanId": "5fdc37e904085e22",
+              "parentSpanId": "900884cd9fed676d",
+              "name": "cache.getFlag",
+              "kind": 1,
+              "startTimeUnixNano": "1792573202003000000",
+              "endTimeUnixNano": "1792573202006000000",
+              "attributes": [
+                { "key": "code.function.name", "value": { "stringValue": "cache.getFlag" } },
+                { "key": "vane.flag.key", "value": { "stringValue": "new-checkout" } }
+              ]
+            },
+            {
+              "traceId": "aaab30cfb7723ae45a23d581f962cc40",
+              "spanId": "f82be3eb4c2b1180",
+              "parentSpanId": "900884cd9fed676d",
+              "name": "registry.getFlag",
+              "kind": 1,
+              "startTimeUnixNano": "1792573202007000000",
               "endTimeUnixNano": "1792573202016000000",
               "attributes": [
-                { "key": "http.request.method", "value": { "stringValue": "GET" } },
-                { "key": "server.address", "value": { "stringValue": "flag-registry" } },
-                { "key": "server.port", "value": { "intValue": "80" } },
-                { "key": "url.full", "value": { "stringValue": "http://flag-registry/flags/new-checkout" } },
-                { "key": "url.template", "value": { "stringValue": "/flags/{key}" } },
-                { "key": "http.response.status_code", "value": { "intValue": "200" } }
+                { "key": "code.function.name", "value": { "stringValue": "registry.getFlag" } },
+                { "key": "vane.flag.key", "value": { "stringValue": "new-checkout" } }
               ]
             },
             {
               "traceId": "aaab30cfb7723ae45a23d581f962cc40",
-              "spanId": "9cf360297e503c8d",
-              "parentSpanId": "a4c5b3440594b922",
-              "name": "PUT /flags/{key}/percentage",
-              "kind": 3,
+              "spanId": "03d74407bc202a98",
+              "parentSpanId": "900884cd9fed676d",
+              "name": "registry.setPercentage",
+              "kind": 1,
               "startTimeUnixNano": "1792573202017000000",
-              "endTimeUnixNano": "1792573202031000000",
+              "endTimeUnixNano": "1792573202030000000",
               "attributes": [
-                { "key": "http.request.method", "value": { "stringValue": "PUT" } },
-                { "key": "server.address", "value": { "stringValue": "flag-registry" } },
-                { "key": "server.port", "value": { "intValue": "80" } },
-                { "key": "url.full", "value": { "stringValue": "http://flag-registry/flags/new-checkout/percentage" } },
-                { "key": "url.template", "value": { "stringValue": "/flags/{key}/percentage" } },
-                { "key": "http.response.status_code", "value": { "intValue": "200" } }
+                { "key": "code.function.name", "value": { "stringValue": "registry.setPercentage" } },
+                { "key": "vane.flag.key", "value": { "stringValue": "new-checkout" } }
+              ]
+            }
+          ]
+        },
+        {
+          "scope": { "name": "@opentelemetry/instrumentation-pg", "version": "0.50.0" },
+          "spans": [
+            {
+              "traceId": "48114dcf6840d1bd46460c4b1ce0d09d",
+              "spanId": "fb73f92d181aced2",
+              "parentSpanId": "448683a55e6803a1",
+              "name": "SELECT flags",
+              "kind": 3,
+              "startTimeUnixNano": "1792573200005000000",
+              "endTimeUnixNano": "1792573200044000000",
+              "attributes": [
+                { "key": "db.system.name", "value": { "stringValue": "postgresql" } },
+                { "key": "db.operation.name", "value": { "stringValue": "SELECT" } },
+                { "key": "db.collection.name", "value": { "stringValue": "flags" } },
+                { "key": "db.query.text", "value": { "stringValue": "SELECT key, name, state, percentage, rules, owners FROM flags" } },
+                { "key": "server.address", "value": { "stringValue": "postgresql" } },
+                { "key": "server.port", "value": { "intValue": "5432" } }
+              ]
+            },
+            {
+              "traceId": "aaab30cfb7723ae45a23d581f962cc40",
+              "spanId": "2f9fc0a36c747d78",
+              "parentSpanId": "f82be3eb4c2b1180",
+              "name": "SELECT flags",
+              "kind": 3,
+              "startTimeUnixNano": "1792573202008000000",
+              "endTimeUnixNano": "1792573202015000000",
+              "attributes": [
+                { "key": "db.system.name", "value": { "stringValue": "postgresql" } },
+                { "key": "db.operation.name", "value": { "stringValue": "SELECT" } },
+                { "key": "db.collection.name", "value": { "stringValue": "flags" } },
+                { "key": "db.query.text", "value": { "stringValue": "SELECT key, name, state, percentage, rules, owners FROM flags WHERE key = $1" } },
+                { "key": "server.address", "value": { "stringValue": "postgresql" } },
+                { "key": "server.port", "value": { "intValue": "5432" } }
+              ]
+            },
+            {
+              "traceId": "aaab30cfb7723ae45a23d581f962cc40",
+              "spanId": "bc2ed987977fa5c6",
+              "parentSpanId": "03d74407bc202a98",
+              "name": "UPDATE flags",
+              "kind": 3,
+              "startTimeUnixNano": "1792573202018000000",
+              "endTimeUnixNano": "1792573202029000000",
+              "attributes": [
+                { "key": "db.system.name", "value": { "stringValue": "postgresql" } },
+                { "key": "db.operation.name", "value": { "stringValue": "UPDATE" } },
+                { "key": "db.collection.name", "value": { "stringValue": "flags" } },
+                { "key": "db.query.text", "value": { "stringValue": "UPDATE flags SET percentage = $2 WHERE key = $1" } },
+                { "key": "server.address", "value": { "stringValue": "postgresql" } },
+                { "key": "server.port", "value": { "intValue": "5432" } }
               ]
             }
           ]
@@ -178,17 +219,17 @@
           "spans": [
             {
               "traceId": "aaab30cfb7723ae45a23d581f962cc40",
-              "spanId": "ecb5733260ceb4b2",
-              "parentSpanId": "a4c5b3440594b922",
+              "spanId": "0e7b40a994b31e11",
+              "parentSpanId": "5fdc37e904085e22",
               "name": "GET",
               "kind": 3,
-              "startTimeUnixNano": "1792573202003000000",
+              "startTimeUnixNano": "1792573202004000000",
               "endTimeUnixNano": "1792573202005000000",
               "attributes": [
                 { "key": "db.system.name", "value": { "stringValue": "redis" } },
                 { "key": "db.operation.name", "value": { "stringValue": "GET" } },
                 { "key": "db.query.text", "value": { "stringValue": "GET flag:new-checkout" } },
-                { "key": "server.address", "value": { "stringValue": "flag-cache" } },
+                { "key": "server.address", "value": { "stringValue": "redis" } },
                 { "key": "server.port", "value": { "intValue": "6379" } }
               ]
             }
@@ -199,111 +240,29 @@
     {
       "resource": {
         "attributes": [
-          { "key": "service.name", "value": { "stringValue": "flag-registry" } },
-          { "key": "service.version", "value": { "stringValue": "1.9.2" } },
+          { "key": "service.name", "value": { "stringValue": "vane-console" } },
+          { "key": "service.version", "value": { "stringValue": "1.8.0" } },
           { "key": "deployment.environment.name", "value": { "stringValue": "staging" } }
         ]
       },
       "scopeSpans": [
         {
-          "scope": { "name": "@opentelemetry/instrumentation-http", "version": "0.57.0" },
+          "scope": { "name": "@opentelemetry/instrumentation-fetch", "version": "0.57.0" },
           "spans": [
             {
-              "traceId": "48114dcf6840d1bd46460c4b1ce0d09d",
-              "spanId": "2b3938e2ad2889ea",
-              "parentSpanId": "9507aae4931c1a17",
-              "name": "GET /flags",
-              "kind": 2,
-              "startTimeUnixNano": "1792573200005000000",
-              "endTimeUnixNano": "1792573200044000000",
-              "attributes": [
-                { "key": "http.request.method", "value": { "stringValue": "GET" } },
-                { "key": "http.route", "value": { "stringValue": "/flags" } },
-                { "key": "url.path", "value": { "stringValue": "/flags" } },
-                { "key": "http.response.status_code", "value": { "intValue": "200" } }
-              ]
-            },
-            {
               "traceId": "aaab30cfb7723ae45a23d581f962cc40",
-              "spanId": "0cb733ec39d63363",
-              "parentSpanId": "8662f3310d0158f0",
-              "name": "GET /flags/{key}",
-              "kind": 2,
-              "startTimeUnixNano": "1792573202007000000",
-              "endTimeUnixNano": "1792573202015000000",
-              "attributes": [
-                { "key": "http.request.method", "value": { "stringValue": "GET" } },
-                { "key": "http.route", "value": { "stringValue": "/flags/{key}" } },
-                { "key": "url.path", "value": { "stringValue": "/flags/new-checkout" } },
-                { "key": "http.response.status_code", "value": { "intValue": "200" } }
-              ]
-            },
-            {
-              "traceId": "aaab30cfb7723ae45a23d581f962cc40",
-              "spanId": "b71d3117a25377cd",
-              "parentSpanId": "9cf360297e503c8d",
-              "name": "PUT /flags/{key}/percentage",
-              "kind": 2,
-              "startTimeUnixNano": "1792573202018000000",
-              "endTimeUnixNano": "1792573202030000000",
-              "attributes": [
-                { "key": "http.request.method", "value": { "stringValue": "PUT" } },
-                { "key": "http.route", "value": { "stringValue": "/flags/{key}/percentage" } },
-                { "key": "url.path", "value": { "stringValue": "/flags/new-checkout/percentage" } },
-                { "key": "http.response.status_code", "value": { "intValue": "200" } }
-              ]
-            }
-          ]
-        },
-        {
-          "scope": { "name": "@opentelemetry/instrumentation-pg", "version": "0.50.0" },
-          "spans": [
-            {
-              "traceId": "48114dcf6840d1bd46460c4b1ce0d09d",
-              "spanId": "bc26eff93c7d3107",
-              "parentSpanId": "2b3938e2ad2889ea",
-              "name": "SELECT flags",
+              "spanId": "53dc1509f5cf3ba5",
+              "name": "POST /api/killFlag",
               "kind": 3,
-              "startTimeUnixNano": "1792573200007000000",
-              "endTimeUnixNano": "1792573200041000000",
+              "startTimeUnixNano": "1792573202000000000",
+              "endTimeUnixNano": "1792573202034000000",
               "attributes": [
-                { "key": "db.system.name", "value": { "stringValue": "postgresql" } },
-                { "key": "db.operation.name", "value": { "stringValue": "SELECT" } },
-                { "key": "db.collection.name", "value": { "stringValue": "flags" } },
-                { "key": "db.query.text", "value": { "stringValue": "SELECT key, name, state, percentage, owners FROM flags" } },
-                { "key": "server.address", "value": { "stringValue": "postgresql" } }
-              ]
-            },
-            {
-              "traceId": "aaab30cfb7723ae45a23d581f962cc40",
-              "spanId": "1822add2fe4ca68d",
-              "parentSpanId": "0cb733ec39d63363",
-              "name": "SELECT flags",
-              "kind": 3,
-              "startTimeUnixNano": "1792573202008000000",
-              "endTimeUnixNano": "1792573202014000000",
-              "attributes": [
-                { "key": "db.system.name", "value": { "stringValue": "postgresql" } },
-                { "key": "db.operation.name", "value": { "stringValue": "SELECT" } },
-                { "key": "db.collection.name", "value": { "stringValue": "flags" } },
-                { "key": "db.query.text", "value": { "stringValue": "SELECT key, name, state, percentage, owners FROM flags WHERE key = $1" } },
-                { "key": "server.address", "value": { "stringValue": "postgresql" } }
-              ]
-            },
-            {
-              "traceId": "aaab30cfb7723ae45a23d581f962cc40",
-              "spanId": "6bd326bf36cab938",
-              "parentSpanId": "b71d3117a25377cd",
-              "name": "UPDATE flags",
-              "kind": 3,
-              "startTimeUnixNano": "1792573202019000000",
-              "endTimeUnixNano": "1792573202029000000",
-              "attributes": [
-                { "key": "db.system.name", "value": { "stringValue": "postgresql" } },
-                { "key": "db.operation.name", "value": { "stringValue": "UPDATE" } },
-                { "key": "db.collection.name", "value": { "stringValue": "flags" } },
-                { "key": "db.query.text", "value": { "stringValue": "UPDATE flags SET percentage = $2 WHERE key = $1" } },
-                { "key": "server.address", "value": { "stringValue": "postgresql" } }
+                { "key": "http.request.method", "value": { "stringValue": "POST" } },
+                { "key": "server.address", "value": { "stringValue": "vane.example.com" } },
+                { "key": "server.port", "value": { "intValue": "443" } },
+                { "key": "url.full", "value": { "stringValue": "https://vane.example.com/api/killFlag" } },
+                { "key": "url.template", "value": { "stringValue": "/api/killFlag" } },
+                { "key": "http.response.status_code", "value": { "intValue": "200" } }
               ]
             }
           ]

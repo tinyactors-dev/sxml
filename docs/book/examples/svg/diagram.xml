@@ -1,15 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- The services of the Vane system and who calls whom. A node is a box;
-     kind="store" draws a data store. An edge goes from the caller to the
-     service it calls. The layout is computed: diagram.svg is the drawing. -->
-<diagram title="Vane services">
-  <node id="gateway" label="api-gateway"/>
-  <node id="flags" label="flag-service"/>
-  <node id="registry" label="flag-registry"/>
-  <node id="cache" label="flag-cache" kind="store"/>
-  <node id="database" label="postgresql" kind="store"/>
-  <edge from="gateway" to="flags" label="HTTP"/>
-  <edge from="flags" to="registry" label="HTTP"/>
-  <edge from="flags" to="cache" label="Redis"/>
-  <edge from="registry" to="database" label="SQL"/>
+<!-- The Vane system and who calls whom: the two SDKs, the modules of the
+     Vane service (one program; a module is a box named vane/MODULE), and
+     the stores it keeps its data in. A node is a box; kind="store" draws
+     a data store. An edge goes from the caller to what it calls. The
+     layout is computed: diagram.svg is the drawing. -->
+<diagram title="Vane">
+  <node id="browser" label="@vane/browser"/>
+  <node id="node" label="@vane/node"/>
+  <node id="api" label="vane/api"/>
+  <node id="flags" label="vane/flags"/>
+  <node id="registry" label="vane/registry"/>
+  <node id="cache" label="vane/cache"/>
+  <node id="postgresql" label="postgresql" kind="store"/>
+  <node id="redis" label="redis" kind="store"/>
+  <edge from="browser" to="api" label="HTTP"/>
+  <edge from="node" to="api" label="HTTP"/>
+  <edge from="api" to="flags"/>
+  <edge from="flags" to="registry"/>
+  <edge from="flags" to="cache"/>
+  <edge from="registry" to="postgresql" label="SQL"/>
+  <edge from="cache" to="redis" label="Redis"/>
 </diagram>

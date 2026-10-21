@@ -24,7 +24,18 @@
     <xs:attribute name="name" type="api:identifier" use="required"/>
     <xs:attribute name="input" type="api:identifier" use="required"/>
     <xs:attribute name="output" type="api:identifier" use="required"/>
+    <xs:attribute name="clients" type="api:clients" use="required"/>
   </xs:complexType>
+
+  <!-- The clients that offer a function: one generated module each. -->
+  <xs:simpleType name="clients">
+    <xs:restriction>
+      <xs:simpleType>
+        <xs:list itemType="api:identifier"/>
+      </xs:simpleType>
+      <xs:minLength value="1"/>
+    </xs:restriction>
+  </xs:simpleType>
 
   <!-- A name that is a valid identifier in TypeScript and in URLs. -->
   <xs:simpleType name="identifier">

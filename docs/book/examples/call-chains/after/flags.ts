@@ -1,16 +1,18 @@
-// What the flag service does for each request.
+// What the Vane service does for the SDKs and for the console.
 import * as registry from "./registry.ts";
 import * as audit from "./audit.ts";
-import type { Flag } from "./http.ts";
+import type { Flag } from "./db.ts";
 
+// What an SDK needs to evaluate a flag: no name, no owners.
 export interface FlagSummary {
   key: string;
-  name: string;
   state: Flag["state"];
+  percentage: number;
+  rules: Flag["rules"];
 }
 
-function summarize(flag: Flag): FlagSummary {
-  return { key: flag.key, name: flag.name, state: flag.state };
+function summarize({ key, state, percentage, rules }: Flag): FlagSummary {
+  return { key, state, percentage, rules };
 }
 
 export async function listFlags(): Promise<FlagSummary[]> {

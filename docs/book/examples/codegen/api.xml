@@ -1,12 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<api xmlns="https://example.org/api" name="library" types="library.xsd">
-  <query name="getBook" input="BookRequest" output="Book">
-    Finds one book by its id.
+<api xmlns="https://example.org/api" name="vane" types="vane-api.xsd">
+  <query name="getFlags" input="FlagsRequest" output="FlagSet" clients="node">
+    Every flag with its rules, for an SDK that evaluates flags itself.
   </query>
-  <query name="searchBooks" input="BookSearch" output="BookList">
-    Lists the books of a genre, or all books.
+  <query name="evaluateFlags" input="EvaluationContext" output="Evaluations" clients="browser">
+    Whether each flag is on for one user, for an SDK in a browser page.
   </query>
-  <command name="borrowBook" input="LoanRequest" output="Loan">
-    Lends a book to a member for some days.
+  <query name="getStatus" input="StatusRequest" output="FlagStatus" clients="browser node">
+    The state of one flag and its failed checks since the last rollout step.
+  </query>
+  <command name="rollOutFlag" input="RolloutRequest" output="FlagStatus" clients="console">
+    Rolls a flag out to a new percentage once its guardrail checks pass.
+  </command>
+  <command name="killFlag" input="KillRequest" output="KillResult" clients="console">
+    Turns a flag off for every user at once.
   </command>
 </api>

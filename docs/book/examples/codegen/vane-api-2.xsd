@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The values that Vane's remote functions take and return: the
+     evaluation API, which the SDKs call, and the admin API, which the
+     console calls. -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+
+  <xs:simpleType name="FlagKey">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[a-z0-9][a-z0-9-]*"/>
+      <xs:maxLength value="32"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="Owner">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[^@ ]+@[^@ ]+"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="Environment">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="production"/>
+      <xs:enumeration value="staging"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="State">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="stable"/>
+      <xs:enumeration value="rolling-out"/>
+      <xs:enumeration value="paused"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="Reason">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="rule"/>
+      <xs:enumeration value="percentage"/>
+      <xs:enumeration value="default"/>
+      <xs:enumeration value="off"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="Percentage">
+    <xs:restriction base="xs:integer">
+      <xs:minInclusive value="0"/>
+      <xs:maxInclusive value="100"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="FailureCount">
+    <xs:restriction base="xs:integer">
+      <xs:minInclusive value="0"/>
+      <xs:maxInclusive value="10"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="Seconds">
+    <xs:restriction base="xs:integer">
+      <xs:minInclusive value="1"/>
+      <xs:maxInclusive value="3600"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="Rule">
+    <xs:sequence>
+      <xs:element name="attribute" type="xs:string"/>
+      <xs:element name="values" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+      <xs:element name="percentage" type="Percentage"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="FlagConfig">
+    <xs:sequence>
+      <xs:element name="key" type="FlagKey"/>
+      <xs:element name="state" type="State"/>
+      <xs:element name="percentage" type="Percentage"/>
+      <xs:element name="rules" type="Rule" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="FlagsRequest">
+    <xs:sequence>
+      <xs:element name="environment" type="Environment"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="FlagSet">
+    <xs:sequence>
+      <xs:element name="flags" type="FlagConfig" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="Attribute">
+    <xs:sequence>
+      <xs:element name="name" type="xs:string"/>
+      <xs:element name="value" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="EvaluationContext">
+    <xs:sequence>
+      <xs:element name="environment" type="Environment"/>
+      <xs:element name="user" type="xs:string"/>
+      <xs:element name="attributes" type="Attribute" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="Evaluation">
+    <xs:sequence>
+      <xs:element name="flag" type="FlagKey"/>
+      <xs:element name="on" type="xs:boolean"/>
+      <xs:element name="reason" type="Reason" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="Evaluations">
+    <xs:sequence>
+      <xs:element name="evaluations" type="Evaluation" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="StatusRequest">
+    <xs:sequence>
+      <xs:element name="flag" type="FlagKey"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="FlagStatus">
+    <xs:sequence>
+      <xs:element name="flag" type="FlagKey"/>
+      <xs:element name="state" type="State"/>
+      <xs:element name="failedChecks" type="FailureCount"/>
+      <xs:element name="retryAfter" type="Seconds" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="RolloutRequest">
+    <xs:sequence>
+      <xs:element name="flag" type="FlagKey"/>
+      <xs:element name="percentage" type="Percentage"/>
+      <xs:element name="owner" type="Owner"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="KillRequest">
+    <xs:sequence>
+      <xs:element name="flag" type="FlagKey"/>
+      <xs:element name="owner" type="Owner"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="KillResult">
+    <xs:sequence>
+      <xs:element name="flag" type="FlagKey"/>
+      <xs:element name="killed" type="xs:boolean"/>
+    </xs:sequence>
+  </xs:complexType>
+
+</xs:schema>

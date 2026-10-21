@@ -1,8 +1,8 @@
-// Flags read recently, kept in Redis for a minute.
+// The cache module keeps the flags read recently in Redis for a minute.
 import { createClient } from "redis";
-import type { Flag } from "./http.ts";
+import type { Flag } from "./db.ts";
 
-const client = createClient({ url: "redis://flag-cache:6379" });
+const client = createClient({ url: "redis://redis:6379" });
 
 export async function getFlag(key: string): Promise<Flag | undefined> {
   const text = await client.get(`flag:${key}`);
