@@ -59,11 +59,11 @@ an archive that took longer than 80 milliseconds?
 ```console
 $ sxml xquery --param=count=10000 --output=archive.xml make-traces.xq
 $ sxml xpath --context-item=archive.xml 'head(//trace[span/@duration > 80])/@start/string()'
-"2026-10-21T09:00:04.9Z"
+"2026-10-21T09:00:00.5Z"
 ```
 
 `head` asks the filter for one trace, and the filter looks at traces
-only until it finds one: the fiftieth of ten thousand. Parsing the
+only until it finds one: the sixth of ten thousand. Parsing the
 archive still takes most of the time; [Streaming Large Trace
 Files](traces-streaming.md) avoids that too.
 
@@ -103,16 +103,16 @@ $ sxml xquery --context-item=spans.xml --method=adaptive fast-tree.xq
 1900
 ```
 
-With 1,000 traces (6,333 spans), the first query takes 2.9 seconds and
-the second 0.2 seconds. With 10,000 traces, the first takes four and a
-half minutes, the second 1.5 seconds. In XSLT, `xsl:key` does the same
+With 1,000 traces (6,332 spans), the first query takes 2.8 seconds and
+the second 0.2 seconds. With 10,000 traces, the first takes four
+minutes, the second 1.8 seconds. In XSLT, `xsl:key` does the same
 job ([Keys, Numbers and Grouping](xslt-keys-grouping.md)).
 
 sxml builds such an index itself when a condition in a loop compares
 something of the item alone with something that does not depend on it,
 and the items do not change between turns of the loop. Written as one
 expression, `for $span in //span return //span[@parent = $span/@id]`,
-the search over 3,000 traces takes 0.33 seconds: the left side depends
+the search over 3,000 traces takes 0.38 seconds: the left side depends
 only on the span looked at, the right side only on `$span`, so sxml
 sorts the spans by `@parent` once and looks each id up. A path of child
 steps does as well as `//span`: `/spans/span[@parent = $span/@id]`,
@@ -125,11 +125,11 @@ two sides are mixed; then sxml has to search.
 ## Memory
 
 A parsed document takes several times the size of its file, because each
-node has its name, its links to its neighbours and its text. An 82 MB
-archive of 100,000 traces, 633,333 spans, takes about 390 MB as a tree.
+node has its name, its links to its neighbours and its text. An 80 MB
+archive of 100,000 traces, 633,332 spans, takes about 390 MB as a tree.
 
 When a document is too large for that, stream it. An XSLT stylesheet
-with a streamable mode processes the same 82 MB in 11 MB, and the
+with a streamable mode processes the same 80 MB in 11 MB, and the
 memory stays the same for a larger file ([Streaming Large Trace
 Files](traces-streaming.md)).
 
