@@ -29,29 +29,33 @@ XPath, and `||` joins strings together.
 
 ## A first document
 
-XPath is made for finding things in documents. Here is a small
-catalog of books, the file `books.xml` in the examples:
+XPath is made for finding things in documents. The documents of this
+book belong to Latch, a small, made-up protocol for door locks, and the
+first is a short cut of its specification. Like the specifications of
+the IETF, it is written in XML: sections with a `name`, paragraphs `t`,
+and *requirements*, the paragraphs with an `anchor` and a key word such
+as MUST or SHOULD in a `bcp14` element. Here it is, the file `draft.xml`
+in the examples:
 
-`books.xml`:
+`draft.xml`:
 
 ```xml
-{{#include ../examples/getting-started/books.xml}}
+{{#include ../examples/getting-started/draft.xml}}
 ```
 
 Give the document to `sxml xpath` with `--context-item`. The document
 becomes the *context item*: the thing the expression starts from. Now ask
-for every `title` element:
+for every `name` element:
 
 ```console
-$ sxml xpath --context-item=books.xml '//title'
-<title>Godel, Escher, Bach</title>
-<title>The Art of Computer Programming</title>
-<title>Structure and Interpretation of Computer Programs</title>
+$ sxml xpath --context-item=draft.xml '//name'
+<name>Lock States</name>
+<name>Lockout</name>
 ```
 
-`//title` is a *path expression*. It reads as "from the top of the
+`//name` is a *path expression*. It reads as "from the top of the
 document, go down any number of levels, and find elements named
-`title`". The result is a *sequence* of three elements, and sxml writes
+`name`". The result is a *sequence* of two elements, and sxml writes
 one item of the sequence on each line.
 
 Most of the time you want what is inside the elements, not the elements
@@ -59,46 +63,61 @@ themselves. A path can end with a function call that is applied to each
 element it finds:
 
 ```console
-$ sxml xpath --context-item=books.xml '//title/string()'
-"Godel, Escher, Bach"
-"The Art of Computer Programming"
-"Structure and Interpretation of Computer Programs"
+$ sxml xpath --context-item=draft.xml '//name/string()'
+"Lock States"
+"Lockout"
 ```
 
 ## Asking questions
 
 Square brackets after a step filter it. They hold a *predicate*: a
-condition each item must meet. Which books cost more than 50?
+condition each item must meet. Which paragraphs say MUST?
 
 ```console
-$ sxml xpath --context-item=books.xml '//book[price > 50]/title/string()'
-"The Art of Computer Programming"
-"Structure and Interpretation of Computer Programs"
+$ sxml xpath --context-item=draft.xml '//t[bcp14 = "MUST"]/string()'
+"A lock MUST start locked when it is powered on."
+"After three rejected codes, a lock MUST enter lockout."
 ```
 
-How many books are there, and what is the earliest year?
+The predicate `[bcp14 = "MUST"]` keeps each `t` that has a `bcp14`
+child whose text is `MUST`. The string of a paragraph is all the text
+inside it, so the key word is part of it, although it sits in an element
+of its own.
+
+How many paragraphs are there, and how many of them are requirements?
 
 ```console
-$ sxml xpath --context-item=books.xml 'count(//book), min(//book/@year)'
+$ sxml xpath --context-item=draft.xml 'count(//t), count(//t[@anchor])'
+4
 3
-1.968e3
 ```
 
-The comma makes a sequence of two values. The `@` in `@year` selects an
-*attribute* instead of an element. The second result, `1.968e3`, is
-1968 written as a floating-point number (a `double`). The document has
-no types in it, so `min` treated the text `"1968"` as a number, and the
-numbers XPath makes from untyped text are doubles. To get a whole number,
-say so:
+The comma makes a sequence of two values. The `@` in `@anchor` selects
+an *attribute* instead of an element, and `t[@anchor]` is a paragraph
+that has one. Asked for the attributes themselves, sxml writes them as
+they look in XML:
 
 ```console
-$ sxml xpath --context-item=books.xml 'min(//book/@year ! xs:integer(.))'
-1968
+$ sxml xpath --context-item=draft.xml '//t/@anchor'
+anchor="req-1"
+anchor="req-3"
+anchor="req-7"
 ```
 
 The `!` operator applies the expression on its right to each item on its
-left, and `.` is that item. `xs:integer(.)` turns the attribute into an
-integer. You'll learn much more about types in the next chapter.
+left, and inside it, names and `.` refer to that item. Here it makes one
+line of the index of requirements for each anchored paragraph:
+
+```console
+$ sxml xpath --context-item=draft.xml '//t[@anchor] ! (@anchor || ": " || bcp14)'
+"req-1: MUST"
+"req-3: SHOULD"
+"req-7: MUST"
+```
+
+The anchors are names, not numbers: `req-2` is not in this cut of the
+draft, and the full draft adds requirements in the middle. You'll learn
+much more about paths in the next chapter.
 
 ## When something goes wrong
 
@@ -117,11 +136,11 @@ has a code like this one; the same code means the same problem in every
 processor. Here is another common one:
 
 ```console
-$ sxml xpath '//title'
+$ sxml xpath '//t'
 expression:1:1: err:XPDY0002: The focus or a variable of the dynamic context is absent (XPath 4.0, section 2.2.2)
 ```
 
-`//title` needs a document to start from, and we forgot to give one.
+`//t` needs a document to start from, and we forgot to give one.
 
 ## Summary
 
@@ -129,8 +148,8 @@ You have run your first XPath expressions:
 
 - `sxml xpath EXPRESSION` evaluates an expression and writes the result;
 - `--context-item=FILE` gives the expression a document to start from;
-- paths such as `//book/title` find nodes, predicates such as
-  `[price > 50]` filter them, and functions such as `string()` and
-  `count()` compute with them.
+- paths such as `//section/name` find nodes, predicates such as
+  `[bcp14 = "MUST"]` filter them, `@anchor` selects an attribute, and
+  functions such as `string()` and `count()` compute with them.
 
 Next, let's look at the other things the `sxml` command can do.

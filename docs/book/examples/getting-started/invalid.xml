@@ -1,6 +1,10 @@
-<books>
-  <book year="soon">
-    <title>Dune</title>
-    <price>9.99</price>
-  </book>
-</books>
+<rfc docName="draft-example-latch-protocol-01">
+  <front>
+    <title>The Latch Protocol for Remote Door Locks</title>
+  </front>
+  <middle>
+    <section anchor="states">
+      <t anchor="req-1">A lock <bcp14>MIGHT</bcp14> start locked when it is powered on.</t>
+    </section>
+  </middle>
+</rfc>

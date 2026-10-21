@@ -114,9 +114,13 @@ every command and option.
 ## Following along
 
 The book's examples are in the sxml repository, in
-`docs/book/examples/`, one directory for each chapter. If you built
-sxml from source, you already have them. Change into the directory of
-the chapter you are reading, and every command will find its files:
+`docs/book/examples/`. If you built sxml from source, you already have
+them. Each project of the book has a directory of its own, like a small
+repository: the Latch specification is in `spec`, the diagrams in `svg`,
+and so on. The chapters that use no project, such as this one, have a
+directory of their own too. Each chapter says which directory it uses;
+change into it, and every command will find its files. For this chapter
+that is:
 
 ```sh
 cd docs/book/examples/getting-started

@@ -1,4 +1,8 @@
-<books>
-  <book year="1979">
-    <title>Godel, Escher, Bach</title>
-</books>
+<rfc docName="draft-example-latch-protocol-01">
+  <middle>
+    <section anchor="states">
+      <name>Lock States</name>
+      <t anchor="req-1">A lock <bcp14>MUST</bcp14> start locked.
+    </section>
+  </middle>
+</rfc>
