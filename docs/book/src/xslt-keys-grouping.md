@@ -1,38 +1,93 @@
-# Keys and Grouping
+# Keys, Numbers and Grouping
 
-<!-- examples: xslt -->
+<!-- examples: spec -->
 
 ## Keys
 
-A *key* is an index that the processor builds for you. You declare what
-to index and by which value, and the `key` function looks nodes up. This
-stylesheet lists the loans from Chapter 3 with the title of each book,
-looked up in the library by id:
+An `xref` without text, such as `<xref target="lockout"/>`, asks the
+renderer for the text: "Section 4" when it points to a section,
+"[RFC5234]" when it points to a reference. To write it, a stylesheet
+must find the element whose anchor is the target. A *key* is an index
+that the processor builds for that. You declare what to index and by
+which value, and the `key` function looks nodes up:
 
-`loans.xsl`:
+`xrefs.xsl`:
 
 ```xml
-{{#include ../examples/xslt/loans.xsl}}
+{{#include ../examples/spec/xrefs.xsl}}
 ```
 
 ```console
-$ sxml transform loans.xsl loans.xml
-2026-09-02  ada  Dune
-2026-09-05  alan  Godel, Escher, Bach
-2026-09-14  grace  Dune
-2026-09-20  ada  Structure and Interpretation of Computer Programs
-2026-10-01  ada  The Left Hand of Darkness
-2026-10-03  alan  Dune
+$ sxml transform xrefs.xsl latch.xml
+term-controller -> the term "Controller"
+RFC2119 -> [RFC2119]
+RFC8174 -> [RFC8174]
+term-lock -> the term "Lock"
+term-lock -> the term "Lock"
+RFC5234 -> [RFC5234]
+term-code -> the term "Code"
+term-lockout -> the term "Lockout"
+lockout -> Section 4
+RFC6238 -> [RFC6238]
+term-lockout -> the term "Lockout"
 ```
 
-`key('book', @book, $library)` finds the books whose `@id` equals the
-loan's `@book`, in the document `$library`. Without the third argument,
-`key` searches the document of the context node. A predicate such as
-`$library//book[@id = current()/@book]` would give the same result, but
-the key is built once and each lookup is fast, however many books there
-are.
+`key('anchor', @target)` finds the elements whose `@anchor` equals the
+xref's target, in the document of the context node; a third argument
+names another document. A predicate such as `//*[@anchor =
+current()/@target]` would give the same result, but the key is built
+once and each lookup is fast, however large the draft is. The rules of
+the mode `xref-text` then decide the text by the kind of element the
+key found: one rule for a section, one for a reference, one for a term.
 
-The `&#10;` at the end of the text is a line feed.
+## Numbers
+
+The draft has no section numbers in it, and it should not: when the
+authors insert a section, every number after it changes, and every
+"Section 4" in the text with it. The renderer numbers by position, and
+`xsl:number` is the instruction that does it:
+
+`numbers.xsl`:
+
+```xml
+{{#include ../examples/spec/numbers.xsl}}
+```
+
+```console
+$ sxml transform numbers.xsl latch.xml
+1  Introduction
+1.1  Terminology
+2  Lock States
+    R1 req-1: MUST
+    R2 req-2: MUST
+    R3 req-3: SHOULD
+3  Messages
+3.1  Unlock
+    R4 req-4: MUST
+    R5 req-5: MUST NOT
+    R6 req-9: MAY
+3.2  Status
+    R7 req-6: MUST
+    R8 req-10: SHOULD NOT
+4  Lockout
+    R9 req-7: MUST
+    R10 req-8: SHOULD
+    R11 req-11: MAY
+5  Security Considerations
+6  IANA Considerations
+```
+
+`level="multiple"` counts the node and each of its ancestors that
+match `count` among their siblings, and `format="1.1"` writes the
+numbers with dots between them. `level="any"` counts every matching
+node before it in the document, at any depth: that numbers the
+requirements from R1 to R11 in reading order, while their anchors keep
+the order in which they were written (`req-9` was added in the second
+draft and is the sixth requirement). Other formats give `a`, `A`, `i`,
+`I` or `01`, as in `format="a)"` or `format="i."`. A format token
+that `xsl:number` does not know falls back to decimal digits, so `R1`
+as a format would write `1`; the `R` is written as text before the
+number.
 
 ## Grouping
 
@@ -40,74 +95,92 @@ The `&#10;` at the end of the text is a line feed.
 each group once. Inside it, `current-grouping-key()` is the key of the
 group, and `current-group()` its items.
 
-`group-by` groups by a computed value. A book with several tags is in
-several groups:
+`group-by` groups by a computed value. An index of the draft's terms is
+grouped by first letter, and lists the sections that use each term,
+found with a second key:
 
-`by-tag.xsl`:
+`term-index.xsl`:
 
 ```xml
-{{#include ../examples/xslt/by-tag.xsl}}
+{{#include ../examples/spec/term-index.xsl}}
 ```
 
 ```console
-$ sxml transform by-tag.xsl library.xml
-algorithms: taocp, sicp
-art: geb
-desert: dune
-lisp: sicp
-logic: geb
-music: geb
-politics: dune, lhod
-winter: lhod
+$ sxml transform term-index.xsl latch.xml
+C
+  Code: 3.1
+  Controller: 1
+L
+  Lock: 1.1, 2
+  Lockout: 3.1, 4
+```
+
+`key('uses', @anchor)` gives every `xref` to the term, and
+`/ancestor::section[1]` the section around each one. A path removes
+duplicates and returns nodes in document order, so a section that uses
+a term twice would still be listed once, and the sections come in the
+order of the draft.
+
+The references are grouped by the `references` element they are in,
+normative or informative:
+
+`references.xsl`:
+
+```xml
+{{#include ../examples/spec/references.xsl}}
+```
+
+```console
+$ sxml transform references.xsl latch.xml
+Normative References
+  [RFC8174] 2017 Ambiguity of Uppercase vs Lowercase in RFC 2119 Key Words
+  [RFC5234] 2008 Augmented BNF for Syntax Specifications: ABNF
+  [RFC2119] 1997 Key words for use in RFCs to Indicate Requirement Levels
+Informative References
+  [RFC6238] 2011 TOTP: Time-Based One-Time Password Algorithm
 ```
 
 ## Grouping by position
 
 Grouping is not only for values. Documents often have structure that is
-only implied by the order of elements, such as headings followed by
-paragraphs:
-
-`article.xml`:
-
-```xml
-{{#include ../examples/xslt/article.xml}}
-```
-
+only implied by the order of elements. The terms of the draft are a
+`dl`, a flat list in which each `dt` is followed by its `dd`.
 `group-starting-with` starts a new group at each item that matches a
-pattern, which turns the flat list into sections:
+pattern, which turns the flat list into entries:
 
-`sections.xsl`:
+`glossary.xsl`:
 
 ```xml
-{{#include ../examples/xslt/sections.xsl}}
+{{#include ../examples/spec/glossary.xsl}}
 ```
 
 ```console
-$ sxml transform sections.xsl article.xml
-<article>
-  <section title="Getting Started">
-    <p>Install sxml.</p>
-    <p>Run a first expression.</p>
-  </section>
-  <section title="XPath">
-    <p>Paths find nodes.</p>
-  </section>
-  <section title="XQuery">
-    <p>FLWOR expressions.</p>
-    <p>Constructors.</p>
-  </section>
-</article>
+$ sxml transform glossary.xsl latch.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<glossary>
+  <entry term="Lock">A device that holds a door closed and answers Latch messages.</entry>
+  <entry term="Controller">The system that sends Latch messages to locks.</entry>
+  <entry term="Code">A string of four to eight digits that a person presents to unlock a door.</entry>
+  <entry term="Lockout">A state in which a lock refuses every code for a time.</entry>
+</glossary>
 ```
 
 There are two more ways to form groups. `group-adjacent` puts
 neighbouring items with the same key together, such as runs of
-paragraphs of the same style, and `group-ending-with` ends a group at
+paragraphs of the same kind, and `group-ending-with` ends a group at
 each item that matches a pattern.
 
-## Sorting and numbering
+## Sorting
 
 `xsl:sort` sorts the items of `xsl:apply-templates`, `xsl:for-each`
-and `xsl:for-each-group`, as in `by-tag.xsl`. Several sorts make
-several sort keys, and `order="descending"`, `data-type` and `lang`
-refine them. `xsl:number` writes the position of a node in many
-formats, such as `1.`, `a)`, `iv` or `1.2.3` for nested sections.
+and `xsl:for-each-group`. In `term-index.xsl` it sorts the groups by
+their key and the terms in each group by name. In `references.xsl`, two
+sorts make two sort keys: the year, newest first, as a number
+(`data-type="number"`, `order="descending"`), and the anchor for
+references of the same year.
+
+Strings sort by their Unicode code points unless a sort names a
+*collation*, with `collation` or `lang`: `lang="de"` sorts by the rules
+of German. [Working with Text](text.md) sorts the authors of the
+references, `M'Raihi` among them, and the anchors `req-1` to `req-11`
+in the order people expect.

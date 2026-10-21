@@ -1,55 +1,75 @@
 # Templates and Modes
 
-<!-- examples: xslt -->
+<!-- examples: spec -->
 
 ## Template rules
 
 A template rule has a `match` pattern and a body. The body is a
 *sequence constructor*: literal result elements (any element that is
-not in the XSLT namespace, such as `<li>`), text, and instructions. This
-stylesheet makes an HTML page of the library:
+not in the XSLT namespace, such as `<p>`), text, and instructions. This
+stylesheet makes an HTML page of the draft, with one rule for each kind
+of element:
 
-`catalog.xsl`:
+`draft.xsl`:
 
 ```xml
-{{#include ../examples/xslt/catalog.xsl}}
+{{#include ../examples/spec/draft.xsl:html}}
 ```
 
+(The file goes on with the rules of a second mode, shown later in this
+chapter.) Run it, and look at the first part of the page:
+
 ```console
-$ sxml transform catalog.xsl library.xml
+$ sxml transform draft.xsl latch.xml | head -31
 <!DOCTYPE html>
 <html>
   <head>
     <meta charset="UTF-8">
-    <title>Library</title>
+    <title>The Latch Protocol for Remote Door Locks</title>
   </head>
   <body>
-    <h2>Computing</h2>
-    <ul>
-      <li><cite>Godel, Escher, Bach</cite> by Douglas Hofstadter</li>
-      <li class="classic"><cite>The Art of Computer Programming</cite> by Donald Knuth</li>
-      <li><cite>Structure and Interpretation of Computer Programs</cite> by Harold Abelson and Gerald Jay Sussman</li>
-    </ul>
-    <h2>Fiction</h2>
-    <ul>
-      <li class="classic"><cite>Dune</cite> by Frank Herbert</li>
-      <li class="classic"><cite>The Left Hand of Darkness</cite> by Ursula K. Le Guin</li>
-    </ul>
-  </body>
-</html>
+    <h1>The Latch Protocol for Remote Door Locks</h1>
+    <ol class="toc">
+      <li><a href="#intro">Introduction</a><ol><li><a href="#terminology">Terminology</a></li></ol></li>
+      <li><a href="#states">Lock States</a></li>
+      <li><a href="#messages">Messages</a><ol><li><a href="#unlock">Unlock</a></li><li><a href="#status">Status</a></li></ol></li>
+      <li><a href="#lockout">Lockout</a></li>
+      <li><a href="#security">Security Considerations</a></li>
+      <li><a href="#iana">IANA Considerations</a></li>
+    </ol>
+    <section id="intro">
+      <h2>Introduction</h2>
+      <p>A building has many doors, and each door has a lock. A
+      <a href="#term-controller">controller</a> sends Latch messages
+      to the locks over a local network and receives their status.</p>
+      <section id="terminology">
+        <h2>Terminology</h2>
+        <p>The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL
+        NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED",
+        "MAY", and "OPTIONAL" in this document are to be interpreted as
+        described in BCP 14 <a href="#RFC2119">RFC2119</a> <a href="#RFC8174">RFC8174</a>
+        when, and only when, they appear in all capitals, as shown here.</p>
+        <dl>
+          <dt id="term-lock">Lock</dt>
+          <dd>A device that holds a door closed and answers Latch messages.</dd>
 ```
 
 Let's read it rule by rule:
 
 - `match="/"` matches the document node, where every transformation
   starts. It writes the page, and `xsl:apply-templates` processes the
-  shelves where the page's body goes.
-- `match="shelf"` writes a heading and a list, and processes the books
-  of the shelf inside the list.
-- `match="book"` writes a list item for a book.
-- `match="book[@year &lt; 1970]"` also matches some books. Patterns use
-  XPath syntax, predicates included, and `&lt;` is how XML writes `<`
-  inside an attribute.
+  draft's sections where the page's body goes.
+- `match="section"` writes a `section` with a heading, and processes
+  the section's children except its `name`. A nested section matches
+  the same rule, so sections nest in the page as deep as in the draft.
+- `match="t"` writes a paragraph, and `match="xref"` a link. An `xref`
+  with no content shows its target's anchor for now; [Keys, Numbers and
+  Grouping](xslt-keys-grouping.md) makes "Section 4" of it.
+- `match="dl | dd"` uses `xsl:copy`, which copies the element without
+  its attributes or children: the content comes from the rules again.
+  A pattern with `|` matches either kind of node.
+- The text in between is copied by the built-in rule, so the words of a
+  paragraph pass through with the elements inside them turned into HTML.
 
 `xsl:apply-templates` is the engine of XSLT. It selects nodes (with
 `select`, or the children by default), and for each one it finds the
@@ -60,110 +80,171 @@ result: here as HTML, indented. The `html` method writes the
 ## Text value templates
 
 With `expand-text="yes"` on the stylesheet, curly braces in text work as
-they do in XQuery: `{title}` is replaced by the value of the expression
-`title`. In attributes of literal result elements, curly braces always
-work; they are *attribute value templates*. Without `expand-text`, you
-write `<xsl:value-of select="title"/>` instead, as older stylesheets do.
+they do in XQuery: `{name}` is replaced by the value of the expression
+`name`, the section's title. In attributes of literal result elements,
+curly braces always work; they are *attribute value templates*:
+`id="{@anchor}"` gives the HTML element the draft's anchor, so the links
+work. Without `expand-text`, you write `<xsl:value-of select="name"/>`
+instead, as older stylesheets do and as the `bcp14` rule does once.
 
 ## Priorities
 
-Two rules match the old books: `book` and `book[@year &lt; 1970]`. When
-several rules match, the one with the highest *priority* wins. A rule
-can state its priority, as the second one does. Otherwise, the priority
-comes from the pattern: a pattern with a predicate or several steps is
-more specific than a plain name, and gets a higher default priority
-(0.5 against 0). So the `priority="1"` above isn't even needed; it just
-makes the intent clear.
-
-Patterns are not expressions that are evaluated from the top: a pattern
-tests a node. `book` matches any `book` element anywhere,
-`shelf/book` a book whose parent is a shelf, and `book[1]` a book that
-is the first book child of its parent.
-
-## Modes
-
-Sometimes you need to process the same nodes twice, in different ways:
-once for a table of contents and once for the content. A *mode* is a
-named set of rules. `xsl:apply-templates mode="contents"` uses only the
-rules of the `contents` mode:
-
-`page.xsl`:
-
-```xml
-{{#include ../examples/xslt/page.xsl}}
-```
+Two rules match a requirement: `t` and `t[@anchor]`. When several rules
+match, the one with the highest *priority* wins. A rule can state its
+priority, as the second one does. Otherwise, the priority comes from the
+pattern: a pattern with a predicate or several steps is more specific
+than a plain name, and gets a higher default priority (0.5 against 0).
+So the `priority="1"` above isn't even needed; it just makes the intent
+clear. The requirements get an `id` and a class:
 
 ```console
-$ sxml transform page.xsl library.xml
-<!DOCTYPE html>
-<html>
-  <body>
-    <ol class="contents">
-      <li><a href="#dune">Dune</a></li>
-      <li><a href="#geb">Godel, Escher, Bach</a></li>
-      <li><a href="#sicp">Structure and Interpretation of Computer Programs</a></li>
-      <li><a href="#taocp">The Art of Computer Programming</a></li>
-      <li><a href="#lhod">The Left Hand of Darkness</a></li>
-    </ol>
-    <section id="geb">
-      <h2>Godel, Escher, Bach</h2>
-      <p>22.50 USD</p>
-    </section>
-    <section id="taocp">
-      <h2>The Art of Computer Programming</h2>
-      <p>An investment: 180.00 USD</p>
-    </section>
-    <section id="sicp">
-      <h2>Structure and Interpretation of Computer Programs</h2>
-      <p>55.00 USD</p>
-    </section>
-  </body>
-</html>
+$ sxml transform draft.xsl latch.xml | grep -A2 'id="req-1"'
+      <p id="req-1" class="requirement">A <a href="#term-lock">lock</a>
+      <span class="bcp14 absolute">MUST</span> be in exactly one of the states "locked",
+      "unlocked" and "lockout".</p>
 ```
 
-This stylesheet shows several more things:
+Patterns are not expressions that are evaluated from the top: a pattern
+tests a node. `t` matches any `t` element anywhere, `section/t` a
+paragraph whose parent is a section (not one in the abstract), and
+`section[1]` a section that is the first section child of its parent.
 
-- `xsl:sort` inside `xsl:apply-templates` sorts the nodes before they
-  are processed.
-- `xsl:param` at the top level declares a *stylesheet parameter*, with a
-  default. Here it chooses which books get a section.
+## Named templates and parameters
+
+The `bcp14` rule shows several more things:
+
 - A template with a `name` instead of a `match` is a *named template*.
   `xsl:call-template` calls it, and `xsl:with-param` passes its
-  parameters, which can have types.
+  parameters, which can have types: `strength` takes an `xs:string`.
+- `xsl:attribute` makes an attribute from a sequence constructor, here
+  the text the named template writes.
+- `xsl:choose` picks the first `xsl:when` whose test is true, or
+  `xsl:otherwise`. There is also `xsl:if` for a single test, as in the
+  `cref` rule.
 - A stylesheet declares every prefix it uses, `xs` too: here
   `xmlns:xs="http://www.w3.org/2001/XMLSchema"` on `xsl:stylesheet`
-  makes `xs:decimal` a type, and `exclude-result-prefixes="xs"` keeps
+  makes `xs:string` a type, and `exclude-result-prefixes="xs"` keeps
   the declaration out of the result. Unlike XPath and XQuery, XSLT
   predeclares no prefix but `xml`; an undeclared one is an error
   (XPST0081 in an expression or a type such as `as`, XTSE0280 in a name
   such as `mode`).
-- `xsl:choose` picks the first `xsl:when` whose test is true (there is
-  also `xsl:if` for a single test).
-- `xsl:text` writes text exactly, which keeps the whitespace of the
-  stylesheet out of the result.
 
-`--param` sets a stylesheet parameter from the command line:
+`xsl:param` at the top level declares a *stylesheet parameter*, with a
+default. `notes` decides whether the editorial notes show, and
+`--param` sets it from the command line:
 
 ```console
-$ sxml transform --param=currency=EUR page.xsl library.xml | grep '<p>'
-      <p>A bargain: 9.99 EUR</p>
-      <p>A bargain: 11.50 EUR</p>
+$ sxml transform --param=notes=show draft.xsl latch.xml | grep 'class="note"'
+      <span class="note">[AM: Should the controller be able to change the duration?]</span></p>
+      <span class="note">[AB: This needs a requirement anchor of its own.]</span></p>
 ```
+
+## Modes
+
+The page processes the same sections twice: once for the table of
+contents and once for the content. A *mode* is a named set of rules.
+`xsl:apply-templates mode="toc"` uses only the rules of the `toc` mode,
+so a section there makes a list item with a link, not a `section`
+element. Each mode has its own built-in rules, too, which is why the
+`toc` mode has a rule for the document node: without it, the built-in
+rule would copy all the text of the draft into the table of contents.
+
+A mode can do more than a part of the page. The rest of `draft.xsl` is
+a second rendering of the whole draft, as plain text in the style of an
+RFC: section numbers, paragraphs indented by three spaces and wrapped
+at 72 columns, and a reference written as `[RFC2119]`:
+
+```xml
+{{#include ../examples/spec/draft.xsl:text}}
+```
+
+The `t` rule applies the rules of the mode to the paragraph's children
+inside an `xsl:variable`, so the variable holds the paragraph's text
+with every `xref` and `bcp14` already turned into text. `normalize-space`
+joins its lines, and one `replace` breaks it again into lines of at
+most 69 characters plus the indent: `(.{1,69})( |$)` takes as many
+characters as fit before a space or the end. The section number is the
+position of each enclosing section among its siblings, joined with
+dots.
+
+`xsl:value-of` with `separator=""` joins the lines of the ABNF without
+a space between them, and `xsl:text` writes text exactly, which keeps
+the whitespace of the stylesheet out of the result: `&#10;` is a line
+feed.
 
 ## Starting somewhere else
 
 A transformation normally starts by applying templates to the document
-node in the default mode. `--initial-mode` starts in another mode, and
-`--initial-template` calls a named template instead. A stylesheet that
-needs no input can name its starting template `xsl:initial-template`:
+node in the default mode. `--initial-mode` starts in another mode. The
+`toc` mode alone is a table of contents:
 
-`hello.xsl`:
+```console
+$ sxml transform --initial-mode=toc draft.xsl latch.xml
+<ol class="toc">
+  <li><a href="#intro">Introduction</a><ol><li><a href="#terminology">Terminology</a></li></ol></li>
+  <li><a href="#states">Lock States</a></li>
+  <li><a href="#messages">Messages</a><ol><li><a href="#unlock">Unlock</a></li><li><a href="#status">Status</a></li></ol></li>
+  <li><a href="#lockout">Lockout</a></li>
+  <li><a href="#security">Security Considerations</a></li>
+  <li><a href="#iana">IANA Considerations</a></li>
+</ol>
+```
+
+And the `text` mode is the plain-text draft. Its result is text, not
+HTML, so `--method=text` replaces the stylesheet's output method:
+
+```console
+$ sxml transform --initial-mode=text --method=text draft.xsl latch.xml | head -30
+The Latch Protocol for Remote Door Locks
+
+1.  Introduction
+
+   A building has many doors, and each door has a lock. A controller
+   sends Latch messages to the locks over a local network and receives
+   their status.
+
+1.1.  Terminology
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and
+   "OPTIONAL" in this document are to be interpreted as described in BCP
+   14 [RFC2119] [RFC8174] when, and only when, they appear in all
+   capitals, as shown here.
+
+   Lock
+      A device that holds a door closed and answers Latch messages.
+
+   Controller
+      The system that sends Latch messages to locks.
+
+   Code
+      A string of four to eight digits that a person presents to unlock
+      a door.
+
+   Lockout
+      A state in which a lock refuses every code for a time.
+
+2.  Lock States
+
+$ sxml transform --initial-mode=text --method=text draft.xsl latch.xml | grep 'in lockout ('
+   A lock MUST NOT unlock while it is in lockout ([lockout]).
+```
+
+The reference to Section 4 still shows as `[lockout]`: an `xref`
+without text needs a lookup of its target, the subject of the next
+section.
+
+`--initial-template` calls a named template instead of applying
+templates. A stylesheet that needs no input names its starting template
+`xsl:initial-template`, and runs without a document:
+
+`bcp14.xsl`:
 
 ```xml
-{{#include ../examples/xslt/hello.xsl}}
+{{#include ../examples/spec/bcp14.xsl}}
 ```
 
 ```console
-$ sxml transform hello.xsl
-Hello from XSLT 4.0
+$ sxml transform bcp14.xsl
+BCP 14 has 11 key words: MUST, MUST NOT, REQUIRED, SHALL, SHALL NOT, SHOULD, SHOULD NOT, RECOMMENDED, NOT RECOMMENDED, MAY, OPTIONAL.
 ```

@@ -1,8 +1,0 @@
-<loans>
-  <loan book="dune" member="ada" date="2026-09-02"/>
-  <loan book="geb" member="alan" date="2026-09-05"/>
-  <loan book="dune" member="grace" date="2026-09-14"/>
-  <loan book="sicp" member="ada" date="2026-09-20"/>
-  <loan book="lhod" member="ada" date="2026-10-01"/>
-  <loan book="dune" member="alan" date="2026-10-03"/>
-</loans>
