@@ -4,6 +4,15 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- book-17 done: Transforming with XSLT (xslt*.md, five files), Working
+  with Text, Files and the Outside World, Embedding sxml in C and the
+  ABNF section of Parsing Text with Invisible XML on the Vane story;
+  latch-entities.xml is vane-entities.xml, publish.sh writes
+  site/vane.html and site/vane.txt. The full-text lessons search
+  "pause"/"paused", roll.* and rollout ftor status. Statuses shown with
+  `echo $?` are now the command's own. 106 examples match, and the
+  11 of ixml-tasks.md.
+
 - book-16 done: Writing Programs with XQuery (xquery*.md, eleven
   files) on the Vane story, with the spec project's query files
   (spec.xqm, edit.xqm, check.xq, changes.xq and the section queries).
