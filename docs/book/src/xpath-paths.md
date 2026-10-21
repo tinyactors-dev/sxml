@@ -109,7 +109,7 @@ of the current one:
 
 ```console
 $ sxml xpath --context-item=vane.xml '(//t[bcp14])[last()]/string()'
-"A rollout request travels in clear text on the network. Deployments
+"Vane messages travel in clear text on the network. Deployments
       SHOULD carry Vane over an encrypted link.
       This needs a requirement anchor of
       its own."

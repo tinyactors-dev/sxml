@@ -19,7 +19,7 @@ Internet-Draft written in XML. Its requirements are paragraphs with an
 anchor and a BCP 14 keyword:
 
 ```xml
-{{#include ../examples/spec/vane.xml:106:115}}
+{{#include ../examples/spec/vane.xml:111:120}}
 ```
 
 There is an earlier version of the draft too, `vane-00.xml`, and the

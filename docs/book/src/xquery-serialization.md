@@ -134,12 +134,12 @@ $ sxml xquery --context-item=vane.xml --expression='
     declare option output:cdata-section-elements "sourcecode";
     //sourcecode'
 <sourcecode type="abnf" name="vane.abnf"><![CDATA[
-message         = rollout-request / kill-request / status-request
-rollout-request = "ROLLOUT" SP flag-key SP percentage CRLF
-kill-request    = "KILL" SP flag-key CRLF
-status-request  = "STATUS" SP flag-key CRLF
-flag-key        = 1*32(ALPHA / DIGIT / "-")
-percentage      = 1*3DIGIT
+message        = rollout-update / kill-update / status-request
+rollout-update = "ROLLOUT" SP flag-key SP percentage CRLF
+kill-update    = "KILL" SP flag-key CRLF
+status-request = "STATUS" SP flag-key CRLF
+flag-key       = 1*32(ALPHA / DIGIT / "-")
+percentage     = 1*3DIGIT
 ]]></sourcecode>
 ```
 
@@ -287,7 +287,7 @@ req-4,3.1,MUST,A service MUST check the guardrail metrics of a flag before it ap
 req-5,3.1,MUST NOT,A service MUST NOT roll out a flag while it is in a pause (Section 4).
 req-9,3.1,MAY,A service MAY ask an owner for a time-based one-time password [RFC6238] before a rollout.
 req-6,3.2,MUST,A service MUST answer a status request with the state of the flag and the number of failed checks since its last rollout step.
-req-10,3.2,SHOULD NOT,An SDK SHOULD NOT send more than one status request per second for a flag.
+req-10,3.2,SHOULD NOT,An SDK SHOULD NOT send more than one status request per second for a flag; it uses its cached answer in between.
 req-7,4,MUST,"After three failed checks in a row, a service MUST put the flag in a pause."
 req-8,4,SHOULD,A pause SHOULD last five minutes.
 req-11,4,MAY,A service MAY report a pause to the owners of the flag as soon as it begins.

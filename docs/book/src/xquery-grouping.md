@@ -199,8 +199,8 @@ paragraph as `$keyword/..`.
 ## Runs of neighbours
 
 `group by` doesn't care where the members of a group are. Sometimes
-position is the whole point: the calls a service makes one after
-another, the events of one session. XQuery's *window clauses* group
+position is the whole point: the queries a service sends to its
+database one after another, the events of one session. XQuery's *window clauses* group
 items that are next to each other, in tumbling windows that don't
 overlap and sliding windows that do. They are taught on trace data,
 where they find a run of repeated calls, in [Who Calls Whom, and How

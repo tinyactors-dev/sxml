@@ -48,11 +48,11 @@ query gives it the anchor and removes the note:
 ```console
 $ sxml xquery --context-item=vane.xml give-anchor.xq > after.xml
 $ diff before.xml after.xml
-115c115
-<       <t>A rollout request travels in clear text on the network. Deployments
+120c120
+<       <t>Vane messages travel in clear text on the network. Deployments
 ---
->       <t anchor="req-12">A rollout request travels in clear text on the network. Deployments
-117,118c117
+>       <t anchor="req-12">Vane messages travel in clear text on the network. Deployments
+122,123c122
 <       <cref anchor="issue-2" source="AB">This needs a requirement anchor of
 <       its own.</cref></t>
 ---
@@ -84,7 +84,7 @@ text node:
 ```console
 $ sxml xquery --context-item=vane.xml new-requirement.xq > after.xml
 $ diff before.xml after.xml
-109a110,111
+114a115,116
 >       <t anchor="req-13">An owner of a <xref target="term-flag">flag</xref>
 >       <bcp14>MAY</bcp14> end a pause early.</t>
 ```
@@ -111,10 +111,10 @@ anchor, and every cross reference to it:
 $ sxml xquery --context-item=vane.xml rename-term.xq > after.xml
 $ diff before.xml after.xml
 33c33
-<       <xref target="term-sdk">SDK</xref> sends Vane messages to the
+<       <xref target="term-sdk">SDK</xref> in the application keeps the flags
 ---
->       <xref target="term-client">client</xref> sends Vane messages to the
-47c47
+>       <xref target="term-client">client</xref> in the application keeps the flags
+48c48
 <           <dt anchor="term-sdk">SDK</dt>
 ---
 >           <dt anchor="term-client">Client</dt>
@@ -131,6 +131,8 @@ $ sxml xquery --context-item=after.xml --method=adaptive --expression='
     //text()[not(ancestor::xref | ancestor::dt)][contains(lower-case(.), "sdk")]
       ! ancestor::*[@anchor or self::abstract][1] ! (@anchor, name())[1] ! string()'
 "abstract"
+"terminology"
+"messages"
 "req-10"
 ```
 
@@ -153,16 +155,17 @@ original. The inserted node is a copy, with everything inside it:
 ```console
 $ sxml xquery --context-item=vane.xml move-section.xq > moved.xml
 $ diff before.xml moved.xml
-80a81,88
+84a85,93
 >       <section anchor="status">
 >         <name>Status</name>
 >         <t anchor="req-6">A service <bcp14>MUST</bcp14> answer a status request
 >         with the state of the flag and the number of failed checks since its
 >         last rollout step.</t>
 >         <t anchor="req-10">An SDK <bcp14>SHOULD NOT</bcp14> send more
->         than one status request per second for a flag.</t>
+>         than one status request per second for a flag; it uses its cached
+>         answer in between.</t>
 >       </section>
-93,100d100
+97,105d105
 <       </section>
 <       <section anchor="status">
 <         <name>Status</name>
@@ -170,7 +173,8 @@ $ diff before.xml moved.xml
 <         with the state of the flag and the number of failed checks since its
 <         last rollout step.</t>
 <         <t anchor="req-10">An SDK <bcp14>SHOULD NOT</bcp14> send more
-<         than one status request per second for a flag.</t>
+<         than one status request per second for a flag; it uses its cached
+<         answer in between.</t>
 ```
 
 Now Status is section 3.1 and Rollout 3.2, and nothing in the draft had
@@ -269,7 +273,7 @@ will see them:
 ```console
 $ sxml xquery --context-item=vane.xml --expression='//t[cref] ! (. transform with { delete node cref })'
 <t anchor="req-8">A pause <bcp14>SHOULD</bcp14> last five minutes.
-      </t><t>A rollout request travels in clear text on the network. Deployments
+      </t><t>Vane messages travel in clear text on the network. Deployments
       <bcp14>SHOULD</bcp14> carry Vane over an encrypted link.
       </t>
 ```
@@ -287,7 +291,7 @@ $ sxml xquery --context-item=vane.xml --expression='
     };
     local:set-keyword(//t[@anchor = "req-3"], "MUST")' > after.xml
 $ diff before.xml after.xml
-66c66
+69c69
 <       <t anchor="req-3">A rolling-out flag <bcp14>SHOULD</bcp14> return to the
 ---
 >       <t anchor="req-3">A rolling-out flag <bcp14>MUST</bcp14> return to the

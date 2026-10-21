@@ -73,11 +73,11 @@ $ sxml xquery --context-item=vane.xml --expression='
     import module namespace edit = "urn:example:edit" at "edit.xqm";
     edit:rename-term(//dt[@anchor = "term-percentage"], "Rollout Percentage")' > after.xml
 $ diff before.xml after.xml
-50c50
+51c51
 <           <dt anchor="term-percentage">Percentage</dt>
 ---
 >           <dt anchor="term-rollout-percentage">Rollout Percentage</dt>
-85c85
+89c89
 <         <xref target="term-percentage">percentage</xref> of a rollout
 ---
 >         <xref target="term-rollout-percentage">rollout percentage</xref> of a rollout
@@ -103,7 +103,7 @@ $ sxml xquery --context-item=vane.xml --output=twice.xml --expression='
     edit:add-requirement(//t[@anchor = "req-11"], <t>A service <bcp14>MAY</bcp14> log each rollout.</t>),
     edit:add-requirement(//t[@anchor = "req-8"], <t>A service <bcp14>MAY</bcp14> log each pause.</t>)'
 $ sxml validate --schema=vane.xsd twice.xml
-twice.xml:113:7: cvc-identity-constraint.4.1: element 't': its key sequence is that of an earlier member (unique 'anchor')
+twice.xml:118:7: cvc-identity-constraint.4.1: element 't': its key sequence is that of an earlier member (unique 'anchor')
 ```
 
 Add one requirement per command, as the session below does.
@@ -174,7 +174,7 @@ also reported as new text. From -00 to -01:
 ```console
 $ sxml xquery changes.xq
 req-9 added: A service MAY ask an owner for a time-based one-time password [RFC6238] before a rollout.
-req-10 added: An SDK SHOULD NOT send more than one status request per second for a flag.
+req-10 added: An SDK SHOULD NOT send more than one status request per second for a flag; it uses its cached answer in between.
 req-7 text: After five failed checks in a row, a service MUST put the flag in a pause.
     now: After three failed checks in a row, a service MUST put the flag in a pause.
 req-8 text: A pause SHOULD last one minute.
@@ -188,7 +188,7 @@ were:
 ```console
 $ sxml xquery --param=old=vane.xml --param=new=vane-00.xml changes.xq | grep removed
 req-9 removed: A service MAY ask an owner for a time-based one-time password [RFC6238] before a rollout.
-req-10 removed: An SDK SHOULD NOT send more than one status request per second for a flag.
+req-10 removed: An SDK SHOULD NOT send more than one status request per second for a flag; it uses its cached answer in between.
 req-11 removed: A service MAY report a pause to the owners of the flag as soon as it begins.
 ```
 
@@ -260,7 +260,7 @@ $ sxml xquery --param=old=vane.xml --param=new=drafts/vane-02.xml --param=format
     "anchor": "req-12",
     "change": "added",
     "old": null,
-    "new": "A rollout request travels in clear text on the network. Deployments SHOULD carry Vane over an encrypted link."
+    "new": "Vane messages travel in clear text on the network. Deployments SHOULD carry Vane over an encrypted link."
   }
 ]
 ```
@@ -281,22 +281,22 @@ $ diff before.xml drafts/vane-02.xml
 <     <date year="2026" month="October" day="21"/>
 ---
 >     <date year="2026" month="November" day="30"/>
-66c66
+69c69
 <       <t anchor="req-3">A rolling-out flag <bcp14>SHOULD</bcp14> return to the
 ---
 >       <t anchor="req-3">A rolling-out flag <bcp14>MUST</bcp14> return to the
-111a112
+116a117
 >       <t anchor="req-13">A service <bcp14>SHOULD</bcp14> log every failed check with syslog <xref target="RFC5424"/>.</t>
-115c116
-<       <t>A rollout request travels in clear text on the network. Deployments
+120c121
+<       <t>Vane messages travel in clear text on the network. Deployments
 ---
->       <t anchor="req-12">A rollout request travels in clear text on the network. Deployments
-117,118c118
+>       <t anchor="req-12">Vane messages travel in clear text on the network. Deployments
+122,123c123
 <       <cref anchor="issue-2" source="AB">This needs a requirement anchor of
 <       its own.</cref></t>
 ---
 >       </t>
-170a171,178
+175a176,183
 >         </reference>
 >         <reference anchor="RFC5424" target="https://www.rfc-editor.org/info/rfc5424">
 >           <front>

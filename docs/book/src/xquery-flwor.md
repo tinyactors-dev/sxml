@@ -56,6 +56,7 @@ $ sxml xquery --context-item=vane.xml --method=adaptive --expression='
     order by $words descending
     return `{$requirement/@anchor}: {$words} words`'
 "req-6: 24 words"
+"req-10: 22 words"
 "req-4: 19 words"
 "req-11: 17 words"
 "req-3: 16 words"

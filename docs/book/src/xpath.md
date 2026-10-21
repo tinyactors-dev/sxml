@@ -7,10 +7,11 @@ XQuery is XPath with more around it, and XSLT uses XPath to select what
 its templates process. Time spent learning XPath pays off three times.
 
 This chapter and the next two work on one document: the specification
-of the Vane protocol, which the SDK in an application uses to ask a
-feature-flag service which features are on and to roll them out. It is
-written the way the IETF writes its
-specifications: as an Internet-Draft in XML, in the vocabulary of the
+of the Vane protocol. The Vane service holds the feature flags of
+applications, and an SDK in each application keeps a cache of them. The
+protocol is how the service tells the SDKs, on an update stream, that a
+flag rolled out or was killed, and how an SDK asks for the status of a
+flag. The draft is written the way the IETF writes its specifications: as an Internet-Draft in XML, in the vocabulary of the
 xml2rfc tool (RFC 7991), which turns such a file into the HTML and the
 plain text you know from RFCs. Keeping a specification in XML means a
 program can answer questions about it: which requirements there are,
