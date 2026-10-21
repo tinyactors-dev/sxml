@@ -1,10 +1,10 @@
-<rfc docName="draft-example-latch-protocol-01">
+<rfc docName="draft-example-vane-protocol-01">
   <front>
-    <title>The Latch Protocol for Remote Door Locks</title>
+    <title>The Vane Protocol for Feature Flag Rollouts</title>
   </front>
   <middle>
     <section anchor="states">
-      <t anchor="req-1">A lock <bcp14>MIGHT</bcp14> start locked when it is powered on.</t>
+      <t anchor="req-2">A flag <bcp14>MIGHT</bcp14> be stable when it is created.</t>
     </section>
   </middle>
 </rfc>

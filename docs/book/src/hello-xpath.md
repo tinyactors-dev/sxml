@@ -30,8 +30,8 @@ XPath, and `||` joins strings together.
 ## A first document
 
 XPath is made for finding things in documents. The documents of this
-book belong to Latch, a small, made-up protocol for door locks, and the
-first is a short cut of its specification. Like the specifications of
+book belong to Vane, a small, made-up service for feature flags, and the
+first is a short cut of the specification of its protocol. Like the specifications of
 the IETF, it is written in XML: sections with a `name`, paragraphs `t`,
 and *requirements*, the paragraphs with an `anchor` and a key word such
 as MUST or SHOULD in a `bcp14` element. Here it is, the file `draft.xml`
@@ -49,8 +49,8 @@ for every `name` element:
 
 ```console
 $ sxml xpath --context-item=draft.xml '//name'
-<name>Lock States</name>
-<name>Lockout</name>
+<name>Flag States</name>
+<name>Pause</name>
 ```
 
 `//name` is a *path expression*. It reads as "from the top of the
@@ -64,8 +64,8 @@ element it finds:
 
 ```console
 $ sxml xpath --context-item=draft.xml '//name/string()'
-"Lock States"
-"Lockout"
+"Flag States"
+"Pause"
 ```
 
 ## Asking questions
@@ -75,8 +75,8 @@ condition each item must meet. Which paragraphs say MUST?
 
 ```console
 $ sxml xpath --context-item=draft.xml '//t[bcp14 = "MUST"]/string()'
-"A lock MUST start locked when it is powered on."
-"After three rejected codes, a lock MUST enter lockout."
+"A flag MUST be stable when it is created."
+"After three failed checks, a service MUST pause the flag."
 ```
 
 The predicate `[bcp14 = "MUST"]` keeps each `t` that has a `bcp14`
@@ -99,7 +99,7 @@ they look in XML:
 
 ```console
 $ sxml xpath --context-item=draft.xml '//t/@anchor'
-anchor="req-1"
+anchor="req-2"
 anchor="req-3"
 anchor="req-7"
 ```
@@ -110,12 +110,12 @@ line of the index of requirements for each anchored paragraph:
 
 ```console
 $ sxml xpath --context-item=draft.xml '//t[@anchor] ! (@anchor || ": " || bcp14)'
-"req-1: MUST"
+"req-2: MUST"
 "req-3: SHOULD"
 "req-7: MUST"
 ```
 
-The anchors are names, not numbers: `req-2` is not in this cut of the
+The anchors are names, not numbers: `req-1` is not in this cut of the
 draft, and the full draft adds requirements in the middle. You'll learn
 much more about paths in the next chapter.
 

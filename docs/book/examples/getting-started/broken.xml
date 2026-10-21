@@ -1,8 +1,8 @@
-<rfc docName="draft-example-latch-protocol-01">
+<rfc docName="draft-example-vane-protocol-01">
   <middle>
     <section anchor="states">
-      <name>Lock States</name>
-      <t anchor="req-1">A lock <bcp14>MUST</bcp14> start locked.
+      <name>Flag States</name>
+      <t anchor="req-2">A flag <bcp14>MUST</bcp14> be stable.
     </section>
   </middle>
 </rfc>

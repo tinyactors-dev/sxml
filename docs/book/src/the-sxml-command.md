@@ -90,9 +90,9 @@ XML. This query makes an index of the requirements, sorted by key word:
 ```console
 $ sxml xquery --context-item=draft.xml requirements.xq
 <requirements>
-  <requirement anchor="req-1" keyword="MUST">A lock MUST start locked when it is powered on.</requirement>
-  <requirement anchor="req-7" keyword="MUST">After three rejected codes, a lock MUST enter lockout.</requirement>
-  <requirement anchor="req-3" keyword="SHOULD">An unlocked lock SHOULD lock again after ten seconds.</requirement>
+  <requirement anchor="req-2" keyword="MUST">A flag MUST be stable when it is created.</requirement>
+  <requirement anchor="req-7" keyword="MUST">After three failed checks, a service MUST pause the flag.</requirement>
+  <requirement anchor="req-3" keyword="SHOULD">A rolling-out flag SHOULD be stable again after ten minutes.</requirement>
 </requirements>
 ```
 
@@ -125,15 +125,15 @@ $ sxml transform outline.xsl draft.xml
 <!DOCTYPE html>
 <html>
   <body>
-    <h1>The Latch Protocol for Remote Door Locks</h1>
-    <h2>1. Lock States</h2>
+    <h1>The Vane Protocol for Feature Flag Rollouts</h1>
+    <h2>1. Flag States</h2>
     <ul>
-      <li id="req-1">A lock MUST start locked when it is powered on.</li>
-      <li id="req-3">An unlocked lock SHOULD lock again after ten seconds.</li>
+      <li id="req-2">A flag MUST be stable when it is created.</li>
+      <li id="req-3">A rolling-out flag SHOULD be stable again after ten minutes.</li>
     </ul>
-    <h2>2. Lockout</h2>
+    <h2>2. Pause</h2>
     <ul>
-      <li id="req-7">After three rejected codes, a lock MUST enter lockout.</li>
+      <li id="req-7">After three failed checks, a service MUST pause the flag.</li>
     </ul>
   </body>
 </html>
@@ -153,10 +153,10 @@ processed.
 indented, or by another output method:
 
 ```console
-$ echo '<section><name>Lockout</name><t>Three codes.</t></section>' | sxml serialize --indent -
+$ echo '<section><name>Pause</name><t>Three failed checks.</t></section>' | sxml serialize --indent -
 <section>
-  <name>Lockout</name>
-  <t>Three codes.</t>
+  <name>Pause</name>
+  <t>Three failed checks.</t>
 </section>
 ```
 
@@ -196,4 +196,4 @@ You now know the whole `sxml` command at a glance:
 
 sxml reads only the local files you name, never uses the network and
 writes a file only when an option asks it to. Now it's time to learn the
-languages properly, starting with XPath on the whole Latch draft.
+languages properly, starting with XPath on the whole Vane draft.

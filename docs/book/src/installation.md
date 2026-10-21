@@ -116,7 +116,7 @@ every command and option.
 The book's examples are in the sxml repository, in
 `docs/book/examples/`. If you built sxml from source, you already have
 them. Each project of the book has a directory of its own, like a small
-repository: the Latch specification is in `spec`, the diagrams in `svg`,
+repository: the Vane specification is in `spec`, the diagrams in `svg`,
 and so on. The chapters that use no project, such as this one, have a
 directory of their own too. Each chapter says which directory it uses;
 change into it, and every command will find its files. For this chapter

@@ -1,17 +1,17 @@
-<rfc docName="draft-example-latch-protocol-01">
+<rfc docName="draft-example-vane-protocol-01">
   <front>
-    <title>The Latch Protocol for Remote Door Locks</title>
+    <title>The Vane Protocol for Feature Flag Rollouts</title>
   </front>
   <middle>
     <section anchor="states">
-      <name>Lock States</name>
-      <t anchor="req-1">A lock <bcp14>MUST</bcp14> start locked when it is powered on.</t>
-      <t anchor="req-3">An unlocked lock <bcp14>SHOULD</bcp14> lock again after ten seconds.</t>
+      <name>Flag States</name>
+      <t anchor="req-2">A flag <bcp14>MUST</bcp14> be stable when it is created.</t>
+      <t anchor="req-3">A rolling-out flag <bcp14>SHOULD</bcp14> be stable again after ten minutes.</t>
     </section>
-    <section anchor="lockout">
-      <name>Lockout</name>
-      <t>Lockout protects a lock against guessed codes.</t>
-      <t anchor="req-7">After three rejected codes, a lock <bcp14>MUST</bcp14> enter lockout.</t>
+    <section anchor="pause">
+      <name>Pause</name>
+      <t>A pause protects users from a rollout that fails its checks.</t>
+      <t anchor="req-7">After three failed checks, a service <bcp14>MUST</bcp14> pause the flag.</t>
     </section>
   </middle>
 </rfc>
