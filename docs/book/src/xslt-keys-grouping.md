@@ -160,8 +160,8 @@ $ sxml transform glossary.xsl vane.xml
 <?xml version="1.0" encoding="UTF-8"?>
 <glossary>
   <entry term="Flag">A named switch in an application that turns a feature on for a share of its users.</entry>
-  <entry term="SDK">The library in an application that sends Vane messages about flags.</entry>
-  <entry term="Percentage">A whole number from 0 to 100 that an owner gives to roll a flag out to that share of users.</entry>
+  <entry term="SDK">The library in an application that evaluates flags from its cache and keeps the cache current with Vane messages.</entry>
+  <entry term="Percentage">A whole number from 0 to 100 that an owner gives to roll a flag out to that share of users. An SDK puts a user in the share by a hash of the flag and the user, so the user stays in it while the percentage grows.</entry>
   <entry term="Pause">A state in which a flag refuses every rollout for a time.</entry>
 </glossary>
 ```

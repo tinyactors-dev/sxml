@@ -292,12 +292,12 @@ a link to the draft:
 ```console
 $ sxml xpath --context-item=vane.xml --method=text '//sourcecode[@type = "abnf"]'
 
-message         = rollout-request / kill-request / status-request
-rollout-request = "ROLLOUT" SP flag-key SP percentage CRLF
-kill-request    = "KILL" SP flag-key CRLF
-status-request  = "STATUS" SP flag-key CRLF
-flag-key        = 1*32(ALPHA / DIGIT / "-")
-percentage      = 1*3DIGIT
+message        = rollout-update / kill-update / status-request
+rollout-update = "ROLLOUT" SP flag-key SP percentage CRLF
+kill-update    = "KILL" SP flag-key CRLF
+status-request = "STATUS" SP flag-key CRLF
+flag-key       = 1*32(ALPHA / DIGIT / "-")
+percentage     = 1*3DIGIT
 ```
 
 To a program, those lines are one string. A small grammar for ABNF
@@ -357,9 +357,9 @@ $ sxml xquery --context-item=vane.xml --method=adaptive --expression='
       return `{$rule/@name} uses {string-join(distinct-values($rule//ref/@name), ", ")}`,
       `undefined: {string-join(distinct-values($rules//ref/@name[not(. = $rules/@name)]), ", ")}`
     )'
-"message uses rollout-request, kill-request, status-request"
-"rollout-request uses SP, flag-key, percentage, CRLF"
-"kill-request uses SP, flag-key, CRLF"
+"message uses rollout-update, kill-update, status-request"
+"rollout-update uses SP, flag-key, percentage, CRLF"
+"kill-update uses SP, flag-key, CRLF"
 "status-request uses SP, flag-key, CRLF"
 "flag-key uses ALPHA, DIGIT"
 "percentage uses DIGIT"

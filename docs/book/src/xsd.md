@@ -71,14 +71,14 @@ $ sed -e 's/<bcp14>MUST NOT/<bcp14>MIGHT/' \
       -e 's/<date year="2026"/<date year="26"/' vane.xml \
   | sxml validate --schema=vane.xsd -
 -:20:11: cvc-datatype-valid.1.2.1: attribute 'year' has the value '26', which is not valid for type 'xs:gYear'
--:90:37: cvc-enumeration-valid: element 'bcp14' has the value 'MIGHT', which is not valid for type 'keyword': the value is not one of the enumeration facets (XSD 1.1 Part 2, 4.3.5.4); the enumeration facets are 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL', 'SHALL NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED', ...
--:88:9: cvc-identity-constraint.4.3: element 'xref': its key sequence is no key sequence of the referenced key (keyref 'xref-target')
+-:94:37: cvc-enumeration-valid: element 'bcp14' has the value 'MIGHT', which is not valid for type 'keyword': the value is not one of the enumeration facets (XSD 1.1 Part 2, 4.3.5.4); the enumeration facets are 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL', 'SHALL NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED', ...
+-:92:9: cvc-identity-constraint.4.3: element 'xref': its key sequence is no key sequence of the referenced key (keyref 'xref-target')
 ```
 
 sxml reports every error, not only the first. Each one has the line and
 column, the name of the rule in the XSD specification that failed (such
 as `cvc-enumeration-valid`), the value, and what was expected. The
-`xref` comes last although it is on line 88: rules across the document,
+`xref` comes last although it is on line 92: rules across the document,
 such as the keyref, are checked at the end of the element they belong
 to, here `rfc`, when every anchor is known. [Reading Validation
 Errors](xsd-errors.md) goes through the messages in detail.

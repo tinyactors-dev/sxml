@@ -226,7 +226,7 @@ message stays on one line):
 
 ```console
 $ sed 's/<bcp14>MUST NOT</<bcp14>MUST\n        NOT</' vane.xml | sxml validate --schema=vane.xsd -
--:90:37: cvc-enumeration-valid: element 'bcp14' has the value 'MUST         NOT', which is not valid for type 'keyword': the value is not one of the enumeration facets (XSD 1.1 Part 2, 4.3.5.4); the enumeration facets are 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL', 'SHALL NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED', ...
+-:94:37: cvc-enumeration-valid: element 'bcp14' has the value 'MUST         NOT', which is not valid for type 'keyword': the value is not one of the enumeration facets (XSD 1.1 Part 2, 4.3.5.4); the enumeration facets are 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL', 'SHALL NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED', ...
 ```
 
 Had `keyword` restricted `xs:token`, the line break and the spaces

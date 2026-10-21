@@ -40,9 +40,10 @@ $ sxml transform draft.xsl vane.xml | head -31
     <section id="intro">
       <h2>Introduction</h2>
       <p>An application has many features, and each feature has a flag. An
-      <a href="#term-sdk">SDK</a> sends Vane messages to the
-      evaluation service over the network and receives the state of the
-      flags.</p>
+      <a href="#term-sdk">SDK</a> in the application keeps the flags
+      in a cache and evaluates them for each user. It holds an update stream
+      open to the Vane service, which sends a message on it whenever a flag
+      changes, and it asks the service for the status of a flag.</p>
       <section id="terminology">
         <h2>Terminology</h2>
         <p>The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL
@@ -51,7 +52,6 @@ $ sxml transform draft.xsl vane.xml | head -31
         described in BCP 14 <a href="#RFC2119">RFC2119</a> <a href="#RFC8174">RFC8174</a>
         when, and only when, they appear in all capitals, as shown here.</p>
         <dl>
-          <dt id="term-flag">Flag</dt>
 ```
 
 Let's read it rule by rule:
@@ -200,8 +200,10 @@ The Vane Protocol for Feature Flag Rollouts
 1.  Introduction
 
    An application has many features, and each feature has a flag. An SDK
-   sends Vane messages to the evaluation service over the network and
-   receives the state of the flags.
+   in the application keeps the flags in a cache and evaluates them for
+   each user. It holds an update stream open to the Vane service, which
+   sends a message on it whenever a flag changes, and it asks the
+   service for the status of a flag.
 
 1.1.  Terminology
 
@@ -216,15 +218,13 @@ The Vane Protocol for Feature Flag Rollouts
       share of its users.
 
    SDK
-      The library in an application that sends Vane messages about
-      flags.
+      The library in an application that evaluates flags from its cache
+      and keeps the cache current with Vane messages.
 
    Percentage
       A whole number from 0 to 100 that an owner gives to roll a flag
-      out to that share of users.
-
-   Pause
-      A state in which a flag refuses every rollout for a time.
+      out to that share of users. An SDK puts a user in the share by a
+      hash of the flag and the user, so the user stays in it while the
 $ sxml transform --initial-mode=text --method=text draft.xsl vane.xml | grep 'in a pause ('
    A service MUST NOT roll out a flag while it is in a pause ([pause]).
 ```

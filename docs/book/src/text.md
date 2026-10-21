@@ -173,18 +173,20 @@ $ sxml xquery --context-item=vane.xml --method=adaptive --expression='
     order by $score descending
     return $t/@anchor || " " || round($score, 2)'
 "req-6 0.26"
-"req-10 0.17"
 "req-9 0.16"
 "req-3 0.16"
 "req-4 0.16"
+"req-10 0.15"
 ```
 
 req-6 has both words, "status request" and "rollout step", and comes
-first. `using language "de"` selects the language of the words, for
-stemming and stop words. sxml has stemmers for English, German, French,
-Italian, Spanish and Dutch, and reads lists of stop words and thesauri
-from files. `contains text` works in XQuery as in XPath, as the last
-example shows.
+first. The others have one of the words once each, and then the length
+of the paragraph decides: req-10 has "status" in 22 words, more than
+any of the other three, and comes last. `using language "de"` selects
+the language of the words, for stemming and stop words. sxml has
+stemmers for English, German, French, Italian, Spanish and Dutch, and
+reads lists of stop words and thesauri from files. `contains text`
+works in XQuery as in XPath, as the last example shows.
 
 ## Dates in other languages
 
@@ -263,9 +265,9 @@ $ sxml xpath "format-integer(11, 'w'), format-integer(11, 'w', 'de'), format-int
 ```
 
 The draft writes its numbers in words: ten minutes, three failed
-checks, five minutes. The service that implements it has them as
-numbers. A query can check that each requirement says the number the
-service uses, with
+checks, five minutes. The Vane service, which implements it, has them
+as numbers in its rollout module. A query can check that each
+requirement says the number the service uses, with
 `format-integer` making the word and `contains text` finding it (an
 expression in braces is searched for):
 

@@ -105,8 +105,8 @@ messages for one mistake:
 ```console
 $ sed 's/<section anchor="pause">/<section anchor="the pause">/' vane.xml \
   | sxml validate --schema=vane.xsd -
--:106:14: cvc-datatype-valid.1.2.1: attribute 'anchor' has the value 'the pause', which is not valid for type 'anchor'
--:92:10: cvc-identity-constraint.4.3: element 'xref': its key sequence is no key sequence of the referenced key (keyref 'xref-target')
+-:111:14: cvc-datatype-valid.1.2.1: attribute 'anchor' has the value 'the pause', which is not valid for type 'anchor'
+-:96:10: cvc-identity-constraint.4.3: element 'xref': its key sequence is no key sequence of the referenced key (keyref 'xref-target')
 ```
 
 The first says what is wrong with the value. The second follows from

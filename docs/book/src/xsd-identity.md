@@ -172,7 +172,7 @@ $ sed 's/<xs:unique name="anchor">/<xs:key name="anchor">/; s|</xs:unique>|</xs:
   | sxml validate --schema=- vane.xml 2>&1 | head -3
 vane.xml:25:7: cvc-identity-constraint.4.2.1: element 't': a key field has no value (key 'anchor')
 vane.xml:35:7: cvc-identity-constraint.4.2.1: element 't': a key field has no value (key 'anchor')
-vane.xml:41:9: cvc-identity-constraint.4.2.1: element 't': a key field has no value (key 'anchor')
+vane.xml:42:9: cvc-identity-constraint.4.2.1: element 't': a key field has no value (key 'anchor')
 ```
 
 A keyref may refer to a unique as well as to a key, which is what the

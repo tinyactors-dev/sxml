@@ -46,9 +46,9 @@ $ sxml transform empty.xsl vane.xml | grep -v '^ *$' | head -12
     Applications
     feature flag
     progressive delivery
-      This document specifies Vane, a line-based protocol between the
-      SDKs that evaluate feature flags and the evaluation service that
-      holds them. It defines the states of a flag, the messages that change
+      This document specifies Vane, the protocol between the SDKs that
+      evaluate feature flags in applications and the Vane service that
+      holds the flags. It defines the states of a flag, the messages of the
 ```
 
 When no rule matches a node, a *built-in rule* applies. For elements

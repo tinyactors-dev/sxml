@@ -201,11 +201,11 @@ plain-text draft:
 
 ```console
 $ sxml xpath --context-item=vane.xml 'let $lines := transform({ "stylesheet-location": "text.xsl", "source-node": . })?output => tokenize("\n") return (count($lines), max($lines ! string-length()))'
-117
+122
 72
 ```
 
-The plain text has 117 lines, counting the empty ones, and none is longer than 72 characters.
+The plain text has 122 lines, counting the empty ones, and none is longer than 72 characters.
 
 Large inputs are a subject of their own: a stylesheet whose mode is
 *streamable* reads its input once, without building a tree of it.

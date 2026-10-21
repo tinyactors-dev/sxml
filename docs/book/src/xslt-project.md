@@ -186,7 +186,7 @@ $ grep -A3 '<tr' site/changes.html
       <tr class="added">
         <td><a href="vane.html#req-10">R8</a></td>
         <td>added</td>
-        <td><ins>An SDK SHOULD NOT send more than one status request per second for a flag.</ins></td>
+        <td><ins>An SDK SHOULD NOT send more than one status request per second for a flag; it uses its cached answer in between.</ins></td>
 --
       <tr class="changed">
         <td><a href="vane.html#req-7">R9</a></td>
@@ -221,7 +221,7 @@ from `xref/@target` to the anchors finds it, and nothing is written:
 ```console
 $ sed 's/target="RFC6238"/target="RFC6239"/' vane.xml > broken.xml
 $ sh publish.sh broken.xml; echo $?
-broken.xml:94:38: cvc-identity-constraint.4.3: element 'xref': its key sequence is no key sequence of the referenced key (keyref 'xref-target')
+broken.xml:98:38: cvc-identity-constraint.4.3: element 'xref': its key sequence is no key sequence of the referenced key (keyref 'xref-target')
 1
 ```
 
