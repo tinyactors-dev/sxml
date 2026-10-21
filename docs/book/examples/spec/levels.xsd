@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Lists and unions over the simple types of latch.xsd. A summary of a
+     draft names the key words it uses and the day of its next meeting:
+       <summary levels="MUST SHOULD MAY" meeting="21"/> -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+
+  <xs:include schemaLocation="latch.xsd"/>
+
+  <!-- A list: key words separated by spaces, at most four of them. -->
+  <xs:simpleType name="levels">
+    <xs:restriction>
+      <xs:simpleType>
+        <xs:list itemType="keyword"/>
+      </xs:simpleType>
+      <xs:maxLength value="4"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- A union: a day of the month, or the word "open". -->
+  <xs:simpleType name="meeting-day">
+    <xs:union memberTypes="day">
+      <xs:simpleType>
+        <xs:restriction base="xs:token">
+          <xs:enumeration value="open"/>
+        </xs:restriction>
+      </xs:simpleType>
+    </xs:union>
+  </xs:simpleType>
+
+  <xs:element name="summary">
+    <xs:complexType>
+      <xs:attribute name="levels" type="levels" use="required"/>
+      <xs:attribute name="meeting" type="meeting-day"/>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>
