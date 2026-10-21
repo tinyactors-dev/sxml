@@ -4,6 +4,15 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- book-24 done: the XSLT, XSD, text and ABNF chapters (xslt*.md,
+  xsd.md, xsd-errors.md, xsd-identity.md, xsd-simple-types.md, text.md,
+  ixml-tasks.md's ABNF section) on the one-service Vane draft. 14
+  outputs regenerated and read (new abstract and introduction, SDK and
+  Percentage terms, req-10 at 22 words, rollout-update/kill-update,
+  moved line numbers); prose follows (122 plain-text lines, req-10 last
+  in the score order). All 155 examples of those files plus files.md
+  and c.md match on the shared release build; no example file changed.
+
 - book-26 done: the call-chain chapters (call-chains.md, -graph.md,
   -diff.md, source-code.md's sentence) on the one Vane service: modules
   api, flags, registry, cache, db over PostgreSQL, the backend SDK's
