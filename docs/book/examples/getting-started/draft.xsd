@@ -1,0 +1,45 @@
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="rfc">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="front">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="title" type="xs:string"/>
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+        <xs:element name="middle">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="section" type="section" maxOccurs="unbounded"/>
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+      </xs:sequence>
+      <xs:attribute name="docName" type="xs:string" use="required"/>
+    </xs:complexType>
+  </xs:element>
+  <xs:complexType name="section">
+    <xs:sequence>
+      <xs:element name="name" type="xs:string"/>
+      <xs:element name="t" type="paragraph" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="anchor" type="xs:NCName" use="required"/>
+  </xs:complexType>
+  <xs:complexType name="paragraph" mixed="true">
+    <xs:sequence>
+      <xs:element name="bcp14" type="keyword" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="anchor" type="xs:NCName"/>
+  </xs:complexType>
+  <xs:simpleType name="keyword">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="MUST"/>
+      <xs:enumeration value="MUST NOT"/>
+      <xs:enumeration value="SHOULD"/>
+      <xs:enumeration value="SHOULD NOT"/>
+      <xs:enumeration value="MAY"/>
+    </xs:restriction>
+  </xs:simpleType>
+</xs:schema>
