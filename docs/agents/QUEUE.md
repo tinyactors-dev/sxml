@@ -37,6 +37,12 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 
 ## Next
 
+- stream-2: a streamed html/xhtml writer (D295's leftover).
+- cli-3: fn:collection and fn:uri-collection in the sxml command.
+- book-5: plan the book's restructuring around five projects (RFC-style
+  specs, SVG diagrams, SCXML with schemas and XHTML, call-chain diffs,
+  OTel trace diffs; owner, 2026-10-21) and build their data; the chapter
+  rewrites follow in parallel packets from docs/tasks/book.md.
 - Phase 6 (D238, `docs/tasks/phase-6.md`), packets that run here:
   - wave 1, together: 6.2 host shim (`bindings/host/`; JavaScript
     tests and sizes unchanged); 6.3 Android build (four ABIs at API 24,
