@@ -218,6 +218,9 @@ not tagged yet, or into the next minor release.
 
 ### Changed
 
+- The examples in the help of the `sxml` command name the Latch draft
+  of the book (`draft.xml`, `draft.xsd`, `outline.xsl`,
+  `requirements.xq`) instead of `books.xml`.
 - `xquery.h` is no longer provisional (D161): it changes only as the
   other public headers do. XQuery's default for omit-xml-declaration is
   still the owner's choice (D146) and may change with a record.

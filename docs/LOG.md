@@ -4,6 +4,15 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- fix-1 done (D300): the help examples of the sxml command (program,
+  check, serialize, transform, validate, xpath, xquery) name the
+  getting-started files of the Latch draft instead of books.xml. The
+  three reports of the book packets (plain maps do not match record
+  types, `b?` fields are XPST0003, map:keys-where is XPST0017) are the
+  2026-10-20 drafts' behaviour, so the library is unchanged; tests pin
+  it. QT4 prod-RecordType XP40 17/23 (6 not run), XQ40 23/23; XT40
+  record 40/47, unchanged.
+
 - book-9 done (D299): Validating with XSD and the new Project:
   Self-Describing State Machines. xsd.md, xsd-simple-types.md,
   xsd-complex-types.md, xsd-derivation.md and xsd-errors.md work on the
