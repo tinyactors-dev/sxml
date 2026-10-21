@@ -489,3 +489,7 @@ The languages, their grammars and the query texts must outlive the
 processor. In JavaScript, the package loads tree-sitter's WebAssembly
 language files (`tree-sitter-rust.wasm`, from `tree-sitter build
 --wasm`): see [sxml in JavaScript](javascript.md).
+
+[Project: A Diff of Call Chains](call-chains.md) puts these pieces
+together on a whole program: it builds a call graph from the trees of
+every file of a TypeScript service and compares two versions of it.
