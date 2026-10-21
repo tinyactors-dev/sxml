@@ -7,14 +7,14 @@ values. Some rules of a good machine are about its behaviour, or about
 another document: every state can be reached, every event the machine
 handles is declared, every requirement the machine names exists in the
 draft. A query can check them, and a schema-aware query can rely on the
-types the schemas give: the `latch:implements` lists are lists, the
-`latch:type` names are names, and the payload names point into
-`latch-data.xsd`.
+types the schemas give: the `vane:implements` lists are lists, the
+`vane:type` names are names, and the payload names point into
+`vane-data.xsd`.
 
 ## The checks
 
 `check.xq` takes the machine as its context item, reads the draft from
-`latch.xml`, and prints one line for each problem it finds:
+`vane.xml`, and prints one line for each problem it finds:
 
 `check.xq`:
 
@@ -25,10 +25,10 @@ types the schemas give: the `latch:implements` lists are lists, the
 The machine has four flaws:
 
 ```console
-$ sxml xquery --context-item=lock.scxml check.xq
-unreachable state: jammed
-undeclared event: door.opened
-unused event: bolt.jammed
+$ sxml xquery --context-item=flag.scxml check.xq
+unreachable state: archived
+undeclared event: flag.evaluated
+unused event: flag.archived
 not implemented: req-1 (MUST)
 ```
 
@@ -44,39 +44,39 @@ transitions of every state reached so far, and repeat. Each pass adds
 at least one state or adds nothing, so as many passes as there are
 states are enough; `fold-left` over `1 to count($states)` runs them,
 and `distinct-values` keeps the set a set. The machine has cycles
-(`locked` to `checking` and back), which is why the passes collect a
+(`stable` to `checking` and back), which is why the passes collect a
 set instead of following paths.
 
-No transition targets `jammed`, so the lock can never get there: the
-state is dead code.
+No transition targets `archived`, so the flag can never get there:
+the state is dead code.
 
 ## Events
 
 Three sets of event names, and two comparisons:
 
-- `$declared`, the names of `latch:events`;
+- `$declared`, the names of `vane:events`;
 - `$handled`, the events transitions wait for. `data(@event)` is a list
-  of tokens, so the transition that waits for `lock.request
-  timeout.relock` adds two names;
+  of tokens, so the transition that waits for `kill.request
+  step.done` adds two names;
 - `$sent`, the events of `send` and `raise`.
 
-`door.opened` is handled, in `unlocked`, but not declared: nobody wrote
-down what it means, or who sends it. `bolt.jammed` is declared but
-nothing handles it, sends it or raises it.
+`flag.evaluated` is handled, in `rolling-out`, but not declared:
+nobody wrote down what it means, or who sends it. `flag.archived` is
+declared but nothing handles it, sends it or raises it.
 
 `status.response` is declared and sent, but no transition waits for it:
-the lock sends it to the controller. A check that compared only
+the service sends it to the SDK. A check that compared only
 declared and handled events would report it as unused, which it is
 not; counting `send` as a use is what tells an outgoing event from a
 forgotten one.
 
 ## Names that point elsewhere
 
-`latch:payload` and `latch:type` name components of `latch-data.xsd`,
+`vane:payload` and `vane:type` name components of `vane-data.xsd`,
 and the schema checks only that they are names. The query checks that
 they name something:
 
-- a payload must be a global element of `latch-data.xsd`. The query
+- a payload must be a global element of `vane-data.xsd`. The query
   reads the schema as an XML document, with `doc`, and makes the names
   of its `xs:element`s into QNames in its target namespace, which
   compare with the typed payload names;
@@ -86,7 +86,7 @@ they name something:
 
 For a type that exists, the query checks the data item's value against
 it, as [Typed Data and Schema-Aware Queries](xsd-typed-data.md) did:
-it makes a `latch:value` element with `xsi:type` naming the type (in
+it makes a `vane:value` element with `xsi:type` naming the type (in
 whatever namespace the type has, with a computed namespace binding) and
 validates it. `validate` raises `err:XQDY0027` when the value is not
 one of the type; `try` turns that into a line of the report, and the
@@ -94,10 +94,10 @@ check goes on.
 
 ## Requirements
 
-`latch:implements` holds anchors of the draft. Two checks join the
+`vane:implements` holds anchors of the draft. Two checks join the
 machine with the draft: every anchor the machine names must be the
 anchor of a paragraph of the draft, and every MUST or MUST NOT of the
-draft should be implemented somewhere in the machine. `req-1`, a lock
+draft should be implemented somewhere in the machine. `req-1`, a flag
 is in exactly one of its states, is a property of the whole machine,
 and nothing says so yet.
 
@@ -105,19 +105,19 @@ A copy of the machine with a mistake for each of the other checks:
 
 ```console
 $ sed -e 's/expr="3"/expr="30"/' \
-      -e 's/latch:type="latch:seconds"/latch:type="seconds"/' \
-      -e 's/latch:payload="latch:credentials"/latch:payload="latch:credential"/' \
-      -e 's/req-5 req-8/req-5 req-12/' lock.scxml > worse.scxml
+      -e 's/vane:type="vane:seconds"/vane:type="seconds"/' \
+      -e 's/vane:payload="vane:rollout"/vane:payload="vane:rolout"/' \
+      -e 's/req-5 req-8/req-5 req-12/' flag.scxml > worse.scxml
 $ sxml validate --schema=scxml.xsd worse.scxml; echo "exit status $?"
 exit status 0
 $ sxml xquery --context-item=worse.scxml check.xq
-unreachable state: jammed
-undeclared event: door.opened
-unused event: bolt.jammed
-unknown payload: latch:credential of unlock.request
-bad value: maxAttempts = 30 is not a latch:attempt-limit
-unknown type: seconds of relockSeconds
-unknown type: seconds of lockoutSeconds
+unreachable state: archived
+undeclared event: flag.evaluated
+unused event: flag.archived
+unknown payload: vane:rolout of rollout.request
+bad value: maxFailures = 30 is not a vane:failure-limit
+unknown type: seconds of stepSeconds
+unknown type: seconds of pauseSeconds
 unknown requirement: req-12
 not implemented: req-1 (MUST)
 ```
@@ -129,9 +129,9 @@ machine, and SCXML has no such type.
 ## Fixing the machine with an update
 
 The fixes are small, and each touches one place: say that the machine
-implements `req-1`, declare `door.opened`, and let a jammed bolt lead
-to the `jammed` state, which makes the state reachable and the event
-used. An update makes them without retyping the machine:
+implements `req-1`, declare `flag.evaluated`, and let an owner archive
+a stable or paused flag, which makes the `archived` state reachable and
+the `flag.archived` event used. An update makes them without retyping the machine:
 
 `fix.xq`:
 
@@ -142,30 +142,30 @@ used. An update makes them without retyping the machine:
 `transform with` copies the context item, the machine's document node,
 applies the updates to the copy and returns it ([Updating
 Documents](xquery-updates.md) explains updates). The result is the
-fixed machine, `lock-fixed.scxml`:
+fixed machine, `flag-fixed.scxml`:
 
 ```console
-$ sxml xquery --context-item=lock.scxml --output=lock-fixed.scxml --force fix.xq
-$ diff lock.scxml lock-fixed.scxml
+$ sxml xquery --context-item=flag.scxml --output=flag-fixed.scxml --force fix.xq
+$ diff flag.scxml flag-fixed.scxml
 1,4c1
 < <?xml version="1.0" encoding="UTF-8"?>
 < <scxml xmlns="http://www.w3.org/2005/07/scxml"
-<        xmlns:latch="urn:example:latch"
-<        version="1.0" name="door_lock" initial="locked" datamodel="ecmascript">
+<        xmlns:vane="urn:example:vane"
+<        version="1.0" name="feature_flag" initial="stable" datamodel="ecmascript">
 ---
-> <scxml xmlns="http://www.w3.org/2005/07/scxml" xmlns:latch="urn:example:latch" version="1.0" name="door_lock" initial="locked" datamodel="ecmascript" latch:implements="req-1">
+> <scxml xmlns="http://www.w3.org/2005/07/scxml" xmlns:vane="urn:example:vane" version="1.0" name="feature_flag" initial="stable" datamodel="ecmascript" vane:implements="req-1">
 27c24
-<     </latch:event>
+<     </vane:event>
 ---
->     </latch:event><latch:event name="door.opened"><p xmlns="http://www.w3.org/1999/xhtml">The door sensor reports that the door opened.</p></latch:event>
+>     </vane:event><vane:event name="flag.evaluated"><p xmlns="http://www.w3.org/1999/xhtml">An SDK reports that it evaluated the flag.</p></vane:event>
 43c40
-<   <state id="locked" latch:implements="req-2">
+<   <state id="stable" vane:implements="req-2">
 ---
->   <state id="locked" latch:implements="req-2"><transition event="bolt.jammed" target="jammed"/>
-66c63
-<   <state id="unlocked" latch:implements="req-3">
+>   <state id="stable" vane:implements="req-2"><transition event="flag.archived" target="archived"/>
+80c77
+<   <state id="paused" vane:implements="req-5 req-8">
 ---
->   <state id="unlocked" latch:implements="req-3"><transition event="bolt.jammed" target="jammed"/>
+>   <state id="paused" vane:implements="req-5 req-8"><transition event="flag.archived" target="archived"/>
 ```
 
 Everything else is as it was, down to the whitespace between the
@@ -175,17 +175,17 @@ them; the XML declaration is left out. The fixed machine is valid, and
 the checks find nothing:
 
 ```console
-$ sxml validate --schema=scxml.xsd lock-fixed.scxml; echo "exit status $?"
+$ sxml validate --schema=scxml.xsd flag-fixed.scxml; echo "exit status $?"
 exit status 0
-$ sxml xquery --context-item=lock-fixed.scxml check.xq
+$ sxml xquery --context-item=flag-fixed.scxml check.xq
 ```
 
 In a build, a script turns "prints nothing" into an exit status:
 
 ```console
-$ problems=$(sxml xquery --context-item=lock.scxml check.xq); test -z "$problems"; echo "exit status $?"
+$ problems=$(sxml xquery --context-item=flag.scxml check.xq); test -z "$problems"; echo "exit status $?"
 exit status 1
-$ problems=$(sxml xquery --context-item=lock-fixed.scxml check.xq); test -z "$problems"; echo "exit status $?"
+$ problems=$(sxml xquery --context-item=flag-fixed.scxml check.xq); test -z "$problems"; echo "exit status $?"
 exit status 0
 ```
 
