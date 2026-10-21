@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Three states of the door lock and a fourth that nothing leads to.
+     Every state has an incoming edge except jammed. -->
+<diagram title="Lock states">
+  <node id="locked" label="locked"/>
+  <node id="checking" label="checking"/>
+  <node id="unlocked" label="unlocked"/>
+  <node id="jammed" label="jammed"/>
+  <edge from="locked" to="checking" label="unlock.request"/>
+  <edge from="checking" to="unlocked" label="code.accepted"/>
+  <edge from="checking" to="locked" label="code.rejected"/>
+  <edge from="unlocked" to="locked" label="timeout.relock"/>
+  <edge from="jammed" to="locked" label="lock.request"/>
+</diagram>
