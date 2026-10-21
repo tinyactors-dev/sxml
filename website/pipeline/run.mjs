@@ -33,3 +33,4 @@ for (const stage of stages) {
   })
 }
 rmSync(join(directory, 'bad.xml'))
+rmSync(join(directory, 'chart.svg'))

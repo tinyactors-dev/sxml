@@ -1,1 +1,2 @@
-bad.xml:1:14: cvc-datatype-valid.1.2.1: element 'quantity' has the value '0', which is not valid for type 'xs:positiveInteger'
+bad.xml:1:43: cvc-enumeration-valid: attribute 'method' has the value 'FETCH', which is not valid for type 'method': the value is not one of the enumeration facets (XSD 1.1 Part 2, 4.3.5.4); the enumeration facets are 'GET', 'POST', 'PUT', 'DELETE'
+bad.xml:1:76: cvc-maxInclusive-valid: attribute 'status' has the value '700', which is not valid for type 'status': the value is above the maxInclusive facet (XSD 1.1 Part 2, 4.3.7.4); the maxInclusive facet is '599'

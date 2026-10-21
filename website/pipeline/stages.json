@@ -4,18 +4,18 @@
     {
       "id": "ixml",
       "name": "Invisible XML",
-      "summary": "An Invisible XML grammar describes the order's text format. `fn:invisible-xml` compiles the grammar into a function, and the function turns the text into XML.",
+      "summary": "An Invisible XML grammar describes the log's line format. Rules marked `@` become attributes and rules marked `-` are dropped. `fn:invisible-xml` compiles the grammar into a function that turns the text into XML.",
       "files": [
-        "order.txt",
-        "order.ixml"
+        "access.log",
+        "access.ixml"
       ],
       "commands": [
         {
-          "run": "sxml xpath --method=xml 'invisible-xml(unparsed-text(\"order.ixml\"))(unparsed-text(\"order.txt\"))' -o order.xml --force",
-          "show": "sxml xpath --method=xml \\\n  'invisible-xml(unparsed-text(\"order.ixml\"))(unparsed-text(\"order.txt\"))' \\\n  -o order.xml"
+          "run": "sxml xpath --method=xml 'invisible-xml(unparsed-text(\"access.ixml\"))(unparsed-text(\"access.log\"))' -o requests.xml --force",
+          "show": "sxml xpath --method=xml \\\n  'invisible-xml(unparsed-text(\"access.ixml\"))(unparsed-text(\"access.log\"))' \\\n  -o requests.xml"
         },
         {
-          "run": "sxml serialize --indent order.xml",
+          "run": "sxml serialize --indent requests.xml",
           "lang": "xml"
         }
       ]
@@ -23,24 +23,24 @@
     {
       "id": "xsd",
       "name": "XSD",
-      "summary": "An XSD 1.1 schema gives the elements types: a quantity is an `xs:positiveInteger` and a price an `xs:decimal`. A valid document prints nothing; an invalid one gets the line, the column and the rule it broke.",
+      "summary": "An XSD 1.1 schema types the attributes: the time is an `xs:dateTime`, the method one of four tokens, the status an integer from 100 to 599. A valid document prints nothing; an invalid one gets the line, the column and the rule it broke.",
       "files": [
-        "order.xsd"
+        "access.xsd"
       ],
       "commands": [
         {
-          "run": "sxml validate --schema=order.xsd order.xml",
+          "run": "sxml validate --schema=access.xsd requests.xml",
           "note": "valid: nothing printed, exit status 0"
         },
         {
-          "run": "sxml xpath --method=xml 'invisible-xml(unparsed-text(\"order.ixml\"))(unparsed-text(\"bad.txt\"))' -o bad.xml --force",
+          "run": "sxml xpath --method=xml 'invisible-xml(unparsed-text(\"access.ixml\"))(unparsed-text(\"bad.log\"))' -o bad.xml --force",
           "hidden": true
         },
         {
-          "run": "cat bad.txt"
+          "run": "cat bad.log"
         },
         {
-          "run": "sxml validate --schema=order.xsd bad.xml",
+          "run": "sxml validate --schema=access.xsd bad.xml",
           "status": 1
         }
       ]
@@ -48,36 +48,36 @@
     {
       "id": "xpath",
       "name": "XPath",
-      "summary": "XPath 4.0 expressions select nodes and compute values: the items that cost more than 3, and the item names joined with the arrow operator `=>`.",
+      "summary": "XPath 4.0 expressions select requests by their attributes and format them with string templates: the requests that failed, and the slowest one.",
       "files": [
         {
-          "name": "order.xml",
+          "name": "requests.xml",
           "output": "ixml-1"
         }
       ],
       "commands": [
         {
-          "run": "sxml xpath --context-item=order.xml '//line[price > 3]/item/string()'"
+          "run": "sxml xpath --context-item=requests.xml '//request[@status >= 400] ! `{@status} {@method} {@path}`'"
         },
         {
-          "run": "sxml xpath --context-item=order.xml '//item => string-join(\", \")'"
+          "run": "sxml xpath --context-item=requests.xml '//request[@ms = max(//@ms)] ! `{@ms} ms {@path}`'"
         }
       ]
     },
     {
       "id": "xquery",
       "name": "XQuery",
-      "summary": "An XQuery 4.0 FLWOR expression multiplies each line's quantity and price as `xs:decimal`, sorts the lines by amount and builds a new document from them.",
+      "summary": "An XQuery 4.0 FLWOR expression groups the requests by path and builds a summary of each group: how many requests, how many failed, and the slowest time.",
       "files": [
-        "receipt.xq"
+        "paths.xq"
       ],
       "commands": [
         {
-          "run": "sxml xquery --context-item=order.xml receipt.xq -o receipt.xml --force",
-          "show": "sxml xquery --context-item=order.xml receipt.xq -o receipt.xml"
+          "run": "sxml xquery --context-item=requests.xml paths.xq -o paths.xml --force",
+          "show": "sxml xquery --context-item=requests.xml paths.xq -o paths.xml"
         },
         {
-          "run": "sxml serialize --indent receipt.xml",
+          "run": "sxml serialize --indent paths.xml",
           "lang": "xml"
         }
       ]
@@ -85,14 +85,18 @@
     {
       "id": "xslt",
       "name": "XSLT",
-      "summary": "An XSLT 4.0 stylesheet matches the receipt's elements with template rules and writes an HTML table. `format-number` formats the amounts and their sum.",
+      "summary": "An XSLT 4.0 stylesheet matches each path with a template rule and draws it as SVG: a bar for its requests, with the failed ones in red.",
       "files": [
-        "receipt.xsl"
+        "chart.xsl"
       ],
       "commands": [
         {
-          "run": "sxml transform receipt.xsl receipt.xml",
-          "lang": "html",
+          "run": "sxml transform chart.xsl paths.xml -o chart.svg --force",
+          "show": "sxml transform chart.xsl paths.xml -o chart.svg"
+        },
+        {
+          "run": "cat chart.svg",
+          "lang": "xml",
           "render": true
         }
       ]

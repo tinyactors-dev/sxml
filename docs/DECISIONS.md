@@ -14420,8 +14420,8 @@ tinyactors-dev/sxml.
   at `/book/`, built by mdbook beside it. `mise run site` builds both
   into `build/site`. Every claim on the landing page is the README's
   (Conformance, Design, Examples); change them together. Its pipeline
-  example (`website/pipeline/`) takes one order through Invisible XML,
-  XSD, XPath, XQuery and XSLT; `node website/pipeline/run.mjs` re-runs it
+  example (`website/pipeline/`) takes an access log through Invisible XML,
+  XSD, XPath, XQuery and XSLT to SVG; `node website/pipeline/run.mjs` re-runs it
   with the release build and records the outputs the page shows.
 - **The look** is the tinyactors design system (vellum, graphite, pine;
   Newsreader and IBM Plex, self-hosted in `website/public/fonts/`).

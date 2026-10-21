@@ -77,10 +77,11 @@ const targets = [
         </div>
       </div>
       <div class="sx-wrap sx-hero__plate">
-        <h2 class="sx-h3">One order through every language</h2>
+        <h2 class="sx-h3">From a server log to a chart</h2>
         <p class="sx-hero__plate-text">
-          Three lines of text become XML, are validated, queried, rebuilt and rendered as HTML.
-          The files and outputs below are real, recorded with the <code>sxml</code> command.
+          Nine lines of a web server's access log become XML, are validated and queried,
+          summarized by path and drawn as SVG. The files and outputs below are real,
+          recorded with the <code>sxml</code> command.
         </p>
         <Pipeline />
       </div>

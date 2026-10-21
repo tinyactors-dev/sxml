@@ -1,1 +1,1 @@
-"tea, coffee, scone"
+"120 ms /api/flags"

@@ -1,5 +1,5 @@
-<receipt>
-  <item quantity="2" amount="7">tea</item>
-  <item quantity="3" amount="6.3">scone</item>
-  <item quantity="1" amount="4.2">coffee</item>
-</receipt>
+<paths>
+  <path name="/api/flags" requests="5" errors="1" slowest="120"/>
+  <path name="/api/users/7" requests="2" errors="1" slowest="15"/>
+  <path name="/api/sessions/3" requests="2" errors="0" slowest="8"/>
+</paths>

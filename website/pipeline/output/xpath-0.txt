@@ -1,2 +1,2 @@
-"tea"
-"coffee"
+"404 GET /api/users/7"
+"500 GET /api/flags"

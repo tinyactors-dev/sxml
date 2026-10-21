@@ -2,8 +2,8 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { data as stages } from './pipeline.data'
 
-// One order travels through every language: text, Invisible XML, XML,
-// XSD, XPath, XQuery, XSLT, HTML. The files and outputs are
+// One access log travels through every language: text, Invisible XML,
+// XML, XSD, XPath, XQuery, XSLT, SVG. The files and outputs are
 // website/pipeline/'s, recorded by its run.mjs.
 
 const selected = ref(0)
@@ -13,15 +13,15 @@ const stage = computed(() => stages[selected.value])
 // the trace. A block's index is its stage's.
 type Part = { kind: 'file'; name: string } | { kind: 'block'; stage: number }
 const parts: Part[] = [
-  { kind: 'file', name: 'order.txt' },
+  { kind: 'file', name: 'access.log' },
   { kind: 'block', stage: 0 },
-  { kind: 'file', name: 'order.xml' },
+  { kind: 'file', name: 'requests.xml' },
   { kind: 'block', stage: 1 },
   { kind: 'block', stage: 2 },
   { kind: 'block', stage: 3 },
-  { kind: 'file', name: 'receipt.xml' },
+  { kind: 'file', name: 'paths.xml' },
   { kind: 'block', stage: 4 },
-  { kind: 'file', name: 'receipt.html' },
+  { kind: 'file', name: 'chart.svg' },
 ]
 const reached = (index: number) => {
   const active = parts.findIndex((part) => part.kind === 'block' && part.stage === selected.value)
@@ -72,12 +72,12 @@ const next = () => {
             <div v-for="(command, index) in stage.commands" :key="index" class="px-step">
               <pre class="px-command"><span class="px-prompt" aria-hidden="true">$ </span>{{ command.command }}</pre>
               <pre v-if="command.note" class="px-note"># {{ command.note }}</pre>
-              <div v-if="command.output" class="px-output" v-html="command.output" />
+              <div v-if="command.output" class="px-output" :class="{ 'px-output--wrap': command.wrap }" v-html="command.output" />
             </div>
           </div>
           <figure v-for="(command, index) in stage.commands.filter((command) => command.rendered)" :key="`rendered-${index}`" class="px-rendered">
-            <figcaption>receipt.html in a browser</figcaption>
-            <div class="px-receipt" v-html="command.rendered" />
+            <figcaption>chart.svg in a browser</figcaption>
+            <div class="px-chart" v-html="command.rendered" />
           </figure>
           <button class="px-next" @click="next">
             <template v-if="selected < stages.length - 1">Next: {{ stages[selected + 1].name }} <span aria-hidden="true">→</span></template>
@@ -102,7 +102,7 @@ const next = () => {
 .px-reg--tl{left:-7px;top:-7px}.px-reg--tr{right:-7px;top:-7px}.px-reg--bl{left:-7px;bottom:-7px}.px-reg--br{right:-7px;bottom:-7px}
 
 /* The board: blocks are chips with pin pads, files are hatched pads on
-   the trace; the trace is pine as far as the order has travelled. */
+   the trace; the trace is pine as far as the log has travelled. */
 .px-board{position:relative;display:flex;align-items:center;overflow-x:auto;padding:6px 2px 10px;scrollbar-width:thin}
 .px-trace{flex:1 0 14px;height:1.5px;background:var(--fg-4);transition:background 360ms var(--ease-step)}
 .px-trace.is-hot{background:var(--accent);height:2.5px}
@@ -130,19 +130,17 @@ const next = () => {
 .px-step+.px-step{border-top:1px dashed var(--border-1)}
 .px-command,.px-note{margin:0;padding:12px 14px 0;font:400 13px/1.6 var(--font-mono);color:var(--code-fg);white-space:pre-wrap;word-break:break-word}
 .px-step>:last-child{padding-bottom:12px}
-.px-output :deep(pre){padding:4px 14px 12px;white-space:pre-wrap;word-break:break-word}
+.px-output :deep(pre){padding:4px 14px 12px}
+.px-output--wrap :deep(pre){white-space:pre-wrap;word-break:break-word}
 .px-prompt{color:var(--accent-fg);user-select:none}
 .px-note{color:var(--code-muted);padding-top:2px}
 
 .px-rendered{margin:0;border:1px solid var(--border-1);background:var(--surface-1);border-radius:2px}
 .px-rendered figcaption{font:400 12px/1 var(--font-mono);color:var(--fg-3);padding:10px 14px;border-bottom:1px solid var(--border-1)}
-.px-receipt{padding:14px 18px 18px}
-.px-receipt :deep(table){display:table;width:100%;margin:0;border-collapse:collapse;font:400 15px/1.4 var(--font-sans)}
-.px-receipt :deep(tr){border:0;background:transparent!important}
-.px-receipt :deep(td),.px-receipt :deep(th){border:0;border-bottom:1px solid var(--border-1);padding:8px 0;background:transparent;text-align:left}
-.px-receipt :deep(td:not(:first-child)){text-align:right;font:400 13px var(--font-mono)}
-.px-receipt :deep(th){font-weight:600;border-bottom:0;border-top:1.5px solid var(--rule)}
-.px-receipt :deep(th+td){font-weight:600;border-bottom:0;border-top:1.5px solid var(--rule)}
+.px-chart{padding:16px 18px 14px}
+.px-chart :deep(svg){display:block;width:100%;height:auto;font:400 13px var(--font-mono);fill:var(--fg-1)}
+.px-chart :deep(.requests){fill:var(--fg-4)}
+.px-chart :deep(.errors){fill:var(--state-error)}
 
 .px-next{align-self:flex-end;display:inline-flex;align-items:center;gap:8px;height:32px;padding:0 14px;border:1px solid var(--border-2);border-radius:2px;font:500 13px/1 var(--font-sans);color:var(--fg-1);background:var(--surface-1);transition:border-color 120ms var(--ease-step)}
 .px-next:hover{border-color:var(--fg-1)}

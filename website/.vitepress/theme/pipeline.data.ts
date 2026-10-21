@@ -17,6 +17,7 @@ export interface Command {
   command: string
   note?: string
   output: string
+  wrap: boolean
   rendered?: string
 }
 export interface Stage {
@@ -77,6 +78,7 @@ export default defineLoader({
         return [{
           command: command.show ?? command.run,
           note: command.note,
+          wrap: !command.lang,
           output: output ? highlight(output, command.lang ?? 'text') : '',
           rendered: command.render ? output : undefined,
         }]
