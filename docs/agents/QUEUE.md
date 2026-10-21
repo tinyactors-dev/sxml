@@ -40,10 +40,12 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 - The book on Vane is done (book-5..book-21, book-13): 18 chapters, 882
   examples, mdbook build clean. Conformance appendix numbers date from
   20 October (a new report run would refresh them).
-- book-22 done (D303): Vane is one TypeScript service (modules) on
-  PostgreSQL and Redis with @vane/browser and @vane/node SDKs and a console;
-  codegen generates the SDK clients. book-23..book-28 running in parallel;
-  book-29 integrates. For book-13: a separate `$ echo $?`
+- The book on the one-service Vane is done (book-22..book-29, D303): 18
+  chapters, six Vane projects (codegen generates the SDKs), 884 examples,
+  mdbook build clean, 217 internal links resolve. Leftover: the book check
+  needs WASI_SDK_PREFIX exported for the examples that build tree-sitter
+  language modules; `mise run book:check` does not set it yet (dist.sh
+  shows how: `mise where github:WebAssembly/wasi-sdk`). For book-13: a separate `$ echo $?`
   line always prints 0 (each command runs in a fresh shell); join it to its
   command (book-17 fixed its chapters).
 - fix-2 done: invalid identity-constraint fields are validation errors
