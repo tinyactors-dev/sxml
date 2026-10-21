@@ -1,12 +1,13 @@
 # Performance and Memory
 
-<!-- examples: performance -->
+<!-- examples: traces -->
 
 sxml is built to be small and predictable rather than to win benchmarks.
 This chapter explains where time and memory go, and the few habits that
-make the biggest difference. The examples are in
-`docs/book/examples/performance`; the times in the text were measured
-with a release build on one core of an ordinary Linux machine.
+make the biggest difference. The examples use the trace archives of
+[Streaming Large Trace Files](traces-streaming.md), in
+`docs/book/examples/traces`; the times in the text were measured with a
+release build on one core of an ordinary Linux machine.
 
 ## Build a release
 
@@ -19,8 +20,9 @@ release archive.
 Compiling an expression, a query, a stylesheet or a schema does real
 work: parsing, resolving names, checking types, optimizing. When you run
 the same thing many times, compile it once and keep the compiled object,
-as Chapter 9 shows. The `sxml` command compiles each time it runs, so a
-shell loop that calls it for each of a thousand files pays a thousand
+as [Embedding sxml in C](c.md) and [sxml in JavaScript](javascript.md)
+show. The `sxml` command compiles each time it runs, so a shell loop
+that calls it for each of a thousand trace files pays a thousand
 compilations; one query over all the files pays one.
 
 ## Sequences are computed as they are read
@@ -51,67 +53,89 @@ true()
 ```
 
 An error in an item that is never read is not raised, as XPath allows.
+The same holds for paths over a document. When was the first request of
+an archive that took longer than 80 milliseconds?
+
+```console
+$ sxml xquery --param=count=10000 --output=archive.xml make-traces.xq
+$ sxml xpath --context-item=archive.xml 'head(//trace[span/@duration > 80])/@start/string()'
+"2026-10-21T09:00:04.9Z"
+```
+
+`head` asks the filter for one trace, and the filter looks at traces
+only until it finds one: the fiftieth of ten thousand. Parsing the
+archive still takes most of the time; [Streaming Large Trace
+Files](traces-streaming.md) avoids that too.
 
 ## Look up instead of searching
 
-The most common cause of a slow query is a search inside a loop. This
-query finds, for each order, the order with the next id:
+The most common cause of a slow query is a search inside a loop. An
+exporter writes spans as a flat list, each naming its parent, and
+[Spans as a Tree](traces-tree.md) puts the trees together again. With
+`$form` set to `flat`, `make-traces.xq` writes such a list. This query
+rebuilds the trees by searching all the spans for the children of each
+one:
 
-`slow-join.xq`:
-
-```xquery
-{{#include ../examples/performance/slow-join.xq}}
-```
-
-For each of *n* orders, `//order[...]` looks at all *n* orders, so
-the query does *n*² comparisons. Building an index once, here a map from
-id to order, turns each search into one lookup:
-
-`fast-join.xq`:
+`slow-tree.xq`:
 
 ```xquery
-{{#include ../examples/performance/fast-join.xq}}
+{{#include ../examples/traces/slow-tree.xq}}
 ```
 
-Both give the same answer:
+For each of *n* spans, `$spans[@parent = $span/@id]` looks at all *n*
+spans, so the query does *n*² comparisons. Building an index once, here
+a map from each parent id to its children, turns each search into one
+lookup:
+
+`fast-tree.xq`:
+
+```xquery
+{{#include ../examples/traces/fast-tree.xq}}
+```
+
+Both give the same answer, every span in a tree:
 
 ```console
-$ sxml xquery --param=count=1000 --output=orders.xml make-orders.xq
-$ sxml xquery --context-item=orders.xml --method=adaptive slow-join.xq
-143
-$ sxml xquery --context-item=orders.xml --method=adaptive fast-join.xq
-143
+$ sxml xquery --param=count=300 --param=form=flat --output=spans.xml make-traces.xq
+$ sxml xquery --context-item=spans.xml --method=adaptive slow-tree.xq
+1900
+$ sxml xquery --context-item=spans.xml --method=adaptive fast-tree.xq
+1900
 ```
 
-With 2,000 orders, the first query takes 5 seconds and the second 0.04
-seconds. With 20,000 orders, the first one would take hours, and stops
-at the evaluation step limit after about 15 seconds; the second takes
-0.3 seconds. In XSLT, `xsl:key` does the same job (Chapter 4).
+With 1,000 traces (6,333 spans), the first query takes 2.3 seconds and
+the second 0.2 seconds. With 10,000 traces, the first takes four and a
+half minutes, the second 1.5 seconds. In XSLT, `xsl:key` does the same
+job ([Keys, Numbers and Grouping](xslt-keys-grouping.md)).
 
-sxml builds such an index itself when a condition compares something of
-the item alone with something that does not depend on it. Written as
-`//order[@id = $order/@id + 1]`, the first query takes 0.03 seconds
-too: the left side depends only on the order looked at, the right side
-only on `$order`, so sxml sorts the orders by `@id` once and looks each
-`$order/@id + 1` up. In `@id - $order/@id = 1` the two are mixed, and
-sxml has to search.
+sxml builds such an index itself when a condition in a loop compares
+something of the item alone with something that does not depend on it,
+and the items do not change between turns of the loop. Written as one
+expression, `for $span in //span return //span[@parent = $span/@id]`,
+the search over 3,000 traces takes 0.35 seconds: the left side depends
+only on the span looked at, the right side only on `$span`, so sxml
+sorts the spans by `@parent` once and looks each id up. In
+`slow-tree.xq` the search is inside a function that is called anew for
+each span, and in a condition such as `@parent - $span/@id = 0` the
+two sides are mixed; then sxml has to search.
 
 ## Memory
 
 A parsed document takes several times the size of its file, because each
-node has its name, its links to its neighbours and its text. A 69 MB
-document of a million small elements takes about 540 MB as a tree.
+node has its name, its links to its neighbours and its text. An 82 MB
+archive of 100,000 traces, 633,333 spans, takes about 390 MB as a tree.
 
 When a document is too large for that, stream it. An XSLT stylesheet
-with a streamable mode processes the same 69 MB in 11 MB, and the
-memory stays the same for a file ten times the size (Chapter 4).
+with a streamable mode processes the same 82 MB in 11 MB, and the
+memory stays the same for a larger file ([Streaming Large Trace
+Files](traces-streaming.md)).
 
 In a program, all of sxml's memory comes from the allocator you give it
-(Chapter 9), so you can measure it, cap it, or place it where you like.
-The processor's limits bound the size of the item heap and of each
-document, the depth of nesting, the number of nested function calls and
-the number of evaluation steps, so a query you don't trust can't take
-the machine down with it.
+([Embedding sxml in C](c.md)), so you can measure it, cap it, or place
+it where you like. The processor's limits bound the size of the item
+heap and of each document, the depth of nesting, the number of nested
+function calls and the number of evaluation steps, so a query you don't
+trust can't take the machine down with it.
 
 ## The step limit
 
@@ -136,9 +160,11 @@ nothing more still stops.
 
 ## Habits that help
 
-- Start paths from what you know. `/library/shelf/book` touches fewer
-  nodes than `//book`, which looks at every node of the document.
-- Convert untyped values once. `xs:decimal(price)` in a `let`, or a
+- Start paths from what you know. The root spans are
+  `/traces/trace/span`, which touches a few nodes of each trace;
+  `//span[empty(parent::span)]` finds the same spans but looks at every
+  node of the document.
+- Convert untyped values once. `xs:decimal(@duration)` in a `let`, or a
   schema that gives the values their types, saves converting the same
   text again and again.
 - Use maps, keys and `group by` for lookups and grouping, not nested
