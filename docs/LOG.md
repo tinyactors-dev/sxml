@@ -4,6 +4,13 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- book-15 done: Getting Started and Finding Things with XPath
+  (getting-started.md, installation.md, hello-xpath.md,
+  the-sxml-command.md, xpath*.md) on the Vane story. getting-started's
+  draft.xml, broken.xml and invalid.xml are a cut of vane.xml (Flag
+  States: req-2, req-3; Pause: req-7), file names kept for the CLI's
+  --help examples. 152 examples match.
+
 - book-20 done: the call-chains project (call-chains.md,
   call-chains-graph.md, call-chains-diff.md, source-code.md's last
   sentence) on the Vane story; kinds/lock.ts is kinds/flag.ts (class
