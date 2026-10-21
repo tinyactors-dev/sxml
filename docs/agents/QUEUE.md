@@ -40,7 +40,9 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 - book-14 done (D301): the Vane story (a feature-flag service), seed data,
   rename table. book-15..book-20 running on the shared release build at
   1a372bd; book-21 (traces, formats, JavaScript, performance) starts after
-  fix-3; then book-13 integrates.
+  fix-3; then book-13 integrates. For book-13: a separate `$ echo $?`
+  line always prints 0 (each command runs in a fresh shell); join it to its
+  command (book-17 fixed its chapters).
 - fix-2 done: invalid identity-constraint fields are validation errors
   (XSD 3.11.4 cl. 4); global xsl:param values coerced to `as` (XTTE0590).
   For the chapter packets: xsd-typed-data.md can use typed params again,
