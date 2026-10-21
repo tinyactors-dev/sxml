@@ -4,6 +4,17 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- book-6 done (D299): Getting Started and Finding Things with XPath on
+  the Latch draft. Getting Started runs on getting-started/draft.xml, a
+  ten-line cut (draft.xsd, broken.xml, invalid.xml, requirements.xq,
+  outline.xsl replace books.xml and friends); the six XPath files run in
+  spec/ on latch.xml and latch-00.xml with every topic of the old ones
+  (section numbers from axes, unmarked BCP 14 words with \b, dates with a
+  month map, the xref text table, the requirements as JSON and records,
+  sort-by by key-word strength). examples/xpath removed. 152 examples
+  match. Found: `instance of` and `treat as` a record type are false for
+  every map, even record(*); the book uses coercion (`let ... as`).
+
 - stream-2 done (D297): the html and xhtml methods are serialized as
   a streamed principal result is made, reusing the xml method's
   windows; the doctype, include-content-type's meta, prefix
