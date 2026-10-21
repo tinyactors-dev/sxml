@@ -1,4 +1,0 @@
-<!ELEMENT article (title, section)>
-<!ELEMENT title (#PCDATA)>
-<!ELEMENT section (#PCDATA)>
-<!ATTLIST section status (draft | final) "draft">

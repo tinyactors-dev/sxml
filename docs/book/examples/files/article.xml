@@ -1,8 +1,0 @@
-<?xml version="1.0"?>
-<!DOCTYPE article SYSTEM "article.dtd" [
-  <!ENTITY chapter SYSTEM "chapter.xml">
-]>
-<article>
-  <title>Entities</title>
-  &chapter;
-</article>

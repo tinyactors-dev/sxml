@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<reference anchor="RFC6238" target="https://www.rfc-editor.org/info/rfc6238">
+  <front>
+    <title>TOTP: Time-Based One-Time Password Algorithm</title>
+    <author fullname="D. M'Raihi" initials="D." surname="M'Raihi"/>
+    <author fullname="S. Machani" initials="S." surname="Machani"/>
+    <author fullname="M. Pei" initials="M." surname="Pei"/>
+    <author fullname="J. Rydell" initials="J." surname="Rydell"/>
+    <date year="2011" month="May"/>
+  </front>
+  <seriesInfo name="RFC" value="6238"/>
+</reference>
