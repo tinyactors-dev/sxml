@@ -1537,6 +1537,11 @@ static const error_case error_cases[] = {
     {"function($a, $a) { 1 }", {"XQST0039", 1, 14}},
     {"() instance of map(element(), item())", {"XPST0152", 1, 20}},
     {"() instance of record(a, a)", {"XPST0021", 1, 26}},
+    /* The 2026 drafts have no optional field markers and no extensible
+       record types (XPath 4.0, 3.2.10.1; D7, D300). */
+    {"() instance of record(a, b?)", {"XPST0003", 1, 27}},
+    {"() instance of record(a, b? as xs:boolean)", {"XPST0003", 1, 27}},
+    {"() instance of record(a, *)", {"XPST0003", 1, 23}},
     {"() instance of schema-element(x)", {"XPST0008", 1, 16}},
     {"() instance of element(a, xs:nonexistent)", {"XPST0008", 1, 27}},
     {"nope()", {"XPST0017", 1, 1}},

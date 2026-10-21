@@ -240,6 +240,19 @@ static const query_case query_cases[] = {
                 "typeswitch (3.5) case xs:integer return 'int' case xs:decimal return 'dec' "
                 "default return 'other'",
                 "dec"),
+    /* XPath 4.0, 3.2.10.1: only records match record types; a map
+       becomes one by coercion (D300). */
+    QUERY_VALUE("typeswitch-record",
+                "let $r as record(a) := {'a': 1} return (typeswitch ($r) case record(b) "
+                "return 1 case record(a) return 2 default return 3, typeswitch ({'a': 1}) "
+                "case record(*) return 4 case map(*) return 5 default return 6)",
+                "2 5"),
+    QUERY_VALUE("FunctionDecl-record",
+                "declare function local:f($r as record(a)) as record(a, b as xs:integer?) "
+                "{ $r }; local:f({'a': 1}) instance of record(a, b as xs:integer?)",
+                "true"),
+    /* F&O 4.0 has no map:keys-where (the 2026-10-20 draft, 14.4; D300). */
+    QUERY_ERROR("map-keys-where", "map:keys-where({}, true#0)", "XPST0017"),
     QUERY_VALUE("switch-1", "switch (2) case 1 return 'one' case 2 return 'two' default return "
                             "'many'",
                 "two"),

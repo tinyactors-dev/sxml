@@ -1502,6 +1502,37 @@ static void test_function_coercion(sxml_test_state *state) {
                                        "XPTY0004"));
 }
 
+/*
+ * Record types (XPath 4.0, 3.2.10.1, the 2026-10-20 draft): a record R
+ * matches a structural record type T when it has an entry of T's type for
+ * every field and as many entries as T has fields; record(*) matches any
+ * record. A map that is not a record (one not coerced to a record type)
+ * matches no record type, so instance of, treat as and typeswitch need a
+ * record, while coercion (let, arguments, results) makes one (3.4.2).
+ * Optional field markers and extensible records are syntax errors
+ * (xpath_static_test, D300).
+ */
+static void test_record_types_match_records(sxml_test_state *state) {
+    SXML_TEST_EXPECT(state, evaluates_to("{} instance of record(*), {} instance of record(), "
+                                         "{'a': 1} instance of record(a)",
+                                         "false false false"));  /* RecordType-001a, -105 */
+    SXML_TEST_EXPECT(state, evaluates_to("let $r as record(a, b as xs:integer?) := {'a': 1} "
+                                         "return ($r instance of record(a, b as xs:integer?), "
+                                         "$r instance of record(*), $r instance of record(a))",
+                                         "true true false"));  /* RecordType-004, -104 */
+    SXML_TEST_EXPECT(state, evaluates_to("let $r as record(a) := {'a': 1} return "
+                                         "($r treat as record(a))?a",
+                                         "1"));
+    SXML_TEST_EXPECT(state, fails_with("({'a': 1} treat as record(a))?a", "XPDY0050"));
+    SXML_TEST_EXPECT(state, fails_with("{} treat as record(*)", "XPDY0050"));
+    SXML_TEST_EXPECT(state, evaluates_to("let $f := fn($x as record(a)) as record(a) {$x} "
+                                         "return $f({'a': 1}) instance of record(a)",
+                                         "true"));  /* argument and result coerced */
+    SXML_TEST_EXPECT(state, fails_with("let $f := fn($x) as record(a) {$x} return "
+                                       "$f({'a': 1, 'b': 2})",
+                                       "XPTY0004"));  /* RecordType-016 */
+}
+
 /* ------------------------------------------------- Maps and arrays */
 
 static void test_lookups_and_constructors(sxml_test_state *state) {
@@ -1971,6 +2002,7 @@ static const sxml_test_case evaluator_test_cases[] = {
     {.name = "treat_and_instance_of", .function = test_treat_and_instance_of},
     {.name = "inline_function_slice_lines", .function = test_inline_function_slice_lines},
     {.name = "function_coercion", .function = test_function_coercion},
+    {.name = "record_types_match_records", .function = test_record_types_match_records},
     {.name = "lookups_and_constructors", .function = test_lookups_and_constructors},
     {.name = "paths_in_document_order", .function = test_paths_in_document_order},
     {.name = "path_errors", .function = test_path_errors},
