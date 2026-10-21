@@ -1,267 +1,362 @@
-# Project: A Report on the Loans
+# Project: Editing a Specification Without Rewriting It
 
-<!-- examples: xquery-project -->
+<!-- examples: spec -->
 
-Let's put the whole chapter to work. In this project we'll write a
-small application in XQuery: a report on the library's loans, as an
-HTML page for people, as JSON for other programs, and as one reminder
-file for each member who should bring a book back. The three outputs
-share one library module, so each fact is computed in one place.
+Let's put the whole chapter to work. A specification lives a long time,
+and most of its changes are small: a keyword becomes stronger, a
+requirement is added, a reference comes in, a term gets a better name.
+Each of those is a change to a few nodes. Retyping the text around them,
+by hand or by asking a language model to rewrite the section, puts every
+other sentence at risk, and leaves the reviewers to find out which words
+moved.
 
-The files are in `docs/book/examples/xquery-project`. The library is
-the one from before, and the members are in the JSON file from
-[Documents, Parameters and the Context](xquery-inputs.md). The loans now
-say when a book came back, and one loan names a book that the library
-doesn't have, as real data sometimes does:
+In this project we'll build a small toolkit for the Latch draft that
+works the other way:
 
-`loans.xml`:
+- `edit.xqm`, a module of updating functions, one for each kind of edit;
+  each changes only the nodes it names;
+- `check.xq`, which finds the mistakes the schema cannot see, and fails
+  so that a script stops;
+- `changes.xq`, which lists what changed in the requirements between two
+  versions, as text for people and JSON for tools.
 
-```xml
-{{#include ../examples/xquery-project/loans.xml}}
-```
+At the end we'll make draft -02 in three commands, check it, and read
+the whole change as a diff of a few lines. Everything runs in the
+specification project's directory, with `spec.xqm` from
+[Functions and Modules](xquery-modules.md) underneath.
 
-## The plan
+## The edits
 
-The report answers three questions on a given day:
-
-- Which loans are overdue? A loan lasts 21 days, and is overdue when the
-  book hasn't come back by its due date.
-- How many books has each member borrowed, and how many are still out?
-- Which loans can't be described, because the book is unknown?
-
-The day is a parameter, so we can run the report for any day, and test
-it with a fixed one.
-
-## The module
-
-Everything the three queries need to know about loans goes into one
-library module:
-
-`library.xqm`:
+`edit.xqm`:
 
 ```xquery
-{{#include ../examples/xquery-project/library.xqm}}
+{{#include ../examples/spec/edit.xqm}}
 ```
 
 Let's read it from the top.
 
-- `$lib:loan-days` is the length of a loan, in one place.
-- `lib:loan` is a record type: a map with the facts about one loan
-  that the outputs need, with their types. `declare record` also
-  declares the function `lib:loan`, which makes such a record from
-  keyword arguments.
-- `lib:title` finds a title, or raises the error `lib:unknown-book`,
-  with the id as the error's value.
-- `lib:loan-info` turns a `loan` element into a record. The member's
-  name comes from the JSON map, or is the member's id when the map
-  doesn't have it.
-- `lib:is-overdue` decides about one loan.
-- `lib:loan-infos` makes the records for many loans. It catches
-  `lib:unknown-book`, and only that error, and leaves the loan out.
+- The module imports `spec.xqm`, as a query does: modules build on each
+  other.
+- `declare boundary-space preserve` keeps the whitespace written in the
+  constructors, so that a new reference is indented like the draft's
+  own references.
+- `edit:keyword` is an enumeration, so a misspelled keyword is an error
+  at the call. `edit:rfc` is a record with a default: a reference is
+  informative unless the caller says otherwise.
+- `edit:next-anchor` is an ordinary function. It finds the anchor that
+  has never been used, so that anchors stay names given once.
+- Every other public function is an updating function, and does one
+  kind of edit. They insert the indentation of their neighbours with the
+  nodes they add, which keeps the diff to the lines that matter.
 
 ## Trying the pieces
 
-Before writing a report, try the functions on their own. `--expression`
-is good for that. One loan becomes one record:
+Ordinary functions can be tried on their own:
 
 ```console
-$ sxml xquery --method=adaptive --expression='
-    import module namespace lib = "https://example.org/library" at "library.xqm";
-    lib:loan-info(<loan book="dune" member="ada" date="2026-10-01"/>, doc("library.xml"), json-doc("members.json"))'
-{"member":"ada","name":"Ada Lovelace","title":"Dune","date":xs:date("2026-10-01"),"due":xs:date("2026-10-22"),"returned":()}
+$ sxml xquery --context-item=latch.xml --method=adaptive --expression='
+    import module namespace edit = "urn:example:edit" at "edit.xqm";
+    edit:next-anchor(/), edit:next-anchor(doc("latch-00.xml")),
+    edit:rfc(5424, "The Syslog Protocol", "R. Gerhards", 2009, "March")'
+"req-12"
+"req-9"
+{"number":5424,"title":"The Syslog Protocol","authors":"R. Gerhards","year":2009,"month":"March","normative":false()}
 ```
 
-An unknown book raises the module's error:
+Updating functions are tried as updating queries. As in
+[Updating Documents](xquery-updates.md), compare the result with the
+draft as sxml writes it:
 
 ```console
-$ sxml xquery --method=adaptive --expression='
-    import module namespace lib = "https://example.org/library" at "library.xqm";
-    try { lib:title(doc("library.xml"), "emma") } catch lib:unknown-book { $err:description }'
-"No book has the id emma"
+$ sxml serialize latch.xml > before.xml
+$ sxml xquery --context-item=latch.xml --expression='
+    import module namespace edit = "urn:example:edit" at "edit.xqm";
+    edit:rename-term(//dt[@anchor = "term-code"], "Access Code")' > after.xml
+$ diff before.xml after.xml
+46c46
+<           <dt anchor="term-code">Code</dt>
+---
+>           <dt anchor="term-access-code">Access Code</dt>
+80c80
+<         <xref target="term-code">code</xref> of an unlock request with its
+---
+>         <xref target="term-access-code">access code</xref> of an unlock request with its
 ```
 
-The loans file has eight loans, and seven of them are of known books:
+The types of the parameters guard the edits. BCP 14 has no MIGHT:
 
 ```console
-$ sxml xquery --method=adaptive --expression='
-    import module namespace lib = "https://example.org/library" at "library.xqm";
-    count(lib:loan-infos(doc("loans.xml")//loan, doc("library.xml"), json-doc("members.json")))'
-7
+$ sxml xquery --context-item=latch.xml --expression='
+    import module namespace edit = "urn:example:edit" at "edit.xqm";
+    edit:set-keyword(//t[@anchor = "req-3"], "MIGHT")'
+expression:3:5: err:XPTY0004: The value does not match the required type (XPath 4.0, section 3.4, coercion rules)
 ```
 
-## The HTML report
+One thing the types can't see. All the edits of one query see the
+draft as it was before the query, so two requirements added in one query
+both get the next anchor, the same one. The schema finds that, as its
+`xs:unique` on anchors forbids it:
 
-The report is a main module that imports the library module, declares
-the day as an external variable, and builds a page with constructors:
+```console
+$ sxml xquery --context-item=latch.xml --output=twice.xml --expression='
+    import module namespace edit = "urn:example:edit" at "edit.xqm";
+    edit:add-requirement(//t[@anchor = "req-11"], <t>A lock <bcp14>MAY</bcp14> beep.</t>),
+    edit:add-requirement(//t[@anchor = "req-8"], <t>A lock <bcp14>MAY</bcp14> blink.</t>)'
+$ sxml validate --schema=latch.xsd twice.xml
+twice.xml:107:7: cvc-identity-constraint.4.1: element 't': its key sequence is that of an earlier member (unique 'anchor')
+```
 
-`report.xq`:
+Add one requirement per command, as the session below does.
+
+## The check
+
+A schema says what a valid draft looks like: which elements go where,
+which keywords exist, that anchors are unique and cross references
+point to anchors. It can't say that every term is used, that no MUST
+was written without its markup, or that a paragraph with a keyword has
+an anchor. Those rules need a query:
+
+`check.xq`:
 
 ```xquery
-{{#include ../examples/xquery-project/report.xq}}
+{{#include ../examples/spec/check.xq}}
 ```
 
-The global variables read the input once. The overdue list is a FLWOR
-expression with a predicate that calls `lib:is-overdue`, and the table
-groups the records by member's name. The warning paragraph uses the
-braced `if`, so there is no paragraph when every book is known. Run it
-for the 20th of October:
+`$problems` is a sequence of lines, made by four FLWOR expressions one
+after another. When it is empty, the query writes one line; otherwise
+it writes each problem with `fn:message`, on standard error, and raises
+`spec:check`, which ends the query with exit status 1. Draft -01 has the
+one problem we know of:
 
 ```console
-$ sxml xquery --param=today=2026-10-20 report.xq
-<!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="UTF-8">
-    <title>Loans on 2026-10-20</title>
-  </head>
-  <body>
-    <h1>Loans on 2026-10-20</h1>
-    <h2>Overdue</h2>
-    <ul>
-      <li>Alan Turing has <cite>Godel, Escher, Bach</cite>, due 2026-09-26</li>
-      <li>Ada Lovelace has <cite>Structure and Interpretation of Computer Programs</cite>, due 2026-10-11</li>
-    </ul>
-    <h2>Members</h2>
-    <table>
-      <tr>
-        <th>Member</th>
-        <th>Loans</th>
-        <th>Out now</th>
-      </tr>
-      <tr>
-        <td>Ada Lovelace</td>
-        <td>3</td>
-        <td>2</td>
-      </tr>
-      <tr>
-        <td>Alan Turing</td>
-        <td>2</td>
-        <td>2</td>
-      </tr>
-      <tr>
-        <td>Grace Hopper</td>
-        <td>2</td>
-        <td>1</td>
-      </tr>
-    </table>
-    <p class="warning">Loans of unknown books: emma (grace, 2026-10-14)</p>
-  </body>
-</html>
+$ sxml xquery --context-item=latch.xml check.xq; echo "exit status $?"
+security: a requirement without an anchor (SHOULD)
+check.xq:35:3: spec:check: 1 problem(s) in draft-example-latch-protocol-01
+exit status 1
 ```
 
-Check it against the data: Alan has had *Godel, Escher, Bach* since the
-5th of September, due 21 days later, and Ada's *SICP* was due on the
-11th of October. Ada's *Dune* was due in September too, but it came
-back. Grace borrowed three books, but one of them is the unknown
-`emma`, so the table counts two.
-
-A week earlier, fewer loans are overdue:
+To see the other checks at work, break a copy of the draft in three
+places: a keyword loses its markup, a cross reference names a term that
+doesn't exist, and the TOTP reference is no longer cited:
 
 ```console
-$ sxml xquery --param=today=2026-10-10 report.xq | grep '<li>'
-      <li>Alan Turing has <cite>Godel, Escher, Bach</cite>, due 2026-09-26</li>
+$ sed -e 's|<bcp14>MAY</bcp14> report|MAY report|' -e 's|target="term-code"|target="term-pin"|' -e 's|<xref target="RFC6238"/>|one-time passwords|' latch.xml > broken.xml
+$ sxml xquery --context-item=broken.xml check.xq; echo "exit status $?"
+req-4: a cross reference to the missing anchor term-pin
+term-code: a term that nothing refers to
+RFC6238: a reference that nothing refers to
+req-11: MAY without bcp14 markup
+security: a requirement without an anchor (SHOULD)
+check.xq:35:3: spec:check: 5 problem(s) in draft-example-latch-protocol-01
+exit status 1
 ```
 
-To publish the page, write it to a file:
+The renamed target counts twice, as it should: the reference is
+dangling, and the term `term-code` lost its only use.
 
-```console
-$ sxml xquery --param=today=2026-10-20 --output=report.html report.xq
-$ grep -c '<tr>' report.html
-4
-```
+## The changes
 
-## The same facts as JSON
+Reviewers of a new version want to know what changed in the
+requirements, not in the commas. Requirements are matched by anchor,
+which is why anchors never change:
 
-Another program, say a web page that shows the overdue loans, would
-rather have JSON. A second main module uses the same module, and builds
-a map instead of a page:
-
-`summary.xq`:
+`changes.xq`:
 
 ```xquery
-{{#include ../examples/xquery-project/summary.xq}}
+{{#include ../examples/spec/changes.xq}}
 ```
+
+The entries come from `spec:entry`, so the text is the text a reader
+sees, on one line. A keyword change and a text change are told apart by
+`local:wording`, which leaves the keyword out, so a new keyword is not
+also reported as new text. From -00 to -01:
 
 ```console
-$ sxml xquery --param=today=2026-10-20 summary.xq
-{
-  "date": "2026-10-20",
-  "loans": 7,
-  "overdue": [
-    {
-      "member": "alan",
-      "title": "Godel, Escher, Bach",
-      "due": "2026-09-26"
-    },
-    {
-      "member": "ada",
-      "title": "Structure and Interpretation of Computer Programs",
-      "due": "2026-10-11"
-    }
-  ],
-  "popular": [
-    "Dune",
-    "Godel, Escher, Bach",
-    "Structure and Interpretation of Computer Programs"
-  ]
-}
+$ sxml xquery changes.xq
+req-9 added: A controller MAY send codes that are time-based one-time passwords [RFC6238].
+req-10 added: A controller SHOULD NOT send more than one status request per second to a lock.
+req-7 text: After five rejected codes in a row, a lock MUST enter lockout.
+    now: After three rejected codes in a row, a lock MUST enter lockout.
+req-8 text: A lockout SHOULD last one minute.
+    now: A lockout SHOULD last five minutes.
+req-11 added: A lock MAY report a lockout to the controller as soon as it begins.
 ```
 
-Dates are converted to strings with `string`, because JSON has no
-dates. The popular books use the clauses of `popular.xq` from the start
-of the chapter: group, sort by count, number with `count`, keep three.
-
-## One file for each member
-
-Last, the reminders. `fn:put` stores a document at a URI, and a FLWOR
-expression can make one for each member:
-
-`reminders.xq`:
-
-```xquery
-{{#include ../examples/xquery-project/reminders.xq}}
-```
-
-`put` is an updating function, so the query writes its files only when
-it has run to the end without an error, and only with `--allow-put`:
+Nothing was removed in -01; the other way round, three requirements
+were:
 
 ```console
-$ sxml xquery --param=today=2026-10-20 --allow-put reminders.xq
-$ ls reminder-*
-reminder-ada.xml
-reminder-alan.xml
-$ cat reminder-alan.xml
-<reminder to="Alan Turing" date="2026-10-20"><book due="2026-09-26">Godel, Escher, Bach</book></reminder>
+$ sxml xquery --param=old=latch.xml --param=new=latch-00.xml changes.xq | grep removed
+req-9 removed: A controller MAY send codes that are time-based one-time passwords [RFC6238].
+req-10 removed: A controller SHOULD NOT send more than one status request per second to a lock.
+req-11 removed: A lock MAY report a lockout to the controller as soon as it begins.
+```
+
+`$format` is an enumeration too, so the command line can only ask for
+what the query can write:
+
+```console
+$ sxml xquery --param=format=xml changes.xq
+changes.xq: err:FORG0001: the value is not in the value space of the target type
+```
+
+The JSON form follows in the session.
+
+## An edit session
+
+Now the real work: draft -02. The working group decided three things.
+The SHOULD in Security Considerations becomes a requirement, and the
+note asking for it goes. Locks should log rejected codes, with syslog.
+And an unlocked lock *must* lock itself again, not only *should*. Each
+decision is one command, and each command writes a new file with
+`--output`, so every step can be looked at:
+
+```console
+$ sxml xquery --context-item=latch.xml --output=step-1.xml --expression='
+    import module namespace edit = "urn:example:edit" at "edit.xqm";
+    edit:new-version(/, xs:date("2026-11-30")),
+    edit:give-anchor(//section[@anchor = "security"]/t[bcp14]),
+    edit:remove-note(//cref[@anchor = "issue-2"])'
+$ sxml xquery --context-item=step-1.xml --output=step-2.xml --expression='
+    import module namespace edit = "urn:example:edit" at "edit.xqm";
+    edit:add-requirement(//t[@anchor = "req-11"],
+      <t>A lock <bcp14>SHOULD</bcp14> log every rejected code with syslog <xref target="RFC5424"/>.</t>),
+    edit:add-reference(/, edit:rfc(5424, "The Syslog Protocol", "R. Gerhards", 2009, "March"))'
+$ sxml xquery --context-item=step-2.xml --output=drafts/latch-02.xml --expression='
+    import module namespace edit = "urn:example:edit" at "edit.xqm";
+    edit:set-keyword(//t[@anchor = "req-3"], "MUST")'
+```
+
+The second command adds a requirement and the reference it cites in one
+query: they belong together, and they touch different nodes. Is the new
+draft valid, and does it pass the check?
+
+```console
+$ sxml validate --schema=latch.xsd drafts/latch-02.xml; echo "exit status $?"
+exit status 0
+$ sxml xquery --context-item=drafts/latch-02.xml check.xq
+draft-example-latch-protocol-02: no problems
+```
+
+What changed in the requirements, as JSON for the issue tracker:
+
+```console
+$ sxml xquery --param=old=latch.xml --param=new=drafts/latch-02.xml --param=format=json changes.xq
+[
+  {
+    "anchor": "req-3",
+    "change": "keyword",
+    "old": "SHOULD",
+    "new": "MUST"
+  },
+  {
+    "anchor": "req-13",
+    "change": "added",
+    "old": null,
+    "new": "A lock SHOULD log every rejected code with syslog [RFC5424]."
+  },
+  {
+    "anchor": "req-12",
+    "change": "added",
+    "old": null,
+    "new": "A code travels in clear text on the local network. Deployments SHOULD carry Latch over an encrypted link."
+  }
+]
+```
+
+And the whole change, for the reviewers, is this diff:
+
+```console
+$ diff before.xml drafts/latch-02.xml
+5c5
+<      numbers sections and requirements in document order. --><rfc version="3" category="std" ipr="trust200902" submissionType="IETF" docName="draft-example-latch-protocol-01">
+---
+>      numbers sections and requirements in document order. --><rfc version="3" category="std" ipr="trust200902" submissionType="IETF" docName="draft-example-latch-protocol-02">
+8c8
+<     <seriesInfo name="Internet-Draft" value="draft-example-latch-protocol-01"/>
+---
+>     <seriesInfo name="Internet-Draft" value="draft-example-latch-protocol-02"/>
+17c17
+<     <date year="2026" month="October" day="21"/>
+---
+>     <date year="2026" month="November" day="30"/>
+62c62
+<       <t anchor="req-3">An unlocked lock <bcp14>SHOULD</bcp14> return to the
+---
+>       <t anchor="req-3">An unlocked lock <bcp14>MUST</bcp14> return to the
+105a106
+>       <t anchor="req-13">A lock <bcp14>SHOULD</bcp14> log every rejected code with syslog <xref target="RFC5424"/>.</t>
+109c110
+<       <t>A code travels in clear text on the local network. Deployments
+---
+>       <t anchor="req-12">A code travels in clear text on the local network. Deployments
+111,112c112
+<       <cref anchor="issue-2" source="AB">This needs a requirement anchor of
+<       its own.</cref></t>
+---
+>       </t>
+164a165,172
+>         </reference>
+>         <reference anchor="RFC5424" target="https://www.rfc-editor.org/info/rfc5424">
+>           <front>
+>             <title>The Syslog Protocol</title>
+>             <author fullname="R. Gerhards" initials="R." surname="Gerhards"/>
+>             <date year="2009" month="March"/>
+>           </front>
+>           <seriesInfo name="RFC" value="5424"/>
+```
+
+Every changed line is one that a decision named. The other lines of
+the draft are as they were, and nobody had to read them again. The
+new version sits with the others, ready for the queries of
+[Documents, Parameters and the Context](xquery-inputs.md):
+
+```console
+$ sxml xquery --method=adaptive --expression='collection("drafts") ! string(rfc/@docName)'
+"draft-example-latch-protocol-00"
+"draft-example-latch-protocol-01"
+"draft-example-latch-protocol-02"
+$ sxml xquery --param=today=2026-11-30 --param=drafts=drafts/latch-02.xml expiry.xq
+draft-example-latch-protocol-02: published 2026-11-30, expires 2027-06-03
 ```
 
 ## What we built
 
-The three queries are short because the module does the work, and they
-agree with each other because the rules are written once: change
-`$lib:loan-days` to 14, and the page, the JSON and the reminders all
-change together. Along the way, the project used most of this chapter:
+The three tools are short because the module does the work, and they
+agree with each other because the rules are written once: what a
+requirement is, how it is numbered and what its text is live in
+`spec.xqm`, and the edits, the check and the list of changes all use
+them. Along the way, the project used most of this chapter:
 
-- a library module with a record type, typed functions, a module
-  variable and an error code of its own;
-- FLWOR expressions with `where`, `order by`, `group by` and `count`;
-- `try` and `catch` for one expected error, and nothing else;
-- external variables with a type and a default;
-- constructors for HTML, maps and arrays for JSON, and output
-  declarations for both;
-- `fn:put` for many output files.
+- library modules that import each other, with record types, enumeration
+  types, typed functions, a private helper and an error code of their
+  own;
+- updating functions that insert, delete and replace exactly the nodes
+  of one decision, and `transform with` inside one of them;
+- FLWOR expressions with `where`, joins of two versions by anchor, and
+  `switch` on the kind of change;
+- external variables with a type and a default, and an enumeration that
+  limits them;
+- `fn:message` and `error` for a check that a script can rely on;
+- serialization as text and as JSON, and `--output` for each step.
+
+[Project: Publishing the Specification](xslt-project.md) takes the
+draft the rest of the way, to HTML and RFC-style text, with XSLT, and
+runs this chapter's check before it publishes.
 
 ## Summary
 
 XQuery adds to XPath what you need to write programs:
 
-- FLWOR expressions iterate, filter, sort, group, number and window;
+- FLWOR expressions iterate, filter, sort, group, number and join;
 - constructors build XML, and output declarations write it as XML,
-  HTML, text, JSON or CSV;
+  XHTML, HTML, text, JSON or CSV;
 - `switch`, `typeswitch`, sequence types and `try`/`catch` deal with
   untidy data;
 - functions, which can be recursive, and library modules organize a
   program, and external variables make it a tool;
-- updates change documents, or copies of them.
+- updates change documents, or copies of them, one named node at a
+  time.
 
 Next, a different way to think about turning documents into other
 documents: XSLT.
