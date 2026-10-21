@@ -4,6 +4,19 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- book-27 done: the traces project (traces*.md), formats.md,
+  javascript.md and performance.md on the one Vane service and its two
+  SDKs. Roots are client spans (storefront's @vane/node, vane-console),
+  the service records internal spans per module function; the normal
+  form gains db (db.system.name), so participants.xq draws only
+  databases as stores and the webhook as a box; make-traces.xq writes
+  the new shape; spans.csv and status.html rewritten; diff-*.svg
+  redrawn. traces-diff shows the "none" version line with flags.json
+  against after.json. Streaming and performance numbers measured again
+  (80 MB archive, 11 MB streamed, about 390 MB as a tree). All 95
+  examples match on the shared release build, javascript.md with a
+  package built from HEAD (wasm preset, WASI SDK 34).
+
 - book-28 done: the codegen project joins the Vane story. From
   vane-api.xsd and api.xml (with clients), the program tree has types.ts,
   one client module per name (browser.ts, console.ts, node.ts) and
