@@ -304,6 +304,9 @@ sxml_add_cli_test(validate_invalid EXIT_CODE 1 ARGUMENTS validate --schema=xsd/b
 sxml_add_cli_test(validate_json EXIT_CODE 1 ARGUMENTS validate --format=json --schema=xsd/books.xsd xsd/books.xml xsd/bad-books.xml)
 sxml_add_cli_test(validate_include EXIT_CODE 1 ARGUMENTS validate --schema=xsd/library.xsd xsd/books.xml xsd/negative-price.xml)
 sxml_add_cli_test(validate_import EXIT_CODE 1 ARGUMENTS validate --schema=xsd/offers.xsd xsd/offers.xml)
+# Identity-constraint fields whose values are not valid for their types
+# (XSD 1.1 Part 1, 3.11.4): validation errors, not a failed run.
+sxml_add_cli_test(validate_invalid_identity_fields EXIT_CODE 1 ARGUMENTS validate --schema=xsd/anchors.xsd xsd/bad-anchors.xml)
 sxml_add_cli_test(validate_strict_undeclared EXIT_CODE 1 ARGUMENTS validate --schema=xsd/books.xsd xsd/shelf.xml)
 sxml_add_cli_test(validate_lax EXIT_CODE 1 ARGUMENTS validate --mode=lax --schema=xsd/books.xsd xsd/shelf.xml xsd/bad-shelf.xml)
 sxml_add_cli_test(validate_lax_not_known EXIT_CODE 0 ARGUMENTS validate --mode=lax --schema=xsd/books.xsd xsd/shelf.xml)

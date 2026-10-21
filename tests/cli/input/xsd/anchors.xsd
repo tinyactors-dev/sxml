@@ -1,0 +1,32 @@
+<!-- Identity constraints whose fields are typed: an anchor is an xs:ID,
+     a target an xs:NCName. -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="spec">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="req" maxOccurs="unbounded">
+          <xs:complexType>
+            <xs:attribute name="anchor" type="xs:ID" use="required"/>
+          </xs:complexType>
+        </xs:element>
+        <xs:element name="link" minOccurs="0" maxOccurs="unbounded">
+          <xs:complexType>
+            <xs:attribute name="target" type="xs:NCName" use="required"/>
+          </xs:complexType>
+        </xs:element>
+      </xs:sequence>
+    </xs:complexType>
+    <xs:unique name="anchors">
+      <xs:selector xpath="req"/>
+      <xs:field xpath="@anchor"/>
+    </xs:unique>
+    <xs:key name="requirement">
+      <xs:selector xpath="req"/>
+      <xs:field xpath="@anchor"/>
+    </xs:key>
+    <xs:keyref name="links" refer="requirement">
+      <xs:selector xpath="link"/>
+      <xs:field xpath="@target"/>
+    </xs:keyref>
+  </xs:element>
+</xs:schema>

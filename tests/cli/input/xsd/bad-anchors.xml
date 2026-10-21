@@ -1,0 +1,7 @@
+<!-- Field values not valid for their types: reported, not a failure. -->
+<spec>
+  <req anchor="r1"/>
+  <req anchor="req 3"/>
+  <link target="r1"/>
+  <link target="motor light"/>
+</spec>

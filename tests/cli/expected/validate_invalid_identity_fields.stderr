@@ -1,0 +1,3 @@
+xsd/bad-anchors.xml:4:8: cvc-datatype-valid.1.2.1: attribute 'anchor' has the value 'req 3', which is not valid for type 'xs:ID'
+xsd/bad-anchors.xml:6:9: cvc-datatype-valid.1.2.1: attribute 'target' has the value 'motor light', which is not valid for type 'xs:NCName'
+xsd/bad-anchors.xml:4:3: cvc-identity-constraint.4.2.1: element 'req': a key field has no value (key 'requirement')

@@ -669,19 +669,30 @@ typedef struct value_request {
     uint32_t node_index;
     /* In/out: the hash of the key sequence so far. */
     uint64_t *hash;
+    /* Out: whether the node has a [schema actual value]. */
+    bool *has_value;
 } value_request;
 
 /* Appends the typed value of a field's node to the table's items and its
-   item count to the table's counts. */
+   item count to the table's counts. A node whose value is not valid for
+   its type (already reported, cvc-datatype-valid.1.2.1) has no [schema
+   actual value] (Part 1, 3.3.5.2 and 3.2.5): its typed value fails to
+   cast (FORG0001), and *request.has_value is false, so the member is not
+   qualified (3.11.4 clause 4), as for a field that selects nothing. */
 static sxml_status append_value(const identity_check *check, value_request request,
                                 key_table *table) {
     uint64_t *hash = request.hash;
+    *request.has_value = true;
     sxml_sequence typed_value = sxml_sequence_empty();
     sxml_status status = sxml_node_make_typed_value(
         check->validator->item_heap,
         &(sxml_node_value_request){.node = node_at(check, request.node_index),
                                    .error_record = NULL},
         &typed_value);
+    if (status == SXML_STATUS_DYNAMIC_ERROR) {
+        *request.has_value = false;
+        return SXML_STATUS_OK;
+    }
     if (status != SXML_STATUS_OK) {
         return status;
     }
@@ -778,8 +789,15 @@ static sxml_status collect_member(const identity_check *check, member_request me
             /* No [schema actual value]: not qualified (clause 4). */
             is_qualified = false;
         } else if (status == SXML_STATUS_OK) {
-            status = append_value(
-                check, (value_request){.node_index = field.node_index, .hash = &entry.hash}, table);
+            bool has_value = true;
+            status = append_value(check,
+                                  (value_request){.node_index = field.node_index,
+                                                  .hash = &entry.hash,
+                                                  .has_value = &has_value},
+                                  table);
+            if (!has_value) {
+                is_qualified = false;
+            }
             const sxml_schema_element_declaration *declaration =
                 sxml_schema_get_element_declaration(components,
                                                     declaration_at(check, field.node_index));

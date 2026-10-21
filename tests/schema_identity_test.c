@@ -224,10 +224,12 @@ static const char order_schema[] =
     "<xsd:field xpath='productName'/></xsd:unique>"
     "</xsd:element></xsd:schema>";
 
-/* Validates document strictly; first_code NULL means valid. */
+/* Validates document strictly; first_code NULL means valid. A
+   report_count other than 0 is the number of reports expected. */
 typedef struct expectation {
     const char *document;
     const char *first_code;
+    size_t report_count;
 } expectation;
 
 typedef struct test_schema {
@@ -276,6 +278,9 @@ static void expect_validity(sxml_test_state *state, test_schema tested, expectat
     } else {
         SXML_TEST_EXPECT(state, outcome.validity == SXML_VALIDITY_INVALID);
         SXML_TEST_EXPECT(state, strcmp(log.first_code, expected.first_code) == 0);
+    }
+    if (expected.report_count != 0) {
+        SXML_TEST_EXPECT(state, log.report_count == expected.report_count);
     }
     sxml_xml_parser_destroy(parser);
     sxml_schema_validator_destroy(validator);
@@ -442,12 +447,60 @@ static void test_node_tables_carry_up(sxml_test_state *state) {
     sxml_processor_destroy(processor);
 }
 
+/* A field whose node is not valid for its type: the node is reported
+   (cvc-datatype-valid.1.2.1) and has no [schema actual value] (Part 1,
+   3.3.5.2 and 3.2.5), so its member is not qualified (3.11.4 clause 4):
+   a key reports 4.2.1 as well, a unique and a keyref take no part; the
+   validation ends, it does not fail. */
+static void test_invalid_field_values(sxml_test_state *state) {
+    sxml_processor *processor = open_processor();
+    SXML_TEST_REQUIRE(state, processor != NULL);
+    report_log log;
+    sxml_schema *schema =
+        compile((compilation_request){.processor = processor, .text = order_schema, .log = &log});
+    SXML_TEST_REQUIRE(state, schema != NULL);
+    sxml_schema *field_types =
+        compile((compilation_request){.processor = processor, .text = field_schema, .log = &log});
+    SXML_TEST_REQUIRE(state, field_types != NULL);
+    static const expectation cases[] = {
+        /* A key field: the attribute's error, then 4.2.1. */
+        {.document = "<purchaseOrder><items><item partNum='1'/><item partNum='x 1'/>"
+                     "</items></purchaseOrder>",
+         .first_code = "cvc-datatype-valid.1.2.1",
+         .report_count = 2},
+        /* A keyref field: not checked. */
+        {.document = "<purchaseOrder><items><item partNum='1'/></items><order part='a b'/>"
+                     "</purchaseOrder>",
+         .first_code = "cvc-datatype-valid.1.2.1",
+         .report_count = 1},
+    };
+    for (size_t case_index = 0; case_index < SXML_TEST_COUNT(cases); case_index += 1) {
+        expect_validity(state, (test_schema){.processor = processor, .schema = schema},
+                        cases[case_index]);
+    }
+    static const expectation field_cases[] = {
+        /* A unique field of an element: two invalid values are not
+           duplicates. */
+        {.document = "<r xmlns='urn:t'><v><n>1 x</n></v><v><n>1 x</n></v></r>",
+         .first_code = "cvc-datatype-valid.1.2.1",
+         .report_count = 2},
+    };
+    for (size_t case_index = 0; case_index < SXML_TEST_COUNT(field_cases); case_index += 1) {
+        expect_validity(state, (test_schema){.processor = processor, .schema = field_types},
+                        field_cases[case_index]);
+    }
+    sxml_schema_destroy(field_types);
+    sxml_schema_destroy(schema);
+    sxml_processor_destroy(processor);
+}
+
 static const sxml_test_case schema_identity_test_cases[] = {
     {.name = "selector_and_field_subsets", .function = test_selector_and_field_subsets},
     {.name = "keyref_needs_a_matching_key", .function = test_keyref_needs_a_matching_key},
     {.name = "key_keyref_and_unique", .function = test_key_keyref_and_unique},
     {.name = "fields_and_equality", .function = test_fields_and_equality},
     {.name = "node_tables_carry_up", .function = test_node_tables_carry_up},
+    {.name = "invalid_field_values", .function = test_invalid_field_values},
 };
 
 int main(int argument_count, char **arguments) {
