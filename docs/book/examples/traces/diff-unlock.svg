@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="540" height="380" viewBox="0 0 540 380">
+  <title>POST /doors/{id}/unlock: before.json and after.json</title>
+  <style>
+    .node rect { fill: #eef3fb; stroke: #3b5b92; stroke-width: 1.5 }
+    .store rect { fill: #f6efe3; stroke: #8a6a2f }
+    .node text { font: 14px sans-serif; fill: #1b1b1b }
+    .edge line { stroke: #555555; stroke-width: 1.5 }
+    .edge text { font: 12px sans-serif; fill: #555555 }
+    .removed rect, .removed line, .removed path { stroke: #c62828; stroke-dasharray: 6 4 }
+    .added rect, .added line, .added path { stroke: #2e7d32; stroke-width: 3 }
+  </style>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#555555"/>
+    </marker>
+  </defs>
+  <g class="edge" id="edge-api-gateway-lock-service">
+    <line x1="270" y1="60" x2="270" y2="120" marker-end="url(#arrow)"/>
+    <text x="276" y="94">1</text>
+  </g>
+  <g class="edge removed" id="edge-lock-service-door-cache">
+    <line x1="270" y1="160" x2="90" y2="220" marker-end="url(#arrow)"/>
+    <text x="186" y="194">1 → 0</text>
+  </g>
+  <g class="edge" id="edge-lock-service-lock-registry">
+    <line x1="270" y1="160" x2="270" y2="220" marker-end="url(#arrow)"/>
+    <text x="276" y="194">2</text>
+  </g>
+  <g class="edge" id="edge-lock-registry-postgresql">
+    <line x1="270" y1="260" x2="270" y2="320" marker-end="url(#arrow)"/>
+    <text x="276" y="294">2</text>
+  </g>
+  <g class="edge added" id="edge-lock-service-audit-service">
+    <line x1="270" y1="160" x2="450" y2="220" marker-end="url(#arrow)"/>
+    <text x="366" y="194">0 → 1</text>
+  </g>
+  <g class="edge added" id="edge-audit-service-postgresql">
+    <line x1="450" y1="260" x2="270" y2="320" marker-end="url(#arrow)"/>
+    <text x="366" y="294">0 → 1</text>
+  </g>
+  <g class="node service" id="node-api-gateway">
+    <rect x="200" y="20" width="140" height="40" rx="6"/>
+    <text x="270" y="45" text-anchor="middle">api-gateway</text>
+  </g>
+  <g class="node service" id="node-lock-service">
+    <rect x="200" y="120" width="140" height="40" rx="6"/>
+    <text x="270" y="145" text-anchor="middle">lock-service</text>
+  </g>
+  <g class="node store removed" id="node-door-cache">
+    <rect x="20" y="220" width="140" height="40" rx="20"/>
+    <text x="90" y="245" text-anchor="middle">door-cache</text>
+  </g>
+  <g class="node service" id="node-lock-registry">
+    <rect x="200" y="220" width="140" height="40" rx="6"/>
+    <text x="270" y="245" text-anchor="middle">lock-registry</text>
+  </g>
+  <g class="node store" id="node-postgresql">
+    <rect x="200" y="320" width="140" height="40" rx="20"/>
+    <text x="270" y="345" text-anchor="middle">postgresql</text>
+  </g>
+  <g class="node service added" id="node-audit-service">
+    <rect x="380" y="220" width="140" height="40" rx="6"/>
+    <text x="450" y="245" text-anchor="middle">audit-service</text>
+  </g>
+</svg>
