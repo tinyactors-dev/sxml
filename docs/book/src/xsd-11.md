@@ -7,19 +7,19 @@ most: rules written in XPath, types chosen by attribute values, content
 models that are open to extensions, and a clean way to change a schema
 without copying it. sxml implements XSD 1.1, and validates XSD 1.0
 schemas with the same engine. The machine's schemas already use some of
-it, and `latch-1.1.xsd`, a stricter version of the annotations' schema,
+it, and `vane-1.1.xsd`, a stricter version of the annotations' schema,
 uses the rest:
 
-`latch-1.1.xsd`:
+`vane-1.1.xsd`:
 
 ```xml
-{{#include ../examples/scxml/latch-1.1.xsd}}
+{{#include ../examples/scxml/vane-1.1.xsd}}
 ```
 
 It is used together with `scxml.xsd`. The machine is valid by it too:
 
 ```console
-$ sxml validate --schema=latch-1.1.xsd --schema=scxml.xsd lock.scxml; echo "exit status $?"
+$ sxml validate --schema=vane-1.1.xsd --schema=scxml.xsd flag.scxml; echo "exit status $?"
 exit status 0
 ```
 
@@ -27,7 +27,7 @@ exit status 0
 
 The `assertion` facet restricts a simple type by an XPath condition, in
 which `$value` is the value being checked. SCXML writes the delay of a
-`send` as a number and a unit, `10s` or `250ms`. A pattern can check the
+`send` as a number and a unit, `600s` or `250ms`. A pattern can check the
 form, and an assertion the size: `delay` allows at most an hour.
 
 The second new facet, `explicitTimezone`, says whether dates and times
@@ -35,20 +35,20 @@ must have a timezone (`required`), must not have one (`prohibited`), or
 may (`optional`, the default). A moment in a log is only one when its
 timezone is known.
 
-`latch-data.xsd` declares an element `latch:value` whose type is
+`vane-data.xsd` declares an element `vane:value` whose type is
 `xs:anySimpleType`, any simple value at all, so that a value can be
 checked against any of the schema's types with `xsi:type`:
 
 ```console
-$ for delay in 10s 250ms 2h 4000s; do \
-    echo "<latch:value xmlns:latch='urn:example:latch' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' xsi:type='latch:delay'>$delay</latch:value>" \
-      | sxml validate --schema=latch-1.1.xsd -; \
+$ for delay in 600s 250ms 2h 4000s; do \
+    echo "<vane:value xmlns:vane='urn:example:vane' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' xsi:type='vane:delay'>$delay</vane:value>" \
+      | sxml validate --schema=vane-1.1.xsd -; \
   done
--:1:1: cvc-pattern-valid: element 'latch:value' has the value '2h', which is not valid for type 'latch:delay': the value matches no pattern facet (XSD 1.1 Part 2, 4.3.4.4); the pattern facet is '[0-9]+(s|ms)'
--:1:1: cvc-assertions-valid: the value '4000s' breaks an assertion of type 'latch:delay'
-$ echo "<latch:value xmlns:latch='urn:example:latch' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' xsi:type='latch:moment'>2026-10-21T09:15:00</latch:value>" \
-  | sxml validate --schema=latch-1.1.xsd -
--:1:1: cvc-explicitTimezone-valid: element 'latch:value' has the value '2026-10-21T09:15:00', which is not valid for type 'latch:moment': the value's timezone is not what the explicitTimezone facet requires (XSD 1.1 Part 2, 4.3.14.4); the explicitTimezone facet is 'required'
+-:1:1: cvc-pattern-valid: element 'vane:value' has the value '2h', which is not valid for type 'vane:delay': the value matches no pattern facet (XSD 1.1 Part 2, 4.3.4.4); the pattern facet is '[0-9]+(s|ms)'
+-:1:1: cvc-assertions-valid: the value '4000s' breaks an assertion of type 'vane:delay'
+$ echo "<vane:value xmlns:vane='urn:example:vane' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' xsi:type='vane:moment'>2026-10-21T09:15:00</vane:value>" \
+  | sxml validate --schema=vane-1.1.xsd -
+-:1:1: cvc-explicitTimezone-valid: element 'vane:value' has the value '2026-10-21T09:15:00', which is not valid for type 'vane:moment': the value's timezone is not what the explicitTimezone facet requires (XSD 1.1 Part 2, 4.3.14.4); the explicitTimezone facet is 'required'
 ```
 
 Hours are not a unit SCXML has, and 4000 seconds is more than an hour.
@@ -67,21 +67,21 @@ validated and typed. The machine's schemas have three:
 - Section 5.3.1 says that a `data` element gets its value from an
   `expr`, from a `src`, or from its content, and from at most one of
   them: `count((@expr, @src, *)) le 1`.
-- `latch-data.xsd` says that a status has a `retry-after` exactly when
-  the lock is in lockout: `exists(latch:retry-after) = (latch:state =
-  'lockout')`. The comparison of two booleans says "if and only if".
+- `vane-data.xsd` says that a status has a `retry-after` exactly when
+  the flag is paused: `exists(vane:retry-after) = (vane:state =
+  'paused')`. The comparison of two booleans says "if and only if".
 
 A machine and a status that break them:
 
 ```console
-$ sed -e 's|<data id="lockoutSeconds" expr="300"|& src="lockout.json"|' \
-      -e 's|<transition event="door.opened">|<transition>|' lock.scxml \
+$ sed -e 's|<data id="pauseSeconds" expr="300"|& src="durations.json"|' \
+      -e 's|<transition event="flag.evaluated">|<transition>|' flag.scxml \
   | sxml validate --schema=scxml.xsd -
 -:40:5: cvc-assertion: element 'Q{http://www.w3.org/2005/07/scxml}data' breaks the assertion 'count((@expr, @src, *)) le 1' of an anonymous type derived from 'xs:anyType'
 -:75:5: cvc-assertion: element 'Q{http://www.w3.org/2005/07/scxml}transition' breaks the assertion 'exists(@event | @cond | @target)' of type 'Q{http://www.w3.org/2005/07/scxml}transition'
-$ echo '<status xmlns="urn:example:latch"><door>front</door><state>locked</state><failed-attempts>0</failed-attempts><retry-after>300</retry-after></status>' \
-  | sxml validate --schema=latch-data.xsd -
--:1:1: cvc-assertion: element 'Q{urn:example:latch}status' breaks the assertion 'exists(latch:retry-after) = (latch:state = 'lockout')' of an anonymous type derived from 'xs:anyType'
+$ echo '<status xmlns="urn:example:vane"><flag>new-checkout</flag><state>stable</state><failed-checks>0</failed-checks><retry-after>300</retry-after></status>' \
+  | sxml validate --schema=vane-data.xsd -
+-:1:1: cvc-assertion: element 'Q{urn:example:vane}status' breaks the assertion 'exists(vane:retry-after) = (vane:state = 'paused')' of an anonymous type derived from 'xs:anyType'
 ```
 
 No structure could say any of the three. An assertion is reported at
@@ -95,16 +95,16 @@ one without a `test` is the fallback. The declared type is used when
 no alternative applies, and each alternative's type must be derived
 from it.
 
-In `latch-1.1.xsd`, an event is a `latch:event`, whose XHTML
-description is optional; an event with a `latch:payload` gets the type
-`latch:event-with-payload` instead, a restriction that requires the
+In `vane-1.1.xsd`, an event is a `vane:event`, whose XHTML
+description is optional; an event with a `vane:payload` gets the type
+`vane:event-with-payload` instead, a restriction that requires the
 description: an event that carries data must say what it is. Without
 its paragraph, `status.response` breaks the rule:
 
 ```console
-$ sed 's|<p xmlns="http://www.w3.org/1999/xhtml">The lock answers with its state.</p>||' lock.scxml \
-  | sxml validate --schema=latch-1.1.xsd --schema=scxml.xsd -
--:22:5: cvc-complex-type.2.4: the content of element 'latch:event' is incomplete; expected an element of the wildcard's namespaces
+$ sed 's|<p xmlns="http://www.w3.org/1999/xhtml">The service answers with the state.</p>||' flag.scxml \
+  | sxml validate --schema=vane-1.1.xsd --schema=scxml.xsd -
+-:22:5: cvc-complex-type.2.4: the content of element 'vane:event' is incomplete; expected an element of the wildcard's namespaces
 ```
 
 The tests can only look at attributes, not children: the type must be
@@ -117,23 +117,23 @@ schema says "not this one at all".
 `xs:openContent` lets elements that a content model doesn't name appear
 among the ones it does. With `mode="interleave"`, they may appear
 anywhere; with `mode="suffix"`, only at the end. The wildcard inside
-says which elements. The status of `latch-1.1.xsd` is open at the end
-for any element of another namespace, so a lock vendor can add its own
-fields, such as a battery level:
+says which elements. The status of `vane-1.1.xsd` is open at the end
+for any element of another namespace, so a team that runs the service
+can add its own fields, such as the error rate its checks measured:
 
 ```console
-$ echo '<status xmlns="urn:example:latch" xmlns:acme="urn:example:acme"><door>front</door><state>lockout</state><failed-attempts>3</failed-attempts><retry-after>300</retry-after><acme:battery>81</acme:battery></status>' \
-  | sxml validate --schema=latch-1.1.xsd -; echo "exit status $?"
+$ echo '<status xmlns="urn:example:vane" xmlns:acme="urn:example:acme"><flag>new-checkout</flag><state>paused</state><failed-checks>3</failed-checks><retry-after>300</retry-after><acme:error-rate>0.07</acme:error-rate></status>' \
+  | sxml validate --schema=vane-1.1.xsd -; echo "exit status $?"
 exit status 0
-$ echo '<status xmlns="urn:example:latch" xmlns:acme="urn:example:acme"><door>front</door><acme:battery>81</acme:battery><state>lockout</state><failed-attempts>3</failed-attempts><retry-after>300</retry-after></status>' \
-  | sxml validate --schema=latch-1.1.xsd -
--:1:83: cvc-complex-type.2.4: element 'acme:battery' is not allowed here; expected 'state'
--:1:114: cvc-complex-type.2.4: element 'state' is not allowed here; expected an element of another namespace
--:1:136: cvc-complex-type.2.4: element 'failed-attempts' is not allowed here; expected an element of another namespace
--:1:172: cvc-complex-type.2.4: element 'retry-after' is not allowed here; expected an element of another namespace
+$ echo '<status xmlns="urn:example:vane" xmlns:acme="urn:example:acme"><flag>new-checkout</flag><acme:error-rate>0.07</acme:error-rate><state>paused</state><failed-checks>3</failed-checks><retry-after>300</retry-after></status>' \
+  | sxml validate --schema=vane-1.1.xsd -
+-:1:89: cvc-complex-type.2.4: element 'acme:error-rate' is not allowed here; expected 'state'
+-:1:128: cvc-complex-type.2.4: element 'state' is not allowed here; expected an element of another namespace
+-:1:149: cvc-complex-type.2.4: element 'failed-checks' is not allowed here; expected an element of another namespace
+-:1:181: cvc-complex-type.2.4: element 'retry-after' is not allowed here; expected an element of another namespace
 ```
 
-In the middle, the battery is not allowed. sxml takes it as the start
+In the middle, the error rate is not allowed. sxml takes it as the start
 of the suffix, so the fields after it are reported too: once the suffix
 has begun, only elements of other namespaces may follow.
 
@@ -144,25 +144,25 @@ type of the schema the same open content.
 
 `defaultAttributes` on `xs:schema` names an attribute group that every
 complex type of the schema document gets, unless it says
-`defaultAttributesApply="false"`. In `latch-1.1.xsd`, the group
-`traced` holds `latch:implements`, so an event may now say which
-requirements it implements, which `latch-data.xsd` doesn't allow:
+`defaultAttributesApply="false"`. In `vane-1.1.xsd`, the group
+`traced` holds `vane:implements`, so an event may now say which
+requirements it implements, which `vane-data.xsd` doesn't allow:
 
 ```console
-$ sed 's|<latch:event name="code.accepted">|<latch:event name="code.accepted" latch:implements="req-4">|' lock.scxml > traced.scxml
+$ sed 's|<vane:event name="check.passed">|<vane:event name="check.passed" vane:implements="req-4">|' flag.scxml > traced.scxml
 $ sxml validate --schema=scxml.xsd traced.scxml
-traced.scxml:10:39: cvc-complex-type.3.2.2: attribute 'latch:implements' is not allowed on element 'latch:event'
-$ sxml validate --schema=latch-1.1.xsd --schema=scxml.xsd traced.scxml; echo "exit status $?"
+traced.scxml:10:37: cvc-complex-type.3.2.2: attribute 'vane:implements' is not allowed on element 'vane:event'
+$ sxml validate --schema=vane-1.1.xsd --schema=scxml.xsd traced.scxml; echo "exit status $?"
 exit status 0
 ```
 
 ## Changing a schema: xs:override
 
-`latch-1.1.xsd` doesn't copy `latch-data.xsd`: it names it in
+`vane-1.1.xsd` doesn't copy `vane-data.xsd`: it names it in
 `xs:override`, and replaces two of its components, the `events` and
 `status` elements, keeping the rest. Every schema document that
 includes or imports the overridden one sees the replacements, so
-`scxml.xsd`'s import of `latch-data.xsd` now finds the new events.
+`scxml.xsd`'s import of `vane-data.xsd` now finds the new events.
 
 `scxml.xsd` itself is simplified in one place: its comment says that a
 transition has at most one target. SCXML allows a list, `target="motor
@@ -187,7 +187,7 @@ element too, and an assertion takes the keyref's place:
 ```
 
 ```console
-$ sxml validate --schema=scxml-targets.xsd lock.scxml two-targets.scxml; echo "exit status $?"
+$ sxml validate --schema=scxml-targets.xsd flag.scxml two-targets.scxml; echo "exit status $?"
 exit status 0
 $ sed 's/motor light/motor lights/' two-targets.scxml | sxml validate --schema=scxml-targets.xsd -
 -:3:1: cvc-assertion: element 'Q{http://www.w3.org/2005/07/scxml}scxml' breaks the assertion 'every $target in .//sc:transition/data(@target)             ...' of an anonymous type derived from 'xs:anyType'
