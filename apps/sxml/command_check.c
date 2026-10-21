@@ -99,8 +99,8 @@ static const sxml_cli_positional sxml_check_positionals[] = {
 };
 
 static const sxml_byte_view sxml_check_examples[] = {
-    SXML_BYTE_VIEW_INITIALIZER("sxml check books.xml"),
-    SXML_BYTE_VIEW_INITIALIZER("sxml check --format=json books.xml broken.xml"),
+    SXML_BYTE_VIEW_INITIALIZER("sxml check draft.xml"),
+    SXML_BYTE_VIEW_INITIALIZER("sxml check --format=json draft.xml broken.xml"),
     SXML_BYTE_VIEW_INITIALIZER("sxml check --validate-dtd --external-entities article.xml"),
 };
 

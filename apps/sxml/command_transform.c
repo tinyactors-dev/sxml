@@ -134,11 +134,11 @@ static const sxml_cli_positional sxml_transform_positionals[] = {
 };
 
 static const sxml_byte_view sxml_transform_examples[] = {
-    SXML_BYTE_VIEW_INITIALIZER("sxml transform list.xsl books.xml"),
-    SXML_BYTE_VIEW_INITIALIZER("sxml transform --param='heading=Reading list' list.xsl books.xml"),
+    SXML_BYTE_VIEW_INITIALIZER("sxml transform outline.xsl draft.xml"),
+    SXML_BYTE_VIEW_INITIALIZER("sxml transform --param='heading=Latch requirements' outline.xsl draft.xml"),
     SXML_BYTE_VIEW_INITIALIZER("sxml transform hello.xsl"),
-    SXML_BYTE_VIEW_INITIALIZER("sxml transform --method=xml list.xsl - < books.xml"),
-    SXML_BYTE_VIEW_INITIALIZER("sxml transform --result-directory=site --output=site/index.html chapters.xsl books.xml"),
+    SXML_BYTE_VIEW_INITIALIZER("sxml transform --method=xml outline.xsl - < draft.xml"),
+    SXML_BYTE_VIEW_INITIALIZER("sxml transform --result-directory=site --output=site/index.html pages.xsl draft.xml"),
 };
 
 /* --------------------------------------------------------------- Output */

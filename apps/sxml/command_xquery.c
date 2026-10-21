@@ -115,10 +115,10 @@ static const sxml_cli_positional sxml_xquery_positionals[] = {
 };
 
 static const sxml_byte_view sxml_xquery_examples[] = {
-    SXML_BYTE_VIEW_INITIALIZER("sxml xquery --context-item=books.xml titles.xq"),
+    SXML_BYTE_VIEW_INITIALIZER("sxml xquery --context-item=draft.xml requirements.xq"),
     SXML_BYTE_VIEW_INITIALIZER("sxml xquery --expression='for $i in 1 to 3 return <i>{$i}</i>'"),
     SXML_BYTE_VIEW_INITIALIZER("sxml xquery --param=n=5 --expression='declare variable $n external; $n * 2'"),
-    SXML_BYTE_VIEW_INITIALIZER("sxml xquery --allow-put --context-item=books.xml --expression='put(., \"copy.xml\")'"),
+    SXML_BYTE_VIEW_INITIALIZER("sxml xquery --allow-put --context-item=draft.xml --expression='put(., \"copy.xml\")'"),
 };
 
 /* The query text: QUERY-FILE's contents (owned, released by the caller)

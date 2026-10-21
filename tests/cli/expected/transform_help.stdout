@@ -56,8 +56,8 @@ Arguments:
   INPUT       XML document to transform, the global context item; - reads standard input
 
 Examples:
-  sxml transform list.xsl books.xml
-  sxml transform --param='heading=Reading list' list.xsl books.xml
+  sxml transform outline.xsl draft.xml
+  sxml transform --param='heading=Latch requirements' outline.xsl draft.xml
   sxml transform hello.xsl
-  sxml transform --method=xml list.xsl - < books.xml
-  sxml transform --result-directory=site --output=site/index.html chapters.xsl books.xml
+  sxml transform --method=xml outline.xsl - < draft.xml
+  sxml transform --result-directory=site --output=site/index.html pages.xsl draft.xml

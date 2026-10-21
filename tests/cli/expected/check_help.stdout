@@ -33,6 +33,6 @@ Arguments:
   FILE  XML document to check; - reads standard input
 
 Examples:
-  sxml check books.xml
-  sxml check --format=json books.xml broken.xml
+  sxml check draft.xml
+  sxml check --format=json draft.xml broken.xml
   sxml check --validate-dtd --external-entities article.xml

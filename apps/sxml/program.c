@@ -16,11 +16,11 @@ static const sxml_cli_command *const sxml_program_commands[] = {
 };
 
 static const sxml_byte_view sxml_program_examples[] = {
-    SXML_BYTE_VIEW_INITIALIZER("sxml check books.xml"),
-    SXML_BYTE_VIEW_INITIALIZER("sxml validate --schema=books.xsd books.xml"),
-    SXML_BYTE_VIEW_INITIALIZER("sxml xpath --context-item=books.xml '//title/string()'"),
-    SXML_BYTE_VIEW_INITIALIZER("sxml xquery --context-item=books.xml titles.xq"),
-    SXML_BYTE_VIEW_INITIALIZER("sxml transform list.xsl books.xml"),
+    SXML_BYTE_VIEW_INITIALIZER("sxml check draft.xml"),
+    SXML_BYTE_VIEW_INITIALIZER("sxml validate --schema=draft.xsd draft.xml"),
+    SXML_BYTE_VIEW_INITIALIZER("sxml xpath --context-item=draft.xml '//section/name/string()'"),
+    SXML_BYTE_VIEW_INITIALIZER("sxml xquery --context-item=draft.xml requirements.xq"),
+    SXML_BYTE_VIEW_INITIALIZER("sxml transform outline.xsl draft.xml"),
 };
 
 static const sxml_cli_program sxml_program_entry = {

@@ -29,11 +29,11 @@ Options:
       --version  Print the version and exit
 
 Examples:
-  sxml check books.xml
-  sxml validate --schema=books.xsd books.xml
-  sxml xpath --context-item=books.xml '//title/string()'
-  sxml xquery --context-item=books.xml titles.xq
-  sxml transform list.xsl books.xml
+  sxml check draft.xml
+  sxml validate --schema=draft.xsd draft.xml
+  sxml xpath --context-item=draft.xml '//section/name/string()'
+  sxml xquery --context-item=draft.xml requirements.xq
+  sxml transform outline.xsl draft.xml
 
 Run 'sxml help COMMAND' for help on one command.
 Report bugs at https://github.com/dhamidi/sxml/issues

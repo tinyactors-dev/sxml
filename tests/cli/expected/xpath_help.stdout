@@ -40,7 +40,7 @@ Arguments:
 
 Examples:
   sxml xpath '1 to 3'
-  sxml xpath --context-item=books.xml '//book[@year < 1980]/title/string()'
+  sxml xpath --context-item=draft.xml '//t[bcp14 = "MUST"]/@anchor/string()'
   sxml xpath --param=n=5 'xs:integer($n) * 2'
   sxml xpath --method=json 'map { "a": [1, 2] }'
-  sxml xpath --context-item=books.xml --output=titles.txt '//title/string()'
+  sxml xpath --context-item=draft.xml --output=anchors.txt '//t/@anchor/string()'

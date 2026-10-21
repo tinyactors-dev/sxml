@@ -50,7 +50,7 @@ Arguments:
   FILE  XML document to validate; - reads standard input
 
 Examples:
-  sxml validate --schema=books.xsd books.xml
-  sxml validate --schema=books.xsd bad-books.xml
-  sxml validate --schema=books.xsd --format=json books.xml
-  sxml validate --use-schema-location hinted-books.xml
+  sxml validate --schema=draft.xsd draft.xml
+  sxml validate --schema=draft.xsd invalid.xml
+  sxml validate --schema=draft.xsd --format=json draft.xml
+  sxml validate --use-schema-location hinted-draft.xml

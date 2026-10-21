@@ -27,6 +27,6 @@ Arguments:
   FILE  XML document to write; - reads standard input
 
 Examples:
-  sxml serialize --indent books.xml
-  sxml serialize --method=json books.xml
-  sxml serialize --indent --force --output=books.xml books.xml
+  sxml serialize --indent draft.xml
+  sxml serialize --method=json draft.xml
+  sxml serialize --indent --force --output=draft.xml draft.xml

@@ -84,10 +84,10 @@ static const sxml_cli_positional sxml_xpath_positionals[] = {
 
 static const sxml_byte_view sxml_xpath_examples[] = {
     SXML_BYTE_VIEW_INITIALIZER("sxml xpath '1 to 3'"),
-    SXML_BYTE_VIEW_INITIALIZER("sxml xpath --context-item=books.xml '//book[@year < 1980]/title/string()'"),
+    SXML_BYTE_VIEW_INITIALIZER("sxml xpath --context-item=draft.xml '//t[bcp14 = \"MUST\"]/@anchor/string()'"),
     SXML_BYTE_VIEW_INITIALIZER("sxml xpath --param=n=5 'xs:integer($n) * 2'"),
     SXML_BYTE_VIEW_INITIALIZER("sxml xpath --method=json 'map { \"a\": [1, 2] }'"),
-    SXML_BYTE_VIEW_INITIALIZER("sxml xpath --context-item=books.xml --output=titles.txt '//title/string()'"),
+    SXML_BYTE_VIEW_INITIALIZER("sxml xpath --context-item=draft.xml --output=anchors.txt '//t/@anchor/string()'"),
 };
 
 /* Compiles, evaluates and writes the expression. */

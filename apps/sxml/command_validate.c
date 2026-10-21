@@ -125,10 +125,10 @@ static const sxml_cli_positional sxml_validate_positionals[] = {
 };
 
 static const sxml_byte_view sxml_validate_examples[] = {
-    SXML_BYTE_VIEW_INITIALIZER("sxml validate --schema=books.xsd books.xml"),
-    SXML_BYTE_VIEW_INITIALIZER("sxml validate --schema=books.xsd bad-books.xml"),
-    SXML_BYTE_VIEW_INITIALIZER("sxml validate --schema=books.xsd --format=json books.xml"),
-    SXML_BYTE_VIEW_INITIALIZER("sxml validate --use-schema-location hinted-books.xml"),
+    SXML_BYTE_VIEW_INITIALIZER("sxml validate --schema=draft.xsd draft.xml"),
+    SXML_BYTE_VIEW_INITIALIZER("sxml validate --schema=draft.xsd invalid.xml"),
+    SXML_BYTE_VIEW_INITIALIZER("sxml validate --schema=draft.xsd --format=json draft.xml"),
+    SXML_BYTE_VIEW_INITIALIZER("sxml validate --use-schema-location hinted-draft.xml"),
 };
 
 /* What happened to the schema or to one file. */

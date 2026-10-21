@@ -58,9 +58,9 @@ static const sxml_cli_positional sxml_serialize_positionals[] = {
 };
 
 static const sxml_byte_view sxml_serialize_examples[] = {
-    SXML_BYTE_VIEW_INITIALIZER("sxml serialize --indent books.xml"),
-    SXML_BYTE_VIEW_INITIALIZER("sxml serialize --method=json books.xml"),
-    SXML_BYTE_VIEW_INITIALIZER("sxml serialize --indent --force --output=books.xml books.xml"),
+    SXML_BYTE_VIEW_INITIALIZER("sxml serialize --indent draft.xml"),
+    SXML_BYTE_VIEW_INITIALIZER("sxml serialize --method=json draft.xml"),
+    SXML_BYTE_VIEW_INITIALIZER("sxml serialize --indent --force --output=draft.xml draft.xml"),
 };
 
 /* Parses FILE and writes it. */
