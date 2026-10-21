@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- A subset of SCXML 1.0 (W3C Recommendation, 1 September 2015): the
+     elements and attributes lock.scxml uses, with the meanings of the
+     Recommendation's schema. Simplified: a transition has at most one
+     target, so a key reference can check it (SCXML allows a list), and
+     executable content is only assign, log, raise and send. As in the
+     Recommendation, elements and attributes of other namespaces are
+     allowed almost everywhere, and are validated when this schema knows
+     them (latch-data.xsd). -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:vc="http://www.w3.org/2007/XMLSchema-versioning"
+           xmlns:sc="http://www.w3.org/2005/07/scxml"
+           targetNamespace="http://www.w3.org/2005/07/scxml"
+           elementFormDefault="qualified"
+           vc:minVersion="1.1">
+
+  <xs:import namespace="urn:example:latch" schemaLocation="latch-data.xsd"/>
+
+  <xs:simpleType name="event-descriptors">
+    <xs:list itemType="xs:token"/>
+  </xs:simpleType>
+
+  <!-- Executable content -->
+
+  <xs:group name="executable">
+    <xs:choice>
+      <xs:element name="assign">
+        <xs:complexType>
+          <xs:attribute name="location" type="xs:string" use="required"/>
+          <xs:attribute name="expr" type="xs:string"/>
+          <xs:anyAttribute namespace="##other" processContents="lax"/>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="log">
+        <xs:complexType>
+          <xs:attribute name="label" type="xs:string"/>
+          <xs:attribute name="expr" type="xs:string"/>
+          <xs:anyAttribute namespace="##other" processContents="lax"/>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="raise">
+        <xs:complexType>
+          <xs:attribute name="event" type="xs:token" use="required"/>
+          <xs:anyAttribute namespace="##other" processContents="lax"/>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="send">
+        <xs:complexType>
+          <xs:attribute name="event" type="xs:token"/>
+          <xs:attribute name="delay" type="xs:string"/>
+          <xs:attribute name="delayexpr" type="xs:string"/>
+          <xs:anyAttribute namespace="##other" processContents="lax"/>
+        </xs:complexType>
+      </xs:element>
+    </xs:choice>
+  </xs:group>
+
+  <xs:complexType name="executable-block">
+    <xs:group ref="sc:executable" minOccurs="0" maxOccurs="unbounded"/>
+  </xs:complexType>
+
+  <!-- The data model -->
+
+  <xs:element name="datamodel">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="data" maxOccurs="unbounded">
+          <xs:complexType mixed="true">
+            <xs:sequence>
+              <xs:any namespace="##other" processContents="lax" minOccurs="0" maxOccurs="unbounded"/>
+            </xs:sequence>
+            <xs:attribute name="id" type="xs:NCName" use="required"/>
+            <xs:attribute name="expr" type="xs:string"/>
+            <xs:attribute name="src" type="xs:anyURI"/>
+            <xs:anyAttribute namespace="##other" processContents="lax"/>
+            <!-- SCXML 1.0, 5.3.1: at most one of expr, src and content. -->
+            <xs:assert test="count((@expr, @src, *)) le 1"/>
+          </xs:complexType>
+        </xs:element>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- States and transitions -->
+
+  <xs:complexType name="transition">
+    <xs:group ref="sc:executable" minOccurs="0" maxOccurs="unbounded"/>
+    <xs:attribute name="event" type="sc:event-descriptors"/>
+    <xs:attribute name="cond" type="xs:string"/>
+    <xs:attribute name="target" type="xs:NCName"/>
+    <xs:attribute name="type" default="external">
+      <xs:simpleType>
+        <xs:restriction base="xs:token">
+          <xs:enumeration value="internal"/>
+          <xs:enumeration value="external"/>
+        </xs:restriction>
+      </xs:simpleType>
+    </xs:attribute>
+    <xs:anyAttribute namespace="##other" processContents="lax"/>
+    <!-- SCXML 1.0, 3.5: a transition has an event, a condition or a target. -->
+    <xs:assert test="exists(@event | @cond | @target)"/>
+  </xs:complexType>
+
+  <xs:complexType name="state">
+    <xs:choice minOccurs="0" maxOccurs="unbounded">
+      <xs:element name="onentry" type="sc:executable-block"/>
+      <xs:element name="onexit" type="sc:executable-block"/>
+      <xs:element name="transition" type="sc:transition"/>
+      <xs:element name="state" type="sc:state"/>
+      <xs:element name="final" type="sc:final"/>
+      <xs:element ref="sc:datamodel"/>
+      <xs:any namespace="##other" processContents="lax"/>
+    </xs:choice>
+    <xs:attribute name="id" type="xs:NCName" use="required"/>
+    <xs:attribute name="initial" type="xs:NCName"/>
+    <xs:anyAttribute namespace="##other" processContents="lax"/>
+  </xs:complexType>
+
+  <xs:complexType name="final">
+    <xs:choice minOccurs="0" maxOccurs="unbounded">
+      <xs:element name="onentry" type="sc:executable-block"/>
+      <xs:element name="onexit" type="sc:executable-block"/>
+      <xs:any namespace="##other" processContents="lax"/>
+    </xs:choice>
+    <xs:attribute name="id" type="xs:NCName" use="required"/>
+    <xs:anyAttribute namespace="##other" processContents="lax"/>
+  </xs:complexType>
+
+  <xs:element name="scxml">
+    <xs:complexType>
+      <xs:choice minOccurs="0" maxOccurs="unbounded">
+        <xs:element name="state" type="sc:state"/>
+        <xs:element name="final" type="sc:final"/>
+        <xs:element ref="sc:datamodel"/>
+        <xs:any namespace="##other" processContents="lax"/>
+      </xs:choice>
+      <xs:attribute name="version" type="xs:decimal" use="required" fixed="1.0"/>
+      <xs:attribute name="initial" type="xs:NCName"/>
+      <xs:attribute name="name" type="xs:NCName"/>
+      <xs:attribute name="datamodel" type="xs:NMTOKEN"/>
+      <xs:anyAttribute namespace="##other" processContents="lax"/>
+    </xs:complexType>
+    <!-- Every state has its own id, and every target and initial state is
+         one of them. -->
+    <xs:key name="state-id">
+      <xs:selector xpath=".//sc:state | .//sc:final"/>
+      <xs:field xpath="@id"/>
+    </xs:key>
+    <xs:keyref name="transition-target" refer="sc:state-id">
+      <xs:selector xpath=".//sc:transition"/>
+      <xs:field xpath="@target"/>
+    </xs:keyref>
+    <xs:keyref name="initial-state" refer="sc:state-id">
+      <xs:selector xpath=". | .//sc:state"/>
+      <xs:field xpath="@initial"/>
+    </xs:keyref>
+  </xs:element>
+</xs:schema>

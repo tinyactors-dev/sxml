@@ -1,0 +1,259 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- A schema for the subset of the xml2rfc version 3 vocabulary
+     (RFC 7991 and the RFC Editor's later v3 grammar) that latch.xml uses.
+     Elements and attributes keep xml2rfc's names and meanings; anything
+     else of xml2rfc is left out. Anchors are checked with keys instead of
+     xs:ID, so that queries see them as plain names. -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:vc="http://www.w3.org/2007/XMLSchema-versioning"
+           vc:minVersion="1.1">
+
+  <!-- Simple types -->
+
+  <xs:simpleType name="anchor">
+    <xs:restriction base="xs:NCName"/>
+  </xs:simpleType>
+
+  <xs:simpleType name="draft-name">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="draft-[a-z0-9]+(-[a-z0-9]+)*-[0-9]{2}"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="keyword">
+    <xs:annotation>
+      <xs:documentation>The requirement levels of BCP 14 (RFC 2119, RFC 8174).</xs:documentation>
+    </xs:annotation>
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="MUST"/>
+      <xs:enumeration value="MUST NOT"/>
+      <xs:enumeration value="REQUIRED"/>
+      <xs:enumeration value="SHALL"/>
+      <xs:enumeration value="SHALL NOT"/>
+      <xs:enumeration value="SHOULD"/>
+      <xs:enumeration value="SHOULD NOT"/>
+      <xs:enumeration value="RECOMMENDED"/>
+      <xs:enumeration value="NOT RECOMMENDED"/>
+      <xs:enumeration value="MAY"/>
+      <xs:enumeration value="OPTIONAL"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="month">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="January"/>
+      <xs:enumeration value="February"/>
+      <xs:enumeration value="March"/>
+      <xs:enumeration value="April"/>
+      <xs:enumeration value="May"/>
+      <xs:enumeration value="June"/>
+      <xs:enumeration value="July"/>
+      <xs:enumeration value="August"/>
+      <xs:enumeration value="September"/>
+      <xs:enumeration value="October"/>
+      <xs:enumeration value="November"/>
+      <xs:enumeration value="December"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="day">
+    <xs:restriction base="xs:positiveInteger">
+      <xs:maxInclusive value="31"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Text: paragraphs and the inline elements in them -->
+
+  <xs:group name="inline">
+    <xs:choice>
+      <xs:element name="xref" type="xref"/>
+      <xs:element name="bcp14" type="keyword"/>
+      <xs:element name="em" type="xs:string"/>
+      <xs:element name="strong" type="xs:string"/>
+      <xs:element name="tt" type="xs:string"/>
+      <xs:element name="cref" type="cref"/>
+    </xs:choice>
+  </xs:group>
+
+  <xs:complexType name="xref" mixed="true">
+    <xs:attribute name="target" type="anchor" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="cref" mixed="true">
+    <xs:attribute name="anchor" type="anchor"/>
+    <xs:attribute name="source" type="xs:string"/>
+  </xs:complexType>
+
+  <xs:complexType name="text" mixed="true">
+    <xs:group ref="inline" minOccurs="0" maxOccurs="unbounded"/>
+    <xs:attribute name="anchor" type="anchor"/>
+  </xs:complexType>
+
+  <xs:complexType name="definition-list">
+    <xs:sequence maxOccurs="unbounded">
+      <xs:element name="dt" type="text"/>
+      <xs:element name="dd" type="text"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="sourcecode">
+    <xs:simpleContent>
+      <xs:extension base="xs:string">
+        <xs:attribute name="type" type="xs:token"/>
+        <xs:attribute name="name" type="xs:string"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+
+  <!-- Sections -->
+
+  <xs:complexType name="section">
+    <xs:sequence>
+      <xs:element name="name" type="xs:string"/>
+      <xs:choice minOccurs="0" maxOccurs="unbounded">
+        <xs:element name="t" type="text"/>
+        <xs:element name="dl" type="definition-list"/>
+        <xs:element name="sourcecode" type="sourcecode"/>
+      </xs:choice>
+      <xs:element name="section" type="section" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="anchor" type="anchor" use="required"/>
+  </xs:complexType>
+
+  <!-- The front matter, also used by references -->
+
+  <xs:complexType name="author">
+    <xs:sequence>
+      <xs:element name="organization" type="xs:string" minOccurs="0"/>
+      <xs:element name="address" minOccurs="0">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="email" type="xs:string"/>
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+    <xs:attribute name="fullname" type="xs:string" use="required"/>
+    <xs:attribute name="initials" type="xs:string"/>
+    <xs:attribute name="surname" type="xs:string" use="required"/>
+    <xs:attribute name="role">
+      <xs:simpleType>
+        <xs:restriction base="xs:token">
+          <xs:enumeration value="editor"/>
+        </xs:restriction>
+      </xs:simpleType>
+    </xs:attribute>
+  </xs:complexType>
+
+  <xs:complexType name="date">
+    <xs:attribute name="year" type="xs:gYear" use="required"/>
+    <xs:attribute name="month" type="month"/>
+    <xs:attribute name="day" type="day"/>
+  </xs:complexType>
+
+  <xs:complexType name="series-info">
+    <xs:attribute name="name" type="xs:string" use="required"/>
+    <xs:attribute name="value" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="title">
+    <xs:simpleContent>
+      <xs:extension base="xs:string">
+        <xs:attribute name="abbrev" type="xs:string"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+
+  <xs:complexType name="front">
+    <xs:sequence>
+      <xs:element name="title" type="title"/>
+      <xs:element name="seriesInfo" type="series-info" minOccurs="0" maxOccurs="unbounded"/>
+      <xs:element name="author" type="author" maxOccurs="unbounded"/>
+      <xs:element name="date" type="date"/>
+      <xs:element name="area" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+      <xs:element name="keyword" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+      <xs:element name="abstract" minOccurs="0">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="t" type="text" maxOccurs="unbounded"/>
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+
+  <!-- References -->
+
+  <xs:complexType name="reference">
+    <xs:sequence>
+      <xs:element name="front" type="front"/>
+      <xs:element name="seriesInfo" type="series-info" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="anchor" type="anchor" use="required"/>
+    <xs:attribute name="target" type="xs:anyURI"/>
+  </xs:complexType>
+
+  <xs:complexType name="references">
+    <xs:sequence>
+      <xs:element name="name" type="xs:string"/>
+      <xs:choice>
+        <xs:element name="reference" type="reference" maxOccurs="unbounded"/>
+        <xs:element name="references" type="references" maxOccurs="unbounded"/>
+      </xs:choice>
+    </xs:sequence>
+    <xs:attribute name="anchor" type="anchor"/>
+  </xs:complexType>
+
+  <!-- The document -->
+
+  <xs:element name="rfc">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="front" type="front"/>
+        <xs:element name="middle">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="section" type="section" maxOccurs="unbounded"/>
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+        <xs:element name="back" minOccurs="0">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="references" type="references" minOccurs="0" maxOccurs="unbounded"/>
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+      </xs:sequence>
+      <xs:attribute name="version" type="xs:integer" fixed="3"/>
+      <xs:attribute name="category">
+        <xs:simpleType>
+          <xs:restriction base="xs:token">
+            <xs:enumeration value="std"/>
+            <xs:enumeration value="bcp"/>
+            <xs:enumeration value="info"/>
+            <xs:enumeration value="exp"/>
+            <xs:enumeration value="historic"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:attribute>
+      <xs:attribute name="ipr" type="xs:token"/>
+      <xs:attribute name="submissionType" type="xs:token"/>
+      <xs:attribute name="docName" type="draft-name"/>
+      <!-- The draft's name is written twice; XSD 1.1 can check that the
+           two agree. -->
+      <xs:assert test="not(@docName) or
+                       @docName = front/seriesInfo[@name = 'Internet-Draft']/@value"/>
+    </xs:complexType>
+    <!-- No two anchors are the same, and every xref names an anchor.
+         xs:unique, not xs:key: most paragraphs have no anchor. -->
+    <xs:unique name="anchor">
+      <xs:selector xpath=".//section | .//t | .//dt | .//cref | .//reference | .//references"/>
+      <xs:field xpath="@anchor"/>
+    </xs:unique>
+    <xs:keyref name="xref-target" refer="anchor">
+      <xs:selector xpath=".//xref"/>
+      <xs:field xpath="@target"/>
+    </xs:keyref>
+  </xs:element>
+</xs:schema>

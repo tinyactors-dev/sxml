@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The data of the door lock machine (lock.scxml): the types of its data
+     model items and the payloads of its events. The machine names these
+     types with latch:type and latch:payload attributes, so the schema
+     documents the data and a schema-aware query can check it. -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:vc="http://www.w3.org/2007/XMLSchema-versioning"
+           xmlns:latch="urn:example:latch"
+           targetNamespace="urn:example:latch"
+           elementFormDefault="qualified"
+           vc:minVersion="1.1">
+
+  <!-- Data model items -->
+
+  <xs:simpleType name="attempt-count">
+    <xs:restriction base="xs:nonNegativeInteger"/>
+  </xs:simpleType>
+
+  <xs:simpleType name="attempt-limit">
+    <xs:restriction base="xs:positiveInteger">
+      <xs:maxInclusive value="10"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="seconds">
+    <xs:restriction base="xs:positiveInteger">
+      <xs:maxInclusive value="3600"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- A value of a data model item, written as text, can be checked
+       against its type: <latch:value xsi:type="latch:seconds">300</latch:value> -->
+  <xs:element name="value" type="xs:anySimpleType"/>
+
+  <!-- Values that the protocol defines (draft-example-latch-protocol, Messages) -->
+
+  <xs:simpleType name="door-id">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[A-Za-z0-9\-]{1,16}"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="code">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[0-9]{4,8}"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="state">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="locked"/>
+      <xs:enumeration value="unlocked"/>
+      <xs:enumeration value="lockout"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Event payloads -->
+
+  <xs:element name="credentials">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="door" type="latch:door-id"/>
+        <xs:element name="code" type="latch:code"/>
+        <xs:element name="user" type="xs:string" minOccurs="0"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="status">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="door" type="latch:door-id"/>
+        <xs:element name="state" type="latch:state"/>
+        <xs:element name="failed-attempts" type="latch:attempt-count"/>
+        <xs:element name="retry-after" type="latch:seconds" minOccurs="0"/>
+      </xs:sequence>
+      <!-- Only a lock in lockout says when to try again. -->
+      <xs:assert test="exists(latch:retry-after) = (latch:state = 'lockout')"/>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- Annotations on the machine -->
+
+  <xs:attribute name="type" type="xs:QName"/>
+  <xs:attribute name="payload" type="xs:QName"/>
+  <!-- The anchors of the requirements a state or transition carries out. -->
+  <xs:attribute name="implements">
+    <xs:simpleType>
+      <xs:list itemType="xs:NCName"/>
+    </xs:simpleType>
+  </xs:attribute>
+
+  <xs:element name="events">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="event" maxOccurs="unbounded">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:any namespace="http://www.w3.org/1999/xhtml" processContents="lax"
+                      minOccurs="0" maxOccurs="unbounded"/>
+            </xs:sequence>
+            <xs:attribute name="name" type="xs:token" use="required"/>
+            <xs:attribute ref="latch:payload"/>
+          </xs:complexType>
+        </xs:element>
+      </xs:sequence>
+    </xs:complexType>
+    <xs:unique name="event-name">
+      <xs:selector xpath="latch:event"/>
+      <xs:field xpath="@name"/>
+    </xs:unique>
+  </xs:element>
+</xs:schema>
