@@ -4,6 +4,14 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- book-26 done: the call-chain chapters (call-chains.md, -graph.md,
+  -diff.md, source-code.md's sentence) on the one Vane service: modules
+  api, flags, registry, cache, db over PostgreSQL, the backend SDK's
+  getFlags and the console's killFlag, chains ending in db.query,
+  pool.query and the webhook's fetch external, the prediction 1 -> 1 +
+  n against the database. All 61 examples match on the shared release
+  build (before: 16 outputs differed in three files).
+
 - book-25 done: the SVG chapters on the one Vane service. The diagram
   of eight nodes in five rows (SDKs, vane/MODULE boxes, two stores) in
   every output, regenerated and read; svg.md says why modules are boxes
