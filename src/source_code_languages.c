@@ -1,5 +1,5 @@
 /*
- * The built-in languages of sxml:parse-code (src/source_code_internal.h;
+ * The built-in languages of tree-sitter:parse (src/source_code_internal.h;
  * packets 7.22 and 7.23, D285, D288): one row per tree-sitter grammar
  * vendored under third_party/tree-sitter-grammars, with its highlights,
  * locals and injections queries and its injection regex.

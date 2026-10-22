@@ -31,7 +31,7 @@ Options:
       --method=METHOD          Serialization method of the result (one of: adaptive, xml, xhtml, html, text, json, csv; default: adaptive)
       --allow-file-access      Let the query read and write files (EXPath File functions)
       --collection=DIR         Directory whose XML files are the default collection
-      --code-language=LIBRARY  Load a tree-sitter language for sxml:parse-code from a shared library (repeatable)
+      --code-language=LIBRARY  Load a tree-sitter language for tree-sitter:parse from a shared library (repeatable)
   -o, --output=FILE            Write the result to FILE instead of standard output
       --force                  Replace files that exist instead of refusing
 

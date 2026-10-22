@@ -1,8 +1,8 @@
 /*
- * Tests for source code as XML (src/source_code_internal.h; packets 7.22
- * and 7.23, D285, D288): sxml:parse-code and sxml:code-languages through a
- * processor with and without the feature, registered languages and their
- * checks, locals and injections, the shape of the document (elements of named
+ * Tests for source code as XML (src/source_code_internal.h; packets 7.22,
+ * 7.23 and 7.26, D285, D288, D307): tree-sitter:parse and
+ * tree-sitter:languages through a processor with and without the feature,
+ * registered languages and their checks, locals and injections, the shape of the document (elements of named
  * nodes, fields, tokens as text or sxml:token, ERROR and missing nodes,
  * the string value is the source), highlights and their predicates,
  * positions in characters, deep nesting (no recursion, D71), and an
@@ -155,62 +155,62 @@ typedef struct expression_case {
 
 static const expression_case expression_cases[] = {
     /* Named nodes are elements, tokens text; fields are attributes. */
-    EXPRESSION_VALUE("Q{urn:sxml}parse-code('[1, true]', 'json', {'highlights': false()})",
+    EXPRESSION_VALUE("Q{urn:sxml:tree-sitter}parse('[1, true]', 'json', {'highlights': false()})",
                      "<document xmlns:sxml=\"urn:sxml\"><array>[<number>1</number>, <true>true</true>]</array>"
                      "</document>"),
     /* Highlights: tokens with a capture become sxml:token. */
-    EXPRESSION_VALUE("Q{urn:sxml}parse-code('{\"a\": null}', 'json')", "<document xmlns:sxml=\"urn:sxml\"><object>{<pair><string field=\"key\" "
+    EXPRESSION_VALUE("Q{urn:sxml:tree-sitter}parse('{\"a\": null}', 'json')", "<document xmlns:sxml=\"urn:sxml\"><object>{<pair><string field=\"key\" "
                      "highlight=\"string\">\"<string_content>a</string_content>\"</string>: <null "
                      "field=\"value\" highlight=\"constant.builtin\">null</null></pair>}</object>"
                      "</document>"),
     /* The string value is the source, whitespace and comments included. */
     EXPRESSION_VALUE("let $text := '  /* c */ function f(a) {\n  return a; } \n' return "
-                     "string(Q{urn:sxml}parse-code($text, 'javascript')) eq $text",
+                     "string(Q{urn:sxml:tree-sitter}parse($text, 'javascript')) eq $text",
                      "true()"),
     /* A predicate (#match?): constructors start with a capital. */
-    EXPRESSION_VALUE("Q{urn:sxml}parse-code('new Thing(); thing();', 'javascript')"
+    EXPRESSION_VALUE("Q{urn:sxml:tree-sitter}parse('new Thing(); thing();', 'javascript')"
                      "//identifier/@highlight/string()",
                      "\"constructor\" \"function\""),
     /* Positions count characters from 1. */
-    EXPRESSION_VALUE("Q{urn:sxml}parse-code('[\"\u00e9\", 1]', 'json', {'positions': true()})"
+    EXPRESSION_VALUE("Q{urn:sxml:tree-sitter}parse('[\"\u00e9\", 1]', 'json', {'positions': true()})"
                      "//number/@*/string()",
                      "\"number\" \"1\" \"7\" \"1\" \"8\""),
     /* Errors and missing tokens are in the tree, and the text stays. */
-    EXPRESSION_VALUE("Q{urn:sxml}parse-code('[1, 2', 'json', {'highlights': false()})",
+    EXPRESSION_VALUE("Q{urn:sxml:tree-sitter}parse('[1, 2', 'json', {'highlights': false()})",
                      "<document xmlns:sxml=\"urn:sxml\"><array>[<number>1</number>, <number>2</number>"
                      "<sxml:token missing=\"true\" kind=\"]\"/></array></document>"),
-    EXPRESSION_VALUE("Q{urn:sxml}parse-code('{1 2}', 'python', {'highlights': false()})",
+    EXPRESSION_VALUE("Q{urn:sxml:tree-sitter}parse('{1 2}', 'python', {'highlights': false()})",
                      "<module xmlns:sxml=\"urn:sxml\"><set>{<integer>1</integer> <ERROR><integer>2</integer>"
                      "</ERROR>}</set></module>"),
     /* The empty sequence and the empty string. */
-    EXPRESSION_VALUE("Q{urn:sxml}parse-code((), 'json')", ""),
-    EXPRESSION_VALUE("Q{urn:sxml}parse-code('', 'c')", "<translation_unit xmlns:sxml=\"urn:sxml\"/>"),
-    EXPRESSION_ERROR("Q{urn:sxml}parse-code('x', 'cobol')", "unknown-language"),
-    EXPRESSION_ERROR("Q{urn:sxml}parse-code('x', 'json', {'positions': 'yes'})", "XPTY0004"),
-    EXPRESSION_VALUE("Q{urn:sxml}code-languages()",
+    EXPRESSION_VALUE("Q{urn:sxml:tree-sitter}parse((), 'json')", ""),
+    EXPRESSION_VALUE("Q{urn:sxml:tree-sitter}parse('', 'c')", "<translation_unit xmlns:sxml=\"urn:sxml\"/>"),
+    EXPRESSION_ERROR("Q{urn:sxml:tree-sitter}parse('x', 'cobol')", "unknown-language"),
+    EXPRESSION_ERROR("Q{urn:sxml:tree-sitter}parse('x', 'json', {'positions': 'yes'})", "XPTY0004"),
+    EXPRESSION_VALUE("Q{urn:sxml:tree-sitter}languages()",
                      "\"c\" \"css\" \"go\" \"html\" \"javascript\" \"json\" \"markdown\" "
                      "\"markdown_inline\" \"python\" \"tsx\" \"typescript\""),
     /* Locals: a reference takes its definition's highlight (D288). */
-    EXPRESSION_VALUE("Q{urn:sxml}parse-code('function f(a) { return a; }', 'javascript')"
+    EXPRESSION_VALUE("Q{urn:sxml:tree-sitter}parse('function f(a) { return a; }', 'javascript')"
                      "//return_statement/identifier/@highlight/string()",
                      "\"variable.parameter\""),
     /* Injections: Markdown's inline grammar, HTML's script; the text stays. */
-    EXPRESSION_VALUE("Q{urn:sxml}parse-code('Some *text*.', 'markdown', {'highlights': false()})",
+    EXPRESSION_VALUE("Q{urn:sxml:tree-sitter}parse('Some *text*.', 'markdown', {'highlights': false()})",
                      "<document xmlns:sxml=\"urn:sxml\"><section><paragraph><inline><inline "
                      "language=\"markdown_inline\">Some <emphasis><emphasis_delimiter>*"
                      "</emphasis_delimiter>text<emphasis_delimiter>*</emphasis_delimiter>"
                      "</emphasis>.</inline></inline></paragraph></section></document>"),
-    EXPRESSION_VALUE("Q{urn:sxml}parse-code('<script>f(1)</script>', 'html', "
+    EXPRESSION_VALUE("Q{urn:sxml:tree-sitter}parse('<script>f(1)</script>', 'html', "
                      "{'highlights': false()})//program/@language/string()",
                      "\"javascript\""),
     EXPRESSION_VALUE("let $code := '> a *b*\n> c' return "
-                     "string(Q{urn:sxml}parse-code($code, 'markdown')) = $code",
+                     "string(Q{urn:sxml:tree-sitter}parse($code, 'markdown')) = $code",
                      "true()"),
-    EXPRESSION_VALUE("count(Q{urn:sxml}parse-code('Some *text*.', 'markdown', "
+    EXPRESSION_VALUE("count(Q{urn:sxml:tree-sitter}parse('Some *text*.', 'markdown', "
                      "{'injections': false()})//emphasis)",
                      "0"),
     /* Deep nesting costs heap, not C stack (D71). */
-    EXPRESSION_VALUE("count(Q{urn:sxml}parse-code(string-join((1 to 10000) ! '[') || "
+    EXPRESSION_VALUE("count(Q{urn:sxml:tree-sitter}parse(string-join((1 to 10000) ! '[') || "
                      "string-join((1 to 10000) ! ']'), 'json')//array)",
                      "10000"),
 };
@@ -282,7 +282,7 @@ static void test_check_reports_problems(sxml_test_state *state) {
 
 /* Registered languages: listed, parsed with their queries, replacing a
    built-in one of the same name; bad configurations are refused; a query
-   that does not compile is sxml:invalid-query (D288). */
+   that does not compile is tree-sitter:invalid-query (D288, D307). */
 static void test_registered_languages(sxml_test_state *state) {
     const sxml_source_code_language languages[] = {
         json_language(TEXT("mine"), TEXT("(number) @mine.number")),
@@ -301,16 +301,16 @@ static void test_registered_languages(sxml_test_state *state) {
         sxml_byte_view expression_text;
         sxml_byte_view output;
     } cases[] = {
-        {TEXT("Q{urn:sxml}code-languages()[. = ('broken', 'json', 'mine')]"),
+        {TEXT("Q{urn:sxml:tree-sitter}languages()[. = ('broken', 'json', 'mine')]"),
          TEXT("\"broken\" \"json\" \"mine\"")},
-        {TEXT("Q{urn:sxml}parse-code('[1, true]', 'mine')//@highlight/string()"),
+        {TEXT("Q{urn:sxml:tree-sitter}parse('[1, true]', 'mine')//@highlight/string()"),
          TEXT("\"mine.number\"")},
-        {TEXT("Q{urn:sxml}parse-code('[1, true]', 'json')//@highlight/string()"),
+        {TEXT("Q{urn:sxml:tree-sitter}parse('[1, true]', 'json')//@highlight/string()"),
          TEXT("\"mine.true\"")},
-        {TEXT("Q{urn:sxml}parse-code('[1, true]', 'broken', {'highlights': false()})//number/string()"),
+        {TEXT("Q{urn:sxml:tree-sitter}parse('[1, true]', 'broken', {'highlights': false()})//number/string()"),
          TEXT("\"1\"")},
         /* An injection names a language by its injection regex. */
-        {TEXT("Q{urn:sxml}parse-code('```my-json\n[2]\n```\n', 'markdown')"
+        {TEXT("Q{urn:sxml:tree-sitter}parse('```my-json\n[2]\n```\n', 'markdown')"
               "//*[@language]/(@language, .//@highlight)/string()"),
          TEXT("\"mine\" \"mine.number\"")},
     };
@@ -321,10 +321,14 @@ static void test_registered_languages(sxml_test_state *state) {
                          sxml_byte_view_equals(sxml_output_buffer_get_bytes(fixture.output_buffer),
                                                cases[case_index].output));
     }
-    SXML_TEST_EXPECT(state, run_expression(&fixture, TEXT("Q{urn:sxml}parse-code('1', 'broken')")) !=
+    SXML_TEST_EXPECT(state, run_expression(&fixture,
+                                           TEXT("Q{urn:sxml:tree-sitter}parse('1', 'broken')")) !=
                                 SXML_STATUS_OK);
     SXML_TEST_EXPECT(state, sxml_byte_view_equals(fixture.error_record.code.local_name,
                                                   TEXT("invalid-query")));
+    /* The functions' errors are in their namespace (D307). */
+    SXML_TEST_EXPECT(state, sxml_byte_view_equals(fixture.error_record.code.namespace_uri,
+                                                  TEXT("urn:sxml:tree-sitter")));
     SXML_TEST_EXPECT(state, source_code_fixture_destroy(&fixture));
     /* Two languages of one name, a bad name, no grammar, no array. */
     const sxml_source_code_language twice[] = {languages[0], languages[0]};
@@ -379,7 +383,7 @@ static void test_function_is_absent_without_the_feature(sxml_test_state *state) 
                                                                .has_feature = false,
                                                                .failing_number = 0}) ==
                                  SXML_STATUS_OK);
-    SXML_TEST_EXPECT(state, run_expression(&fixture, TEXT("Q{urn:sxml}code-languages()")) !=
+    SXML_TEST_EXPECT(state, run_expression(&fixture, TEXT("Q{urn:sxml:tree-sitter}languages()")) !=
                                 SXML_STATUS_OK);
     SXML_TEST_EXPECT(state,
                      sxml_byte_view_equals(fixture.error_record.code.local_name, TEXT("XPST0017")));
@@ -396,7 +400,7 @@ static void test_function_survives_every_allocation_failure(sxml_test_state *sta
                                                    .failing_number = failing_number});
         if (status == SXML_STATUS_OK) {
             status = run_expression(
-                &fixture, TEXT("Q{urn:sxml}parse-code('f(\"a\") // x', 'javascript', "
+                &fixture, TEXT("Q{urn:sxml:tree-sitter}parse('f(\"a\") // x', 'javascript', "
                                "{'positions': true()})//string/@column/string()"));
         }
         SXML_TEST_EXPECT(state, status == SXML_STATUS_OK || status == SXML_STATUS_OUT_OF_MEMORY);

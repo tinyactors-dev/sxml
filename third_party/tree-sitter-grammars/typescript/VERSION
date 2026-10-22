@@ -1,4 +1,4 @@
-tree-sitter grammar for typescript, vendored for sxml:parse-code
+tree-sitter grammar for typescript, vendored for tree-sitter:parse
 (docs/DECISIONS.md, D285) by tools/vendor-tree-sitter-grammar.sh.
 
 Upstream:   https://github.com/tree-sitter/tree-sitter-typescript

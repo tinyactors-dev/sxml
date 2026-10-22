@@ -101,7 +101,7 @@ struct sxml_processor {
     /* The configuration's reads_query_text_as_xml_1_1 (D275). */
     bool reads_query_text_as_xml_1_1;
     /* The configuration's registered source code languages, for
-       sxml:parse-code (D288); borrowed, they outlive the processor. */
+       tree-sitter:parse (D288); borrowed, they outlive the processor. */
     sxml_source_code_language_view source_code_languages;
 };
 

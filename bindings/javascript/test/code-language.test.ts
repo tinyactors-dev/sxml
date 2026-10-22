@@ -126,12 +126,12 @@ describe('tree-sitter language modules', () => {
     assert.equal(json.name, 'json');
     assert.equal(json.abiVersion, 14);
     assert.equal(
-      run([json], 'sxml:parse-code($code, "json")', '[1, true]'),
+      run([json], 'tree-sitter:parse($code, "json")', '[1, true]'),
       '<document xmlns:sxml="urn:sxml"><array>[<number highlight="number">1</number>, ' +
         '<true highlight="boolean">true</true>]</array></document>',
     );
     // It replaces the built-in json in the processors it is given to.
-    assert.equal(run([json], 'count(sxml:code-languages()[. = "json"])'), '1');
+    assert.equal(run([json], 'count(tree-sitter:languages()[. = "json"])'), '1');
   });
 
   test('a name of its own, and a module given as bytes or a compiled module', async () => {
@@ -143,12 +143,12 @@ describe('tree-sitter language modules', () => {
     });
     assert.equal(named.name, 'my-json');
     assert.equal(
-      run([named, compiled], 'sxml:code-languages()[ends-with(., "-json")] => sort() => string-join(",")'),
+      run([named, compiled], 'tree-sitter:languages()[ends-with(., "-json")] => sort() => string-join(",")'),
       'compiled-json,my-json',
     );
     // Without queries there are no highlights.
     assert.equal(
-      run([named], 'sxml:parse-code($code, "my-json")', '[null]'),
+      run([named], 'tree-sitter:parse($code, "my-json")', '[null]'),
       '<document xmlns:sxml="urn:sxml"><array>[<null>null</null>]</array></document>',
     );
   });
@@ -164,11 +164,11 @@ describe('tree-sitter language modules', () => {
     assert.equal(python.abiVersion, 15);
     const code = 'class Shape:\n    def area(self):\n        if self.big:\n            return 2\n        return 1\n\n' +
       'def main():\n    """Doc."""\n    print(f"{Shape().area()}")\n';
-    const loaded = run([python], 'sxml:parse-code($code, "loaded-python")', code);
-    const builtIn = run([], 'sxml:parse-code($code, "python")', code);
+    const loaded = run([python], 'tree-sitter:parse($code, "loaded-python")', code);
+    const builtIn = run([], 'tree-sitter:parse($code, "python")', code);
     assert.equal(loaded, builtIn);
     assert.equal(
-      run([python], 'sxml:parse-code($code, "loaded-python")//function_definition/identifier ! string() => string-join(",")', code),
+      run([python], 'tree-sitter:parse($code, "loaded-python")//function_definition/identifier ! string() => string-join(",")', code),
       'area,main',
     );
     assert.match(loaded, /highlight="function.method"|highlight="function"/);
@@ -184,8 +184,8 @@ describe('tree-sitter language modules', () => {
     });
     const code = 'a:hover, .b > c { color: #fff; margin: 0 auto !important; }\n@media (min-width: 1px) { d { e: f(1px) } }\n';
     assert.equal(
-      run([css], 'sxml:parse-code($code, "loaded-css")', code),
-      run([], 'sxml:parse-code($code, "css")', code),
+      run([css], 'tree-sitter:parse($code, "loaded-css")', code),
+      run([], 'tree-sitter:parse($code, "css")', code),
     );
   });
 
@@ -195,7 +195,7 @@ describe('tree-sitter language modules', () => {
       highlights: vendoredQuery('python', 'highlights'),
     });
     for (let round = 0; round < 3; round += 1) {
-      assert.equal(run([python], 'count(sxml:parse-code("x = 1", "python")//assignment)'), '1');
+      assert.equal(run([python], 'count(tree-sitter:parse("x = 1", "python")//assignment)'), '1');
     }
   });
 });
@@ -223,7 +223,7 @@ describe('language modules that are refused', () => {
     );
   });
 
-  test('a name sxml:parse-code cannot take', async () => {
+  test('a name tree-sitter:parse cannot take', async () => {
     await assert.rejects(
       sxml.loadCodeLanguage({ name: 'my json', wasm: languageFile('tree-sitter-json.wasm') }),
       refused(/^sxml: 'my json' is no language name/),

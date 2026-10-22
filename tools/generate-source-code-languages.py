@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generates src/source_code_languages.c, the languages of sxml:parse-code.
+"""Generates src/source_code_languages.c, the languages of tree-sitter:parse.
 
 Usage: tools/generate-source-code-languages.py > src/source_code_languages.c
 
@@ -73,7 +73,7 @@ def main():
         if os.path.isfile(os.path.join(GRAMMARS, name, "src", "parser.c")))
     output = sys.stdout
     output.write("""/*
- * The built-in languages of sxml:parse-code (src/source_code_internal.h;
+ * The built-in languages of tree-sitter:parse (src/source_code_internal.h;
  * packets 7.22 and 7.23, D285, D288): one row per tree-sitter grammar
  * vendored under third_party/tree-sitter-grammars, with its highlights,
  * locals and injections queries and its injection regex.

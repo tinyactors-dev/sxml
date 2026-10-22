@@ -120,7 +120,7 @@ export interface ProcessorOptions {
    *  feature, sxml behaves as the specifications say a processor without
    *  it does. */
   features?: string[];
-  /** tree-sitter languages for sxml:parse-code beside the built-in ones,
+  /** tree-sitter languages for tree-sitter:parse beside the built-in ones,
    *  loaded with Sxml.loadCodeLanguage; one with a built-in language's
    *  name replaces it. Default: none. */
   codeLanguages?: CodeLanguage[];
@@ -143,7 +143,7 @@ export interface CodeLanguageOptions {
    *  (tree-sitter-NAME.wasm): a URL or path, the bytes, a compiled
    *  module, or a fetch Response. */
   wasm: WasmSource;
-  /** The language's name in sxml:parse-code: ASCII letters, digits, '_',
+  /** The language's name in tree-sitter:parse: ASCII letters, digits, '_',
    *  '-', '+' and '.'. Default: NAME of the file's tree_sitter_NAME
    *  function. */
   name?: string;
@@ -553,10 +553,12 @@ interface Held {
 /** The conventional prefixes of the optional features' namespaces, bound
  *  for XPath and XQuery wherever the feature is present, as the sxml
  *  command binds them (EXPath Binary 4.0, 1.5; EXPath File 4.0, 1.7;
- *  D235): feature name, prefix, namespace URI. */
+ *  D235; tree-sitter for tree-sitter:parse and sxml for the elements of
+ *  its documents, D307): feature name, prefix, namespace URI. */
 const featurePrefixes: readonly (readonly [string, string, string])[] = [
   ['expath-binary', 'bin', 'http://expath.org/ns/binary'],
   ['source-code', 'sxml', 'urn:sxml'],
+  ['source-code', 'tree-sitter', 'urn:sxml:tree-sitter'],
   ['expath-file', 'file', 'http://expath.org/ns/file'],
 ];
 
@@ -890,7 +892,7 @@ export class Sxml {
   /**
    * Loads a tree-sitter language file (tree-sitter-NAME.wasm, as
    * `tree-sitter build --wasm` writes it) into this module for
-   * sxml:parse-code: links it into sxml.wasm (src/linker.ts) and checks
+   * tree-sitter:parse: links it into sxml.wasm (src/linker.ts) and checks
    * its ABI and queries. Give it to processors with createProcessor({
    * codeLanguages }). It stays loaded as long as this Sxml. Rejects with
    * an Error that says what is wrong with the file, the name or a query.
@@ -1156,7 +1158,7 @@ export class CodeLanguage {
   readonly module: Sxml;
   /** @internal Its sxml_source_code_language in the module's memory. */
   readonly address: number;
-  /** Its name in sxml:parse-code. */
+  /** Its name in tree-sitter:parse. */
   readonly name: string;
   /** The grammar's tree-sitter language ABI, 13 to 15. */
   readonly abiVersion: number;

@@ -144,7 +144,7 @@ if(SXML_BUILD_TESTS AND SXML_NODE_EXECUTABLE)
     # feature: 9,000,000 / 2,000,000 (D208); 9,500,000 / 2,100,000 since
     # D235, for the same parser; 11,500,000 / 2,500,000 since D285, and the
     # module 10,000,000 / 2,800,000, for the seven tree-sitter grammars of
-    # sxml:parse-code (+1,927,000 in the module, 96 % parse tables);
+    # tree-sitter:parse (+1,927,000 in the module, 96 % parse tables);
     # 15,500,000 / 2,900,000 since D288, and the module 14,000,000 /
     # 2,800,000, for TypeScript, TSX and Markdown (+3,700,000 in the
     # module, 95 % parse tables).

@@ -40,15 +40,15 @@ endfunction()
 run_case("loaded" 0
     "true<document xmlns:sxml=\"urn:sxml\"><array>[<number highlight=\"number\">1</number>, <true highlight=\"constant.builtin\">true</true>]</array></document>"
     xpath "--code-language=good/${library_name}" --method=xml
-    "sxml:code-languages() = 'testjson', sxml:parse-code('[1, true]', 'testjson')")
+    "tree-sitter:languages() = 'testjson', tree-sitter:parse('[1, true]', 'testjson')")
 run_case("without queries" 0
     "<document xmlns:sxml=\"urn:sxml\"><array>[<number>1</number>, <true>true</true>]</array></document>"
     xpath "--code-language=bare/${library_name}" --method=xml
-    "sxml:parse-code('[1, true]', 'testjson')")
+    "tree-sitter:parse('[1, true]', 'testjson')")
 run_case("query that does not fit" 1
     "the highlights query does not fit the grammar at byte 1"
-    xpath "--code-language=bad/${library_name}" "sxml:code-languages()")
+    xpath "--code-language=bad/${library_name}" "tree-sitter:languages()")
 run_case("no library" 3
     "--code-language=not-a-library.so: cannot load the library"
-    xpath "--code-language=not-a-library.so" "sxml:code-languages()")
+    xpath "--code-language=not-a-library.so" "tree-sitter:languages()")
 file(REMOVE_RECURSE "${work}")

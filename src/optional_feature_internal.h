@@ -105,7 +105,7 @@ typedef enum sxml_optional_feature_kind {
        health-3, D225); operations sxml_builtin_schemas_feature_operations
        (src/processor_internal.h). */
     SXML_OPTIONAL_FEATURE_KIND_BUILTIN_SCHEMAS,
-    /* sxml_source_code_feature: sxml:parse-code and sxml:code-languages
+    /* sxml_source_code_feature: tree-sitter:parse and tree-sitter:languages
        as library_functions (src/source_code.c,
        src/function_library_source_code.c, packet 7.22, D285); operations
        is that view. */

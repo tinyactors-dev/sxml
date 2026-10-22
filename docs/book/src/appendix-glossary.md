@@ -344,7 +344,7 @@ wherever their head element is allowed.
 drawings, in the namespace `http://www.w3.org/2000/svg`.
 
 **Syntax tree.** A program as a tree of its parts. A *concrete* syntax
-tree, as `sxml:parse-code` returns, holds every token and space, so its
+tree, as `tree-sitter:parse` returns, holds every token and space, so its
 string value is the source; an *abstract* one holds only the parts that
 vary, such as names, types and statements, and a printer adds the rest.
 

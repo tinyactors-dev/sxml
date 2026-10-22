@@ -1,4 +1,4 @@
-tree-sitter grammar for markdown_inline, vendored for sxml:parse-code
+tree-sitter grammar for markdown_inline, vendored for tree-sitter:parse
 (docs/DECISIONS.md, D285) by tools/vendor-tree-sitter-grammar.sh.
 
 Upstream:   https://github.com/tree-sitter-grammars/tree-sitter-markdown

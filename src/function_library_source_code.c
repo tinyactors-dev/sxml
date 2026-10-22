@@ -1,6 +1,7 @@
 /*
- * sxml:parse-code and sxml:code-languages (namespace urn:sxml; packets
- * 7.22 and 7.23, D285, D288): the source code feature's library functions
+ * tree-sitter:parse and tree-sitter:languages (namespace
+ * urn:sxml:tree-sitter; packets 7.22, 7.23 and 7.26, D285, D288, D307):
+ * the source code feature's library functions
  * (src/source_code_internal.h, D191). Not a library part of the
  * registry: its row view is sxml_source_code_library_functions, which the
  * processor serves only when its configuration names
@@ -22,7 +23,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* The options of sxml:parse-code. */
+/* The options of tree-sitter:parse. */
 enum {
     SXML_SOURCE_CODE_OPTION_HIGHLIGHTS,
     SXML_SOURCE_CODE_OPTION_POSITIONS,
@@ -36,7 +37,8 @@ static const sxml_option_definition source_code_options[SXML_SOURCE_CODE_OPTION_
     SXML_FUNCTION_OPTION("injections", SXML_TYPE_XS_BOOLEAN, SXML_OCCURRENCE_EXACTLY_ONE),
 };
 
-/* An error of urn:sxml. */
+/* An error of urn:sxml:tree-sitter, where the functions are, as the EXPath
+   modules' errors are in their functions' namespaces (D307). */
 typedef struct sxml_error_text {
     sxml_byte_view local_name;
     sxml_byte_view description;
@@ -47,9 +49,9 @@ typedef struct sxml_error_text {
 static sxml_status report_error(const sxml_function_call *call, sxml_error_text error) {
     if (call->error_record != NULL) {
         *call->error_record = (sxml_error_record){
-            .code = {.namespace_uri = SXML_BYTE_VIEW_FROM_LITERAL("urn:sxml"),
+            .code = {.namespace_uri = SXML_BYTE_VIEW_FROM_LITERAL("urn:sxml:tree-sitter"),
                      .local_name = error.local_name,
-                     .namespace_prefix = SXML_BYTE_VIEW_FROM_LITERAL("sxml")},
+                     .namespace_prefix = SXML_BYTE_VIEW_FROM_LITERAL("tree-sitter")},
             .value = NULL,
             .diagnostic = {.description = error.description,
                            .location = {.source_name = {.bytes = NULL, .byte_count = 0},
@@ -170,9 +172,9 @@ static sxml_source_code_language_set language_set_of(const sxml_function_call *c
                                     : environment->processor->source_code_languages};
 }
 
-/* sxml:parse-code($source as xs:string?, $language as xs:string,
-   $options as map(*)? := {}) as document-node()? (D285). */
-static sxml_status call_parse_code(const sxml_function_call *call, sxml_sequence *result) {
+/* tree-sitter:parse($source as xs:string?, $language as xs:string,
+   $options as map(*)? := {}) as document-node()? (D285, D307). */
+static sxml_status call_parse(const sxml_function_call *call, sxml_sequence *result) {
     if (call->dynamic_context == NULL) {
         return SXML_STATUS_INVALID_ARGUMENT;
     }
@@ -198,8 +200,8 @@ static sxml_status call_parse_code(const sxml_function_call *call, sxml_sequence
             call, (sxml_error_text){
                       .local_name = SXML_BYTE_VIEW_FROM_LITERAL("unknown-language"),
                       .description = SXML_BYTE_VIEW_FROM_LITERAL(
-                          "the language is not one that sxml:parse-code knows; "
-                          "sxml:code-languages() lists them")});
+                          "the language is not one that tree-sitter:parse knows; "
+                          "tree-sitter:languages() lists them")});
     }
     if (!source.has_item) {
         *result = sxml_sequence_empty();
@@ -270,9 +272,9 @@ static sxml_status append_names(const sxml_function_call *call, name_list list,
     return status;
 }
 
-/* sxml:code-languages() as xs:string*: the names of the languages, the
+/* tree-sitter:languages() as xs:string*: the names of the languages, the
    registered and the built-in ones, each once, in name order. */
-static sxml_status call_code_languages(const sxml_function_call *call, sxml_sequence *result) {
+static sxml_status call_languages(const sxml_function_call *call, sxml_sequence *result) {
     const sxml_allocator allocator = sxml_item_heap_as_allocator(call->item_heap);
     const sxml_source_code_language_view registered = language_set_of(call).registered_languages;
     const size_t name_count =
@@ -314,15 +316,15 @@ static sxml_status call_code_languages(const sxml_function_call *call, sxml_sequ
     return status;
 }
 
-static const sxml_function_parameter parse_code_parameters[] = {
+static const sxml_function_parameter parse_parameters[] = {
     SXML_REQUIRED_PARAMETER("source", "xs:string?"),
     SXML_REQUIRED_PARAMETER("language", "xs:string"),
     SXML_OPTIONAL_PARAMETER("options", "map(*)?"),
 };
 
-/* A row in the urn:sxml namespace. */
+/* A row in the urn:sxml:tree-sitter namespace. */
 #define SXML_SOURCE_CODE_ROW(name_text, parameter_array, parameter_count, result_text, body)      \
-    {.function_namespace = SXML_NAMESPACE_SXML,                                                 \
+    {.function_namespace = SXML_NAMESPACE_TREE_SITTER,                                          \
      .properties = SXML_NATIVE_FUNCTION_IS_NONDETERMINISTIC,                                    \
      .local_name = SXML_BYTE_VIEW_INITIALIZER(name_text),                                       \
      .parameters = {(parameter_array), (parameter_count)},                                      \
@@ -331,10 +333,10 @@ static const sxml_function_parameter parse_code_parameters[] = {
      .resumable_body = NULL}
 
 static const sxml_native_function source_code_functions[] = {
-    SXML_SOURCE_CODE_ROW("parse-code", parse_code_parameters,
-                         sizeof(parse_code_parameters) / sizeof(parse_code_parameters[0]),
-                         "document-node()?", call_parse_code),
-    SXML_SOURCE_CODE_ROW("code-languages", NULL, 0, "xs:string*", call_code_languages),
+    SXML_SOURCE_CODE_ROW("parse", parse_parameters,
+                         sizeof(parse_parameters) / sizeof(parse_parameters[0]),
+                         "document-node()?", call_parse),
+    SXML_SOURCE_CODE_ROW("languages", NULL, 0, "xs:string*", call_languages),
 };
 
 const sxml_native_function_view sxml_source_code_library_functions = {

@@ -5,6 +5,6 @@ declare option output:item-separator "&#10;";
 declare variable $name external := "formatPrice";
 
 for $file in ("cart.js", "money.js")
-let $code := sxml:parse-code(unparsed-text($file), "javascript", { "positions": true() })
+let $code := tree-sitter:parse(unparsed-text($file), "javascript", { "positions": true() })
 for $call in $code//call_expression[*[@field = "function"] = $name]
 return `{$file}:{$call/@line}: {$call}`

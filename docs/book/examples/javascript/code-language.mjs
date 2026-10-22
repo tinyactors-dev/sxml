@@ -14,7 +14,7 @@ console.log(json.name, json.abiVersion);
 
 // A processor knows the languages it is given, beside the built-in ones.
 const processor = sxml.createProcessor({ codeLanguages: [json] });
-const tree = processor.evaluate('sxml:parse-code($code, "my-json")', {
+const tree = processor.evaluate('tree-sitter:parse($code, "my-json")', {
   variables: { code: '[1, true]' },
 });
 console.log(tree.serialize({ method: 'xml' }));

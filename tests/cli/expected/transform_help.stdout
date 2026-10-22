@@ -47,7 +47,7 @@ Options:
       --param=NAME=VALUE       Bind stylesheet parameter $NAME to xs:untypedAtomic(VALUE) (repeatable)
       --result-directory=DIR   Write result documents with an href into the existing directory DIR
       --collection=DIR         Directory whose XML files are the default collection
-      --code-language=LIBRARY  Load a tree-sitter language for sxml:parse-code from a shared library (repeatable)
+      --code-language=LIBRARY  Load a tree-sitter language for tree-sitter:parse from a shared library (repeatable)
   -o, --output=FILE            Write the result to FILE instead of standard output
       --force                  Replace files that exist instead of refusing
 

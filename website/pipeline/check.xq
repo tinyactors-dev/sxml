@@ -3,7 +3,7 @@ declare variable $rules := doc("rules.xml")/rules/*;
 <violations>{
   for $path in sort(file:list("src", true(), "*.ts"))
   let $file := "src/" || $path
-  let $code := sxml:parse-code(unparsed-text($file),
+  let $code := tree-sitter:parse(unparsed-text($file),
                  "typescript", { "positions": true() })
   for $rule in $rules
   return switch (local-name($rule))

@@ -18,7 +18,7 @@ foreach(parser_path IN LISTS SXML_GRAMMAR_PARSERS)
     sxml_add_grammar(${language})
     list(APPEND SXML_GRAMMAR_LIBRARIES sxml_grammar_${language})
 endforeach()
-# The vendored grammars of sxml:parse-code (third_party/tree-sitter-grammars,
+# The vendored grammars of tree-sitter:parse (third_party/tree-sitter-grammars,
 # packet 7.22, D285) join the same list as sxml_source_grammar_<language>;
 # src/source_code_languages.c (tools/generate-source-code-languages.py)
 # names their entry points.

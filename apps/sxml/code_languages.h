@@ -30,7 +30,7 @@
         .default_value = {.bytes = NULL, .byte_count = 0},                                         \
         .multiplicity = SXML_CLI_OPTION_REPEATABLE,                                                \
         .summary = SXML_BYTE_VIEW_INITIALIZER(                                                     \
-            "Load a tree-sitter language for sxml:parse-code from a shared library"),             \
+            "Load a tree-sitter language for tree-sitter:parse from a shared library"),           \
     }
 
 /* The languages a command line loads, in allocator memory: the language

@@ -753,15 +753,16 @@ SXML_EXPORT sxml_optional_feature sxml_localization_feature(void);
 SXML_EXPORT sxml_optional_feature sxml_invisible_xml_feature(void);
 
 /*
- * Source code as XML (packet 7.22, D285): sxml:parse-code($source,
- * $language, $options) in the namespace urn:sxml, which parses source
+ * Source code as XML (packets 7.22 and 7.26, D285, D307):
+ * tree-sitter:parse($source, $language, $options) in the namespace
+ * urn:sxml:tree-sitter (SXML_NAMESPACE_TREE_SITTER), which parses source
  * code with a tree-sitter grammar compiled into sxml (JSON, JavaScript
  * with JSX, TypeScript, TSX, Python, C, CSS, HTML, Go, Markdown and its
  * inline grammar; D288) or registered by the host
  * (sxml_processor_configuration.source_code_languages, below) into a
  * document whose elements are the named nodes of the syntax tree,
  * annotated with the captures of the grammar's highlights query; and
- * sxml:code-languages(), which lists the languages. Without it both
+ * tree-sitter:languages(), which lists the languages. Without it both
  * functions are absent (XPST0017). Its name is "source-code". Added
  * after the freeze (D99).
  */
@@ -783,7 +784,7 @@ SXML_EXPORT sxml_byte_view sxml_optional_feature_get_name(sxml_optional_feature 
 /* ------------------------------------------------- Source code languages */
 
 /*
- * A tree-sitter language a host registers for sxml:parse-code (glossary
+ * A tree-sitter language a host registers for tree-sitter:parse (glossary
  * `registered_language`; packet 7.23, D288): a grammar sxml does not
  * include, a newer version of one it does (a registered language replaces
  * a built-in one of the same name), or one the host loaded at run time
@@ -808,7 +809,7 @@ SXML_EXPORT sxml_byte_view sxml_optional_feature_get_name(sxml_optional_feature 
 struct TSLanguage; // NOLINT(readability-identifier-naming)
 
 typedef struct sxml_source_code_language {
-    /* The name in sxml:parse-code's $language argument: ASCII letters,
+    /* The name in tree-sitter:parse's $language argument: ASCII letters,
        digits, '_', '-', '+' and '.', not empty ("rust"). */
     sxml_byte_view language_name;
     /* Not NULL. */
@@ -863,8 +864,8 @@ typedef struct sxml_source_code_language_report {
  * SXML_STATUS_INVALID_ARGUMENT for a problem (the report says which) and
  * for NULL arguments, SXML_STATUS_OUT_OF_MEMORY when tree-sitter cannot
  * allocate. sxml_processor_initialize checks only the name and the ABI;
- * a query that does not compile makes sxml:parse-code raise
- * sxml:invalid-query when the language is used.
+ * a query that does not compile makes tree-sitter:parse raise
+ * tree-sitter:invalid-query when the language is used.
  */
 SXML_NODISCARD SXML_EXPORT sxml_status sxml_source_code_check_language(
     const sxml_source_code_language *language, sxml_source_code_language_report *report);
@@ -949,7 +950,7 @@ typedef struct sxml_processor_configuration {
        a query that declares no output:version is serialized with version
        1.1 (D195, D237, D275). XPath and XSLT are not affected. */
     bool reads_query_text_as_xml_1_1;
-    /* Languages for sxml:parse-code besides the built-in ones (above,
+    /* Languages for tree-sitter:parse besides the built-in ones (above,
        D288); the empty view names none. The array, the grammars and the
        query texts must outlive the processor. A view with a count but no
        array, a language whose name or ABI

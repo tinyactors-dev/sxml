@@ -8,7 +8,7 @@
 #
 # With <grammar-directory> and <target>, builds the parser in
 # <grammar-directory>/src into <target> instead: the vendored grammars of
-# sxml:parse-code (third_party/tree-sitter-grammars, D285), whose entry
+# tree-sitter:parse (third_party/tree-sitter-grammars, D285), whose entry
 # point tree_sitter_<language>() is renamed sxml_source_language_<language>()
 # so that it never meets one of sxml's own grammars of the same name.
 

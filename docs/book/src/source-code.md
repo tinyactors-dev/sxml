@@ -7,7 +7,7 @@ grammar is already written: [tree-sitter](https://tree-sitter.github.io)
 grammars power the syntax highlighting and code navigation of many
 editors. sxml includes the tree-sitter grammars of JSON, JavaScript (with
 JSX), TypeScript, TSX, Python, C, CSS, HTML, Go and Markdown, and
-`sxml:parse-code` turns code in any of them into an XML document. Other
+`tree-sitter:parse` turns code in any of them into an XML document. Other
 tree-sitter grammars can be added when sxml runs (see
 [Supplying your own language](#supplying-your-own-language)). Then XPath, XQuery and XSLT can answer
 questions about the code: where a function is called, which functions a
@@ -22,11 +22,11 @@ module exports, which comments say TODO. The examples are in
 {{#include ../examples/source-code/greet.js}}
 ```
 
-`sxml:parse-code` takes the code as a string and the name of its
+`tree-sitter:parse` takes the code as a string and the name of its
 language, and returns a document:
 
 ```console
-$ sxml xpath --method=xml 'sxml:parse-code(unparsed-text("greet.js"), "javascript")'
+$ sxml xpath --method=xml 'tree-sitter:parse(unparsed-text("greet.js"), "javascript")'
 <program xmlns:sxml="urn:sxml"><comment highlight="comment">// Says hello.</comment>
 <function_declaration><sxml:token highlight="keyword">function</sxml:token> <identifier field="name" highlight="function">greet</identifier><formal_parameters field="parameters"><sxml:token highlight="punctuation.bracket">(</sxml:token><identifier highlight="variable.parameter">name</identifier><sxml:token highlight="punctuation.bracket">)</sxml:token></formal_parameters> <statement_block field="body"><sxml:token highlight="punctuation.bracket">{</sxml:token>
   <return_statement><sxml:token highlight="keyword">return</sxml:token> <binary_expression><string field="left" highlight="string">"<string_fragment>Hello, </string_fragment>"</string> <sxml:token field="operator" highlight="operator">+</sxml:token> <identifier field="right" highlight="variable.parameter">name</identifier></binary_expression><sxml:token highlight="punctuation.delimiter">;</sxml:token></return_statement>
@@ -47,7 +47,7 @@ The document follows the grammar's syntax tree:
   the source code, exactly:
 
 ```console
-$ sxml xpath 'string(sxml:parse-code(unparsed-text("greet.js"), "javascript")) = unparsed-text("greet.js")'
+$ sxml xpath 'string(tree-sitter:parse(unparsed-text("greet.js"), "javascript")) = unparsed-text("greet.js")'
 true()
 ```
 
@@ -62,9 +62,12 @@ true()
   carry the attribute; with the option `{ "highlights": false() }` most
   tokens stay plain text.
 
-The prefix `sxml` is bound to the namespace `urn:sxml` in the `sxml`
-command's XPath and XQuery; a stylesheet declares it. The elements of
-the tree itself are in no namespace.
+The functions are in the namespace `urn:sxml:tree-sitter`, and the
+`sxml:token` elements in `urn:sxml`. The `sxml` command's XPath and
+XQuery bind the prefixes `tree-sitter` and `sxml` to them; a stylesheet
+declares the ones it uses
+(`xmlns:tree-sitter="urn:sxml:tree-sitter"`). The elements of the tree
+itself are in no namespace.
 
 The third argument takes options:
 
@@ -74,10 +77,10 @@ The third argument takes options:
 | `positions` | `false()` | Write `line` and `column` attributes (where each element starts, from 1, columns counted in characters) and `end-line` and `end-column` (where it ends) |
 | `injections` | `true()` | Parse code inside code (a Markdown code block, an HTML `script` element) with its own language; see [Code inside code](#code-inside-code) |
 
-`sxml:code-languages()` lists the languages:
+`tree-sitter:languages()` lists the languages:
 
 ```console
-$ sxml xpath 'sxml:code-languages()'
+$ sxml xpath 'tree-sitter:languages()'
 "c"
 "css"
 "go"
@@ -104,7 +107,7 @@ arrow function, inside an `export_statement`. The name is the child
 whose field is `name`:
 
 ```console
-$ sxml xpath 'sxml:parse-code(unparsed-text("cart.js"), "javascript")//export_statement//*[@field = "name"][1] ! string()'
+$ sxml xpath 'tree-sitter:parse(unparsed-text("cart.js"), "javascript")//export_statement//*[@field = "name"][1] ! string()'
 "total"
 "totalWithTax"
 "summary"
@@ -114,7 +117,7 @@ The same with the functions that are not exported, and how many
 parameters each has:
 
 ```console
-$ sxml xpath 'sxml:parse-code(unparsed-text("cart.js"), "javascript")/program/function_declaration ! `{identifier} takes {count(formal_parameters/identifier)}`'
+$ sxml xpath 'tree-sitter:parse(unparsed-text("cart.js"), "javascript")/program/function_declaration ! `{identifier} takes {count(formal_parameters/identifier)}`'
 "describe takes 1"
 ```
 
@@ -124,7 +127,7 @@ With the option `positions`, each element knows its line. A comment
 knows the function it is in through the `ancestor` axis:
 
 ```console
-$ sxml xpath 'sxml:parse-code(unparsed-text("cart.js"), "javascript", { "positions": true() })//comment[contains(., "TODO")] ! `line {@line}, in {ancestor::function_declaration/identifier}: {substring-after(., "TODO: ")}`'
+$ sxml xpath 'tree-sitter:parse(unparsed-text("cart.js"), "javascript", { "positions": true() })//comment[contains(., "TODO")] ! `line {@line}, in {ancestor::function_declaration/identifier}: {substring-after(., "TODO: ")}`'
 "line 6, in total: apply discounts"
 "line 15, in describe: localize the currency"
 ```
@@ -136,14 +139,14 @@ Python works the same way. `report.py`:
 ```
 
 ```console
-$ sxml xpath 'sxml:parse-code(unparsed-text("report.py"), "python", { "positions": true() })//comment ! `{@line}: {ancestor::function_definition/identifier[@field = "name"]}: {.}`'
+$ sxml xpath 'tree-sitter:parse(unparsed-text("report.py"), "python", { "positions": true() })//comment ! `{@line}: {ancestor::function_definition/identifier[@field = "name"]}: {.}`'
 "11: total: # TODO: skip rows without an amount"
 ```
 
 A function whose body does not start with a string has no docstring:
 
 ```console
-$ sxml xpath 'sxml:parse-code(unparsed-text("report.py"), "python")//function_definition[not(block/*[1][self::string])]/identifier[@field = "name"] ! string()'
+$ sxml xpath 'tree-sitter:parse(unparsed-text("report.py"), "python")//function_definition[not(block/*[1][self::string])]/identifier[@field = "name"] ! string()'
 "total"
 "__init__"
 "render"
@@ -159,9 +162,9 @@ at most three parameters, and names are spelled out. `buffer.c`:
 ```
 
 ```console
-$ sxml xpath 'sxml:parse-code(unparsed-text("buffer.c"), "c", { "positions": true() })//function_declarator[count(parameter_list/parameter_declaration) > 3] ! `{@line}: {*[@field = "declarator"]} has {count(parameter_list/parameter_declaration)} parameters`'
+$ sxml xpath 'tree-sitter:parse(unparsed-text("buffer.c"), "c", { "positions": true() })//function_declarator[count(parameter_list/parameter_declaration) > 3] ! `{@line}: {*[@field = "declarator"]} has {count(parameter_list/parameter_declaration)} parameters`'
 "5: buffer_append has 4 parameters"
-$ sxml xpath 'sxml:parse-code(unparsed-text("buffer.c"), "c", { "positions": true() })//parameter_declaration//identifier[. = ("buf", "len", "ptr", "tmp")] ! `{@line}:{@column}: {.} is not spelled out`'
+$ sxml xpath 'tree-sitter:parse(unparsed-text("buffer.c"), "c", { "positions": true() })//parameter_declaration//identifier[. = ("buf", "len", "ptr", "tmp")] ! `{@line}:{@column}: {.} is not spelled out`'
 "14:61: len is not spelled out"
 "19:25: buf is not spelled out"
 ```
@@ -178,7 +181,7 @@ JSX is part of the JavaScript grammar. An element with content is a
 `jsx_element`, one that closes itself a `jsx_self_closing_element`:
 
 ```console
-$ sxml xpath 'count(sxml:parse-code(unparsed-text("Gallery.jsx"), "javascript")//(jsx_element | jsx_self_closing_element))'
+$ sxml xpath 'count(tree-sitter:parse(unparsed-text("Gallery.jsx"), "javascript")//(jsx_element | jsx_self_closing_element))'
 4
 ```
 
@@ -187,7 +190,7 @@ lowercase name as `tag` and a capitalized one as `constructor`. So the
 components the file uses are:
 
 ```console
-$ sxml xpath 'sxml:parse-code(unparsed-text("Gallery.jsx"), "javascript")//(jsx_opening_element | jsx_self_closing_element)/identifier[@highlight = "constructor"] => distinct-values()'
+$ sxml xpath 'tree-sitter:parse(unparsed-text("Gallery.jsx"), "javascript")//(jsx_opening_element | jsx_self_closing_element)/identifier[@highlight = "constructor"] => distinct-values()'
 "Photo"
 "Footer"
 ```
@@ -224,7 +227,7 @@ The TypeScript grammar has the nodes of JavaScript and the types on top
 of them. The properties of each interface:
 
 ```console
-$ sxml xpath 'sxml:parse-code(unparsed-text("shapes.ts"), "typescript")//interface_declaration ! `{type_identifier}: {string-join(.//property_signature/property_identifier, ", ")}`'
+$ sxml xpath 'tree-sitter:parse(unparsed-text("shapes.ts"), "typescript")//interface_declaration ! `{type_identifier}: {string-join(.//property_signature/property_identifier, ", ")}`'
 "Circle: kind, radius"
 "Rectangle: kind, width, height"
 ```
@@ -233,7 +236,7 @@ The signature of each exported function, with the types written as in
 the source:
 
 ```console
-$ sxml xpath 'sxml:parse-code(unparsed-text("shapes.ts"), "typescript")//export_statement/function_declaration ! `{identifier}({string-join(formal_parameters/(required_parameter | optional_parameter), ", ")}){*[@field = "return_type"]}`'
+$ sxml xpath 'tree-sitter:parse(unparsed-text("shapes.ts"), "typescript")//export_statement/function_declaration ! `{identifier}({string-join(formal_parameters/(required_parameter | optional_parameter), ", ")}){*[@field = "return_type"]}`'
 "area(shape: Shape): number"
 "describe(shape: Shape, digits?: number): string"
 ```
@@ -248,10 +251,10 @@ TSX is TypeScript with JSX, and has a grammar of its own, `tsx`.
 The components the file uses, and the properties that are optional:
 
 ```console
-$ sxml xpath 'sxml:parse-code(unparsed-text("Profile.tsx"), "tsx")//(jsx_opening_element | jsx_self_closing_element)/identifier[@highlight = "constructor"] ! string()'
+$ sxml xpath 'tree-sitter:parse(unparsed-text("Profile.tsx"), "tsx")//(jsx_opening_element | jsx_self_closing_element)/identifier[@highlight = "constructor"] ! string()'
 "Avatar"
 "Markdown"
-$ sxml xpath 'sxml:parse-code(unparsed-text("Profile.tsx"), "tsx")//property_signature[contains(., "?")]/property_identifier ! string()'
+$ sxml xpath 'tree-sitter:parse(unparsed-text("Profile.tsx"), "tsx")//property_signature[contains(., "?")]/property_identifier ! string()'
 "avatar"
 "bio"
 ```
@@ -269,17 +272,17 @@ a paragraph or a heading (emphasis, links, code spans). `notes.md`:
 The headings and their levels:
 
 ```console
-$ sxml xpath 'sxml:parse-code(unparsed-text("notes.md"), "markdown")//atx_heading ! `{string-length(*[1])}: {normalize-space(inline)}`'
+$ sxml xpath 'tree-sitter:parse(unparsed-text("notes.md"), "markdown")//atx_heading ! `{string-length(*[1])}: {normalize-space(inline)}`'
 "1: Release notes"
 "2: Fixed"
 "2: Example"
 ```
 
-`sxml:parse-code` parses the text of each block with the inline grammar
+`tree-sitter:parse` parses the text of each block with the inline grammar
 (see the next section), so the links are there too:
 
 ```console
-$ sxml xpath 'sxml:parse-code(unparsed-text("notes.md"), "markdown")//inline_link ! `{link_text}: {link_destination}`'
+$ sxml xpath 'tree-sitter:parse(unparsed-text("notes.md"), "markdown")//inline_link ! `{link_text}: {link_destination}`'
 "issue 12: https://example.com/issues/12"
 "the guide: guide.md"
 ```
@@ -290,13 +293,13 @@ A Markdown code block holds code in another language, and so does an
 HTML `script` element. The grammar's injections query
 (`queries/injections.scm`) says which nodes hold code and in which
 language: the info string after the fence, `javascript` for a `script`
-element, the inline grammar for Markdown's paragraphs. `sxml:parse-code`
+element, the inline grammar for Markdown's paragraphs. `tree-sitter:parse`
 parses each such node with that language, when it knows the language,
 and puts the tree inside the node's element. The tree's document element
 names its language in a `language` attribute:
 
 ```console
-$ sxml xpath --method=xml 'sxml:parse-code("Some *text*.", "markdown")'
+$ sxml xpath --method=xml 'tree-sitter:parse("Some *text*.", "markdown")'
 <document xmlns:sxml="urn:sxml"><section><paragraph><inline><inline language="markdown_inline">Some <emphasis highlight="text.emphasis"><emphasis_delimiter highlight="punctuation.delimiter">*</emphasis_delimiter>text<emphasis_delimiter highlight="punctuation.delimiter">*</emphasis_delimiter></emphasis>.</inline></inline></paragraph></section></document>
 ```
 
@@ -304,9 +307,9 @@ So the Python function in the release notes is a `function_definition`
 like any other:
 
 ```console
-$ sxml xpath 'sxml:parse-code(unparsed-text("notes.md"), "markdown")//*[@language = "python"]//function_definition/identifier ! string()'
+$ sxml xpath 'tree-sitter:parse(unparsed-text("notes.md"), "markdown")//*[@language = "python"]//function_definition/identifier ! string()'
 "greet"
-$ sxml xpath 'sxml:parse-code(unparsed-text("notes.md"), "markdown")//fenced_code_block ! `{info_string}: {code_fence_content/*[@language]/name()}`'
+$ sxml xpath 'tree-sitter:parse(unparsed-text("notes.md"), "markdown")//fenced_code_block ! `{info_string}: {code_fence_content/*[@language]/name()}`'
 "python: module"
 "javascript: program"
 ```
@@ -319,10 +322,10 @@ highlighted as such. `page.html`:
 ```
 
 ```console
-$ sxml xpath 'sxml:parse-code(unparsed-text("page.html"), "html")//*[@language] ! `{@language}: {count(.//*[@highlight])} highlighted`'
+$ sxml xpath 'tree-sitter:parse(unparsed-text("page.html"), "html")//*[@language] ! `{@language}: {count(.//*[@highlight])} highlighted`'
 "css: 7 highlighted"
 "javascript: 33 highlighted"
-$ sxml xpath 'sxml:parse-code(unparsed-text("page.html"), "html")//*[@language = "javascript"]//*[@highlight = "function.method"] ! string()'
+$ sxml xpath 'tree-sitter:parse(unparsed-text("page.html"), "html")//*[@language = "javascript"]//*[@highlight = "function.method"] ! string()'
 "getElementById"
 "reduce"
 ```
@@ -366,7 +369,7 @@ not find (an `sxml:token` with the token's `kind` when the token is
 punctuation). The document is still the source text:
 
 ```console
-$ sxml xpath --method=xml 'sxml:parse-code("[1, 2", "json")'
+$ sxml xpath --method=xml 'tree-sitter:parse("[1, 2", "json")'
 <document xmlns:sxml="urn:sxml"><array>[<number highlight="number">1</number>, <number highlight="number">2</number><sxml:token missing="true" kind="]"/></array></document>
 ```
 
@@ -375,15 +378,15 @@ So a query can report problems instead of failing:
 ```console
 $ cat broken.json
 { "a": 1 "b": 2 }
-$ sxml xpath 'sxml:parse-code(unparsed-text("broken.json"), "json")//(ERROR | *[@missing]) => count()'
+$ sxml xpath 'tree-sitter:parse(unparsed-text("broken.json"), "json")//(ERROR | *[@missing]) => count()'
 1
 ```
 
 A language sxml does not have is an error:
 
 ```console
-$ sxml xpath 'sxml:parse-code("IDENTIFICATION DIVISION.", "cobol")'
-expression:1:1: sxml:unknown-language: the language is not one that sxml:parse-code knows; sxml:code-languages() lists them
+$ sxml xpath 'tree-sitter:parse("IDENTIFICATION DIVISION.", "cobol")'
+expression:1:1: tree-sitter:unknown-language: the language is not one that tree-sitter:parse knows; tree-sitter:languages() lists them
 ```
 
 ## Supplying your own language
@@ -409,7 +412,7 @@ given more than once:
 
 ```sh
 sxml xpath --code-language=tree-sitter-rust/rust.so \
-  'sxml:parse-code(unparsed-text("main.rs"), "rust")//function_item/identifier ! string()'
+  'tree-sitter:parse(unparsed-text("main.rs"), "rust")//function_item/identifier ! string()'
 ```
 
 - The language's name comes from the file name: the extension and the
@@ -435,7 +438,7 @@ sources, and give it queries of your own. `queries/highlights.scm`:
 
 ```console
 $ cc -shared -fPIC -O1 -o json.so "$SXML/third_party/tree-sitter-grammars/json/src/parser.c"
-$ sxml xpath --code-language=json.so --method=xml 'sxml:parse-code("[1, true]", "json")'
+$ sxml xpath --code-language=json.so --method=xml 'tree-sitter:parse("[1, true]", "json")'
 <document xmlns:sxml="urn:sxml"><array>[<number highlight="number.json">1</number>, <true highlight="boolean">true</true>]</array></document>
 ```
 
@@ -443,7 +446,7 @@ A library that cannot be loaded is an error, and so are a grammar of
 another ABI and a query that does not fit the grammar:
 
 ```console
-$ sxml xpath --code-language=missing.so 'sxml:code-languages()'
+$ sxml xpath --code-language=missing.so 'tree-sitter:languages()'
 sxml xpath: --code-language=missing.so: cannot load the library: ./missing.so: cannot open shared object file: No such file or directory
 ```
 

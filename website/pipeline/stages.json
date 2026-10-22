@@ -33,7 +33,7 @@
     {
       "id": "ixml",
       "name": "Invisible XML",
-      "summary": "`sxml:parse-code` reads AGENTS.md as Markdown and returns its syntax tree as XML. An Invisible XML grammar turns each sentence under “Rules” into an element; a sentence the grammar does not know becomes `<unknown-rule>`.",
+      "summary": "`tree-sitter:parse` reads AGENTS.md as Markdown and returns its syntax tree as XML. An Invisible XML grammar turns each sentence under “Rules” into an element; a sentence the grammar does not know becomes `<unknown-rule>`.",
       "files": [
         "AGENTS.md",
         "rules.ixml",
@@ -79,19 +79,19 @@
     {
       "id": "xpath",
       "name": "XPath",
-      "summary": "`sxml:parse-code` parses TypeScript too, with line numbers. XPath 4.0 then asks the syntax tree what a code search can only guess: how many parameters each function takes, and which functions each line calls.",
+      "summary": "`tree-sitter:parse` parses TypeScript too, with line numbers. XPath 4.0 then asks the syntax tree what a code search can only guess: how many parameters each function takes, and which functions each line calls.",
       "files": [
         "src/cart.ts",
         "src/ui/profile.ts"
       ],
       "commands": [
         {
-          "run": "sxml xpath 'sxml:parse-code(unparsed-text(\"src/cart.ts\"), \"typescript\")//function_declaration ! `{identifier}: {count(formal_parameters/(required_parameter | optional_parameter))}`'",
-          "show": "sxml xpath '\n  sxml:parse-code(unparsed-text(\"src/cart.ts\"),\n                  \"typescript\")\n  //function_declaration ! `{identifier}: {\n    count(formal_parameters\n      /(required_parameter | optional_parameter))}`'"
+          "run": "sxml xpath 'tree-sitter:parse(unparsed-text(\"src/cart.ts\"), \"typescript\")//function_declaration ! `{identifier}: {count(formal_parameters/(required_parameter | optional_parameter))}`'",
+          "show": "sxml xpath '\n  tree-sitter:parse(unparsed-text(\"src/cart.ts\"),\n                    \"typescript\")\n  //function_declaration ! `{identifier}: {\n    count(formal_parameters\n      /(required_parameter | optional_parameter))}`'"
         },
         {
-          "run": "sxml xpath 'sxml:parse-code(unparsed-text(\"src/ui/profile.ts\"), \"typescript\", { \"positions\": true() })//call_expression ! `{@line}: {*[@field = \"function\"]}`'",
-          "show": "sxml xpath '\n  sxml:parse-code(unparsed-text(\"src/ui/profile.ts\"),\n                  \"typescript\", { \"positions\": true() })\n  //call_expression\n  ! `{@line}: {*[@field = \"function\"]}`'"
+          "run": "sxml xpath 'tree-sitter:parse(unparsed-text(\"src/ui/profile.ts\"), \"typescript\", { \"positions\": true() })//call_expression ! `{@line}: {*[@field = \"function\"]}`'",
+          "show": "sxml xpath '\n  tree-sitter:parse(unparsed-text(\"src/ui/profile.ts\"),\n                    \"typescript\", { \"positions\": true() })\n  //call_expression\n  ! `{@line}: {*[@field = \"function\"]}`'"
         }
       ]
     },

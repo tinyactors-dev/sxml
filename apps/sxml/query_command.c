@@ -1030,7 +1030,10 @@ static bool sxml_query_allows_file_access(const sxml_cli_invocation *invocation)
 /* Binds the conventional prefixes of the optional features' namespaces
    (EXPath Binary 4.0, 1.5; EXPath File 4.0, 1.7): bin and file; without
    --allow-file-access the file: functions are absent (XPST0017). Also
-   sxml, the namespace of sxml:parse-code (packet 7.22, D285). */
+   tree-sitter, the namespace of tree-sitter:parse and
+   tree-sitter:languages, and sxml, the namespace of the sxml:token and
+   sxml:node elements of its documents (packets 7.22 and 7.26, D285,
+   D307). */
 static sxml_status sxml_query_bind_feature_namespaces(sxml_query_run *run) {
     sxml_name_pool *name_pool = sxml_processor_get_name_pool(run->processor);
     run->feature_namespace_count = 0;
@@ -1059,6 +1062,16 @@ static sxml_status sxml_query_bind_feature_namespaces(sxml_query_run *run) {
                 .namespace_prefix = prefix,
                 .namespace_uri = sxml_well_known_namespace_identifier(SXML_NAMESPACE_SXML)};
             run->feature_namespace_count = 3;
+        }
+    }
+    if (status == SXML_STATUS_OK) {
+        status =
+            sxml_name_pool_intern_namespace_prefix(name_pool, SXML_TEXT("tree-sitter"), &prefix);
+        if (status == SXML_STATUS_OK) {
+            run->feature_namespaces[3] = (sxml_namespace_binding){
+                .namespace_prefix = prefix,
+                .namespace_uri = sxml_well_known_namespace_identifier(SXML_NAMESPACE_TREE_SITTER)};
+            run->feature_namespace_count = 4;
         }
     }
     return status;

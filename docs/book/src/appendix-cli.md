@@ -34,7 +34,7 @@ The options you'll use most:
 | `--allow-put` | `xquery` | Lets `fn:put` write files |
 | `--allow-file-access` | `xpath`, `xquery` | Makes the EXPath File functions available |
 | `--collection=DIR` | `xpath`, `xquery`, `transform` | The XML files of DIR are the default collection, `collection()` |
-| `--code-language=LIBRARY` | `xpath`, `xquery`, `transform` | Loads a tree-sitter language from a shared library for `sxml:parse-code`; repeatable |
+| `--code-language=LIBRARY` | `xpath`, `xquery`, `transform` | Loads a tree-sitter language from a shared library for `tree-sitter:parse`; repeatable |
 | `--external-entities`, `--validate-dtd` | `check` | Reads external DTDs and entities; validates against the DTD |
 | `--schema=SCHEMA` | `validate` | A schema document; repeat it to combine several into one schema |
 | `--use-schema-location` | `validate` | Also reads the schema documents a document's `xsi:schemaLocation` names |

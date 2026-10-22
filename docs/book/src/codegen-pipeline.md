@@ -65,7 +65,7 @@ tree gives it, every function of a client has a method in the server's
 `Implementation`, every method is in some client and has a route in
 `createHandler`, and every name the modules import from `runtime.ts` is
 one that `runtime.ts` exports.
-The [Source Code as XML](source-code.md) chapter's `sxml:parse-code`
+The [Source Code as XML](source-code.md) chapter's `tree-sitter:parse`
 can check that on the code itself, after it was printed, with
 tree-sitter's TypeScript grammar. `check.xq` reads the names of the
 modules from the tree, parses each printed file once into a map from
@@ -295,7 +295,7 @@ place:
 - an XSLT printer with one template rule for each kind of element and
   the layout in one place, and a second style that imports it and
   changes two declarations;
-- a check that parses the generated code with `sxml:parse-code` and
+- a check that parses the generated code with `tree-sitter:parse` and
   compares the clients, the server and the runtime;
 - an XSLT stylesheet that writes JSON with template rules and maps;
 - a script that makes everything, and a comparison that shows whether

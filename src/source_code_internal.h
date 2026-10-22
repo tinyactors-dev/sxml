@@ -4,7 +4,7 @@
 /*
  * Source code as XML (packet 7.22, D285; glossary `source_code_language`,
  * `syntax_node`, `token_element`): the bridge from tree-sitter syntax
- * trees to tree builder events, behind sxml:parse-code
+ * trees to tree builder events, behind tree-sitter:parse
  * (src/function_library_source_code.c), the optional feature
  * sxml_source_code_feature().
  *
@@ -146,7 +146,7 @@ typedef struct sxml_source_code_request {
  * SXML_STATUS_OUT_OF_MEMORY when tree-sitter cannot allocate,
  * SXML_STATUS_INVALID_ARGUMENT when the grammar's ABI does not fit the
  * runtime, SXML_STATUS_MALFORMED_INPUT when one of the language's
- * queries does not compile for its grammar (sxml:invalid-query; an
+ * queries does not compile for its grammar (tree-sitter:invalid-query; an
  * injected language's bad query only leaves its highlights out), and the
  * failures of the builder, the
  * name pool and the allocator. The builder may have received part of the

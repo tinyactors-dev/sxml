@@ -38,12 +38,12 @@ it.
 ## A vocabulary for TypeScript
 
 The tree needs element names. The [Source Code as XML](source-code.md)
-chapter has some already: `sxml:parse-code` turns TypeScript into a
+chapter has some already: `tree-sitter:parse` turns TypeScript into a
 tree, with an element for each node of tree-sitter's grammar. Here is a
 line of code from the generated checks:
 
 ```console
-$ sxml xpath --method=xml 'sxml:parse-code("const count = problems.length;", "typescript", { "highlights": false() })'
+$ sxml xpath --method=xml 'tree-sitter:parse("const count = problems.length;", "typescript", { "highlights": false() })'
 <program xmlns:sxml="urn:sxml"><lexical_declaration><sxml:token field="kind">const</sxml:token> <variable_declarator><identifier field="name">count</identifier> = <member_expression field="value"><identifier field="object">problems</identifier>.<property_identifier field="property">length</property_identifier></member_expression></variable_declarator>;</lexical_declaration></program>
 ```
 

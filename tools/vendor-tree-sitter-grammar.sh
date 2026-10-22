@@ -1,5 +1,5 @@
 #!/bin/sh
-# Vendors one tree-sitter grammar repository for sxml:parse-code
+# Vendors one tree-sitter grammar repository for tree-sitter:parse
 # (docs/DECISIONS.md, D285) into third_party/tree-sitter-grammars/LANGUAGE:
 # its LICENSE, the generated parser (src/parser.c, any src/scanner.c and
 # the headers next to them, src/tree_sitter/, and the C files its
@@ -10,7 +10,7 @@
 # Then run tools/generate-source-code-languages.py.
 #
 # Usage: tools/vendor-tree-sitter-grammar.sh LANGUAGE URL COMMIT [SUBDIRECTORY]
-#   LANGUAGE      the name sxml:parse-code knows the language by: lowercase
+#   LANGUAGE      the name tree-sitter:parse knows the language by: lowercase
 #                 letters, digits and underscores; also the grammar's
 #                 tree_sitter_LANGUAGE() entry point. A grammar whose
 #                 queries name another grammar's (TypeScript's name
@@ -161,7 +161,7 @@ tag=$(git ls-remote --tags "$url" | awk -v commit="$commit" '
     $1 == commit { name = $2; sub("^refs/tags/", "", name); sub("\\^\\{\\}$", "", name); print name; exit }')
 [ -n "$tag" ] || tag=none
 cat > "$target/VERSION" <<EOF
-tree-sitter grammar for $language, vendored for sxml:parse-code
+tree-sitter grammar for $language, vendored for tree-sitter:parse
 (docs/DECISIONS.md, D285) by tools/vendor-tree-sitter-grammar.sh.
 
 Upstream:   $url

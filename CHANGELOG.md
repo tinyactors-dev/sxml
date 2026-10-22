@@ -9,6 +9,18 @@ release are in `docs/RELEASE.md`.
 
 ## [Unreleased]
 
+### Changed
+
+- **The tree-sitter functions are `tree-sitter:parse` and
+  `tree-sitter:languages`** (D307), in the namespace
+  `urn:sxml:tree-sitter`, which the `sxml` command and the JavaScript
+  package bind to the prefix `tree-sitter`. They replace
+  `sxml:parse-code` and `sxml:code-languages`, which are removed; the
+  signatures, options and documents are the same. The errors are
+  `tree-sitter:unknown-language` and `tree-sitter:invalid-query`. A
+  stylesheet declares `xmlns:tree-sitter="urn:sxml:tree-sitter"`.
+  `name.h` gains `SXML_NAMESPACE_TREE_SITTER`.
+
 ## [0.2.0] - 2026-10-22
 
 The first public release (D47, D104, D138): XML and HTML parsing,

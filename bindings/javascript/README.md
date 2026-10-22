@@ -71,7 +71,7 @@ not exist (`err:XPST0017`), or the specification's fallback applies.
 | `full-text` | XQuery and XPath Full Text 3.0: `contains text` and score variables in XPath and XQuery, with stemming, stop words and thesauri |
 | `dtd-validation` | The `dtd-validation` option of `fn:doc` and `fn:parse-xml` |
 | `builtin-schemas` | The schemas that `fn:json-to-xml` with `validate`, the typed results of `fn:analyze-string`, and lax validation without an in-scope schema use |
-| `source-code` | `sxml:parse-code` and `sxml:code-languages` (namespace `urn:sxml`): source code in JSON, JavaScript, TypeScript, TSX, Python, C, CSS, HTML, Go or Markdown as a document of its syntax tree, with highlights and code inside code, and any other tree-sitter language from its WebAssembly file (see [Code languages](#code-languages)) |
+| `source-code` | `tree-sitter:parse` and `tree-sitter:languages` (namespace `urn:sxml:tree-sitter`, prefix `tree-sitter`): source code in JSON, JavaScript, TypeScript, TSX, Python, C, CSS, HTML, Go or Markdown as a document of its syntax tree, with highlights and code inside code, and any other tree-sitter language from its WebAssembly file (see [Code languages](#code-languages)) |
 | `uca-collation` | UCA collation URIs (Unicode Collation Algorithm 16.0) over the DUCET, which the package ships; the CLDR root collation and the CLDR tailorings by language when the resolver gives their files (resource kind `'collation-data'`) |
 | `timezone-database` | IANA time zone names in `fn:civil-timezone` and in the `$place` argument of `fn:format-dateTime` (resource kind `'timezone-data'`) |
 | `localization` | Month and day names, calendars and number words in other languages in `fn:format-date`, `fn:format-integer` and `xsl:number` (resource kind `'locale-data'`) |
@@ -342,8 +342,9 @@ processor.evaluate('/book/@year instance of attribute(*, xs:gYear)', { context: 
 
 ## Code languages
 
-`sxml:parse-code` (the `source-code` feature; the prefix `sxml` is bound
-to `urn:sxml`) parses a dozen languages built in. Any other tree-sitter
+`tree-sitter:parse` (the `source-code` feature; the prefix `tree-sitter`
+is bound to `urn:sxml:tree-sitter`, and `sxml`, of the `sxml:token`
+elements, to `urn:sxml`) parses a dozen languages built in. Any other tree-sitter
 grammar can be loaded from its WebAssembly language file,
 `tree-sitter-NAME.wasm`, as `tree-sitter build --wasm` writes it (many
 grammar repositories ship it with their releases), together with the
@@ -357,7 +358,7 @@ const rust = await sxml.loadCodeLanguage({
 });
 rust.name; // 'rust', from the file's tree_sitter_rust()
 const processor = sxml.createProcessor({ codeLanguages: [rust] });
-processor.evaluate('sxml:parse-code("fn main() {}", "rust")//function_item/identifier ! string()');
+processor.evaluate('tree-sitter:parse("fn main() {}", "rust")//function_item/identifier ! string()');
 ```
 
 `loadCodeLanguage` links the file into the running `sxml.wasm`: the

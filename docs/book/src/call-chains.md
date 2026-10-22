@@ -11,7 +11,7 @@ is entered down to the functions that do the work, and the lines of a
 diff hold the answer only for a reader who follows every call by hand.
 
 In this project we let a query follow the calls. [Source Code as
-XML](source-code.md) showed that `sxml:parse-code` turns TypeScript into
+XML](source-code.md) showed that `tree-sitter:parse` turns TypeScript into
 an XML document; here we read every module of a small service, build its
 *call graph* (which function calls which), list its call chains, and
 compare the graphs and chains of two versions of the service. The
@@ -117,12 +117,12 @@ reading come out of the code.
 
 ## A first look
 
-`sxml:parse-code` reads each file. With `--allow-file-access`, the
+`tree-sitter:parse` reads each file. With `--allow-file-access`, the
 EXPath File functions list the directories and read the files, so one
 expression looks at all ten of them:
 
 ```console
-$ sxml xpath --allow-file-access 'for $version in ("before", "after") for $file in sort(file:list($version)) let $tree := sxml:parse-code(file:read-text($version || "/" || $file), "typescript") return `{$version}/{$file}: {count($tree//function_declaration)} functions, {count($tree//(ERROR | *[@missing]))} errors`'
+$ sxml xpath --allow-file-access 'for $version in ("before", "after") for $file in sort(file:list($version)) let $tree := tree-sitter:parse(file:read-text($version || "/" || $file), "typescript") return `{$version}/{$file}: {count($tree//function_declaration)} functions, {count($tree//(ERROR | *[@missing]))} errors`'
 "before/api.ts: 2 functions, 0 errors"
 "before/cache.ts: 1 functions, 0 errors"
 "before/db.ts: 1 functions, 0 errors"

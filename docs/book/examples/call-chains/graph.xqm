@@ -3,7 +3,7 @@
 module namespace graph = "urn:example:graph";
 
 declare namespace file = "http://expath.org/ns/file";
-declare namespace sxml = "urn:sxml";
+declare namespace tree-sitter = "urn:sxml:tree-sitter";
 
 (: What a call calls: the id of a function, and whether that function is
    outside the program. :)
@@ -166,7 +166,7 @@ declare function graph:read(
   map:merge(
     for $file in file:list($directory, false(), "*.ts")
     return { graph:module-name($file):
-               sxml:parse-code(file:read-text($directory || "/" || $file),
+               tree-sitter:parse(file:read-text($directory || "/" || $file),
                                "typescript", { "positions": true() })/program }
   )
 };

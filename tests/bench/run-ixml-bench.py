@@ -30,8 +30,8 @@ the process, reading the input and building the XML tree.
 
 The comparisons parse the same kind of input with the parsers the book
 compares iXML with: a JSON grammar of tests/bench/ixml against
-sxml:parse-code (tree-sitter) and fn:json-to-xml, and the Markdown input
-with sxml:parse-code; they print the number of elements.
+tree-sitter:parse and fn:json-to-xml, and the Markdown input
+with tree-sitter:parse; they print the number of elements.
 """
 
 import argparse
@@ -207,11 +207,11 @@ BENCHMARKS = [
 # same limits as above. The query is an XPath expression of $input.
 COMPARISONS = [
     ("json-ixml", "json.ixml", make_json, 250_000, 1_000_000, 0.30, 80, 60, 6.0),
-    ("json-tree-sitter", 'sxml:parse-code(unparsed-text($input), "json", {"highlights": false()})',
+    ("json-tree-sitter", 'tree-sitter:parse(unparsed-text($input), "json", {"highlights": false()})',
      make_json, 250_000, 1_000_000, 0.35, 90, 70, 6.0),
     ("json-parse-json", "json-to-xml(unparsed-text($input))",
      make_json, 250_000, 1_000_000, 0.25, 60, 40, 6.0),
-    ("md-tree-sitter", 'sxml:parse-code(unparsed-text($input), "markdown", {"highlights": false()})',
+    ("md-tree-sitter", 'tree-sitter:parse(unparsed-text($input), "markdown", {"highlights": false()})',
      make_markdown, 250_000, 1_000_000, 1.60, 160, 140, 6.0),
 ]
 

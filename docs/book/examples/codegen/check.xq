@@ -2,7 +2,7 @@
 declare variable $directory as xs:string external := "generated";
 
 declare function local:parse($file as xs:string) as document-node() {
-  sxml:parse-code(unparsed-text($file), "typescript")
+  tree-sitter:parse(unparsed-text($file), "typescript")
 };
 
 let $program := doc($directory || "/program.xml")/program

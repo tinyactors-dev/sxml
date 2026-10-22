@@ -2,7 +2,7 @@ xquery version "4.0";
 (:
  : The driver of the tree-sitter grammars' own tests
  : (third_party/tree-sitter-grammars/LANGUAGE/test, D13, D285): checks the
- : documents of sxml:parse-code against one test file of one grammar.
+ : documents of tree-sitter:parse against one test file of one grammar.
  : tests/tree-sitter/run-tree-sitter-tests.sh runs it once per file,
  : through `sxml xquery`, so it uses only what any host of sxml's public
  : API has.
@@ -42,6 +42,7 @@ xquery version "4.0";
  :   counts: LANGUAGE/FILE tests=N passed=P failed=F errors=E not-run=R
  :)
 declare namespace sxml = "urn:sxml";
+declare namespace tree-sitter = "urn:sxml:tree-sitter";
 
 declare option output:method "text";
 
@@ -140,11 +141,11 @@ declare function local:run-corpus-test($test as map(*)) as map(*) {
       map { "outcome": "error", "why": "no divider between input and expected tree" }
     else if ($attributes = (":skip", ":cst")) then
       map { "outcome": "not-run", "why": "marked " || string-join($attributes, " ") }
-    else if (not($test-language = sxml:code-languages())) then
+    else if (not($test-language = tree-sitter:languages())) then
       map { "outcome": "not-run", "why": "language " || $test-language }
     else
       try {
-        let $document := sxml:parse-code($test?input, $test-language,
+        let $document := tree-sitter:parse($test?input, $test-language,
                                         { "highlights": false(), "injections": false() })
         let $root := $document/*
         return
@@ -215,7 +216,7 @@ declare function local:covers($element as element(), $line as xs:integer,
 };
 
 declare function local:run-highlight-tests($text as xs:string) as map(*)* {
-  let $document := sxml:parse-code($text, $language, { "positions": true() })
+  let $document := tree-sitter:parse($text, $language, { "positions": true() })
   let $comments := $document//*[contains(local-name(), "comment")]
   let $assertions := $comments ! local:assertions(.)
   let $assertion-lines := distinct-values($assertions ! ?line)

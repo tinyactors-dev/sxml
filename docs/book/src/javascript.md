@@ -102,7 +102,7 @@ err:FOUT1170 1 1
 
 ## Languages from tree-sitter's WebAssembly files
 
-`sxml:parse-code` (see [Source Code as XML](source-code.md)) knows a
+`tree-sitter:parse` (see [Source Code as XML](source-code.md)) knows a
 dozen languages. tree-sitter has grammars for hundreds more, and
 `tree-sitter build --wasm` compiles one to a WebAssembly language file,
 `tree-sitter-rust.wasm` for Rust; grammar repositories often ship that
@@ -117,7 +117,7 @@ const rust = await sxml.loadCodeLanguage({
   highlights: await (await fetch('/grammars/rust/highlights.scm')).text(),
 });
 const processor = sxml.createProcessor({ codeLanguages: [rust] });
-processor.evaluate('sxml:parse-code("fn main() {}", "rust")//function_item/identifier ! string()');
+processor.evaluate('tree-sitter:parse("fn main() {}", "rust")//function_item/identifier ! string()');
 ```
 
 - `wasm` is the file, as for `load({ wasm })`: a URL or path, the bytes,
@@ -128,7 +128,7 @@ processor.evaluate('sxml:parse-code("fn main() {}", "rust")//function_item/ident
   The package reads no files of its own: in Node.js read them with
   `readFile`, in a browser `fetch` them. Without queries, the language
   parses but has no highlights.
-- `name` is the language's name in `sxml:parse-code`. By default it is
+- `name` is the language's name in `tree-sitter:parse`. By default it is
   the `NAME` of the file's function `tree_sitter_NAME`. A language with
   the name of a built-in one replaces it in the processors it is given to.
 - The grammar must be generated for tree-sitter's language ABI 13 to 15

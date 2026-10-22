@@ -4,7 +4,7 @@
 
 A call graph has a node for each function of a program and an edge
 from a function to each function it calls. To build one from the trees
-that `sxml:parse-code` makes, we need three things: the functions, the
+that `tree-sitter:parse` makes, we need three things: the functions, the
 calls inside each function, and for each call, the function it calls.
 The first two are paths in the tree. The third is the interesting part:
 the code says `registry.getFlag(key)`, and the graph needs to say
@@ -22,7 +22,7 @@ In TypeScript's grammar a function declared with `function` is a
 `name`. With the option `positions`, each element knows its line:
 
 ```console
-$ sxml xpath 'sxml:parse-code(unparsed-text("after/flags.ts"), "typescript", { "positions": true() })//function_declaration ! `{@line}: {identifier}`'
+$ sxml xpath 'tree-sitter:parse(unparsed-text("after/flags.ts"), "typescript", { "positions": true() })//function_declaration ! `{@line}: {identifier}`'
 "14: summarize"
 "18: listFlags"
 "27: isOwner"
@@ -56,7 +56,7 @@ A call is a `call_expression`, and what it calls is its child with the
 field `function`. Its text is the callee as the code writes it:
 
 ```console
-$ sxml xpath 'sxml:parse-code(unparsed-text("after/flags.ts"), "typescript", { "positions": true() })//call_expression ! `{@line}: {*[@field = "function"]}`'
+$ sxml xpath 'tree-sitter:parse(unparsed-text("after/flags.ts"), "typescript", { "positions": true() })//call_expression ! `{@line}: {*[@field = "function"]}`'
 "19: registry.getFlagKeys"
 "22: flags.push"
 "22: registry.getFlag"
@@ -74,7 +74,7 @@ registry.getFlag(key))`. The callee is either an `identifier`
 `property` fields are the two sides of the dot:
 
 ```console
-$ sxml xpath --method=xml '(sxml:parse-code(unparsed-text("after/flags.ts"), "typescript", { "highlights": false() })//call_expression)[1]'
+$ sxml xpath --method=xml '(tree-sitter:parse(unparsed-text("after/flags.ts"), "typescript", { "highlights": false() })//call_expression)[1]'
 <call_expression xmlns:sxml="urn:sxml"><member_expression field="function"><identifier field="object">registry</identifier>.<property_identifier field="property">getFlagKeys</property_identifier></member_expression><arguments field="arguments">()</arguments></call_expression>
 ```
 
@@ -93,7 +93,7 @@ What a name stands for in a module comes from the module's imports.
 In `flags.ts`:
 
 ```console
-$ sxml xpath 'sxml:parse-code(unparsed-text("after/flags.ts"), "typescript")//import_statement ! `{.//(namespace_import/identifier | import_specifier/*[@field = "name"])} from {string/string_fragment}`'
+$ sxml xpath 'tree-sitter:parse(unparsed-text("after/flags.ts"), "typescript")//import_statement ! `{.//(namespace_import/identifier | import_specifier/*[@field = "name"])} from {string/string_fragment}`'
 "registry from ./registry.ts"
 "audit from ./audit.ts"
 "Flag from ./db.ts"

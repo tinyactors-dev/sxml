@@ -255,7 +255,7 @@ adaptive output method writes the result, one item on each line.
 | `--method=METHOD` | Serialization method: `adaptive` (default), `xml`, `xhtml`, `html`, `text`, `json` or `csv`, each with its default parameters |
 | `--allow-file-access` | Let the expression read and write files with the EXPath File functions (`file:`). Without this option, they do not exist. |
 | `--collection=DIR` | Make the XML files of the directory DIR the default collection, for `fn:collection()` and `fn:uri-collection()`. DIR may be followed by the parameters of a collection URI, as in `--collection='docs?recurse=yes'`. |
-| `--code-language=LIBRARY` | Load a tree-sitter grammar for `sxml:parse-code` from the shared library LIBRARY, with the queries in the directory `queries` beside it (or `../queries/NAME`). The language is named after the file: `libtree-sitter-rust.so` and `rust.so` are `rust`. Repeatable. See the book's chapter [Source Code as XML](../../docs/book/src/source-code.md#supplying-your-own-language). |
+| `--code-language=LIBRARY` | Load a tree-sitter grammar for `tree-sitter:parse` from the shared library LIBRARY, with the queries in the directory `queries` beside it (or `../queries/NAME`). The language is named after the file: `libtree-sitter-rust.so` and `rust.so` are `rust`. Repeatable. See the book's chapter [Source Code as XML](../../docs/book/src/source-code.md#supplying-your-own-language). |
 | `--output=FILE`, `-o FILE` | Write the result to FILE instead of standard output: the same bytes, written only when the expression succeeds |
 | `--force` | Let `--output` replace a file that exists. Without it, an existing FILE is an error (exit 3) and stays as it is. |
 
@@ -273,16 +273,18 @@ adaptive output method writes the result, one item on each line.
   in [sxml xquery](#sxml-xquery): `contains text`, and score variables
   in for bindings (`for $b score $s in //book[. contains text "web"]`);
   stop word lists and thesauri by URI are read as local files.
-- `sxml:parse-code(SOURCE, LANGUAGE, OPTIONS)` parses source code with a
+- `tree-sitter:parse(SOURCE, LANGUAGE, OPTIONS)` parses source code with a
   tree-sitter grammar (`c`, `css`, `go`, `html`, `javascript`, `json`,
   `markdown`, `markdown_inline`, `python`, `tsx`, `typescript`, and those
-  `--code-language` loads; `sxml:code-languages()` lists them) into a
+  `--code-language` loads; `tree-sitter:languages()` lists them) into a
   document: one element per named node of the syntax tree, named by its
   kind, with `field` and `highlight` attributes, and the code's text, so
   that `string()` of the document is the source. Code inside code (a
   Markdown code block, an HTML `script`) is parsed with its own language
   unless the option `injections` is false. The option `positions` adds
-  `line` and `column` attributes. The prefix `sxml` is bound to `urn:sxml`.
+  `line` and `column` attributes. The prefix `tree-sitter` is bound to
+  `urn:sxml:tree-sitter`, the functions' namespace, and `sxml` to
+  `urn:sxml`, the namespace of the `sxml:token` elements.
 - `fn:invisible-xml` compiles an Invisible XML grammar (ixml notation,
   or its XML form as an `ixml` element) and returns a function that
   parses strings with it into documents; a string the grammar does not
@@ -411,7 +413,7 @@ serialization. The default method is xml.
 | `--allow-file-access` | Let the query read and write files with the EXPath File functions, as for [sxml xpath](#sxml-xpath) |
 | `--collection=DIR` | Make the XML files of DIR the default collection, as for [sxml xpath](#sxml-xpath) |
 | `--allow-put` | Let `fn:put` write the documents it stores to local files |
-| `--code-language=LIBRARY` | Load a tree-sitter grammar for `sxml:parse-code`, as for [sxml xpath](#sxml-xpath). Repeatable. |
+| `--code-language=LIBRARY` | Load a tree-sitter grammar for `tree-sitter:parse`, as for [sxml xpath](#sxml-xpath). Repeatable. |
 | `--output=FILE`, `-o FILE` | Write the result to FILE instead of standard output |
 | `--force` | Let `--output` and `fn:put` replace files that exist |
 
@@ -542,7 +544,7 @@ XTDE1425 only when called.
 | `--param=NAME=VALUE` | Bind the stylesheet parameter or static parameter `$NAME` to `xs:untypedAtomic(VALUE)`. Repeatable. |
 | `--result-directory=DIR` | Write the result documents with an `href` into DIR, which must exist |
 | `--collection=DIR` | Make the XML files of DIR the default collection, as for [sxml xpath](#sxml-xpath) |
-| `--code-language=LIBRARY` | Load a tree-sitter grammar for `sxml:parse-code`, as for [sxml xpath](#sxml-xpath). Repeatable. |
+| `--code-language=LIBRARY` | Load a tree-sitter grammar for `tree-sitter:parse`, as for [sxml xpath](#sxml-xpath). Repeatable. |
 | `--output=FILE`, `-o FILE` | Write the principal result to FILE instead of standard output |
 | `--force` | Let `--output` and `--result-directory` replace files that exist |
 

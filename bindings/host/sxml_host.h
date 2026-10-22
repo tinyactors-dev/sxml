@@ -93,7 +93,7 @@ typedef struct sxml_host_processor_configuration {
        for the feature at index i; bits past the last are ignored. */
     uint32_t feature_mask;
     sxml_host_resolver resolver;
-    /* The host's tree-sitter languages for sxml:parse-code
+    /* The host's tree-sitter languages for tree-sitter:parse
        (sxml_processor_configuration.source_code_languages, glossary
        `registered_language`); zero for none. The array, grammars and
        query texts outlive the processor (D288, D293). */

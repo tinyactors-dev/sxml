@@ -210,7 +210,7 @@ The trees differ as well. The same JSON both ways:
 ```console
 $ sxml xpath --method=xml 'invisible-xml(unparsed-text("json.ixml"))(unparsed-text("flag.json"))'
 <json><object><member name="flag"><string>dark-mode</string></member><member name="rollout"><number>25</number></member><member name="owners"><array><string>web</string></array></member></object></json>
-$ sxml xpath --method=xml 'sxml:parse-code(unparsed-text("flag.json"), "json", { "highlights": false() })'
+$ sxml xpath --method=xml 'tree-sitter:parse(unparsed-text("flag.json"), "json", { "highlights": false() })'
 <document xmlns:sxml="urn:sxml"><object>{<pair><string field="key">"<string_content>flag</string_content>"</string>: <string field="value">"<string_content>dark-mode</string_content>"</string></pair>, <pair><string field="key">"<string_content>rollout</string_content>"</string>: <number field="value">25</number></pair>, <pair><string field="key">"<string_content>owners</string_content>"</string>: <array field="value">[<string>"<string_content>web</string_content>"</string>]</array></pair>}</object>
 </document>
 ```
@@ -228,10 +228,10 @@ for the whole command, as above:
 | Input | Parser | Time | Memory | Elements |
 | --- | --- | --- | --- | --- |
 | 1 MB of JSON | `json.ixml` | under 0.3 s | under 80 MB | 103,000 |
-| | `sxml:parse-code`, tree-sitter | under 0.35 s | under 90 MB | 208,000 |
+| | `tree-sitter:parse` | under 0.35 s | under 90 MB | 208,000 |
 | | `fn:json-to-xml` | under 0.25 s | under 60 MB | 62,000 |
 | 1 MB of Markdown-like text | `markdown.ixml` | under 0.4 s | under 120 MB | 70,000 |
-| | `sxml:parse-code`, tree-sitter | under 1.6 s | under 160 MB | 252,000 |
+| | `tree-sitter:parse` | under 1.6 s | under 160 MB | 252,000 |
 
 Of tree-sitter's time on the JSON, about 0.11 s is its parse alone: a
 small C program that runs tree-sitter's library on the same file, with
