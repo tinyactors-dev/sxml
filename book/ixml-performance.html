@@ -1,0 +1,476 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Invisible XML Performance - The sxml Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Learn XPath 4.0, XQuery 4.0, XSLT 4.0 and XSD 1.1 with sxml, the small XML toolchain in portable C.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="style/sxml.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "coal";
+            window.path_to_searchindex_js = "searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The sxml Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml/edit/main/docs/book/src/ixml-performance.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="invisible-xml-performance"><a class="header" href="#invisible-xml-performance">Invisible XML Performance</a></h1>
+<!-- examples: ixml -->
+<p>An iXML grammar can describe any context-free language, and a parser
+for all of them must be able to keep many readings of the input open at
+once. That is more work than a parser made for one fixed language, such
+as sxml's XML parser, does. This chapter says how much work, which
+grammars sxml parses in time proportional to the input, and how to write
+grammars that stay fast on inputs of many megabytes.</p>
+<h2 id="what-to-expect"><a class="header" href="#what-to-expect">What to expect</a></h2>
+<p>The times below are processor seconds of a release build on one core of
+an ordinary Linux machine, for the whole <code>sxml</code> command: starting,
+reading the input, parsing, and building the XML tree. <em>Memory</em> is the
+most memory the process held, about 10 MB of it the program itself;
+<em>per MB</em> is how much more each further megabyte of input takes, the
+memory the parse and its XML really cost. The benchmark suite
+<code>tests/bench/run-ixml-bench.py</code> measures them, and its <code>--check</code> option
+fails when a number is worse than this chapter says (<code>--large</code> adds the
+100 MB log).</p>
+<div class="table-wrapper"><table><thead><tr><th>Grammar</th><th>Input</th><th>Time</th><th>Memory</th><th>Per MB</th></tr></thead><tbody>
+<tr><td>the log of <a href="ixml-tasks.html#log-files">Real Tasks</a></td><td>1 MB, 16,000 lines</td><td>under 0.2 s</td><td>under 60 MB</td><td>under 20 MB</td></tr>
+<tr><td>semicolon-separated values</td><td>1 MB, 34,000 rows</td><td>under 0.4 s</td><td>under 100 MB</td><td>under 60 MB</td></tr>
+<tr><td>the small programming language</td><td>1 MB, 43,000 statements</td><td>under 0.6 s</td><td>under 150 MB</td><td>under 100 MB</td></tr>
+<tr><td>Markdown-like text</td><td>1 MB, 8,700 sections</td><td>under 0.4 s</td><td>under 120 MB</td><td>under 80 MB</td></tr>
+<tr><td>a right-recursive list</td><td>1 MB, 159,000 numbers</td><td>under 0.4 s</td><td>under 80 MB</td><td>under 40 MB</td></tr>
+<tr><td>brackets nested 100,000 deep</td><td>200 KB</td><td>under 0.2 s</td><td>under 100 MB</td><td></td></tr>
+<tr><td>a grammar of 5,800 rules, compiled</td><td>200 KB</td><td>under 0.5 s</td><td>under 200 MB</td><td></td></tr>
+<tr><td>the ambiguous sum below</td><td>2,000 characters</td><td>under 2 s</td><td>under 200 MB</td><td></td></tr>
+<tr><td>the log</td><td>10 MB, 160,000 lines</td><td>under 1.5 s</td><td>under 250 MB</td><td>under 20 MB</td></tr>
+<tr><td>the log</td><td>100 MB, 1,600,000 lines</td><td>under 15 s</td><td>under 2,000 MB</td><td>under 20 MB</td></tr>
+</tbody></table>
+</div>
+<p>For every grammar in the table but the ambiguous sum, four times the
+input takes about four times as long and four times the memory: the
+parser is <em>linear</em> on them. A large input costs what its XML costs and
+little more. The XML tree of the log, an element and three attributes
+for each line and the messages as text, takes about 9 bytes for each
+character of the log; the parse adds about one more, and lets go of all
+of it before the query goes on.</p>
+<p>A 1 MB log, made by a query:</p>
+<p><code>make-log.xq</code>:</p>
+<pre><code class="language-xquery">(: Writes a log of $lines lines in the format of log.ixml. :)
+declare variable $lines external;
+string-join(
+  for $number in 1 to xs:integer($lines)
+  let $time := xs:time("00:00:00") + xs:dayTimeDuration("PT1S") * ($number mod 86400)
+  let $level := ("INFO", "WARN", "ERROR")[$number mod 3 + 1]
+  return `2026-10-20 {$time} {$level} message {$number}`,
+  "&amp;#10;"
+)
+</code></pre>
+<pre><code class="language-console">$ sxml xquery --method=text --param=lines=25000 --output=big.log make-log.xq
+$ sxml xpath 'string-length(unparsed-text("big.log"))'
+972227
+$ sxml xquery --method=text --param=file=big.log count-levels.xq
+ERROR 8333
+INFO 8333
+WARN 8334
+</code></pre>
+<p><code>count-levels.xq</code> is the grouping query of the log task, reading the
+file that <code>$file</code> names.</p>
+<h2 id="which-grammars-are-linear"><a class="header" href="#which-grammars-are-linear">Which grammars are linear</a></h2>
+<p>sxml parses with Earley's algorithm, which reads the input once, from
+left to right, and keeps a set of <em>items</em> for each position: the rules
+that a reading could be in the middle of there. The work is the number
+of items, and five refinements keep it in proportion to the input and
+small:</p>
+<ul>
+<li><strong>One character of lookahead.</strong> An item is kept only when the next
+character can continue it, so the parser does not follow readings that
+the next character already rules out. A rule that could end anywhere,
+such as <code>~[#a]*</code>, ends only where the next character can follow it.</li>
+<li><strong>Leo's items for right recursion.</strong> A rule that ends with itself,
+such as <code>rest: ",", number, rest?</code>, would otherwise complete once for
+every level of the recursion at every place the list could end; sxml
+completes the whole chain at once.</li>
+<li><strong>Compiled character classes.</strong> Each character of the input is looked
+up once in a table that says which of the grammar's character sets it
+belongs to.</li>
+<li><strong>Groups written out.</strong> A group or an option, such as <code>(char; em)</code> or
+<code>inline?</code>, and a hidden rule of one character set, such as <code>-digit</code>,
+is replaced where it is used, so the parser does not complete a rule
+of its own for every character. The XML is the same.</li>
+<li><strong>Regular rules read at once.</strong> A rule such as <code>@date: digit, digit, ...</code> or <code>message: ~[#a]*</code> needs no nesting: it is made of characters,
+character sets, repetitions and other such rules, without recursion,
+so its language is <em>regular</em>. When its XML is nothing but its text, as
+for a hidden rule, an attribute, or an element with only text inside,
+sxml compiles it once, with the grammar, into an automaton. The parser
+runs the automaton over the input in one step instead of making items
+for every character, and completes the rule at each place it can end
+where the next character can follow it. The XML is the same, and so is
+an ambiguity inside such a rule: the automaton counts the ways it
+reaches each end.</li>
+</ul>
+<p>With these, the parser is linear on every grammar that has one reading
+for each input and can tell, at each place, how to go on with a bounded
+look ahead: the <em>LR-regular</em> grammars of parsing theory (Joop Leo, 1991).
+They include left recursion, right recursion, nesting, repetition and
+every grammar of <a href="ixml-tasks.html">Real Tasks</a>. A right-recursive list of
+200,000 numbers:</p>
+<p><code>numbers.ixml</code>:</p>
+<pre><code>numbers: number, rest?, -#a?.
+-rest: -",", number, rest?.
+number: ["0"-"9"]+.
+</code></pre>
+<pre><code class="language-console">$ sxml xpath --method=text --output=numbers.txt 'string-join(1 to 200000, ",")'
+$ sxml xpath 'count(invisible-xml(unparsed-text("numbers.ixml"))(unparsed-text("numbers.txt"))//number)'
+200000
+</code></pre>
+<p>Brackets nested 100,000 deep:</p>
+<pre><code class="language-console">$ sxml xpath 'count(invisible-xml("nest: -""("", nest?, -"")"".")(string-join(((1 to 100000) ! "(", (1 to 100000) ! ")")))//nest)'
+100000
+</code></pre>
+<h2 id="large-inputs"><a class="header" href="#large-inputs">Large inputs</a></h2>
+<p>The parser needs memory for its items and for the parse tree it reads
+out of them. A rule read at once makes no items inside it and one node
+for all its text; characters and hidden rules that the XML leaves out
+make no nodes, and neighbouring characters share one. So the memory
+follows the rules the parser cannot read at once, and is small when a
+grammar's text is in rules that it can: the log needs some 15 items and
+9 nodes for each line of about 60 characters. All of it is released
+when the XML is built.</p>
+<p>A log of 10 MB:</p>
+<pre><code class="language-console">$ sxml xquery --method=text --param=lines=250000 --output=bigger.log make-log.xq
+$ sxml xpath 'string-length(unparsed-text("bigger.log"))'
+9972228
+$ sxml xquery --method=text --param=file=bigger.log count-levels.xq
+ERROR 83333
+INFO 83333
+WARN 83334
+</code></pre>
+<h2 id="ambiguous-grammars"><a class="header" href="#ambiguous-grammars">Ambiguous grammars</a></h2>
+<p>A grammar with many readings costs more. This one says nothing about
+how a sum groups, so a sum of <em>n</em> numbers has as many readings as there
+are ways to put in brackets, which grows faster than any power of <em>n</em>:</p>
+<p><code>sum.ixml</code>:</p>
+<pre><code>sum: sum, -"+", sum; number.
+number: ["0"-"9"]+.
+</code></pre>
+<pre><code class="language-console">$ sxml xpath 'let $sum := invisible-xml(unparsed-text("sum.ixml"))(string-join(1 to 300, "+")) return (count($sum//number), string($sum/sum/@*:state))'
+300
+"ambiguous"
+</code></pre>
+<p>sxml never lists the readings. It keeps one for each item, so the items
+grow with the square of the input and the time with its cube: 2,000
+characters take one to two seconds, eight times as long as 1,000. The
+cure is the cure of <a href="ixml-grammars.html#ambiguous-grammars">Writing Grammars</a>:
+say how the parts group, here <code>sum: sum, -"+", number; number.</code>, and the
+grammar is linear again.</p>
+<h2 id="steps-and-limits"><a class="header" href="#steps-and-limits">Steps and limits</a></h2>
+<p>Every item the parser makes, every node of the parse tree, and every
+run of an automaton, with one more for every 16 characters it reads,
+counts as one step of the evaluation, so the step limit that stops a
+runaway query stops a runaway parse too. A linear grammar makes a few
+items for each character that no automaton reads, so the default limit
+of 10<sup>8</sup> steps allows inputs of many megabytes: the log of
+100 MB parses within it. A host that embeds sxml can set a higher limit
+(Chapter "Embedding sxml in C").</p>
+<h2 id="compared-with-tree-sitter"><a class="header" href="#compared-with-tree-sitter">Compared with tree-sitter</a></h2>
+<p><a href="source-code.html">Source Code as XML</a> parses code with tree-sitter, the
+parser generator behind the syntax highlighting of many editors. The
+two take different routes to a parse. A tree-sitter grammar is a
+JavaScript program that a generator turns, ahead of time, into a table
+of an LR parser in C, compiled into the program that uses it; sxml comes
+with a few. An iXML grammar is text that sxml compiles while the query
+runs, and the parser follows every reading the grammar allows. So
+tree-sitter takes only the grammars its generator accepts, and needs a
+build step for a new one; iXML takes any context-free grammar, at run
+time, ambiguous ones too. Faced with a mistake in the input, tree-sitter
+recovers, marks the place with an <code>ERROR</code> node and goes on, as an editor
+needs; an iXML parse fails, with the place where it failed
+(<a href="ixml-errors.html">When a Parse Fails</a>).</p>
+<p>The trees differ as well. The same JSON both ways:</p>
+<p><code>json.ixml</code>:</p>
+<pre><code>json: -s, value, -s.
+-value: object; array; string; number; true; false; null.
+object: -"{", -s, (member, (-s, -",", -s, member)*)?, -s, -"}".
+member: @name, -s, -":", -s, value.
+array: -"[", -s, (value, (-s, -",", -s, value)*)?, -s, -"]".
+@name: -'"', ~['"\']*, -'"'.
+string: -'"', ~['"\']*, -'"'.
+number: "-"?, ["0"-"9"]+, (".", ["0"-"9"]+)?, (["eE"], ["+-"]?, ["0"-"9"]+)?.
+true: -"true".
+false: -"false".
+null: -"null".
+-s: -[" "; #9; #a; #d]*.
+</code></pre>
+<pre><code class="language-console">$ sxml xpath --method=xml 'invisible-xml(unparsed-text("json.ixml"))(unparsed-text("flag.json"))'
+&lt;json&gt;&lt;object&gt;&lt;member name="flag"&gt;&lt;string&gt;dark-mode&lt;/string&gt;&lt;/member&gt;&lt;member name="rollout"&gt;&lt;number&gt;25&lt;/number&gt;&lt;/member&gt;&lt;member name="owners"&gt;&lt;array&gt;&lt;string&gt;web&lt;/string&gt;&lt;/array&gt;&lt;/member&gt;&lt;/object&gt;&lt;/json&gt;
+$ sxml xpath --method=xml 'sxml:parse-code(unparsed-text("flag.json"), "json", { "highlights": false() })'
+&lt;document xmlns:sxml="urn:sxml"&gt;&lt;object&gt;{&lt;pair&gt;&lt;string field="key"&gt;"&lt;string_content&gt;flag&lt;/string_content&gt;"&lt;/string&gt;: &lt;string field="value"&gt;"&lt;string_content&gt;dark-mode&lt;/string_content&gt;"&lt;/string&gt;&lt;/pair&gt;, &lt;pair&gt;&lt;string field="key"&gt;"&lt;string_content&gt;rollout&lt;/string_content&gt;"&lt;/string&gt;: &lt;number field="value"&gt;25&lt;/number&gt;&lt;/pair&gt;, &lt;pair&gt;&lt;string field="key"&gt;"&lt;string_content&gt;owners&lt;/string_content&gt;"&lt;/string&gt;: &lt;array field="value"&gt;[&lt;string&gt;"&lt;string_content&gt;web&lt;/string_content&gt;"&lt;/string&gt;]&lt;/array&gt;&lt;/pair&gt;}&lt;/object&gt;
+&lt;/document&gt;
+</code></pre>
+<p>The grammar says what the XML is: hidden rules and strings leave the
+punctuation out, and the names become attributes. Tree-sitter's tree
+keeps every character of the text, the punctuation as text between
+the elements, and names its elements after the grammar's rules.</p>
+<p>In time the two are close. The same benchmark suite parses 1 MB of
+JSON and the Markdown input of the table above both ways, and JSON with
+<code>fn:json-to-xml</code> too, sxml's hand-written JSON parser. The numbers are
+for the whole command, as above:</p>
+<div class="table-wrapper"><table><thead><tr><th>Input</th><th>Parser</th><th>Time</th><th>Memory</th><th>Elements</th></tr></thead><tbody>
+<tr><td>1 MB of JSON</td><td><code>json.ixml</code></td><td>under 0.3 s</td><td>under 80 MB</td><td>103,000</td></tr>
+<tr><td></td><td><code>sxml:parse-code</code>, tree-sitter</td><td>under 0.35 s</td><td>under 90 MB</td><td>208,000</td></tr>
+<tr><td></td><td><code>fn:json-to-xml</code></td><td>under 0.25 s</td><td>under 60 MB</td><td>62,000</td></tr>
+<tr><td>1 MB of Markdown-like text</td><td><code>markdown.ixml</code></td><td>under 0.4 s</td><td>under 120 MB</td><td>70,000</td></tr>
+<tr><td></td><td><code>sxml:parse-code</code>, tree-sitter</td><td>under 1.6 s</td><td>under 160 MB</td><td>252,000</td></tr>
+</tbody></table>
+</div>
+<p>Of tree-sitter's time on the JSON, about 0.11 s is its parse alone: a
+small C program that runs tree-sitter's library on the same file, with
+no XML, takes that long. The rest is the XML tree, which has twice as
+many elements as the iXML grammar makes. A parser made for one language
+in advance, <code>fn:json-to-xml</code>, is faster than both, but not by much.</p>
+<p>Markdown is two grammars in tree-sitter, one for the blocks and one for
+the text inside them, and its grammar for the blocks keeps several
+readings open where Markdown is unclear; it parses all of CommonMark,
+where <code>markdown.ixml</code> knows the few constructs of <a href="ixml-tasks.html#markdown-like-text">Real
+Tasks</a>. The inline grammar is parsed anew for every
+paragraph, as a layer of its own (<a href="source-code.html#code-inside-code">Code inside
+code</a>). Both grow linearly with the input.</p>
+<h2 id="writing-fast-grammars"><a class="header" href="#writing-fast-grammars">Writing fast grammars</a></h2>
+<ol>
+<li><strong>Avoid ambiguity.</strong> It is the one thing that makes a parse more than
+linear, and it is a mistake in the grammar anyway.</li>
+<li><strong>Hide what you do not need.</strong> Hidden rules and strings make no
+elements, so the tree is smaller and the query after the parse is
+faster.</li>
+<li><strong>Use character sets for runs of characters.</strong> <code>[L]+</code> is one set read
+many times; <code>letter+</code> with <code>letter: "a"; "b"; ...</code> is one rule with
+many alternatives at every character.</li>
+<li><strong>Keep text in rules of its own.</strong> A rule whose XML is just its
+text is read at once when it is regular (see above). A mark or an
+insertion inside it, or a hidden character among visible ones, such
+as the <code>-'"'</code> of a quoted field, makes it an ordinary rule again:
+leave such parts to the rule around it, as <code>-quoted: -'"', text, -'"'</code> with <code>-text: ~['"']*</code> does.</li>
+<li><strong>Compile once.</strong> Keep the parser in a variable and call it for every
+input (<a href="ixml.html#compile-once-parse-many-times">Compile once</a>).</li>
+</ol>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="ixml-errors.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="formats.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="ixml-errors.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="formats.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="style/sxml.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

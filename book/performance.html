@@ -1,0 +1,389 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Performance and Memory - The sxml Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Learn XPath 4.0, XQuery 4.0, XSLT 4.0 and XSD 1.1 with sxml, the small XML toolchain in portable C.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="style/sxml.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "coal";
+            window.path_to_searchindex_js = "searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The sxml Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml/edit/main/docs/book/src/performance.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="performance-and-memory"><a class="header" href="#performance-and-memory">Performance and Memory</a></h1>
+<!-- examples: traces -->
+<p>sxml is built to be small and predictable rather than to win benchmarks.
+This chapter explains where time and memory go, and the few habits that
+make the biggest difference. The examples use the trace archives of
+<a href="traces-streaming.html">Streaming Large Trace Files</a>, in
+<code>docs/book/examples/traces</code>; the times in the text were measured with a
+release build on one core of an ordinary Linux machine.</p>
+<h2 id="build-a-release"><a class="header" href="#build-a-release">Build a release</a></h2>
+<p>The debug build checks a great deal as it runs and is many times slower.
+For real work, use the release build (<code>cmake --preset release</code>) or a
+release archive.</p>
+<h2 id="compile-once"><a class="header" href="#compile-once">Compile once</a></h2>
+<p>Compiling an expression, a query, a stylesheet or a schema does real
+work: parsing, resolving names, checking types, optimizing. When you run
+the same thing many times, compile it once and keep the compiled object,
+as <a href="c.html">Embedding sxml in C</a> and <a href="javascript.html">sxml in JavaScript</a>
+show. The <code>sxml</code> command compiles each time it runs, so a shell loop
+that calls it for each of a thousand trace files pays a thousand
+compilations; one query over all the files pays one.</p>
+<h2 id="sequences-are-computed-as-they-are-read"><a class="header" href="#sequences-are-computed-as-they-are-read">Sequences are computed as they are read</a></h2>
+<p>A range such as <code>1 to 1000000000</code> is not a billion integers in memory.
+It is computed as it is read, and operations that need only a part of
+it read only that part:</p>
+<pre><code class="language-console">$ sxml xpath '(1 to 1000000000)[3]'
+3
+$ sxml xpath 'count(1 to 1000000000)'
+1000000000
+</code></pre>
+<p>Both return at once. Sequences that come from functions, filters and
+paths are computed when they are needed too, and released as soon as
+nothing refers to them. When only the first items of a sequence matter,
+sxml stops making it once it has them: <code>exists</code>, <code>empty</code>, <code>head</code>,
+<code>boolean</code>, a predicate <code>[1]</code>, <code>some</code> and <code>every</code> read as far as the
+first item that decides, and no further:</p>
+<pre><code class="language-console">$ sxml xpath 'exists((1 to 1000000000)[. = 999])'
+true()
+$ sxml xpath 'some $n in (1 to 1000000000)[. mod 7 = 0] satisfies $n &gt; 50'
+true()
+</code></pre>
+<p>An error in an item that is never read is not raised, as XPath allows.
+The same holds for paths over a document. When was the first request of
+an archive that took longer than 80 milliseconds?</p>
+<pre><code class="language-console">$ sxml xquery --param=count=10000 --output=archive.xml make-traces.xq
+$ sxml xpath --context-item=archive.xml 'head(//trace[span/@duration &gt; 80])/@start/string()'
+"2026-10-21T09:00:00.5Z"
+</code></pre>
+<p><code>head</code> asks the filter for one trace, and the filter looks at traces
+only until it finds one: the sixth of ten thousand. Parsing the
+archive still takes most of the time; <a href="traces-streaming.html">Streaming Large Trace
+Files</a> avoids that too.</p>
+<h2 id="look-up-instead-of-searching"><a class="header" href="#look-up-instead-of-searching">Look up instead of searching</a></h2>
+<p>The most common cause of a slow query is a search inside a loop. An
+exporter writes spans as a flat list, each naming its parent, and
+<a href="traces-tree.html">Spans as a Tree</a> puts the trees together again. With
+<code>$form</code> set to <code>flat</code>, <code>make-traces.xq</code> writes such a list. This query
+rebuilds the trees by searching all the spans for the children of each
+one:</p>
+<p><code>slow-tree.xq</code>:</p>
+<pre><code class="language-xquery">(: Rebuilds the trees of a flat list of spans: each span's children
+   are found by searching all the spans. :)
+declare function local:tree($spans as element(span)*, $span as element(span)) as element(span) {
+  &lt;span&gt;{ $span/@*, $spans[@parent = $span/@id] ! local:tree($spans, .) }&lt;/span&gt;
+};
+
+let $spans := /spans/span
+let $trees := $spans[empty(@parent)] ! local:tree($spans, .)
+return count($trees/descendant-or-self::span)
+</code></pre>
+<p>For each of <em>n</em> spans, <code>$spans[@parent = $span/@id]</code> looks at all <em>n</em>
+spans, so the query does <em>n</em>² comparisons. Building an index once, here
+a map from each parent id to its children, turns each search into one
+lookup:</p>
+<p><code>fast-tree.xq</code>:</p>
+<pre><code class="language-xquery">(: Rebuilds the trees of a flat list of spans: a map from each parent
+   id to its children is made once, then each lookup is one step. :)
+declare function local:tree($children as map(*), $span as element(span)) as element(span) {
+  &lt;span&gt;{ $span/@*, $children($span/@id) ! local:tree($children, .) }&lt;/span&gt;
+};
+
+let $spans := /spans/span
+let $children := map:build($spans[@parent], fn { string(@parent) })
+let $trees := $spans[empty(@parent)] ! local:tree($children, .)
+return count($trees/descendant-or-self::span)
+</code></pre>
+<p>Both give the same answer, every span in a tree:</p>
+<pre><code class="language-console">$ sxml xquery --param=count=300 --param=form=flat --output=spans.xml make-traces.xq
+$ sxml xquery --context-item=spans.xml --method=adaptive slow-tree.xq
+1900
+$ sxml xquery --context-item=spans.xml --method=adaptive fast-tree.xq
+1900
+</code></pre>
+<p>With 1,000 traces (6,332 spans), the first query takes 2.8 seconds and
+the second 0.2 seconds. With 10,000 traces, the first takes four
+minutes, the second 1.8 seconds. In XSLT, <code>xsl:key</code> does the same
+job (<a href="xslt-keys-grouping.html">Keys, Numbers and Grouping</a>).</p>
+<p>sxml builds such an index itself when a condition in a loop compares
+something of the item alone with something that does not depend on it,
+and the items do not change between turns of the loop. Written as one
+expression, <code>for $span in //span return //span[@parent = $span/@id]</code>,
+the search over 3,000 traces takes 0.38 seconds: the left side depends
+only on the span looked at, the right side only on <code>$span</code>, so sxml
+sorts the spans by <code>@parent</code> once and looks each id up. A path of child
+steps does as well as <code>//span</code>: <code>/spans/span[@parent = $span/@id]</code>,
+from the root, and <code>spans/span[@parent = $span/@id]</code>, from the
+document node in the focus, are indexed the same way. In
+<code>slow-tree.xq</code> the search is inside a function that is called anew for
+each span, and in a condition such as <code>@parent - $span/@id = 0</code> the
+two sides are mixed; then sxml has to search.</p>
+<h2 id="memory"><a class="header" href="#memory">Memory</a></h2>
+<p>A parsed document takes several times the size of its file, because each
+node has its name, its links to its neighbours and its text. An 80 MB
+archive of 100,000 traces, 633,332 spans, takes about 390 MB as a tree.</p>
+<p>When a document is too large for that, stream it. An XSLT stylesheet
+with a streamable mode processes the same 80 MB in 11 MB, and the
+memory stays the same for a larger file (<a href="traces-streaming.html">Streaming Large Trace
+Files</a>).</p>
+<p>In a program, all of sxml's memory comes from the allocator you give it
+(<a href="c.html">Embedding sxml in C</a>), so you can measure it, cap it, or place
+it where you like. The processor's limits bound the size of the item
+heap and of each document, the depth of nesting, the number of nested
+function calls and the number of evaluation steps, so a query you don't
+trust can't take the machine down with it.</p>
+<h2 id="the-step-limit"><a class="header" href="#the-step-limit">The step limit</a></h2>
+<p>Every evaluation counts its steps, and stops after a hundred million by
+default, a few seconds of work. A query that would run for hours stops,
+after about ten seconds, with an error that says so, instead of hanging:</p>
+<pre><code class="language-console">$ sxml xpath 'some $n in 1 to 100000000000 satisfies $n = 0'
+expression: the evaluation took more steps than maximum_evaluation_step_count allows
+</code></pre>
+<p>A program sets the limit in its processor configuration, higher or
+lower, to fit the work it expects; in JavaScript, it is
+<code>createProcessor({ maximumEvaluationStepCount })</code>.</p>
+<p>A streamed document is counted differently. Each element it reads
+grants 500 more steps, so the bound grows with the input. The streamed
+identity of a 93 MB file of 2.7 million elements takes about 50 steps an
+element and runs to the end; a loop inside a template that reads
+nothing more still stops.</p>
+<h2 id="habits-that-help"><a class="header" href="#habits-that-help">Habits that help</a></h2>
+<ul>
+<li>Start paths from what you know. The root spans are
+<code>/traces/trace/span</code>, which touches a few nodes of each trace;
+<code>//span[empty(parent::span)]</code> finds the same spans but looks at every
+node of the document.</li>
+<li>Convert untyped values once. <code>xs:decimal(@duration)</code> in a <code>let</code>, or a
+schema that gives the values their types, saves converting the same
+text again and again.</li>
+<li>Use maps, keys and <code>group by</code> for lookups and grouping, not nested
+loops.</li>
+<li>Stream large inputs with XSLT.</li>
+</ul>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="javascript.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="codegen.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="javascript.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="codegen.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="style/sxml.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

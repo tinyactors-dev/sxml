@@ -1,0 +1,332 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Installation - The sxml Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Learn XPath 4.0, XQuery 4.0, XSLT 4.0 and XSD 1.1 with sxml, the small XML toolchain in portable C.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="style/sxml.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "coal";
+            window.path_to_searchindex_js = "searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The sxml Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml/edit/main/docs/book/src/installation.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="installation"><a class="header" href="#installation">Installation</a></h1>
+<!-- examples: getting-started -->
+<p>The first step is to get the <code>sxml</code> command. You can download a
+prebuilt archive, or build sxml from its source code. Both give you the
+same program: one file, <code>sxml</code> (<code>sxml.exe</code> on Windows), with every
+feature of the library in it and no dependencies.</p>
+<h2 id="installing-a-release-archive"><a class="header" href="#installing-a-release-archive">Installing a release archive</a></h2>
+<p>Each release of sxml comes with an archive of the <code>sxml</code> command for
+each supported platform, named <code>sxml-VERSION-TARGET</code>:</p>
+<div class="table-wrapper"><table><thead><tr><th>Target</th><th>Archive</th><th>Program</th></tr></thead><tbody>
+<tr><td><code>x86_64-linux</code>, <code>aarch64-linux</code></td><td><code>.tar.gz</code></td><td><code>sxml</code>, a static executable that runs on any Linux distribution</td></tr>
+<tr><td><code>x86_64-macos</code>, <code>aarch64-macos</code></td><td><code>.tar.gz</code></td><td><code>sxml</code>, for macOS 11 and later</td></tr>
+<tr><td><code>x86_64-windows</code>, <code>aarch64-windows</code></td><td><code>.zip</code></td><td><code>sxml.exe</code>, for Windows 10 and later</td></tr>
+<tr><td><code>wasm32-wasi</code></td><td><code>.tar.gz</code></td><td><code>sxml.wasm</code>, for any WebAssembly runtime with WASI preview 1</td></tr>
+</tbody></table>
+</div>
+<p>Download the archive for your system from the releases page of the
+repository, <a href="https://github.com/tinyactors-dev/sxml/releases">https://github.com/tinyactors-dev/sxml/releases</a>, together with
+the file <code>SHA256SUMS</code>. Check the archive, unpack it, and put the program
+in a directory on your <code>PATH</code>. On Linux, for example:</p>
+<pre><code class="language-sh">sha256sum --check --ignore-missing SHA256SUMS
+tar -xzf sxml-0.2.0-x86_64-linux.tar.gz
+install -m 755 sxml-0.2.0-x86_64-linux/sxml ~/.local/bin/sxml
+</code></pre>
+<p>On macOS, a downloaded program that is not notarized is quarantined;
+<code>xattr -d com.apple.quarantine sxml</code> lets it run. On Windows, unpack the
+<code>.zip</code> and add its directory to the <code>Path</code> environment variable. The
+WebAssembly program runs in a WASI runtime that gives it the directories
+it may read, for example <code>wasmtime --dir=. sxml.wasm xpath '1 + 1'</code>.</p>
+<p>Each archive also holds <code>USAGE.md</code>, the manual of the command.</p>
+<blockquote>
+<p>sxml has no tagged release yet. Until the first one is published,
+build it from source as the next section describes; it takes a few
+minutes.</p>
+</blockquote>
+<h2 id="building-from-source"><a class="header" href="#building-from-source">Building from source</a></h2>
+<p>To build sxml you need:</p>
+<ul>
+<li><a href="https://cmake.org/">CMake</a> 3.24 or later;</li>
+<li><a href="https://ninja-build.org/">Ninja</a>;</li>
+<li>a C17 compiler: Clang or GCC on Linux and macOS, or MSVC on Windows.</li>
+</ul>
+<p>sxml has no other dependencies: everything it uses is in its
+repository. Get the source and build the release configuration:</p>
+<pre><code class="language-sh">git clone https://github.com/tinyactors-dev/sxml
+cd sxml
+cmake --preset release
+cmake --build --preset release
+</code></pre>
+<p>The command is now <code>build/release/apps/sxml</code>. Put its directory on your
+<code>PATH</code>:</p>
+<pre><code class="language-sh">export PATH="$PWD/build/release/apps:$PATH"
+</code></pre>
+<p>Add that line, with the full path, to your shell's startup file (such as
+<code>~/.bashrc</code> or <code>~/.zshrc</code>) to keep it.</p>
+<p>If you use <a href="https://mise.jdx.dev">mise</a>, the repository's <code>mise.toml</code>
+fetches the exact tools it is built with, and one task builds sxml for
+your machine and installs it into <code>~/.local/bin</code> (or the prefix you
+name):</p>
+<pre><code class="language-sh">mise install
+mise run install
+mise run install -- /usr/local
+</code></pre>
+<h2 id="checking-the-installation"><a class="header" href="#checking-the-installation">Checking the installation</a></h2>
+<p>To check that sxml is installed, ask it for its version:</p>
+<pre><code class="language-console">$ sxml --version
+sxml 0.2.0
+</code></pre>
+<p>If you see a version number, you're all set. If your shell says it
+cannot find <code>sxml</code>, check that the directory with the program in it is on
+your <code>PATH</code>.</p>
+<h2 id="getting-help"><a class="header" href="#getting-help">Getting help</a></h2>
+<p><code>sxml help</code> lists the commands, and <code>sxml help COMMAND</code> (or
+<code>sxml COMMAND --help</code>) explains one of them, with examples:</p>
+<pre><code class="language-console">$ sxml help | head -5
+sxml - check, validate, query and transform XML documents
+
+Usage: sxml [--version] COMMAND [ARGUMENT...]
+
+sxml checks XML 1.0 and 1.1 documents, validates them against DTDs
+</code></pre>
+<p>Appendix A, <a href="appendix-cli.html">The Command-Line Reference</a>, describes
+every command and option.</p>
+<h2 id="following-along"><a class="header" href="#following-along">Following along</a></h2>
+<p>The book's examples are in the sxml repository, in
+<code>docs/book/examples/</code>. If you built sxml from source, you already have
+them. Each project of the book has a directory of its own, like a small
+repository: the Vane specification is in <code>spec</code>, the diagrams in <code>svg</code>,
+and so on. The chapters that use no project, such as this one, have a
+directory of their own too. Each chapter says which directory it uses;
+change into it, and every command will find its files. For this chapter
+that is:</p>
+<pre><code class="language-sh">cd docs/book/examples/getting-started
+</code></pre>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="getting-started.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="hello-xpath.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="getting-started.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="hello-xpath.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="style/sxml.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

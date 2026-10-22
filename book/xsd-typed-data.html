@@ -1,0 +1,632 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Typed Data and Schema-Aware Queries - The sxml Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Learn XPath 4.0, XQuery 4.0, XSLT 4.0 and XSD 1.1 with sxml, the small XML toolchain in portable C.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="style/sxml.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "coal";
+            window.path_to_searchindex_js = "searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The sxml Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml/edit/main/docs/book/src/xsd-typed-data.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="typed-data-and-schema-aware-queries"><a class="header" href="#typed-data-and-schema-aware-queries">Typed Data and Schema-Aware Queries</a></h1>
+<!-- examples: scxml -->
+<p>Validation does more than say yes or no. A validated document carries
+the types of its schema: each element and attribute is <em>annotated</em> with
+its type, and its <em>typed value</em> is a number, a name or a list, whatever
+the type says, instead of untyped text. XPath, XQuery and XSLT can use
+those types. Processors that can do this are called <em>schema-aware</em>,
+and sxml is one.</p>
+<h2 id="typed-values-in-xquery"><a class="header" href="#typed-values-in-xquery">Typed values in XQuery</a></h2>
+<p><code>import schema</code> brings a schema's declarations into a query, and
+<code>validate</code> validates a document (or element) and returns a typed copy:</p>
+<p><code>typed.xq</code>:</p>
+<pre><code class="language-xquery">import schema namespace sc = "http://www.w3.org/2005/07/scxml" at "scxml.xsd";
+declare namespace vane = "urn:example:vane";
+
+let $machine := validate { / }
+for $data in $machine//sc:data
+return `{$data/@id}: {data($data/@vane:type)}`
+</code></pre>
+<pre><code class="language-console">$ sxml xquery --method=adaptive --context-item=flag.scxml typed.xq
+"failures: vane:failure-count"
+"maxFailures: vane:failure-limit"
+"stepSeconds: vane:seconds"
+"pauseSeconds: vane:seconds"
+</code></pre>
+<p>The schema imports <code>vane-data.xsd</code>, so its declarations come along;
+<code>declare namespace</code> only binds the prefix. <code>vane:type</code> is declared as
+an <code>xs:QName</code>, so its typed value is a name with a namespace, not a
+string with a colon in it:</p>
+<pre><code class="language-console">$ sxml xquery --method=adaptive --context-item=flag.scxml --expression='
+    import schema namespace sc = "http://www.w3.org/2005/07/scxml" at "scxml.xsd";
+    declare namespace vane = "urn:example:vane";
+    let $type := data(((validate { / })//sc:data/@vane:type)[3])
+    return ($type instance of xs:QName, namespace-uri-from-QName($type), local-name-from-QName($type))'
+true()
+"urn:example:vane"
+"seconds"
+</code></pre>
+<p>The prefix <code>vane</code> was resolved when the document was validated, with
+the namespace declarations of the machine; a query that used another
+prefix for the same namespace would get the same name.</p>
+<p>Lists are sequences. A transition's <code>event</code> is a list of event
+descriptors, so <code>@event = "step.done"</code> is true for the transition
+that waits for <code>kill.request step.done</code>, as general comparisons
+compare each item; the nine transitions handle ten events in all. And
+the default value of <code>type</code>, which no transition writes, is there:</p>
+<pre><code class="language-console">$ sxml xquery --method=adaptive --context-item=flag.scxml --expression='
+    import schema namespace sc = "http://www.w3.org/2005/07/scxml" at "scxml.xsd";
+    let $machine := validate { / }
+    return (
+      $machine//sc:transition[@event = "step.done"]/@target/string(),
+      count($machine//sc:transition/data(@event)),
+      distinct-values($machine//sc:transition/@type)
+    )'
+"stable"
+10
+"external"
+</code></pre>
+<p>Types can also be stricter than untyped data. On the document as it is
+parsed, the <code>expr</code> of the data items are untyped, and <code>sum</code> takes them
+as numbers. After validation, they are what the schema says, strings,
+because an <code>expr</code> is an ECMAScript expression, not a number; <code>sum</code> of
+strings is an error:</p>
+<pre><code class="language-console">$ sxml xquery --context-item=flag.scxml --expression='
+    declare namespace sc = "http://www.w3.org/2005/07/scxml";
+    sum(//sc:data/@expr)'
+903
+$ sxml xquery --context-item=flag.scxml --expression='
+    import schema namespace sc = "http://www.w3.org/2005/07/scxml" at "scxml.xsd";
+    sum((validate { / })//sc:data/@expr)'
+expression:3:5: err:FORG0006: The values are not all numbers, or not all durations of one kind, or not comparable (F&amp;O 4.0, fn:sum, fn:avg, fn:max, fn:min)
+$ sxml xquery --context-item=flag.scxml --expression='
+    import schema namespace sc = "http://www.w3.org/2005/07/scxml" at "scxml.xsd";
+    sum((validate { / })//sc:data/@expr ! xs:integer(.))'
+903
+</code></pre>
+<p>The error is useful: an <code>expr</code> such as <code>failures + 1</code> is no number, and
+a typed query says so instead of returning <code>NaN</code>. Saying what you mean,
+<code>xs:integer(.)</code>, makes the conversion explicit.</p>
+<p>When the document is not valid, <code>validate</code> raises <code>err:XQDY0027</code> with
+the message <code>sxml validate</code> gives, which a query can catch, for example
+to check several files and go on:</p>
+<pre><code class="language-console">$ sxml xquery --method=adaptive --expression='
+    import schema namespace sc = "http://www.w3.org/2005/07/scxml" at "scxml.xsd";
+    for $file in ("flag.scxml", "bad-target.scxml", "duplicate-event.scxml")
+    return try {
+      (validate { doc($file) }) ! ($file || ": valid")
+    } catch err:XQDY0027 {
+      $file || ": " || substring-before($err:description, ":")
+    }'
+"flag.scxml: valid"
+"bad-target.scxml: cvc-identity-constraint.4.2.2"
+"duplicate-event.scxml: cvc-identity-constraint.4.1"
+</code></pre>
+<p>The description is the message of the first error that validation
+found.</p>
+<h2 id="validating-in-a-query"><a class="header" href="#validating-in-a-query">Validating in a query</a></h2>
+<p><code>validate</code> has three modes:</p>
+<ul>
+<li><code>validate { E }</code> or <code>validate strict { E }</code>: the element must have a
+global declaration, and must be valid by it;</li>
+<li><code>validate lax { E }</code>: elements without a declaration are let through,
+and the ones with a declaration are validated wherever they are;</li>
+<li><code>validate type T { E }</code>: the element is validated against the type
+<code>T</code>, whatever its name.</li>
+</ul>
+<p>A flag's log holds the status payloads the service sent. <code>vane-data.xsd</code>
+declares <code>vane:status</code> but no log, and lax validation still finds the
+status inside and types it, so its <code>retry-after</code> is a number:</p>
+<pre><code class="language-console">$ sxml xquery --method=adaptive --expression='
+    import schema namespace vane = "urn:example:vane" at "vane-data.xsd";
+    let $log := validate lax {
+      &lt;log&gt;&lt;vane:status&gt;&lt;vane:flag&gt;new-checkout&lt;/vane:flag&gt;&lt;vane:state&gt;paused&lt;/vane:state&gt;
+        &lt;vane:failed-checks&gt;3&lt;/vane:failed-checks&gt;&lt;vane:retry-after&gt;300&lt;/vane:retry-after&gt;&lt;/vane:status&gt;&lt;/log&gt;
+    }
+    return $log/vane:status/vane:retry-after + 1'
+301
+$ sxml xquery --method=adaptive --expression='
+    import schema namespace vane = "urn:example:vane" at "vane-data.xsd";
+    validate { &lt;log/&gt; }'
+expression:3:5: err:XQDY0084: Strict validation of an element whose name has no global element declaration among the in-scope schema definitions (XQuery 4.0, 4.25)
+</code></pre>
+<p>A <code>validate</code> expression can't be followed directly by a path or <code>!</code>;
+put it in parentheses, <code>(validate { / })//sc:data</code>, as the examples
+here do.</p>
+<p><code>validate type</code> works for an element that has no global declaration of
+its own. A transition is declared only inside states, but its type is
+named:</p>
+<pre><code class="language-console">$ sxml xquery --method=adaptive --expression='
+    import schema namespace sc = "http://www.w3.org/2005/07/scxml" at "scxml.xsd";
+    (validate type sc:transition { &lt;sc:transition event="kill.request" target="stable"/&gt; })/@type/string()'
+"external"
+</code></pre>
+<h2 id="values-of-your-own-types"><a class="header" href="#values-of-your-own-types">Values of your own types</a></h2>
+<p>Every named simple type of an imported schema has a constructor
+function, as the built-in types do, and <code>cast as</code> and <code>castable as</code>
+work with it. The facets are checked:</p>
+<pre><code class="language-console">$ sxml xquery --method=adaptive --expression='
+    import schema namespace vane = "urn:example:vane" at "vane-data.xsd";
+    vane:seconds("300") + 10, "3601" castable as vane:seconds, vane:flag-key("new-checkout")'
+310
+false()
+"new-checkout"
+$ sxml xquery --method=adaptive --expression='
+    import schema namespace vane = "urn:example:vane" at "vane-data.xsd";
+    vane:state("archived")'
+expression:3:5: err:FORG0001: cvc-enumeration-valid: the value is not one of the enumeration facets (XSD 1.1 Part 2, 4.3.5.4)
+</code></pre>
+<p>A <code>vane:seconds</code> is a positive integer, so adding to it is integer
+arithmetic. <code>archived</code> is a state of the machine, but not one of the
+states the protocol lets a service report: the draft knows only
+<code>stable</code>, <code>rolling-out</code> and <code>paused</code>.</p>
+<h2 id="checking-each-value-against-its-type"><a class="header" href="#checking-each-value-against-its-type">Checking each value against its type</a></h2>
+<p>The machine says the type of each data item with <code>vane:type</code>, but no
+schema checks that the item's <code>expr</code> is a value of that type: the
+<code>expr</code> is ECMAScript, and the schema can't know that <code>3</code> means the
+number three. A query can check it. <code>vane:value</code> is declared with the
+type <code>xs:anySimpleType</code>, so <code>xsi:type</code> can give it any type, and
+validating one with the item's text checks the value. Here is a copy of
+the machine that allows 30 failed checks, three times the limit of
+<code>vane:failure-limit</code>:</p>
+<pre><code class="language-console">$ sed 's/id="maxFailures" expr="3"/id="maxFailures" expr="30"/' flag.scxml &gt; generous.scxml
+$ sxml xquery --method=adaptive --context-item=generous.scxml --expression='
+    import schema namespace sc = "http://www.w3.org/2005/07/scxml" at "scxml.xsd";
+    declare namespace vane = "urn:example:vane";
+    declare namespace xsi = "http://www.w3.org/2001/XMLSchema-instance";
+    for $data in (validate { / })//sc:data
+    let $type := data($data/@vane:type)
+    return try {
+      let $value := validate {
+        &lt;vane:value xsi:type="vane:{local-name-from-QName($type)}"&gt;{string($data/@expr)}&lt;/vane:value&gt;
+      }
+      return `{$data/@id}: {data($value)}`
+    } catch err:XQDY0027 {
+      `{$data/@id}: {substring-before($err:description, ":")}`
+    }'
+"failures: 0"
+"maxFailures: cvc-maxInclusive-valid"
+"stepSeconds: 600"
+"pauseSeconds: 300"
+</code></pre>
+<p>The constructor functions give a shorter way: <code>function-lookup</code> finds
+the constructor whose name is the type's name, and calling it checks
+the facets:</p>
+<pre><code class="language-console">$ sxml xquery --method=adaptive --context-item=generous.scxml --expression='
+    import schema namespace sc = "http://www.w3.org/2005/07/scxml" at "scxml.xsd";
+    declare namespace vane = "urn:example:vane";
+    for $data in (validate { / })//sc:data
+    let $constructor := function-lookup(data($data/@vane:type), 1)
+    return try { `{$data/@id}: {$constructor($data/@expr)}` }
+    catch err:FORG0001 { `{$data/@id}: not a {data($data/@vane:type)}` }'
+"failures: 0"
+"maxFailures: not a vane:failure-limit"
+"stepSeconds: 600"
+"pauseSeconds: 300"
+</code></pre>
+<p>The <code>xsi:type</code> way also works for complex types and gives the full
+message; the constructor works only for simple types. <a href="scxml-checks.html">Checking What
+the Schema Cannot</a> makes this one check of several.</p>
+<h2 id="elements-without-a-typed-value"><a class="header" href="#elements-without-a-typed-value">Elements without a typed value</a></h2>
+<p>The typed value of an element with simple content, such as
+<code>vane:retry-after</code>, is its value. An element whose type has
+<em>element-only</em> content, such as <code>sc:state</code>, has no typed value at all,
+and asking for it is an error:</p>
+<pre><code class="language-console">$ sxml xquery --method=adaptive --context-item=flag.scxml --expression='
+    import schema namespace sc = "http://www.w3.org/2005/07/scxml" at "scxml.xsd";
+    data(((validate { / })//sc:state)[1])'
+expression:3:5: err:FOTY0012: An element whose type has element-only content has no typed value (XDM 4.0, section 7.5.2.4)
+</code></pre>
+<p>That also catches a common mistake: <code>$state = "stable"</code> compares the
+typed value of <code>$state</code>, so it raises this error for a validated state.
+On an untyped document it compares all the text of the state, its
+XHTML included, which is rarely what you meant either. Compare
+<code>$state/@id</code> instead. Elements of mixed content, such as <code>sc:data</code>,
+have their text as an untyped value.</p>
+<h2 id="types-in-signatures"><a class="header" href="#types-in-signatures">Types in signatures</a></h2>
+<p>With a schema imported, sequence types can name its declarations and
+types. <code>schema-element(vane:status)</code> is a <code>vane:status</code> element that
+was validated by the global declaration. A function with that parameter
+type accepts only validated payloads, which catches a whole class of
+mistakes:</p>
+<pre><code class="language-console">$ sxml xquery --method=adaptive --expression='
+    import schema namespace vane = "urn:example:vane" at "vane-data.xsd";
+    declare function local:summary($status as schema-element(vane:status)) as xs:string {
+      `{$status/vane:flag}: {$status/vane:state}, {$status/vane:failed-checks} failed`
+    };
+    local:summary(validate {
+      &lt;vane:status&gt;&lt;vane:flag&gt;new-checkout&lt;/vane:flag&gt;&lt;vane:state&gt;stable&lt;/vane:state&gt;
+        &lt;vane:failed-checks&gt;2&lt;/vane:failed-checks&gt;&lt;/vane:status&gt;
+    })'
+"new-checkout: stable, 2 failed"
+</code></pre>
+<p>Pass it the same payload without <code>validate</code>, and the call fails:</p>
+<pre><code class="language-console">$ sxml xquery --method=adaptive --expression='
+    import schema namespace vane = "urn:example:vane" at "vane-data.xsd";
+    declare function local:summary($status as schema-element(vane:status)) as xs:string {
+      string($status/vane:flag)
+    };
+    local:summary(&lt;vane:status&gt;&lt;vane:flag&gt;new-checkout&lt;/vane:flag&gt;&lt;vane:state&gt;stable&lt;/vane:state&gt;
+      &lt;vane:failed-checks&gt;2&lt;/vane:failed-checks&gt;&lt;/vane:status&gt;)'
+expression:6:5: err:XPTY0004: The value does not match the required type (XPath 4.0, section 3.4, coercion rules)
+</code></pre>
+<p>The sequence types that use a schema are:</p>
+<ul>
+<li><code>element(N, T)</code>: an element named <code>N</code> whose type is <code>T</code> or derived
+from it; <code>element(*, T)</code> for any name;</li>
+<li><code>attribute(N, T)</code> and <code>attribute(*, T)</code>, the same for attributes;</li>
+<li><code>schema-element(N)</code>: an element that the global declaration <code>N</code>
+governs, or a member of its substitution group;</li>
+<li><code>schema-attribute(N)</code>: the same for a global attribute declaration,
+such as <code>schema-attribute(vane:implements)</code>.</li>
+</ul>
+<pre><code class="language-console">$ sxml xquery --method=adaptive --context-item=flag.scxml --expression='
+    import schema namespace sc = "http://www.w3.org/2005/07/scxml" at "scxml.xsd";
+    declare namespace vane = "urn:example:vane";
+    let $machine := validate { / }
+    return (
+      ($machine//sc:state)[1] instance of element(*, sc:state),
+      ($machine//@vane:type)[1] instance of attribute(*, xs:QName),
+      $machine/sc:scxml instance of schema-element(sc:scxml),
+      /sc:scxml instance of schema-element(sc:scxml)
+    )'
+true()
+true()
+true()
+false()
+</code></pre>
+<p>The last one is false because the context item, the document as it was
+parsed, was never validated: its elements are untyped.</p>
+<h2 id="typed-copies"><a class="header" href="#typed-copies">Typed copies</a></h2>
+<p>When a constructor copies validated nodes into a new element, the
+copies keep their types only with <code>declare construction preserve</code>.
+With <code>strip</code>, they become untyped, as if they came from a document
+without a schema:</p>
+<pre><code class="language-console">$ sxml xquery --method=adaptive --context-item=flag.scxml --expression='
+    import schema namespace sc = "http://www.w3.org/2005/07/scxml" at "scxml.xsd";
+    declare namespace vane = "urn:example:vane";
+    declare construction preserve;
+    let $copy := &lt;types&gt;{ (validate { / })//sc:data }&lt;/types&gt;
+    return type-of(data(($copy//@vane:type)[1]))'
+"xs:QName"
+$ sxml xquery --method=adaptive --context-item=flag.scxml --expression='
+    import schema namespace sc = "http://www.w3.org/2005/07/scxml" at "scxml.xsd";
+    declare namespace vane = "urn:example:vane";
+    declare construction strip;
+    let $copy := &lt;types&gt;{ (validate { / })//sc:data }&lt;/types&gt;
+    return type-of(data(($copy//@vane:type)[1]))'
+"xs:untypedAtomic"
+</code></pre>
+<h2 id="schema-aware-xslt"><a class="header" href="#schema-aware-xslt">Schema-aware XSLT</a></h2>
+<p>In XSLT, <code>xsl:import-schema</code> imports a schema, and the <code>validation</code>
+attribute of <code>xsl:copy-of</code>, <code>xsl:document</code>, <code>xsl:result-document</code> and
+other instructions (<code>xsl:validation</code> on a literal result element)
+validates what they make. Patterns and sequence types can test types.
+This stylesheet makes the status the service answers with for a flag,
+from the machine's data and parameters for the flag key, the state and
+the count of failed checks:</p>
+<p><code>status.xsl</code>:</p>
+<pre><code class="language-xml">&lt;!-- The status a flag in a given state answers with, made from the
+     machine's data and validated as it is made. --&gt;
+&lt;xsl:stylesheet version="4.0" expand-text="yes"
+    xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+    xmlns:sc="http://www.w3.org/2005/07/scxml"
+    xmlns:vane="urn:example:vane"
+    exclude-result-prefixes="sc"&gt;
+  &lt;xsl:import-schema namespace="http://www.w3.org/2005/07/scxml"
+                     schema-location="scxml.xsd"/&gt;
+  &lt;xsl:output method="xml" indent="yes"/&gt;
+
+  &lt;!-- Typed parameters: a value given with param=value is converted to
+       the type, and one that is not of it stops the transformation. --&gt;
+  &lt;xsl:param name="flag" as="vane:flag-key" select="'new-checkout'"/&gt;
+  &lt;xsl:param name="state" as="vane:state" select="'stable'"/&gt;
+  &lt;xsl:param name="failures" as="vane:failure-count" select="0"/&gt;
+
+  &lt;!-- Validate the input, so that its values have the schema's types. --&gt;
+  &lt;xsl:template match="/"&gt;
+    &lt;xsl:variable name="machine" as="document-node(schema-element(sc:scxml))"&gt;
+      &lt;xsl:copy-of select="." validation="strict"/&gt;
+    &lt;/xsl:variable&gt;
+    &lt;xsl:apply-templates select="$machine/sc:scxml"/&gt;
+  &lt;/xsl:template&gt;
+
+  &lt;!-- The new status is validated against its declaration as it is made. --&gt;
+  &lt;xsl:template match="schema-element(sc:scxml)"&gt;
+    &lt;vane:status xsl:validation="strict"&gt;
+      &lt;vane:flag&gt;{$flag}&lt;/vane:flag&gt;
+      &lt;vane:state&gt;{$state}&lt;/vane:state&gt;
+      &lt;vane:failed-checks&gt;{$failures}&lt;/vane:failed-checks&gt;
+      &lt;xsl:if test="$state = 'paused'"&gt;
+        &lt;vane:retry-after&gt;{sc:datamodel/sc:data[@id = 'pauseSeconds']/@expr}&lt;/vane:retry-after&gt;
+      &lt;/xsl:if&gt;
+    &lt;/vane:status&gt;
+  &lt;/xsl:template&gt;
+&lt;/xsl:stylesheet&gt;
+</code></pre>
+<ul>
+<li>The parameters have types of the schema, in <code>as</code>: <code>vane:flag-key</code>,
+<code>vane:state</code> and <code>vane:failure-count</code>. A value given on the command
+line with <code>--param</code> is text, and it is converted to the parameter's
+type when the transformation starts; a default in <code>select</code> is
+converted the same way.</li>
+<li><code>xsl:copy-of</code> with <code>validation="strict"</code> validates the input, and the
+variable's type, <code>document-node(schema-element(sc:scxml))</code>, says that
+it must be a validated machine.</li>
+<li><code>match="schema-element(sc:scxml)"</code> matches by declaration, not only
+by name; <code>match="element(*, sc:state)"</code> would match every element
+whose type is <code>sc:state</code> or derived from it, whatever its name.</li>
+<li><code>xsl:validation="strict"</code> on <code>vane:status</code> validates the new
+element against its declaration as it is made: its facets, and its
+assertion.</li>
+</ul>
+<pre><code class="language-console">$ sxml transform --param=state=paused --param=failures=3 status.xsl flag.scxml
+&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;vane:status xmlns:vane="urn:example:vane"&gt;
+  &lt;vane:flag&gt;new-checkout&lt;/vane:flag&gt;
+  &lt;vane:state&gt;paused&lt;/vane:state&gt;
+  &lt;vane:failed-checks&gt;3&lt;/vane:failed-checks&gt;
+  &lt;vane:retry-after&gt;300&lt;/vane:retry-after&gt;
+&lt;/vane:status&gt;
+</code></pre>
+<p>A state the protocol doesn't have, or a negative count, is not a value
+of the parameter's type, and the transformation stops before it begins,
+with the type error for a parameter, <code>XTTE0590</code>:</p>
+<pre><code class="language-console">$ sxml transform --param=state=archived status.xsl flag.scxml
+status.xsl: err:XTTE0590: The value does not match the required type of the parameter (XSLT 4.0, section 9.2.1)
+$ sxml transform --param=failures=-1 status.xsl flag.scxml
+status.xsl: err:XTTE0590: The value does not match the required type of the parameter (XSLT 4.0, section 9.2.1)
+</code></pre>
+<p>The parameters' types check each value on its own. What they make
+together is checked when the status is built: a stylesheet with a
+mistake, here one that always writes a <code>retry-after</code>, breaks the
+status's assertion, and stops with a type error instead of writing an
+invalid status:</p>
+<pre><code class="language-console">$ sed "s/test=\"\$state = 'paused'\"/test=\"true()\"/" status.xsl &gt; always.xsl
+$ sxml transform always.xsl flag.scxml
+always.xsl:28:5: err:XTTE1510: cvc-assertion: element 'vane:status' breaks the assertion 'exists(vane:retry-after) = (vane:state = 'paused')' of an anonymous type derived from 'xs:anyType'
+</code></pre>
+<p>And an input that isn't valid is stopped where it comes in, by the
+<code>xsl:copy-of</code>:</p>
+<pre><code class="language-console">$ sxml transform status.xsl bad-target.scxml
+status.xsl:21:7: err:XTTE1510: cvc-identity-constraint.4.2.2: element 'Q{http://www.w3.org/2005/07/scxml}state': its key sequence is that of an earlier member (key 'Q{http://www.w3.org/2005/07/scxml}state-id')
+</code></pre>
+<p>A schema-aware stylesheet can also validate a whole <em>output</em> document,
+with <code>validation="strict"</code> on <code>xsl:result-document</code>: a transformation
+that would write an invalid document fails instead.</p>
+<h2 id="from-c-and-javascript"><a class="header" href="#from-c-and-javascript">From C and JavaScript</a></h2>
+<p>Programs validate through the library's schema interface: compile a
+schema once, then validate many documents with it, and receive each
+error as a value with its constraint and location. <a href="c.html">Embedding sxml in
+C</a> shows the pattern in C (<code>sxml/schema.h</code>), and <a href="javascript.html">sxml in
+JavaScript</a> in JavaScript, where <code>compileSchema</code> makes a
+schema whose <code>validate</code> returns a report of the validity and the
+errors.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="xsd-errors.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="scxml.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="xsd-errors.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="scxml.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="style/sxml.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

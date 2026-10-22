@@ -1,0 +1,467 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Validating with XSD - The sxml Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Learn XPath 4.0, XQuery 4.0, XSLT 4.0 and XSD 1.1 with sxml, the small XML toolchain in portable C.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="style/sxml.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "coal";
+            window.path_to_searchindex_js = "searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The sxml Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml/edit/main/docs/book/src/xsd.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="validating-with-xsd"><a class="header" href="#validating-with-xsd">Validating with XSD</a></h1>
+<!-- examples: spec -->
+<p>A draft can be well-formed and still be wrong: a requirement that says
+"MIGHT", which is not one of the key words of BCP 14; a cross reference
+to an anchor that no section has; a draft whose name, written twice,
+says <code>-01</code> in one place and <code>-02</code> in the other. A <em>schema</em> describes
+what a valid document of some kind looks like, so a program can check
+its input once, where it comes in, instead of everywhere it uses it. XSD (XML
+Schema Definition Language) is the schema language of the W3C, and sxml
+implements its current version, XSD 1.1.</p>
+<p>The first half of this chapter works in the <code>spec</code> directory, on the
+Vane draft and its schema <code>vane.xsd</code>. From <a href="xsd-namespaces.html">Namespaces and Larger
+Schemas</a> on, it moves to the <code>scxml</code> directory and
+the schemas of the feature flag's state machine, which has namespaces, keys and
+assertions of its own.</p>
+<h2 id="a-schema-for-the-draft"><a class="header" href="#a-schema-for-the-draft">A schema for the draft</a></h2>
+<p>A schema is an XML document in the namespace
+<code>http://www.w3.org/2001/XMLSchema</code>. It declares <em>elements</em> and
+<em>attributes</em>, and gives each a <em>type</em>. <em>Simple types</em> describe text:
+numbers, dates, strings with restrictions. <em>Complex types</em> describe
+elements with attributes and children.</p>
+<p><code>vane.xsd</code> describes the part of the xml2rfc vocabulary that the draft
+uses. Here is its end, the declaration of the document element <code>rfc</code>:</p>
+<pre><code class="language-xml">  &lt;!-- The document --&gt;
+
+  &lt;xs:element name="rfc"&gt;
+    &lt;xs:complexType&gt;
+      &lt;xs:sequence&gt;
+        &lt;xs:element name="front" type="front"/&gt;
+        &lt;xs:element name="middle"&gt;
+          &lt;xs:complexType&gt;
+            &lt;xs:sequence&gt;
+              &lt;xs:element name="section" type="section" maxOccurs="unbounded"/&gt;
+            &lt;/xs:sequence&gt;
+          &lt;/xs:complexType&gt;
+        &lt;/xs:element&gt;
+        &lt;xs:element name="back" minOccurs="0"&gt;
+          &lt;xs:complexType&gt;
+            &lt;xs:sequence&gt;
+              &lt;xs:element name="references" type="references" minOccurs="0" maxOccurs="unbounded"/&gt;
+            &lt;/xs:sequence&gt;
+          &lt;/xs:complexType&gt;
+        &lt;/xs:element&gt;
+      &lt;/xs:sequence&gt;
+      &lt;xs:attribute name="version" type="xs:integer" fixed="3"/&gt;
+      &lt;xs:attribute name="category"&gt;
+        &lt;xs:simpleType&gt;
+          &lt;xs:restriction base="xs:token"&gt;
+            &lt;xs:enumeration value="std"/&gt;
+            &lt;xs:enumeration value="bcp"/&gt;
+            &lt;xs:enumeration value="info"/&gt;
+            &lt;xs:enumeration value="exp"/&gt;
+            &lt;xs:enumeration value="historic"/&gt;
+          &lt;/xs:restriction&gt;
+        &lt;/xs:simpleType&gt;
+      &lt;/xs:attribute&gt;
+      &lt;xs:attribute name="ipr" type="xs:token"/&gt;
+      &lt;xs:attribute name="submissionType" type="xs:token"/&gt;
+      &lt;xs:attribute name="docName" type="draft-name"/&gt;
+      &lt;!-- The draft's name is written twice; XSD 1.1 can check that the
+           two agree. --&gt;
+      &lt;xs:assert test="not(@docName) or
+                       @docName = front/seriesInfo[@name = 'Internet-Draft']/@value"/&gt;
+    &lt;/xs:complexType&gt;
+    &lt;!-- No two anchors are the same, and every xref names an anchor.
+         xs:unique, not xs:key: most paragraphs have no anchor. --&gt;
+    &lt;xs:unique name="anchor"&gt;
+      &lt;xs:selector xpath=".//section | .//t | .//dt | .//cref | .//reference | .//references"/&gt;
+      &lt;xs:field xpath="@anchor"/&gt;
+    &lt;/xs:unique&gt;
+    &lt;xs:keyref name="xref-target" refer="anchor"&gt;
+      &lt;xs:selector xpath=".//xref"/&gt;
+      &lt;xs:field xpath="@target"/&gt;
+    &lt;/xs:keyref&gt;
+  &lt;/xs:element&gt;
+&lt;/xs:schema&gt;
+</code></pre>
+<p>Read from the top:</p>
+<ul>
+<li><code>rfc</code> contains a <code>front</code>, a <code>middle</code> of one or more sections, and
+maybe a <code>back</code>, <em>in that order</em>. <code>type="front"</code> and <code>type="section"</code>
+name types that are declared earlier in the schema.</li>
+<li>Its attributes each have a type: <code>version</code> is an integer and must be
+3, <code>category</code> is one of five words, and <code>docName</code> has the type
+<code>draft-name</code>, a string that must look like the name of an
+Internet-Draft.</li>
+<li><code>xs:assert</code> is a rule in XPath that a valid <code>rfc</code> must meet. It is
+explained below.</li>
+<li><code>xs:unique</code> and <code>xs:keyref</code> are rules about values across the whole
+document: no two anchors are the same, and every <code>xref</code> names one.</li>
+</ul>
+<p>The rest of the schema, from the top, declares the types the draft
+uses. <a href="xsd-simple-types.html">Simple Types and Facets</a> and <a href="xsd-complex-types.html">Complex Types
+and Content Models</a> read it part by part.</p>
+<h2 id="validating"><a class="header" href="#validating">Validating</a></h2>
+<p><code>sxml validate</code> checks documents against the schema. Both drafts are
+valid, so it prints nothing, and its exit status is 0:</p>
+<pre><code class="language-console">$ sxml validate --schema=vane.xsd vane.xml vane-00.xml; echo "exit status $?"
+exit status 0
+</code></pre>
+<p>To see what an invalid draft looks like, change a copy of the draft
+with <code>sed</code> and validate it from standard input, which <code>-</code> names. This
+copy has a requirement that says "MIGHT", an <code>xref</code> to a term that
+doesn't exist, and a two-digit year:</p>
+<pre><code class="language-console">$ sed -e 's/&lt;bcp14&gt;MUST NOT/&lt;bcp14&gt;MIGHT/' \
+      -e 's/target="term-percentage"/target="term-percentages"/' \
+      -e 's/&lt;date year="2026"/&lt;date year="26"/' vane.xml \
+  | sxml validate --schema=vane.xsd -
+-:20:11: cvc-datatype-valid.1.2.1: attribute 'year' has the value '26', which is not valid for type 'xs:gYear'
+-:94:37: cvc-enumeration-valid: element 'bcp14' has the value 'MIGHT', which is not valid for type 'keyword': the value is not one of the enumeration facets (XSD 1.1 Part 2, 4.3.5.4); the enumeration facets are 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL', 'SHALL NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED', ...
+-:92:9: cvc-identity-constraint.4.3: element 'xref': its key sequence is no key sequence of the referenced key (keyref 'xref-target')
+</code></pre>
+<p>sxml reports every error, not only the first. Each one has the line and
+column, the name of the rule in the XSD specification that failed (such
+as <code>cvc-enumeration-valid</code>), the value, and what was expected. The
+<code>xref</code> comes last although it is on line 92: rules across the document,
+such as the keyref, are checked at the end of the element they belong
+to, here <code>rfc</code>, when every anchor is known. <a href="xsd-errors.html">Reading Validation
+Errors</a> goes through the messages in detail.</p>
+<p>For programs, <code>--format=json</code> writes the same report as JSON:</p>
+<pre><code class="language-console">$ sxml validate --schema=vane.xsd --format=json vane.xml
+{"schema":{"documents":["vane.xsd"],"status":"valid"},"files":[{"file":"vane.xml","status":"valid"}]}
+</code></pre>
+<h2 id="rules-across-values"><a class="header" href="#rules-across-values">Rules across values</a></h2>
+<p>The draft's name is written twice: in the <code>docName</code> attribute of <code>rfc</code>,
+and in the <code>seriesInfo</code> of the front matter, which is what the rendered
+draft shows. Nothing about the structure of the document says that the
+two must agree, but XSD 1.1 can say it with an <em>assertion</em>: an XPath
+condition on the element, here</p>
+<pre><code class="language-xml">&lt;xs:assert test="not(@docName) or
+                 @docName = front/seriesInfo[@name = 'Internet-Draft']/@value"/&gt;
+</code></pre>
+<p>A draft whose <code>docName</code> was updated for <code>-02</code> while its <code>seriesInfo</code>
+was not breaks it:</p>
+<pre><code class="language-console">$ sed 's/docName="draft-example-vane-protocol-01"/docName="draft-example-vane-protocol-02"/' vane.xml \
+  | sxml validate --schema=vane.xsd -
+-:7:1: cvc-assertion: element 'rfc' breaks the assertion 'not(@docName) or                        @docName = front/ser...' of an anonymous type derived from 'xs:anyType'
+</code></pre>
+<p>The message shows the start of the assertion, so you can find it in the
+schema. Inside the test, the context item is the <code>rfc</code> element, with its
+attributes and children already validated, so the test can rely on
+their types. <a href="xsd-11.html">XSD 1.1 Features</a> has more assertions.</p>
+<h2 id="strict-and-lax"><a class="header" href="#strict-and-lax">Strict and lax</a></h2>
+<p>A reviewer sends notes about a short draft, with the draft inside them:</p>
+<p><code>xsd-review.xml</code>:</p>
+<pre><code class="language-xml">&lt;!-- A review: a reviewer's notes around a short draft. The review
+     vocabulary has no schema; the draft inside it has one. --&gt;
+&lt;review by="Grace Hopper"&gt;
+  &lt;note&gt;Is "MIGHT" one of the key words?&lt;/note&gt;
+  &lt;rfc docName="draft-example-vane-brief-00"&gt;
+    &lt;front&gt;
+      &lt;title&gt;Vane in Brief&lt;/title&gt;
+      &lt;seriesInfo name="Internet-Draft" value="draft-example-vane-brief-00"/&gt;
+      &lt;author fullname="Ada Byron" surname="Byron"/&gt;
+      &lt;date year="2026"/&gt;
+    &lt;/front&gt;
+    &lt;middle&gt;
+      &lt;section anchor="intro"&gt;
+        &lt;name&gt;Introduction&lt;/name&gt;
+        &lt;t&gt;A service &lt;bcp14&gt;MIGHT&lt;/bcp14&gt; refuse a rollout.&lt;/t&gt;
+      &lt;/section&gt;
+    &lt;/middle&gt;
+  &lt;/rfc&gt;
+&lt;/review&gt;
+</code></pre>
+<p><code>vane.xsd</code> declares no <code>review</code> element. By default, validation is
+<em>strict</em>: the document element must have a declaration in the schema,
+so the review is invalid. sxml still looks inside it, and validates the
+elements it does know:</p>
+<pre><code class="language-console">$ sxml validate --schema=vane.xsd xsd-review.xml
+xsd-review.xml:3:1: cvc-elt.1: no global declaration governs element 'review'
+xsd-review.xml:15:22: cvc-enumeration-valid: element 'bcp14' has the value 'MIGHT', which is not valid for type 'keyword': the value is not one of the enumeration facets (XSD 1.1 Part 2, 4.3.5.4); the enumeration facets are 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL', 'SHALL NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED', ...
+</code></pre>
+<p>With <code>--mode=lax</code>, elements without a declaration are let through, and
+the ones with a declaration are validated wherever they are. The review
+itself is no longer an error, but the draft inside it still is:</p>
+<pre><code class="language-console">$ sxml validate --mode=lax --schema=vane.xsd xsd-review.xml; echo "exit status $?"
+xsd-review.xml:15:22: cvc-enumeration-valid: element 'bcp14' has the value 'MIGHT', which is not valid for type 'keyword': the value is not one of the enumeration facets (XSD 1.1 Part 2, 4.3.5.4); the enumeration facets are 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL', 'SHALL NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED', ...
+exit status 1
+</code></pre>
+<p>Only the <em>global</em> declarations, the ones directly inside <code>xs:schema</code>,
+can be found this way. In <code>vane.xsd</code> that is only <code>rfc</code>: a <code>section</code>
+on its own is not validated even in lax mode, because the schema
+declares sections only inside other types.</p>
+<h2 id="dtds"><a class="header" href="#dtds">DTDs</a></h2>
+<p>Older documents often carry a DTD, the schema language built into XML
+itself, in a <em>document type declaration</em> at the top. xml2rfc has one
+too, for authors who prefer it. A DTD can be part of the document, in
+its <em>internal subset</em>:</p>
+<p><code>xsd-dtd.xml</code>:</p>
+<pre><code class="language-xml">&lt;!DOCTYPE cref [
+  &lt;!ELEMENT cref (#PCDATA)&gt;
+  &lt;!ATTLIST cref anchor ID #REQUIRED source CDATA #IMPLIED&gt;
+]&gt;
+&lt;cref source="AM"&gt;Should an owner be able to change the duration?&lt;/cref&gt;
+</code></pre>
+<p><code>sxml check --validate-dtd</code> validates a document against its DTD. This
+editorial note has no <code>anchor</code>, which its DTD requires:</p>
+<pre><code class="language-console">$ sxml check --validate-dtd xsd-dtd.xml
+xsd-dtd.xml:5:1: cvc-complex-type.4: element 'cref' lacks the required attribute 'anchor'
+</code></pre>
+<p>A DTD knows no types beyond names and IDs, and nothing about
+namespaces; that is why vocabularies with namespaces and typed values
+use XSD. <a href="files.html">Files and the Outside World</a> shows external DTDs
+and entities, and Appendix A has the details of <code>sxml check</code>.</p>
+<h2 id="whats-in-this-chapter"><a class="header" href="#whats-in-this-chapter">What's in this chapter</a></h2>
+<p>The rest of the chapter teaches XSD step by step:</p>
+<ul>
+<li><a href="xsd-simple-types.html">Simple Types and Facets</a>: built-in types,
+restrictions, lists and unions;</li>
+<li><a href="xsd-complex-types.html">Complex Types and Content Models</a>: sequences,
+choices, <code>all</code>, attributes, mixed, simple and empty content, groups;</li>
+<li><a href="xsd-derivation.html">Deriving Types</a>: extension, restriction,
+<code>xsi:type</code>, substitution groups and <code>xsi:nil</code>;</li>
+<li><a href="xsd-namespaces.html">Namespaces and Larger Schemas</a>: target
+namespaces, import, wildcards and schema hints, on the flag's state
+machine;</li>
+<li><a href="xsd-identity.html">Keys and References</a>: <code>xs:unique</code>, <code>xs:key</code> and
+<code>xs:keyref</code>;</li>
+<li><a href="xsd-11.html">XSD 1.1 Features</a>: assertions, conditional types, open
+content, default attributes and overrides;</li>
+<li><a href="xsd-errors.html">Reading Validation Errors</a>: what the messages mean,
+and how to fix what they report;</li>
+<li><a href="xsd-typed-data.html">Typed Data and Schema-Aware Queries</a>: using the
+types in XQuery and XSLT.</li>
+</ul>
+<p>A schema is also a good source for code: <a href="codegen.html">Project: Generating Vane's
+SDKs from a Schema</a> turns one into TypeScript types and
+runtime checks.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="svg-transform.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="xsd-simple-types.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="svg-transform.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="xsd-simple-types.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="style/sxml.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

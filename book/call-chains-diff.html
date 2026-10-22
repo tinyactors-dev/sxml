@@ -1,0 +1,795 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Comparing Two Versions - The sxml Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Learn XPath 4.0, XQuery 4.0, XSLT 4.0 and XSD 1.1 with sxml, the small XML toolchain in portable C.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="style/sxml.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "coal";
+            window.path_to_searchindex_js = "searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The sxml Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml/edit/main/docs/book/src/call-chains-diff.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="comparing-two-versions"><a class="header" href="#comparing-two-versions">Comparing Two Versions</a></h1>
+<!-- examples: call-chains -->
+<p>The call graphs of <a href="call-chains-graph.html">A Call Graph from the Code</a>
+say which function calls which. A change is easier to judge by its
+<em>call chains</em>: the paths through the graph from where the service is
+entered to the functions at the end, each one a thing that happens when
+a request comes in. This section lists the chains of both versions,
+compares the graphs and the chains, and writes what changed as a text
+report, an HTML page and a drawing.</p>
+<h2 id="entries-and-next-calls"><a class="header" href="#entries-and-next-calls">Entries and next calls</a></h2>
+<p>A chain starts at an <em>entry</em>, a function that no call of the program
+reaches, and the graph's queries found one: <code>api.start</code>. A chain is
+a sequence of <code>call</code> elements, each going on from where the one before
+it ended. What can follow a chain are the calls of its last function to
+functions of the program; external calls such as <code>fetch</code> end a chain
+and are not part of it:</p>
+<pre><code class="language-xquery">(: The functions no call reaches: where the program is entered. :)
+declare function graph:entries($graph as element(graph)) as xs:string* {
+  $graph/function[not(@id = $graph/call/@to)]/@id
+};
+
+(: The calls a chain can go on with: the calls of its last function to
+   functions of the program that the chain has not been through (so a
+   cycle ends a chain). A chain is a sequence of calls. :)
+declare function graph:next(
+  $graph as element(graph),
+  $chain as element(call)*
+) as element(call)* {
+  $graph/call[@from = $chain[last()]/@to][not(@external)]
+             [not(@to = $chain/@from)]
+};
+</code></pre>
+<p>The test <code>not(@to = $chain/@from)</code> keeps a chain from going through a
+function twice. The Vane service has no cycles, but a program with a
+function that calls itself, or two that call each other, would
+otherwise have chains without end.</p>
+<h2 id="chains-with-a-worklist"><a class="header" href="#chains-with-a-worklist">Chains with a worklist</a></h2>
+<p>The chains can be made without a function that calls itself: keep a
+list of the chains that are not finished, the <em>worklist</em>, and take one
+chain off it at a time. A chain that cannot go on is finished; any
+other is put back once for each next call, one call longer. When the
+worklist is empty, every chain is finished:</p>
+<pre><code class="language-xquery">(: Every chain of calls from an entry to a function that calls no other
+   function of the program, made with a worklist: each step takes the
+   first chain off the list, and either keeps it, when it cannot go on,
+   or puts back one longer chain per next call. :)
+declare function graph:chains($graph as element(graph)) as element(chain)* {
+  let $start := {
+    "work": array {
+      for $entry in graph:entries($graph)
+      for $call in $graph/call[@from = $entry][not(@external)]
+      return &lt;chain&gt;{ $call }&lt;/chain&gt;
+    },
+    "done": ()
+  }
+  let $end := while-do($start, fn { array:size(?work) &gt; 0 }, fn($state) {
+    let $chain := array:head($state?work)
+    let $next := graph:next($graph, $chain/call)
+    return {
+      "work": array:join((
+        array { $next ! &lt;chain&gt;{ $chain/call, . }&lt;/chain&gt; },
+        array:tail($state?work))),
+      "done": ($state?done, $chain[empty($next)])
+    }
+  })
+  return $end?done
+};
+</code></pre>
+<p>The state of the loop is a map with the worklist, an array of chains,
+and the finished chains. <code>fn:while-do</code> takes a start value, a condition
+and an action: it applies the action as long as the condition holds and
+returns the last value. Putting the longer chains at the front of the
+worklist goes deep first, so the chains come out in the order of the
+calls in the code.</p>
+<p><code>graph:chain-text</code> writes a chain as the functions it goes through,
+with a star after a function called in a loop:</p>
+<pre><code class="language-xquery">(: A chain as text: the functions it goes through, a star after each
+   one called in a loop. :)
+declare function graph:chain-text($chain as element(chain)) as xs:string {
+  string-join(($chain/call[1]/@from,
+               $chain/call ! (@to || (if (@repeated) then "*" else ""))),
+              " &gt; ")
+};
+</code></pre>
+<p><code>chains.xq</code> prints the chains of a directory:</p>
+<pre><code class="language-xquery">(: The call chains of the TypeScript files in a directory, one per line:
+   one version of the Vane service, before or after. The chains are made
+   with a worklist, or with --param=method=recursive by recursion. :)
+import module namespace graph = "urn:example:graph" at "graph.xqm";
+
+declare option output:method "text";
+declare option output:item-separator "&amp;#10;";
+
+declare variable $directory as xs:string external := "before";
+declare variable $method as xs:string external := "worklist";
+
+let $graph := graph:graph(graph:read($directory))
+let $chains := if ($method = "recursive") then graph:chains-recursive($graph)
+               else graph:chains($graph)
+return $chains ! graph:chain-text(.)
+</code></pre>
+<pre><code class="language-console">$ sxml xquery --allow-file-access --param=directory=before chains.xq
+api.start &gt; api.route &gt; flags.listFlags &gt; registry.getFlags &gt; db.query
+api.start &gt; api.route &gt; flags.listFlags &gt; flags.summarize
+api.start &gt; api.route &gt; flags.killFlag &gt; cache.getFlag
+api.start &gt; api.route &gt; flags.killFlag &gt; registry.getFlag &gt; db.query
+api.start &gt; api.route &gt; flags.killFlag &gt; flags.isOwner
+api.start &gt; api.route &gt; flags.killFlag &gt; registry.setPercentage &gt; db.query
+$ sxml xquery --allow-file-access --param=directory=after chains.xq
+api.start &gt; api.route &gt; flags.listFlags &gt; registry.getFlagKeys &gt; db.query
+api.start &gt; api.route &gt; flags.listFlags &gt; registry.getFlag* &gt; db.query
+api.start &gt; api.route &gt; flags.listFlags &gt; flags.summarize
+api.start &gt; api.route &gt; flags.killFlag &gt; registry.getFlag &gt; db.query
+api.start &gt; api.route &gt; flags.killFlag &gt; flags.isOwner
+api.start &gt; api.route &gt; flags.killFlag &gt; registry.setPercentage &gt; db.query
+api.start &gt; api.route &gt; flags.killFlag &gt; audit.record &gt; db.query
+</code></pre>
+<p>Six chains before, seven after. Every chain that reaches PostgreSQL
+ends in <code>db.query</code>, the one function that holds the pool, and
+<code>cache.getFlag</code>, which reads Redis through a client of its own, ended a
+chain of its own. The new chain through <code>audit.record</code> ends in
+<code>db.query</code> too: the module's call to the owners' webhook is <code>fetch</code>, an
+external call, which ends no chain and is not part of one.</p>
+<h2 id="chains-with-recursion"><a class="header" href="#chains-with-recursion">Chains with recursion</a></h2>
+<p>The same chains come from a function that calls itself, and it is
+shorter: the chains that go on from a chain are, for each next call,
+the chains that go on from the longer chain, and a chain that cannot go
+on is one chain:</p>
+<pre><code class="language-xquery">(: The same chains, by a function that calls itself: the chains that
+   go on from a chain are those that go on from it and each next call. :)
+declare function graph:extend(
+  $graph as element(graph),
+  $chain as element(call)*
+) as element(chain)* {
+  let $next := graph:next($graph, $chain)
+  return if (empty($next)) then &lt;chain&gt;{ $chain }&lt;/chain&gt;
+         else $next ! graph:extend($graph, ($chain, .))
+};
+
+declare function graph:chains-recursive($graph as element(graph)) as element(chain)* {
+  for $entry in graph:entries($graph)
+  for $call in $graph/call[@from = $entry][not(@external)]
+  return graph:extend($graph, $call)
+};
+</code></pre>
+<p>Both are correct, and give the same chains in the same order:</p>
+<pre><code class="language-console">$ sxml xquery --allow-file-access --param=directory=after chains.xq &gt; worklist.txt
+$ sxml xquery --allow-file-access --param=directory=after --param=method=recursive chains.xq &gt; recursive.txt
+$ cmp worklist.txt recursive.txt &amp;&amp; echo same
+same
+</code></pre>
+<p>The recursion is the definition of a chain written down. The worklist
+says how the chains are made, step by step, and holds its state in a
+value, so it can be stopped, counted or limited without changing the
+definition: a maximum chain length is one more condition in the
+<code>while-do</code>. For a graph with thousands of functions, the worklist also
+keeps the depth of nested function calls flat.</p>
+<h2 id="the-diff"><a class="header" href="#the-diff">The diff</a></h2>
+<p><code>diff.xq</code> compares two versions. It makes one document with every
+function, call and chain of either version, each marked with an
+attribute <code>change</code>: <code>added</code> when only the new version has it, <code>removed</code>
+when only the old one has it, <code>changed</code> when both have it and it
+differs, and no attribute when it is the same.</p>
+<p>A call of the graph is a call site, with a line. Lines move when code
+is added above them, so the diff compares calls by caller and callee
+only, one for each pair, repeated when any of its call sites is in a
+loop:</p>
+<pre><code class="language-xquery">(: The calls of a graph, one per caller and callee, keyed by both; a
+   call is repeated when any of its calls is in a loop. :)
+declare function local:calls($graph as element(graph)) as map(*) {
+  map:merge(
+    for $call in $graph/call
+    group by $key := $call/@from || " &gt; " || $call/@to
+    return { $key: &lt;call&gt;{
+      $call[1]/(@from, @to, @external),
+      if ($call/@repeated) { attribute repeated { "true" } }
+    }&lt;/call&gt; }
+  )
+};
+</code></pre>
+<p>A chain is compared by the functions it goes through, without the
+stars, so that a chain whose call became repeated is <code>changed</code>:</p>
+<pre><code class="language-xquery">(: The chains of a graph, keyed by the functions they go through. :)
+declare function local:chains($graph as element(graph)) as map(*) {
+  map:merge(
+    for $chain in graph:chains($graph)
+    let $text := graph:chain-text($chain)
+    return { translate($text, "*", ""): &lt;chain&gt;{ $text }&lt;/chain&gt; }
+  )
+};
+</code></pre>
+<p>One function compares two maps of either kind. It goes through the keys
+of both, in order, and copies the item of the new version, or of the
+old one when the new one does not have it, with the change as an
+attribute. <code>deep-equal</code> on two elements compares their names,
+attributes and content:</p>
+<pre><code class="language-xquery">(: Marks each key of either map: added, removed, or changed when the
+   two items differ. :)
+declare function local:compare($old as map(*), $new as map(*)) as element()* {
+  for $key in distinct-values((map:keys($old), map:keys($new)))
+  order by $key
+  let $item := ($new($key), $old($key))[1]
+  let $change :=
+    if (not(map:contains($old, $key))) then "added"
+    else if (not(map:contains($new, $key))) then "removed"
+    else if (not(deep-equal($old($key), $new($key)))) then "changed"
+    else ()
+  return element { node-name($item) } {
+    $item/@*, $change ! attribute change { . }, $item/node()
+  }
+};
+</code></pre>
+<p>The diff of the functions is the same function on two maps from id to
+an empty <code>function</code> element. The main expression puts the three
+together:</p>
+<pre><code class="language-xquery">let $before := graph:graph(graph:read($old))
+let $after := graph:graph(graph:read($new))
+let $changes := (
+  local:compare(
+    map:merge($before/function ! { string(@id): &lt;function id="{ @id }"/&gt; }),
+    map:merge($after/function ! { string(@id): &lt;function id="{ @id }"/&gt; })),
+  local:compare(local:calls($before), local:calls($after)),
+  local:compare(local:chains($before), local:chains($after))
+)
+return &lt;diff old="{ $old }" new="{ $new }"&gt;{
+  $changes, local:modules($before, $after)
+}&lt;/diff&gt;
+</code></pre>
+<p><code>local:modules</code> is the last part, below. The two versions are external
+variables, <code>before</code> and <code>after</code> unless they are given:</p>
+<pre><code class="language-console">$ sxml xquery --allow-file-access diff.xq --output=diff.xml
+$ sxml xpath --context-item=diff.xml 'for $kind in ("function", "call", "chain") return `{$kind}s: {count(/diff/*[local-name() = $kind][@change = "added"])} added, {count(/diff/*[local-name() = $kind][@change = "removed"])} removed`'
+"functions: 2 added, 2 removed"
+"calls: 7 added, 5 removed"
+"chains: 3 added, 2 removed"
+</code></pre>
+<p>The calls that changed:</p>
+<pre><code class="language-console">$ sxml xpath --context-item=diff.xml '/diff/call[@change] ! `{@change}: {@from} &gt; {@to}{if (@repeated) then " (in a loop)" else ""}`'
+"added: audit.record &gt; JSON.stringify"
+"added: audit.record &gt; db.query"
+"added: audit.record &gt; fetch"
+"removed: cache.getFlag &gt; JSON.parse"
+"removed: cache.getFlag &gt; client.get"
+"added: flags.killFlag &gt; audit.record"
+"removed: flags.killFlag &gt; cache.getFlag"
+"added: flags.listFlags &gt; registry.getFlag (in a loop)"
+"added: flags.listFlags &gt; registry.getFlagKeys"
+"removed: flags.listFlags &gt; registry.getFlags"
+"added: registry.getFlagKeys &gt; db.query"
+"removed: registry.getFlags &gt; db.query"
+</code></pre>
+<p><code>flags.listFlags &gt; registry.getFlag</code> is <code>added</code>, not <code>changed</code>: before
+the change, <code>listFlags</code> did not call <code>getFlag</code> at all.</p>
+<h2 id="how-often-a-module-is-called"><a class="header" href="#how-often-a-module-is-called">How often a module is called</a></h2>
+<p>The question a reviewer asks of this change is how much more work a
+request makes, and that is a question about modules: a call to the
+registry module is a query to PostgreSQL, a call to the audit module a
+query and a request to the owners' webhook, a call to the cache module
+a read from Redis. For each function of both versions and each other module it
+calls, <code>local:modules</code> counts the calls before and after. A call in a
+loop counts as <em>n</em>, once per iteration:</p>
+<pre><code class="language-xquery">(: How many times a function makes some calls: "2" for two calls, "1 +
+   n" when one more is in a loop (n times, once per iteration), "0" for
+   none. :)
+declare function local:count($calls as element(call)*) as xs:string {
+  let $once := count($calls[not(@repeated)])
+  let $loops := count($calls[@repeated])
+  return string-join((
+    if ($once &gt; 0 or $loops = 0) { string($once) },
+    if ($loops &gt; 0) { (if ($loops &gt; 1) then $loops else "") || "n" }
+  ), " + ")
+};
+
+(: For each function of both versions and each other module of the
+   program it calls, the calls to that module before and after, where
+   they differ. :)
+declare function local:modules(
+  $before as element(graph),
+  $after as element(graph)
+) as element(module)* {
+  for $function in $before/function/@id[. = $after/function/@id]
+  let $module-of := fn($id) { substring-before($id, ".") }
+  let $calls := fn($graph as element(graph)) as element(call)* {
+    $graph/call[@from = $function][not(@external)]
+               [$module-of(@to) ne $module-of($function)]
+  }
+  for $module in sort(distinct-values(($calls($before), $calls($after))/$module-of(@to)))
+  let $old := local:count($calls($before)[$module-of(@to) = $module])
+  let $new := local:count($calls($after)[$module-of(@to) = $module])
+  where $old ne $new
+  return &lt;module from="{ $function }" name="{ $module }" old="{ $old }" new="{ $new }"/&gt;
+};
+</code></pre>
+<p>The <code>group by</code> of the calls in <code>local:calls</code> is gone here: two calls to
+the same function are two calls. <code>$module-of</code> and <code>$calls</code> are inline
+functions bound with <code>let</code>, used as helpers inside one function. The
+result is the end of <code>diff.xml</code>:</p>
+<pre><code class="language-console">$ sxml xpath --context-item=diff.xml '/diff/module ! `{@from} &gt; {@name}: {@old} -&gt; {@new}`'
+"flags.listFlags &gt; registry: 1 -&gt; 1 + n"
+"flags.killFlag &gt; audit: 0 -&gt; 1"
+"flags.killFlag &gt; cache: 1 -&gt; 0"
+</code></pre>
+<p>That is the prediction: listing the flags calls the registry module,
+and so PostgreSQL, once more for each flag, and the kill switch calls
+the audit module once and the cache module no more.</p>
+<h2 id="a-text-report"><a class="header" href="#a-text-report">A text report</a></h2>
+<p><code>report.xq</code> writes the diff for a terminal or a review comment. It
+reads <code>diff.xml</code> as its context item and only formats:</p>
+<pre><code class="language-xquery">(: The diff of two versions as a text report: what was added, removed
+   and changed, and how often functions call other modules now. :)
+declare option output:method "text";
+declare option output:item-separator "&amp;#10;";
+
+declare function local:text($item as element()) as xs:string {
+  typeswitch ($item)
+    case element(call)
+      return $item/@from || " &gt; " || $item/@to
+             || (if ($item/@repeated) then " (in a loop)" else "")
+    case element(function) return string($item/@id)
+    default return string($item)
+};
+
+for $kind in ("function", "call", "chain")
+for $change in ("added", "removed", "changed")
+let $items := /diff/*[local-name() = $kind][@change = $change]
+where exists($items)
+return (`{ $kind }s { $change }:`, $items ! ("  " || local:text(.)), ""),
+
+"Calls to other modules, before and after:",
+/diff/module ! `  {@from} &gt; {@name}: {@old} -&gt; {@new}`
+</code></pre>
+<pre><code class="language-console">$ sxml xquery --context-item=diff.xml report.xq
+functions added:
+  audit.record
+  registry.getFlagKeys
+
+functions removed:
+  cache.getFlag
+  registry.getFlags
+
+calls added:
+  audit.record &gt; JSON.stringify
+  audit.record &gt; db.query
+  audit.record &gt; fetch
+  flags.killFlag &gt; audit.record
+  flags.listFlags &gt; registry.getFlag (in a loop)
+  flags.listFlags &gt; registry.getFlagKeys
+  registry.getFlagKeys &gt; db.query
+
+calls removed:
+  cache.getFlag &gt; JSON.parse
+  cache.getFlag &gt; client.get
+  flags.killFlag &gt; cache.getFlag
+  flags.listFlags &gt; registry.getFlags
+  registry.getFlags &gt; db.query
+
+chains added:
+  api.start &gt; api.route &gt; flags.killFlag &gt; audit.record &gt; db.query
+  api.start &gt; api.route &gt; flags.listFlags &gt; registry.getFlag* &gt; db.query
+  api.start &gt; api.route &gt; flags.listFlags &gt; registry.getFlagKeys &gt; db.query
+
+chains removed:
+  api.start &gt; api.route &gt; flags.killFlag &gt; cache.getFlag
+  api.start &gt; api.route &gt; flags.listFlags &gt; registry.getFlags &gt; db.query
+
+Calls to other modules, before and after:
+  flags.listFlags &gt; registry: 1 -&gt; 1 + n
+  flags.killFlag &gt; audit: 0 -&gt; 1
+  flags.killFlag &gt; cache: 1 -&gt; 0
+</code></pre>
+<h2 id="an-html-report"><a class="header" href="#an-html-report">An HTML report</a></h2>
+<p><code>report.xsl</code> writes the same diff as a page: the calls that changed in
+a table, every chain with the changed ones marked, and the calls to
+other modules. A template rule for each kind of element, and the
+classes <code>added</code>, <code>removed</code> and <code>changed</code> for the style sheet to colour:</p>
+<pre><code class="language-xml">&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;!-- The diff of two versions as an HTML page: the calls that changed,
+     the call chains, and how often functions call other modules. --&gt;
+&lt;xsl:stylesheet version="3.0" expand-text="yes"
+    xmlns:xsl="http://www.w3.org/1999/XSL/Transform"&gt;
+
+  &lt;xsl:output method="html" html-version="5" indent="yes"/&gt;
+
+  &lt;xsl:template match="/diff"&gt;
+    &lt;html&gt;
+      &lt;head&gt;
+        &lt;title&gt;Call chains, {@old} and {@new}&lt;/title&gt;
+        &lt;style&gt;
+          .added {{ background: #dfd; }}
+          .removed {{ background: #fdd; text-decoration: line-through; }}
+          .changed {{ background: #ffd; }}
+        &lt;/style&gt;
+      &lt;/head&gt;
+      &lt;body&gt;
+        &lt;h1&gt;Call chains, {@old} and {@new}&lt;/h1&gt;
+        &lt;h2&gt;Calls that changed&lt;/h2&gt;
+        &lt;table&gt;
+          &lt;tr&gt;&lt;th&gt;Caller&lt;/th&gt;&lt;th&gt;Callee&lt;/th&gt;&lt;th&gt;Change&lt;/th&gt;&lt;/tr&gt;
+          &lt;xsl:apply-templates select="call[@change]"/&gt;
+        &lt;/table&gt;
+        &lt;h2&gt;Chains&lt;/h2&gt;
+        &lt;ul&gt;
+          &lt;xsl:apply-templates select="chain"/&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;Calls to other modules&lt;/h2&gt;
+        &lt;table&gt;
+          &lt;tr&gt;&lt;th&gt;Function&lt;/th&gt;&lt;th&gt;Module&lt;/th&gt;&lt;th&gt;{@old}&lt;/th&gt;&lt;th&gt;{@new}&lt;/th&gt;&lt;/tr&gt;
+          &lt;xsl:apply-templates select="module"/&gt;
+        &lt;/table&gt;
+      &lt;/body&gt;
+    &lt;/html&gt;
+  &lt;/xsl:template&gt;
+
+  &lt;xsl:template match="call"&gt;
+    &lt;tr class="{@change}"&gt;
+      &lt;td&gt;&lt;code&gt;{@from}&lt;/code&gt;&lt;/td&gt;
+      &lt;td&gt;&lt;code&gt;{@to}&lt;/code&gt;{if (@repeated) then ', in a loop' else ()}&lt;/td&gt;
+      &lt;td&gt;{@change}&lt;/td&gt;
+    &lt;/tr&gt;
+  &lt;/xsl:template&gt;
+
+  &lt;xsl:template match="chain"&gt;
+    &lt;li&gt;&lt;code&gt;{.}&lt;/code&gt;&lt;/li&gt;
+  &lt;/xsl:template&gt;
+
+  &lt;xsl:template match="chain[@change]"&gt;
+    &lt;li class="{@change}"&gt;&lt;code&gt;{.}&lt;/code&gt; ({@change})&lt;/li&gt;
+  &lt;/xsl:template&gt;
+
+  &lt;xsl:template match="module"&gt;
+    &lt;tr&gt;
+      &lt;td&gt;&lt;code&gt;{@from}&lt;/code&gt;&lt;/td&gt;
+      &lt;td&gt;&lt;code&gt;{@name}&lt;/code&gt;&lt;/td&gt;
+      &lt;td&gt;{@old}&lt;/td&gt;
+      &lt;td&gt;{@new}&lt;/td&gt;
+    &lt;/tr&gt;
+  &lt;/xsl:template&gt;
+&lt;/xsl:stylesheet&gt;
+</code></pre>
+<p>With <code>expand-text="yes"</code>, braces in text are text value templates, so
+the braces of the CSS rules are doubled. The rule for <code>chain[@change]</code>
+wins over the rule for <code>chain</code> because its pattern has a predicate,
+which gives it a higher default priority.</p>
+<pre><code class="language-console">$ sxml transform report.xsl diff.xml --output=report.html
+$ sed -n '/Calls to other modules/,/&lt;\/table&gt;/p' report.html
+    &lt;h2&gt;Calls to other modules&lt;/h2&gt;
+    &lt;table&gt;
+      &lt;tr&gt;
+        &lt;th&gt;Function&lt;/th&gt;
+        &lt;th&gt;Module&lt;/th&gt;
+        &lt;th&gt;before&lt;/th&gt;
+        &lt;th&gt;after&lt;/th&gt;
+      &lt;/tr&gt;
+      &lt;tr&gt;
+        &lt;td&gt;&lt;code&gt;flags.listFlags&lt;/code&gt;&lt;/td&gt;
+        &lt;td&gt;&lt;code&gt;registry&lt;/code&gt;&lt;/td&gt;
+        &lt;td&gt;1&lt;/td&gt;
+        &lt;td&gt;1 + n&lt;/td&gt;
+      &lt;/tr&gt;
+      &lt;tr&gt;
+        &lt;td&gt;&lt;code&gt;flags.killFlag&lt;/code&gt;&lt;/td&gt;
+        &lt;td&gt;&lt;code&gt;audit&lt;/code&gt;&lt;/td&gt;
+        &lt;td&gt;0&lt;/td&gt;
+        &lt;td&gt;1&lt;/td&gt;
+      &lt;/tr&gt;
+      &lt;tr&gt;
+        &lt;td&gt;&lt;code&gt;flags.killFlag&lt;/code&gt;&lt;/td&gt;
+        &lt;td&gt;&lt;code&gt;cache&lt;/code&gt;&lt;/td&gt;
+        &lt;td&gt;1&lt;/td&gt;
+        &lt;td&gt;0&lt;/td&gt;
+      &lt;/tr&gt;
+    &lt;/table&gt;
+</code></pre>
+<h2 id="drawing-the-diff"><a class="header" href="#drawing-the-diff">Drawing the diff</a></h2>
+<p>The drawing module of <a href="svg.html">Project: Drawing Diagrams with SVG</a>,
+<code>draw.xqm</code>, draws any diagram description: <code>node</code> and <code>edge</code> elements,
+each with an optional <code>class</code> that the drawing copies to its SVG group
+and colours for <code>added</code>, <code>removed</code> and <code>changed</code>. This project's
+directory has it, and the SVG project's main query <code>draw.xq</code>, as
+symbolic links to the files in <code>../svg</code>, so the module stays one file.</p>
+<p>So drawing the diff is writing it as a diagram. <code>diagram.xq</code> makes a
+node for each function and an edge for each call within the program,
+with the change as the class and the label <code>loop</code> on a repeated call:</p>
+<pre><code class="language-xquery">(: The diff of two versions (diff.xml, the context item) as a diagram
+   for draw.xqm: the functions of the program and the calls between
+   them, each with the class of its change. :)
+declare option output:indent "yes";
+
+(: The functions in the order the chains first go through them, so that
+   the entry is the first node and the drawing reads like the chains. :)
+let $order := distinct-values(/diff/chain ! tokenize(translate(., "*", ""), " &gt; "))
+return &lt;diagram title="Call graph, { /diff/@old } and { /diff/@new }"&gt;{
+  for $function in /diff/function
+  order by index-of($order, $function/@id)
+  return &lt;node id="{ $function/@id }" label="{ $function/@id }"&gt;{
+    $function/@change ! attribute class { . }
+  }&lt;/node&gt;,
+  for $call in /diff/call[not(@external)]
+  return &lt;edge from="{ $call/@from }" to="{ $call/@to }"&gt;{
+    if ($call/@repeated) { attribute label { "loop" } },
+    $call/@change ! attribute class { . }
+  }&lt;/edge&gt;
+}&lt;/diagram&gt;
+</code></pre>
+<p><code>draw.xqm</code> starts its layout from the first node and keeps the order of
+the description where it can, so the functions are ordered as the
+chains first go through them: <code>index-of</code> gives each
+function its position in the distinct functions of all chains, and the
+entry, <code>api.start</code>, comes first.</p>
+<pre><code class="language-console">$ sxml xquery --context-item=diff.xml diagram.xq --output=diagram.xml
+$ sxml xquery --context-item=diagram.xml draw.xq --output=calls.svg
+$ sxml xpath --context-item=calls.svg '//*:g[tokenize(@class) = ("added", "removed", "changed")] ! `{@class}: {@id}`'
+"edge added: edge-audit.record-db.query"
+"edge added: edge-flags.killFlag-audit.record"
+"edge removed: edge-flags.killFlag-cache.getFlag"
+"edge added: edge-flags.listFlags-registry.getFlag"
+"edge added: edge-flags.listFlags-registry.getFlagKeys"
+"edge removed: edge-flags.listFlags-registry.getFlags"
+"edge added: edge-registry.getFlagKeys-db.query"
+"edge removed: edge-registry.getFlags-db.query"
+"node service added: node-audit.record"
+"node service removed: node-cache.getFlag"
+"node service added: node-registry.getFlagKeys"
+"node service removed: node-registry.getFlags"
+</code></pre>
+<p><img src="figures/call-chains/calls.svg" alt="Both call chains in one drawing: api.start, api.route and the two handlers at the top, the added functions and calls in green, the removed ones dashed in red, and db.query at the bottom" /></p>
+<p>The added functions and calls are drawn green and thick, the removed
+ones red and dashed, and the call in the loop is labelled. The layers
+of the drawing are the boxes with the same <code>y</code>, here each read left to
+right:</p>
+<pre><code class="language-console">$ sxml xpath --context-item=calls.svg 'for $y in sort(distinct-values(//*:rect/@y ! xs:integer(.))) return `{$y}: {string-join(sort(//*:g[*:rect/@y = $y], (), fn { xs:integer(*:rect/@x) }) ! *:text, ", ")}`'
+"20: api.start"
+"84: api.route"
+"148: flags.killFlag, flags.listFlags"
+"228: audit.record, cache.getFlag, registry.setPercentage, flags.isOwner, registry.getFlagKeys, registry.getFlags, flags.summarize"
+"318: registry.getFlag"
+"398: db.query"
+</code></pre>
+<p>The entry, the router, the two request handlers, the functions they
+call, and <code>db.query</code> at the bottom, which every query to PostgreSQL
+goes through. Before and after are one picture: in the fourth layer
+the new <code>audit.record</code> stands beside the old <code>cache.getFlag</code>, and the
+new <code>getFlagKeys</code> beside the old <code>getFlags</code>. <code>registry.getFlag</code>, which
+both versions call, has a layer of its own below them, because
+<code>registry.setPercentage</code> in the fourth layer calls it too.</p>
+<h2 id="what-the-traces-will-say"><a class="header" href="#what-the-traces-will-say">What the traces will say</a></h2>
+<p>The diff predicts, from the code alone, that <code>GET /api/getFlags</code> makes
+one call to the registry module, one query to PostgreSQL, and then one
+more per flag; that killing a flag calls the audit module once, which
+writes to PostgreSQL and calls the owners' webhook; and that it no
+longer reads Redis. It cannot say how many flags there are, how long
+each query takes, or whether a call of <code>killFlag</code> found its flag in the
+cache before the change. <a href="traces.html">Project: Comparing Traces Before and After a
+Change</a> answers those from traces recorded by the running
+service. The line they check is
+<code>flags.listFlags &gt; registry: 1 -&gt; 1 + n</code>, and with four flags, one
+query to PostgreSQL becomes five.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="call-chains-graph.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="traces.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="call-chains-graph.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="traces.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="style/sxml.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

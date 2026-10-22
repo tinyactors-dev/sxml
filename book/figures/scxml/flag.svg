@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="583" height="404" viewBox="0 0 583 404">
+  <title>feature_flag</title>
+  <style>
+    .node rect { fill: #eef3fb; stroke: #3b5b92; stroke-width: 1.5 }
+    .store rect { fill: #f6efe3; stroke: #8a6a2f }
+    .node text { font: 14px sans-serif; fill: #1b1b1b }
+    .edge path { fill: none; stroke: #555555; stroke-width: 1.5 }
+    .edge text { font: 12px sans-serif; fill: #555555 }
+  </style>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#555555"/>
+    </marker>
+  </defs>
+  <g class="edge" id="edge-stable-checking">
+    <path d="M 202 164 L 202 174 L 21 174 L 21 220 L 112 220 L 112 234" marker-end="url(#arrow)"/>
+    <text x="26" y="206">rollout.request</text>
+  </g>
+  <g class="edge" id="edge-stable-stable">
+    <path d="M 282 136 L 298 136 L 298 152 L 282 152" marker-end="url(#arrow)"/>
+    <text x="304" y="148">status.request</text>
+  </g>
+  <g class="edge" id="edge-checking-rolling-out">
+    <path d="M 112 274 L 112 284 L 70 284 L 70 324 L 82 324 L 82 344" marker-end="url(#arrow)"/>
+    <text x="75" y="310">check.passed</text>
+  </g>
+  <g class="edge" id="edge-checking-stable">
+    <path d="M 145 234 L 145 220 L 159 220 L 159 184 L 222 184 L 222 164" marker-end="url(#arrow)"/>
+    <text x="164" y="206">check.failed</text>
+  </g>
+  <g class="edge" id="edge-checking-paused">
+    <path d="M 145 274 L 145 284 L 188 284 L 188 324 L 345 324 L 345 344" marker-end="url(#arrow)"/>
+    <text x="193" y="310">check.failed</text>
+  </g>
+  <g class="edge" id="edge-rolling-out-stable">
+    <path d="M 119 344 L 119 334 L 306 334 L 306 220 L 277 220 L 277 184 L 242 184 L 242 164" marker-end="url(#arrow)"/>
+    <text x="282" y="206">kill.request, step.done</text>
+  </g>
+  <g class="edge" id="edge-rolling-out-rolling-out">
+    <path d="M 156 356 L 172 356 L 172 372 L 156 372" marker-end="url(#arrow)"/>
+    <text x="178" y="368">flag.evaluated</text>
+  </g>
+  <g class="edge" id="edge-paused-stable">
+    <path d="M 378 344 L 378 324 L 362 324 L 362 220 L 469 220 L 469 174 L 262 174 L 262 164" marker-end="url(#arrow)"/>
+    <text x="474" y="206">pause.expired</text>
+  </g>
+  <g class="edge" id="edge-archived-stable">
+    <path d="M 232 60 L 232 124" marker-end="url(#arrow)"/>
+    <text x="237" y="96">kill.request</text>
+  </g>
+  <g class="node service" id="node-stable">
+    <rect x="182" y="124" width="100" height="40" rx="6"/>
+    <text x="232" y="149" text-anchor="middle">stable</text>
+  </g>
+  <g class="node service" id="node-checking">
+    <rect x="79" y="234" width="100" height="40" rx="6"/>
+    <text x="129" y="259" text-anchor="middle">checking</text>
+  </g>
+  <g class="node service" id="node-rolling-out">
+    <rect x="46" y="344" width="110" height="40" rx="6"/>
+    <text x="101" y="369" text-anchor="middle">rolling-out</text>
+  </g>
+  <g class="node service" id="node-paused">
+    <rect x="312" y="344" width="100" height="40" rx="6"/>
+    <text x="362" y="369" text-anchor="middle">paused</text>
+  </g>
+  <g class="node service" id="node-archived">
+    <rect x="182" y="20" width="100" height="40" rx="6"/>
+    <text x="232" y="45" text-anchor="middle">archived</text>
+  </g>
+</svg>

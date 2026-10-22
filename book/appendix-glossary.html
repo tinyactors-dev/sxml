@@ -1,0 +1,528 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Appendix C: Glossary - The sxml Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Learn XPath 4.0, XQuery 4.0, XSLT 4.0 and XSD 1.1 with sxml, the small XML toolchain in portable C.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="style/sxml.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "coal";
+            window.path_to_searchindex_js = "searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The sxml Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml/edit/main/docs/book/src/appendix-glossary.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="appendix-c-glossary"><a class="header" href="#appendix-c-glossary">Appendix C: Glossary</a></h1>
+<p><strong>Abstract type.</strong> In XSD, a type that no element may have itself, only
+a type derived from it (<code>abstract="true"</code>). An abstract element
+declaration may appear only through its substitution group.</p>
+<p><strong>Accumulator.</strong> In XSLT, a value that is updated as the processor moves
+through a document, by rules that match nodes. Works while streaming.</p>
+<p><strong>Admin API.</strong> In Vane, the remote functions that the console calls to
+change flags: the commands <code>rollOutFlag</code> and <code>killFlag</code>.</p>
+<p><strong>Anchor.</strong> In an xml2rfc document, the name of a section, paragraph,
+term or reference, given by its <code>anchor</code> attribute; <code>xref</code> refers to
+it with <code>target</code>. Anchors are names, not numbers: the renderer numbers
+sections and requirements by their position.</p>
+<p><strong>Assertion.</strong> In XSD 1.1, an XPath condition that a valid element
+(<code>xs:assert</code>) or value (the <code>assertion</code> facet) must meet.</p>
+<p><strong>Atomic value.</strong> A value that is not a node, a function, a map or an
+array: a string, a number, a boolean, a date, a duration, a QName and so
+on. Each has a type.</p>
+<p><strong>Attribute value template.</strong> In XSLT and XQuery, an attribute of a
+constructed element with expressions in curly braces, such as
+<code>href="{$page}"</code>.</p>
+<p><strong>Audit module.</strong> The module of the Vane service that records every
+change of a flag: it writes an event to the audit log in PostgreSQL and
+posts it to the owners' webhook.</p>
+<p><strong>Axis.</strong> The direction of a step in a path: <code>child</code>, <code>attribute</code>,
+<code>descendant</code>, <code>parent</code>, <code>ancestor</code>, the sibling axes and others.</p>
+<p><strong>Backend SDK.</strong> In Vane, <code>@vane/node</code>, the SDK for applications on a
+server: it downloads every flag with its rules (<code>getFlags</code>), evaluates
+the flags itself, keeps them in a cache and keeps the cache current from
+the update stream.</p>
+<p><strong>Barycentre.</strong> In a layer sweep, the mean position of a vertex's
+neighbours in the next layer, by which the layer is sorted.</p>
+<p><strong>BCP 14 key word.</strong> One of the words of RFC 2119 and RFC 8174 that say
+how strong a requirement is: MUST, MUST NOT, REQUIRED, SHALL, SHALL
+NOT, SHOULD, SHOULD NOT, RECOMMENDED, NOT RECOMMENDED, MAY and
+OPTIONAL. xml2rfc marks them with <code>bcp14</code>.</p>
+<p><strong>Boundary whitespace.</strong> In an XQuery direct constructor, whitespace
+that stands alone between tags or enclosed expressions. It is dropped
+unless the query declares <code>boundary-space preserve</code>.</p>
+<p><strong>Call chain.</strong> A path of calls in a program, from an <em>entry</em> down to a
+function that calls no other function of the program.</p>
+<p><strong>Call graph.</strong> Which function of a program calls which: a graph with a
+node for each function and an edge for each call.</p>
+<p><strong>Cardinality.</strong> In the traces project, how many times one participant
+calls another in a request.</p>
+<p><strong>Client module.</strong> In the codegen project, a generated TypeScript module
+for one caller of the API, such as the frontend SDK, with one async
+function for each remote function that caller may call.</p>
+<p><strong>Collation.</strong> Rules for comparing and sorting strings, named by a URI.</p>
+<p><strong>Complex type.</strong> In XSD, the type of an element with attributes or
+children. Its <em>content model</em> says which children it may have.</p>
+<p><strong>Conditional type assignment.</strong> In XSD 1.1, choosing an element's type
+by a condition on its attributes, with <code>xs:alternative</code>.</p>
+<p><strong>Constructor.</strong> An expression that makes a new node (<code>&lt;p&gt;...&lt;/p&gt;</code>,
+<code>element { ... } { ... }</code>), map or array.</p>
+<p><strong>Context item.</strong> The item an expression is evaluated against: the
+document given with <code>--context-item</code>, or the item a predicate is
+testing. Written <code>.</code>.</p>
+<p><strong>Core rules.</strong> The rules that RFC 5234, the ABNF standard, defines for
+every grammar in its Appendix B.1, such as <code>ALPHA</code>, <code>DIGIT</code>, <code>SP</code> and
+<code>CRLF</code>. A grammar uses them without defining them.</p>
+<p><strong>Default attributes.</strong> In XSD 1.1, an attribute group that every
+complex type of a schema document gets, named by <code>defaultAttributes</code>
+on <code>xs:schema</code>.</p>
+<p><strong>Default collection.</strong> The collection that <code>collection()</code> returns
+without an argument; for the sxml command, the XML files of the
+directory given with <code>--collection</code>.</p>
+<p><strong>Derivation.</strong> Making an XSD type from another: by <em>restriction</em>,
+which narrows its values, or by <em>extension</em>, which adds content.</p>
+<p><strong>Depth-first search.</strong> Visiting a graph by following an edge from the
+node reached last, as far as it goes, and only then coming back to try
+the next edge. In the SVG project, an edge that leads back to a node on
+the way the search came closes a cycle.</p>
+<p><strong>Document node.</strong> The root of a document's tree, above the outermost
+element.</p>
+<p><strong>Document order.</strong> The order of the nodes of a document as they appear
+in its text. Path expressions return nodes in document order.</p>
+<p><strong>Editorial note.</strong> A note to the authors and reviewers of a draft, not
+part of the published text: <code>cref</code> in xml2rfc.</p>
+<p><strong>Effective boolean value.</strong> The true or false that a condition takes
+from any value: the empty sequence, the empty string, zero and NaN are
+false; a node is true.</p>
+<p><strong>Entry.</strong> In a call graph, a function that no call of the program
+reaches, where call chains start, such as the function that starts a
+server.</p>
+<p><strong>Error code.</strong> The name of an error, such as <code>err:XPTY0004</code>, defined by
+the specifications. The same code means the same problem in every
+processor.</p>
+<p><strong>Evaluation API.</strong> In Vane, the remote functions that the SDKs call to
+read flags: the queries <code>getFlags</code>, <code>evaluateFlags</code> and <code>getStatus</code>.</p>
+<p><strong>Executable content.</strong> In SCXML, the actions that run on a transition
+and when a state is entered or left: <code>assign</code>, <code>log</code>, <code>raise</code>, <code>send</code>
+and others.</p>
+<p><strong>External variable.</strong> A variable of a query whose value comes from
+outside, such as <code>--param</code>; a parameter of the whole query.</p>
+<p><strong>Facet.</strong> A property of a simple type that restricts its values, such
+as <code>pattern</code>, <code>maxLength</code> or <code>minInclusive</code>.</p>
+<p><strong>Feature flag.</strong> A switch in a running application that turns a
+feature on or off for some of its users without a new release. In
+Vane, the book's example product, the backend SDK evaluates the flags
+itself, and the frontend SDK asks the Vane service whether each flag is
+on for a user.</p>
+<p><strong>FLWOR expression.</strong> XQuery's expression of <code>for</code>, <code>let</code>, <code>where</code>,
+<code>order by</code>, <code>group by</code>, <code>count</code>, window clauses and <code>return</code>.</p>
+<p><strong>Frontend SDK.</strong> In Vane, <code>@vane/browser</code>, the SDK for browser pages:
+it asks the Vane service whether each flag is on for the user in front
+of it (<code>evaluateFlags</code>).</p>
+<p><strong>Guardrail metric.</strong> A measurement, such as an error rate, that must
+stay healthy while a feature flag is rolled out. Vane checks the
+guardrail metrics before each step, and pauses a flag after three failed
+checks in a row.</p>
+<p><strong>Identity constraint.</strong> In XSD, a rule that values are unique
+(<code>xs:unique</code>, <code>xs:key</code>) or refer to a key (<code>xs:keyref</code>).</p>
+<p><strong>Import precedence.</strong> In XSLT, the rule that a declaration in an
+importing stylesheet beats any declaration it imports, whatever their
+priorities.</p>
+<p><strong>Instrumentation scope.</strong> In OpenTelemetry, the library that recorded
+a span, such as the instrumentation for HTTP or for PostgreSQL. In OTLP,
+a resource's spans are grouped by scope.</p>
+<p><strong>Internal span.</strong> A span of work inside one program, such as one
+function of a module. It is not a call, so it has no callee.</p>
+<p><strong>Internet-Draft.</strong> A working document of the IETF, the body that
+publishes the RFCs. Drafts are named like
+<code>draft-example-vane-protocol-01</code>, the last part being the version, and
+expire after six months.</p>
+<p><strong>Item.</strong> One member of a sequence: a node, an atomic value or a
+function (maps and arrays are functions).</p>
+<p><strong>Kill switch.</strong> A way to turn a feature flag off at once for every
+user. In Vane, the <code>killFlag</code> command of the admin API, which the
+console sends for one of the flag's owners.</p>
+<p><strong>Layer.</strong> In the SVG project, one of the horizontal bands a layered
+layout puts the vertices of a diagram in, so that every edge points
+down.</p>
+<p><strong>Layout.</strong> In the SVG project, the place of each box of a diagram and
+the path of each edge, computed from the graph by the layered method in
+five phases: break the cycles, assign layers, order the layers, place,
+route.</p>
+<p><strong>Library module.</strong> An XQuery module of declarations, with a namespace,
+that queries import.</p>
+<p><strong>Map, array, record.</strong> A map associates keys with values; an array is
+a list of members by position; a record type describes maps with known
+keys.</p>
+<p><strong>Model order.</strong> The order in which a description lists its nodes and
+edges. A layout that follows the model order where two choices are
+equally good lets the author steer it.</p>
+<p><strong>Mode.</strong> In XSLT, a set of template rules that are used together.</p>
+<p><strong>N+1.</strong> A pattern of calls in which a program asks once for a list of
+keys and then once more for each item, instead of once for all of them:
+N + 1 calls where one would do.</p>
+<p><strong>Namespace import, named import.</strong> In TypeScript, <code>import * as registry from "./registry.ts"</code> makes <code>registry</code> stand for a whole
+module; <code>import { listFlags } from "./flags.ts"</code> makes <code>listFlags</code>
+stand for one function of a module.</p>
+<p><strong>Node.</strong> A part of a document: a document, element, attribute, text,
+comment, processing instruction or namespace node.</p>
+<p><strong>Normal form.</strong> In the traces project, a trace file as XML: one
+<code>traces</code> element with a <code>service</code> element for each program that
+recorded spans and a tree of <code>span</code> elements for each trace. The later
+queries and stylesheets work on it.</p>
+<p><strong>Open content.</strong> In XSD 1.1, elements that a content model does not
+name allowed among the ones it does, by a wildcard in <code>xs:openContent</code>.</p>
+<p><strong>Optional feature.</strong> A part of the sxml library that a program opts
+into, such as HTML parsing or UCA collations.</p>
+<p><strong>OTLP.</strong> The OpenTelemetry Protocol, how programs send their spans to
+a collector. Its JSON encoding is the format of the traces project's
+files.</p>
+<p><strong>Output method.</strong> How a result is written: <code>xml</code>, <code>html</code>, <code>xhtml</code>,
+<code>text</code>, <code>json</code>, <code>csv</code> or <code>adaptive</code>.</p>
+<p><strong>Override.</strong> In XSD 1.1, using a schema document with some of its
+components replaced, with <code>xs:override</code>.</p>
+<p><strong>Package.</strong> In XSLT, a named, versioned stylesheet module whose
+components are private unless it makes them public.</p>
+<p><strong>Palette.</strong> In the SVG project, a map from each colour of a drawing to
+the one that replaces it, as a dark theme does.</p>
+<p><strong>Participant.</strong> In the traces project, a program, database or webhook that
+takes part in a request, as the caller or the callee of a call.</p>
+<p><strong>Pattern.</strong> In XSLT, a condition on a node, written like a path, that
+says which nodes a template rule matches.</p>
+<p><strong>Pause.</strong> In Vane, a time in which a flag refuses every rollout, after
+too many failed checks.</p>
+<p><strong>Payload.</strong> The data an event carries. In the state-machine project,
+an event declaration names its payload's element in <code>vane-data.xsd</code>.</p>
+<p><strong>Pending update list.</strong> The changes an updating XQuery expression makes,
+applied all together at the end of the query.</p>
+<p><strong>Predicate.</strong> A condition in square brackets after a step or
+expression, which keeps the items for which it is true.</p>
+<p><strong>Printer.</strong> A program that writes a syntax tree as source text, with
+the keywords, punctuation and layout of the language. In <a href="codegen-printer.html">Printing the
+Tree with XSLT</a>, an XSLT stylesheet with one template
+rule for each kind of element.</p>
+<p><strong>Processor.</strong> In the sxml library, the object that owns the names,
+types and values of everything compiled and evaluated with it.</p>
+<p><strong>Remote function.</strong> A function that runs on a server and that a
+client, such as a browser page, calls as if it were local, over one
+HTTP route. Vane's API is a set of remote functions: a <em>query</em> reads
+data and goes over the network as a GET request, a <em>command</em> changes
+data and goes as a POST request.</p>
+<p><strong>Requirement.</strong> In a specification, a statement that an
+implementation must, should or may do something, with a BCP 14 key
+word. In the book's draft, a <code>t</code> paragraph with an <code>anchor</code> and a
+<code>bcp14</code> element.</p>
+<p><strong>Resolver.</strong> The function that a program gives the sxml library to
+answer requests for resources: documents, text, modules, schemas. sxml
+reads nothing else.</p>
+<p><strong>Resource.</strong> In OpenTelemetry, what recorded a set of spans, usually a
+service, described by attributes such as <code>service.name</code> and
+<code>service.version</code>.</p>
+<p><strong>Result document.</strong> In XSLT, an output besides the principal result,
+made with <code>xsl:result-document</code>; the sxml command writes them below
+<code>--result-directory</code>.</p>
+<p><strong>Rollout.</strong> Turning a feature flag on for a growing percentage of
+users, in steps.</p>
+<p><strong>Schema.</strong> A description of what valid documents of a kind contain. In
+this book, an XSD schema.</p>
+<p><strong>Schema-aware.</strong> A processor that can validate documents inside a
+query or stylesheet and use the types the schema gives their nodes.
+sxml is schema-aware.</p>
+<p><strong>SCXML.</strong> State Chart XML, the W3C's XML vocabulary for state
+machines.</p>
+<p><strong>Semantic conventions.</strong> OpenTelemetry's agreed names and meanings of
+span attributes, such as <code>http.request.method</code>, <code>http.route</code> and
+<code>db.system.name</code>.</p>
+<p><strong>Sequence.</strong> The value of every expression: zero or more items in
+order. Sequences don't nest.</p>
+<p><strong>Sequence type.</strong> A type of sequences, such as <code>xs:integer*</code> or
+<code>element(book)?</code>.</p>
+<p><strong>Serialization.</strong> Writing a value as text or bytes, by an output
+method.</p>
+<p><strong>Simple type.</strong> In XSD, a type of text: a built-in type such as
+<code>xs:date</code>, or a restriction, list or union of others.</p>
+<p><strong>Span, span kind.</strong> In tracing, one operation of a program, with a
+name, a start, an end and a parent. Its kind says what it is: a
+<em>server</em> span handles a request, a <em>client</em> span calls something else,
+an <em>internal</em> span is work inside the program.</p>
+<p><strong>State machine.</strong> A system that is in one of a set of states at a time
+and moves between them on events, by transitions.</p>
+<p><strong>Static and dynamic errors.</strong> A static error is found when an
+expression is compiled (a syntax error, an unknown function); a dynamic
+error when it runs (division by zero, a missing document); a type error
+when a value has the wrong type.</p>
+<p><strong>Streaming.</strong> Processing a document as it is parsed, without building
+its tree, so memory doesn't grow with its size.</p>
+<p><strong>String constructor.</strong> In XQuery, a string written between
+<code>``[</code> and <code>]``</code>, with expressions between <code>`{</code> and
+<code>}`</code>; everything else, braces and quotes included, is literal text.
+The simplest way to write a line or two of code; for whole files, see
+<em>Syntax tree</em>.</p>
+<p><strong>Substitution group.</strong> In XSD, the global elements that may appear
+wherever their head element is allowed.</p>
+<p><strong>SVG.</strong> Scalable Vector Graphics, the W3C's XML vocabulary for
+drawings, in the namespace <code>http://www.w3.org/2000/svg</code>.</p>
+<p><strong>Syntax tree.</strong> A program as a tree of its parts. A <em>concrete</em> syntax
+tree, as <code>sxml:parse-code</code> returns, holds every token and space, so its
+string value is the source; an <em>abstract</em> one holds only the parts that
+vary, such as names, types and statements, and a printer adds the rest.</p>
+<p><strong>Target namespace.</strong> The namespace of the components that a schema
+document declares.</p>
+<p><strong>Template rule.</strong> In XSLT, a rule with a pattern and a body that makes
+the output for the nodes the pattern matches.</p>
+<p><strong>Trace.</strong> All the spans of one request through a system,
+which share a trace id: a tree of spans.</p>
+<p><strong>Typed value.</strong> The atomic value of a node: for a validated node, of the
+type its schema gives it; otherwise untyped.</p>
+<p><strong>Untyped.</strong> The type of values from documents that were not validated,
+<code>xs:untypedAtomic</code>. Converted where they are used: to numbers in
+arithmetic, to strings in string comparisons.</p>
+<p><strong>Update stream.</strong> In Vane, the connection an SDK holds open to the
+Vane service, on which the service sends a line whenever a flag rolls
+out or is killed, and an SDK asks for the status of a flag. The Vane
+protocol defines its messages.</p>
+<p><strong>Validation.</strong> Checking a document against a schema, which also gives
+its nodes their types.</p>
+<p><strong>Vane.</strong> The made-up feature-flag product of the book's projects: one
+service, <code>vane</code>, a TypeScript program on Node.js made of modules (api,
+flags, registry, cache, rollout, audit) over PostgreSQL and Redis. It
+offers an evaluation API to its two SDKs, <code>@vane/browser</code> and
+<code>@vane/node</code>, an admin API to its console, and an update stream.</p>
+<p><strong>viewBox.</strong> The attribute of an <code>svg</code> element that gives the area of
+its coordinates that is drawn (left, top, width and height). Changing
+<code>width</code> and <code>height</code> but not <code>viewBox</code> scales the drawing.</p>
+<p><strong>Wildcard.</strong> In XSD, <code>xs:any</code> or <code>xs:anyAttribute</code>: a place in a
+content model that allows elements or attributes by namespace instead
+of by name. <code>processContents</code> says whether they are validated.</p>
+<p><strong>Window clause.</strong> A FLWOR clause that binds a variable to runs of
+consecutive items: tumbling windows don't overlap, sliding windows may.</p>
+<p><strong>Worklist.</strong> The list of unfinished items in a loop that replaces a
+recursive function: the loop takes one off, and puts back what it finds
+still to do, until the list is empty.</p>
+<p><strong>XDM.</strong> The XQuery and XPath Data Model, the model of values that
+XPath, XQuery and XSLT share.</p>
+<p><strong>xml2rfc.</strong> The IETF's XML vocabulary for Internet-Drafts and RFCs
+(version 3, RFC 7991), and the tool that renders it as text and HTML.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="appendix-conformance.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="appendix-differences.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="appendix-conformance.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="appendix-differences.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="style/sxml.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

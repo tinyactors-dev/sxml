@@ -1,0 +1,583 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Project: Publishing the Specification - The sxml Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Learn XPath 4.0, XQuery 4.0, XSLT 4.0 and XSD 1.1 with sxml, the small XML toolchain in portable C.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="style/sxml.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "coal";
+            window.path_to_searchindex_js = "searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The sxml Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml/edit/main/docs/book/src/xslt-project.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="project-publishing-the-specification"><a class="header" href="#project-publishing-the-specification">Project: Publishing the Specification</a></h1>
+<!-- examples: spec -->
+<p>An Internet-Draft is written once and read in several forms: as a web
+page with a table of contents, as plain text in the style of an RFC, and
+by tools that want the requirements as data. Each new version also
+needs a page that says what changed since the last one. This project
+makes all of them from <code>vane.xml</code> with one script, and stops before it
+writes anything when the draft has a mistake that would make the
+published text wrong.</p>
+<p>The pieces come from the earlier sections of this chapter. The HTML
+page is <code>html.xsl</code> and the plain text is <code>text.xsl</code>, both with the
+package <code>spec.xsl</code> and the module <code>common.xsl</code> from <a href="xslt-packages.html">Many Outputs,
+Functions and Packages</a>. New are a check, a JSON
+output and the page of changes.</p>
+<h2 id="the-script"><a class="header" href="#the-script">The script</a></h2>
+<p><code>publish.sh</code>:</p>
+<pre><code class="language-sh">#!/bin/sh
+# Publishes a draft into the directory site/: checks it, then writes the
+# HTML page, the plain text, the requirements as JSON and a page of the
+# changes since the earlier draft. Stops at the first step that fails.
+#
+# Usage: sh publish.sh [DRAFT [EARLIER-DRAFT]]
+set -e
+draft=${1:-vane.xml}
+earlier=${2:-vane-00.xml}
+
+sxml validate --schema=vane.xsd "$draft"
+sxml xquery --param=draft="$draft" publish-check.xq
+
+mkdir -p site
+sxml transform --force --output=site/vane.html html.xsl "$draft"
+sxml transform --force --output=site/vane.txt text.xsl "$draft"
+sxml transform --force --output=site/requirements.json requirements.xsl "$draft"
+sxml transform --force --output=site/changes.html --param=old="$earlier" changes.xsl "$draft"
+echo "published $draft into site/"
+</code></pre>
+<p>The steps run in order, and <code>set -e</code> stops the script at the first one
+that fails: every <code>sxml</code> command exits with a status other than 0 when
+it fails. The validation against <code>vane.xsd</code> comes first, because a
+stylesheet that meets an element it doesn't expect makes wrong output,
+not an error. Every transformation writes its own file with <code>--output</code>,
+and <code>--force</code> replaces the file of the last run.</p>
+<h2 id="the-check"><a class="header" href="#the-check">The check</a></h2>
+<p>The schema says what the draft may contain. It cannot say that every
+reference is cited, or that a key word is marked as one. A query can:</p>
+<p><code>publish-check.xq</code>:</p>
+<pre><code class="language-xquery">(: Checks a draft before it is published. Problems that make the
+   published text wrong are errors and stop publication; open editorial
+   matters are warnings. :)
+declare namespace spec = "urn:example:spec";
+declare option output:method "text";
+declare option output:item-separator "&amp;#10;";
+
+declare variable $draft external := "vane.xml";
+declare variable $rfc := doc($draft)/rfc;
+
+(: The key words of BCP 14, as a regular expression of whole words. :)
+declare variable $keywords :=
+  "(^|\W)(MUST|SHALL|REQUIRED|SHOULD|RECOMMENDED|MAY|OPTIONAL)(\W|$)";
+
+let $anchors := $rfc//@anchor
+let $errors := (
+  for $xref in $rfc//xref[not(@target = $anchors)]
+  return `{$xref/ancestor::section[1]/@anchor}: xref to a missing anchor "{$xref/@target}"`,
+  for $reference in $rfc//reference[not(@anchor = $rfc//xref/@target)]
+  return `references: [{$reference/@anchor}] is never cited`,
+  for $text in $rfc/middle//t//text()[not(ancestor::bcp14)]
+  where not($text/ancestor::section/@anchor = "terminology")
+  where matches($text, $keywords)
+  return `{$text/ancestor::section[1]/@anchor}: a key word without bcp14: "{normalize-space($text)}"`
+)
+let $warnings := (
+  for $t in $rfc//t[bcp14][not(@anchor)]
+  return `{$t/ancestor::section[1]/@anchor}: a requirement without an anchor`,
+  for $cref in $rfc//cref
+  return `{$cref/ancestor::section[1]/@anchor}: open note {$cref/@anchor} ({$cref/@source})`
+)
+return if (exists($errors))
+  then error(xs:QName("spec:check"), string-join($errors, "; "))
+  else $warnings ! `warning: {.}`
+</code></pre>
+<p>The query makes two lists. An <em>error</em> is a problem that makes the
+published text wrong: an <code>xref</code> to an anchor that doesn't exist, a
+reference that no <code>xref</code> cites, a key word written in capitals but
+without <code>bcp14</code>, which a reader cannot tell from a requirement. (The
+key words of the Terminology section are quoted on purpose, so the
+check skips that section.) A <em>warning</em> is open editorial work: a
+paragraph with a key word but no anchor, which other documents cannot
+refer to, and a note. When there are errors, <code>fn:error</code> stops the query
+with all of them in its description, and <code>sxml xquery</code> exits with
+status 1; otherwise the query writes the warnings, one on each line.</p>
+<p><a href="xquery-project.html">Project: Editing a Specification Without Rewriting
+It</a> builds a stricter check, which counts the
+unanchored <code>SHOULD</code> as an error, and the edits that fix what it finds.</p>
+<h2 id="the-requirements-as-json"><a class="header" href="#the-requirements-as-json">The requirements as JSON</a></h2>
+<p>Tools that test an SDK, or a tracker of open requirements, want the
+requirements as data. With the <code>json</code> output method, a stylesheet's
+result can be a map, written as a JSON object:</p>
+<p><code>requirements.xsl</code>:</p>
+<pre><code class="language-xml">&lt;xsl:stylesheet version="4.0" expand-text="yes"
+    xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+    xmlns:spec="urn:example:spec"
+    exclude-result-prefixes="spec"&gt;
+  &lt;xsl:import href="common.xsl"/&gt;
+  &lt;xsl:use-package name="spec.xsl" package-version="1.0"/&gt;
+  &lt;xsl:output method="json" indent="yes"/&gt;
+
+  &lt;!-- The requirements as JSON, for tools: an array of objects. --&gt;
+  &lt;xsl:template match="/"&gt;
+    &lt;xsl:sequence select="{
+        'draft': string(rfc/@docName),
+        'requirements': array { //t[@anchor] ! spec:requirement(.) }
+      }"/&gt;
+  &lt;/xsl:template&gt;
+
+  &lt;xsl:function name="spec:requirement" as="map(*)"&gt;
+    &lt;xsl:param name="t" as="element(t)"/&gt;
+    &lt;xsl:sequence select="{
+        'anchor': string($t/@anchor),
+        'number': spec:number($t),
+        'keyword': string($t/bcp14),
+        'section': spec:number($t/ancestor::section[1]),
+        'text': spec:text($t)
+      }"/&gt;
+  &lt;/xsl:function&gt;
+&lt;/xsl:stylesheet&gt;
+</code></pre>
+<p>The text of each requirement is the text a reader sees, with the
+<code>xref</code>s made by the rules of <code>common.xsl</code>: <code>spec:text</code> applies the
+templates of the stylesheet that imports it.</p>
+<h2 id="the-changes"><a class="header" href="#the-changes">The changes</a></h2>
+<p>The page of changes compares the draft with the earlier one, which the
+parameter <code>old</code> names. Requirements are matched by anchor: an anchor is
+given once and never changes, so the same anchor in both drafts is the
+same requirement, however its text and its number changed. A key finds
+a requirement by anchor in either document:</p>
+<p><code>changes.xsl</code>:</p>
+<pre><code class="language-xml">&lt;xsl:stylesheet version="4.0" expand-text="yes"
+    xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+    xmlns:spec="urn:example:spec"
+    exclude-result-prefixes="spec"&gt;
+  &lt;xsl:import href="common.xsl"/&gt;
+  &lt;xsl:use-package name="spec.xsl" package-version="1.0"/&gt;
+  &lt;xsl:output method="html" indent="yes"/&gt;
+
+  &lt;!-- The earlier draft, compared by requirement anchor. --&gt;
+  &lt;xsl:param name="old" select="'vane-00.xml'"/&gt;
+  &lt;xsl:variable name="old-draft" select="doc($old)"/&gt;
+
+  &lt;xsl:key name="requirement" match="t[@anchor]" use="@anchor"/&gt;
+
+  &lt;xsl:template match="/"&gt;
+    &lt;html&gt;
+      &lt;head&gt;
+        &lt;title&gt;Changes in {rfc/@docName}&lt;/title&gt;
+      &lt;/head&gt;
+      &lt;body&gt;
+        &lt;h1&gt;Changes from {$old-draft/rfc/@docName} to {rfc/@docName}&lt;/h1&gt;
+        &lt;table&gt;
+          &lt;xsl:apply-templates select="//t[@anchor]" mode="change"/&gt;
+          &lt;xsl:apply-templates mode="removed" select="
+              $old-draft//t[@anchor][empty(key('requirement', @anchor, current()))]"/&gt;
+        &lt;/table&gt;
+      &lt;/body&gt;
+    &lt;/html&gt;
+  &lt;/xsl:template&gt;
+
+  &lt;xsl:template match="t" mode="change"&gt;
+    &lt;xsl:variable name="before" select="key('requirement', @anchor, $old-draft)"/&gt;
+    &lt;xsl:variable name="status" select="
+        if (empty($before)) then 'added'
+        else if (spec:text($before) = spec:text(.)) then 'unchanged'
+        else 'changed'"/&gt;
+    &lt;xsl:if test="$status != 'unchanged'"&gt;
+      &lt;tr class="{$status}"&gt;
+        &lt;td&gt;&lt;a href="vane.html#{@anchor}"&gt;{spec:number(.)}&lt;/a&gt;&lt;/td&gt;
+        &lt;td&gt;{$status}&lt;/td&gt;
+        &lt;td&gt;
+          &lt;xsl:if test="$status = 'changed'"&gt;
+            &lt;del&gt;{spec:text($before)}&lt;/del&gt;
+            &lt;br/&gt;
+          &lt;/xsl:if&gt;
+          &lt;ins&gt;{spec:text(.)}&lt;/ins&gt;
+        &lt;/td&gt;
+      &lt;/tr&gt;
+    &lt;/xsl:if&gt;
+  &lt;/xsl:template&gt;
+
+  &lt;!-- A requirement that only the old draft has. --&gt;
+  &lt;xsl:template match="t" mode="removed"&gt;
+    &lt;tr class="removed"&gt;
+      &lt;td&gt;{@anchor}&lt;/td&gt;
+      &lt;td&gt;removed&lt;/td&gt;
+      &lt;td&gt;&lt;del&gt;{spec:text(.)}&lt;/del&gt;&lt;/td&gt;
+    &lt;/tr&gt;
+  &lt;/xsl:template&gt;
+&lt;/xsl:stylesheet&gt;
+</code></pre>
+<p>Each requirement of the new draft is added, changed or the same; a
+requirement whose anchor only the old draft has was removed, and gets
+a row of its own in the mode <code>removed</code>. The texts are compared as
+<code>spec:text</code> makes them, so a line broken in another place is not a
+change. The links point into the HTML page, <code>vane.html</code>, which the
+script writes next to this one.</p>
+<h2 id="publishing"><a class="header" href="#publishing">Publishing</a></h2>
+<pre><code class="language-console">$ sh publish.sh
+warning: security: a requirement without an anchor
+warning: pause: open note issue-1 (AM)
+warning: security: open note issue-2 (AB)
+published vane.xml into site/
+$ ls site
+changes.html
+requirements.json
+vane.html
+vane.txt
+</code></pre>
+<p>The draft has no errors, and three warnings: the open notes, and the
+<code>SHOULD</code> in the Security Considerations, which has no anchor yet. The
+four files are in <code>site/</code>. The HTML page starts with the table of
+contents and ends with the index of requirements and the references:</p>
+<pre><code class="language-console">$ sed -n '/&lt;nav&gt;/,/&lt;\/nav&gt;/p' site/vane.html
+    &lt;nav&gt;
+      &lt;ol class="toc"&gt;
+        &lt;li&gt;&lt;a href="#intro"&gt;1. Introduction&lt;/a&gt;&lt;ol&gt;&lt;li&gt;&lt;a href="#terminology"&gt;1.1. Terminology&lt;/a&gt;&lt;/li&gt;&lt;/ol&gt;&lt;/li&gt;
+        &lt;li&gt;&lt;a href="#states"&gt;2. Flag States&lt;/a&gt;&lt;/li&gt;
+        &lt;li&gt;&lt;a href="#messages"&gt;3. Messages&lt;/a&gt;&lt;ol&gt;&lt;li&gt;&lt;a href="#rollout"&gt;3.1. Rollout&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="#status"&gt;3.2. Status&lt;/a&gt;&lt;/li&gt;&lt;/ol&gt;&lt;/li&gt;
+        &lt;li&gt;&lt;a href="#pause"&gt;4. Pause&lt;/a&gt;&lt;/li&gt;
+        &lt;li&gt;&lt;a href="#security"&gt;5. Security Considerations&lt;/a&gt;&lt;/li&gt;
+        &lt;li&gt;&lt;a href="#iana"&gt;6. IANA Considerations&lt;/a&gt;&lt;/li&gt;
+      &lt;/ol&gt;
+    &lt;/nav&gt;
+$ grep -A4 '&lt;a href="#req-9"&gt;' site/vane.html
+          &lt;td&gt;&lt;a href="#req-9"&gt;R6&lt;/a&gt;&lt;/td&gt;
+          &lt;td&gt;MAY&lt;/td&gt;
+          &lt;td&gt;3.1. Rollout&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+</code></pre>
+<p>The plain text is the draft as <code>text.xsl</code> writes it:</p>
+<pre><code class="language-console">$ sed -n '/^4\./,/^5\./p' site/vane.txt
+4.  Pause
+
+   After three failed checks in a row, a service MUST put the flag in a
+   pause.
+
+   A pause SHOULD last five minutes.
+
+   A service MAY report a pause to the owners of the flag as soon as it
+   begins.
+
+5.  Security Considerations
+</code></pre>
+<p>The JSON file is for programs, and a query reads it back as one:</p>
+<pre><code class="language-console">$ head -10 site/requirements.json
+{
+  "draft": "draft-example-vane-protocol-01",
+  "requirements": [
+    {
+      "anchor": "req-1",
+      "number": "R1",
+      "keyword": "MUST",
+      "section": "2",
+      "text": "A flag MUST be in exactly one of the states \"stable\", \"rolling-out\" and \"paused\"."
+    },
+$ sxml xpath 'json-doc("site/requirements.json")?requirements?*[?keyword = "MUST"] ! `{?number} ({?anchor}) in Section {?section}`'
+"R1 (req-1) in Section 2"
+"R2 (req-2) in Section 2"
+"R4 (req-4) in Section 3.1"
+"R7 (req-6) in Section 3.2"
+"R9 (req-7) in Section 4"
+</code></pre>
+<p>And the page of changes lists the three requirements that are new in
+the second draft and the two whose text changed:</p>
+<pre><code class="language-console">$ grep -A3 '&lt;tr' site/changes.html
+      &lt;tr class="added"&gt;
+        &lt;td&gt;&lt;a href="vane.html#req-9"&gt;R6&lt;/a&gt;&lt;/td&gt;
+        &lt;td&gt;added&lt;/td&gt;
+        &lt;td&gt;&lt;ins&gt;A service MAY ask an owner for a time-based one-time password [RFC6238] before a rollout.&lt;/ins&gt;&lt;/td&gt;
+--
+      &lt;tr class="added"&gt;
+        &lt;td&gt;&lt;a href="vane.html#req-10"&gt;R8&lt;/a&gt;&lt;/td&gt;
+        &lt;td&gt;added&lt;/td&gt;
+        &lt;td&gt;&lt;ins&gt;An SDK SHOULD NOT send more than one status request per second for a flag; it uses its cached answer in between.&lt;/ins&gt;&lt;/td&gt;
+--
+      &lt;tr class="changed"&gt;
+        &lt;td&gt;&lt;a href="vane.html#req-7"&gt;R9&lt;/a&gt;&lt;/td&gt;
+        &lt;td&gt;changed&lt;/td&gt;
+        &lt;td&gt;&lt;del&gt;After five failed checks in a row, a service MUST put the flag in a pause.&lt;/del&gt;&lt;br&gt;&lt;ins&gt;After three failed checks in a row, a service MUST put the flag in a pause.&lt;/ins&gt;&lt;/td&gt;
+--
+      &lt;tr class="changed"&gt;
+        &lt;td&gt;&lt;a href="vane.html#req-8"&gt;R10&lt;/a&gt;&lt;/td&gt;
+        &lt;td&gt;changed&lt;/td&gt;
+        &lt;td&gt;&lt;del&gt;A pause SHOULD last one minute.&lt;/del&gt;&lt;br&gt;&lt;ins&gt;A pause SHOULD last five minutes.&lt;/ins&gt;&lt;/td&gt;
+--
+      &lt;tr class="added"&gt;
+        &lt;td&gt;&lt;a href="vane.html#req-11"&gt;R11&lt;/a&gt;&lt;/td&gt;
+        &lt;td&gt;added&lt;/td&gt;
+        &lt;td&gt;&lt;ins&gt;A service MAY report a pause to the owners of the flag as soon as it begins.&lt;/ins&gt;&lt;/td&gt;
+</code></pre>
+<p>Swap the drafts, and the same stylesheet shows the way back: the three
+new requirements are removed rows.</p>
+<pre><code class="language-console">$ sxml transform --param=old=vane.xml changes.xsl vane-00.xml | grep -c 'class="removed"'
+3
+</code></pre>
+<h2 id="when-the-draft-is-wrong"><a class="header" href="#when-the-draft-is-wrong">When the draft is wrong</a></h2>
+<p>Two broken copies show the two guards. In the first, an <code>xref</code> points
+to <code>RFC6239</code>, which the draft does not have. The schema's key reference
+from <code>xref/@target</code> to the anchors finds it, and nothing is written:</p>
+<pre><code class="language-console">$ sed 's/target="RFC6238"/target="RFC6239"/' vane.xml &gt; broken.xml
+$ sh publish.sh broken.xml; echo $?
+broken.xml:98:38: cvc-identity-constraint.4.3: element 'xref': its key sequence is no key sequence of the referenced key (keyref 'xref-target')
+1
+</code></pre>
+<p>In the second, the citation of RFC 6238 is gone and a <code>SHOULD</code> has lost
+its markup. The copy is valid, and the check stops it:</p>
+<pre><code class="language-console">$ sed -e 's| &lt;xref target="RFC6238"/&gt;||' -e 's|&lt;bcp14&gt;SHOULD&lt;/bcp14&gt; last|SHOULD last|' vane.xml &gt; unmarked.xml
+$ sh publish.sh unmarked.xml; echo $?
+publish-check.xq:33:8: spec:check: references: [RFC6238] is never cited; pause: a key word without bcp14: "A pause SHOULD last five minutes."
+1
+</code></pre>
+<p>The files in <code>site/</code> are still those of the last good run. Each step
+adds one guarantee, and the stylesheets can assume what the steps before
+them checked: that every target exists, that every key word is marked,
+that the draft has the structure the schema describes.</p>
+<h2 id="summary"><a class="header" href="#summary">Summary</a></h2>
+<p>XSLT transforms documents by rules:</p>
+<ul>
+<li>template rules match nodes with patterns, and <code>xsl:apply-templates</code>
+moves the processing on; the best rule wins by import precedence and
+priority;</li>
+<li>modes process the same nodes in different ways, and a mode with
+<code>on-no-match="shallow-copy"</code> copies everything you don't change;</li>
+<li>keys index documents, <code>xsl:number</code> numbers sections and requirements
+by their position, and <code>xsl:for-each-group</code> groups by value or by
+position;</li>
+<li>result documents write many files, and imports, functions and
+packages organize large stylesheets that share their rules;</li>
+<li>a script of small checked steps turns one source into every form a
+document is read in.</li>
+</ul>
+<p>XSLT can also transform files too large for memory, as they stream
+past; <a href="traces-streaming.html">Streaming Large Trace Files</a> teaches it on
+the trace archives of the last project. Next, the diagram tool of
+<a href="svg.html">Project: Drawing Diagrams with SVG</a> puts XQuery and XSLT
+together on a different kind of XML: pictures.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="xslt-packages.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="svg.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="xslt-packages.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="svg.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="style/sxml.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

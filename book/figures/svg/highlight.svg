@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="299" height="416" viewBox="0 0 299 416">
+  <title>Vane</title>
+  <style>
+    .node rect { fill: #eef3fb; stroke: #3b5b92; stroke-width: 1.5 }
+    .store rect { fill: #f6efe3; stroke: #8a6a2f }
+    .node text { font: 14px sans-serif; fill: #1b1b1b }
+    .edge path { fill: none; stroke: #555555; stroke-width: 1.5 }
+    .edge text { font: 12px sans-serif; fill: #555555 }
+    .node:not(.highlight), .edge:not(.highlight) { opacity: 0.3 }
+    .highlight rect, .highlight path { stroke: #d81b60; stroke-width: 3 }
+  </style>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#555555"/>
+    </marker>
+  </defs>
+  <g class="edge" id="edge-browser-api">
+    <path d="M 83 60 L 83 70 L 123 70 L 123 110 L 138 110 L 138 124" marker-end="url(#arrow)"/>
+    <text x="128" y="96">HTTP</text>
+  </g>
+  <g class="edge" id="edge-node-api">
+    <path d="M 227 60 L 227 70 L 187 70 L 187 110 L 171 110 L 171 124" marker-end="url(#arrow)"/>
+    <text x="192" y="96">HTTP</text>
+  </g>
+  <g class="edge" id="edge-api-flags">
+    <path d="M 155 164 L 155 188" marker-end="url(#arrow)"/>
+  </g>
+  <g class="edge highlight" id="edge-flags-registry">
+    <path d="M 138 228 L 138 238 L 83 238 L 83 252" marker-end="url(#arrow)"/>
+  </g>
+  <g class="edge" id="edge-flags-cache">
+    <path d="M 172 228 L 172 238 L 227 238 L 227 252" marker-end="url(#arrow)"/>
+  </g>
+  <g class="edge highlight" id="edge-registry-postgresql">
+    <path d="M 83 292 L 83 356" marker-end="url(#arrow)"/>
+    <text x="88" y="328">SQL</text>
+  </g>
+  <g class="edge" id="edge-cache-redis">
+    <path d="M 227 292 L 227 356" marker-end="url(#arrow)"/>
+    <text x="232" y="328">Redis</text>
+  </g>
+  <g class="node service" id="node-browser">
+    <rect x="20" y="20" width="126" height="40" rx="6"/>
+    <text x="83" y="45" text-anchor="middle">@vane/browser</text>
+  </g>
+  <g class="node service" id="node-node">
+    <rect x="176" y="20" width="102" height="40" rx="6"/>
+    <text x="227" y="45" text-anchor="middle">@vane/node</text>
+  </g>
+  <g class="node service" id="node-api">
+    <rect x="105" y="124" width="100" height="40" rx="6"/>
+    <text x="155" y="149" text-anchor="middle">vane/api</text>
+  </g>
+  <g class="node service" id="node-flags">
+    <rect x="104" y="188" width="102" height="40" rx="6"/>
+    <text x="155" y="213" text-anchor="middle">vane/flags</text>
+  </g>
+  <g class="node service highlight" id="node-registry">
+    <rect x="20" y="252" width="126" height="40" rx="6"/>
+    <text x="83" y="277" text-anchor="middle">vane/registry</text>
+  </g>
+  <g class="node service" id="node-cache">
+    <rect x="176" y="252" width="102" height="40" rx="6"/>
+    <text x="227" y="277" text-anchor="middle">vane/cache</text>
+  </g>
+  <g class="node store" id="node-postgresql">
+    <rect x="32" y="356" width="102" height="40" rx="20"/>
+    <text x="83" y="381" text-anchor="middle">postgresql</text>
+  </g>
+  <g class="node store" id="node-redis">
+    <rect x="177" y="356" width="100" height="40" rx="20"/>
+    <text x="227" y="381" text-anchor="middle">redis</text>
+  </g>
+</svg>

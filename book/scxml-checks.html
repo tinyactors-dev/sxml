@@ -1,0 +1,481 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Checking What the Schema Cannot - The sxml Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Learn XPath 4.0, XQuery 4.0, XSLT 4.0 and XSD 1.1 with sxml, the small XML toolchain in portable C.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="style/sxml.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "coal";
+            window.path_to_searchindex_js = "searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The sxml Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml/edit/main/docs/book/src/scxml-checks.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="checking-what-the-schema-cannot"><a class="header" href="#checking-what-the-schema-cannot">Checking What the Schema Cannot</a></h1>
+<!-- examples: scxml -->
+<p>A schema checks each document against rules about its structure and
+values. Some rules of a good machine are about its behaviour, or about
+another document: every state can be reached, every event the machine
+handles is declared, every requirement the machine names exists in the
+draft. A query can check them, and a schema-aware query can rely on the
+types the schemas give: the <code>vane:implements</code> lists are lists, the
+<code>vane:type</code> names are names, and the payload names point into
+<code>vane-data.xsd</code>.</p>
+<h2 id="the-checks"><a class="header" href="#the-checks">The checks</a></h2>
+<p><code>check.xq</code> takes the machine as its context item, reads the draft from
+<code>vane.xml</code>, and prints one line for each problem it finds:</p>
+<p><code>check.xq</code>:</p>
+<pre><code class="language-xquery">(: Checks of a Vane machine that its schemas cannot make. The context
+   item is the machine; the draft it implements is vane.xml. Prints one
+   line for each problem, and nothing when there is none. :)
+import schema namespace sc = "http://www.w3.org/2005/07/scxml" at "scxml.xsd";
+declare namespace vane = "urn:example:vane";
+declare namespace xsi = "http://www.w3.org/2001/XMLSchema-instance";
+declare option output:method "text";
+declare option output:item-separator "&amp;#10;";
+
+declare variable $machine := validate { / };
+declare variable $draft := doc("vane.xml");
+
+(: Every state the machine can get to: start with the initial state, and
+   add the targets of the reached states' transitions, once per state. :)
+declare function local:reachable() as xs:string* {
+  let $states := $machine//(sc:state | sc:final)
+  return fold-left(1 to count($states), string($machine/sc:scxml/@initial),
+    fn($reached, $pass) {
+      distinct-values((
+        $reached,
+        $states[@id = $reached]//sc:transition/@target ! string(),
+        $states[@id = $reached]/@initial ! string()
+      ))
+    })
+};
+
+let $declared := $machine//vane:event/@name ! string()
+let $handled := $machine//sc:transition/data(@event) ! string()
+let $sent := $machine//(sc:send | sc:raise)/@event ! string()
+let $reachable := local:reachable()
+let $anchors := $draft//t/@anchor ! string()
+let $implemented := $machine//@vane:implements ! data()
+let $schema := doc("vane-data.xsd")/xs:schema
+let $payloads := $schema/xs:element/@name ! QName($schema/@targetNamespace, .)
+return (
+  (: States that no path from the initial state reaches. :)
+  $machine//sc:state[not(@id = $reachable)] ! `unreachable state: {@id}`,
+
+  (: Events a transition waits for that the machine does not declare. :)
+  distinct-values($handled[not(. = $declared)]) ! `undeclared event: {.}`,
+
+  (: Declared events that nothing handles, sends or raises. :)
+  $declared[not(. = ($handled, $sent))] ! `unused event: {.}`,
+
+  (: Payloads that name no global element of vane-data.xsd. :)
+  $machine//vane:event[@vane:payload]
+    [not(data(@vane:payload) = $payloads)]
+    ! `unknown payload: {@vane:payload} of {@name}`,
+
+  (: Data items whose type the schema does not have, or whose value is
+     not one of their type. :)
+  for $data in $machine//sc:data
+  let $type := data($data/@vane:type)
+  return if (empty(function-lookup($type, 1))) then
+    `unknown type: {$data/@vane:type} of {$data/@id}`
+  else try {
+    (validate {
+      element vane:value {
+        namespace type { namespace-uri-from-QName($type) },
+        attribute xsi:type { "type:" || local-name-from-QName($type) },
+        string($data/@expr)
+      }
+    }) ! ()
+  } catch err:XQDY0027 {
+    `bad value: {$data/@id} = {$data/@expr} is not a {$data/@vane:type}`
+  },
+
+  (: Anchors the machine names that the draft does not have. :)
+  distinct-values($implemented[not(. = $anchors)]) ! `unknown requirement: {.}`,
+
+  (: The draft's MUST requirements that nothing in the machine implements. :)
+  $draft//t[bcp14 = ("MUST", "MUST NOT")][not(@anchor = $implemented)]
+    ! `not implemented: {@anchor} ({bcp14})`
+)
+</code></pre>
+<p>The machine has four flaws:</p>
+<pre><code class="language-console">$ sxml xquery --context-item=flag.scxml check.xq
+unreachable state: archived
+undeclared event: flag.evaluated
+unused event: flag.archived
+not implemented: req-1 (MUST)
+</code></pre>
+<p>The output declarations make the result text, one line per problem, so
+a machine without problems prints nothing.</p>
+<h2 id="reachable-states"><a class="header" href="#reachable-states">Reachable states</a></h2>
+<p>A state is reachable when some path of transitions leads to it from
+the initial state. <code>local:reachable</code> computes the set the way you would
+by hand: start with the initial state, add the targets of the
+transitions of every state reached so far, and repeat. Each pass adds
+at least one state or adds nothing, so as many passes as there are
+states are enough; <code>fold-left</code> over <code>1 to count($states)</code> runs them,
+and <code>distinct-values</code> keeps the set a set. The machine has cycles
+(<code>stable</code> to <code>checking</code> and back), which is why the passes collect a
+set instead of following paths.</p>
+<p>No transition targets <code>archived</code>, so the flag can never get there:
+the state is dead code.</p>
+<h2 id="events"><a class="header" href="#events">Events</a></h2>
+<p>Three sets of event names, and two comparisons:</p>
+<ul>
+<li><code>$declared</code>, the names of <code>vane:events</code>;</li>
+<li><code>$handled</code>, the events transitions wait for. <code>data(@event)</code> is a list
+of tokens, so the transition that waits for <code>kill.request step.done</code> adds two names;</li>
+<li><code>$sent</code>, the events of <code>send</code> and <code>raise</code>.</li>
+</ul>
+<p><code>flag.evaluated</code> is handled, in <code>rolling-out</code>, but not declared:
+nobody wrote down what it means, or who sends it. <code>flag.archived</code> is
+declared but nothing handles it, sends it or raises it.</p>
+<p><code>status.response</code> is declared and sent, but no transition waits for it:
+the service sends it to the SDK that asked. A check that compared only
+declared and handled events would report it as unused, which it is
+not; counting <code>send</code> as a use is what tells an outgoing event from a
+forgotten one.</p>
+<h2 id="names-that-point-elsewhere"><a class="header" href="#names-that-point-elsewhere">Names that point elsewhere</a></h2>
+<p><code>vane:payload</code> and <code>vane:type</code> name components of <code>vane-data.xsd</code>,
+and the schema checks only that they are names. The query checks that
+they name something:</p>
+<ul>
+<li>a payload must be a global element of <code>vane-data.xsd</code>. The query
+reads the schema as an XML document, with <code>doc</code>, and makes the names
+of its <code>xs:element</code>s into QNames in its target namespace, which
+compare with the typed payload names;</li>
+<li>a type must be a simple type of the imported schema. Every such type
+has a constructor function, so <code>function-lookup($type, 1)</code> is empty
+exactly when there is no such type.</li>
+</ul>
+<p>For a type that exists, the query checks the data item's value against
+it, as <a href="xsd-typed-data.html">Typed Data and Schema-Aware Queries</a> did:
+it makes a <code>vane:value</code> element with <code>xsi:type</code> naming the type (in
+whatever namespace the type has, with a computed namespace binding) and
+validates it. <code>validate</code> raises <code>err:XQDY0027</code> when the value is not
+one of the type; <code>try</code> turns that into a line of the report, and the
+check goes on.</p>
+<h2 id="requirements"><a class="header" href="#requirements">Requirements</a></h2>
+<p><code>vane:implements</code> holds anchors of the draft. Two checks join the
+machine with the draft: every anchor the machine names must be the
+anchor of a paragraph of the draft, and every MUST or MUST NOT of the
+draft should be implemented somewhere in the machine. <code>req-1</code>, a flag
+is in exactly one of its states, is a property of the whole machine,
+and nothing says so yet.</p>
+<p>A copy of the machine with a mistake for each of the other checks:</p>
+<pre><code class="language-console">$ sed -e 's/expr="3"/expr="30"/' \
+      -e 's/vane:type="vane:seconds"/vane:type="seconds"/' \
+      -e 's/vane:payload="vane:rollout"/vane:payload="vane:rolout"/' \
+      -e 's/req-5 req-8/req-5 req-12/' flag.scxml &gt; worse.scxml
+$ sxml validate --schema=scxml.xsd worse.scxml; echo "exit status $?"
+exit status 0
+$ sxml xquery --context-item=worse.scxml check.xq
+unreachable state: archived
+undeclared event: flag.evaluated
+unused event: flag.archived
+unknown payload: vane:rolout of rollout.request
+bad value: maxFailures = 30 is not a vane:failure-limit
+unknown type: seconds of stepSeconds
+unknown type: seconds of pauseSeconds
+unknown requirement: req-12
+not implemented: req-1 (MUST)
+</code></pre>
+<p>The schema finds none of them. The type without its prefix is the
+name <code>seconds</code> in SCXML's namespace, the default namespace of the
+machine, and SCXML has no such type.</p>
+<h2 id="fixing-the-machine-with-an-update"><a class="header" href="#fixing-the-machine-with-an-update">Fixing the machine with an update</a></h2>
+<p>The fixes are small, and each touches one place: say that the machine
+implements <code>req-1</code>, declare <code>flag.evaluated</code>, and let an owner archive
+a stable or paused flag, which makes the <code>archived</code> state reachable and
+the <code>flag.archived</code> event used. An update makes them without retyping the machine:</p>
+<p><code>fix.xq</code>:</p>
+<pre><code class="language-xquery">(: Fixes the flaws check.xq finds in flag.scxml, and changes nothing else. :)
+declare default element namespace "http://www.w3.org/2005/07/scxml";
+declare namespace vane = "urn:example:vane";
+
+. transform with {
+  (: The machine as a whole keeps a flag in exactly one state. :)
+  insert node attribute vane:implements { "req-1" } into scxml,
+
+  (: Declare the event the rolling-out state handles. :)
+  insert node
+    &lt;vane:event name="flag.evaluated"&gt;
+      &lt;p xmlns="http://www.w3.org/1999/xhtml"&gt;An SDK reports that it evaluated the flag.&lt;/p&gt;
+    &lt;/vane:event&gt;
+    after .//vane:event[@name = "step.done"],
+
+  (: An owner can archive a flag that is stable or paused. :)
+  for $state in .//state[@id = ("stable", "paused")]
+  return insert node &lt;transition event="flag.archived" target="archived"/&gt;
+    as first into $state
+}
+</code></pre>
+<p><code>transform with</code> copies the context item, the machine's document node,
+applies the updates to the copy and returns it (<a href="xquery-updates.html">Updating
+Documents</a> explains updates). The result is the
+fixed machine, <code>flag-fixed.scxml</code>:</p>
+<pre><code class="language-console">$ sxml xquery --context-item=flag.scxml --output=flag-fixed.scxml --force fix.xq
+$ diff flag.scxml flag-fixed.scxml
+1,4c1
+&lt; &lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt; &lt;scxml xmlns="http://www.w3.org/2005/07/scxml"
+&lt;        xmlns:vane="urn:example:vane"
+&lt;        version="1.0" name="feature_flag" initial="stable" datamodel="ecmascript"&gt;
+---
+&gt; &lt;scxml xmlns="http://www.w3.org/2005/07/scxml" xmlns:vane="urn:example:vane" version="1.0" name="feature_flag" initial="stable" datamodel="ecmascript" vane:implements="req-1"&gt;
+27c24
+&lt;     &lt;/vane:event&gt;
+---
+&gt;     &lt;/vane:event&gt;&lt;vane:event name="flag.evaluated"&gt;&lt;p xmlns="http://www.w3.org/1999/xhtml"&gt;An SDK reports that it evaluated the flag.&lt;/p&gt;&lt;/vane:event&gt;
+43c40
+&lt;   &lt;state id="stable" vane:implements="req-2"&gt;
+---
+&gt;   &lt;state id="stable" vane:implements="req-2"&gt;&lt;transition event="flag.archived" target="archived"/&gt;
+80c77
+&lt;   &lt;state id="paused" vane:implements="req-5 req-8"&gt;
+---
+&gt;   &lt;state id="paused" vane:implements="req-5 req-8"&gt;&lt;transition event="flag.archived" target="archived"/&gt;
+</code></pre>
+<p>Everything else is as it was, down to the whitespace between the
+untouched elements. The serializer writes the start tag of <code>scxml</code> on
+one line, and the new nodes without line breaks, as the query made
+them; the XML declaration is left out. The fixed machine is valid, and
+the checks find nothing:</p>
+<pre><code class="language-console">$ sxml validate --schema=scxml.xsd flag-fixed.scxml; echo "exit status $?"
+exit status 0
+$ sxml xquery --context-item=flag-fixed.scxml check.xq
+</code></pre>
+<p>In a build, a script turns "prints nothing" into an exit status:</p>
+<pre><code class="language-console">$ problems=$(sxml xquery --context-item=flag.scxml check.xq); test -z "$problems"; echo "exit status $?"
+exit status 1
+$ problems=$(sxml xquery --context-item=flag-fixed.scxml check.xq); test -z "$problems"; echo "exit status $?"
+exit status 0
+</code></pre>
+<p>The rest of the project uses the fixed machine.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="scxml.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="scxml-xhtml.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="scxml.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="scxml-xhtml.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="style/sxml.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

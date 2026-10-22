@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="514" height="416" viewBox="0 0 514 416">
+  <title>Vane after the change</title>
+  <style>
+    .node rect { fill: #eef3fb; stroke: #3b5b92; stroke-width: 1.5 }
+    .store rect { fill: #f6efe3; stroke: #8a6a2f }
+    .node text { font: 14px sans-serif; fill: #1b1b1b }
+    .edge path { fill: none; stroke: #555555; stroke-width: 1.5 }
+    .edge text { font: 12px sans-serif; fill: #555555 }
+    .changed rect, .changed path { stroke: #b26a00; stroke-width: 3 }
+    .added rect, .added path { stroke: #2e7d32; stroke-width: 3 }
+    .removed rect, .removed path { stroke: #c62828; stroke-dasharray: 6 4 }
+  </style>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#555555"/>
+    </marker>
+  </defs>
+  <g class="edge" id="edge-browser-api">
+    <path d="M 144 60 L 144 70 L 184 70 L 184 110 L 199 110 L 199 124" marker-end="url(#arrow)"/>
+    <text x="189" y="96">HTTP</text>
+  </g>
+  <g class="edge" id="edge-node-api">
+    <path d="M 288 60 L 288 70 L 248 70 L 248 110 L 232 110 L 232 124" marker-end="url(#arrow)"/>
+    <text x="253" y="96">HTTP</text>
+  </g>
+  <g class="edge" id="edge-api-flags">
+    <path d="M 216 164 L 216 188" marker-end="url(#arrow)"/>
+  </g>
+  <g class="edge removed" id="edge-flags-cache">
+    <path d="M 190 228 L 190 238 L 71 238 L 71 252" marker-end="url(#arrow)"/>
+  </g>
+  <g class="edge changed" id="edge-flags-registry">
+    <path d="M 216 228 L 216 252" marker-end="url(#arrow)"/>
+  </g>
+  <g class="edge added" id="edge-flags-audit">
+    <path d="M 241 228 L 241 238 L 360 238 L 360 252" marker-end="url(#arrow)"/>
+  </g>
+  <g class="edge" id="edge-cache-redis">
+    <path d="M 71 292 L 71 356" marker-end="url(#arrow)"/>
+    <text x="76" y="328">Redis</text>
+  </g>
+  <g class="edge" id="edge-registry-postgresql">
+    <path d="M 216 292 L 216 342 L 237 342 L 237 356" marker-end="url(#arrow)"/>
+    <text x="221" y="328">SQL</text>
+  </g>
+  <g class="edge added" id="edge-audit-postgresql">
+    <path d="M 343 292 L 343 302 L 283 302 L 283 342 L 271 342 L 271 356" marker-end="url(#arrow)"/>
+    <text x="288" y="328">SQL</text>
+  </g>
+  <g class="edge added" id="edge-audit-hooks">
+    <path d="M 377 292 L 377 302 L 415 302 L 415 356" marker-end="url(#arrow)"/>
+    <text x="420" y="328">HTTP</text>
+  </g>
+  <g class="node service" id="node-browser">
+    <rect x="81" y="20" width="126" height="40" rx="6"/>
+    <text x="144" y="45" text-anchor="middle">@vane/browser</text>
+  </g>
+  <g class="node service" id="node-node">
+    <rect x="237" y="20" width="102" height="40" rx="6"/>
+    <text x="288" y="45" text-anchor="middle">@vane/node</text>
+  </g>
+  <g class="node service" id="node-api">
+    <rect x="166" y="124" width="100" height="40" rx="6"/>
+    <text x="216" y="149" text-anchor="middle">vane/api</text>
+  </g>
+  <g class="node service changed" id="node-flags">
+    <rect x="165" y="188" width="102" height="40" rx="6"/>
+    <text x="216" y="213" text-anchor="middle">vane/flags</text>
+  </g>
+  <g class="node service" id="node-cache">
+    <rect x="20" y="252" width="102" height="40" rx="6"/>
+    <text x="71" y="277" text-anchor="middle">vane/cache</text>
+  </g>
+  <g class="node service" id="node-registry">
+    <rect x="153" y="252" width="126" height="40" rx="6"/>
+    <text x="216" y="277" text-anchor="middle">vane/registry</text>
+  </g>
+  <g class="node service added" id="node-audit">
+    <rect x="309" y="252" width="102" height="40" rx="6"/>
+    <text x="360" y="277" text-anchor="middle">vane/audit</text>
+  </g>
+  <g class="node store" id="node-redis">
+    <rect x="24" y="356" width="100" height="40" rx="20"/>
+    <text x="74" y="381" text-anchor="middle">redis</text>
+  </g>
+  <g class="node store" id="node-postgresql">
+    <rect x="203" y="356" width="102" height="40" rx="20"/>
+    <text x="254" y="381" text-anchor="middle">postgresql</text>
+  </g>
+  <g class="node service added" id="node-hooks">
+    <rect x="336" y="356" width="158" height="40" rx="6"/>
+    <text x="415" y="381" text-anchor="middle">hooks.example.com</text>
+  </g>
+</svg>

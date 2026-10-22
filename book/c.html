@@ -1,0 +1,907 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Embedding sxml in C - The sxml Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Learn XPath 4.0, XQuery 4.0, XSLT 4.0 and XSD 1.1 with sxml, the small XML toolchain in portable C.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="style/sxml.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "coal";
+            window.path_to_searchindex_js = "searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The sxml Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml/edit/main/docs/book/src/c.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="embedding-sxml-in-c"><a class="header" href="#embedding-sxml-in-c">Embedding sxml in C</a></h1>
+<!-- examples: c -->
+<p>Everything the <code>sxml</code> command does, it does through the sxml C library,
+and your programs can use the same library. It is portable C17, has no
+dependencies, never calls <code>malloc</code> behind your back, keeps no global
+state, and never recurses, so a deeply nested document cannot overflow
+your program's stack. This chapter shows the shape of the API with five
+small programs, most of them on the Vane draft. The examples are in
+<code>docs/book/examples/c</code>, where <code>vane.xml</code> and <code>vane-00.xml</code> are links to
+the drafts in <code>docs/book/examples/spec</code>.</p>
+<h2 id="building-against-sxml"><a class="header" href="#building-against-sxml">Building against sxml</a></h2>
+<p>The simplest way to use sxml is to build it as part of your project with
+CMake. Put the sxml source in your tree (as a git submodule, for
+example) and add it as a subdirectory:</p>
+<p><code>CMakeLists.txt</code>:</p>
+<pre><code class="language-cmake">cmake_minimum_required(VERSION 3.24)
+project(sxml_book_examples C)
+
+# Where the sxml source is: a checkout, a git submodule, or a directory
+# you unpacked. Only the library is built, without sxml's own tests and
+# command.
+set(SXML_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/sxml" CACHE PATH "The sxml source directory")
+set(SXML_BUILD_TESTS OFF)
+set(SXML_BUILD_APPS OFF)
+add_subdirectory("${SXML_SOURCE}" sxml EXCLUDE_FROM_ALL)
+
+foreach(example requirements compile_once resolver errors memory)
+    add_executable(${example} ${example}.c)
+    target_link_libraries(${example} PRIVATE sxml)
+endforeach()
+</code></pre>
+<p><code>SXML_BUILD_TESTS</code> and <code>SXML_BUILD_APPS</code> leave out sxml's own tests and
+the command, and the <code>sxml</code> target is the static library with every
+header in <code>include/sxml/</code>. A program links only what it uses: one that
+uses only XPath doesn't link XQuery, XSLT or XSD.</p>
+<p>The examples' <code>CMakeLists.txt</code> takes the location of the sxml source as
+<code>SXML_SOURCE</code>. Here <code>$SXML</code> is the root of an sxml checkout:</p>
+<pre><code class="language-console">$ cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSXML_SOURCE="$SXML" &gt; /dev/null
+$ cmake --build build &gt; /dev/null
+</code></pre>
+<p>The examples share a few lines of input and output code, in <code>output.h</code>:</p>
+<pre><code class="language-c">/* Small helpers that the book's C examples share. */
+#pragma once
+
+#include &lt;stdio.h&gt;
+
+#include "sxml/processor.h"
+#include "sxml/serialize.h"
+
+#define TEXT(literal) SXML_BYTE_VIEW_FROM_LITERAL(literal)
+
+/* Reads the file at path into contents, which holds capacity bytes, and
+   returns a view of what it read: empty when the file cannot be read or
+   does not fit. */
+static inline sxml_byte_view read_file(const char *path, unsigned char *contents,
+                                       size_t capacity) {
+    sxml_byte_view bytes = {.bytes = contents, .byte_count = 0};
+    FILE *file = fopen(path, "rb");
+    if (file != NULL) {
+        bytes.byte_count = fread(contents, 1, capacity, file);
+        if (!feof(file)) {
+            bytes.byte_count = 0;
+        }
+        fclose(file);
+    }
+    return bytes;
+}
+
+/* Serialized bytes go to an output stream; this one writes to stdout. */
+static sxml_status write_to_stdout(void *state, sxml_byte_view bytes) {
+    (void)state;
+    size_t written = fwrite(bytes.bytes, 1, bytes.byte_count, stdout);
+    return written == bytes.byte_count ? SXML_STATUS_OK
+                                       : SXML_STATUS_INPUT_OUTPUT_FAILED;
+}
+
+static const sxml_output_stream_operations stdout_operations = {
+    .write = write_to_stdout,
+};
+
+static inline sxml_output_stream stdout_stream(void) {
+    return (sxml_output_stream){.operations = &amp;stdout_operations};
+}
+
+/* Writes a sequence by the adaptive method, one item on each line. */
+static inline sxml_status print_sequence(sxml_processor *processor,
+                                         sxml_sequence sequence,
+                                         sxml_error_record *error_record) {
+    sxml_status status = sxml_serialize_sequence(
+        sxml_processor_get_item_heap(processor),
+        &amp;(sxml_serialization_request){
+            .value = sequence,
+            .serialization_parameters =
+                {.serialization_method = SXML_SERIALIZATION_METHOD_ADAPTIVE},
+            .error_record = error_record,
+        },
+        stdout_stream());
+    putchar('\n');
+    return status;
+}
+
+/* Writes what went wrong: the status, and the error record when there is
+   one. */
+static inline void print_failure(sxml_status status,
+                                 const sxml_error_record *error_record) {
+    sxml_byte_view status_name = sxml_status_name(status);
+    sxml_byte_view code = error_record-&gt;code.local_name;
+    sxml_byte_view description = error_record-&gt;diagnostic.description;
+    sxml_source_location location = error_record-&gt;diagnostic.location;
+    printf("%.*s", (int)status_name.byte_count, (const char *)status_name.bytes);
+    if (code.byte_count &gt; 0) {
+        printf(" err:%.*s", (int)code.byte_count, (const char *)code.bytes);
+    }
+    if (location.line_number &gt; 0) {
+        printf(" at %u:%u", (unsigned)location.line_number,
+               (unsigned)location.column_number);
+    }
+    if (description.byte_count &gt; 0) {
+        printf(": %.*s", (int)description.byte_count, (const char *)description.bytes);
+    }
+    putchar('\n');
+}
+</code></pre>
+<p><code>sxml_byte_view</code> is how the API passes text: a pointer and a length,
+never a NUL-terminated string. sxml reads no files, so <code>read_file</code> reads
+a draft into memory the program owns and returns a view of its bytes.
+Output goes to an <code>sxml_output_stream</code>, an interface you implement; this
+one writes to <code>stdout</code>.</p>
+<h2 id="a-first-program"><a class="header" href="#a-first-program">A first program</a></h2>
+<p>The first program prints the draft's MUST requirements and the section
+each one is in:</p>
+<p><code>requirements.c</code>:</p>
+<pre><code class="language-c">#include &lt;stdio.h&gt;
+
+#include "output.h"
+#include "sxml/processor.h"
+#include "sxml/xpath.h"
+
+/* Room for the draft's bytes. */
+static unsigned char draft_contents[1 &lt;&lt; 16];
+
+int main(void) {
+    sxml_allocator allocator = sxml_default_allocator();
+    sxml_error_record error_record = {0};
+
+    /* 1. A processor owns names, types and values. */
+    sxml_processor *processor = NULL;
+    sxml_status status = sxml_processor_create(
+        allocator, &amp;(sxml_processor_configuration){.allocator = allocator},
+        &amp;processor);
+
+    /* 2. Parse a document: the program reads the file, sxml parses it. */
+    sxml_item document = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_processor_parse_document(
+            processor,
+            &amp;(sxml_xml_parse_request){
+                .input = read_file("vane.xml", draft_contents, sizeof draft_contents),
+                .diagnostic = &amp;error_record.diagnostic,
+            },
+            &amp;document);
+    }
+    sxml_sequence context = sxml_sequence_from_item(document);
+
+    /* 3. Compile an expression. */
+    sxml_xpath_expression *expression = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_expression_create(
+            allocator,
+            &amp;(sxml_xpath_expression_configuration){
+                .processor = processor,
+                .expression_text = TEXT("//t[bcp14 = 'MUST'] ! `{@anchor} in {ancestor::section[1]/name}`"),
+                .error_record = &amp;error_record,
+            },
+            &amp;expression);
+    }
+
+    /* 4. Evaluate it, with the document as the context item. */
+    sxml_sequence result = sxml_sequence_empty();
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_expression_evaluate(
+            expression,
+            &amp;(sxml_xpath_evaluation_request){
+                .dynamic_context = {.has_context_value = true,
+                                    .context_value = context},
+                .error_record = &amp;error_record,
+            },
+            &amp;result);
+    }
+
+    /* 5. Write the result. */
+    if (status == SXML_STATUS_OK) {
+        status = print_sequence(processor, result, &amp;error_record);
+    }
+    if (status != SXML_STATUS_OK) {
+        print_failure(status, &amp;error_record);
+    }
+
+    /* 6. Release everything, the processor last. */
+    sxml_sequence_release(result);
+    sxml_xpath_expression_destroy(expression);
+    sxml_sequence_release(context);
+    sxml_processor_destroy(processor);
+    return status == SXML_STATUS_OK ? 0 : 1;
+}
+</code></pre>
+<pre><code class="language-console">$ ./build/requirements
+"req-1 in Flag States"
+"req-2 in Flag States"
+"req-4 in Rollout"
+"req-6 in Status"
+"req-7 in Pause"
+</code></pre>
+<p>The steps are the same in every program:</p>
+<ol>
+<li>Create a <strong>processor</strong>. It owns the names, types and values that
+everything else uses, and it holds what the host provides: the
+resource resolver, the clock, the trace sink and the limits.</li>
+<li>Parse documents with the processor, from bytes you give it.</li>
+<li><strong>Compile</strong> an expression, a query or a stylesheet.</li>
+<li><strong>Evaluate</strong> it, with a dynamic context: the context item and the
+values of variables.</li>
+<li>Serialize the result, or read its items with the functions of
+<code>sxml/xdm.h</code>.</li>
+<li>Release values, destroy compiled objects, then the processor.</li>
+</ol>
+<p>Every function returns an <code>sxml_status</code>. Arguments come in structs with
+designated initializers, so a call says what each value is, and fields
+you leave out are zero: the defaults.</p>
+<h2 id="compile-once-run-many-times"><a class="header" href="#compile-once-run-many-times">Compile once, run many times</a></h2>
+<p>Compiling parses the expression, resolves its names, checks its types
+and optimizes it. Do it once, and evaluate the result as often as you
+like, with different documents and different variables. This program
+compiles one expression and runs it on both drafts, once for each of
+two key words:</p>
+<p><code>compile_once.c</code>:</p>
+<pre><code class="language-c">#include &lt;stdio.h&gt;
+
+#include "output.h"
+#include "sxml/processor.h"
+#include "sxml/xpath.h"
+
+/* The two drafts the same expression runs against, and room for each. */
+static const char *const draft_files[] = {"vane-00.xml", "vane.xml"};
+static unsigned char draft_contents[2][1 &lt;&lt; 16];
+
+/* The values of $keyword for each run. */
+static const sxml_byte_view keywords[] = {TEXT("SHOULD"), TEXT("MAY")};
+
+int main(void) {
+    sxml_allocator allocator = sxml_default_allocator();
+    sxml_error_record error_record = {0};
+    sxml_processor *processor = NULL;
+    sxml_status status = sxml_processor_create(
+        allocator, &amp;(sxml_processor_configuration){.allocator = allocator},
+        &amp;processor);
+
+    /* Variable names are interned in the processor's name pool. */
+    sxml_name_identifier keyword = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_name_pool_intern_name(
+            sxml_processor_get_name_pool(processor),
+            &amp;(sxml_name_request){.namespace_uri = SXML_NAMESPACE_NONE,
+                                 .local_name = TEXT("keyword")},
+            &amp;keyword);
+    }
+
+    /* Compile once, declaring $keyword as an external xs:string. */
+    sxml_variable_declaration declaration = {
+        .variable_name = keyword,
+        .declared_type = {.item_type = {.index = SXML_TYPE_XS_STRING},
+                          .occurrence = SXML_OCCURRENCE_EXACTLY_ONE},
+    };
+    sxml_xpath_expression *expression = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_expression_create(
+            allocator,
+            &amp;(sxml_xpath_expression_configuration){
+                .processor = processor,
+                .expression_text = TEXT("string-join(//t[bcp14 = $keyword]/@anchor, ' ')"),
+                .static_context = {.variable_declarations = {
+                                       .variable_declarations = &amp;declaration,
+                                       .variable_declaration_count = 1}},
+                .error_record = &amp;error_record,
+            },
+            &amp;expression);
+    }
+
+    /* Run many times: each draft, with each key word. */
+    for (size_t draft_index = 0; status == SXML_STATUS_OK &amp;&amp; draft_index &lt; 2;
+         draft_index += 1) {
+        sxml_item document = {0};
+        status = sxml_processor_parse_document(
+            processor,
+            &amp;(sxml_xml_parse_request){
+                .input = read_file(draft_files[draft_index], draft_contents[draft_index],
+                                   sizeof draft_contents[draft_index]),
+                .diagnostic = &amp;error_record.diagnostic},
+            &amp;document);
+        sxml_sequence context = sxml_sequence_from_item(document);
+        for (size_t keyword_index = 0; status == SXML_STATUS_OK &amp;&amp; keyword_index &lt; 2;
+             keyword_index += 1) {
+            /* A string is an item in the processor's item heap. */
+            sxml_item value = {0};
+            status = sxml_atomic_item_make(
+                sxml_processor_get_item_heap(processor),
+                &amp;(sxml_atomic_item_request){
+                    .type = sxml_builtin_type_identifier(SXML_TYPE_XS_STRING),
+                    .datum = {.datum_kind = SXML_DATUM_KIND_STRING,
+                              .datum_details = {.string = {.utf8 = keywords[keyword_index]}}},
+                },
+                &amp;value);
+            sxml_variable_binding binding = {
+                .variable_name = keyword,
+                .value = sxml_sequence_from_item(value),
+            };
+            sxml_sequence result = sxml_sequence_empty();
+            if (status == SXML_STATUS_OK) {
+                status = sxml_xpath_expression_evaluate(
+                    expression,
+                    &amp;(sxml_xpath_evaluation_request){
+                        .dynamic_context = {.has_context_value = true,
+                                            .context_value = context,
+                                            .variable_bindings = {
+                                                .variable_bindings = &amp;binding,
+                                                .variable_binding_count = 1}},
+                        .error_record = &amp;error_record,
+                    },
+                    &amp;result);
+            }
+            if (status == SXML_STATUS_OK) {
+                printf("%s, %.*s: ", draft_files[draft_index],
+                       (int)keywords[keyword_index].byte_count,
+                       (const char *)keywords[keyword_index].bytes);
+                status = print_sequence(processor, result, &amp;error_record);
+            }
+            sxml_sequence_release(result);
+            sxml_sequence_release(binding.value);
+        }
+        sxml_sequence_release(context);
+    }
+
+    if (status != SXML_STATUS_OK) {
+        print_failure(status, &amp;error_record);
+    }
+    sxml_xpath_expression_destroy(expression);
+    sxml_processor_destroy(processor);
+    return status == SXML_STATUS_OK ? 0 : 1;
+}
+</code></pre>
+<pre><code class="language-console">$ ./build/compile_once
+vane-00.xml, SHOULD: "req-3 req-8"
+vane-00.xml, MAY: ""
+vane.xml, SHOULD: "req-3 req-8"
+vane.xml, MAY: "req-9 req-11"
+</code></pre>
+<p>The first draft has no MAY requirement; the second adds two.</p>
+<p>An external variable is <em>declared</em> when the expression is compiled, with
+its type, and <em>bound</em> each time it is evaluated. Names are interned once
+in the processor's name pool and then passed as small identifiers.
+Small integers, doubles and booleans are items that need no memory;
+strings and other values are made in the processor's item heap, as
+<code>sxml_atomic_item_make</code> makes each key word, and released when they are
+no longer needed.</p>
+<h2 id="resources-and-xquery"><a class="header" href="#resources-and-xquery">Resources and XQuery</a></h2>
+<p>The processor's resource resolver answers every request for a resource:
+<code>fn:doc</code>, <code>fn:unparsed-text</code>, imported modules, schemas, packages. sxml
+reads nothing else. <code>sxml_table_resource_resolver</code> serves resources from
+memory, which is all a test or a sandbox needs; for anything else,
+implement <code>sxml_resource_resolver_operations</code> yourself.</p>
+<p>This program also shows XQuery. A query is compiled and evaluated like
+an expression, and it carries the serialization parameters its prolog
+declares. The program reads the draft into memory and serves it as
+<code>https://example.org/drafts/vane.xml</code>, and the query counts the
+requirements of each key word:</p>
+<p><code>resolver.c</code>:</p>
+<pre><code class="language-c">#include &lt;stdio.h&gt;
+
+#include "output.h"
+#include "sxml/processor.h"
+#include "sxml/xquery.h"
+
+/* Room for the draft's bytes. */
+static unsigned char draft_contents[1 &lt;&lt; 16];
+
+int main(void) {
+    sxml_allocator allocator = sxml_default_allocator();
+    sxml_error_record error_record = {0};
+
+    /* The only resource the query may read: the draft, held in memory. */
+    sxml_resource_entry resources[] = {
+        {.uri = TEXT("https://example.org/drafts/vane.xml"),
+         .content = read_file("vane.xml", draft_contents, sizeof draft_contents)},
+    };
+    sxml_resource_entry_view entries = {.resource_entries = resources,
+                                        .resource_entry_count = 1};
+
+    /* The resolver decides what fn:doc can see; nothing else is read. */
+    sxml_processor *processor = NULL;
+    sxml_status status = sxml_processor_create(
+        allocator,
+        &amp;(sxml_processor_configuration){
+            .allocator = allocator,
+            .resource_resolver = sxml_table_resource_resolver(&amp;entries),
+        },
+        &amp;processor);
+
+    /* Relative URIs in the query resolve against its static base URI. */
+    sxml_xquery_query *query = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xquery_query_create(
+            allocator,
+            &amp;(sxml_xquery_query_configuration){
+                .processor = processor,
+                .expression_text = TEXT(
+                    "declare option output:indent 'yes';\n"
+                    "&lt;keywords&gt;{\n"
+                    "  for $t in doc('vane.xml')//t[@anchor]\n"
+                    "  group by $keyword := string($t/bcp14)\n"
+                    "  order by $keyword\n"
+                    "  return &lt;keyword name='{ $keyword }' count='{ count($t) }'/&gt;\n"
+                    "}&lt;/keywords&gt;,\n"
+                    "doc-available('vane-00.xml')"),
+                .source_name = TEXT("keywords.xq"),
+                .static_context = {.static_base_uri = TEXT("https://example.org/drafts/")},
+                .error_record = &amp;error_record,
+            },
+            &amp;query);
+    }
+
+    sxml_sequence result = sxml_sequence_empty();
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xquery_query_evaluate(
+            query, &amp;(sxml_xquery_evaluation_request){.error_record = &amp;error_record},
+            &amp;result);
+    }
+
+    /* Serialize as the query's output declarations ask. */
+    if (status == SXML_STATUS_OK) {
+        status = sxml_serialize_sequence(
+            sxml_processor_get_item_heap(processor),
+            &amp;(sxml_serialization_request){
+                .value = result,
+                .serialization_parameters =
+                    sxml_xquery_query_get_serialization_parameters(query),
+                .error_record = &amp;error_record,
+            },
+            stdout_stream());
+        putchar('\n');
+    }
+    if (status != SXML_STATUS_OK) {
+        print_failure(status, &amp;error_record);
+    }
+    sxml_sequence_release(result);
+    sxml_xquery_query_destroy(query);
+    sxml_processor_destroy(processor);
+    return status == SXML_STATUS_OK ? 0 : 1;
+}
+</code></pre>
+<pre><code class="language-console">$ ./build/resolver
+&lt;keywords&gt;
+  &lt;keyword name="MAY" count="2"/&gt;
+  &lt;keyword name="MUST" count="5"/&gt;
+  &lt;keyword name="MUST NOT" count="1"/&gt;
+  &lt;keyword name="SHOULD" count="2"/&gt;
+  &lt;keyword name="SHOULD NOT" count="1"/&gt;
+&lt;/keywords&gt;false
+</code></pre>
+<p><code>doc('vane.xml')</code> resolves against the query's base URI to the URI in
+the table. <code>vane-00.xml</code> is not in the table, so the query cannot see
+it, though the file is right next to the program: the resolver decides,
+not the file system. XSLT (<code>sxml/xslt.h</code>) and XSD
+(<code>sxml/schema.h</code>) follow the same pattern: compile a stylesheet or a
+schema once with a processor, then run transformations or validations
+with it.</p>
+<h2 id="errors"><a class="header" href="#errors">Errors</a></h2>
+<p>When a function fails, its status says how, and the <em>error record</em> you
+passed says what and where: the error code, the description and the
+location in the expression text. Static errors come from compiling,
+dynamic and type errors from evaluating:</p>
+<p><code>errors.c</code>:</p>
+<pre><code class="language-c">#include &lt;stdio.h&gt;
+
+#include "output.h"
+#include "sxml/processor.h"
+#include "sxml/xpath.h"
+
+/* Compiles and evaluates one expression, and reports how it went. */
+static void run(sxml_processor *processor, sxml_byte_view expression_text) {
+    sxml_allocator allocator = sxml_default_allocator();
+    sxml_error_record error_record = {0};
+    sxml_xpath_expression *expression = NULL;
+    sxml_sequence result = sxml_sequence_empty();
+    printf("%.*s =&gt; ", (int)expression_text.byte_count,
+           (const char *)expression_text.bytes);
+    sxml_status status = sxml_xpath_expression_create(
+        allocator,
+        &amp;(sxml_xpath_expression_configuration){
+            .processor = processor,
+            .expression_text = expression_text,
+            .error_record = &amp;error_record,
+        },
+        &amp;expression);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_expression_evaluate(
+            expression, &amp;(sxml_xpath_evaluation_request){.error_record = &amp;error_record},
+            &amp;result);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = print_sequence(processor, result, &amp;error_record);
+    }
+    if (status != SXML_STATUS_OK) {
+        print_failure(status, &amp;error_record);
+    }
+    sxml_sequence_release(result);
+    sxml_xpath_expression_destroy(expression);
+}
+
+int main(void) {
+    sxml_allocator allocator = sxml_default_allocator();
+    sxml_processor *processor = NULL;
+    sxml_status status = sxml_processor_create(
+        allocator,
+        &amp;(sxml_processor_configuration){
+            .allocator = allocator,
+            /* Stop any evaluation after ten million steps. */
+            .limits = {.maximum_evaluation_step_count = 10000000},
+        },
+        &amp;processor);
+    if (status != SXML_STATUS_OK) {
+        return 1;
+    }
+    run(processor, TEXT("6 * 7"));
+    run(processor, TEXT("1 +"));
+    run(processor, TEXT("1 div 0"));
+    run(processor, TEXT("error(xs:QName('err:VANE0001'), 'no requirement req-12')"));
+    run(processor, TEXT("some $n in 1 to 100000000000 satisfies $n = 0"));
+    sxml_processor_destroy(processor);
+    return 0;
+}
+</code></pre>
+<pre><code class="language-console">$ ./build/errors
+6 * 7 =&gt; 42
+1 + =&gt; SXML_STATUS_STATIC_ERROR err:XPST0003 at 1:3: The text is not valid XPath 4.0 syntax (XPath 4.0, Appendix A)
+1 div 0 =&gt; SXML_STATUS_DYNAMIC_ERROR err:FOAR0001 at 1:1: division by zero (F&amp;O 4.0, op:numeric-divide, op:numeric-integer-divide, op:numeric-mod)
+error(xs:QName('err:VANE0001'), 'no requirement req-12') =&gt; SXML_STATUS_DYNAMIC_ERROR err:VANE0001 at 1:1: no requirement req-12
+some $n in 1 to 100000000000 satisfies $n = 0 =&gt; SXML_STATUS_LIMIT_EXCEEDED: the evaluation took more steps than maximum_evaluation_step_count allows
+</code></pre>
+<p>The last expression would run for a very long time. The processor's
+<em>limits</em> bound the work of an evaluation, the depth of calls, the size of
+documents and the memory of the item heap, so a program can run queries
+it doesn't trust. A limit gives <code>SXML_STATUS_LIMIT_EXCEEDED</code>, not an
+error code: it is not an error in the query, but a decision of the host.</p>
+<h2 id="memory-and-allocators"><a class="header" href="#memory-and-allocators">Memory and allocators</a></h2>
+<p>sxml takes all its memory from an <code>sxml_allocator</code> that you give it: a
+pair of functions to allocate and release, with a state pointer. The
+default allocator uses the C library's heap. Yours can use a pool, an
+arena, a fixed budget, or memory that a game engine or a kernel hands
+out. The counting allocator that comes with sxml counts the allocations,
+which makes it easy to check that nothing leaks:</p>
+<p><code>memory.c</code>:</p>
+<pre><code class="language-c">#include &lt;stdio.h&gt;
+
+#include "output.h"
+#include "sxml/processor.h"
+#include "sxml/xpath.h"
+
+int main(void) {
+    /* A counting allocator passes allocations on to the default
+       allocator and counts them. Any sxml_allocator works the same way:
+       a pool, an arena, or memory with a fixed budget. */
+    sxml_counting_allocator *counting_allocator = NULL;
+    sxml_status status = sxml_counting_allocator_create(
+        sxml_default_allocator(),
+        &amp;(sxml_counting_allocator_configuration){
+            .backing_allocator = sxml_default_allocator()},
+        &amp;counting_allocator);
+    if (status != SXML_STATUS_OK) {
+        return 1;
+    }
+    sxml_allocator allocator = sxml_counting_allocator_as_allocator(counting_allocator);
+    sxml_error_record error_record = {0};
+
+    sxml_processor *processor = NULL;
+    status = sxml_processor_create(
+        allocator, &amp;(sxml_processor_configuration){.allocator = allocator},
+        &amp;processor);
+    sxml_xpath_expression *expression = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_expression_create(
+            allocator,
+            &amp;(sxml_xpath_expression_configuration){
+                .processor = processor,
+                .expression_text = TEXT("sum((1 to 1000000) ! (. * .))"),
+                .error_record = &amp;error_record,
+            },
+            &amp;expression);
+    }
+    sxml_sequence result = sxml_sequence_empty();
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_expression_evaluate(
+            expression, &amp;(sxml_xpath_evaluation_request){.error_record = &amp;error_record},
+            &amp;result);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = print_sequence(processor, result, &amp;error_record);
+    }
+    if (status != SXML_STATUS_OK) {
+        print_failure(status, &amp;error_record);
+    }
+    sxml_sequence_release(result);
+    sxml_xpath_expression_destroy(expression);
+    sxml_processor_destroy(processor);
+
+    /* Everything sxml allocated has been given back. */
+    sxml_allocation_counts counts = sxml_counting_allocator_read_counts(counting_allocator);
+    printf("allocations: %llu, still live: %llu\n",
+           (unsigned long long)counts.attempted_allocation_count,
+           (unsigned long long)counts.live_allocation_count);
+    sxml_counting_allocator_destroy(counting_allocator);
+    return status == SXML_STATUS_OK ? 0 : 1;
+}
+</code></pre>
+<pre><code class="language-console">$ ./build/memory
+333333833333500000
+allocations: 195, still live: 0
+</code></pre>
+<p>A million squares took 195 allocations, because sequences such as
+<code>1 to 1000000</code> are computed as they are read, not stored.</p>
+<p>Every object type in sxml can also be placed in memory you provide,
+without an allocator call for the object itself: each has a
+<code>memory_requirements</code> function that says how much memory and what
+alignment it needs, an <code>initialize</code> function that places it, and a
+<code>finalize</code> function that ends it. <code>create</code> and <code>destroy</code>, used above,
+are the same with the memory from an allocator.</p>
+<h2 id="optional-features"><a class="header" href="#optional-features">Optional features</a></h2>
+<p>Some parts of sxml are <em>optional features</em>: the HTML parser, Invisible
+XML, EXPath Binary and File, UCA collations, the time zone database,
+localized formatting and Full Text. A program names the features it
+wants in the processor configuration:</p>
+<pre><code class="language-c">sxml_optional_feature features[] = {
+    sxml_html_parser_feature(),
+    sxml_invisible_xml_feature(),
+};
+sxml_processor_configuration configuration = {
+    .allocator = allocator,
+    .optional_features = {.optional_features = features,
+                          .optional_feature_count = 2},
+};
+</code></pre>
+<p>A program that never names a feature doesn't link it, which keeps small
+programs small. <code>sxml_all_optional_features()</code> names them all, except
+EXPath File: a feature that reads and writes files beyond the resolver
+must be named on purpose, with an <code>sxml_file_system</code> that decides which
+files it reaches.</p>
+<p>Without a feature, sxml behaves as the specifications say a processor
+without it behaves: <code>parse-html</code> doesn't exist, for example. The large
+tables some features need, such as collation data and time zones, are
+not compiled in. The feature asks the resolver for them, in their
+standard formats, the first time they are needed.</p>
+<h2 id="threads"><a class="header" href="#threads">Threads</a></h2>
+<p>A processor and everything made with it are used by one thread at a
+time. Separate processors share nothing, so a server runs one processor
+per thread, with no locks.</p>
+<h2 id="where-to-go-next"><a class="header" href="#where-to-go-next">Where to go next</a></h2>
+<p>The public headers in <code>include/sxml/</code> are the reference. Each one
+documents its types and functions, with the rules of the specification
+they follow. Start with <code>processor.h</code> and <code>xpath.h</code>, then <code>xquery.h</code>,
+<code>xslt.h</code> and <code>schema.h</code>.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="files.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="javascript.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="files.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="javascript.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="style/sxml.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

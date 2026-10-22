@@ -1,0 +1,466 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>The sxml Command - The sxml Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Learn XPath 4.0, XQuery 4.0, XSLT 4.0 and XSD 1.1 with sxml, the small XML toolchain in portable C.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="style/sxml.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "coal";
+            window.path_to_searchindex_js = "searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The sxml Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml/edit/main/docs/book/src/the-sxml-command.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="the-sxml-command"><a class="header" href="#the-sxml-command">The sxml Command</a></h1>
+<!-- examples: getting-started -->
+<p><code>sxml xpath</code> is one of several commands. Each one does one job, and they
+all work the same way: options start with <code>--</code>, results go to standard
+output, and errors go to standard error with the file, line and column
+where they happened. Let's take a quick tour, using the same
+<code>draft.xml</code> as before. The commands for queries, stylesheets and schemas
+each have a chapter of their own later in the book.</p>
+<h2 id="checking-documents"><a class="header" href="#checking-documents">Checking documents</a></h2>
+<p><code>sxml check</code> checks that documents are <em>well-formed</em>: that they follow
+the rules of XML, such as every start tag having a matching end tag.
+When they do, it prints nothing and exits with status 0:</p>
+<pre><code class="language-console">$ sxml check draft.xml; echo "exit status $?"
+exit status 0
+</code></pre>
+<p>This file has a paragraph <code>t</code> that is never closed:</p>
+<p><code>broken.xml</code>:</p>
+<pre><code class="language-xml">&lt;rfc docName="draft-example-vane-protocol-01"&gt;
+  &lt;middle&gt;
+    &lt;section anchor="states"&gt;
+      &lt;name&gt;Flag States&lt;/name&gt;
+      &lt;t anchor="req-2"&gt;A flag &lt;bcp14&gt;MUST&lt;/bcp14&gt; be stable.
+    &lt;/section&gt;
+  &lt;/middle&gt;
+&lt;/rfc&gt;
+</code></pre>
+<pre><code class="language-console">$ sxml check broken.xml; echo "exit status $?"
+broken.xml:6:5: not well-formed: the text does not match the XML 1.0 grammar here (XML 1.0, section 2.1)
+exit status 1
+</code></pre>
+<p>The parser noticed the problem at line 6, where <code>&lt;/section&gt;</code> arrived
+while <code>t</code> was still open.</p>
+<h2 id="validating-documents"><a class="header" href="#validating-documents">Validating documents</a></h2>
+<p>Well-formed is only the first step. A <em>schema</em> describes what a kind of
+document must contain: which elements, in which order, with which types
+of values. <code>draft.xsd</code> is an XSD schema for our draft. It says, among
+other things, that each section has a <code>name</code> and then one or more
+paragraphs, and that a <code>bcp14</code> holds one of five key words:</p>
+<p><code>draft.xsd</code>:</p>
+<pre><code class="language-xml">&lt;xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"&gt;
+  &lt;xs:element name="rfc"&gt;
+    &lt;xs:complexType&gt;
+      &lt;xs:sequence&gt;
+        &lt;xs:element name="front"&gt;
+          &lt;xs:complexType&gt;
+            &lt;xs:sequence&gt;
+              &lt;xs:element name="title" type="xs:string"/&gt;
+            &lt;/xs:sequence&gt;
+          &lt;/xs:complexType&gt;
+        &lt;/xs:element&gt;
+        &lt;xs:element name="middle"&gt;
+          &lt;xs:complexType&gt;
+            &lt;xs:sequence&gt;
+              &lt;xs:element name="section" type="section" maxOccurs="unbounded"/&gt;
+            &lt;/xs:sequence&gt;
+          &lt;/xs:complexType&gt;
+        &lt;/xs:element&gt;
+      &lt;/xs:sequence&gt;
+      &lt;xs:attribute name="docName" type="xs:string" use="required"/&gt;
+    &lt;/xs:complexType&gt;
+  &lt;/xs:element&gt;
+  &lt;xs:complexType name="section"&gt;
+    &lt;xs:sequence&gt;
+      &lt;xs:element name="name" type="xs:string"/&gt;
+      &lt;xs:element name="t" type="paragraph" maxOccurs="unbounded"/&gt;
+    &lt;/xs:sequence&gt;
+    &lt;xs:attribute name="anchor" type="xs:NCName" use="required"/&gt;
+  &lt;/xs:complexType&gt;
+  &lt;xs:complexType name="paragraph" mixed="true"&gt;
+    &lt;xs:sequence&gt;
+      &lt;xs:element name="bcp14" type="keyword" minOccurs="0" maxOccurs="unbounded"/&gt;
+    &lt;/xs:sequence&gt;
+    &lt;xs:attribute name="anchor" type="xs:NCName"/&gt;
+  &lt;/xs:complexType&gt;
+  &lt;xs:simpleType name="keyword"&gt;
+    &lt;xs:restriction base="xs:string"&gt;
+      &lt;xs:enumeration value="MUST"/&gt;
+      &lt;xs:enumeration value="MUST NOT"/&gt;
+      &lt;xs:enumeration value="SHOULD"/&gt;
+      &lt;xs:enumeration value="SHOULD NOT"/&gt;
+      &lt;xs:enumeration value="MAY"/&gt;
+    &lt;/xs:restriction&gt;
+  &lt;/xs:simpleType&gt;
+&lt;/xs:schema&gt;
+</code></pre>
+<p><code>sxml validate</code> checks documents against it. Our draft is valid:</p>
+<pre><code class="language-console">$ sxml validate --schema=draft.xsd draft.xml
+</code></pre>
+<p>This one is not:</p>
+<p><code>invalid.xml</code>:</p>
+<pre><code class="language-xml">&lt;rfc docName="draft-example-vane-protocol-01"&gt;
+  &lt;front&gt;
+    &lt;title&gt;The Vane Protocol for Feature Flag Rollouts&lt;/title&gt;
+  &lt;/front&gt;
+  &lt;middle&gt;
+    &lt;section anchor="states"&gt;
+      &lt;t anchor="req-2"&gt;A flag &lt;bcp14&gt;MIGHT&lt;/bcp14&gt; be stable when it is created.&lt;/t&gt;
+    &lt;/section&gt;
+  &lt;/middle&gt;
+&lt;/rfc&gt;
+</code></pre>
+<pre><code class="language-console">$ sxml validate --schema=draft.xsd invalid.xml
+invalid.xml:7:7: cvc-complex-type.2.4: element 't' is not allowed here; expected 'name'
+invalid.xml:7:32: cvc-enumeration-valid: element 'bcp14' has the value 'MIGHT', which is not valid for type 'keyword': the value is not one of the enumeration facets (XSD 1.1 Part 2, 4.3.5.4); the enumeration facets are 'MUST', 'MUST NOT', 'SHOULD', 'SHOULD NOT', 'MAY'
+</code></pre>
+<p>The section has lost its <code>name</code>, and the requirement says MIGHT, which
+is not a key word. Each error names the rule of XSD that failed, such as
+<code>cvc-complex-type.2.4</code>, and says what was expected.</p>
+<h2 id="running-queries"><a class="header" href="#running-queries">Running queries</a></h2>
+<p><code>sxml xquery</code> runs XQuery, a programming language that contains XPath
+and adds variables, loops, sorting, functions and a way to build new
+XML. This query makes an index of the requirements, sorted by key word:</p>
+<p><code>requirements.xq</code>:</p>
+<pre><code class="language-xquery">declare option output:indent "yes";
+
+&lt;requirements&gt;{
+  for $t in //t[@anchor]
+  order by $t/bcp14, $t/@anchor
+  return &lt;requirement anchor="{ $t/@anchor }" keyword="{ $t/bcp14 }"&gt;{
+    normalize-space($t)
+  }&lt;/requirement&gt;
+}&lt;/requirements&gt;
+</code></pre>
+<pre><code class="language-console">$ sxml xquery --context-item=draft.xml requirements.xq
+&lt;requirements&gt;
+  &lt;requirement anchor="req-2" keyword="MUST"&gt;A flag MUST be stable when it is created.&lt;/requirement&gt;
+  &lt;requirement anchor="req-7" keyword="MUST"&gt;After three failed checks, a service MUST pause the flag.&lt;/requirement&gt;
+  &lt;requirement anchor="req-3" keyword="SHOULD"&gt;A rolling-out flag SHOULD be stable again after ten minutes.&lt;/requirement&gt;
+&lt;/requirements&gt;
+</code></pre>
+<p>The <code>for</code> clause goes through the requirements, <code>order by</code> sorts them
+by key word and then by anchor, and <code>return</code> builds a new <code>requirement</code>
+element for each one. The curly braces put computed values into the
+XML. The first line asks for indented output.</p>
+<p>A short query can be given on the command line with <code>--expression</code>:</p>
+<pre><code class="language-console">$ sxml xquery --expression='&lt;greeting&gt;{ "Hello, " || "XQuery" }&lt;/greeting&gt;'
+&lt;greeting&gt;Hello, XQuery&lt;/greeting&gt;
+</code></pre>
+<h2 id="transforming-documents"><a class="header" href="#transforming-documents">Transforming documents</a></h2>
+<p><code>sxml transform</code> runs an XSLT stylesheet. XSLT works by rules: each
+<em>template</em> says what to make when the transformation meets a certain
+kind of node. This stylesheet turns the draft into an HTML outline:</p>
+<p><code>outline.xsl</code>:</p>
+<pre><code class="language-xml">&lt;xsl:stylesheet version="4.0" expand-text="yes"
+    xmlns:xsl="http://www.w3.org/1999/XSL/Transform"&gt;
+  &lt;xsl:output method="html" indent="yes"/&gt;
+  &lt;xsl:template match="/rfc"&gt;
+    &lt;html&gt;
+      &lt;body&gt;
+        &lt;h1&gt;{front/title}&lt;/h1&gt;
+        &lt;xsl:apply-templates select="middle/section"/&gt;
+      &lt;/body&gt;
+    &lt;/html&gt;
+  &lt;/xsl:template&gt;
+  &lt;xsl:template match="section"&gt;
+    &lt;h2&gt;{position()}. {name}&lt;/h2&gt;
+    &lt;ul&gt;
+      &lt;xsl:apply-templates select="t[@anchor]"/&gt;
+    &lt;/ul&gt;
+  &lt;/xsl:template&gt;
+  &lt;xsl:template match="t"&gt;
+    &lt;li id="{@anchor}"&gt;{.}&lt;/li&gt;
+  &lt;/xsl:template&gt;
+&lt;/xsl:stylesheet&gt;
+</code></pre>
+<pre><code class="language-console">$ sxml transform outline.xsl draft.xml
+&lt;!DOCTYPE html&gt;
+&lt;html&gt;
+  &lt;body&gt;
+    &lt;h1&gt;The Vane Protocol for Feature Flag Rollouts&lt;/h1&gt;
+    &lt;h2&gt;1. Flag States&lt;/h2&gt;
+    &lt;ul&gt;
+      &lt;li id="req-2"&gt;A flag MUST be stable when it is created.&lt;/li&gt;
+      &lt;li id="req-3"&gt;A rolling-out flag SHOULD be stable again after ten minutes.&lt;/li&gt;
+    &lt;/ul&gt;
+    &lt;h2&gt;2. Pause&lt;/h2&gt;
+    &lt;ul&gt;
+      &lt;li id="req-7"&gt;After three failed checks, a service MUST pause the flag.&lt;/li&gt;
+    &lt;/ul&gt;
+  &lt;/body&gt;
+&lt;/html&gt;
+</code></pre>
+<p>The first template matches the <code>rfc</code> element and writes the page
+around the sections. Inside it, <code>xsl:apply-templates</code> processes each
+section, the second template writes a heading and a list for it, and the
+third turns each requirement into a list item. With <code>expand-text="yes"</code>,
+<code>{name}</code> in the text is replaced by the value of the expression <code>name</code>,
+and <code>{position()}</code> by the section's position among the sections
+processed.</p>
+<h2 id="writing-documents-again"><a class="header" href="#writing-documents-again">Writing documents again</a></h2>
+<p><code>sxml serialize</code> parses a document and writes it again, for example
+indented, or by another output method:</p>
+<pre><code class="language-console">$ echo '&lt;section&gt;&lt;name&gt;Pause&lt;/name&gt;&lt;t&gt;Three failed checks.&lt;/t&gt;&lt;/section&gt;' | sxml serialize --indent -
+&lt;section&gt;
+  &lt;name&gt;Pause&lt;/name&gt;
+  &lt;t&gt;Three failed checks.&lt;/t&gt;
+&lt;/section&gt;
+</code></pre>
+<p>A file name of <code>-</code> means standard input, in every command.</p>
+<h2 id="exit-status"><a class="header" href="#exit-status">Exit status</a></h2>
+<p>Every command exits with the same status codes, so scripts can tell what
+went wrong:</p>
+<div class="table-wrapper"><table><thead><tr><th>Status</th><th>Meaning</th></tr></thead><tbody>
+<tr><td>0</td><td>Success</td></tr>
+<tr><td>1</td><td>The operation failed: a document is not well-formed or not valid, or a query or stylesheet raised an error</td></tr>
+<tr><td>2</td><td>Usage error: an unknown command or option, or a bad option value</td></tr>
+<tr><td>3</td><td>A file could not be read or written</td></tr>
+<tr><td>4</td><td>An internal error, such as running out of memory or exceeding a limit</td></tr>
+</tbody></table>
+</div>
+<p>A mistyped command or option is a usage error, and sxml suggests what you
+may have meant:</p>
+<pre><code class="language-console">$ sxml chek draft.xml
+sxml: unknown command 'chek'; did you mean 'check'?
+Usage: sxml [--version] COMMAND [ARGUMENT...]
+Try 'sxml --help'.
+</code></pre>
+<h2 id="summary"><a class="header" href="#summary">Summary</a></h2>
+<p>You now know the whole <code>sxml</code> command at a glance:</p>
+<ul>
+<li><code>check</code> for well-formedness and <code>validate</code> for schemas;</li>
+<li><code>xpath</code> for expressions, <code>xquery</code> for queries and <code>transform</code> for
+stylesheets;</li>
+<li><code>serialize</code> to write a document again.</li>
+</ul>
+<p>sxml reads only the local files you name, never uses the network and
+writes a file only when an option asks it to. Now it's time to learn the
+languages properly, starting with XPath on the whole Vane draft.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="hello-xpath.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="xpath.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="hello-xpath.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="xpath.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="style/sxml.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

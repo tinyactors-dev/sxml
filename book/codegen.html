@@ -1,0 +1,569 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Project: Generating Vane&#x27;s SDKs from a Schema - The sxml Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Learn XPath 4.0, XQuery 4.0, XSLT 4.0 and XSD 1.1 with sxml, the small XML toolchain in portable C.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="style/sxml.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "coal";
+            window.path_to_searchindex_js = "searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The sxml Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml/edit/main/docs/book/src/codegen.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="project-generating-vanes-sdks-from-a-schema"><a class="header" href="#project-generating-vanes-sdks-from-a-schema">Project: Generating Vane's SDKs from a Schema</a></h1>
+<!-- examples: codegen -->
+<p>Vane, the feature-flag product of the earlier projects, is one service
+with three kinds of callers. The frontend SDK, <code>@vane/browser</code>, runs in
+a browser page and asks the service whether each flag is on for the
+user in front of it. The backend SDK, <code>@vane/node</code>, runs inside an
+application on a server: it downloads every flag with its rules,
+evaluates them itself and keeps them in a cache. And the console, where
+the owners of a flag work, rolls flags out and pulls the kill switch.
+All of them send the same facts over the network. The console sends a
+rollout with a flag key, a percentage and an owner; the service reads
+one. Both need the same type for it, both should refuse a percentage of
+150, and the documentation for other programs should say the same
+thing. When these copies are written by hand, in each SDK and in the
+service, they drift apart, and the drift shows up as a bug in
+production.</p>
+<p>In this project, we'll write the facts down once, in XML, and generate
+the rest. XML tools are good at this job:</p>
+<ul>
+<li>The source is declarative: types, rules and functions, without code.</li>
+<li>The source is typed and checked. An XSD schema describes the values,
+with facets for the rules, and another schema checks the description
+of the functions.</li>
+<li>The source is data. A schema is an XML document, so XQuery and XSLT
+can read it like any other document.</li>
+<li>The code is data too, on its way out. The generator doesn't write
+text: it builds a tree of the program, an XML document, which can be
+queried and checked before a stylesheet prints it.</li>
+</ul>
+<p>We'll describe Vane's API as five <em>remote functions</em>, which a caller
+calls as if they were local functions, while they run in the service.
+They are the routes that the <a href="call-chains.html">call-chain</a> and
+<a href="traces.html">trace</a> projects look at: <code>GET /api/getFlags</code> is the
+function <code>getFlags</code>, and <code>POST /api/killFlag</code> is <code>killFlag</code>. From that
+description, XQuery builds the tree of a TypeScript program: the types,
+with runtime checks made from the facets, one client module for each
+caller, which the SDKs and the console are built on, and the service's
+request handler, which checks every request before the service sees
+it. An XSLT stylesheet prints the tree as TypeScript, and another
+writes the same API as an OpenAPI document, for other tools.</p>
+<p>The idea comes from web frameworks that let you declare a function once
+and call it from the browser, with the framework doing the network part:
+SvelteKit's remote functions are one example. There, a <em>query</em> reads
+data and a <em>command</em> changes it; a query can be repeated and cached, so
+it goes over the network as a GET request, and a command as a POST
+request. We'll build the same idea from plain parts, so you can see
+every piece and change it.</p>
+<p>The files are in <code>docs/book/examples/codegen</code>.</p>
+<h2 id="the-values"><a class="header" href="#the-values">The values</a></h2>
+<p>The values that go in and out of the functions are XSD types. Simple
+types with facets say what a valid flag key, owner, state or percentage
+is, and complex types put them together into requests and responses:</p>
+<p><code>vane-api.xsd</code>:</p>
+<pre><code class="language-xml">&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;!-- The values that Vane's remote functions take and return: the
+     evaluation API, which the SDKs call, and the admin API, which the
+     console calls. --&gt;
+&lt;xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"&gt;
+
+  &lt;xs:simpleType name="FlagKey"&gt;
+    &lt;xs:restriction base="xs:string"&gt;
+      &lt;xs:pattern value="[a-z0-9][a-z0-9-]*"/&gt;
+      &lt;xs:maxLength value="64"/&gt;
+    &lt;/xs:restriction&gt;
+  &lt;/xs:simpleType&gt;
+
+  &lt;xs:simpleType name="Owner"&gt;
+    &lt;xs:restriction base="xs:string"&gt;
+      &lt;xs:pattern value="[^@ ]+@[^@ ]+"/&gt;
+    &lt;/xs:restriction&gt;
+  &lt;/xs:simpleType&gt;
+
+  &lt;xs:simpleType name="Environment"&gt;
+    &lt;xs:restriction base="xs:string"&gt;
+      &lt;xs:enumeration value="production"/&gt;
+      &lt;xs:enumeration value="staging"/&gt;
+    &lt;/xs:restriction&gt;
+  &lt;/xs:simpleType&gt;
+
+  &lt;xs:simpleType name="State"&gt;
+    &lt;xs:restriction base="xs:string"&gt;
+      &lt;xs:enumeration value="stable"/&gt;
+      &lt;xs:enumeration value="rolling-out"/&gt;
+      &lt;xs:enumeration value="paused"/&gt;
+    &lt;/xs:restriction&gt;
+  &lt;/xs:simpleType&gt;
+
+  &lt;xs:simpleType name="Percentage"&gt;
+    &lt;xs:restriction base="xs:integer"&gt;
+      &lt;xs:minInclusive value="0"/&gt;
+      &lt;xs:maxInclusive value="100"/&gt;
+    &lt;/xs:restriction&gt;
+  &lt;/xs:simpleType&gt;
+
+  &lt;xs:simpleType name="FailureCount"&gt;
+    &lt;xs:restriction base="xs:integer"&gt;
+      &lt;xs:minInclusive value="0"/&gt;
+      &lt;xs:maxInclusive value="10"/&gt;
+    &lt;/xs:restriction&gt;
+  &lt;/xs:simpleType&gt;
+
+  &lt;xs:simpleType name="Seconds"&gt;
+    &lt;xs:restriction base="xs:integer"&gt;
+      &lt;xs:minInclusive value="1"/&gt;
+      &lt;xs:maxInclusive value="3600"/&gt;
+    &lt;/xs:restriction&gt;
+  &lt;/xs:simpleType&gt;
+
+  &lt;xs:complexType name="Rule"&gt;
+    &lt;xs:sequence&gt;
+      &lt;xs:element name="attribute" type="xs:string"/&gt;
+      &lt;xs:element name="values" type="xs:string" minOccurs="0" maxOccurs="unbounded"/&gt;
+      &lt;xs:element name="percentage" type="Percentage"/&gt;
+    &lt;/xs:sequence&gt;
+  &lt;/xs:complexType&gt;
+
+  &lt;xs:complexType name="FlagConfig"&gt;
+    &lt;xs:sequence&gt;
+      &lt;xs:element name="key" type="FlagKey"/&gt;
+      &lt;xs:element name="state" type="State"/&gt;
+      &lt;xs:element name="percentage" type="Percentage"/&gt;
+      &lt;xs:element name="rules" type="Rule" minOccurs="0" maxOccurs="unbounded"/&gt;
+    &lt;/xs:sequence&gt;
+  &lt;/xs:complexType&gt;
+
+  &lt;xs:complexType name="FlagsRequest"&gt;
+    &lt;xs:sequence&gt;
+      &lt;xs:element name="environment" type="Environment"/&gt;
+    &lt;/xs:sequence&gt;
+  &lt;/xs:complexType&gt;
+
+  &lt;xs:complexType name="FlagSet"&gt;
+    &lt;xs:sequence&gt;
+      &lt;xs:element name="flags" type="FlagConfig" minOccurs="0" maxOccurs="unbounded"/&gt;
+    &lt;/xs:sequence&gt;
+  &lt;/xs:complexType&gt;
+
+  &lt;xs:complexType name="Attribute"&gt;
+    &lt;xs:sequence&gt;
+      &lt;xs:element name="name" type="xs:string"/&gt;
+      &lt;xs:element name="value" type="xs:string"/&gt;
+    &lt;/xs:sequence&gt;
+  &lt;/xs:complexType&gt;
+
+  &lt;xs:complexType name="EvaluationContext"&gt;
+    &lt;xs:sequence&gt;
+      &lt;xs:element name="environment" type="Environment"/&gt;
+      &lt;xs:element name="user" type="xs:string"/&gt;
+      &lt;xs:element name="attributes" type="Attribute" minOccurs="0" maxOccurs="unbounded"/&gt;
+    &lt;/xs:sequence&gt;
+  &lt;/xs:complexType&gt;
+
+  &lt;xs:complexType name="Evaluation"&gt;
+    &lt;xs:sequence&gt;
+      &lt;xs:element name="flag" type="FlagKey"/&gt;
+      &lt;xs:element name="on" type="xs:boolean"/&gt;
+    &lt;/xs:sequence&gt;
+  &lt;/xs:complexType&gt;
+
+  &lt;xs:complexType name="Evaluations"&gt;
+    &lt;xs:sequence&gt;
+      &lt;xs:element name="evaluations" type="Evaluation" minOccurs="0" maxOccurs="unbounded"/&gt;
+    &lt;/xs:sequence&gt;
+  &lt;/xs:complexType&gt;
+
+  &lt;xs:complexType name="StatusRequest"&gt;
+    &lt;xs:sequence&gt;
+      &lt;xs:element name="flag" type="FlagKey"/&gt;
+    &lt;/xs:sequence&gt;
+  &lt;/xs:complexType&gt;
+
+  &lt;xs:complexType name="FlagStatus"&gt;
+    &lt;xs:sequence&gt;
+      &lt;xs:element name="flag" type="FlagKey"/&gt;
+      &lt;xs:element name="state" type="State"/&gt;
+      &lt;xs:element name="failedChecks" type="FailureCount"/&gt;
+      &lt;xs:element name="retryAfter" type="Seconds" minOccurs="0"/&gt;
+    &lt;/xs:sequence&gt;
+  &lt;/xs:complexType&gt;
+
+  &lt;xs:complexType name="RolloutRequest"&gt;
+    &lt;xs:sequence&gt;
+      &lt;xs:element name="flag" type="FlagKey"/&gt;
+      &lt;xs:element name="percentage" type="Percentage"/&gt;
+      &lt;xs:element name="owner" type="Owner"/&gt;
+    &lt;/xs:sequence&gt;
+  &lt;/xs:complexType&gt;
+
+  &lt;xs:complexType name="KillRequest"&gt;
+    &lt;xs:sequence&gt;
+      &lt;xs:element name="flag" type="FlagKey"/&gt;
+      &lt;xs:element name="owner" type="Owner"/&gt;
+    &lt;/xs:sequence&gt;
+  &lt;/xs:complexType&gt;
+
+  &lt;xs:complexType name="KillResult"&gt;
+    &lt;xs:sequence&gt;
+      &lt;xs:element name="flag" type="FlagKey"/&gt;
+      &lt;xs:element name="killed" type="xs:boolean"/&gt;
+    &lt;/xs:sequence&gt;
+  &lt;/xs:complexType&gt;
+
+&lt;/xs:schema&gt;
+</code></pre>
+<p>Values travel as JSON, so each complex type becomes a JSON object with
+one property for each element of its sequence. An element with
+<code>minOccurs="0"</code> is an optional property, such as the <code>retryAfter</code> of a
+paused flag's status, and one with <code>maxOccurs="unbounded"</code> is an array,
+such as the <code>rules</code> of a flag. <code>FlagConfig</code> is what an SDK needs to
+evaluate a flag: its key, state, percentage and targeting rules, but
+not its owners, which only the service and the console need.</p>
+<h2 id="the-functions"><a class="header" href="#the-functions">The functions</a></h2>
+<p>The functions are in a small language of our own, in a namespace of
+our own. Each function is a <code>query</code> or a <code>command</code>, with a name, the
+type of its input and the type of its output, the clients that offer
+it, and a sentence that says what it does:</p>
+<p><code>api.xml</code>:</p>
+<pre><code class="language-xml">&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;api xmlns="https://example.org/api" name="vane" types="vane-api.xsd"&gt;
+  &lt;query name="getFlags" input="FlagsRequest" output="FlagSet" clients="node"&gt;
+    Every flag with its rules, for an SDK that evaluates flags itself.
+  &lt;/query&gt;
+  &lt;query name="evaluateFlags" input="EvaluationContext" output="Evaluations" clients="browser"&gt;
+    Whether each flag is on for one user, for an SDK in a browser page.
+  &lt;/query&gt;
+  &lt;query name="getStatus" input="StatusRequest" output="FlagStatus" clients="browser node"&gt;
+    The state of one flag and its failed checks since the last rollout step.
+  &lt;/query&gt;
+  &lt;command name="rollOutFlag" input="RolloutRequest" output="FlagStatus" clients="console"&gt;
+    Rolls a flag out to a new percentage once its guardrail checks pass.
+  &lt;/command&gt;
+  &lt;command name="killFlag" input="KillRequest" output="KillResult" clients="console"&gt;
+    Turns a flag off for every user at once.
+  &lt;/command&gt;
+&lt;/api&gt;
+</code></pre>
+<p>The <code>clients</code> attribute says who calls what. <code>getFlags</code> belongs to the
+backend SDK, <code>evaluateFlags</code> to the frontend SDK, <code>getStatus</code> to both,
+and the two commands to the console. Together the queries are the
+<em>evaluation API</em> and the commands the <em>admin API</em>. The generator makes
+one client module for each name, so a browser page loads only the
+functions of the frontend SDK, and none of the console's.</p>
+<h2 id="checking-the-description"><a class="header" href="#checking-the-description">Checking the description</a></h2>
+<p>A description that the generator reads should be checked before it
+does, like any other input. The description language has a schema too:</p>
+<p><code>api.xsd</code>:</p>
+<pre><code class="language-xml">&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;!-- The language of API descriptions such as api.xml. --&gt;
+&lt;xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:api="https://example.org/api"
+           targetNamespace="https://example.org/api"
+           elementFormDefault="qualified"&gt;
+
+  &lt;xs:element name="api"&gt;
+    &lt;xs:complexType&gt;
+      &lt;xs:choice maxOccurs="unbounded"&gt;
+        &lt;xs:element name="query" type="api:function"/&gt;
+        &lt;xs:element name="command" type="api:function"/&gt;
+      &lt;/xs:choice&gt;
+      &lt;xs:attribute name="name" type="api:identifier" use="required"/&gt;
+      &lt;xs:attribute name="types" type="xs:anyURI" use="required"/&gt;
+    &lt;/xs:complexType&gt;
+    &lt;xs:unique name="function-name"&gt;
+      &lt;xs:selector xpath="*"/&gt;
+      &lt;xs:field xpath="@name"/&gt;
+    &lt;/xs:unique&gt;
+  &lt;/xs:element&gt;
+
+  &lt;xs:complexType name="function" mixed="true"&gt;
+    &lt;xs:attribute name="name" type="api:identifier" use="required"/&gt;
+    &lt;xs:attribute name="input" type="api:identifier" use="required"/&gt;
+    &lt;xs:attribute name="output" type="api:identifier" use="required"/&gt;
+    &lt;xs:attribute name="clients" type="api:clients" use="required"/&gt;
+  &lt;/xs:complexType&gt;
+
+  &lt;!-- The clients that offer a function: one generated module each. --&gt;
+  &lt;xs:simpleType name="clients"&gt;
+    &lt;xs:restriction&gt;
+      &lt;xs:simpleType&gt;
+        &lt;xs:list itemType="api:identifier"/&gt;
+      &lt;/xs:simpleType&gt;
+      &lt;xs:minLength value="1"/&gt;
+    &lt;/xs:restriction&gt;
+  &lt;/xs:simpleType&gt;
+
+  &lt;!-- A name that is a valid identifier in TypeScript and in URLs. --&gt;
+  &lt;xs:simpleType name="identifier"&gt;
+    &lt;xs:restriction base="xs:string"&gt;
+      &lt;xs:pattern value="[A-Za-z][A-Za-z0-9]*"/&gt;
+    &lt;/xs:restriction&gt;
+  &lt;/xs:simpleType&gt;
+
+&lt;/xs:schema&gt;
+</code></pre>
+<p>It says that names are identifiers, so they can become TypeScript names
+and URL paths as they are, that no two functions have the same name,
+and that every function has at least one client: <code>clients</code> is a list
+of identifiers with a <code>minLength</code> of 1, which for a list counts its
+items.
+The description is valid, so <code>sxml validate</code> prints nothing:</p>
+<pre><code class="language-console">$ sxml validate --schema=api.xsd api.xml
+</code></pre>
+<p>A copy with three mistakes, a name used twice, a type name with a
+space in it and a function without clients, is refused before any code
+is generated:</p>
+<pre><code class="language-console">$ sed 's/name="evaluateFlags"/name="getFlags"/; s/output="KillResult"/output="Kill result"/; /rollOutFlag/s/clients="console"/clients=""/' api.xml &gt; twice.xml
+$ sxml validate --schema=api.xsd twice.xml
+twice.xml:12:74: cvc-minLength-valid: attribute 'clients' has the value '', which is not valid for type 'clients': the value is shorter than the minLength facet (XSD 1.1 Part 2, 4.3.2.4); the minLength facet is '1'
+twice.xml:15:48: cvc-pattern-valid: attribute 'output' has the value 'Kill result', which is not valid for type 'identifier': the value matches no pattern facet (XSD 1.1 Part 2, 4.3.4.4); the pattern facet is '[A-Za-z][A-Za-z0-9]*'
+twice.xml:6:3: cvc-identity-constraint.4.1: element 'Q{https://example.org/api}query': its key sequence is that of an earlier member (unique 'Q{https://example.org/api}function-name')
+</code></pre>
+<p>One rule is left that a schema for <code>api.xml</code> can't check: that the type
+names refer to complex types of <code>vane-api.xsd</code>, which is another
+document. The generator checks that one itself, as we'll see.</p>
+<h2 id="the-plan"><a class="header" href="#the-plan">The plan</a></h2>
+<p>The project has four parts:</p>
+<ul>
+<li><a href="codegen-typescript.html">Building a Tree of the Program with XQuery</a>:
+a library module turns the schema into types and checks, and the
+description into a client and a server, all as elements of a small
+vocabulary for TypeScript.</li>
+<li><a href="codegen-printer.html">Printing the Tree with XSLT</a>: one template rule
+for each kind of element, and the layout in one place.</li>
+<li><a href="codegen-running.html">Running the Generated Code</a>: a small Vane
+service, called by the clients of the two SDKs and the console, with
+Node.js.</li>
+<li><a href="codegen-pipeline.html">A Pipeline, a Second Target and a Changing Schema</a>:
+one script that makes every file, a check that parses the generated
+code and compares its parts, an OpenAPI document made with XSLT, and
+what happens when the schema changes.</li>
+</ul>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="performance.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="codegen-typescript.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="performance.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="codegen-typescript.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="style/sxml.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

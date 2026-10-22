@@ -1,0 +1,569 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>XSD 1.1 Features - The sxml Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Learn XPath 4.0, XQuery 4.0, XSLT 4.0 and XSD 1.1 with sxml, the small XML toolchain in portable C.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="style/sxml.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "coal";
+            window.path_to_searchindex_js = "searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The sxml Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml/edit/main/docs/book/src/xsd-11.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="xsd-11-features"><a class="header" href="#xsd-11-features">XSD 1.1 Features</a></h1>
+<!-- examples: scxml -->
+<p>XSD 1.1 keeps everything of XSD 1.0 and adds what users had missed
+most: rules written in XPath, types chosen by attribute values, content
+models that are open to extensions, and a clean way to change a schema
+without copying it. sxml implements XSD 1.1, and validates XSD 1.0
+schemas with the same engine. The machine's schemas already use some of
+it, and <code>vane-1.1.xsd</code>, a stricter version of the annotations' schema,
+uses the rest:</p>
+<p><code>vane-1.1.xsd</code>:</p>
+<pre><code class="language-xml">&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;!-- XSD 1.1 on the vane annotations: vane-data.xsd, overridden and
+     extended. Give it to the validator together with scxml.xsd: its
+     override then stands for vane-data.xsd, which scxml.xsd imports. --&gt;
+&lt;xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:vc="http://www.w3.org/2007/XMLSchema-versioning"
+           xmlns:vane="urn:example:vane"
+           targetNamespace="urn:example:vane"
+           elementFormDefault="qualified"
+           defaultAttributes="vane:traced"
+           vc:minVersion="1.1"&gt;
+
+  &lt;xs:override schemaLocation="vane-data.xsd"&gt;
+    &lt;!-- An event's type depends on whether it carries a payload. --&gt;
+    &lt;xs:element name="events"&gt;
+      &lt;xs:complexType&gt;
+        &lt;xs:sequence&gt;
+          &lt;xs:element name="event" type="vane:event" maxOccurs="unbounded"&gt;
+            &lt;xs:alternative test="@vane:payload" type="vane:event-with-payload"/&gt;
+          &lt;/xs:element&gt;
+        &lt;/xs:sequence&gt;
+      &lt;/xs:complexType&gt;
+      &lt;xs:unique name="event-name"&gt;
+        &lt;xs:selector xpath="vane:event"/&gt;
+        &lt;xs:field xpath="@name"/&gt;
+      &lt;/xs:unique&gt;
+    &lt;/xs:element&gt;
+
+    &lt;!-- A status may end with elements of other namespaces, so that a
+         vendor can add its own fields. --&gt;
+    &lt;xs:element name="status"&gt;
+      &lt;xs:complexType&gt;
+        &lt;xs:openContent mode="suffix"&gt;
+          &lt;xs:any namespace="##other" processContents="lax"/&gt;
+        &lt;/xs:openContent&gt;
+        &lt;xs:sequence&gt;
+          &lt;xs:element name="flag" type="vane:flag-key"/&gt;
+          &lt;xs:element name="state" type="vane:state"/&gt;
+          &lt;xs:element name="failed-checks" type="vane:failure-count"/&gt;
+          &lt;xs:element name="retry-after" type="vane:seconds" minOccurs="0"/&gt;
+        &lt;/xs:sequence&gt;
+        &lt;xs:assert test="exists(vane:retry-after) = (vane:state = 'paused')"/&gt;
+      &lt;/xs:complexType&gt;
+    &lt;/xs:element&gt;
+  &lt;/xs:override&gt;
+
+  &lt;!-- A delay as SCXML writes it, such as "600s" or "250ms", of at most
+       an hour: the pattern checks the form, the assertion the size. --&gt;
+  &lt;xs:simpleType name="delay"&gt;
+    &lt;xs:restriction base="xs:string"&gt;
+      &lt;xs:pattern value="[0-9]+(s|ms)"/&gt;
+      &lt;xs:assertion test="xs:integer(replace($value, '[a-z]+$', ''))
+                          le (if (ends-with($value, 'ms')) then 3600000 else 3600)"/&gt;
+    &lt;/xs:restriction&gt;
+  &lt;/xs:simpleType&gt;
+
+  &lt;!-- A moment in a log: a date and time that says its timezone. --&gt;
+  &lt;xs:simpleType name="moment"&gt;
+    &lt;xs:restriction base="xs:dateTime"&gt;
+      &lt;xs:explicitTimezone value="required"/&gt;
+    &lt;/xs:restriction&gt;
+  &lt;/xs:simpleType&gt;
+
+  &lt;!-- Every complex type of this document gets these attributes. --&gt;
+  &lt;xs:attributeGroup name="traced"&gt;
+    &lt;xs:attribute ref="vane:implements"/&gt;
+  &lt;/xs:attributeGroup&gt;
+
+  &lt;!-- An event without a payload: the XHTML description is optional. --&gt;
+  &lt;xs:complexType name="event"&gt;
+    &lt;xs:sequence&gt;
+      &lt;xs:any namespace="http://www.w3.org/1999/xhtml" processContents="lax"
+              minOccurs="0" maxOccurs="unbounded"/&gt;
+    &lt;/xs:sequence&gt;
+    &lt;xs:attribute name="name" type="xs:token" use="required"/&gt;
+    &lt;xs:attribute ref="vane:payload"/&gt;
+  &lt;/xs:complexType&gt;
+
+  &lt;!-- An event with a payload must say in XHTML what it carries. --&gt;
+  &lt;xs:complexType name="event-with-payload"&gt;
+    &lt;xs:complexContent&gt;
+      &lt;xs:restriction base="vane:event"&gt;
+        &lt;xs:sequence&gt;
+          &lt;xs:any namespace="http://www.w3.org/1999/xhtml" processContents="lax"
+                  minOccurs="1" maxOccurs="unbounded"/&gt;
+        &lt;/xs:sequence&gt;
+        &lt;xs:attribute name="name" type="xs:token" use="required"/&gt;
+        &lt;xs:attribute ref="vane:payload" use="required"/&gt;
+      &lt;/xs:restriction&gt;
+    &lt;/xs:complexContent&gt;
+  &lt;/xs:complexType&gt;
+&lt;/xs:schema&gt;
+</code></pre>
+<p>It is used together with <code>scxml.xsd</code>. The machine is valid by it too:</p>
+<pre><code class="language-console">$ sxml validate --schema=vane-1.1.xsd --schema=scxml.xsd flag.scxml; echo "exit status $?"
+exit status 0
+</code></pre>
+<h2 id="assertions-on-values"><a class="header" href="#assertions-on-values">Assertions on values</a></h2>
+<p>The <code>assertion</code> facet restricts a simple type by an XPath condition, in
+which <code>$value</code> is the value being checked. SCXML writes the delay of a
+<code>send</code> as a number and a unit, <code>600s</code> or <code>250ms</code>. A pattern can check the
+form, and an assertion the size: <code>delay</code> allows at most an hour.</p>
+<p>The second new facet, <code>explicitTimezone</code>, says whether dates and times
+must have a timezone (<code>required</code>), must not have one (<code>prohibited</code>), or
+may (<code>optional</code>, the default). A moment in a log is only one when its
+timezone is known.</p>
+<p><code>vane-data.xsd</code> declares an element <code>vane:value</code> whose type is
+<code>xs:anySimpleType</code>, any simple value at all, so that a value can be
+checked against any of the schema's types with <code>xsi:type</code>:</p>
+<pre><code class="language-console">$ for delay in 600s 250ms 2h 4000s; do \
+    echo "&lt;vane:value xmlns:vane='urn:example:vane' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' xsi:type='vane:delay'&gt;$delay&lt;/vane:value&gt;" \
+      | sxml validate --schema=vane-1.1.xsd -; \
+  done
+-:1:1: cvc-pattern-valid: element 'vane:value' has the value '2h', which is not valid for type 'vane:delay': the value matches no pattern facet (XSD 1.1 Part 2, 4.3.4.4); the pattern facet is '[0-9]+(s|ms)'
+-:1:1: cvc-assertions-valid: the value '4000s' breaks an assertion of type 'vane:delay'
+$ echo "&lt;vane:value xmlns:vane='urn:example:vane' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' xsi:type='vane:moment'&gt;2026-10-21T09:15:00&lt;/vane:value&gt;" \
+  | sxml validate --schema=vane-1.1.xsd -
+-:1:1: cvc-explicitTimezone-valid: element 'vane:value' has the value '2026-10-21T09:15:00', which is not valid for type 'vane:moment': the value's timezone is not what the explicitTimezone facet requires (XSD 1.1 Part 2, 4.3.14.4); the explicitTimezone facet is 'required'
+</code></pre>
+<p>Hours are not a unit SCXML has, and 4000 seconds is more than an hour.
+The moment has no timezone.</p>
+<h2 id="assertions-on-elements"><a class="header" href="#assertions-on-elements">Assertions on elements</a></h2>
+<p><code>xs:assert</code> in a complex type is a condition on the whole element, as
+the draft's <code>docName</code> rule in <a href="xsd.html">Validating with XSD</a> showed. The
+context item is the element, with its children and attributes already
+validated and typed. The machine's schemas have three:</p>
+<ul>
+<li>SCXML 1.0, section 3.5, says that a transition has an event, a
+condition or a target, at least one of them. <code>scxml.xsd</code> says
+<code>exists(@event | @cond | @target)</code> on the transition type.</li>
+<li>Section 5.3.1 says that a <code>data</code> element gets its value from an
+<code>expr</code>, from a <code>src</code>, or from its content, and from at most one of
+them: <code>count((@expr, @src, *)) le 1</code>.</li>
+<li><code>vane-data.xsd</code> says that a status has a <code>retry-after</code> exactly when
+the flag is paused: <code>exists(vane:retry-after) = (vane:state = 'paused')</code>. The comparison of two booleans says "if and only if".</li>
+</ul>
+<p>A machine and a status that break them:</p>
+<pre><code class="language-console">$ sed -e 's|&lt;data id="pauseSeconds" expr="300"|&amp; src="durations.json"|' \
+      -e 's|&lt;transition event="flag.evaluated"&gt;|&lt;transition&gt;|' flag.scxml \
+  | sxml validate --schema=scxml.xsd -
+-:40:5: cvc-assertion: element 'Q{http://www.w3.org/2005/07/scxml}data' breaks the assertion 'count((@expr, @src, *)) le 1' of an anonymous type derived from 'xs:anyType'
+-:75:5: cvc-assertion: element 'Q{http://www.w3.org/2005/07/scxml}transition' breaks the assertion 'exists(@event | @cond | @target)' of type 'Q{http://www.w3.org/2005/07/scxml}transition'
+$ echo '&lt;status xmlns="urn:example:vane"&gt;&lt;flag&gt;new-checkout&lt;/flag&gt;&lt;state&gt;stable&lt;/state&gt;&lt;failed-checks&gt;0&lt;/failed-checks&gt;&lt;retry-after&gt;300&lt;/retry-after&gt;&lt;/status&gt;' \
+  | sxml validate --schema=vane-data.xsd -
+-:1:1: cvc-assertion: element 'Q{urn:example:vane}status' breaks the assertion 'exists(vane:retry-after) = (vane:state = 'paused')' of an anonymous type derived from 'xs:anyType'
+</code></pre>
+<p>No structure could say any of the three. An assertion is reported at
+the end of its element, when all its content is known.</p>
+<h2 id="conditional-type-assignment"><a class="header" href="#conditional-type-assignment">Conditional type assignment</a></h2>
+<p><code>xs:alternative</code> chooses an element's type by a condition on its
+attributes. The first alternative whose <code>test</code> is true gives the type;
+one without a <code>test</code> is the fallback. The declared type is used when
+no alternative applies, and each alternative's type must be derived
+from it.</p>
+<p>In <code>vane-1.1.xsd</code>, an event is a <code>vane:event</code>, whose XHTML
+description is optional; an event with a <code>vane:payload</code> gets the type
+<code>vane:event-with-payload</code> instead, a restriction that requires the
+description: an event that carries data must say what it is. Without
+its paragraph, <code>status.response</code> breaks the rule:</p>
+<pre><code class="language-console">$ sed 's|&lt;p xmlns="http://www.w3.org/1999/xhtml"&gt;The service answers with the state.&lt;/p&gt;||' flag.scxml \
+  | sxml validate --schema=vane-1.1.xsd --schema=scxml.xsd -
+-:22:5: cvc-complex-type.2.4: the content of element 'vane:event' is incomplete; expected an element of the wildcard's namespaces
+</code></pre>
+<p>The tests can only look at attributes, not children: the type must be
+known before the children are read. An alternative whose type is
+<code>xs:error</code>, a type that no element can be valid against, is how a
+schema says "not this one at all".</p>
+<h2 id="open-content"><a class="header" href="#open-content">Open content</a></h2>
+<p><code>xs:openContent</code> lets elements that a content model doesn't name appear
+among the ones it does. With <code>mode="interleave"</code>, they may appear
+anywhere; with <code>mode="suffix"</code>, only at the end. The wildcard inside
+says which elements. The status of <code>vane-1.1.xsd</code> is open at the end
+for any element of another namespace, so a team that runs the service
+can add its own fields, such as the error rate its checks measured:</p>
+<pre><code class="language-console">$ echo '&lt;status xmlns="urn:example:vane" xmlns:acme="urn:example:acme"&gt;&lt;flag&gt;new-checkout&lt;/flag&gt;&lt;state&gt;paused&lt;/state&gt;&lt;failed-checks&gt;3&lt;/failed-checks&gt;&lt;retry-after&gt;300&lt;/retry-after&gt;&lt;acme:error-rate&gt;0.07&lt;/acme:error-rate&gt;&lt;/status&gt;' \
+  | sxml validate --schema=vane-1.1.xsd -; echo "exit status $?"
+exit status 0
+$ echo '&lt;status xmlns="urn:example:vane" xmlns:acme="urn:example:acme"&gt;&lt;flag&gt;new-checkout&lt;/flag&gt;&lt;acme:error-rate&gt;0.07&lt;/acme:error-rate&gt;&lt;state&gt;paused&lt;/state&gt;&lt;failed-checks&gt;3&lt;/failed-checks&gt;&lt;retry-after&gt;300&lt;/retry-after&gt;&lt;/status&gt;' \
+  | sxml validate --schema=vane-1.1.xsd -
+-:1:89: cvc-complex-type.2.4: element 'acme:error-rate' is not allowed here; expected 'state'
+-:1:128: cvc-complex-type.2.4: element 'state' is not allowed here; expected an element of another namespace
+-:1:149: cvc-complex-type.2.4: element 'failed-checks' is not allowed here; expected an element of another namespace
+-:1:181: cvc-complex-type.2.4: element 'retry-after' is not allowed here; expected an element of another namespace
+</code></pre>
+<p>In the middle, the error rate is not allowed. sxml takes it as the start
+of the suffix, so the fields after it are reported too: once the suffix
+has begun, only elements of other namespaces may follow.</p>
+<p><code>xs:defaultOpenContent</code>, at the top of a schema, gives every complex
+type of the schema the same open content.</p>
+<h2 id="default-attributes"><a class="header" href="#default-attributes">Default attributes</a></h2>
+<p><code>defaultAttributes</code> on <code>xs:schema</code> names an attribute group that every
+complex type of the schema document gets, unless it says
+<code>defaultAttributesApply="false"</code>. In <code>vane-1.1.xsd</code>, the group
+<code>traced</code> holds <code>vane:implements</code>, so an event may now say which
+requirements it implements, which <code>vane-data.xsd</code> doesn't allow:</p>
+<pre><code class="language-console">$ sed 's|&lt;vane:event name="check.passed"&gt;|&lt;vane:event name="check.passed" vane:implements="req-4"&gt;|' flag.scxml &gt; traced.scxml
+$ sxml validate --schema=scxml.xsd traced.scxml
+traced.scxml:10:37: cvc-complex-type.3.2.2: attribute 'vane:implements' is not allowed on element 'vane:event'
+$ sxml validate --schema=vane-1.1.xsd --schema=scxml.xsd traced.scxml; echo "exit status $?"
+exit status 0
+</code></pre>
+<h2 id="changing-a-schema-xsoverride"><a class="header" href="#changing-a-schema-xsoverride">Changing a schema: xs:override</a></h2>
+<p><code>vane-1.1.xsd</code> doesn't copy <code>vane-data.xsd</code>: it names it in
+<code>xs:override</code>, and replaces two of its components, the <code>events</code> and
+<code>status</code> elements, keeping the rest. Every schema document that
+includes or imports the overridden one sees the replacements, so
+<code>scxml.xsd</code>'s import of <code>vane-data.xsd</code> now finds the new events.</p>
+<p><code>scxml.xsd</code> itself is simplified in one place: its comment says that a
+transition has at most one target. SCXML allows a list, <code>target="motor light"</code>, to enter several states at once. This machine has one:</p>
+<p><code>two-targets.scxml</code>:</p>
+<pre><code class="language-xml">&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;!-- A transition with two targets: SCXML allows a list of states. --&gt;
+&lt;scxml xmlns="http://www.w3.org/2005/07/scxml"
+       version="1.0" name="test_rig" initial="idle"&gt;
+  &lt;state id="idle"&gt;
+    &lt;transition event="test.start" target="motor light"/&gt;
+  &lt;/state&gt;
+  &lt;state id="motor"&gt;
+    &lt;transition event="test.stop" target="idle"/&gt;
+  &lt;/state&gt;
+  &lt;state id="light"/&gt;
+&lt;/scxml&gt;
+</code></pre>
+<p><code>scxml-targets.xsd</code> overrides the transition type, with a list type for
+the target. That is not enough: a keyref compares a field's whole value
+with each key, and the list <code>motor light</code> is no state's id. The keyref
+can't check each item of a list, so the override replaces the <code>scxml</code>
+element too, and an assertion takes the keyref's place:</p>
+<p><code>scxml-targets.xsd</code>:</p>
+<pre><code class="language-xml">&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;!-- SCXML's full rule for targets: a transition may name several
+     states, as a list. scxml.xsd overridden: the transition type and the
+     scxml element, whose keyref for targets becomes an assertion. --&gt;
+&lt;xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:vc="http://www.w3.org/2007/XMLSchema-versioning"
+           xmlns:sc="http://www.w3.org/2005/07/scxml"
+           targetNamespace="http://www.w3.org/2005/07/scxml"
+           elementFormDefault="qualified"
+           vc:minVersion="1.1"&gt;
+  &lt;xs:override schemaLocation="scxml.xsd"&gt;
+    &lt;xs:complexType name="transition"&gt;
+      &lt;xs:group ref="sc:executable" minOccurs="0" maxOccurs="unbounded"/&gt;
+      &lt;xs:attribute name="event" type="sc:event-descriptors"/&gt;
+      &lt;xs:attribute name="cond" type="xs:string"/&gt;
+      &lt;xs:attribute name="target" type="sc:state-ids"/&gt;
+      &lt;xs:attribute name="type" default="external"&gt;
+        &lt;xs:simpleType&gt;
+          &lt;xs:restriction base="xs:token"&gt;
+            &lt;xs:enumeration value="internal"/&gt;
+            &lt;xs:enumeration value="external"/&gt;
+          &lt;/xs:restriction&gt;
+        &lt;/xs:simpleType&gt;
+      &lt;/xs:attribute&gt;
+      &lt;xs:anyAttribute namespace="##other" processContents="lax"/&gt;
+      &lt;xs:assert test="exists(@event | @cond | @target)"/&gt;
+    &lt;/xs:complexType&gt;
+    &lt;xs:element name="scxml"&gt;
+      &lt;xs:complexType&gt;
+        &lt;xs:choice minOccurs="0" maxOccurs="unbounded"&gt;
+          &lt;xs:element name="state" type="sc:state"/&gt;
+          &lt;xs:element name="final" type="sc:final"/&gt;
+          &lt;xs:element ref="sc:datamodel"/&gt;
+          &lt;xs:any namespace="##other" processContents="lax"/&gt;
+        &lt;/xs:choice&gt;
+        &lt;xs:attribute name="version" type="xs:decimal" use="required" fixed="1.0"/&gt;
+        &lt;xs:attribute name="initial" type="xs:NCName"/&gt;
+        &lt;xs:attribute name="name" type="xs:NCName"/&gt;
+        &lt;xs:attribute name="datamodel" type="xs:NMTOKEN"/&gt;
+        &lt;xs:anyAttribute namespace="##other" processContents="lax"/&gt;
+        &lt;!-- A keyref compares the whole list with each id, so an
+             assertion checks the targets one by one. --&gt;
+        &lt;xs:assert test="every $target in .//sc:transition/data(@target)
+                         satisfies $target = .//(sc:state | sc:final)/@id"/&gt;
+      &lt;/xs:complexType&gt;
+      &lt;xs:key name="state-id"&gt;
+        &lt;xs:selector xpath=".//sc:state | .//sc:final"/&gt;
+        &lt;xs:field xpath="@id"/&gt;
+      &lt;/xs:key&gt;
+      &lt;xs:keyref name="initial-state" refer="sc:state-id"&gt;
+        &lt;xs:selector xpath=". | .//sc:state"/&gt;
+        &lt;xs:field xpath="@initial"/&gt;
+      &lt;/xs:keyref&gt;
+    &lt;/xs:element&gt;
+  &lt;/xs:override&gt;
+  &lt;xs:simpleType name="state-ids"&gt;
+    &lt;xs:list itemType="xs:NCName"/&gt;
+  &lt;/xs:simpleType&gt;
+&lt;/xs:schema&gt;
+</code></pre>
+<pre><code class="language-console">$ sxml validate --schema=scxml-targets.xsd flag.scxml two-targets.scxml; echo "exit status $?"
+exit status 0
+$ sed 's/motor light/motor lights/' two-targets.scxml | sxml validate --schema=scxml-targets.xsd -
+-:3:1: cvc-assertion: element 'Q{http://www.w3.org/2005/07/scxml}scxml' breaks the assertion 'every $target in .//sc:transition/data(@target)             ...' of an anonymous type derived from 'xs:anyType'
+</code></pre>
+<p>The assertion catches the mistake, but it can only say that it failed,
+not which target is wrong: the keyref's message pointed at the
+transition. That is the trade the subset of <code>scxml.xsd</code> avoids, and a
+reason to keep keys where they fit. <a href="scxml-checks.html">Checking What the Schema
+Cannot</a> shows how a query reports each mistake on its
+own.</p>
+<p>Unlike XSD 1.0's <code>xs:redefine</code>, which sxml supports too, an override
+doesn't have to be a restriction or extension of what it replaces.</p>
+<h2 id="smaller-changes"><a class="header" href="#smaller-changes">Smaller changes</a></h2>
+<ul>
+<li>In <code>xs:all</code>, elements may have <code>maxOccurs</code> above 1, and wildcards are
+allowed; a type whose content is an <code>xs:all</code> can be extended by
+another <code>xs:all</code>.</li>
+<li>Wildcards can exclude names with <code>notQName</code> and namespaces with
+<code>notNamespace</code>.</li>
+<li><code>vc:minVersion</code> and <code>vc:maxVersion</code> (in the namespace
+<code>http://www.w3.org/2007/XMLSchema-versioning</code>) on any schema element
+make it apply only to some versions of XSD, so a schema can be
+written today for processors of later versions. The schemas of this
+book say <code>vc:minVersion="1.1"</code> on <code>xs:schema</code>: they need XSD 1.1, and
+a processor of an earlier version that knows the attribute skips them
+instead of misreading their assertions. sxml is version 1.1, so
+<code>vc:minVersion="1.2"</code> would hide an element from it.</li>
+<li><code>xs:error</code>, as above, and the new built-in types
+<code>xs:dateTimeStamp</code> (a dateTime with a required timezone),
+<code>xs:dayTimeDuration</code>, <code>xs:yearMonthDuration</code> and <code>xs:anyAtomicType</code>.</li>
+</ul>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="xsd-identity.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="xsd-errors.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="xsd-identity.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="xsd-errors.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="style/sxml.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

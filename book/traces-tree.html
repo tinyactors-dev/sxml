@@ -1,0 +1,528 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Spans as a Tree - The sxml Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Learn XPath 4.0, XQuery 4.0, XSLT 4.0 and XSD 1.1 with sxml, the small XML toolchain in portable C.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="style/sxml.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "coal";
+            window.path_to_searchindex_js = "searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The sxml Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml/edit/main/docs/book/src/traces-tree.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="spans-as-a-tree"><a class="header" href="#spans-as-a-tree">Spans as a Tree</a></h1>
+<!-- examples: traces -->
+<p>An OTLP file is grouped the way exporters send spans: by the program
+that recorded them, then by the instrumentation library. The trees of
+the traces are not in it, only the parent ids that make them. In this
+section we take the file apart into one record per span, put the trees
+together again, and write them as XML.</p>
+<h2 id="flattening-the-file"><a class="header" href="#flattening-the-file">Flattening the file</a></h2>
+<p><code>resourceSpans</code>, <code>scopeSpans</code> and <code>spans</code> are arrays. An array is one
+item, so <code>for $resource in $request?resourceSpans</code> would run once, with
+the whole array. <code>for member</code> runs once for each member of an array:</p>
+<pre><code class="language-console">$ sxml xquery --method=adaptive --expression='
+    for member $resource in json-doc("before.json")?resourceSpans
+    for member $scope in $resource?scopeSpans
+    return `{ $resource?resource?attributes?1?value?stringValue }, { $scope?scope?name }: { array:size($scope?spans) } spans`'
+"storefront, @vane/node: 1 spans"
+"vane, @opentelemetry/instrumentation-http: 2 spans"
+"vane, vane: 6 spans"
+"vane, @opentelemetry/instrumentation-pg: 3 spans"
+"vane, @opentelemetry/instrumentation-redis: 1 spans"
+"vane-console, @opentelemetry/instrumentation-fetch: 1 spans"
+</code></pre>
+<p>The SDK and the console each recorded one span, their call to the
+service. The service's spans come from four libraries: HTTP for the
+requests it served, PostgreSQL and Redis for its queries, and its own
+scope, <code>vane</code>, for the functions of its modules.</p>
+<p><code>$resource?resource?attributes?1</code> relies on <code>service.name</code> being the
+first attribute, which OTLP does not promise. Attributes are a list of
+key-value pairs whose values say their own type, <code>{ "stringValue": "GET" }</code> or <code>{ "intValue": "200" }</code>; a map from each key to its value is
+easier to use. These functions of the module <code>trace.xqm</code>, in the
+namespace <code>urn:example:trace</code>, make one:</p>
+<p><code>trace.xqm</code> (the values):</p>
+<pre><code class="language-xquery">(: The kinds of span, by the number OTLP writes. :)
+declare variable $trace:kinds := {
+  0: "unspecified", 1: "internal", 2: "server", 3: "client",
+  4: "producer", 5: "consumer"
+};
+
+(: The value of an OTLP AnyValue: { "stringValue": "GET" },
+   { "intValue": "200" } (an int64, written as a string), ... :)
+declare function trace:value($value as map(*)) as xs:anyAtomicType? {
+  if (map:contains($value, "stringValue")) then $value?stringValue
+  else if (map:contains($value, "intValue")) then xs:integer($value?intValue)
+  else if (map:contains($value, "doubleValue")) then xs:double($value?doubleValue)
+  else if (map:contains($value, "boolValue")) then $value?boolValue
+  else ()
+};
+
+(: OTLP attributes, a list of key-value pairs, as a map. :)
+declare function trace:attributes($attributes as array(*)?) as map(xs:string, xs:anyAtomicType) {
+  map:merge($attributes?* ! { ?key: trace:value(?value) })
+};
+</code></pre>
+<p><code>$trace:kinds</code> maps the number OTLP writes for a span's kind to its
+name.</p>
+<h2 id="a-record-for-a-span"><a class="header" href="#a-record-for-a-span">A record for a span</a></h2>
+<p>Each span becomes a record, a map with a fixed set of fields, each of
+a declared type. A record type is declared once and named:</p>
+<p><code>trace.xqm</code> (the span):</p>
+<pre><code class="language-xquery">(: One span, flattened out of its resource and scope. Times are in
+   nanoseconds since 1970; attributes map each key to its value. :)
+declare record trace:span(
+  trace as xs:string,
+  id as xs:string,
+  parent as xs:string?,
+  service as xs:string,
+  name as xs:string,
+  kind as xs:string,
+  start as xs:integer,
+  end as xs:integer,
+  attributes as map(xs:string, xs:anyAtomicType)
+);
+</code></pre>
+<p>The declaration also declares a function of the same name that makes
+such a record from its fields, checking each one against its type.
+That catches mistakes early. JSON numbers are doubles, and a double is
+not an integer, even when it is 2:</p>
+<pre><code class="language-console">$ sxml xquery --method=adaptive --expression='
+    declare record span(id as xs:string, kind as xs:integer);
+    let $first := json-doc("before.json")?resourceSpans?1?scopeSpans?1?spans?1
+    return span($first?spanId, $first?kind)'
+expression:4:12: err:XPTY0004: The value does not match the required type (XPath 4.0, section 3.4, coercion rules)
+</code></pre>
+<p><code>xs:integer($first?kind)</code> converts it. Here is the function that
+flattens a whole file, with the fields given by name:</p>
+<p><code>trace.xqm</code> (the spans):</p>
+<pre><code class="language-xquery">(: Every span of an ExportTraceServiceRequest, flattened. :)
+declare function trace:spans($request as map(*)) as trace:span* {
+  for member $resource in $request?resourceSpans
+  let $service := trace:attributes($resource?resource?attributes)?("service.name")
+  for member $scope in $resource?scopeSpans
+  for member $span in $scope?spans
+  return trace:span(
+    trace := $span?traceId,
+    id := $span?spanId,
+    parent := $span?parentSpanId[. ne ""],
+    service := $service,
+    name := $span?name,
+    kind := $trace:kinds(xs:integer($span?kind)),
+    start := xs:integer($span?startTimeUnixNano),
+    end := xs:integer($span?endTimeUnixNano),
+    attributes := trace:attributes($span?attributes)
+  )
+};
+</code></pre>
+<p>The service's name is found once per resource, and each of its spans
+gets it. The first client span is the SDK's call, the root of the
+first trace; it has no parent, so its <code>parent</code> field is the empty
+sequence, which the adaptive output writes as <code>()</code>:</p>
+<pre><code class="language-console">$ sxml xquery --method=adaptive --expression='
+    import module namespace trace = "urn:example:trace" at "trace.xqm";
+    trace:spans(json-doc("before.json"))[?kind = "client"][1]'
+{"trace":"48114dcf6840d1bd46460c4b1ce0d09d","id":"edba4075f74ba88f","parent":(),"service":"storefront","name":"GET /api/getFlags","kind":"client","start":1792573200000000000,"end":1792573200050000000,"attributes":{"http.request.method":"GET","server.address":"vane","server.port":8080,"url.full":"http://vane:8080/api/getFlags?input=%7B%7D","url.template":"/api/getFlags","http.response.status_code":200}}
+</code></pre>
+<h2 id="a-map-from-span-id-to-span"><a class="header" href="#a-map-from-span-id-to-span">A map from span id to span</a></h2>
+<p>A span names its parent only by id. To find the parent of each span
+quickly, build a map from id to span once; <code>map:build</code> takes the items
+and a function that gives each item's key. Which function of the
+service made each database call?</p>
+<pre><code class="language-console">$ sxml xquery --method=adaptive --expression='
+    import module namespace trace = "urn:example:trace" at "trace.xqm";
+    let $spans := trace:spans(json-doc("before.json"))
+    let $by-id := map:build($spans, fn { ?id })
+    for $query in $spans[map:contains(?attributes, "db.system.name")]
+    let $caller := $by-id($query?parent)
+    return `{ $query?name } on { $query?attributes?("server.address") }, called by { $caller?service } in { $caller?name }`'
+"SELECT flags on postgresql, called by vane in registry.getFlags"
+"SELECT flags on postgresql, called by vane in registry.getFlag"
+"UPDATE flags on postgresql, called by vane in registry.setPercentage"
+"GET on redis, called by vane in cache.getFlag"
+</code></pre>
+<p>Every query has the same caller, the one Vane service; the parent says
+more: the module function that made the query, recorded as an internal
+span.</p>
+<p>Each lookup takes the same short time however many spans there are.
+Searching the spans for the parent instead, <code>$spans[?id = $query?parent]</code>, reads all of them for each query; <a href="performance.html">Performance and
+Memory</a> measures the difference on a large file.</p>
+<h2 id="times-from-nanosecond-strings"><a class="header" href="#times-from-nanosecond-strings">Times from nanosecond strings</a></h2>
+<p>The times are integers of nanoseconds since 1970, written as strings,
+and <code>xs:integer</code> reads them exactly. Subtracting two gives a duration
+in nanoseconds; dividing by a million gives milliseconds, an
+<code>xs:decimal</code>, exact too. For dates people read, a number of
+milliseconds multiplied by a one-millisecond <code>xs:dayTimeDuration</code> and
+added to 1970 gives an <code>xs:dateTime</code>:</p>
+<p><code>trace.xqm</code> (the times):</p>
+<pre><code class="language-xquery">(: Nanoseconds as milliseconds. :)
+declare function trace:milliseconds($nanoseconds as xs:integer) as xs:decimal {
+  $nanoseconds div 1000000
+};
+
+(: Nanoseconds since 1970 as a date and time, to the millisecond. :)
+declare function trace:date-time($nanoseconds as xs:integer) as xs:dateTime {
+  xs:dateTime("1970-01-01T00:00:00Z")
+    + xs:dayTimeDuration("PT0.001S") * ($nanoseconds idiv 1000000)
+};
+</code></pre>
+<pre><code class="language-console">$ sxml xquery --method=adaptive --expression='
+    import module namespace trace = "urn:example:trace" at "trace.xqm";
+    let $root := trace:spans(json-doc("before.json"))[1]
+    return (trace:date-time($root?start), trace:milliseconds($root?end - $root?start))'
+xs:dateTime("2026-10-21T09:00:00Z")
+50
+</code></pre>
+<p>The first request started at nine in the morning on 21 October 2026 and
+took 50 milliseconds.</p>
+<h2 id="the-tree-from-the-parent-ids"><a class="header" href="#the-tree-from-the-parent-ids">The tree from the parent ids</a></h2>
+<p>The opposite direction, from a span to its children, is a map too:
+from a parent id to the spans that name it, which <code>map:build</code> makes by
+collecting all the items with the same key. Then a function makes a
+<code>span</code> element for a span, and calls itself for each of its children:</p>
+<p><code>trace.xqm</code> (the tree):</p>
+<pre><code class="language-xquery">(: A span and, inside it, its children in the order they started.
+   $children maps a span id to the spans whose parent it is; $origin
+   is the start of the trace. :)
+declare function trace:element(
+  $span as trace:span,
+  $children as map(xs:string, trace:span*),
+  $origin as xs:integer
+) as element(span) {
+  &lt;span id="{ $span?id }" service="{ $span?service }" name="{ $span?name }"
+        kind="{ $span?kind }"
+        start="{ trace:milliseconds($span?start - $origin) }"
+        duration="{ trace:milliseconds($span?end - $span?start) }"&gt;{
+    $span?attributes?("server.address") ! attribute peer { . },
+    $span?attributes?("db.system.name") ! attribute db { . },
+    for $child in $children($span?id)
+    order by $child?start
+    return trace:element($child, $children, $origin)
+  }&lt;/span&gt;
+};
+
+(: The spans of each trace as a tree, from the parent ids. :)
+declare function trace:tree($spans as trace:span*) as element(trace)* {
+  let $children := map:build($spans[exists(?parent)], fn { ?parent })
+  for $root in $spans[empty(?parent)]
+  order by $root?start
+  return &lt;trace id="{ $root?trace }" route="{ $root?name }"
+                start="{ trace:date-time($root?start) }"&gt;{
+    trace:element($root, $children, $root?start)
+  }&lt;/trace&gt;
+};
+</code></pre>
+<p>The spans without a parent are the roots, one per trace. Each <code>trace</code>
+element has its route, the name of its root span, and its start; each
+span its start relative to the start of the trace and its duration,
+both in milliseconds, and, for a call, <code>peer</code>, the server it called,
+and, for a database call, <code>db</code>, the kind of database.
+A function that calls itself is fine here: a trace is a few levels
+deep.</p>
+<h2 id="the-normal-form"><a class="header" href="#the-normal-form">The normal form</a></h2>
+<p><code>trace:load</code> puts it together: the services of a file, then its traces.</p>
+<p><code>trace.xqm</code> (loading a file):</p>
+<pre><code class="language-xquery">(: A file of OTLP JSON in the normal form: its services, then its traces. :)
+declare function trace:load($file as xs:string) as element(traces) {
+  let $request := json-doc($file)
+  return &lt;traces source="{ $file }"&gt;{
+    for member $resource in $request?resourceSpans
+    let $attributes := trace:attributes($resource?resource?attributes)
+    return &lt;service name="{ $attributes?("service.name") }"
+                    version="{ $attributes?("service.version") }"/&gt;,
+    trace:tree(trace:spans($request))
+  }&lt;/traces&gt;
+};
+</code></pre>
+<p><code>normalize.xq</code>:</p>
+<pre><code class="language-xquery">(: An OTLP JSON file in the normal form: a tree of spans per trace. :)
+import module namespace trace = "urn:example:trace" at "trace.xqm";
+declare option output:indent "yes";
+
+declare variable $file external := "before.json";
+
+trace:load($file)
+</code></pre>
+<pre><code class="language-console">$ sxml xquery --param=file=before.json normalize.xq
+&lt;traces source="before.json"&gt;
+  &lt;service name="storefront" version="5.2.0"/&gt;
+  &lt;service name="vane" version="2.3.0"/&gt;
+  &lt;service name="vane-console" version="1.8.0"/&gt;
+  &lt;trace id="48114dcf6840d1bd46460c4b1ce0d09d" route="GET /api/getFlags" start="2026-10-21T09:00:00Z"&gt;
+    &lt;span id="edba4075f74ba88f" service="storefront" name="GET /api/getFlags" kind="client" start="0" duration="50" peer="vane"&gt;
+      &lt;span id="1927a6f46640ec9e" service="vane" name="GET /api/getFlags" kind="server" start="1" duration="48"&gt;
+        &lt;span id="877ed3a0b72c92c6" service="vane" name="flags.listFlags" kind="internal" start="2" duration="46"&gt;
+          &lt;span id="448683a55e6803a1" service="vane" name="registry.getFlags" kind="internal" start="3" duration="43"&gt;
+            &lt;span id="fb73f92d181aced2" service="vane" name="SELECT flags" kind="client" start="5" duration="39" peer="postgresql" db="postgresql"/&gt;
+          &lt;/span&gt;
+        &lt;/span&gt;
+      &lt;/span&gt;
+    &lt;/span&gt;
+  &lt;/trace&gt;
+  &lt;trace id="aaab30cfb7723ae45a23d581f962cc40" route="POST /api/killFlag" start="2026-10-21T09:00:02Z"&gt;
+    &lt;span id="53dc1509f5cf3ba5" service="vane-console" name="POST /api/killFlag" kind="client" start="0" duration="34" peer="vane.example.com"&gt;
+      &lt;span id="f9206f822272e040" service="vane" name="POST /api/killFlag" kind="server" start="1" duration="32"&gt;
+        &lt;span id="900884cd9fed676d" service="vane" name="flags.killFlag" kind="internal" start="2" duration="30"&gt;
+          &lt;span id="5fdc37e904085e22" service="vane" name="cache.getFlag" kind="internal" start="3" duration="3"&gt;
+            &lt;span id="0e7b40a994b31e11" service="vane" name="GET" kind="client" start="4" duration="1" peer="redis" db="redis"/&gt;
+          &lt;/span&gt;
+          &lt;span id="f82be3eb4c2b1180" service="vane" name="registry.getFlag" kind="internal" start="7" duration="9"&gt;
+            &lt;span id="2f9fc0a36c747d78" service="vane" name="SELECT flags" kind="client" start="8" duration="7" peer="postgresql" db="postgresql"/&gt;
+          &lt;/span&gt;
+          &lt;span id="03d74407bc202a98" service="vane" name="registry.setPercentage" kind="internal" start="17" duration="13"&gt;
+            &lt;span id="bc2ed987977fa5c6" service="vane" name="UPDATE flags" kind="client" start="18" duration="11" peer="postgresql" db="postgresql"/&gt;
+          &lt;/span&gt;
+        &lt;/span&gt;
+      &lt;/span&gt;
+    &lt;/span&gt;
+  &lt;/trace&gt;
+&lt;/traces&gt;
+</code></pre>
+<p>Now the shape of each request is plain to see. Listing the flags is a
+chain from the SDK's call through the service's server span and two
+module functions, <code>flags.listFlags</code> and <code>registry.getFlags</code>, down to
+one PostgreSQL query; killing a flag reads the flag from Redis in the
+cache module, reads it again from PostgreSQL in the registry module,
+and sets its percentage to 0. The new version's file shows the change,
+in the children of <code>flags.listFlags</code>:</p>
+<pre><code class="language-console">$ sxml xquery --param=file=after.json --output=after.xml normalize.xq
+$ sxml xpath --context-item=after.xml '//span[@name = "flags.listFlags"]/span ! `{@start} ms: {@name}, {@duration} ms`'
+"3 ms: registry.getFlagKeys, 12 ms"
+"16 ms: registry.getFlag, 20 ms"
+"38 ms: registry.getFlag, 20 ms"
+"60 ms: registry.getFlag, 20 ms"
+"82 ms: registry.getFlag, 20 ms"
+</code></pre>
+<p>One call of the registry module for the keys, then one for each of
+the four flags, one after the other, each with a query of its own: the
+request now takes more than twice as long. This XML,
+one <code>traces</code> element with its services and a tree of spans for each
+trace, is the <em>normal form</em> of a trace file, and the rest of the
+project works on it: ordinary paths and patterns find spans, their
+ancestors and their children, and XSLT can stream it.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="traces.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="traces-cardinality.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="traces.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="traces-cardinality.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="style/sxml.js"></script>
+
+
+
+    </div>
+    </body>
+</html>
