@@ -27,6 +27,11 @@ ixml:state, so two builds can be compared. Times are processor seconds
 (user plus system, from wait4), the fastest of the runs: wall-clock time
 is too noisy on a machine that other builds share. They include starting
 the process, reading the input and building the XML tree.
+
+The comparisons parse the same kind of input with the parsers the book
+compares iXML with: a JSON grammar of tests/bench/ixml against
+sxml:parse-code (tree-sitter) and fn:json-to-xml, and the Markdown input
+with sxml:parse-code; they print the number of elements.
 """
 
 import argparse
@@ -130,6 +135,23 @@ def make_numbers(size):
     return ",".join(parts) + "\n"
 
 
+def make_json(size):
+    """Feature flags as indented JSON: objects, arrays, strings, numbers,
+    booleans and nulls."""
+    flags = []
+    total = 0
+    index = 0
+    while total < size:
+        flag = ('  {\n    "id": %d,\n    "name": "flag %d",\n    "enabled": %s,\n'
+                '    "rollout": %d,\n    "owners": ["team-%d", "team-%d"],\n    "note": %s\n  }'
+                % (index, index, "true" if index % 3 == 0 else "false", index % 101,
+                   index % 7, index % 5, "null" if index % 4 else '"kill switch"'))
+        flags.append(flag)
+        total += len(flag) + 2
+        index += 1
+    return '{"flags": [\n' + ",\n".join(flags) + "\n]}\n"
+
+
 def make_nesting(size):
     depth = size // 2
     return "(" * depth + ")" * depth
@@ -180,6 +202,23 @@ BENCHMARKS = [
     ("log-10mb", "log.ixml", make_log, 2_500_000, 10_000_000, 1.50, 250, 20, 6.0),
 ]
 
+# The comparison with tree-sitter (the book's "Compared with tree-sitter"):
+# the same input parsed by another parser in the same process, with the
+# same limits as above. The query is an XPath expression of $input.
+COMPARISONS = [
+    ("json-ixml", "json.ixml", make_json, 250_000, 1_000_000, 0.30, 80, 60, 6.0),
+    ("json-tree-sitter", 'sxml:parse-code(unparsed-text($input), "json", {"highlights": false()})',
+     make_json, 250_000, 1_000_000, 0.35, 90, 70, 6.0),
+    ("json-parse-json", "json-to-xml(unparsed-text($input))",
+     make_json, 250_000, 1_000_000, 0.25, 60, 40, 6.0),
+    ("md-tree-sitter", 'sxml:parse-code(unparsed-text($input), "markdown", {"highlights": false()})',
+     make_markdown, 250_000, 1_000_000, 1.60, 160, 140, 6.0),
+]
+
+COMPARISON_QUERY = """declare variable $input external;
+let $document := %s
+return count($document//*)"""
+
 # Run with --large only.
 LARGE_BENCHMARKS = [
     ("log-100mb", "log.ixml", make_log, 25_000_000, 100_000_000, 15.0, 2000, 20, 6.0),
@@ -219,7 +258,8 @@ def main():
     print("%-16s %9s %9s %9s %9s  %s" % ("benchmark", "bytes", "cpu s", "max MB", "MB/s",
                                           "output"))
     try:
-        benchmarks = BENCHMARKS + (LARGE_BENCHMARKS if arguments.large else [])
+        benchmarks = (BENCHMARKS + COMPARISONS
+                      + (LARGE_BENCHMARKS if arguments.large else []))
         for (name, grammar, maker, small, large, seconds, megabytes, per_megabyte,
              growth) in benchmarks:
             if arguments.only and name not in arguments.only:
@@ -239,11 +279,17 @@ def main():
                     with open(input_path, "w", encoding="utf-8") as handle:
                         handle.write("a,b,c")
                     query = GRAMMAR_QUERY
+                elif not grammar.endswith(".ixml"):
+                    # A comparison: another parser, given as an expression.
+                    grammar_path = ""
+                    query = COMPARISON_QUERY % grammar
                 else:
                     grammar_path = os.path.join(GRAMMARS, grammar)
                     query = QUERY
-                command = [program, "xquery", "--param=grammar=" + grammar_path,
-                           "--param=input=" + input_path, "--expression=" + query]
+                command = [program, "xquery", "--param=input=" + input_path,
+                           "--expression=" + query]
+                if grammar_path:
+                    command.insert(2, "--param=grammar=" + grammar_path)
                 best = None
                 for _ in range(arguments.repeat):
                     result = run_once(command)

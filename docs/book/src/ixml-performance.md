@@ -183,6 +183,70 @@ of 10<sup>8</sup> steps allows inputs of many megabytes: the log of
 100 MB parses within it. A host that embeds sxml can set a higher limit
 (Chapter "Embedding sxml in C").
 
+## Compared with tree-sitter
+
+[Source Code as XML](source-code.md) parses code with tree-sitter, the
+parser generator behind the syntax highlighting of many editors. The
+two take different routes to a parse. A tree-sitter grammar is a
+JavaScript program that a generator turns, ahead of time, into a table
+of an LR parser in C, compiled into the program that uses it; sxml comes
+with a few. An iXML grammar is text that sxml compiles while the query
+runs, and the parser follows every reading the grammar allows. So
+tree-sitter takes only the grammars its generator accepts, and needs a
+build step for a new one; iXML takes any context-free grammar, at run
+time, ambiguous ones too. Faced with a mistake in the input, tree-sitter
+recovers, marks the place with an `ERROR` node and goes on, as an editor
+needs; an iXML parse fails, with the place where it failed
+([When a Parse Fails](ixml-errors.md)).
+
+The trees differ as well. The same JSON both ways:
+
+`json.ixml`:
+
+```
+{{#include ../examples/ixml/json.ixml}}
+```
+
+```console
+$ sxml xpath --method=xml 'invisible-xml(unparsed-text("json.ixml"))(unparsed-text("flag.json"))'
+<json><object><member name="flag"><string>dark-mode</string></member><member name="rollout"><number>25</number></member><member name="owners"><array><string>web</string></array></member></object></json>
+$ sxml xpath --method=xml 'sxml:parse-code(unparsed-text("flag.json"), "json", { "highlights": false() })'
+<document xmlns:sxml="urn:sxml"><object>{<pair><string field="key">"<string_content>flag</string_content>"</string>: <string field="value">"<string_content>dark-mode</string_content>"</string></pair>, <pair><string field="key">"<string_content>rollout</string_content>"</string>: <number field="value">25</number></pair>, <pair><string field="key">"<string_content>owners</string_content>"</string>: <array field="value">[<string>"<string_content>web</string_content>"</string>]</array></pair>}</object>
+</document>
+```
+
+The grammar says what the XML is: hidden rules and strings leave the
+punctuation out, and the names become attributes. Tree-sitter's tree
+keeps every character of the text, the punctuation as text between
+the elements, and names its elements after the grammar's rules.
+
+In time the two are close. The same benchmark suite parses 1 MB of
+JSON and the Markdown input of the table above both ways, and JSON with
+`fn:json-to-xml` too, sxml's hand-written JSON parser. The numbers are
+for the whole command, as above:
+
+| Input | Parser | Time | Memory | Elements |
+| --- | --- | --- | --- | --- |
+| 1 MB of JSON | `json.ixml` | under 0.3 s | under 80 MB | 103,000 |
+| | `sxml:parse-code`, tree-sitter | under 0.35 s | under 90 MB | 208,000 |
+| | `fn:json-to-xml` | under 0.25 s | under 60 MB | 62,000 |
+| 1 MB of Markdown-like text | `markdown.ixml` | under 0.4 s | under 120 MB | 70,000 |
+| | `sxml:parse-code`, tree-sitter | under 1.6 s | under 160 MB | 252,000 |
+
+Of tree-sitter's time on the JSON, about 0.11 s is its parse alone: a
+small C program that runs tree-sitter's library on the same file, with
+no XML, takes that long. The rest is the XML tree, which has twice as
+many elements as the iXML grammar makes. A parser made for one language
+in advance, `fn:json-to-xml`, is faster than both, but not by much.
+
+Markdown is two grammars in tree-sitter, one for the blocks and one for
+the text inside them, and its grammar for the blocks keeps several
+readings open where Markdown is unclear; it parses all of CommonMark,
+where `markdown.ixml` knows the few constructs of [Real
+Tasks](ixml-tasks.md#markdown-like-text). The inline grammar is parsed anew for every
+paragraph, as a layer of its own ([Code inside
+code](source-code.md#code-inside-code)). Both grow linearly with the input.
+
 ## Writing fast grammars
 
 1. **Avoid ambiguity.** It is the one thing that makes a parse more than

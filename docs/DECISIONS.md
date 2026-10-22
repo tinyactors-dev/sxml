@@ -14472,6 +14472,30 @@ for the layered algorithm of the KIELER group (ELK Layered) in XQuery.
   of breadth-first ranks; `layout.xq` writes boxes and paths, which
   `draw.xsl` draws; `rows.xq` and `ranks-fold.xq` go.
 
+### D306. sxml:parse-code compiles each language's queries once; iXML compared with tree-sitter
+
+Recorded 2026-10-22, at the owner's request for a comparison of iXML
+with tree-sitter in the book's "Invisible XML Performance".
+
+- **The bug the comparison found:** `sxml:parse-code` compiled the
+  highlights, locals and injections queries of an injected language for
+  every injection. Markdown injects its inline grammar into every
+  paragraph, so 1 MB of Markdown took 29 s, 97 % of it in
+  `ts_query_new`. `src/source_code.c` now keeps a `language_queries`
+  entry per language for the document: each layer's `tree_analysis`
+  borrows the compiled queries (and the table of highlight captures)
+  from it, and the document releases them at its end. The same input
+  takes 1.1 s, 60 % of it tree-sitter's own parse; the trees are the
+  same, element for element. No header changes.
+- **The comparison:** the benchmark suite parses 1 MB of JSON with an
+  iXML grammar (`tests/bench/ixml/json.ixml`), with `sxml:parse-code`
+  and with `fn:json-to-xml`, and the Markdown input with
+  `sxml:parse-code`, with limits in `--check` like the other rows
+  (`COMPARISONS` in `tests/bench/run-ixml-bench.py`). The chapter gives
+  the limits, the element counts, and tree-sitter's parse alone (about
+  0.11 s for the JSON, measured once with a small C program against the
+  vendored runtime, not part of the suite).
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): tagging and
