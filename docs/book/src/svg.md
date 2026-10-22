@@ -101,7 +101,7 @@ job, and its result is this drawing:
 The boxes are in five layers: the two SDKs at the top, the `api` module
 they call below them, and so on down to PostgreSQL and Redis. Each node
 is a group `g` with a `rect` and a `text`; each edge is a group with a
-`path`, a curve from box to box, and, when the edge has one, its label
+`path`, lines at right angles from box to box, and, when the edge has one, its label
 beside it. The groups
 have ids made from the description (`node-registry`, `edge-flags-cache`)
 and classes (`node`, `service`, `store`, `edge`) that the five style
@@ -155,7 +155,7 @@ time:
 - [Computing a Layout](svg-layout.md) decides where each box goes and
   how each edge runs, with the layered method that Graphviz and the
   Eclipse Layout Kernel use: layers so that edges point down, an order
-  in each layer so that few edges cross, then coordinates and curves.
+  in each layer so that few edges cross, then coordinates and lines at right angles.
   It is written with maps, arrays, records and functions as values.
 - [Writing SVG with XQuery](svg-xquery.md) turns the layout into
   `diagram.svg` with constructors in the SVG namespace, and packs both

@@ -22,6 +22,7 @@ declare variable $draw:box-height := 40;
 declare variable $draw:box-min-width := 100;
 declare variable $draw:gap-across := 30;
 declare variable $draw:gap-down := 24;
+declare variable $draw:track-gap := 10;
 declare variable $draw:loop-width := 26;
 declare variable $draw:padding := 20;
 
@@ -357,41 +358,83 @@ declare function draw:xs($proper as map(*), $orders as array(xs:string)*) as map
 (: ANCHOR_END: place :)
 
 (: ANCHOR: route :)
-(:~ The path of an edge from a node to itself: a loop on the right of
+(:~ The path of an edge from a node to itself: a bracket on the right of
     the box, and the place of its label beside it. :)
 declare function draw:loop($box as draw:box) as draw:route {
   let $side := $box?x + $box?width
-  let $out := $draw:loop-width - 4
   return draw:route(
-    `M { $side } { $box?y + 10 } C { $side + $out } { $box?y + 2 }, { $side + $out } { $box?y + $box?height - 2 }, { $side } { $box?y + $box?height - 10 }`,
-    draw:place($side + $draw:loop-width, $box?y + $box?height idiv 2 + 4)
+    draw:path((
+      draw:place($side, $box?y + 12),
+      draw:place($side + $draw:loop-width - 10, $box?y + 12),
+      draw:place($side + $draw:loop-width - 10, $box?y + $box?height - 12),
+      draw:place($side, $box?y + $box?height - 12)
+    )),
+    draw:place($side + $draw:loop-width - 4, $box?y + $box?height idiv 2 + 4)
   )
 };
 
-(:~ The SVG path through a sequence of points. Between layers the path
-    curves (a cubic Bézier curve that leaves and arrives vertically);
-    inside a layer, where it passes a label or a bend, it goes straight
-    down. :)
-declare function draw:path($points as draw:place*, $straight as xs:boolean*) as xs:string {
-  string-join((
-    `M { $points[1]?x } { $points[1]?y }`,
-    for $i in 1 to count($points) - 1
-    let $a := $points[$i]
-    let $b := $points[$i + 1]
-    let $middle := ($a?y + $b?y) idiv 2
-    return if ($straight[$i]) then `L { $b?x } { $b?y }`
-      else `C { $a?x } { $middle }, { $b?x } { $middle }, { $b?x } { $b?y }`
+(:~ The SVG path through a sequence of points: straight lines, here
+    always horizontal or vertical. A point where the path does not turn
+    is left out. :)
+declare function draw:path($points as draw:place*) as xs:string {
+  let $turns := $points[
+    let $i := position()
+    return $i = (1, last()) or not(
+      ($points[$i - 1]?x = ?x and ?x = $points[$i + 1]?x) or
+      ($points[$i - 1]?y = ?y and ?y = $points[$i + 1]?y))
+  ]
+  return string-join((
+    `M { $turns[1]?x } { $turns[1]?y }`,
+    $turns[position() > 1] ! `L { ?x } { ?y }`
   ), " ")
+};
+
+(:~ The track of each horizontal segment in the gap between two layers,
+    from 0 at the top. A segment runs from where its edge comes down, x1,
+    to where it goes on down, x2. Two segments whose spans overlap need
+    different tracks, and their order decides how often they cross: the
+    one above crosses the other's horizontal with its way down when its
+    x2 is inside the other's span, and the one below crosses with its
+    way in when its x1 is inside the first one's span. Each pair goes
+    the way that crosses less (on a tie, the first segment above), and a
+    segment's track is one below the lowest of those that must be above
+    it. :)
+declare function draw:tracks($segments as map(*)*) as xs:integer* {
+  let $inside := fn($x, $segment) {
+    $x >= min(($segment?x1, $segment?x2)) - 6 and $x <= max(($segment?x1, $segment?x2)) + 6
+  }
+  let $overlap := fn($a, $b) {
+    $inside($a?x1, $b) or $inside($a?x2, $b) or $inside($b?x1, $a) or $inside($b?x2, $a)
+  }
+  let $cost := fn($above, $below) {
+    count(($inside($above?x2, $below)[.], $inside($below?x1, $above)[.]))
+  }
+  let $count := count($segments)
+  let $above := for $i in 1 to $count return array {
+    for $j in 1 to $count
+    where $j != $i and $overlap($segments[$i], $segments[$j])
+    let $up := $cost($segments[$j], $segments[$i])
+    let $down := $cost($segments[$i], $segments[$j])
+    where $up < $down or ($up = $down and $j < $i)
+    return $j
+  }
+  let $tracks := fold-left(1 to $count, (1 to $count) ! 0, fn($tracks, $pass) {
+    for $i in 1 to $count
+    return max((0, for $j in $above[$i]?* return $tracks[$j] + 1))
+  })
+  return $tracks ! min((., $count - 1))
 };
 (: ANCHOR_END: route :)
 
 (: ANCHOR: layout :)
-(:~ The layout of a diagram: all five phases. Phase 5, the routes: an
-    edge leaves the bottom of its upper box and enters the top of its
-    lower one, at points spread along the side in the order of the other
-    ends, so that edges on one side do not cross there. It passes its
-    label straight down, curves through its bends, and a reversed edge is drawn the
-    other way round, so that its arrow points where the edge goes. :)
+(:~ The layout of a diagram: all five phases. Phase 5, the routes, are
+    orthogonal: an edge leaves the bottom of its upper box and enters the
+    top of its lower one, at points spread along the side in the order of
+    the other ends, so that edges on one side do not cross there. It runs
+    straight down through its label and its bends, and turns only in the
+    gaps between layers, each turn on a track of its own; a gap is as
+    high as its tracks need. A reversed edge is drawn the other way round,
+    so that its arrow points where the edge goes. :)
 declare function draw:layout($diagram as element(diagram)) as draw:layout {
   let $graph := draw:graph($diagram)
   let $proper := draw:proper($graph, draw:layers($graph))
@@ -402,10 +445,55 @@ declare function draw:layout($diagram as element(diagram)) as draw:layout {
   let $layers := $proper?layers
   let $shift := $draw:padding - min($proper?vertices ! ($xs(?id) - ?left))
   let $x := fn($id) { xs:integer(round($xs($id) + $shift)) }
+  let $node := fn($id) { $vertices($id)?kind = "node" }
+  let $port-x := fn($id, $other, $bottom) {
+    let $left := $x($id) - $vertices($id)?left
+    let $width := 2 * $vertices($id)?left
+    let $ends := sort(if ($bottom) then $links[?from = $id]?to else $links[?to = $id]?from,
+                      (), fn($end) { $xs($end) })
+    return $left + $width * index-of($ends, $other)[1] idiv (count($ends) + 1)
+  }
+  (: A label or bend that is within a few units of where its edge comes
+     down lines up with it, layer by layer, so the edge doesn't jog. :)
+  let $lined-up := fold-left($orders, {}, fn($lined-up, $layer) {
+    map:merge(($lined-up,
+      for member $id in $layer
+      where not($node($id))
+      let $from := $links[?to = $id]?from
+      let $above := if ($node($from)) then $port-x($from, $id, true()) else $lined-up($from)
+      return { $id: if (abs($above - $x($id)) <= 12) then $above else $x($id) }
+    ))
+  })
+  let $segments := (
+    for $link in $links
+    let $from := $link?from
+    let $to := $link?to
+    let $x1 := if ($node($from)) then $port-x($from, $to, true()) else $lined-up($from)
+    let $alone := count($links[?to = $to]) = 1
+    let $x2 := if (not($node($to))) then $lined-up($to)
+      else if ($alone and abs($x1 - $x($to)) <= $vertices($to)?left - 10) then $x1
+      else $port-x($to, $from, false())
+    return { "link": $link, "gap": $layers($from), "x1": $x1, "x2": $x2 }
+  )
+  let $turns := $segments[?x1 != ?x2]
+  let $tracks := map:merge(
+    for $turns-in-gap in $turns
+    group by $gap := $turns-in-gap?gap
+    let $numbers := draw:tracks($turns-in-gap)
+    return { $gap: $numbers }
+  )
+  let $track := fn($segment) {
+    let $in-gap := $turns[?gap = $segment?gap]
+    let $i := (for $other at $p in $in-gap
+               where deep-equal($other?link, $segment?link) return $p)[1]
+    return $tracks($segment?gap)[$i]
+  }
   let $heights := $orders ! max((0, ?* ! $vertices(.)?height))
-  let $tops := fold-left($heights, (), fn($tops, $height) {
-    $tops, if (empty($tops)) then $draw:padding
-           else $tops[last()] + $heights[count($tops)] + $draw:gap-down
+  let $gaps := for $gap in 0 to count($orders) - 2
+    return max(($draw:gap-down, (max((-1, $tracks($gap))) + 2) * $draw:track-gap))
+  let $tops := fold-left(1 to count($heights), (), fn($tops, $layer) {
+    $tops, if ($layer = 1) then $draw:padding
+           else $tops[last()] + $heights[$layer - 1] + $gaps[$layer - 1]
   })
   let $band := fn($id) {
     let $layer := $layers($id) + 1
@@ -413,18 +501,11 @@ declare function draw:layout($diagram as element(diagram)) as draw:layout {
   }
   let $boxes := map:merge(
     for $vertex in $proper?vertices[?kind = "node"]
-    let $width := 2 * $vertex?left
     let $top := $band($vertex?id)[1] + ($heights[$layers($vertex?id) + 1] - $vertex?height) idiv 2
-    return { $vertex?id: draw:box($x($vertex?id) - $vertex?left, $top, $width, $vertex?height) }
+    return { $vertex?id: draw:box($x($vertex?id) - $vertex?left, $top, 2 * $vertex?left, $vertex?height) }
   )
-  let $port := fn($id, $other, $bottom) {
-    let $box := $boxes($id)
-    let $ends := sort(if ($bottom) then $links[?from = $id]?to else $links[?to = $id]?from,
-                      (), fn($end) { $xs($end) })
-    let $k := index-of($ends, $other)[1]
-    return draw:place($box?x + $box?width * $k idiv (count($ends) + 1),
-                      if ($bottom) then $box?y + $box?height else $box?y)
-  }
+  let $leave := fn($id) { if ($node($id)) then $boxes($id)?y + $boxes($id)?height else $band($id)[2] }
+  let $enter := fn($id) { if ($node($id)) then $boxes($id)?y else $band($id)[1] }
   let $reversed := draw:reversed($diagram)
   let $routes := map:merge((
     for $edge at $e in $diagram/edge
@@ -432,22 +513,25 @@ declare function draw:layout($diagram as element(diagram)) as draw:layout {
     return { $e: draw:loop($boxes($edge/@from)) },
     for $edge at $e in $diagram/edge
     where $edge/@from != $edge/@to
-    let $steps := sort($links[?edge = $e], (), fn($link) { $layers($link?from) })
-    let $chain := ($steps[1]?from, $steps?to)
-    let $inner := $chain[position() = 2 to last() - 1]
+    let $steps := sort($segments[?link?edge = $e], (), fn($segment) { $segment?gap })
     let $points := (
-      $port($chain[1], $chain[2], true()),
-      for $id in $inner
-      return if (starts-with($id, "label-"))
-        then (draw:place($x($id), $band($id)[1]), draw:place($x($id), $band($id)[2]))
-        else draw:place($x($id), sum($band($id)) idiv 2),
-      $port($chain[last()], $chain[last() - 1], false())
+      for $segment in $steps
+      let $from := $segment?link?from
+      let $to := $segment?link?to
+      let $y := $band($from)[2] + ($track($segment) + 1) * $draw:track-gap
+      return (
+        draw:place($segment?x1, $leave($from)),
+        if ($segment?x1 != $segment?x2)
+          then (draw:place($segment?x1, $y), draw:place($segment?x2, $y)) else (),
+        draw:place($segment?x2, $enter($to))
+      )
     )
-    let $straight := (false(), $inner ! (if (starts-with(., "label-")) then (true(), false()) else false()))
-    let $label := $inner[starts-with(., "label-")] ! draw:place($x(.) + 5, sum($band(.)) idiv 2 + 4)
+    let $label := $steps[starts-with(?link?to, "label-")] ! (
+      let $id := ?link?to
+      return draw:place($lined-up($id) + 5, sum($band($id)) idiv 2 + 4)
+    )
     return { $e: draw:route(
-      if ($e = $reversed) then draw:path(reverse($points), reverse($straight))
-      else draw:path($points, $straight),
+      draw:path(if ($e = $reversed) then reverse($points) else $points),
       $label
     ) }
   ))

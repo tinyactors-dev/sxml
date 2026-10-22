@@ -16,19 +16,19 @@
     </marker>
   </defs>
   <g class="edge" id="edge-vane-console-vane">
-    <path d="M 211 60 C 211 72, 211 72, 211 84 L 211 100 C 211 112, 211 112, 211 124" marker-end="url(#arrow)"/>
+    <path d="M 211 60 L 211 124" marker-end="url(#arrow)"/>
     <text x="216" y="96">1</text>
   </g>
   <g class="edge removed" id="edge-vane-redis">
-    <path d="M 186 164 C 186 176, 70 176, 70 188 L 70 204 C 70 216, 70 216, 70 228" marker-end="url(#arrow)"/>
+    <path d="M 186 164 L 186 174 L 70 174 L 70 228" marker-end="url(#arrow)"/>
     <text x="75" y="200">1 → 0</text>
   </g>
   <g class="edge changed" id="edge-vane-postgresql">
-    <path d="M 211 164 C 211 176, 201 176, 201 188 L 201 204 C 201 216, 201 216, 201 228" marker-end="url(#arrow)"/>
-    <text x="206" y="200">2 → 3</text>
+    <path d="M 211 164 L 211 228" marker-end="url(#arrow)"/>
+    <text x="216" y="200">2 → 3</text>
   </g>
   <g class="edge added" id="edge-vane-hooks.example.com">
-    <path d="M 236 164 C 236 176, 362 176, 362 188 L 362 204 C 362 216, 362 216, 362 228" marker-end="url(#arrow)"/>
+    <path d="M 236 164 L 236 174 L 362 174 L 362 228" marker-end="url(#arrow)"/>
     <text x="367" y="200">0 → 1</text>
   </g>
   <g class="node service" id="node-vane-console">

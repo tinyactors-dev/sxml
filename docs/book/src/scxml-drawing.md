@@ -76,7 +76,7 @@ $ sxml xquery --context-item=flag.scxml machine-diagram.xq \
 
 `--context-item=-` reads the diagram from the pipe. The three edges
 from below back to `stable` are the ones turned round: drawn, they
-curve up into `stable`. The edge from `archived` to `stable` closes no
+run up into `stable`. The edge from `archived` to `stable` closes no
 circle, and stays as it is. No transition leads to `archived`,
 so nothing pulls it down, and the layout puts it in the layer above
 `stable`, the one state it leads to. The flaw that `check.xq` reported
@@ -100,16 +100,16 @@ $ grep -A3 'id="node-' flag.svg
     <text x="232" y="149" text-anchor="middle">stable</text>
   </g>
   <g class="node service" id="node-checking">
-    <rect x="79" y="228" width="100" height="40" rx="6"/>
-    <text x="129" y="253" text-anchor="middle">checking</text>
+    <rect x="79" y="234" width="100" height="40" rx="6"/>
+    <text x="129" y="259" text-anchor="middle">checking</text>
   </g>
   <g class="node service" id="node-rolling-out">
-    <rect x="46" y="332" width="110" height="40" rx="6"/>
-    <text x="101" y="357" text-anchor="middle">rolling-out</text>
+    <rect x="46" y="344" width="110" height="40" rx="6"/>
+    <text x="101" y="369" text-anchor="middle">rolling-out</text>
   </g>
   <g class="node service" id="node-paused">
-    <rect x="312" y="332" width="100" height="40" rx="6"/>
-    <text x="362" y="357" text-anchor="middle">paused</text>
+    <rect x="312" y="344" width="100" height="40" rx="6"/>
+    <text x="362" y="369" text-anchor="middle">paused</text>
   </g>
   <g class="node service" id="node-archived">
     <rect x="182" y="20" width="100" height="40" rx="6"/>
@@ -125,12 +125,12 @@ its arrow. The transitions that stay are loops:
 ```console
 $ grep -A3 'id="edge-stable-stable"' flag.svg
   <g class="edge" id="edge-stable-stable">
-    <path d="M 282 134 C 304 126, 304 162, 282 154" marker-end="url(#arrow)"/>
-    <text x="308" y="148">status.request</text>
+    <path d="M 282 136 L 298 136 L 298 152 L 282 152" marker-end="url(#arrow)"/>
+    <text x="304" y="148">status.request</text>
   </g>
 ```
 
-![The flag's state machine in layers: archived on top, stable below it, checking, then rolling-out and paused; each transition is labelled beside its arrow, the transitions back to stable curve up into it, and stable and rolling-out have loops on their right](figures/scxml/flag.svg)
+![The flag's state machine in layers: archived on top, stable below it, checking, then rolling-out and paused; each transition is labelled beside its arrow, the transitions back to stable run up into it, and stable and rolling-out have loops on their right](figures/scxml/flag.svg)
 
 ## Drawing a change
 
@@ -157,7 +157,7 @@ $ sxml xpath --context-item=changes.svg '//*:g[contains-token(@class, "added")] 
 The two new transitions on `flag.archived` are the change, and they
 move `archived` to the bottom: something now leads to it, from
 `stable` and from `paused`, so it goes in the layer below them, and
-its own transition to `stable` curves up. The new declaration of `flag.evaluated` and the new
+its own transition to `stable` runs up. The new declaration of `flag.evaluated` and the new
 `vane:implements` change no state or transition, so the drawing doesn't
 show them; the page of [Documenting the Machine in
 XHTML](scxml-xhtml.md) does.

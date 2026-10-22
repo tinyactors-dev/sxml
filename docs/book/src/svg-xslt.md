@@ -113,13 +113,13 @@ $ sxml transform draw.xsl laid-out.xml
     </marker>
   </defs>
   <g class="edges">
-    <path id="edge-browser-api" d="M 83 60 C 83 72, 123 72, 123 84 L 123 100 C 123 112, 138 112, 138 124" marker-end="url(#arrow)"/>
-    <path id="edge-node-api" d="M 227 60 C 227 72, 187 72, 187 84 L 187 100 C 187 112, 171 112, 171 124" marker-end="url(#arrow)"/>
-    <path id="edge-api-flags" d="M 155 164 C 155 176, 155 176, 155 188" marker-end="url(#arrow)"/>
-    <path id="edge-flags-registry" d="M 138 228 C 138 240, 83 240, 83 252" marker-end="url(#arrow)"/>
-    <path id="edge-flags-cache" d="M 172 228 C 172 240, 227 240, 227 252" marker-end="url(#arrow)"/>
-    <path id="edge-registry-postgresql" d="M 83 292 C 83 304, 83 304, 83 316 L 83 332 C 83 344, 83 344, 83 356" marker-end="url(#arrow)"/>
-    <path id="edge-cache-redis" d="M 227 292 C 227 304, 227 304, 227 316 L 227 332 C 227 344, 227 344, 227 356" marker-end="url(#arrow)"/>
+    <path id="edge-browser-api" d="M 83 60 L 83 70 L 123 70 L 123 110 L 138 110 L 138 124" marker-end="url(#arrow)"/>
+    <path id="edge-node-api" d="M 227 60 L 227 70 L 187 70 L 187 110 L 171 110 L 171 124" marker-end="url(#arrow)"/>
+    <path id="edge-api-flags" d="M 155 164 L 155 188" marker-end="url(#arrow)"/>
+    <path id="edge-flags-registry" d="M 138 228 L 138 238 L 83 238 L 83 252" marker-end="url(#arrow)"/>
+    <path id="edge-flags-cache" d="M 172 228 L 172 238 L 227 238 L 227 252" marker-end="url(#arrow)"/>
+    <path id="edge-registry-postgresql" d="M 83 292 L 83 356" marker-end="url(#arrow)"/>
+    <path id="edge-cache-redis" d="M 227 292 L 227 356" marker-end="url(#arrow)"/>
   </g>
   <g class="nodes">
     <g id="node-browser" class="service">
@@ -177,12 +177,12 @@ $ sxml xquery --context-item=states.xml layout.xq | sxml transform draw.xsl - --
 $ sxml xpath --context-item=states.svg '//*:g[@class = "labels"]/*:text ! `{.} at {@x},{@y}`'
 "rollout.request at 26,200"
 "check.passed at 118,304"
-"check.failed at 164,200"
+"check.failed at 157,200"
 "step.done at 282,200"
 "kill.request at 157,96"
 ```
 
-![The states of states.xml in layers: archived on top, stable below it, then checking and rolling-out, each transition with its label beside it and the transitions back to stable curving up](figures/svg/states.svg)
+![The states of states.xml in layers: archived on top, stable below it, then checking and rolling-out, each transition with its label beside it and the transitions back to stable running up into it](figures/svg/states.svg)
 
 ## A rule for input that is wrong
 

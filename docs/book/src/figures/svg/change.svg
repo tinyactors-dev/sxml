@@ -16,39 +16,39 @@
     </marker>
   </defs>
   <g class="edge" id="edge-browser-api">
-    <path d="M 144 60 C 144 72, 184 72, 184 84 L 184 100 C 184 112, 199 112, 199 124" marker-end="url(#arrow)"/>
+    <path d="M 144 60 L 144 70 L 184 70 L 184 110 L 199 110 L 199 124" marker-end="url(#arrow)"/>
     <text x="189" y="96">HTTP</text>
   </g>
   <g class="edge" id="edge-node-api">
-    <path d="M 288 60 C 288 72, 248 72, 248 84 L 248 100 C 248 112, 232 112, 232 124" marker-end="url(#arrow)"/>
+    <path d="M 288 60 L 288 70 L 248 70 L 248 110 L 232 110 L 232 124" marker-end="url(#arrow)"/>
     <text x="253" y="96">HTTP</text>
   </g>
   <g class="edge" id="edge-api-flags">
-    <path d="M 216 164 C 216 176, 216 176, 216 188" marker-end="url(#arrow)"/>
+    <path d="M 216 164 L 216 188" marker-end="url(#arrow)"/>
   </g>
   <g class="edge removed" id="edge-flags-cache">
-    <path d="M 190 228 C 190 240, 71 240, 71 252" marker-end="url(#arrow)"/>
+    <path d="M 190 228 L 190 238 L 71 238 L 71 252" marker-end="url(#arrow)"/>
   </g>
   <g class="edge changed" id="edge-flags-registry">
-    <path d="M 216 228 C 216 240, 216 240, 216 252" marker-end="url(#arrow)"/>
+    <path d="M 216 228 L 216 252" marker-end="url(#arrow)"/>
   </g>
   <g class="edge added" id="edge-flags-audit">
-    <path d="M 241 228 C 241 240, 360 240, 360 252" marker-end="url(#arrow)"/>
+    <path d="M 241 228 L 241 238 L 360 238 L 360 252" marker-end="url(#arrow)"/>
   </g>
   <g class="edge" id="edge-cache-redis">
-    <path d="M 71 292 C 71 304, 74 304, 74 316 L 74 332 C 74 344, 74 344, 74 356" marker-end="url(#arrow)"/>
-    <text x="79" y="328">Redis</text>
+    <path d="M 71 292 L 71 356" marker-end="url(#arrow)"/>
+    <text x="76" y="328">Redis</text>
   </g>
   <g class="edge" id="edge-registry-postgresql">
-    <path d="M 216 292 C 216 304, 225 304, 225 316 L 225 332 C 225 344, 237 344, 237 356" marker-end="url(#arrow)"/>
-    <text x="230" y="328">SQL</text>
+    <path d="M 216 292 L 216 342 L 237 342 L 237 356" marker-end="url(#arrow)"/>
+    <text x="221" y="328">SQL</text>
   </g>
   <g class="edge added" id="edge-audit-postgresql">
-    <path d="M 343 292 C 343 304, 283 304, 283 316 L 283 332 C 283 344, 271 344, 271 356" marker-end="url(#arrow)"/>
+    <path d="M 343 292 L 343 302 L 283 302 L 283 342 L 271 342 L 271 356" marker-end="url(#arrow)"/>
     <text x="288" y="328">SQL</text>
   </g>
   <g class="edge added" id="edge-audit-hooks">
-    <path d="M 377 292 C 377 304, 415 304, 415 316 L 415 332 C 415 344, 415 344, 415 356" marker-end="url(#arrow)"/>
+    <path d="M 377 292 L 377 302 L 415 302 L 415 356" marker-end="url(#arrow)"/>
     <text x="420" y="328">HTTP</text>
   </g>
   <g class="node service" id="node-browser">

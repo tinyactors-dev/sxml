@@ -302,8 +302,8 @@ shows up on the right of its box, with its label beside it:
 ```console
 $ sxml xquery --expression='import module namespace draw = "urn:example:draw" at "draw.xqm"; draw:svg(<diagram title="Polling"><node id="flag" label="flag"/><edge from="flag" to="flag" label="status.request"/></diagram>)' --output=loop.svg
 $ sxml xpath --context-item=loop.svg '//*:g[@id = "edge-flag-flag"]/*/(@d, @x) ! string()'
-"M 120 30 C 142 22, 142 58, 120 50"
-"146"
+"M 120 32 L 136 32 L 136 48 L 120 48"
+"142"
 ```
 
 ![One box, flag, with a loop on its right labelled status.request](figures/svg/loop.svg)

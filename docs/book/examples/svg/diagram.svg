@@ -13,28 +13,28 @@
     </marker>
   </defs>
   <g class="edge" id="edge-browser-api">
-    <path d="M 83 60 C 83 72, 123 72, 123 84 L 123 100 C 123 112, 138 112, 138 124" marker-end="url(#arrow)"/>
+    <path d="M 83 60 L 83 70 L 123 70 L 123 110 L 138 110 L 138 124" marker-end="url(#arrow)"/>
     <text x="128" y="96">HTTP</text>
   </g>
   <g class="edge" id="edge-node-api">
-    <path d="M 227 60 C 227 72, 187 72, 187 84 L 187 100 C 187 112, 171 112, 171 124" marker-end="url(#arrow)"/>
+    <path d="M 227 60 L 227 70 L 187 70 L 187 110 L 171 110 L 171 124" marker-end="url(#arrow)"/>
     <text x="192" y="96">HTTP</text>
   </g>
   <g class="edge" id="edge-api-flags">
-    <path d="M 155 164 C 155 176, 155 176, 155 188" marker-end="url(#arrow)"/>
+    <path d="M 155 164 L 155 188" marker-end="url(#arrow)"/>
   </g>
   <g class="edge" id="edge-flags-registry">
-    <path d="M 138 228 C 138 240, 83 240, 83 252" marker-end="url(#arrow)"/>
+    <path d="M 138 228 L 138 238 L 83 238 L 83 252" marker-end="url(#arrow)"/>
   </g>
   <g class="edge" id="edge-flags-cache">
-    <path d="M 172 228 C 172 240, 227 240, 227 252" marker-end="url(#arrow)"/>
+    <path d="M 172 228 L 172 238 L 227 238 L 227 252" marker-end="url(#arrow)"/>
   </g>
   <g class="edge" id="edge-registry-postgresql">
-    <path d="M 83 292 C 83 304, 83 304, 83 316 L 83 332 C 83 344, 83 344, 83 356" marker-end="url(#arrow)"/>
+    <path d="M 83 292 L 83 356" marker-end="url(#arrow)"/>
     <text x="88" y="328">SQL</text>
   </g>
   <g class="edge" id="edge-cache-redis">
-    <path d="M 227 292 C 227 304, 227 304, 227 316 L 227 332 C 227 344, 227 344, 227 356" marker-end="url(#arrow)"/>
+    <path d="M 227 292 L 227 356" marker-end="url(#arrow)"/>
     <text x="232" y="328">Redis</text>
   </g>
   <g class="node service" id="node-browser">

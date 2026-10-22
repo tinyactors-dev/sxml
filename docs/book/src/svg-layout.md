@@ -256,32 +256,56 @@ with them, and the long edge it belongs to comes out nearly straight.
 
 ## Routes
 
-The last phase draws the edges. Each one leaves the bottom of its upper
-box and enters the top of its lower one; where several edges meet a
-side, their ends are spread along it in the order of where they go, so
-that they don't cross at the box. Between layers an edge is a cubic
-Bézier curve that leaves and arrives vertically, the `C` command of an
-SVG path; past a label it runs straight down, with the label to its
-right. A loop goes round the right side of its box:
+The last phase draws the edges, *orthogonally*, as ELK does by
+default: every edge is made of horizontal and vertical lines. It leaves
+the bottom of its upper box and enters the top of its lower one; where
+several edges meet a side, their ends are spread along it in the order
+of where they go, so that they don't cross at the box. It runs straight
+down through its label (the label to its right) and through its bends,
+and turns only in the gap between two layers: down from where it is,
+across, and down to where it goes. A label or a bend that is within a
+few units of the line above it moves onto it, and a box with one edge
+coming in takes the edge where it arrives, so that short jogs don't
+appear.
+
+The horizontal parts in one gap must not lie on top of each other, so
+each gets a *track* of its own, one above the other, and the gap is as
+high as its tracks need. Which segment goes above which decides how
+many lines cross: the one above crosses the other's horizontal on its
+way down if it goes down inside the other's span, and the one below
+crosses the first one's horizontal on its way in if it comes in inside
+that span. `draw:tracks` puts each pair the way that crosses less,
+then gives each segment the track below the lowest of those that must
+be above it, the same longest path as the layers. A loop is a bracket
+on the right of its box:
 
 ```xquery
 {{#include ../examples/svg/draw.xqm:route}}
 ```
 
-```console
-$ sxml xquery --expression='import module namespace draw = "urn:example:draw" at "draw.xqm"; draw:path((draw:place(90, 60), draw:place(90, 124)), false()), draw:loop(draw:box(20, 20, 100, 40))?path'
-M 90 60 C 90 92, 90 92, 90 124 M 120 30 C 142 22, 142 58, 120 50
-```
+Two segments that overlap, one from 10 to 100 and one from 50 to 200.
+With the first one above, its way down at 100 crosses the second's
+horizontal, and the second's way in at 50 crosses the first's: two
+crossings. The other way round there are none, so the second segment
+takes the upper track, 0, and the first the one below it. A third, far
+away from both, shares the upper track:
 
-The curve from (90, 60) to (90, 124) has its two control points at the
-height halfway between, straight above and below its ends.
+```console
+$ sxml xquery --method=adaptive --expression='import module namespace draw = "urn:example:draw" at "draw.xqm"; draw:tracks(({"x1": 10, "x2": 100}, {"x1": 50, "x2": 200}, {"x1": 300, "x2": 400})), draw:path((draw:place(90, 60), draw:place(90, 80), draw:place(150, 80), draw:place(150, 124))), draw:loop(draw:box(20, 20, 100, 40))?path'
+1
+0
+0
+"M 90 60 L 90 80 L 150 80 L 150 124"
+"M 120 32 L 136 32 L 136 48 L 120 48"
+```
 
 ## The whole layout
 
 `draw:layout` runs the five phases and turns the results into a record:
 the size of the drawing, a box per node and a route per edge, by the
-edge's position in the description. A reversed edge is routed the other
-way round, from its end to its start, so that its arrow points the way
+edge's position in the description. The y of every layer waits for
+the tracks, since each gap is as high as its tracks need. A reversed
+edge is routed the other way round, from its end to its start, so that its arrow points the way
 the edge goes.
 
 ```xquery
@@ -327,13 +351,13 @@ $ sxml xquery --context-item=diagram.xml layout.xq
   <node id="cache" label="vane/cache" x="176" y="252" width="102" height="40"/>
   <node id="postgresql" label="postgresql" kind="store" x="32" y="356" width="102" height="40"/>
   <node id="redis" label="redis" kind="store" x="177" y="356" width="100" height="40"/>
-  <edge from="browser" to="api" label="HTTP" d="M 83 60 C 83 72, 123 72, 123 84 L 123 100 C 123 112, 138 112, 138 124" label-x="128" label-y="96"/>
-  <edge from="node" to="api" label="HTTP" d="M 227 60 C 227 72, 187 72, 187 84 L 187 100 C 187 112, 171 112, 171 124" label-x="192" label-y="96"/>
-  <edge from="api" to="flags" d="M 155 164 C 155 176, 155 176, 155 188"/>
-  <edge from="flags" to="registry" d="M 138 228 C 138 240, 83 240, 83 252"/>
-  <edge from="flags" to="cache" d="M 172 228 C 172 240, 227 240, 227 252"/>
-  <edge from="registry" to="postgresql" label="SQL" d="M 83 292 C 83 304, 83 304, 83 316 L 83 332 C 83 344, 83 344, 83 356" label-x="88" label-y="328"/>
-  <edge from="cache" to="redis" label="Redis" d="M 227 292 C 227 304, 227 304, 227 316 L 227 332 C 227 344, 227 344, 227 356" label-x="232" label-y="328"/>
+  <edge from="browser" to="api" label="HTTP" d="M 83 60 L 83 70 L 123 70 L 123 110 L 138 110 L 138 124" label-x="128" label-y="96"/>
+  <edge from="node" to="api" label="HTTP" d="M 227 60 L 227 70 L 187 70 L 187 110 L 171 110 L 171 124" label-x="192" label-y="96"/>
+  <edge from="api" to="flags" d="M 155 164 L 155 188"/>
+  <edge from="flags" to="registry" d="M 138 228 L 138 238 L 83 238 L 83 252"/>
+  <edge from="flags" to="cache" d="M 172 228 L 172 238 L 227 238 L 227 252"/>
+  <edge from="registry" to="postgresql" label="SQL" d="M 83 292 L 83 356" label-x="88" label-y="328"/>
+  <edge from="cache" to="redis" label="Redis" d="M 227 292 L 227 356" label-x="232" label-y="328"/>
 </diagram>
 ```
 

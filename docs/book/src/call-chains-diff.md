@@ -367,9 +367,9 @@ $ sxml xpath --context-item=calls.svg 'for $y in sort(distinct-values(//*:rect/@
 "20: api.start"
 "84: api.route"
 "148: flags.killFlag, flags.listFlags"
-"212: audit.record, cache.getFlag, registry.setPercentage, flags.isOwner, registry.getFlagKeys, registry.getFlags, flags.summarize"
-"276: registry.getFlag"
-"340: db.query"
+"228: audit.record, cache.getFlag, registry.setPercentage, flags.isOwner, registry.getFlagKeys, registry.getFlags, flags.summarize"
+"318: registry.getFlag"
+"398: db.query"
 ```
 
 The entry, the router, the two request handlers, the functions they

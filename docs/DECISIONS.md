@@ -14451,7 +14451,9 @@ for the layered algorithm of the KIELER group (ELK Layered) in XQuery.
   edge label (ELK's label dummies) and bend vertices on long edges,
   barycentre layer sweeps with a stable sort from the description's
   order, placement by isotonic regression (pool adjacent violators),
-  and curved routes with ports spread along each side; loops go on the
+  and orthogonal routes (horizontal and vertical lines, each horizontal
+  on a track of its own in the gap between layers, the gap as high as
+  its tracks need) with ports spread along each side; loops go on the
   right of their box, and boxes are as wide as their labels.
 - **Rejected:** the enforcing model-order cycle breaker (reverse every
   edge to an earlier node). It turns edges of acyclic graphs whose
@@ -14459,6 +14461,13 @@ for the layered algorithm of the KIELER group (ELK Layered) in XQuery.
   worse. Brandes-Köpf placement and network-simplex layering, ELK's
   defaults, are left out: each is a chapter of its own, and the
   simpler phases are readable on every diagram of the book.
+- **Orthogonal routes** (owner, the same day): the first version drew
+  cubic curves between layers, which still looked wonky; the owner
+  asked for right angles only. Each horizontal segment gets a track;
+  for a pair of overlapping segments the order that crosses fewer lines
+  wins, and tracks follow as a longest path. Labels and bends within 12
+  units of the line above move onto it, and a box with one incoming
+  edge takes it where it arrives, so that short jogs don't appear.
 - **The book:** "Computing a Layout" teaches the five phases instead
   of breadth-first ranks; `layout.xq` writes boxes and paths, which
   `draw.xsl` draws; `rows.xq` and `ranks-fold.xq` go.

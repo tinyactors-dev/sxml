@@ -14,11 +14,11 @@
     </marker>
   </defs>
   <g class="edges">
-    <path id="edge-stable-checking" d="M 127 164 C 127 176, 21 176, 21 188 L 21 204 C 21 216, 96 216, 96 228" marker-end="url(#arrow)"/>
-    <path id="edge-checking-rolling-out" d="M 113 268 C 113 280, 113 280, 113 292 L 113 308 C 113 320, 153 320, 153 332" marker-end="url(#arrow)"/>
-    <path id="edge-checking-stable" d="M 129 228 C 129 216, 159 216, 159 204 L 159 188 C 159 176, 152 176, 152 164" marker-end="url(#arrow)"/>
-    <path id="edge-rolling-out-stable" d="M 190 332 C 190 316, 231 316, 231 300 C 231 274, 231 274, 231 248 C 231 226, 277 226, 277 204 L 277 188 C 277 176, 177 176, 177 164" marker-end="url(#arrow)"/>
-    <path id="edge-archived-stable" d="M 152 60 C 152 72, 152 72, 152 84 L 152 100 C 152 112, 152 112, 152 124" marker-end="url(#arrow)"/>
+    <path id="edge-stable-checking" d="M 127 164 L 127 174 L 21 174 L 21 214 L 96 214 L 96 228" marker-end="url(#arrow)"/>
+    <path id="edge-checking-rolling-out" d="M 113 268 L 113 318 L 153 318 L 153 332" marker-end="url(#arrow)"/>
+    <path id="edge-checking-stable" d="M 129 228 L 129 214 L 152 214 L 152 164" marker-end="url(#arrow)"/>
+    <path id="edge-rolling-out-stable" d="M 190 332 L 190 318 L 231 318 L 231 214 L 277 214 L 277 174 L 177 174 L 177 164" marker-end="url(#arrow)"/>
+    <path id="edge-archived-stable" d="M 152 60 L 152 124" marker-end="url(#arrow)"/>
   </g>
   <g class="nodes">
     <g id="node-stable" class="service">
@@ -41,7 +41,7 @@
   <g class="labels">
     <text x="26" y="200">rollout.request</text>
     <text x="118" y="304">check.passed</text>
-    <text x="164" y="200">check.failed</text>
+    <text x="157" y="200">check.failed</text>
     <text x="282" y="200">step.done</text>
     <text x="157" y="96">kill.request</text>
   </g>
