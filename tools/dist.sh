@@ -122,18 +122,31 @@ build_target() {
     cp "$built_program" "$stage/$(program_name_of "$target")"
     cp "$repository_root/LICENSE" "$repository_root/README.md" "$stage/"
     cp "$repository_root/apps/sxml/README.md" "$stage/USAGE.md"
+    # Owner, times and order fixed, so the archive depends only on its
+    # files. The times are set on the staged files and the names listed
+    # sorted, which both GNU tar and bsdtar (macOS) and zip accept; 1980
+    # is the earliest time a zip archive can hold.
+    find "$stage" -exec env TZ=UTC touch -h -t 198001010000.00 {} +
     case $target in
         *-windows)
             archive="$name.zip"
             rm -f "$dist_directory/$archive"
-            (cd "$dist_directory/stage" && zip -q -r -X "../$archive" "$name")
+            (cd "$dist_directory/stage" && find "$name" | LC_ALL=C sort \
+                | TZ=UTC zip -q -X -@ "../$archive") || fail "zip failed for $name"
             ;;
         *)
             archive="$name.tar.gz"
-            # Owner and times fixed, so the archive depends only on its files.
-            tar -C "$dist_directory/stage" --owner=0 --group=0 --numeric-owner \
-                --mtime='1970-01-01 00:00:00Z' --sort=name -cf - "$name" \
-                | gzip -n -9 >"$dist_directory/$archive"
+            case $(tar --version 2>/dev/null) in
+                *GNU*) owner_options="--owner=0 --group=0" ;;
+                *) owner_options="--uid 0 --gid 0 --uname root --gname wheel --no-xattrs --no-acls --no-mac-metadata" ;;
+            esac
+            unpacked_archive="$dist_directory/$name.tar"
+            # shellcheck disable=SC2086
+            (cd "$dist_directory/stage" && find "$name" | LC_ALL=C sort \
+                | tar $owner_options --numeric-owner --format=ustar --no-recursion \
+                    -cf "$unpacked_archive" -T -) || fail "tar failed for $name"
+            gzip -n -9 -c "$unpacked_archive" >"$dist_directory/$archive"
+            rm -f "$unpacked_archive"
             ;;
     esac
     rm -rf "$stage"
