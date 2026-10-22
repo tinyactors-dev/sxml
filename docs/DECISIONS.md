@@ -14496,6 +14496,65 @@ with tree-sitter in the book's "Invisible XML Performance".
   0.11 s for the JSON, measured once with a small C program against the
   vendored runtime, not part of the suite).
 
+### D307. The tree-sitter functions are tree-sitter:parse and tree-sitter:languages (packet 7.26)
+
+Recorded 2026-10-22, after D99, D206, D208, D261, D285, D288, D293,
+D306. The owner (2026-10-22): "expose tree-sitter as tree-sitter: not
+sxml:code-*". Amends D285's **API** paragraph; the shape of the
+documents (D285's **Shape**) is unchanged.
+
+- **Whom it serves**: users who write queries and stylesheets; the
+  name says what the functions are (tree-sitter's parser), as `bin:`
+  and `file:` do for EXPath's modules.
+- **Names**: `tree-sitter:parse($source as xs:string?, $language as
+  xs:string, $options as map(*)? := {}) as document-node()?` and
+  `tree-sitter:languages() as xs:string*`, with the signatures, options
+  (`highlights`, `positions`, `injections`) and results of
+  `sxml:parse-code` and `sxml:code-languages`, which are removed (no
+  aliases).
+- **Namespace** (D208 default): `urn:sxml:tree-sitter`, conventional
+  prefix `tree-sitter`. tree-sitter defines no XML namespace of its
+  own, and a URI under its domain would claim a name its project never
+  published; sxml's other URNs are already `urn:sxml:...`
+  (`urn:sxml:timezone-data:`, `urn:sxml:default`). `name.h` (frozen,
+  additive after D99, as D206 and D285): `SXML_NAMESPACE_TREE_SITTER =
+  17` after `SXML_NAMESPACE_SXML`, `SXML_NAMESPACE_WELL_KNOWN_COUNT`
+  18; no value changes. The comment of `SXML_NAMESPACE_SXML` now names
+  only the `sxml:token` and `sxml:node` elements: no function is left in
+  `urn:sxml`.
+- **Errors** (D208 default): `tree-sitter:unknown-language` and
+  `tree-sitter:invalid-query` (D288), in the functions' namespace, as
+  EXPath Binary 4.0 (1.5) and EXPath File 4.0 (1.7) put a module's
+  errors in its functions' namespace. The description names the new
+  functions ("the language is not one that tree-sitter:parse knows;
+  tree-sitter:languages() lists them").
+- **Elements stay in urn:sxml**: `sxml:token` and `sxml:node` are
+  sxml's mapping of a syntax tree, not tree-sitter's vocabulary, and
+  keeping them keeps every document and tree-sitter/suite as they were.
+- **Prefix bindings**: `sxml xpath` and `sxml xquery` bind
+  `tree-sitter` beside `bin`, `file` and `sxml`
+  (`apps/sxml/query_command.c`); the JavaScript package binds it
+  wherever the `source-code` feature is present (`featurePrefixes` in
+  `bindings/javascript/src/index.ts`). The host shim binds no prefixes,
+  and the Kotlin and Swift bindings (paused) do not bind `sxml` either.
+  A stylesheet declares `xmlns:tree-sitter="urn:sxml:tree-sitter"`
+  (D261); a library module declares it in its prolog.
+- **For users** (a breaking change, in CHANGELOG): replace
+  `sxml:parse-code` with `tree-sitter:parse`, `sxml:code-languages` with
+  `tree-sitter:languages`, `Q{urn:sxml}parse-code` with
+  `Q{urn:sxml:tree-sitter}parse`, and catch `tree-sitter:unknown-language`
+  instead of `sxml:unknown-language`; a stylesheet that declared
+  `xmlns:sxml` for the function declares `xmlns:tree-sitter`.
+- **Cost**: two well-known namespace entries' worth of data, and one
+  more binding per query in the CLI and the package; nothing per call.
+- Verified (D181): the debug preset (Clang, ASan, UBSan): source_code,
+  name and the 258 CLI tests pass, tree-sitter/run-time-language
+  passes; tree-sitter/suite 1,410 of 1,438 before and after; wasm
+  preset javascript/code_languages and javascript/package pass; the
+  book's affected chapters (source-code, call-chains, call-chains-graph,
+  codegen-pipeline, codegen-typescript, ixml-performance, appendix-cli:
+  89 examples; javascript: 6) match.
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): tagging and

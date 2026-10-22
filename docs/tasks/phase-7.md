@@ -1310,6 +1310,15 @@ tree-sitter as `tree-sitter:`, not as `sxml:code-*`. Today
   `sxml:parse-code` or `sxml:code-languages` left in code, tests or
   docs (decision records excepted).
 
+**Done** 2026-10-22 (D307): `tree-sitter:parse` and
+`tree-sitter:languages` in `urn:sxml:tree-sitter` (name.h
+SXML_NAMESPACE_TREE_SITTER = 17), errors `tree-sitter:unknown-language`
+and `tree-sitter:invalid-query`; the sxml command and the JavaScript
+package bind `tree-sitter`; tree-sitter/suite 1,410 of 1,438, unchanged;
+the book's affected examples match. The old names remain only in
+records (DECISIONS, LOG, QUEUE's history, the 0.2.0 CHANGELOG section,
+the 7.22 and 7.26 entries here).
+
 ## Proposed for the owner
 
 No phase covers these four features yet (D183 Proposed). The owner has

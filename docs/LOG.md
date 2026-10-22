@@ -4,6 +4,19 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-19
 
+- 7.26 done (D307): the tree-sitter functions are `tree-sitter:parse`
+  and `tree-sitter:languages` in `urn:sxml:tree-sitter` (name.h
+  SXML_NAMESPACE_TREE_SITTER = 17, additive), with their errors
+  `tree-sitter:unknown-language` and `tree-sitter:invalid-query`;
+  `sxml:parse-code` and `sxml:code-languages` are gone, no aliases. The
+  sxml command and the JavaScript package bind the prefix `tree-sitter`
+  beside `sxml` (whose `sxml:token` elements stay). Every caller moved:
+  tests, the tree-sitter driver, the bench, the book and its examples,
+  the website pipeline. tree-sitter/suite 1,410 of 1,438 before and
+  after; source_code, name, CLI (258), run-time-language,
+  javascript/code_languages and javascript/package pass (debug, wasm);
+  the book's affected chapters match (95 examples).
+
 - book-29 done: the book integrated after the one-service Vane
   revision. The introduction tells one TypeScript service with modules
   over PostgreSQL and Redis, an evaluation API for @vane/browser and

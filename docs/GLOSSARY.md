@@ -1006,7 +1006,7 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `locale_chain` | The CLDR files a language tag is looked up in, from the most specific to root: `de_AT`, `de`, `root` (inheritance by truncation, UTS #35, Part 1, section 4.1) |
 | `spell_out_rule_set` | A named list of CLDR's rule-based number formatting rules that writes numbers in words or ordinals, such as `spellout-ordinal` (UTS #35, Part 3, section 6) |
 | `plural_rule` | A condition on a number that gives its plural category (`one`, `two`, `few`, `other`) in a language, here the ordinal ones (UTS #35, Part 3, section 5) |
-| `source_code_language` | A programming or data language that sxml:parse-code reads: a vendored tree-sitter grammar (third_party/tree-sitter-grammars) with its highlights query, named as `javascript` or `python` (D285) |
+| `source_code_language` | A programming or data language that tree-sitter:parse reads (namespace `urn:sxml:tree-sitter`, D307): a vendored tree-sitter grammar (third_party/tree-sitter-grammars) with its highlights query, named as `javascript` or `python` (D285) |
 | `syntax_node` | A node of a tree-sitter syntax tree: named (a rule of the grammar, which becomes an element named by its kind) or anonymous (a token such as `return` or `;`, which becomes text) |
 | `node_kind` | The grammar's name for the type of a syntax node (tree-sitter's "type"), such as `function_declaration`; the local name of its element |
 | `field_name` | The name a grammar gives a child of a syntax node by its role, such as `name` or `body`; the `field` attribute of its element |

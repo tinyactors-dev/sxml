@@ -440,7 +440,7 @@ $ cd ../svg && sxml check diagram.xml diagram.svg; echo $?
 $ sxml xquery --context-item=diagram.xml --output=drawn.svg draw.xq
 $ diff drawn.svg diagram.svg && echo same
 same
-$ cd ../call-chains && sxml xpath --allow-file-access 'for $version in ("before", "after") for $file in sort(file:list($version)) let $tree := sxml:parse-code(file:read-text($version || "/" || $file), "typescript") return `{$version}/{$file}: {count($tree//function_declaration)} functions, {count($tree//(ERROR | *[@missing]))} errors`'
+$ cd ../call-chains && sxml xpath --allow-file-access 'for $version in ("before", "after") for $file in sort(file:list($version)) let $tree := tree-sitter:parse(file:read-text($version || "/" || $file), "typescript") return `{$version}/{$file}: {count($tree//function_declaration)} functions, {count($tree//(ERROR | *[@missing]))} errors`'
 "before/api.ts: 2 functions, 0 errors"
 "before/cache.ts: 1 functions, 0 errors"
 "before/db.ts: 1 functions, 0 errors"
@@ -470,7 +470,7 @@ $ cd ../codegen && sxml validate --schema=api.xsd api.xml; echo $?
 0
 $ sh generate.sh && sxml xquery --method=text check.xq
 5 functions: client, server and runtime agree
-$ sxml xpath --allow-file-access 'for $file in sort(file:list("generated"))[ends-with(., ".ts")] return `{$file}: {count(sxml:parse-code(file:read-text("generated/" || $file), "typescript")//(ERROR | *[@missing]))} errors`'
+$ sxml xpath --allow-file-access 'for $file in sort(file:list("generated"))[ends-with(., ".ts")] return `{$file}: {count(tree-sitter:parse(file:read-text("generated/" || $file), "typescript")//(ERROR | *[@missing]))} errors`'
 "client.ts: 0 errors"
 "server.ts: 0 errors"
 "types.ts: 0 errors"
