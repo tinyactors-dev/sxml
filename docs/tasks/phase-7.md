@@ -1286,6 +1286,30 @@ refusals); the chapter 5 of 5; sxml.wasm 13,448,586 / 2,420,734 bytes,
 pre-2021 `dylink` section, needed side modules, scanner imports outside
 tree-sitter's list.
 
+### 7.26 tree-sitter functions in a tree-sitter namespace (design and implementation)
+After D285, D288, D293 and D306. The owner (2026-10-22): expose
+tree-sitter as `tree-sitter:`, not as `sxml:code-*`. Today
+`sxml:parse-code` and `sxml:code-languages` live in `urn:sxml` (D285).
+- **Design**: a well-known namespace for the tree-sitter functions,
+  bound to the prefix `tree-sitter` as `bin` and `file` are (name.h,
+  additive after D99, as D206 and D285 added theirs); the functions'
+  names in it (proposed: `tree-sitter:parse` and
+  `tree-sitter:languages`, same signatures and options); where the
+  unknown-language error goes. `sxml:parse-code` and
+  `sxml:code-languages` are removed, not kept as aliases. Recorded as a
+  decision that amends D285's API paragraph; the glossary updated.
+- **Owns**: 7.22's, 7.23's and 7.25's files, the namespace part of
+  include/sxml/name.h and the comments of include/sxml that name the
+  functions, the prefix bindings of apps/sxml, bindings/host and
+  bindings/javascript, every test and book page that calls the functions
+  (source-code.md, ixml-performance.md, the codegen chapter's check.xq,
+  the examples under docs/book/examples).
+- **Done when**: the CLI, XQuery prologs and stylesheets reach the
+  functions through the `tree-sitter` prefix; tree-sitter/suite
+  unchanged (1,410 of 1,438); the book's examples match; no
+  `sxml:parse-code` or `sxml:code-languages` left in code, tests or
+  docs (decision records excepted).
+
 ## Proposed for the owner
 
 No phase covers these four features yet (D183 Proposed). The owner has

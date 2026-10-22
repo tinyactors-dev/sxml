@@ -37,6 +37,9 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 
 ## Next
 
+- 7.26 (owner, 2026-10-22): expose the tree-sitter functions as
+  `tree-sitter:` in a namespace of their own, replacing
+  `sxml:parse-code` and `sxml:code-languages` (docs/tasks/phase-7.md).
 - The book on Vane is done (book-5..book-21, book-13): 18 chapters, 882
   examples, mdbook build clean. Conformance appendix numbers date from
   20 October (a new report run would refresh them).
