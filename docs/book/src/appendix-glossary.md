@@ -38,6 +38,9 @@ server: it downloads every flag with its rules (`getFlags`), evaluates
 the flags itself, keeps them in a cache and keeps the cache current from
 the update stream.
 
+**Barycentre.** In a layer sweep, the mean position of a vertex's
+neighbours in the next layer, by which the layer is sorted.
+
 **BCP 14 key word.** One of the words of RFC 2119 and RFC 8174 that say
 how strong a requirement is: MUST, MUST NOT, REQUIRED, SHALL, SHALL
 NOT, SHOULD, SHOULD NOT, RECOMMENDED, NOT RECOMMENDED, MAY and
@@ -46,11 +49,6 @@ OPTIONAL. xml2rfc marks them with `bcp14`.
 **Boundary whitespace.** In an XQuery direct constructor, whitespace
 that stands alone between tags or enclosed expressions. It is dropped
 unless the query declares `boundary-space preserve`.
-
-**Breadth-first search.** Visiting a graph in rounds: first the start
-nodes, then the nodes one edge away from them, then two edges away,
-and so on, never visiting a node twice. Each round starts from the
-*frontier*.
 
 **Call chain.** A path of calls in a program, from an *entry* down to a
 function that calls no other function of the program.
@@ -94,6 +92,11 @@ directory given with `--collection`.
 
 **Derivation.** Making an XSD type from another: by *restriction*,
 which narrows its values, or by *extension*, which adds content.
+
+**Depth-first search.** Visiting a graph by following an edge from the
+node reached last, as far as it goes, and only then coming back to try
+the next edge. In the SVG project, an edge that leads back to a node on
+the way the search came closes a cycle.
 
 **Document node.** The root of a document's tree, above the outermost
 element.
@@ -142,10 +145,6 @@ on for a user.
 it asks the Vane service whether each flag is on for the user in front
 of it (`evaluateFlags`).
 
-**Frontier.** In a breadth-first search, the nodes found in the last
-round, from which the next round goes on. The search ends when the
-frontier leads to no new node.
-
 **Guardrail metric.** A measurement, such as an error rate, that must
 stay healthy while a feature flag is rolled out. Vane checks the
 guardrail metrics before each step, and pauses a flag after three failed
@@ -177,9 +176,14 @@ function (maps and arrays are functions).
 user. In Vane, the `killFlag` command of the admin API, which the
 console sends for one of the flag's owners.
 
-**Layout.** In the SVG project, the place of each box of a diagram,
-computed from the graph: its rank gives its row, and the rows are
-centred.
+**Layer.** In the SVG project, one of the horizontal bands a layered
+layout puts the vertices of a diagram in, so that every edge points
+down.
+
+**Layout.** In the SVG project, the place of each box of a diagram and
+the path of each edge, computed from the graph by the layered method in
+five phases: break the cycles, assign layers, order the layers, place,
+route.
 
 **Library module.** An XQuery module of declarations, with a namespace,
 that queries import.
@@ -187,6 +191,10 @@ that queries import.
 **Map, array, record.** A map associates keys with values; an array is
 a list of members by position; a record type describes maps with known
 keys.
+
+**Model order.** The order in which a description lists its nodes and
+edges. A layout that follows the model order where two choices are
+equally good lets the author steer it.
 
 **Mode.** In XSLT, a set of template rules that are used together.
 
@@ -254,10 +262,6 @@ rule for each kind of element.
 
 **Processor.** In the sxml library, the object that owns the names,
 types and values of everything compiled and evaluated with it.
-
-**Rank.** In the SVG project, the row of a node in a diagram: its
-distance, in edges, from the nodes at the top, found by a breadth-first
-search.
 
 **Remote function.** A function that runs on a server and that a
 client, such as a browser page, calls as if it were local, over one

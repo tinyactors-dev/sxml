@@ -32,7 +32,7 @@
   <xsl:template match="style/text()">
     <xsl:value-of select="."/>
     <xsl:text>  .node:not(.highlight), .edge:not(.highlight) {{ opacity: 0.3 }}
-    .highlight rect, .highlight line {{ stroke: #d81b60; stroke-width: 3 }}
+    .highlight rect, .highlight path {{ stroke: #d81b60; stroke-width: 3 }}
   </xsl:text>
   </xsl:template>
 

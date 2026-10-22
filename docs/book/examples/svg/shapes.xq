@@ -9,15 +9,16 @@ let $diagram := /Q{}diagram
 let $layout := draw:layout($diagram)
 return <svg width="{ $layout?width }" height="{ $layout?height }">{
   for $node in $diagram/Q{}node
-  let $place := $layout?places($node/@id)
+  let $box := $layout?boxes($node/@id)
   let $shape := if ($node/@kind = "store") then "ellipse" else "rect"
   return element { $shape } {
     if ($shape = "ellipse") then (
-      attribute cx { $place?x + 70 }, attribute cy { $place?y + 20 },
-      attribute rx { 70 }, attribute ry { 20 }
+      attribute cx { $box?x + $box?width idiv 2 },
+      attribute cy { $box?y + $box?height idiv 2 },
+      attribute rx { $box?width idiv 2 }, attribute ry { $box?height idiv 2 }
     ) else (
-      attribute x { $place?x }, attribute y { $place?y },
-      attribute width { 140 }, attribute height { 40 }
+      attribute x { $box?x }, attribute y { $box?y },
+      attribute width { $box?width }, attribute height { $box?height }
     ),
     attribute fill { "none" },
     attribute stroke { "black" }

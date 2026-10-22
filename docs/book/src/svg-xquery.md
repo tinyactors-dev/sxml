@@ -3,7 +3,7 @@
 <!-- examples: svg -->
 
 With the layout computed, drawing is a matter of building elements:
-a group, a box and a label for each node, a line and a label for each
+a group, a box and a label for each node, a path and a label for each
 edge. XQuery's constructors build them, as they build any XML, and the
 one thing to get right is the namespace.
 
@@ -103,10 +103,9 @@ The module keeps its five style rules in one:
 ```
 
 The second variable holds rules that a drawing gets only when it needs
-them: a rule for loops when an edge goes from a node to itself, and one
-for each of the classes `added`, `removed` and `changed`, which the
-later projects use to draw differences. These are ordinary string
-literals, where a brace is just a brace.
+them: one for each of the classes `added`, `removed` and `changed`,
+which the later projects use to draw differences. These are ordinary
+string literals, where a brace is just a brace.
 
 ## Computed constructors
 
@@ -125,15 +124,15 @@ and draws stores as ellipses:
 
 ```console
 $ sxml xquery --context-item=diagram.xml shapes.xq
-<svg xmlns="http://www.w3.org/2000/svg" width="360" height="480">
-  <rect x="20" y="20" width="140" height="40" fill="none" stroke="black"/>
-  <rect x="200" y="20" width="140" height="40" fill="none" stroke="black"/>
-  <rect x="110" y="120" width="140" height="40" fill="none" stroke="black"/>
-  <rect x="110" y="220" width="140" height="40" fill="none" stroke="black"/>
-  <rect x="20" y="320" width="140" height="40" fill="none" stroke="black"/>
-  <rect x="200" y="320" width="140" height="40" fill="none" stroke="black"/>
-  <ellipse cx="90" cy="440" rx="70" ry="20" fill="none" stroke="black"/>
-  <ellipse cx="270" cy="440" rx="70" ry="20" fill="none" stroke="black"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="299" height="416">
+  <rect x="20" y="20" width="126" height="40" fill="none" stroke="black"/>
+  <rect x="176" y="20" width="102" height="40" fill="none" stroke="black"/>
+  <rect x="105" y="124" width="100" height="40" fill="none" stroke="black"/>
+  <rect x="104" y="188" width="102" height="40" fill="none" stroke="black"/>
+  <rect x="20" y="252" width="126" height="40" fill="none" stroke="black"/>
+  <rect x="176" y="252" width="102" height="40" fill="none" stroke="black"/>
+  <ellipse cx="83" cy="376" rx="51" ry="20" fill="none" stroke="black"/>
+  <ellipse cx="227" cy="376" rx="50" ry="20" fill="none" stroke="black"/>
 </svg>
 ```
 
@@ -155,9 +154,8 @@ attributes. A node is a group with a box and a label:
 {{#include ../examples/svg/draw.xqm:node}}
 ```
 
-An edge is a group with a line and its label at the line's middle, moved
-a little to the right and down; an edge from a node to itself gets the
-loop instead:
+An edge is a group with the path of its route and its label, at the
+place the layout gave the label:
 
 ```xquery
 {{#include ../examples/svg/draw.xqm:edge}}
@@ -172,9 +170,11 @@ label: `!` over an empty sequence gives an empty sequence. And
 ```
 
 The edges come before the nodes, because SVG draws in document order:
-the boxes are drawn over the ends of the lines, which makes the arrows
-stop exactly at the box. The style is the five rules plus the ones for
-the features the diagram uses, one rule per line.
+a box is drawn over anything drawn before it. Inside the constructor,
+`node` and `edge` would name SVG elements, so the description's nodes
+and edges are read into `$nodes` and `$edges` first. The style is the
+five rules plus the ones for the classes the diagram uses, one rule per
+line.
 
 ## Writing the file
 
@@ -229,9 +229,11 @@ each kill is recorded by a new `audit` module, which writes to
 PostgreSQL and posts to the owners' webhook at hooks.example.com, and
 the way `flags` calls the registry changed. The cache module stays, and
 Redis with it, because other modules still use it; only the edge from
-`flags` goes. The nodes of each row are in an order that keeps the
-lines from crossing: the layout keeps the order of the description, so
-the author can still decide that much.
+`flags` goes. The nodes are listed in the order they should stand in,
+left to right: `cache` before `registry` before `audit`, and their
+stores in the same order. The layout keeps the order of the
+description wherever it costs no crossing, so the author decides that
+much.
 
 `change.xml`:
 
@@ -246,11 +248,11 @@ $ sxml xpath --context-item=change.svg '//*:style/string()'
     .node rect { fill: #eef3fb; stroke: #3b5b92; stroke-width: 1.5 }
     .store rect { fill: #f6efe3; stroke: #8a6a2f }
     .node text { font: 14px sans-serif; fill: #1b1b1b }
-    .edge line { stroke: #555555; stroke-width: 1.5 }
+    .edge path { fill: none; stroke: #555555; stroke-width: 1.5 }
     .edge text { font: 12px sans-serif; fill: #555555 }
-    .changed rect, .changed line, .changed path { stroke: #b26a00; stroke-width: 3 }
-    .added rect, .added line, .added path { stroke: #2e7d32; stroke-width: 3 }
-    .removed rect, .removed line, .removed path { stroke: #c62828; stroke-dasharray: 6 4 }
+    .changed rect, .changed path { stroke: #b26a00; stroke-width: 3 }
+    .added rect, .added path { stroke: #2e7d32; stroke-width: 3 }
+    .removed rect, .removed path { stroke: #c62828; stroke-dasharray: 6 4 }
   "
 $ sxml xpath --context-item=change.svg '//*:g[tokenize(@class) = ("added", "removed", "changed")] ! `{@id}: {@class}`'
 "edge-flags-cache: edge removed"
@@ -285,20 +287,23 @@ interface:
 | Function | Result |
 | --- | --- |
 | `draw:svg($diagram)` | the drawing, an SVG `svg` element |
-| `draw:layout($diagram)` | a `draw:layout` record: `width`, `height`, `places` |
-| `draw:ranks($diagram)` | a map from node id to rank |
-| `draw:line($from, $to)` | the ends of a line between two places, or nothing |
-| `draw:loop($place)` | the path of an edge from a node to itself |
-| `draw:node($node, $place)`, `draw:edge($edge, $places)` | one group |
+| `draw:layout($diagram)` | a `draw:layout` record: `width`, `height`, `boxes`, `routes` |
+| `draw:reversed($diagram)` | the positions of the edges that phase 1 turns round |
+| `draw:graph($diagram)` | the graph to lay out: `vertices` and `links` |
+| `draw:layers($graph)`, `draw:proper($graph, $layers)` | phase 2: the layers, and the graph with bend vertices |
+| `draw:orders($proper)` | phase 3: one array of vertex ids per layer |
+| `draw:xs($proper, $orders)` | phase 4: the x of every vertex |
+| `draw:path($points, $straight)`, `draw:loop($box)` | phase 5: an edge's SVG path, a loop's route |
+| `draw:node($node, $box)`, `draw:edge($edge, $route)` | one group |
 
 A diagram built in the query itself is drawn the same way. Here the loop
-shows up, with its style rule:
+shows up on the right of its box, with its label beside it:
 
 ```console
 $ sxml xquery --expression='import module namespace draw = "urn:example:draw" at "draw.xqm"; draw:svg(<diagram title="Polling"><node id="flag" label="flag"/><edge from="flag" to="flag" label="status.request"/></diagram>)' --output=loop.svg
-$ sxml xpath --context-item=loop.svg '//*:path[not(ancestor::*:defs)]/@d/string(), contains(//*:style, ".edge path")'
-"M 40 60 C 40 84, 70 84, 70 60"
-true()
+$ sxml xpath --context-item=loop.svg '//*:g[@id = "edge-flag-flag"]/*/(@d, @x) ! string()'
+"M 120 30 C 142 22, 142 58, 120 50"
+"146"
 ```
 
-![One box, flag, with a loop below it labelled status.request](figures/svg/loop.svg)
+![One box, flag, with a loop on its right labelled status.request](figures/svg/loop.svg)

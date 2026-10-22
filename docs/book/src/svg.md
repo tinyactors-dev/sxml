@@ -96,10 +96,13 @@ job, and its result is this drawing:
 {{#include ../examples/svg/diagram.svg}}
 ```
 
-The boxes are in five rows: the two SDKs at the top, the `api` module
+![The Vane system: the two SDKs call vane/api, which calls vane/flags; flags calls vane/registry and vane/cache, which keep their data in PostgreSQL and Redis](figures/svg/diagram.svg)
+
+The boxes are in five layers: the two SDKs at the top, the `api` module
 they call below them, and so on down to PostgreSQL and Redis. Each node
 is a group `g` with a `rect` and a `text`; each edge is a group with a
-`line` and, when the edge has one, its label at the middle. The groups
+`path`, a curve from box to box, and, when the edge has one, its label
+beside it. The groups
 have ids made from the description (`node-registry`, `edge-flags-cache`)
 and classes (`node`, `service`, `store`, `edge`) that the five style
 rules use: `service` is the class of every box that is not a store, an
@@ -149,10 +152,11 @@ $ sxml xpath --context-item=diagram.svg '//Q{http://www.w3.org/2000/svg}g/@id/st
 The tool has two halves, and the next sections build them one at a
 time:
 
-- [Computing a Layout](svg-layout.md) decides where each box goes: a row
-  for each step away from the top, boxes centred in their row. This is a
-  small graph algorithm, written with maps, arrays, records and
-  functions as values.
+- [Computing a Layout](svg-layout.md) decides where each box goes and
+  how each edge runs, with the layered method that Graphviz and the
+  Eclipse Layout Kernel use: layers so that edges point down, an order
+  in each layer so that few edges cross, then coordinates and curves.
+  It is written with maps, arrays, records and functions as values.
 - [Writing SVG with XQuery](svg-xquery.md) turns the layout into
   `diagram.svg` with constructors in the SVG namespace, and packs both
   halves into a library module, `draw.xqm`, that the later projects

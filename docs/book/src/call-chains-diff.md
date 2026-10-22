@@ -331,8 +331,9 @@ with the change as the class and the label `loop` on a repeated call:
 {{#include ../examples/call-chains/diagram.xq}}
 ```
 
-`draw.xqm` puts the first node in the top row, so the functions are
-ordered as the chains first go through them: `index-of` gives each
+`draw.xqm` starts its layout from the first node and keeps the order of
+the description where it can, so the functions are ordered as the
+chains first go through them: `index-of` gives each
 function its position in the distinct functions of all chains, and the
 entry, `api.start`, comes first.
 
@@ -357,24 +358,27 @@ $ sxml xpath --context-item=calls.svg '//*:g[tokenize(@class) = ("added", "remov
 ![Both call chains in one drawing: api.start, api.route and the two handlers at the top, the added functions and calls in green, the removed ones dashed in red, and db.query at the bottom](figures/call-chains/calls.svg)
 
 The added functions and calls are drawn green and thick, the removed
-ones red and dashed, and the call in the loop is labelled. The rows of
-the drawing are the boxes with the same `y`:
+ones red and dashed, and the call in the loop is labelled. The layers
+of the drawing are the boxes with the same `y`, here each read left to
+right:
 
 ```console
-$ sxml xpath --context-item=calls.svg 'for $y in distinct-values(//*:rect/@y) return `{$y}: {string-join(//*:g[*:rect/@y = $y]/*:text, ", ")}`'
+$ sxml xpath --context-item=calls.svg 'for $y in sort(distinct-values(//*:rect/@y ! xs:integer(.))) return `{$y}: {string-join(sort(//*:g[*:rect/@y = $y], (), fn { xs:integer(*:rect/@x) }) ! *:text, ", ")}`'
 "20: api.start"
-"120: api.route"
-"220: flags.killFlag, flags.listFlags"
-"320: audit.record, cache.getFlag, flags.isOwner, registry.getFlag, registry.setPercentage, flags.summarize, registry.getFlagKeys, registry.getFlags"
-"420: db.query"
+"84: api.route"
+"148: flags.killFlag, flags.listFlags"
+"212: audit.record, cache.getFlag, registry.setPercentage, flags.isOwner, registry.getFlagKeys, registry.getFlags, flags.summarize"
+"276: registry.getFlag"
+"340: db.query"
 ```
 
 The entry, the router, the two request handlers, the functions they
 call, and `db.query` at the bottom, which every query to PostgreSQL
-goes through. Before and after are one picture: in the fourth
-row the new `audit.record` stands beside the old `cache.getFlag`, and
-the new `getFlagKeys` beside the old `getFlags`, with `getFlag` among
-the functions both versions call.
+goes through. Before and after are one picture: in the fourth layer
+the new `audit.record` stands beside the old `cache.getFlag`, and the
+new `getFlagKeys` beside the old `getFlags`. `registry.getFlag`, which
+both versions call, has a layer of its own below them, because
+`registry.setPercentage` in the fourth layer calls it too.
 
 ## What the traces will say
 

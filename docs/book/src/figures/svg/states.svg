@@ -1,48 +1,48 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="360" height="280" viewBox="0 0 360 280">
+<svg xmlns="http://www.w3.org/2000/svg" width="364" height="392" viewBox="0 0 364 392">
   <title>Flag states</title>
   <style>
         .nodes rect { fill: #eef3fb; stroke: #3b5b92; stroke-width: 1.5 }
         .nodes .store rect { fill: #f6efe3; stroke: #8a6a2f }
         .nodes text { font: 14px sans-serif; fill: #1b1b1b }
-        .edges line, .edges path { fill: none; stroke: #555555; stroke-width: 1.5 }
+        .edges path { fill: none; stroke: #555555; stroke-width: 1.5 }
         .labels text { font: 12px sans-serif; fill: #555555 }
       </style>
   <defs>
-    <marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+    <marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto">
       <path d="M 0 0 L 10 5 L 0 10 z" fill="#555555"/>
     </marker>
   </defs>
   <g class="edges">
-    <line id="edge-stable-checking" x1="90" y1="60" x2="180" y2="120" marker-end="url(#arrow)"/>
-    <line id="edge-checking-rolling-out" x1="180" y1="160" x2="180" y2="220" marker-end="url(#arrow)"/>
-    <line id="edge-checking-stable" x1="210" y1="120" x2="120" y2="60" marker-end="url(#arrow)"/>
-    <line id="edge-rolling-out-stable" x1="210" y1="220" x2="120" y2="60" marker-end="url(#arrow)"/>
-    <line id="edge-archived-stable" x1="200" y1="40" x2="160" y2="40" marker-end="url(#arrow)"/>
+    <path id="edge-stable-checking" d="M 127 164 C 127 176, 21 176, 21 188 L 21 204 C 21 216, 96 216, 96 228" marker-end="url(#arrow)"/>
+    <path id="edge-checking-rolling-out" d="M 113 268 C 113 280, 113 280, 113 292 L 113 308 C 113 320, 153 320, 153 332" marker-end="url(#arrow)"/>
+    <path id="edge-checking-stable" d="M 129 228 C 129 216, 159 216, 159 204 L 159 188 C 159 176, 152 176, 152 164" marker-end="url(#arrow)"/>
+    <path id="edge-rolling-out-stable" d="M 190 332 C 190 316, 231 316, 231 300 C 231 274, 231 274, 231 248 C 231 226, 277 226, 277 204 L 277 188 C 277 176, 177 176, 177 164" marker-end="url(#arrow)"/>
+    <path id="edge-archived-stable" d="M 152 60 C 152 72, 152 72, 152 84 L 152 100 C 152 112, 152 112, 152 124" marker-end="url(#arrow)"/>
   </g>
   <g class="nodes">
     <g id="node-stable" class="service">
-      <rect x="20" y="20" width="140" height="40" rx="6"/>
-      <text x="90" y="45" text-anchor="middle">stable</text>
+      <rect x="102" y="124" width="100" height="40" rx="6"/>
+      <text x="152" y="149" text-anchor="middle">stable</text>
     </g>
     <g id="node-checking" class="service">
-      <rect x="110" y="120" width="140" height="40" rx="6"/>
-      <text x="180" y="145" text-anchor="middle">checking</text>
+      <rect x="63" y="228" width="100" height="40" rx="6"/>
+      <text x="113" y="253" text-anchor="middle">checking</text>
     </g>
     <g id="node-rolling-out" class="service">
-      <rect x="110" y="220" width="140" height="40" rx="6"/>
-      <text x="180" y="245" text-anchor="middle">rolling-out</text>
+      <rect x="117" y="332" width="110" height="40" rx="6"/>
+      <text x="172" y="357" text-anchor="middle">rolling-out</text>
     </g>
     <g id="node-archived" class="service">
-      <rect x="200" y="20" width="140" height="40" rx="6"/>
-      <text x="270" y="45" text-anchor="middle">archived</text>
+      <rect x="102" y="20" width="100" height="40" rx="6"/>
+      <text x="152" y="45" text-anchor="middle">archived</text>
     </g>
   </g>
   <g class="labels">
-    <text x="141" y="94">rollout.request</text>
-    <text x="186" y="194">check.passed</text>
-    <text x="171" y="94">check.failed</text>
-    <text x="171" y="144">step.done</text>
-    <text x="186" y="44">kill.request</text>
+    <text x="26" y="200">rollout.request</text>
+    <text x="118" y="304">check.passed</text>
+    <text x="164" y="200">check.failed</text>
+    <text x="282" y="200">step.done</text>
+    <text x="157" y="96">kill.request</text>
   </g>
 </svg>

@@ -26,13 +26,14 @@ the events that lead from one to the other:
 ```
 
 - The initial state comes first, because the layout starts from the
-  first node.
+  first node, and so draws it near the top.
 - The transitions are grouped by their source and target, so that two
   transitions between the same states make one arrow with both events
   on it; there is one arrow per pair, and `draw.xqm` gives each the id
   `edge-FROM-TO`.
 - A transition without a target stays in its state, so it is an edge
-  from the state to itself, which `draw.xqm` draws as a small loop.
+  from the state to itself, which `draw.xqm` draws as a small loop on
+  the right of its box.
 - The edges are records, `record(from, to, label)`, so that the edges of
   two machines can be compared by their source and target, below.
 
@@ -56,29 +57,32 @@ $ sxml xquery --context-item=flag.scxml machine-diagram.xq
 </diagram>
 ```
 
-## Ranks with cycles
+## Cycles
 
-`draw.xqm` puts each node in a row by its *rank*: its distance, in
-edges, from the start nodes, found breadth-first. A machine is full of
-cycles (`stable` to `checking` and back), which is why the layout
-can't use the longest path from the start, as a layout of a tree or a
-pipeline might: in a cycle, paths have no longest. The breadth-first
-distance is defined for every node a path reaches, cycles or not:
+A machine is full of cycles: `stable` to `checking` and back. The
+layered layout of `draw.xqm` puts every node in a layer so that every
+edge points down, so first it turns round the edges that close a
+circle, found by a depth-first search that starts at the first node,
+the initial state:
 
 ```console
 $ sxml xquery --context-item=flag.scxml machine-diagram.xq \
   | sxml xquery --method=adaptive --context-item=- \
-      --expression='import module namespace draw = "urn:example:draw" at "draw.xqm"; draw:ranks(/diagram)'
-{"stable":0,"archived":0,"checking":1,"rolling-out":2,"paused":2}
+      --expression='import module namespace draw = "urn:example:draw" at "draw.xqm"; for $position in draw:reversed(/diagram) return /diagram/edge[$position] ! `{@from} -> {@to}`'
+"checking -> stable"
+"rolling-out -> stable"
+"paused -> stable"
 ```
 
-`--context-item=-` reads the diagram from the pipe. `archived` has
-rank 0, like `stable`: the start nodes are the first node *and* every
-node without incoming edges, and no transition leads to `archived`. The
-flaw that `check.xq` reported as "unreachable state: archived" is
-visible in
-the drawing: the state sits in the top row beside the initial state,
-with arrows that leave it and none that arrive.
+`--context-item=-` reads the diagram from the pipe. The three edges
+from below back to `stable` are the ones turned round: drawn, they
+curve up into `stable`. The edge from `archived` to `stable` closes no
+circle, and stays as it is. No transition leads to `archived`,
+so nothing pulls it down, and the layout puts it in the layer above
+`stable`, the one state it leads to. The flaw that `check.xq` reported
+as "unreachable state: archived" is visible in the drawing: the state
+sits on top, above the initial state, with an arrow that leaves it and
+none that arrive.
 
 ## Drawing it
 
@@ -92,40 +96,41 @@ $ sxml xquery --context-item=flag-diagram.xml --output=flag.svg --expression='
     draw:svg(/diagram)'
 $ grep -A3 'id="node-' flag.svg
   <g class="node service" id="node-stable">
-    <rect x="20" y="20" width="140" height="40" rx="6"/>
-    <text x="90" y="45" text-anchor="middle">stable</text>
+    <rect x="182" y="124" width="100" height="40" rx="6"/>
+    <text x="232" y="149" text-anchor="middle">stable</text>
   </g>
   <g class="node service" id="node-checking">
-    <rect x="110" y="120" width="140" height="40" rx="6"/>
-    <text x="180" y="145" text-anchor="middle">checking</text>
+    <rect x="79" y="228" width="100" height="40" rx="6"/>
+    <text x="129" y="253" text-anchor="middle">checking</text>
   </g>
   <g class="node service" id="node-rolling-out">
-    <rect x="20" y="220" width="140" height="40" rx="6"/>
-    <text x="90" y="245" text-anchor="middle">rolling-out</text>
+    <rect x="46" y="332" width="110" height="40" rx="6"/>
+    <text x="101" y="357" text-anchor="middle">rolling-out</text>
   </g>
   <g class="node service" id="node-paused">
-    <rect x="200" y="220" width="140" height="40" rx="6"/>
-    <text x="270" y="245" text-anchor="middle">paused</text>
+    <rect x="312" y="332" width="100" height="40" rx="6"/>
+    <text x="362" y="357" text-anchor="middle">paused</text>
   </g>
   <g class="node service" id="node-archived">
-    <rect x="200" y="20" width="140" height="40" rx="6"/>
-    <text x="270" y="45" text-anchor="middle">archived</text>
+    <rect x="182" y="20" width="100" height="40" rx="6"/>
+    <text x="232" y="45" text-anchor="middle">archived</text>
   </g>
 ```
 
-The two states in the top row are `stable` and `archived`; the second
-row has `checking` alone, and the third `rolling-out` and `paused`. The
-transitions that stay are loops:
+`archived` is in the top layer and `stable` in the next; `checking` is
+below `stable`, and `rolling-out` and `paused` share the bottom layer.
+The layers between them hold the labels of the transitions, each beside
+its arrow. The transitions that stay are loops:
 
 ```console
 $ grep -A3 'id="edge-stable-stable"' flag.svg
   <g class="edge" id="edge-stable-stable">
-    <path d="M 40 60 C 40 84, 70 84, 70 60" marker-end="url(#arrow)"/>
-    <text x="76" y="80">status.request</text>
+    <path d="M 282 134 C 304 126, 304 162, 282 154" marker-end="url(#arrow)"/>
+    <text x="308" y="148">status.request</text>
   </g>
 ```
 
-![The flag's state machine: stable, archived, checking, rolling-out and paused, with labelled transitions between them and loops below stable and rolling-out](figures/scxml/flag.svg)
+![The flag's state machine in layers: archived on top, stable below it, checking, then rolling-out and paused; each transition is labelled beside its arrow, the transitions back to stable curve up into it, and stable and rolling-out have loops on their right](figures/scxml/flag.svg)
 
 ## Drawing a change
 
@@ -142,24 +147,17 @@ $ sxml xquery --context-item=flag-fixed.scxml --param=before=flag.scxml machine-
       import module namespace draw = "urn:example:draw" at "draw.xqm";
       declare option output:indent "yes";
       draw:svg(/diagram)'
-$ grep -A3 'class="edge added"' changes.svg
-  <g class="edge added" id="edge-stable-archived">
-    <line x1="180" y1="60" x2="270" y2="120" marker-end="url(#arrow)"/>
-    <text x="231" y="94">flag.archived</text>
-  </g>
---
-  <g class="edge added" id="edge-paused-archived">
-    <line x1="300" y1="220" x2="300" y2="160" marker-end="url(#arrow)"/>
-    <text x="306" y="194">flag.archived</text>
-  </g>
+$ sxml xpath --context-item=changes.svg '//*:g[contains-token(@class, "added")] ! `{@id}: {*:text}`'
+"edge-stable-archived: flag.archived"
+"edge-paused-archived: flag.archived"
 ```
 
-![The fixed machine against the seed: the two new flag.archived transitions in green, with archived moved into the second row](figures/scxml/changes.svg)
+![The fixed machine against the seed: the two new flag.archived transitions in green, from stable and from paused down to archived, now at the bottom](figures/scxml/changes.svg)
 
 The two new transitions on `flag.archived` are the change, and they
-move `archived` into the second row: it now has incoming edges, at
-distance one from `stable`, so the arrow from `paused`, in the third
-row, points up. The new declaration of `flag.evaluated` and the new
+move `archived` to the bottom: something now leads to it, from
+`stable` and from `paused`, so it goes in the layer below them, and
+its own transition to `stable` curves up. The new declaration of `flag.evaluated` and the new
 `vane:implements` change no state or transition, so the drawing doesn't
 show them; the page of [Documenting the Machine in
 XHTML](scxml-xhtml.md) does.

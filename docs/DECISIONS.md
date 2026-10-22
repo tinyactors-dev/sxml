@@ -14436,6 +14436,33 @@ tinyactors-dev/sxml.
   `website/public/CNAME`. No GitHub Actions: they are off (D123), so
   whoever changes `website/` or the book publishes by hand.
 
+### D305. The book's diagrams use a layered layout with model order
+
+Recorded 2026-10-22, at the owner's request: the state machine diagrams
+(states, flag, changes) were busy and unreadable, and the owner asked
+for the layered algorithm of the KIELER group (ELK Layered) in XQuery.
+
+- **`docs/book/examples/svg/draw.xqm`** lays out in the five phases of
+  the Sugiyama method as ELK Layered runs them, with the order of the
+  description (model order) breaking ties, after Domrös, Riepe and von
+  Hanxleden, "Model Order in Sugiyama Layouts" (IVAPP 2023): a
+  depth-first cycle breaker that visits nodes and edges in description
+  order, longest-path layers with sources lowered, a label vertex per
+  edge label (ELK's label dummies) and bend vertices on long edges,
+  barycentre layer sweeps with a stable sort from the description's
+  order, placement by isotonic regression (pool adjacent violators),
+  and curved routes with ports spread along each side; loops go on the
+  right of their box, and boxes are as wide as their labels.
+- **Rejected:** the enforcing model-order cycle breaker (reverse every
+  edge to an earlier node). It turns edges of acyclic graphs whose
+  nodes are not listed top-down, which made the call-chain drawing
+  worse. Brandes-Köpf placement and network-simplex layering, ELK's
+  defaults, are left out: each is a chapter of its own, and the
+  simpler phases are readable on every diagram of the book.
+- **The book:** "Computing a Layout" teaches the five phases instead
+  of breadth-first ranks; `layout.xq` writes boxes and paths, which
+  `draw.xsl` draws; `rows.xq` and `ranks-fold.xq` go.
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): tagging and

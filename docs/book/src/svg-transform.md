@@ -60,7 +60,7 @@ $ sxml xpath --context-item=dark.svg '/*/@style/string(), //*:style/string()'
     .node rect { fill: #1f2a3d; stroke: #8fb0e8; stroke-width: 1.5 }
     .store rect { fill: #3a3020; stroke: #d9b878 }
     .node text { font: 14px sans-serif; fill: #e8e8e8 }
-    .edge line { stroke: #b0b0b0; stroke-width: 1.5 }
+    .edge path { fill: none; stroke: #b0b0b0; stroke-width: 1.5 }
     .edge text { font: 12px sans-serif; fill: #b0b0b0 }
   "
 ```
@@ -74,7 +74,7 @@ as they are, readable on dark too:
 ```console
 $ sxml xquery --context-item=change.xml draw.xq | sxml transform dark.xsl - | sxml xpath --context-item=- 'tokenize(//*:style, "\n")[contains(., "added") or contains(., "store")] ! normalize-space()'
 ".store rect { fill: #3a3020; stroke: #d9b878 }"
-".added rect, .added line, .added path { stroke: #2e7d32; stroke-width: 3 }"
+".added rect, .added path { stroke: #2e7d32; stroke-width: 3 }"
 ```
 
 ## Highlighting a node
@@ -268,7 +268,7 @@ lines and text alike:
 
 ```console
 $ sxml transform scale.xsl diagram.svg | head -1
-<svg xmlns="http://www.w3.org/2000/svg" width="720" height="960" viewBox="0 0 360 480">
+<svg xmlns="http://www.w3.org/2000/svg" width="598" height="832" viewBox="0 0 299 416">
 $ sxml transform --param=factor=0.5 scale.xsl box.svg | head -1
 <svg xmlns="http://www.w3.org/2000/svg" width="100" height="70" viewBox="0 0 200 140">
 ```
