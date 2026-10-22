@@ -66,6 +66,21 @@ The WebAssembly modules, at commit `4f5a8bf` (stripped):
 
 ## Install
 
+With [mise](https://mise.jdx.dev), one command installs the `sxml`
+command for your platform from the GitHub release and puts it on your
+`PATH`:
+
+```sh
+mise use -g github:tinyactors-dev/sxml
+sxml --version
+```
+
+`mise use -g github:tinyactors-dev/sxml@0.2.0` pins a version, and
+without `-g` the tool is installed for the current project only (in its
+`mise.toml`).
+
+### Release archives
+
 Each release of the `sxml` command comes as one archive per platform,
 named `sxml-<version>-<target>`:
 
@@ -646,11 +661,14 @@ results by test set.
 
 ## Status
 
-sxml 0.2.0 is in active development and has no tagged release yet.
-Everything above works in the library, the `sxml` command and, where the
-table says so, in JavaScript. The public C headers are stable. Not done
-yet: builds for macOS and Windows, bindings for iOS and Android,
-and Android and iOS bindings (in progress).
+sxml 0.2.0 is the first release
+([releases](https://github.com/tinyactors-dev/sxml/releases)), and sxml
+is in active development. Everything above works in the library, the
+`sxml` command and, where the table says so, in JavaScript. The public C
+headers are stable. Not done yet: running the macOS and Windows builds
+natively (they are cross-compiled and checked, not yet run on those
+systems), publishing the JavaScript package on npm, and the iOS and
+Android bindings.
 
 ## License
 

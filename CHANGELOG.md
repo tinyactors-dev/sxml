@@ -9,10 +9,15 @@ release are in `docs/RELEASE.md`.
 
 ## [Unreleased]
 
-XQuery 4.0 (Phase 3, D161), XSLT 4.0 (Phase 4, D169), XSD 1.1 with
-schema awareness (Phase 5, D182) and the deferred features of Phase 7
-(D183, D237). The owner decides whether this goes into 0.2.0, which is
-not tagged yet, or into the next minor release.
+## [0.2.0] - 2026-10-22
+
+The first public release (D47, D104, D138): XML and HTML parsing,
+XPath 4.0, XQuery 4.0 (Phase 3, D161), XSLT 4.0 (Phase 4, D169), XSD 1.1
+with schema awareness (Phase 5, D182) and the deferred features of
+Phase 7 (D183, D237). The public headers in `include/sxml/` are stable,
+and `SXML_API_VERSION` is 0.2.0. The `sxml` command comes as an archive
+for Linux, macOS and Windows on x86_64 and AArch64 and for WASI, and
+installs with mise (`mise use -g github:tinyactors-dev/sxml`).
 
 ### Added (Phase 7)
 
@@ -138,7 +143,7 @@ not tagged yet, or into the next minor release.
   886 of 907, html5lib tree construction 1,749 of 1,753, xmlconf
   2,237 of 2,237.
 
-### Added
+### Added (Phases 3 to 5)
 
 - **XSD 1.1 validation** (`schema.h`, D165): schemas compiled once from
   schema documents given as text, as parsed nodes or through the
@@ -288,13 +293,7 @@ not tagged yet, or into the next minor release.
   in `/spans/span[@parent = $span/@id]` inside a loop, is indexed like
   `//span[...]` (D302): 21.9 s to 0.3 s over 16,000 spans.
 
-## [0.2.0] - unreleased
-
-The first public release (D47, D104, D138). From this version, the public
-headers in `include/sxml/` are stable, except the provisional `xquery.h`
-and `xslt.h` (D151). `SXML_API_VERSION` is 0.2.0.
-
-### Added
+### Added (Phases 0 to 2)
 
 - **XDM 4.0 value model**: items, sequences, nodes, maps, arrays,
   function items and JNodes. They come from a reference-counted item heap,
@@ -330,14 +329,5 @@ and `xslt.h` (D151). `SXML_API_VERSION` is 0.2.0.
 - Conformance: the W3C QT4 test suite runs through `sxml-qt4`, and the
   latest results are in `docs/CONFORMANCE.md`.
 
-### Not yet
-
-- XQuery 4.0 (Phase 3): `xquery.h` compiles and runs main modules, and
-  `sxml xquery` uses it; library modules, module import and
-  fn:load-xquery-module are in progress. `xquery.h` is provisional until
-  the Phase 3 gate (D151). (Done since: see Unreleased, D161.)
-- XSLT 4.0 (Phase 4): `xslt.h` is declared and partly implemented; it is
-  provisional until the Phase 4 gate (D151). Schema validation is
-  Phase 5.
-
+[Unreleased]: https://github.com/tinyactors-dev/sxml/compare/v0.2.0...HEAD
 [0.2.0]: https://github.com/tinyactors-dev/sxml/releases/tag/v0.2.0

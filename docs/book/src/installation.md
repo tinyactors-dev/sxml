@@ -2,10 +2,27 @@
 
 <!-- examples: getting-started -->
 
-The first step is to get the `sxml` command. You can download a
-prebuilt archive, or build sxml from its source code. Both give you the
-same program: one file, `sxml` (`sxml.exe` on Windows), with every
-feature of the library in it and no dependencies.
+The first step is to get the `sxml` command. You can install a release
+with mise, download a prebuilt archive, or build sxml from its source
+code. All of them give you the same program: one file, `sxml`
+(`sxml.exe` on Windows), with every feature of the library in it and no
+dependencies.
+
+## Installing with mise
+
+[mise](https://mise.jdx.dev) installs development tools from their
+GitHub releases. With it installed, one command picks the archive for
+your system, unpacks it, and puts `sxml` on your `PATH`:
+
+```sh
+mise use -g github:tinyactors-dev/sxml
+sxml --version
+```
+
+`-g` installs it for your user. Without it, mise records the tool in the
+`mise.toml` of the current project, so everyone who works on that
+project gets the same version; `github:tinyactors-dev/sxml@0.2.0` pins
+one.
 
 ## Installing a release archive
 
@@ -37,10 +54,6 @@ WebAssembly program runs in a WASI runtime that gives it the directories
 it may read, for example `wasmtime --dir=. sxml.wasm xpath '1 + 1'`.
 
 Each archive also holds `USAGE.md`, the manual of the command.
-
-> sxml has no tagged release yet. Until the first one is published,
-> build it from source as the next section describes; it takes a few
-> minutes.
 
 ## Building from source
 
