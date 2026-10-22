@@ -248,7 +248,23 @@ typedef struct injection_site {
     bool includes_children;
 } injection_site;
 
-/* What the queries of one tree's language say about it. */
+/* The compiled queries of one language, kept for the whole document, so
+   that a language injected many times (Markdown's inline grammar, once
+   for every paragraph) compiles its queries once. A query that is not
+   wanted, or that does not compile for an injected language, is NULL. */
+typedef struct language_queries {
+    const TSLanguage *grammar;
+    /* The highlights query's text: with the grammar, which language this is. */
+    const uint8_t *highlights_query_bytes;
+    compiled_query highlights;
+    compiled_query locals;
+    compiled_query injections;
+    /* By highlights capture index: true for a name that is a highlight. */
+    bool *is_highlight_capture;
+} language_queries;
+
+/* What the queries of one tree's language say about it. The compiled
+   queries are borrowed from the document's language_queries. */
 typedef struct tree_analysis {
     const sxml_source_code_request *request;
     step_account *account;
@@ -257,7 +273,7 @@ typedef struct tree_analysis {
     compiled_query locals;
     compiled_query injections;
     /* By highlights capture index: true for a name that is a highlight. */
-    bool *is_highlight_capture;
+    const bool *is_highlight_capture;
     /* highlight_capture, sorted by node, one per node. */
     sxml_xml_array captures;
     /* local_reference, sorted by reference. */
@@ -1058,22 +1074,7 @@ static sxml_status record_match(tree_analysis *analysis, const TSQueryMatch *mat
 
 /* Runs the highlights query over root and records the highlights. */
 static sxml_status run_highlights(tree_analysis *analysis, TSNode root) {
-    const uint32_t capture_count = ts_query_capture_count(analysis->highlights.query);
-    void *memory = NULL;
-    sxml_status status = sxml_allocator_allocate_array(
-        analysis->request->allocator,
-        (sxml_array_allocation_request){.element_count = capture_count,
-                                        .element_size = sizeof(bool),
-                                        .element_alignment = alignof(bool)},
-        &memory);
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    analysis->is_highlight_capture = memory;
-    for (uint32_t capture_index = 0; capture_index < capture_count; capture_index += 1) {
-        const sxml_byte_view name = capture_name(&analysis->highlights, capture_index);
-        analysis->is_highlight_capture[capture_index] = name.byte_count > 0 && name.bytes[0] != '_';
-    }
+    sxml_status status = SXML_STATUS_OK;
     TSQueryCursorOptions options;
     TSQueryCursor *cursor = start_query(
         analysis, (query_start){.compiled = &analysis->highlights, .options = &options}, root);
@@ -1253,16 +1254,50 @@ static tree_analysis empty_analysis(const sxml_source_code_request *request, ste
             .allocator = allocator, .element_byte_count = sizeof(injection_site)})};
 }
 
-/* Compiles the queries the request needs and runs them over root. A
-   query that does not compile gives SXML_STATUS_MALFORMED_INPUT for the
-   document's language; for an injected language (is_injected) it is left
-   out. */
-typedef struct analysis_request {
-    TSNode root;
-    bool is_injected;
-} analysis_request;
+static void finalize_language_queries(sxml_allocator allocator, language_queries *queries) {
+    finalize_query(allocator, &queries->highlights);
+    finalize_query(allocator, &queries->locals);
+    finalize_query(allocator, &queries->injections);
+    sxml_allocator_release(allocator, queries->is_highlight_capture);
+    queries->is_highlight_capture = NULL;
+}
 
-static sxml_status analyze_tree(tree_analysis *analysis, analysis_request analyzed) {
+/* Marks the captures of the highlights query that are highlights: the
+   names that do not start with an underscore. */
+static sxml_status mark_highlight_captures(const tree_analysis *analysis,
+                                           language_queries *queries) {
+    const uint32_t capture_count = ts_query_capture_count(queries->highlights.query);
+    void *memory = NULL;
+    const sxml_status status = sxml_allocator_allocate_array(
+        analysis->request->allocator,
+        (sxml_array_allocation_request){.element_count = capture_count,
+                                        .element_size = sizeof(bool),
+                                        .element_alignment = alignof(bool)},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    queries->is_highlight_capture = memory;
+    for (uint32_t capture_index = 0; capture_index < capture_count; capture_index += 1) {
+        const sxml_byte_view name = capture_name(&queries->highlights, capture_index);
+        queries->is_highlight_capture[capture_index] = name.byte_count > 0 && name.bytes[0] != '_';
+    }
+    return SXML_STATUS_OK;
+}
+
+/* Where find_language_queries looks: the document's compiled queries
+   (language_queries), and whether the language is injected. */
+typedef struct queries_lookup {
+    sxml_xml_array *cache;
+    bool is_injected;
+} queries_lookup;
+
+/* Compiles the queries the request needs for the analysis's language. A
+   query that does not compile gives SXML_STATUS_MALFORMED_INPUT for the
+   document's language; for an injected language (lookup.is_injected) it
+   is left out. */
+static sxml_status compile_language_queries(const tree_analysis *analysis, queries_lookup lookup,
+                                            language_queries *compiled) {
     const sxml_source_code_request *request = analysis->request;
     const sxml_source_code_language *language = &analysis->language;
     const struct {
@@ -1270,9 +1305,9 @@ static sxml_status analyze_tree(tree_analysis *analysis, analysis_request analyz
         sxml_byte_view query_text;
         compiled_query *compiled;
     } queries[] = {
-        {request->has_highlights, language->highlights_query, &analysis->highlights},
-        {request->has_highlights, language->locals_query, &analysis->locals},
-        {request->has_injections, language->injections_query, &analysis->injections},
+        {request->has_highlights, language->highlights_query, &compiled->highlights},
+        {request->has_highlights, language->locals_query, &compiled->locals},
+        {request->has_injections, language->injections_query, &compiled->injections},
     };
     sxml_status status = SXML_STATUS_OK;
     for (size_t query_index = 0;
@@ -1283,11 +1318,69 @@ static sxml_status analyze_tree(tree_analysis *analysis, analysis_request analyz
         }
         status = compile_query(analysis, queries[query_index].query_text,
                                queries[query_index].compiled);
-        if (status == SXML_STATUS_MALFORMED_INPUT && analyzed.is_injected) {
+        if (status == SXML_STATUS_MALFORMED_INPUT && lookup.is_injected) {
             finalize_query(request->allocator, queries[query_index].compiled);
             status = SXML_STATUS_OK;
         }
     }
+    if (status == SXML_STATUS_OK && compiled->highlights.query != NULL) {
+        status = mark_highlight_captures(analysis, compiled);
+    }
+    return status;
+}
+
+/* The compiled queries of the analysis's language: the ones the document
+   compiled before, or compiled now and kept for the rest of it. */
+static sxml_status find_language_queries(const tree_analysis *analysis, queries_lookup lookup,
+                                         const language_queries **found) {
+    const sxml_source_code_language *language = &analysis->language;
+    for (size_t entry_index = 0; entry_index < lookup.cache->element_count; entry_index += 1) {
+        const language_queries *entry = sxml_xml_array_at(lookup.cache, entry_index);
+        if (entry->grammar == language->grammar &&
+            entry->highlights_query_bytes == language->highlights_query.bytes) {
+            *found = entry;
+            return SXML_STATUS_OK;
+        }
+    }
+    const compiled_query none = {.query = NULL, .regexes = NULL, .regex_count = 0};
+    language_queries compiled = {.grammar = language->grammar,
+                                 .highlights_query_bytes = language->highlights_query.bytes,
+                                 .highlights = none,
+                                 .locals = none,
+                                 .injections = none,
+                                 .is_highlight_capture = NULL};
+    sxml_status status = compile_language_queries(analysis, lookup, &compiled);
+    if (status == SXML_STATUS_OK) {
+        status = push_value(lookup.cache, &compiled, sizeof(compiled));
+    }
+    if (status != SXML_STATUS_OK) {
+        finalize_language_queries(analysis->request->allocator, &compiled);
+        return status;
+    }
+    *found = sxml_xml_array_at(lookup.cache, lookup.cache->element_count - 1);
+    return SXML_STATUS_OK;
+}
+
+/* Takes the language's compiled queries and runs them over root. */
+typedef struct analysis_request {
+    TSNode root;
+    bool is_injected;
+    /* language_queries: the document's compiled queries. */
+    sxml_xml_array *query_cache;
+} analysis_request;
+
+static sxml_status analyze_tree(tree_analysis *analysis, analysis_request analyzed) {
+    const language_queries *queries = NULL;
+    sxml_status status = find_language_queries(
+        analysis, (queries_lookup){.cache = analyzed.query_cache, .is_injected = analyzed.is_injected},
+        &queries);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    analysis->highlights = queries->highlights;
+    analysis->locals = queries->locals;
+    analysis->injections = queries->injections;
+    analysis->is_highlight_capture = queries->is_highlight_capture;
     if (status == SXML_STATUS_OK && analysis->locals.query != NULL &&
         analysis->highlights.query != NULL) {
         status = run_locals(analysis, analyzed.root);
@@ -1301,12 +1394,8 @@ static sxml_status analyze_tree(tree_analysis *analysis, analysis_request analyz
     return status;
 }
 
+/* Releases what the analysis found; its queries belong to the document. */
 static void finalize_analysis(tree_analysis *analysis) {
-    const sxml_allocator allocator = analysis->request->allocator;
-    finalize_query(allocator, &analysis->highlights);
-    finalize_query(allocator, &analysis->locals);
-    finalize_query(allocator, &analysis->injections);
-    sxml_allocator_release(allocator, analysis->is_highlight_capture);
     analysis->is_highlight_capture = NULL;
     sxml_xml_array_release(&analysis->captures);
     sxml_xml_array_release(&analysis->local_references);
@@ -1411,6 +1500,8 @@ typedef struct document_writer {
     sxml_xml_array open_nodes;
     /* code_layer, the document's first (D71: the stack of trees). */
     sxml_xml_array layers;
+    /* language_queries, one for each language the document uses. */
+    sxml_xml_array language_queries;
 } document_writer;
 
 static code_layer *top_layer(const document_writer *writer) {
@@ -1797,7 +1888,9 @@ static sxml_status push_layer(document_writer *writer, const layer_start *start)
     }
     code_layer *pushed = top_layer(writer);
     status = analyze_tree(&pushed->analysis,
-                          (analysis_request){.root = root, .is_injected = start->is_injected});
+                          (analysis_request){.root = root,
+                                             .is_injected = start->is_injected,
+                                             .query_cache = &writer->language_queries});
     if (status == SXML_STATUS_OK) {
         status = prepare_kind_names(writer, pushed);
     }
@@ -2123,7 +2216,9 @@ sxml_status sxml_source_code_parse(const sxml_source_code_request *request) {
         .open_nodes = sxml_xml_array_empty((sxml_xml_array_configuration){
             .allocator = request->allocator, .element_byte_count = sizeof(bool)}),
         .layers = sxml_xml_array_empty((sxml_xml_array_configuration){
-            .allocator = request->allocator, .element_byte_count = sizeof(code_layer)})};
+            .allocator = request->allocator, .element_byte_count = sizeof(code_layer)}),
+        .language_queries = sxml_xml_array_empty((sxml_xml_array_configuration){
+            .allocator = request->allocator, .element_byte_count = sizeof(language_queries)})};
     status = prepare_writer(&writer);
     const sxml_tree_builder builder = request->builder;
     if (status == SXML_STATUS_OK) {
@@ -2157,6 +2252,12 @@ sxml_status sxml_source_code_parse(const sxml_source_code_request *request) {
         finalize_layer(&writer, sxml_xml_array_at(&writer.layers, layer_index - 1));
     }
     sxml_xml_array_release(&writer.layers);
+    for (size_t entry_index = 0; entry_index < writer.language_queries.element_count;
+         entry_index += 1) {
+        finalize_language_queries(request->allocator,
+                                  sxml_xml_array_at(&writer.language_queries, entry_index));
+    }
+    sxml_xml_array_release(&writer.language_queries);
     sxml_xml_array_release(&writer.open_nodes);
     if (tree != NULL) {
         ts_tree_delete(tree);

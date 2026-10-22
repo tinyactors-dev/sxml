@@ -261,6 +261,11 @@ not tagged yet, or into the next minor release.
 
 ### Fixed
 
+- `sxml:parse-code` compiles each language's queries once per call
+  (D306). It compiled the injected language's queries again for every
+  injection, so Markdown, whose inline grammar is injected into every
+  paragraph, took some 30 s for each MB; it takes about 1 s now.
+
 - `sxml validate` and the validator: an identity-constraint field whose
   value is not valid for its type is reported as invalid (and, for a
   key, as a key field without a value) instead of ending validation
