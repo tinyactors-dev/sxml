@@ -166,4 +166,141 @@
       <findings/>
     </result>
   </test-case>
+  <test-case name="ns-prefix-differs" since="2020">
+    <description>The prefix ns declares differs from the instance's prefix for the same URI: names match by URI.</description>
+    <spec clause="5.4.10"/>
+    <schema file="ns-prefix-differs.sch"/>
+    <instance file="ns-prefix-differs.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{urn:example:n}item[2]">
+          <message>Only one.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="ns-default-namespace-instance" since="2020">
+    <description>The instance uses a default namespace; the schema names it with a prefix.</description>
+    <spec clause="5.4.10"/>
+    <schema file="ns-default-namespace-instance.sch"/>
+    <instance file="ns-default-namespace-instance.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{urn:example:n}doc[1]/Q{urn:example:n}item[2]">
+          <message>Only one.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="ns-unprefixed-no-namespace" since="2020">
+    <description>An unprefixed name in a query names an element in no namespace: it does not match elements in the instance's default namespace.</description>
+    <spec clause="5.4.10"/>
+    <spec clause="Annex-J"/>
+    <schema file="ns-unprefixed-no-namespace.sch"/>
+    <instance file="ns-unprefixed-no-namespace.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{urn:example:n}doc[1]">
+          <message>Has items in no namespace.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="ns-same-prefix-other-uri" since="2020">
+    <description>The schema and the instance bind one prefix to different URIs: the schema's binding decides, and nothing matches.</description>
+    <spec clause="5.4.10"/>
+    <schema file="ns-same-prefix-other-uri.sch"/>
+    <instance file="ns-same-prefix-other-uri.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]">
+          <message>Has items of urn:example:one.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="ns-one-prefix-two-uris" since="2020">
+    <description>Two ns elements bind one prefix to two URIs.</description>
+    <spec clause="5.4.10"/>
+    <schema file="ns-one-prefix-two-uris.sch"/>
+    <instance file="ns-one-prefix-two-uris.xml"/>
+    <result>
+      <implementation-defined clause="5.4.10">5.4.10 does not say whether a prefix may be declared twice: a processor may reject the schema, use the first binding (no findings) or the last (one successful-report at /Q{}doc[1]/Q{urn:example:two}item[1]).</implementation-defined>
+    </result>
+  </test-case>
+
+  <test-case name="ns-duplicate-declaration" since="2020">
+    <description>Two identical ns elements: the binding is the same, and nothing in the standard forbids repeating it.</description>
+    <spec clause="5.4.10"/>
+    <schema file="ns-duplicate-declaration.sch"/>
+    <instance file="ns-duplicate-declaration.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{urn:example:n}item[2]">
+          <message>Only one.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="ns-xmlns-conflict" since="2020">
+    <description>The schema's root binds a prefix with xmlns to one URI and ns binds it to another: queries use the ns binding only.</description>
+    <spec clause="5.4.10"/>
+    <schema file="ns-xmlns-conflict.sch"/>
+    <instance file="ns-xmlns-conflict.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{urn:example:right}item[1]">
+          <message>Right namespace.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="ns-xml-prefix" since="2020">
+    <description>ns may declare the xml prefix with its fixed URI; xml:lang is then usable in tests.</description>
+    <spec clause="5.4.10"/>
+    <schema file="ns-xml-prefix.sch"/>
+    <instance file="ns-xml-prefix.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]">
+          <message>English only.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="ns-non-ascii-prefix" since="2020">
+    <description>A prefix with a non-ASCII letter.</description>
+    <spec clause="5.4.10"/>
+    <spec clause="7.2"/>
+    <schema file="ns-non-ascii-prefix.sch"/>
+    <instance file="ns-non-ascii-prefix.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{urn:example:n}item[2]">
+          <message>Only one.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="struct-utf16" since="2020">
+    <description>A schema encoded in UTF-16, with non-ASCII text in a message.</description>
+    <spec clause="5.1"/>
+    <schema file="struct-utf16.sch"/>
+    <instance file="struct-utf16.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Größe 𝄞.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
 </test-set>

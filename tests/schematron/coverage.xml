@@ -5,6 +5,7 @@
     <text>An abstract rule does not fire by itself.</text>
     <test set="abstract-rules" case="extends-abstract-does-not-fire"/>
     <test set="abstract-rules" case="extends-basic"/>
+    <test set="abstract-rules" case="extends-abstract-rule-flag"/>
   </requirement>
   <requirement id="d-3.3" clause="3.3" kind="definition">
     <text>Only the patterns of the active phase are used.</text>
@@ -54,6 +55,7 @@
     <text>A schema is a well-formed XML 1.0 or 1.1 document.</text>
     <test set="static-errors" case="error-not-well-formed"/>
     <test set="schema-structure" case="struct-xml11"/>
+    <test set="schema-structure" case="struct-utf16"/>
   </requirement>
   <requirement id="r-5.2-ns" clause="5.2" kind="definition">
     <text>Schematron elements are in the Schematron namespace; the prefix is free.</text>
@@ -78,6 +80,7 @@
     <test set="assertions" case="message-combining-characters"/>
     <test set="assertions" case="message-no-break-space"/>
     <test set="assertions" case="message-whitespace-only"/>
+    <test set="query-bindings" case="binding-whitespace"/>
   </requirement>
   <requirement id="r-5.4.1" clause="5.4.1" kind="shall">
     <text>A schema follows the grammar of Annex A.</text>
@@ -127,6 +130,8 @@
     <test set="abstract-rules" case="extends-in-group"/>
     <test set="abstract-rules" case="extends-subject"/>
     <test set="abstract-rules" case="extends-two-rules"/>
+    <test set="abstract-rules" case="extends-self"/>
+    <test set="abstract-rules" case="extends-twice"/>
   </requirement>
   <requirement id="r-5.4.4-href" clause="5.4.4" kind="shall">
     <text>extends href names an element of the parent's kind (schema, library, rule) whose contents replace it.</text>
@@ -135,11 +140,15 @@
     <test set="inclusion" case="extends-href-wrong-kind"/>
     <test set="inclusion" case="extends-href-schema"/>
     <test set="inclusion" case="library-extends"/>
+    <test set="inclusion" case="extends-href-cycle"/>
+    <test set="inclusion" case="library-nested-extends"/>
   </requirement>
   <requirement id="r-5.4.4-errors" clause="5.4.4" kind="shall">
     <text>Errors while processing extends are reported; termination is implementation-defined.</text>
     <test set="inclusion" case="extends-href-missing"/>
     <test set="abstract-rules" case="extends-cycle"/>
+    <test set="inclusion" case="extends-href-cycle"/>
+    <test set="inclusion" case="extends-href-self"/>
   </requirement>
   <requirement id="r-5.4.5" clause="5.4.5" kind="shall">
     <text>group is a pattern without if-then-else: every matching rule fires.</text>
@@ -150,6 +159,7 @@
     <test set="group" case="group-empty"/>
     <test set="group" case="group-only"/>
     <test set="group" case="group-variables"/>
+    <test set="inclusion" case="include-rule-into-group"/>
   </requirement>
   <requirement id="r-5.4.6-target" clause="5.4.6" kind="shall">
     <text>include href names a well-formed document or one of its elements.</text>
@@ -158,6 +168,7 @@
     <test set="inclusion" case="include-missing"/>
     <test set="inclusion" case="include-not-well-formed"/>
     <test set="inclusion" case="include-missing-fragment"/>
+    <test set="inclusion" case="include-prefix-from-ns"/>
   </requirement>
   <requirement id="r-5.4.6-place" clause="5.4.6" kind="shall">
     <text>The included element replaces include and must be allowed there.</text>
@@ -168,11 +179,16 @@
     <test set="inclusion" case="include-twice"/>
     <test set="inclusion" case="include-wrong-place"/>
     <test set="inclusion" case="include-library-element"/>
+    <test set="inclusion" case="include-in-phase"/>
+    <test set="inclusion" case="include-rule-into-group"/>
+    <test set="abstract-rules" case="rules-container-include"/>
   </requirement>
   <requirement id="r-5.4.6-errors" clause="5.4.6" kind="shall">
     <text>Errors while processing include are reported; termination is implementation-defined.</text>
     <test set="inclusion" case="include-missing"/>
     <test set="inclusion" case="include-not-well-formed"/>
+    <test set="inclusion" case="include-cycle"/>
+    <test set="inclusion" case="include-self"/>
   </requirement>
   <requirement id="r-5.4.7-context" clause="5.4.7" kind="definition">
     <text>A rule variable uses the rule's context; others use the document root.</text>
@@ -217,6 +233,7 @@
     <test set="variables" case="let-phase-shadows-schema"/>
     <test set="variables" case="let-pattern-shadows-phase"/>
     <test set="variables" case="param-schema-and-let-same-name"/>
+    <test set="abstract-rules" case="extends-variable-clash"/>
   </requirement>
   <requirement id="r-5.4.7-use" clause="5.4.7" kind="definition">
     <text>Variables are substituted into tests and other expressions of the rule.</text>
@@ -232,6 +249,11 @@
     <test set="inclusion" case="library-extends"/>
     <test set="inclusion" case="library-phase"/>
     <test set="inclusion" case="include-library-element"/>
+    <test set="inclusion" case="library-as-schema"/>
+    <test set="inclusion" case="library-with-ns"/>
+    <test set="inclusion" case="library-let"/>
+    <test set="inclusion" case="library-empty"/>
+    <test set="inclusion" case="library-nested-extends"/>
   </requirement>
   <requirement id="r-5.4.9" clause="5.4.9" kind="definition">
     <text>name gives the name of the node path selects, else of the context node.</text>
@@ -247,6 +269,8 @@
     <text>ns prefix is a name without a colon; uri is required.</text>
     <test set="static-errors" case="error-ns-prefix-not-a-name"/>
     <test set="static-errors" case="error-ns-without-uri"/>
+    <test set="schema-structure" case="ns-one-prefix-two-uris"/>
+    <test set="schema-structure" case="ns-duplicate-declaration"/>
   </requirement>
   <requirement id="r-5.4.10-queries" clause="5.4.10" kind="shall">
     <text>Prefixes in queries are defined by ns, not by XML namespace declarations.</text>
@@ -257,6 +281,13 @@
     <test set="patterns-rules" case="rules-context-namespaced-attribute"/>
     <test set="variables" case="let-namespace-prefix"/>
     <test set="name-value-of" case="value-of-namespaced-attribute"/>
+    <test set="schema-structure" case="ns-prefix-differs"/>
+    <test set="schema-structure" case="ns-default-namespace-instance"/>
+    <test set="schema-structure" case="ns-unprefixed-no-namespace"/>
+    <test set="schema-structure" case="ns-same-prefix-other-uri"/>
+    <test set="schema-structure" case="ns-xmlns-conflict"/>
+    <test set="schema-structure" case="ns-xml-prefix"/>
+    <test set="inclusion" case="include-prefix-from-ns"/>
   </requirement>
   <requirement id="r-5.4.11-schema" clause="5.4.11" kind="definition">
     <text>A schema param needs a value; its value may be overridden by the user.</text>
@@ -358,6 +389,8 @@
     <test set="abstract-rules" case="extends-rules-two-patterns"/>
     <test set="abstract-rules" case="extends-rules-not-abstract"/>
     <test set="abstract-rules" case="extends-other-pattern"/>
+    <test set="abstract-rules" case="rules-container-empty"/>
+    <test set="abstract-rules" case="rules-container-two"/>
   </requirement>
   <requirement id="r-5.4.17" clause="5.4.17" kind="definition">
     <text>schema is the top element; defaultPhase names the phase used without user choice.</text>
@@ -411,6 +444,7 @@
     <test set="assertions" case="flag-raised-by-rule"/>
     <test set="assertions" case="flag-token-list"/>
     <test set="assertions" case="assert-attributes-non-ascii"/>
+    <test set="abstract-rules" case="extends-abstract-rule-flag"/>
   </requirement>
   <requirement id="r-5.5.6-dynamic" clause="5.5.6" kind="shall">
     <text>A flag that is a variable reference is evaluated.</text>
@@ -536,6 +570,9 @@
     <test set="abstract-rules" case="extends-basic"/>
     <test set="assertions" case="report-fires"/>
     <test set="abstract-patterns" case="abstract-param-not-in-text"/>
+    <test set="inclusion" case="include-cycle"/>
+    <test set="inclusion" case="include-self"/>
+    <test set="abstract-rules" case="extends-twice"/>
   </requirement>
   <requirement id="r-6.3-phase" clause="6.3" kind="definition">
     <text>The phase is established first, then each active pattern is processed.</text>
@@ -600,6 +637,7 @@
   <requirement id="r-6.5-unsupported" clause="6.5" kind="shall">
     <text>An implementation that does not support the schema's binding fails with an error.</text>
     <test set="query-bindings" case="binding-unknown"/>
+    <test set="query-bindings" case="binding-whitespace"/>
   </requirement>
   <requirement id="r-6.5-case" clause="6.5" kind="definition">
     <text>Reserved binding names are matched in any mix of case.</text>
@@ -682,6 +720,7 @@
     <test set="name-value-of" case="name-path-syntax"/>
     <test set="patterns-rules" case="rules-subject-syntax"/>
     <test set="variables" case="let-value-syntax"/>
+    <test set="abstract-rules" case="extends-unused-syntax"/>
   </requirement>
   <requirement id="r-7.2-variables" clause="7.2" kind="shall">
     <text>One definition per variable name in the global and the local context.</text>
@@ -697,6 +736,7 @@
     <test set="static-errors" case="error-let-name-not-a-name"/>
     <test set="static-errors" case="error-ns-prefix-not-a-name"/>
     <test set="assertions" case="assert-attributes-non-ascii"/>
+    <test set="schema-structure" case="ns-non-ascii-prefix"/>
   </requirement>
   <requirement id="r-A-order" clause="Annex-A" kind="shall">
     <text>The schema's children come in the grammar's order.</text>
@@ -710,6 +750,7 @@
     <text>id is of type ID: unique, and a well-formed name.</text>
     <test set="static-errors" case="error-duplicate-id"/>
     <test set="static-errors" case="error-id-not-a-name"/>
+    <test set="abstract-rules" case="rules-container-duplicate-id"/>
   </requirement>
   <requirement id="r-A-idrefs" clause="Annex-A" kind="shall">
     <text>diagnostics, properties, defaultPhase, active pattern and extends rule refer to existing ids.</text>
@@ -726,6 +767,8 @@
     <test set="visit-each" case="visit-each-on-abstract-rule"/>
     <test set="assertions" case="message-emph-nested"/>
     <test set="variables" case="param-in-phase"/>
+    <test set="inclusion" case="library-with-ns"/>
+    <test set="abstract-rules" case="rules-container-include"/>
   </requirement>
   <requirement id="r-A-required" clause="Annex-A" kind="shall">
     <text>Required attributes are present (test, context, select, class, uri, id).</text>
@@ -735,6 +778,7 @@
     <test set="static-errors" case="error-span-without-class"/>
     <test set="static-errors" case="error-ns-without-uri"/>
     <test set="abstract-rules" case="extends-abstract-without-id"/>
+    <test set="abstract-rules" case="rules-container-empty"/>
   </requirement>
   <requirement id="r-B-active" clause="Annex-B" kind="shall">
     <text>active/@pattern matches a pattern id.</text>
@@ -795,6 +839,12 @@
     <test set="query-bindings" case="binding-xslt3-maps"/>
     <test set="query-bindings" case="binding-xslt2-no-backwards-compatibility"/>
     <test set="assertions" case="assert-current-function"/>
+    <test set="query-bindings" case="instance-dtd-default-attribute"/>
+    <test set="query-bindings" case="instance-entities"/>
+    <test set="query-bindings" case="instance-xml-id"/>
+    <test set="query-bindings" case="instance-dtd-id"/>
+    <test set="query-bindings" case="instance-cdata"/>
+    <test set="query-bindings" case="instance-utf16"/>
   </requirement>
   <requirement id="r-HJ-context" clause="Annex-J" kind="shall">
     <text>The rule context is an XSLT pattern: root, elements, attributes, comments, PIs; text nodes at user option.</text>

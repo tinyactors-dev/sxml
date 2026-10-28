@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<doc xmlns:p="urn:example:right" xmlns:w="urn:example:wrong"><p:item n="2"/><w:item n="2"/></doc>
