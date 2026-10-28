@@ -15379,6 +15379,74 @@ same function's place.
 (here: not); whether `xslt` and `xpath` should be read as their 2.0
 successors rather than rejected (here: rejected until 7.4).
 
+### D316. Cheap coercion of one item: single-item shortcuts (packet perf-8)
+
+Recorded 2026-10-28, after D71, D85, D224, D229, D259, D281, D309. No
+public header changed.
+
+- **Whom it serves**: every function call with typed parameters, built-in
+  or user-defined, above all XSLT that passes attribute values to string
+  functions. A callgrind profile of SchXslt's expand stage of EN 16931
+  (75.3 x 10^9 instructions, 10.5 s, step bound raised in a scratch
+  build) put 33 % in `sxml_evaluator_coerce`: 8.1 million coercions from
+  COERCE leaves, about 3,000 instructions each. 4.8 million returned after
+  a whole match (537 instructions a match, most of it making the matcher
+  and its frames); 3.4 million ran the coercion engine, which made 4.1
+  million sequence builders, atomized 2.7 million nodes, cast 1.4
+  million xs:untypedAtomic values to xs:string and matched the value
+  again before and after.
+- **Mechanism** (glossary `single_item_shortcut`; `src/evaluator_function.c`),
+  the one coercion and the one matcher, without new machinery:
+  1. *Matching*: `sxml_evaluator_match_sequence_type` decides no item by
+     the occurrence and one item by the occurrence and the matcher's own
+     item rules (`sxml_type_matcher_advance_item`), with no frames;
+     whatever those rules do not decide at once (choices, typed maps,
+     arrays and records, JNode value types) runs the matcher as before.
+     One atomic item against xs:anyAtomicType matches at once (XPath 4.0,
+     3.2.3), as against its own annotation did (D229).
+  2. *Coercion*: one item against a plain atomic item type (variety
+     atomic, not a union, choice or enumeration; not under the cast rules
+     of D281's composite casts) is coerced without the engine (3.4,
+     3.4.3): an instance of its type stays, before the type is read; else
+     the item, or a node's typed value when it is one atomic item, goes
+     through `sxml_coerce_atomic_item` once; an unchanged item needs no
+     final match, a cast one still gets it. Atomized values of no item or
+     several, and every other value and type, go to the engine from the
+     beginning; atomizing again there raises what the first atomization
+     would have.
+  3. The matcher's and the engine's four inline frames are an array of
+     the caller's, not part of the struct, so making either writes no
+     frames; the frame structs' fields are ordered for padding
+     (clang-analyzer's optin.performance.Padding).
+- **Not changed**: outcomes, error codes (XPTY0004, the role's code,
+  XPTY0117, FORG0001 and the XSLT roles' type errors of D281), the order
+  in which errors arise, and steps (coercion charges none; D89). D71
+  holds: no new loops over nested structure.
+- **Measured** (callgrind instructions x 10^9, release, before at
+  e82b48d2e, after 44f8d546b): SchXslt expand 75.27 to 61.68 (-18 %),
+  of which coercion 24.88 to 11.21 (about 1,380 instructions a
+  coercion), the same output byte for byte; `tests/bench/coercion.xq`
+  (new, in run-bench.py) 3.775 to 2.847 (-25 %); recursion.xq 5.268 to
+  5.114; xmark-all 8.737 to 8.735. By change, coercion.xq: matching and
+  coercion shortcuts 3.775 to 3.190, frames out of the structs 2.999,
+  xs:anyAtomicType 2.901, instances before the type is read 2.847
+  (recursion.xq had risen 0.8 % before that last step). Processor
+  seconds (fastest of seven, a shared machine): coercion.xq 0.463 to
+  0.332, xmark-all 1.12 to 1.09; expand about 10.5 to 8.5. QT4 XP40
+  (32,785 passed), XQ40 (46,114) and XT40 (12,185), whole, release, case
+  by case against the base commit built the same way: 0 outcomes
+  differ.
+- **Left**: in the expand profile coercion is still 18 %: node
+  atomization (3.1, the typed value's string), casts of xs:untypedAtomic
+  to xs:string (2.2, about 1,600 instructions each through the cast
+  pipeline: a relabelling of the same string would halve it, but belongs
+  in `src/cast.c`), 0.7 million single items against unions, choices
+  and enumerations still run the engine, and 0.7 million multi-item
+  values run the whole matcher (some twice: a vector of 16 items or
+  more whose slice base fails D309's base match is matched again
+  item by item). Multi-item values coerced to atomic types still match
+  every item before, during and after the engine.
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): tagging and

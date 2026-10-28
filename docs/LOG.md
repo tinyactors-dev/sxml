@@ -4,6 +4,18 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-26
 
+- perf-8 done (D316): cheap coercion of one item. Matching decides no
+  item or one item by the occurrence and the matcher's item rules
+  without frames; coercion of one item to a plain atomic type keeps an
+  instance at once, else atomizes a node and applies the atomic
+  coercion rules once, with no engine, builder or repeated match;
+  everything else takes the engine as before. SchXslt's expand stage
+  75.27 to 61.68 x 10^9 instructions (coercion 33 % to 18 %), about
+  10.5 to 8.5 s; `tests/bench/coercion.xq` (new, registered) 3.775 to
+  2.847; xmark-all unchanged. QT4 XP40 (32,785), XQ40 (46,114) and XT40
+  (12,185) whole, release, case by case: 0 outcomes differ. Left:
+  untypedAtomic-to-string casts and multi-item matching (D316).
+
 - 7.27 designed (D315), for the owner's review: Schematron as a front
   end to the XSLT AST. `include/sxml/schematron.h` (new, implemented by
   nothing yet): compile once for a phase, validate many nodes, findings

@@ -1339,6 +1339,14 @@ already has the required type.
   benchmark and on xmark-all; no QT4 XP40, XQ40 or XT40 outcome changes,
   case by case, over the whole suites (coercion is everywhere); D71, the
   memory limits and honest step counts kept.
+**Done** 2026-10-28 (D316): single-item shortcuts in the one matcher
+and the one coercion: no item or one item matched by the item rules
+without frames, one item coerced to an atomic type through the atomic
+coercion rules once, without the engine, its builders or a second
+match; the frames out of the structs. SchXslt's expand stage 75.27 to
+61.68 x 10^9 instructions (coercion 24.88 to 11.21), coercion.xq (new)
+3.775 to 2.847, xmark-all 8.737 to 8.735; QT4 XP40, XQ40 and XT40
+whole: 0 outcomes differ, case by case.
 
 ### perf-9 Required literals in regex search (implementation)
 After D310 (perf-7). The same profile puts 12.9 % in
