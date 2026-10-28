@@ -59,6 +59,10 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
   (75.3 x 10^9 instructions; was 14.8 s, and 1 min 39 s before perf-5).
   Left: an error record not cleared after a caught FORX0002, so a later
   LIMIT_EXCEEDED in the same query prints the old description.
+- 7.27 (design, for the owner's review) and then 7.28: Schematron as a
+  front end that builds the XSLT AST (owner, 2026-10-28). Starts after
+  perf-8 and perf-9; the e-invoicing work can use the official
+  pre-compiled EN 16931 stylesheets until then.
 - perf-8 (coercion of arguments, 33 % of that profile) and perf-9
   (required literals in regex search, 12.9 %) run together: disjoint
   files.

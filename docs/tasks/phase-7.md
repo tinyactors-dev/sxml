@@ -1489,6 +1489,95 @@ the book's affected examples match. The old names remain only in
 records (DECISIONS, LOG, QUEUE's history, the 0.2.0 CHANGELOG section,
 the 7.22 and 7.26 entries here).
 
+### 7.27 Schematron as a front end to the XSLT AST (design)
+The owner accepted Schematron on 2026-10-28, as a front end beside XSLT
+and XQuery, not by generating XSLT text. No phase covered it (PLAN.md
+names XSD only): the packet's decision record brings it into Phase 7.
+Evidence from 2026-10-28 (see D309, D310 and the queue):
+- the official pre-compiled EN 16931 stylesheets pass all 1,133 checks
+  of the EN 16931 UBL unit tests on sxml;
+- SchXslt 1.10.1 running on sxml compiles the EN 16931 sources into a
+  stylesheet that also passes 1,133 of 1,133, but its text pipeline
+  costs 10.5 s for EN 16931 (8 min 56 s before perf-5 to perf-7 and
+  without SchXslt's sort-once fix) and needs more than the default step
+  bound: the cost is in generating XSLT text, not in Schematron;
+- XRechnung's rules embed XSLT (`xsl:function` for `xr:checkIBAN`), as
+  the `xslt2` and `xslt3` query bindings allow;
+- findings today are SVRL with an XPath for a location, and errors in
+  a rule point into the generated stylesheet, not the `.sch`.
+- **Whom it serves, first**: the maintainer of a rule set (errors at
+  `rules.sch:LINE:COLUMN`) and the person reading a finding (the
+  document's line and column, with the locations proposal under
+  "## Proposed" in DECISIONS.md); then embedders (C, JavaScript) who
+  validate many documents without bundling a third-party stylesheet.
+  Who pays: a reader and an expansion pass in C, one public header, a
+  CLI option, the JavaScript API, the book; nothing per event of other
+  languages.
+- **Design** (decision record, glossary terms first, public header):
+  - *The path*: the `.sch` document is parsed by the processor's XML
+    parser (with locations kept); a Schematron reader builds the XSLT
+    AST (`src/xslt_ast_internal.h`: `sxml_xslt_ast_add_node`,
+    `_add_attribute`, `_append_child`), as `src/xslt_read.c` does for
+    a stylesheet, with each node's source location in the `.sch`; the
+    existing XSLT lowering makes IR. No IR kind, no evaluator change,
+    no generated XSLT text. Lowering Schematron to IR directly is
+    rejected: it would duplicate modes, patterns and priorities.
+  - *The mapping*, each with its section of ISO/IEC 19757-3 (the
+    packet names the edition it implements, after checking the
+    current one): pattern to mode; rule to template rule matching its
+    `context`, rule order to priority (the first matching rule of a
+    pattern fires); `let` to a variable; `assert` and `report` to a
+    condition that adds a finding; `value-of`, `name`, diagnostics,
+    properties, `role` and `flag`; phases selecting modes; `ns`
+    declarations; `include`, `extends` and abstract patterns expanded
+    while reading, in one linear pass (each placeholder replaced once,
+    longest name first, without a regex per parameter); `documents`.
+    Foreign `xsl:function`, `xsl:key`, `xsl:include` and `xsl:import`
+    children of `sch:schema` under the `xslt2` and `xslt3` bindings
+    become the same AST nodes `src/xslt_read.c` makes; other bindings
+    are rejected in one place with the error the standard gives, or
+    mapped if the decision record shows they are the same language.
+  - *Findings*: a public `sxml_schematron_report` modelled on
+    `sxml_schema_report` (`include/sxml/schema.h`): the assert or
+    report id, its role and flag, the message text, the rule's
+    location in the `.sch` and the node's location in the document;
+    delivered to a report sink like the XSD validator's. SVRL is one
+    output form, made from the reports, not the engine's data.
+  - *API* (`include/sxml/schematron.h`, new, additive; at most three
+    parameters; the object lifecycle of CLAUDE.md): compile a
+    Schematron schema once (with phase and parameters), validate many
+    documents or nodes with it; typed (validated) input allowed.
+  - *CLI* (`docs/CLI.md`, D44: no new command): `sxml validate
+    --schematron=FILE [--phase=NAME]`, combinable with `--schema`; text
+    and `--format=json` reports as for XSD, the same exit statuses;
+    `--format=svrl` if the decision record keeps it.
+  - *JavaScript*: the same compile-once, validate-many shape in the
+    package.
+  - *Out of scope*: streaming validation, Schematron Quick Fix, any
+    output other than reports and SVRL.
+- **Owns**: `include/sxml/schematron.h` (new), the decision record,
+  `docs/GLOSSARY.md` terms, `docs/CLI.md`'s validate section, and the
+  implementation packet 7.28's text (its files, gates and order).
+- **Done when**: the owner has reviewed the header and the decision
+  record; 7.28 is written with its file list and gates.
+
+### 7.28 Schematron as a front end to the XSLT AST (implementation)
+After 7.27. Owns what 7.27 lists (expected: `src/schematron_read.c`,
+`src/schematron_expand.c`, `src/schematron.c` and their internal
+headers, `tests/schematron_test.c`, a Schematron test driver,
+`apps/sxml/command_validate.c`, the JavaScript package's Schematron
+API, a book chapter).
+- **Gates**: the EN 16931 UBL and CII unit tests (1,133 and 9 checks)
+  pass with the `.sch` sources; for the EN 16931 and XRechnung rule sets
+  and their test instances, no difference in fired rules from SchXslt
+  1.10.1 running on sxml (a differential test: same ids, same
+  locations); compiling EN 16931 takes well under a second and within
+  the default step bound; errors in a rule report the `.sch` line and
+  column.
+- **Done when**: the gates pass; the CLI, C and JavaScript APIs are
+  tested end to end; the book chapter's examples match; QT4 and XT40
+  unchanged.
+
 ## Proposed for the owner
 
 No phase covers these four features yet (D183 Proposed). The owner has
