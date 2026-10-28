@@ -547,6 +547,10 @@ sxml_status sxml_xslt_stylesheet_initialize(
     /* The stripping's address is the document preparation's state. */
     new_stylesheet->stripping = (sxml_xslt_whitespace_stripping){
         .ast = new_stylesheet->ast, .processor = new_stylesheet->processor};
+    sxml_processor_note_program(
+        new_stylesheet->processor,
+        sxml_processor_unit_reads_source_locations(new_stylesheet->processor,
+                                                   new_stylesheet->unit));
     *stylesheet = new_stylesheet;
     return SXML_STATUS_OK;
 }

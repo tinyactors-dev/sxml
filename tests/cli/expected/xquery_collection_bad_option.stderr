@@ -1,3 +1,3 @@
 sxml xquery: --collection takes DIR, then optionally ?select=PATTERN&recurse=yes|no&on-error=fail|ignore
-Usage: sxml xquery [--context-item=FILE] [--expression=TEXT] [--param=NAME=VALUE]... [--method=METHOD] [--allow-file-access] [--collection=DIR] [--allow-put] [--code-language=LIBRARY]... [--output=FILE] [--force] [QUERY-FILE]
+Usage: sxml xquery [--context-item=FILE] [--expression=TEXT] [--param=NAME=VALUE]... [--method=METHOD] [--locations=WHEN] [--allow-file-access] [--collection=DIR] [--allow-put] [--code-language=LIBRARY]... [--output=FILE] [--force] [QUERY-FILE]
 Try 'sxml xquery --help'.

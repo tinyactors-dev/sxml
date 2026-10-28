@@ -241,7 +241,8 @@ sxml_host_processor *sxml_host_processor_create(
                 .optional_features =
                     sxml_host_select_features(configuration->feature_mask,
                                               selected_features),
-                .source_code_languages = configuration->source_code_languages},
+                .source_code_languages = configuration->source_code_languages,
+                .source_location_policy = configuration->source_location_policy},
             &processor->processor);
     }
     if (status == SXML_STATUS_OK) {

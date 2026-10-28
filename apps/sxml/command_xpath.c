@@ -8,7 +8,11 @@
  * result are shared with sxml xquery (query_command.h).
  *
  * - --context-item=FILE parses FILE (- for standard input) as the context
- *   item; without it the focus is absent (XPDY0002 when used).
+ *   item, after the expression is compiled; without it the focus is absent
+ *   (XPDY0002 when used).
+ * - --locations=automatic|always|never: whether the documents read keep
+ *   the line and column of each node (fn:location; D313). automatic, the
+ *   default, keeps them when the expression can ask.
  * - --param=NAME=VALUE, repeatable, declares the external variable $NAME
  *   and binds it to xs:untypedAtomic(VALUE).
  * - --method=M writes the result by the Serialization 4.0 method M:
@@ -67,6 +71,7 @@ static const sxml_cli_option sxml_xpath_options[] = {
         .multiplicity = SXML_CLI_OPTION_AT_MOST_ONCE,
         .summary = SXML_BYTE_VIEW_INITIALIZER("Serialization method of the result"),
     },
+    SXML_QUERY_LOCATIONS_OPTION,
     SXML_QUERY_FILE_ACCESS_OPTION,
     SXML_QUERY_COLLECTION_OPTION,
     SXML_CODE_LANGUAGE_OPTION,
@@ -90,8 +95,10 @@ static const sxml_byte_view sxml_xpath_examples[] = {
     SXML_BYTE_VIEW_INITIALIZER("sxml xpath --context-item=draft.xml --output=anchors.txt '//t/@anchor/string()'"),
 };
 
-/* Compiles, evaluates and writes the expression. */
-static sxml_cli_exit_code sxml_xpath_evaluate(const sxml_query_run *run, sxml_byte_view text) {
+/* Compiles the expression, then reads --context-item (so that the
+   expression decides whether it keeps locations, D313), evaluates and
+   writes it. */
+static sxml_cli_exit_code sxml_xpath_evaluate(sxml_query_run *run, sxml_byte_view text) {
     const sxml_cli_invocation *invocation = run->invocation;
     sxml_error_record error_record;
     memset(&error_record, 0, sizeof(error_record));
@@ -105,6 +112,13 @@ static sxml_cli_exit_code sxml_xpath_evaluate(const sxml_query_run *run, sxml_by
             .static_context = sxml_query_run_static_context(run),
             .error_record = &error_record},
         &expression);
+    if (status == SXML_STATUS_OK) {
+        const sxml_cli_exit_code context_exit_code = sxml_query_run_read_context_item(run);
+        if (context_exit_code != SXML_CLI_EXIT_SUCCESS) {
+            sxml_xpath_expression_destroy(expression);
+            return context_exit_code;
+        }
+    }
     sxml_sequence result = sxml_sequence_empty();
     if (status == SXML_STATUS_OK) {
         status = sxml_xpath_expression_evaluate(
@@ -171,9 +185,16 @@ const sxml_cli_command sxml_xpath_command = {
         "when the command succeeds; a FILE that exists is replaced only with\n"
         "--force.\n"
         "\n"
+        "--locations=WHEN: whether the documents read keep the line and column\n"
+        "of each node, for fn:location: automatic (the default) when the\n"
+        "expression calls fn:location or can look up functions, always, or\n"
+        "never.\n"
+        "\n"
 
         "An error is reported on standard error as\n"
         "  expression:LINE:COLUMN: err:CODE: description\n"
+        "and, when its value is a node whose document kept its locations,\n"
+        "  FILE:LINE:COLUMN: the node the error names\n"
         "\n"
         "Exit status: 0 on success, 1 for an error in the expression or a\n"
         "context document that is not well-formed, 3 when a file cannot be\n"

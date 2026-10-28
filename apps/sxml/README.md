@@ -241,7 +241,7 @@ year: digit, digit, digit, digit.
 Evaluate an XPath 4.0 expression.
 
 ```
-sxml xpath [--context-item=FILE] [--param=NAME=VALUE]... [--method=METHOD] [--allow-file-access] [--collection=DIR] [--code-language=LIBRARY]... [--output=FILE] [--force] EXPRESSION
+sxml xpath [--context-item=FILE] [--param=NAME=VALUE]... [--method=METHOD] [--locations=WHEN] [--allow-file-access] [--collection=DIR] [--code-language=LIBRARY]... [--output=FILE] [--force] EXPRESSION
 ```
 
 `sxml xpath` evaluates EXPRESSION as XPath 4.0, with the F&O 4.0 function
@@ -253,6 +253,7 @@ adaptive output method writes the result, one item on each line.
 | `--context-item=FILE` | Parse FILE and make it the context item. Without this option, there is no context item. |
 | `--param=NAME=VALUE` | Bind `$NAME` to `xs:untypedAtomic(VALUE)`. Repeatable. |
 | `--method=METHOD` | Serialization method: `adaptive` (default), `xml`, `xhtml`, `html`, `text`, `json` or `csv`, each with its default parameters |
+| `--locations=WHEN` | Whether the documents read keep the line and column of each node, for `fn:location`: `automatic` (default) when the expression calls `fn:location` or can look up functions, `always`, or `never`. They cost 32 bytes a node. |
 | `--allow-file-access` | Let the expression read and write files with the EXPath File functions (`file:`). Without this option, they do not exist. |
 | `--collection=DIR` | Make the XML files of the directory DIR the default collection, for `fn:collection()` and `fn:uri-collection()`. DIR may be followed by the parameters of a collection URI, as in `--collection='docs?recurse=yes'`. |
 | `--code-language=LIBRARY` | Load a tree-sitter grammar for `tree-sitter:parse` from the shared library LIBRARY, with the queries in the directory `queries` beside it (or `../queries/NAME`). The language is named after the file: `libtree-sitter-rust.so` and `rust.so` are `rust`. Repeatable. See the book's chapter [Source Code as XML](../../docs/book/src/source-code.md#supplying-your-own-language). |
@@ -334,8 +335,13 @@ adaptive output method writes the result, one item on each line.
   call: the label and `: ` when there is one, then the value in the
   adaptive method.
 - An EXPRESSION that starts with `-` must come after `--`.
+- The expression is compiled before the `--context-item` document is
+  parsed, so that it decides whether the document keeps its locations.
 - An error is reported on standard error as
-  `expression:LINE:COLUMN: err:CODE: description`.
+  `expression:LINE:COLUMN: err:CODE: description`. When the error's value
+  (the third argument of `fn:error`) holds a node whose document kept its
+  locations, a second line names it: `FILE:LINE:COLUMN: the node the
+  error names`.
 
 Exit status: 0 on success; 1 for a static, type or dynamic error
 (serialization errors included) or a context document that is not
@@ -396,7 +402,7 @@ sxml xpath: 'titles.txt' exists; give --force to replace it
 Run an XQuery 4.0 query.
 
 ```
-sxml xquery [--context-item=FILE] [--expression=TEXT] [--param=NAME=VALUE]... [--method=METHOD] [--allow-file-access] [--collection=DIR] [--allow-put] [--code-language=LIBRARY]... [--output=FILE] [--force] [QUERY-FILE]
+sxml xquery [--context-item=FILE] [--expression=TEXT] [--param=NAME=VALUE]... [--method=METHOD] [--locations=WHEN] [--allow-file-access] [--collection=DIR] [--allow-put] [--code-language=LIBRARY]... [--output=FILE] [--force] [QUERY-FILE]
 ```
 
 `sxml xquery` runs the XQuery 4.0 main module in QUERY-FILE, or the query
@@ -410,6 +416,7 @@ serialization. The default method is xml.
 | `--expression=TEXT` | The query text, instead of QUERY-FILE |
 | `--param=NAME=VALUE` | Bind the external variable `$NAME`, if the query declares it, to `xs:untypedAtomic(VALUE)`. Repeatable. |
 | `--method=METHOD` | Replace the serialization method of the query: `adaptive`, `xml`, `xhtml`, `html`, `text`, `json` or `csv` |
+| `--locations=WHEN` | Source locations of the documents read, as for [sxml xpath](#sxml-xpath); `automatic` also keeps them for a query that imports a schema |
 | `--allow-file-access` | Let the query read and write files with the EXPath File functions, as for [sxml xpath](#sxml-xpath) |
 | `--collection=DIR` | Make the XML files of DIR the default collection, as for [sxml xpath](#sxml-xpath) |
 | `--allow-put` | Let `fn:put` write the documents it stores to local files |
@@ -443,7 +450,8 @@ serialization. The default method is xml.
 - An error is reported on standard error as
   `QUERY-FILE:LINE:COLUMN: err:CODE: description`, or with `expression`
   in place of QUERY-FILE for `--expression`. An error in a library
-  module, static or dynamic, names the file of that module.
+  module, static or dynamic, names the file of that module. A node in
+  the error's value is named as for [sxml xpath](#sxml-xpath).
 - `fn:trace`, `fn:message`, `fn:collection` and the `--context-item`
   document behave as for [sxml xpath](#sxml-xpath).
 
@@ -484,7 +492,7 @@ expression: err:FOUP0002: fn:put has no location to store at: the host's update 
 Transform a document with an XSLT 4.0 stylesheet.
 
 ```
-sxml transform [--initial-mode=NAME] [--initial-template=NAME] [--method=METHOD] [--param=NAME=VALUE]... [--result-directory=DIR] [--collection=DIR] [--code-language=LIBRARY]... [--output=FILE] [--force] STYLESHEET [INPUT]
+sxml transform [--initial-mode=NAME] [--initial-template=NAME] [--method=METHOD] [--param=NAME=VALUE]... [--result-directory=DIR] [--collection=DIR] [--code-language=LIBRARY]... [--locations=WHEN] [--output=FILE] [--force] STYLESHEET [INPUT]
 ```
 
 `sxml transform` compiles the XSLT 4.0 stylesheet STYLESHEET and runs one
@@ -545,6 +553,7 @@ XTDE1425 only when called.
 | `--result-directory=DIR` | Write the result documents with an `href` into DIR, which must exist |
 | `--collection=DIR` | Make the XML files of DIR the default collection, as for [sxml xpath](#sxml-xpath) |
 | `--code-language=LIBRARY` | Load a tree-sitter grammar for `tree-sitter:parse`, as for [sxml xpath](#sxml-xpath). Repeatable. |
+| `--locations=WHEN` | Source locations of INPUT and the documents read, as for [sxml xpath](#sxml-xpath); `automatic` also keeps them for a stylesheet that uses `xsl:evaluate` or imports a schema |
 | `--output=FILE`, `-o FILE` | Write the principal result to FILE instead of standard output |
 | `--force` | Let `--output` and `--result-directory` replace files that exist |
 
@@ -557,7 +566,8 @@ XTDE1425 only when called.
   the stylesheet's path, `--collection=DIR` against the working
   directory.
 - An error is reported on standard error as
-  `STYLESHEET:LINE:COLUMN: err:CODE: description`.
+  `STYLESHEET:LINE:COLUMN: err:CODE: description`, and a node in its
+  value as for [sxml xpath](#sxml-xpath).
 
 Exit status: 0 on success; 1 for a static, type or dynamic error
 (`xsl:message terminate="yes"` included) or a STYLESHEET or INPUT that is
@@ -922,7 +932,7 @@ Usage: sxml [--version] COMMAND [ARGUMENT...]
 Try 'sxml --help'.
 $ sxml xpath --contxt-item=books.xml 1
 sxml xpath: unknown option '--contxt-item'; did you mean '--context-item'?
-Usage: sxml xpath [--context-item=FILE] [--param=NAME=VALUE]... [--method=METHOD] [--allow-file-access] [--collection=DIR] [--code-language=LIBRARY]... [--output=FILE] [--force] EXPRESSION
+Usage: sxml xpath [--context-item=FILE] [--param=NAME=VALUE]... [--method=METHOD] [--locations=WHEN] [--allow-file-access] [--collection=DIR] [--code-language=LIBRARY]... [--output=FILE] [--force] EXPRESSION
 Try 'sxml xpath --help'.
 ```
 
@@ -931,7 +941,7 @@ An option of another command is named as such:
 ```console
 $ sxml xpath --expression=1
 sxml xpath: unknown option '--expression'; it is an option of 'sxml xquery'
-Usage: sxml xpath [--context-item=FILE] [--param=NAME=VALUE]... [--method=METHOD] [--allow-file-access] [--collection=DIR] [--code-language=LIBRARY]... [--output=FILE] [--force] EXPRESSION
+Usage: sxml xpath [--context-item=FILE] [--param=NAME=VALUE]... [--method=METHOD] [--locations=WHEN] [--allow-file-access] [--collection=DIR] [--code-language=LIBRARY]... [--output=FILE] [--force] EXPRESSION
 Try 'sxml xpath --help'.
 ```
 

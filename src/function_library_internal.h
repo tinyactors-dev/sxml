@@ -178,6 +178,12 @@ typedef enum sxml_native_function_property {
        4.0, 13.1; XPath 4.0, 2.2.2). The row's arities do not count them;
        a body sees them by the argument count. */
     SXML_NATIVE_FUNCTION_TAKES_CALLER_FOCUS = 1U << 6U,
+    /* A call of it, or a reference to it, can read the source locations of
+       input nodes: fn:location, and the functions through which a program
+       reaches functions dynamically (fn:function-lookup,
+       fn:load-xquery-module, fn:transform, xsl:evaluate's row). A unit
+       that names one reads source locations (sxml_ir_unit, D313, D318). */
+    SXML_NATIVE_FUNCTION_READS_SOURCE_LOCATIONS = 1U << 7U,
 } sxml_native_function_property;
 
 /*

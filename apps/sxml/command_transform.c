@@ -22,6 +22,10 @@
  *   (sxml_xslt_stylesheet_streams_source), an INPUT file is a streamed
  *   principal source instead, read through the resolver as it is parsed,
  *   and there is no global context item (D228).
+ * - --locations=automatic|always|never: whether INPUT and the documents
+ *   the stylesheet reads keep the line and column of each node
+ *   (fn:location; D313). INPUT is parsed after the stylesheet is
+ *   compiled, so under automatic the stylesheet decides.
  * - --param=NAME=VALUE, repeatable, binds the stylesheet parameter or
  *   static parameter $NAME to xs:untypedAtomic(VALUE), which the
  *   parameter's "as" type converts.
@@ -115,6 +119,7 @@ static const sxml_cli_option sxml_transform_options[] = {
     },
     SXML_QUERY_COLLECTION_OPTION,
     SXML_CODE_LANGUAGE_OPTION,
+    SXML_QUERY_LOCATIONS_OPTION,
     SXML_QUERY_OUTPUT_OPTION,
     SXML_QUERY_FORCE_OPTION,
 };
@@ -810,8 +815,15 @@ const sxml_cli_command sxml_transform_command = {
         "Files are written only when the transformation succeeds; one that\n"
         "exists is replaced only with --force.\n"
         "\n"
+        "--locations=WHEN: whether INPUT and the documents read keep the line\n"
+        "and column of each node, for fn:location: automatic (the default)\n"
+        "when the stylesheet calls fn:location, can look up or evaluate\n"
+        "functions or imports a schema, always, or never.\n"
+        "\n"
         "An error is reported on standard error as\n"
         "  STYLESHEET:LINE:COLUMN: err:CODE: description\n"
+        "and, when its value is a node whose document kept its locations,\n"
+        "  FILE:LINE:COLUMN: the node the error names\n"
         "\n"
         "Exit status: 0 on success, 1 for an error in the stylesheet or a\n"
         "document that is not well-formed, 3 when a file cannot be read or\n"

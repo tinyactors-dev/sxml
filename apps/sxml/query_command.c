@@ -39,6 +39,19 @@ const sxml_byte_view sxml_query_methods[SXML_QUERY_METHOD_COUNT] = {
     SXML_BYTE_VIEW_INITIALIZER("csv"),
 };
 
+const sxml_byte_view sxml_query_location_policies[SXML_QUERY_LOCATION_POLICY_COUNT] = {
+    SXML_BYTE_VIEW_INITIALIZER("automatic"),
+    SXML_BYTE_VIEW_INITIALIZER("always"),
+    SXML_BYTE_VIEW_INITIALIZER("never"),
+};
+
+static const sxml_source_location_policy
+    sxml_query_location_policy_values[SXML_QUERY_LOCATION_POLICY_COUNT] = {
+        SXML_SOURCE_LOCATION_POLICY_AUTOMATIC,
+        SXML_SOURCE_LOCATION_POLICY_ALWAYS,
+        SXML_SOURCE_LOCATION_POLICY_NEVER,
+};
+
 static const sxml_serialization_method sxml_query_method_values[SXML_QUERY_METHOD_COUNT] = {
     SXML_SERIALIZATION_METHOD_ADAPTIVE, SXML_SERIALIZATION_METHOD_XML,
     SXML_SERIALIZATION_METHOD_XHTML,    SXML_SERIALIZATION_METHOD_HTML,
@@ -522,6 +535,36 @@ bool sxml_query_find_method(const sxml_cli_invocation *invocation,
 
 /* -------------------------------------------------------------- Errors */
 
+/* The source location of the first node of an error's value ($err:value:
+   the third argument of fn:error, an xsl:message's select), when its
+   document kept locations; line 0 otherwise (D313, D318). */
+static sxml_source_location sxml_query_error_node_location(const sxml_error_record *record) {
+    sxml_source_location location = {.source_name = {.bytes = NULL, .byte_count = 0},
+                                      .line_number = 0,
+                                      .column_number = 0,
+                                      .byte_offset = 0};
+    if (record->value == NULL) {
+        return location;
+    }
+    for (uint64_t item_index = 0;; item_index += 1) {
+        sxml_item item = {.representation = 0};
+        sxml_node_reference node = {.tree = NULL};
+        if (sxml_sequence_get_item(*record->value,
+                                   (sxml_item_request){.item_index = item_index,
+                                                       .error_record = NULL},
+                                   &item) != SXML_STATUS_OK) {
+            return location;
+        }
+        if (sxml_item_get_node(item, &node) != SXML_STATUS_OK) {
+            continue;
+        }
+        if (sxml_node_get_location(node, &location) != SXML_STATUS_OK) {
+            location.line_number = 0;
+        }
+        return location;
+    }
+}
+
 sxml_cli_exit_code sxml_query_run_fail(const sxml_query_run *run,
                                        const sxml_query_failure *failure) {
     const sxml_status status = failure->status;
@@ -568,6 +611,19 @@ sxml_cli_exit_code sxml_query_run_fail(const sxml_query_run *run,
                                              ? diagnostic->description
                                              : sxml_status_name(status));
     sxml_cli_writer_write_byte(error, '\n');
+    const sxml_source_location node_location =
+        sxml_status_has_error_record(status) ? sxml_query_error_node_location(error_record)
+                                             : (sxml_source_location){.line_number = 0};
+    if (node_location.line_number != 0 && node_location.source_name.byte_count > 0) {
+        /* A document's source name is its file, or its URI for fn:doc. */
+        sxml_cli_writer_write_escaped(
+            error, sxml_query_file_of_uri(run->invocation, node_location.source_name));
+        sxml_cli_writer_write_byte(error, ':');
+        sxml_cli_writer_write_decimal(error, node_location.line_number);
+        sxml_cli_writer_write_byte(error, ':');
+        sxml_cli_writer_write_decimal(error, node_location.column_number);
+        sxml_cli_writer_write(error, SXML_TEXT(": the node the error names\n"));
+    }
     if (sxml_status_has_error_record(status) || status == SXML_STATUS_UNSUPPORTED_FEATURE) {
         return SXML_CLI_EXIT_OPERATION_FAILED;
     }
@@ -780,9 +836,7 @@ sxml_cli_exit_code sxml_query_run_parse_document(sxml_query_run *run, sxml_byte_
     return SXML_CLI_EXIT_INTERNAL_ERROR;
 }
 
-/* Parses the --context-item document. Returns SXML_CLI_EXIT_SUCCESS to go
-   on. */
-static sxml_cli_exit_code sxml_query_read_context_item(sxml_query_run *run) {
+sxml_cli_exit_code sxml_query_run_read_context_item(sxml_query_run *run) {
     sxml_cli_option_match match = {.is_present = false, .occurrence_count = 0};
     const sxml_status status = sxml_cli_arguments_find_option(
         run->invocation->arguments,
@@ -1018,6 +1072,22 @@ static sxml_cli_exit_code sxml_query_read_output(sxml_query_run *run) {
 
 /* -------------------------------------------------------------- The run */
 
+/* The policy --locations names; AUTOMATIC without it, and for a command
+   without the option (D313). */
+static sxml_source_location_policy sxml_query_location_policy(
+    const sxml_cli_invocation *invocation) {
+    sxml_byte_view value = {.bytes = NULL, .byte_count = 0};
+    if (sxml_query_find_text_option(invocation, SXML_TEXT("locations"), &value)) {
+        for (size_t policy_index = 0; policy_index < SXML_QUERY_LOCATION_POLICY_COUNT;
+             policy_index += 1) {
+            if (sxml_byte_view_equals(value, sxml_query_location_policies[policy_index])) {
+                return sxml_query_location_policy_values[policy_index];
+            }
+        }
+    }
+    return SXML_SOURCE_LOCATION_POLICY_AUTOMATIC;
+}
+
 /* The most optional features a run names: every feature of
    sxml_all_optional_features and EXPath File. */
 #define SXML_QUERY_FEATURE_CAPACITY ((size_t)16)
@@ -1211,7 +1281,8 @@ sxml_cli_exit_code sxml_query_run_start(sxml_query_run *run) {
                                ? invocation->file_system
                                : (sxml_file_system){.state = NULL, .operations = NULL},
             .source_code_languages = {.languages = run->code_languages.languages,
-                                      .language_count = run->code_languages.language_count}},
+                                      .language_count = run->code_languages.language_count},
+            .source_location_policy = sxml_query_location_policy(invocation)},
         &run->processor);
     if (status != SXML_STATUS_OK) {
         return SXML_CLI_EXIT_INTERNAL_ERROR;
@@ -1234,9 +1305,6 @@ sxml_cli_exit_code sxml_query_run_start(sxml_query_run *run) {
     sxml_cli_exit_code exit_code = sxml_query_read_default_collection(run);
     if (exit_code == SXML_CLI_EXIT_SUCCESS) {
         exit_code = sxml_query_read_parameters(run);
-    }
-    if (exit_code == SXML_CLI_EXIT_SUCCESS) {
-        exit_code = sxml_query_read_context_item(run);
     }
     return exit_code;
 }

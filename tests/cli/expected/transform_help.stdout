@@ -1,6 +1,6 @@
 sxml transform - Transform a document with an XSLT 4.0 stylesheet
 
-Usage: sxml transform [--initial-mode=NAME] [--initial-template=NAME] [--method=METHOD] [--param=NAME=VALUE]... [--result-directory=DIR] [--collection=DIR] [--code-language=LIBRARY]... [--output=FILE] [--force] STYLESHEET [INPUT]
+Usage: sxml transform [--initial-mode=NAME] [--initial-template=NAME] [--method=METHOD] [--param=NAME=VALUE]... [--result-directory=DIR] [--collection=DIR] [--code-language=LIBRARY]... [--locations=WHEN] [--output=FILE] [--force] STYLESHEET [INPUT]
 
 Compiles the XSLT 4.0 stylesheet STYLESHEET and runs it.
 
@@ -32,8 +32,15 @@ and not written.
 Files are written only when the transformation succeeds; one that
 exists is replaced only with --force.
 
+--locations=WHEN: whether INPUT and the documents read keep the line
+and column of each node, for fn:location: automatic (the default)
+when the stylesheet calls fn:location, can look up or evaluate
+functions or imports a schema, always, or never.
+
 An error is reported on standard error as
   STYLESHEET:LINE:COLUMN: err:CODE: description
+and, when its value is a node whose document kept its locations,
+  FILE:LINE:COLUMN: the node the error names
 
 Exit status: 0 on success, 1 for an error in the stylesheet or a
 document that is not well-formed, 3 when a file cannot be read or
@@ -48,6 +55,7 @@ Options:
       --result-directory=DIR   Write result documents with an href into the existing directory DIR
       --collection=DIR         Directory whose XML files are the default collection
       --code-language=LIBRARY  Load a tree-sitter language for tree-sitter:parse from a shared library (repeatable)
+      --locations=WHEN         Keep the line and column of input nodes, for fn:location (one of: automatic, always, never; default: automatic)
   -o, --output=FILE            Write the result to FILE instead of standard output
       --force                  Replace files that exist instead of refusing
 

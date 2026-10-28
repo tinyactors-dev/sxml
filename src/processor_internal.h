@@ -58,6 +58,19 @@ typedef struct sxml_entity_resolution {
 /* The entity resolver over *resolution. */
 sxml_xml_entity_resolver sxml_entity_resolution_as_resolver(sxml_entity_resolution *resolution);
 
+/*
+ * What AUTOMATIC (sxml_source_location_policy, D318) decides by: whether
+ * a program has been compiled with the processor and whether one of those
+ * can ask for locations, and the evaluation in progress, if any, with its
+ * answer (glossary `reads_source_locations`).
+ */
+typedef struct sxml_location_demand {
+    bool has_compiled_program;
+    bool has_reading_program;
+    bool is_evaluating;
+    bool evaluation_reads_locations;
+} sxml_location_demand;
+
 struct sxml_processor {
     /* The configuration's allocator: every object and value of the
        processor is made through it. */
@@ -103,6 +116,10 @@ struct sxml_processor {
     /* The configuration's registered source code languages, for
        tree-sitter:parse (D288); borrowed, they outlive the processor. */
     sxml_source_code_language_view source_code_languages;
+    /* The configuration's source_location_policy and what AUTOMATIC
+       decides by (D318). */
+    sxml_source_location_policy source_location_policy;
+    sxml_location_demand location_demand;
 };
 
 /*
@@ -195,6 +212,34 @@ uint32_t sxml_processor_get_maximum_expression_depth(
 
 /* The configuration's reads_query_text_as_xml_1_1; false for NULL. */
 bool sxml_processor_reads_query_text_as_xml_1_1(const sxml_processor *processor);
+
+/* ------------------------------------------------------ Source locations */
+
+/* Records that a program was compiled with processor, and whether it can
+   ask for source locations (sxml_ir_unit.reads_source_locations; a
+   schema always can): what AUTOMATIC decides by for the documents parsed
+   outside an evaluation (D318). */
+void sxml_processor_note_program(sxml_processor *processor, bool reads_source_locations);
+
+/* Whether a document the processor parses now keeps source locations, as
+   its source_location_policy and the location demand say (D318). */
+bool sxml_processor_keeps_locations(const sxml_processor *processor);
+
+/* Whether the programs of unit can ask for source locations: its
+   reads_source_locations, or in-scope schemas other than the
+   processor's own (D313, D318). */
+bool sxml_processor_unit_reads_source_locations(const sxml_processor *processor,
+                                                const sxml_ir_unit *unit);
+
+/* Begins an evaluation of a unit whose reads_source_locations is
+   reads_source_locations: until sxml_processor_end_evaluation, the
+   documents parsed keep locations under AUTOMATIC when it can ask, or an
+   evaluation it runs inside can. Returns the demand to restore. */
+sxml_location_demand sxml_processor_begin_evaluation(sxml_processor *processor,
+                                                     bool reads_source_locations);
+
+/* Restores the demand sxml_processor_begin_evaluation returned. */
+void sxml_processor_end_evaluation(sxml_processor *processor, sxml_location_demand previous);
 
 /* ------------------------------------------------- Evaluation environment */
 

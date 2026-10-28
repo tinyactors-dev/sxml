@@ -12,7 +12,9 @@
  *   --expression; both or neither is a usage error.
  * - --param=NAME=VALUE, repeatable, binds the external variable $NAME the
  *   query declares (XQuery 4.0, 5.16) to xs:untypedAtomic(VALUE).
- * - --context-item=FILE parses FILE as the initial context value.
+ * - --context-item=FILE parses FILE as the initial context value, after
+ *   the query is compiled, so that under --locations=automatic the query
+ *   decides whether it keeps locations (D313).
  * - The result is serialized with the parameters the query's output
  *   declarations give (5.22; method xml by default); --method=M replaces
  *   the method.
@@ -87,6 +89,7 @@ static const sxml_cli_option sxml_xquery_options[] = {
         .summary = SXML_BYTE_VIEW_INITIALIZER(
             "Serialization method of the result, replacing the query's"),
     },
+    SXML_QUERY_LOCATIONS_OPTION,
     SXML_QUERY_FILE_ACCESS_OPTION,
     SXML_QUERY_COLLECTION_OPTION,
     {
@@ -321,6 +324,15 @@ static sxml_cli_exit_code sxml_xquery_evaluate(sxml_query_run *run,
                                            .static_context = sxml_query_run_static_context(run),
                                            .error_record = &error_record},
         &query);
+    if (status == SXML_STATUS_OK) {
+        /* After compiling: the query decides whether the document keeps
+           its locations (D313). */
+        const sxml_cli_exit_code context_exit_code = sxml_query_run_read_context_item(run);
+        if (context_exit_code != SXML_CLI_EXIT_SUCCESS) {
+            sxml_xquery_query_destroy(query);
+            return context_exit_code;
+        }
+    }
     sxml_sequence result = sxml_sequence_empty();
     const sxml_dynamic_context_configuration dynamic_context = sxml_query_run_dynamic_context(run);
     sxml_xquery_updated_context updated = {.context_node = {.tree = NULL},
@@ -433,8 +445,15 @@ const sxml_cli_command sxml_xquery_command = {
         "written only when the query succeeds; one that exists is replaced\n"
         "only with --force.\n"
         "\n"
+        "--locations=WHEN: whether the documents read keep the line and column\n"
+        "of each node, for fn:location: automatic (the default) when the query\n"
+        "calls fn:location, can look up functions or imports a schema,\n"
+        "always, or never.\n"
+        "\n"
         "An error is reported on standard error as\n"
         "  QUERY-FILE:LINE:COLUMN: err:CODE: description\n"
+        "and, when its value is a node whose document kept its locations,\n"
+        "  FILE:LINE:COLUMN: the node the error names\n"
         "\n"
         "Exit status: 0 on success, 1 for an error in the query or a context\n"
         "document that is not well-formed, 3 when a file cannot be read or\n"

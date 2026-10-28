@@ -1,6 +1,6 @@
 sxml xquery - Run an XQuery 4.0 query
 
-Usage: sxml xquery [--context-item=FILE] [--expression=TEXT] [--param=NAME=VALUE]... [--method=METHOD] [--allow-file-access] [--collection=DIR] [--allow-put] [--code-language=LIBRARY]... [--output=FILE] [--force] [QUERY-FILE]
+Usage: sxml xquery [--context-item=FILE] [--expression=TEXT] [--param=NAME=VALUE]... [--method=METHOD] [--locations=WHEN] [--allow-file-access] [--collection=DIR] [--allow-put] [--code-language=LIBRARY]... [--output=FILE] [--force] [QUERY-FILE]
 
 Runs the XQuery 4.0 main module in QUERY-FILE, or the query that
 --expression gives, and writes the result to standard output. The
@@ -25,8 +25,15 @@ the working directory); without it fn:put raises FOUP0002.
 written only when the query succeeds; one that exists is replaced
 only with --force.
 
+--locations=WHEN: whether the documents read keep the line and column
+of each node, for fn:location: automatic (the default) when the query
+calls fn:location, can look up functions or imports a schema,
+always, or never.
+
 An error is reported on standard error as
   QUERY-FILE:LINE:COLUMN: err:CODE: description
+and, when its value is a node whose document kept its locations,
+  FILE:LINE:COLUMN: the node the error names
 
 Exit status: 0 on success, 1 for an error in the query or a context
 document that is not well-formed, 3 when a file cannot be read or
@@ -38,6 +45,7 @@ Options:
       --expression=TEXT        The query itself, instead of QUERY-FILE
       --param=NAME=VALUE       Bind external variable $NAME to xs:untypedAtomic(VALUE) (repeatable)
       --method=METHOD          Serialization method of the result, replacing the query's (one of: adaptive, xml, xhtml, html, text, json, csv)
+      --locations=WHEN         Keep the line and column of input nodes, for fn:location (one of: automatic, always, never; default: automatic)
       --allow-file-access      Let the query read and write files (EXPath File functions)
       --collection=DIR         Directory whose XML files are the default collection
       --allow-put              Let fn:put write the documents it stores to local files

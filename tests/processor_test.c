@@ -10,6 +10,7 @@
 #include "sxml/processor.h"
 #include "sxml/tree.h"
 #include "sxml/xdm.h"
+#include "sxml/xpath.h"
 #include "test_runner.h"
 
 #include <stdalign.h>
@@ -260,6 +261,152 @@ static void test_parse_document_reports_malformed_input(sxml_test_state *state) 
     sxml_processor_destroy(processor);
 }
 
+/* ------------------------------------------------------ Source locations */
+
+/* What one location check works with: a processor whose table resolver
+   serves urn:doc. */
+typedef struct location_fixture {
+    sxml_test_state *state;
+    sxml_processor *processor;
+} location_fixture;
+
+static const sxml_resource_entry location_entries[] = {
+    {.uri = SXML_BYTE_VIEW_INITIALIZER("urn:doc"),
+     .content = SXML_BYTE_VIEW_INITIALIZER("<a>\n  <b/>\n</a>")},
+};
+static const sxml_resource_entry_view location_entry_view = {
+    .resource_entries = location_entries, .resource_entry_count = 1};
+
+/* The line of the node item is, 0 when its document kept no locations. */
+static uint32_t inner_element_line(sxml_test_state *state, sxml_item item) {
+    sxml_node_reference node = {.tree = NULL};
+    SXML_TEST_EXPECT(state, sxml_item_get_node(item, &node) == SXML_STATUS_OK);
+    sxml_source_location location = {.line_number = 99};
+    SXML_TEST_EXPECT(state, sxml_node_get_location(node, &location) == SXML_STATUS_OK);
+    return location.line_number;
+}
+
+/* Parses <a>\n  <b/>\n</a> with sxml_processor_parse_document and
+   returns the line of its document node (1 when kept, 0 when not). */
+static uint32_t parsed_document_line(const location_fixture *fixture) {
+    sxml_item document = {.representation = 0};
+    SXML_TEST_EXPECT(fixture->state,
+                     sxml_processor_parse_document(
+                         fixture->processor,
+                         &(sxml_xml_parse_request){.input = location_entries[0].content,
+                                                   .source_name = TEXT("doc.xml")},
+                         &document) == SXML_STATUS_OK);
+    const uint32_t line = inner_element_line(fixture->state, document);
+    sxml_item_release(document);
+    return line;
+}
+
+/* Compiles text and returns it; NULL on failure (the test then fails). */
+static sxml_xpath_expression *compile_expression(const location_fixture *fixture,
+                                                 sxml_byte_view text) {
+    sxml_xpath_expression *expression = NULL;
+    SXML_TEST_EXPECT(fixture->state,
+                     sxml_xpath_expression_create(
+                         sxml_default_allocator(),
+                         &(sxml_xpath_expression_configuration){.processor = fixture->processor,
+                                                                .expression_text = text},
+                         &expression) == SXML_STATUS_OK);
+    return expression;
+}
+
+/* Evaluates text, whose result is one node of urn:doc, and returns that
+   node's line (0 when its document kept no locations). */
+static uint32_t evaluated_node_line(const location_fixture *fixture, sxml_byte_view text) {
+    sxml_xpath_expression *expression = compile_expression(fixture, text);
+    sxml_sequence result = sxml_sequence_empty();
+    uint32_t line = 0;
+    if (expression != NULL &&
+        sxml_xpath_expression_evaluate(expression,
+                                       &(sxml_xpath_evaluation_request){.error_record = NULL},
+                                       &result) == SXML_STATUS_OK) {
+        sxml_item item = {.representation = 0};
+        SXML_TEST_EXPECT(fixture->state,
+                         sxml_sequence_get_item(result,
+                                                (sxml_item_request){.item_index = 0,
+                                                                    .error_record = NULL},
+                                                &item) == SXML_STATUS_OK);
+        line = inner_element_line(fixture->state, item);
+        sxml_sequence_release(result);
+    } else {
+        SXML_TEST_EXPECT(fixture->state, false);
+    }
+    sxml_xpath_expression_destroy(expression);
+    return line;
+}
+
+static sxml_processor *make_location_processor(sxml_test_state *state,
+                                               sxml_source_location_policy policy) {
+    sxml_processor *processor = NULL;
+    SXML_TEST_EXPECT(state, sxml_processor_create(
+                                sxml_default_allocator(),
+                                &(sxml_processor_configuration){
+                                    .allocator = sxml_default_allocator(),
+                                    .resource_resolver =
+                                        sxml_table_resource_resolver(&location_entry_view),
+                                    .source_location_policy = policy},
+                                &processor) == SXML_STATUS_OK);
+    return processor;
+}
+
+/* D313, D318: AUTOMATIC keeps a host's document parsed before any program
+   is compiled; after that the programs decide, and fn:doc follows the
+   program it is evaluated for. */
+static void test_automatic_locations_follow_the_programs(sxml_test_state *state) {
+    location_fixture fixture = {
+        .state = state,
+        .processor = make_location_processor(state, SXML_SOURCE_LOCATION_POLICY_AUTOMATIC)};
+    SXML_TEST_REQUIRE(state, fixture.processor != NULL);
+    SXML_TEST_EXPECT(state, parsed_document_line(&fixture) == 1);
+    /* A program that cannot ask: fn:doc and later parses keep nothing. */
+    SXML_TEST_EXPECT(state, evaluated_node_line(&fixture, TEXT("doc('urn:doc')/a/b")) == 0);
+    SXML_TEST_EXPECT(state, parsed_document_line(&fixture) == 0);
+    /* One that calls fn:location: its documents keep them. */
+    SXML_TEST_EXPECT(state, evaluated_node_line(
+                                &fixture, TEXT("doc('urn:doc')/a/b[exists(location(.))]")) == 2);
+    /* So do the host's from now on; fn:doc still follows the program it
+       is evaluated for. */
+    SXML_TEST_EXPECT(state, parsed_document_line(&fixture) == 1);
+    SXML_TEST_EXPECT(state, evaluated_node_line(&fixture, TEXT("doc('urn:doc')/a/b")) == 0);
+    /* function-lookup can reach fn:location. */
+    SXML_TEST_EXPECT(
+        state, evaluated_node_line(
+                   &fixture, TEXT("doc('urn:doc')/a/b[function-lookup(xs:QName('fn:true'), 0)()]")) ==
+                   2);
+    sxml_processor_destroy(fixture.processor);
+}
+
+static void test_always_and_never_locations(sxml_test_state *state) {
+    location_fixture fixture = {
+        .state = state,
+        .processor = make_location_processor(state, SXML_SOURCE_LOCATION_POLICY_ALWAYS)};
+    SXML_TEST_REQUIRE(state, fixture.processor != NULL);
+    sxml_xpath_expression *expression = compile_expression(&fixture, TEXT("count(//b)"));
+    SXML_TEST_EXPECT(state, parsed_document_line(&fixture) == 1);
+    SXML_TEST_EXPECT(state, evaluated_node_line(&fixture, TEXT("doc('urn:doc')/a/b")) == 2);
+    sxml_xpath_expression_destroy(expression);
+    sxml_processor_destroy(fixture.processor);
+    fixture.processor = make_location_processor(state, SXML_SOURCE_LOCATION_POLICY_NEVER);
+    SXML_TEST_REQUIRE(state, fixture.processor != NULL);
+    SXML_TEST_EXPECT(state, parsed_document_line(&fixture) == 0);
+    SXML_TEST_EXPECT(state, evaluated_node_line(
+                                &fixture, TEXT("doc('urn:doc')/a/b[empty(location(.))]")) == 0);
+    sxml_processor_destroy(fixture.processor);
+    /* A value outside the enumeration. */
+    sxml_processor *processor = NULL;
+    SXML_TEST_EXPECT(state, sxml_processor_create(
+                                sxml_default_allocator(),
+                                &(sxml_processor_configuration){
+                                    .allocator = sxml_default_allocator(),
+                                    // NOLINTNEXTLINE(clang-analyzer-optin.core.EnumCastOutOfRange)
+                                    .source_location_policy = (sxml_source_location_policy)7},
+                                &processor) == SXML_STATUS_INVALID_ARGUMENT);
+}
+
 static const sxml_test_case processor_test_cases[] = {
     {.name = "system_clock_reads_a_valid_instant",
      .function = test_system_clock_reads_a_valid_instant},
@@ -274,6 +421,9 @@ static const sxml_test_case processor_test_cases[] = {
      .function = test_processor_survives_every_allocation_failure},
     {.name = "parse_document_reports_malformed_input",
      .function = test_parse_document_reports_malformed_input},
+    {.name = "automatic_locations_follow_the_programs",
+     .function = test_automatic_locations_follow_the_programs},
+    {.name = "always_and_never_locations", .function = test_always_and_never_locations},
 };
 
 int main(int argument_count, char **arguments) {

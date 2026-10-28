@@ -1,0 +1,3 @@
+sxml xpath: invalid value 'sometimes' for option '--locations' (one of: automatic, always, never)
+Usage: sxml xpath [--context-item=FILE] [--param=NAME=VALUE]... [--method=METHOD] [--locations=WHEN] [--allow-file-access] [--collection=DIR] [--code-language=LIBRARY]... [--output=FILE] [--force] EXPRESSION
+Try 'sxml xpath --help'.

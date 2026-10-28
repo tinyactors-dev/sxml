@@ -312,6 +312,8 @@ sxml_status sxml_xpath_expression_initialize(
         .unit = unit,
         .static_base_uri_bytes = base_uri_memory,
         .static_base_uri_byte_count = static_base_uri.byte_count};
+    sxml_processor_note_program(processor,
+                                sxml_processor_unit_reads_source_locations(processor, unit));
     *expression = new_expression;
     return SXML_STATUS_OK;
 }
@@ -601,6 +603,11 @@ sxml_status sxml_evaluate_unit(const sxml_unit_evaluation *evaluation, sxml_sequ
     }
     const sxml_dynamic_context_configuration *context = evaluation->dynamic_context;
     sxml_sequence value = sxml_sequence_empty();
+    /* The documents parsed while it runs keep source locations as the
+       unit decides (D313, D318). */
+    const sxml_location_demand previous_demand = sxml_processor_begin_evaluation(
+        evaluation->processor,
+        sxml_processor_unit_reads_source_locations(evaluation->processor, evaluation->unit));
     status = sxml_evaluator_evaluate(
         resources.dynamic_context,
         &(sxml_evaluation_request){
@@ -612,6 +619,7 @@ sxml_status sxml_evaluate_unit(const sxml_unit_evaluation *evaluation, sxml_sequ
             .static_base_uri = evaluation->static_base_uri,
             .error_record = evaluation->error_record},
         &value);
+    sxml_processor_end_evaluation(evaluation->processor, previous_demand);
     sxml_evaluation_resources_release(evaluation->processor, &resources);
     if (status != SXML_STATUS_OK) {
         return status;

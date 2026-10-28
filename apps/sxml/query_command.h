@@ -71,6 +71,30 @@ extern const sxml_byte_view sxml_query_methods[SXML_QUERY_METHOD_COUNT];
             "Replace files that exist instead of refusing"),                   \
     }
 
+/* The values of --locations (D313, D318): which parsed documents keep
+   the source location of each node, sxml_source_location_policy. */
+enum { SXML_QUERY_LOCATION_POLICY_COUNT = 3 };
+extern const sxml_byte_view sxml_query_location_policies[SXML_QUERY_LOCATION_POLICY_COUNT];
+
+/*
+ * The --locations option of sxml xpath, sxml xquery and sxml transform:
+ * automatic (the default) keeps the locations of the documents a program
+ * reads when it can ask for them (fn:location), always keeps them, never
+ * keeps none.
+ */
+#define SXML_QUERY_LOCATIONS_OPTION                                            \
+    {                                                                          \
+        .long_name = SXML_BYTE_VIEW_INITIALIZER("locations"), .short_name = 0, \
+        .value_kind = SXML_CLI_VALUE_KIND_CHOICE,                              \
+        .value_name = SXML_BYTE_VIEW_INITIALIZER("WHEN"),                      \
+        .choices = {.texts = sxml_query_location_policies,                     \
+                    .text_count = SXML_QUERY_LOCATION_POLICY_COUNT},           \
+        .default_value = SXML_BYTE_VIEW_INITIALIZER("automatic"),              \
+        .multiplicity = SXML_CLI_OPTION_AT_MOST_ONCE,                          \
+        .summary = SXML_BYTE_VIEW_INITIALIZER(                                 \
+            "Keep the line and column of input nodes, for fn:location"),       \
+    }
+
 /* What --param does with $NAME. */
 typedef enum sxml_parameter_binding {
     /* Declared in the static context and bound (XPath: the expression has
@@ -229,12 +253,19 @@ typedef struct sxml_query_run {
     sxml_code_language_list code_languages;
 } sxml_query_run;
 
-/* Makes the processor, reads --output and --force (and begins writing
-   the --output file), and reads --param and --context-item (unless
+/* Makes the processor (with --locations), reads --output and --force
+   (and begins writing the --output file), and reads --param (unless
    parameter_binding is NONE). Returns SXML_CLI_EXIT_SUCCESS to go on;
    otherwise the diagnostic is written. Call sxml_query_run_finish in
    every case. */
 sxml_cli_exit_code sxml_query_run_start(sxml_query_run *run);
+
+/* Parses the --context-item document, if the command has the option and
+   it is given. Called after the program is compiled, so that under
+   --locations=automatic the program decides whether the document keeps
+   its locations (D313). Returns SXML_CLI_EXIT_SUCCESS to go on;
+   otherwise the diagnostic is written. */
+sxml_cli_exit_code sxml_query_run_read_context_item(sxml_query_run *run);
 
 /* Begins writing the file at path (copied) for the run, honouring
    --force, and writes its stream to *stream. Returns
@@ -294,7 +325,9 @@ typedef struct sxml_query_failure {
 
 /* Reports failure on standard error (nothing for an output failure) and
    returns its exit code: 1 for a static, type or dynamic error, 3 for
-   input/output, 4 otherwise. */
+   input/output, 4 otherwise. When the error's value holds a node whose
+   document kept its locations, a second line names it:
+   "FILE:LINE:COLUMN: the node the error names" (D313, D318). */
 sxml_cli_exit_code sxml_query_run_fail(const sxml_query_run *run,
                                        const sxml_query_failure *failure);
 

@@ -22,7 +22,8 @@ static const sxml_native_function xquery_module_functions[] = {
     {.function_namespace = SXML_NAMESPACE_FUNCTIONS,
      .properties = SXML_NATIVE_FUNCTION_USES_DYNAMIC_CONTEXT |
                    SXML_NATIVE_FUNCTION_IS_NONDETERMINISTIC |
-                   SXML_NATIVE_FUNCTION_CALLS_FUNCTION_ITEMS,
+                   SXML_NATIVE_FUNCTION_CALLS_FUNCTION_ITEMS |
+                   SXML_NATIVE_FUNCTION_READS_SOURCE_LOCATIONS,
      .local_name = SXML_BYTE_VIEW_INITIALIZER("load-xquery-module"),
      .parameters = {load_parameters, sizeof(load_parameters) / sizeof(load_parameters[0])},
      .result_type = SXML_BYTE_VIEW_INITIALIZER("fn:load-xquery-module-record"),

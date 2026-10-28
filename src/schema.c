@@ -118,6 +118,9 @@ sxml_status sxml_schema_initialize(sxml_memory_view memory,
         return status;
     }
     sxml_schema_components_seal(components);
+    /* A schema is a validation, which reads source locations (D313):
+       documents parsed after it keep them under AUTOMATIC. */
+    sxml_processor_note_program(configuration->processor, true);
     *schema = new_schema;
     return SXML_STATUS_OK;
 }

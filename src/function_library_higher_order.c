@@ -3850,7 +3850,8 @@ static const sxml_native_function higher_order_functions[] = {
     RESUMABLE("while-do", while_do_parameters, "item()*", while_do_body),
     {.function_namespace = SXML_NAMESPACE_FUNCTIONS,
      .properties = SXML_NATIVE_FUNCTION_USES_DYNAMIC_CONTEXT |
-                   SXML_NATIVE_FUNCTION_TAKES_CALLER_FOCUS,
+                   SXML_NATIVE_FUNCTION_TAKES_CALLER_FOCUS |
+                   SXML_NATIVE_FUNCTION_READS_SOURCE_LOCATIONS,
      .local_name = SXML_BYTE_VIEW_INITIALIZER("function-lookup"),
      .parameters = {function_lookup_parameters,
                     SXML_HIGHER_ORDER_PARAMETER_COUNT(function_lookup_parameters)},

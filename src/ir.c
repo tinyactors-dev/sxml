@@ -349,6 +349,25 @@ static sxml_status make_array_room(sxml_ir_unit *unit,
     return SXML_STATUS_OK;
 }
 
+/* True when expression calls or refers to a native function that reads
+   source locations (SXML_NATIVE_FUNCTION_READS_SOURCE_LOCATIONS). */
+static bool sxml_ir_expression_reads_source_locations(const sxml_ir_expression *expression) {
+    const sxml_ir_function_target *target = NULL;
+    if (expression->expression_kind == SXML_IR_EXPRESSION_KIND_STATIC_CALL) {
+        target = &expression->static_call.target;
+    } else if (expression->expression_kind == SXML_IR_EXPRESSION_KIND_FUNCTION_REFERENCE) {
+        target = &expression->function_reference.target;
+    }
+    return target != NULL && target->target_kind == SXML_IR_FUNCTION_TARGET_KIND_NATIVE &&
+           target->native_function != NULL &&
+           (target->native_function->properties &
+            (uint32_t)SXML_NATIVE_FUNCTION_READS_SOURCE_LOCATIONS) != 0;
+}
+
+void sxml_ir_unit_set_reads_source_locations(sxml_ir_unit *unit) {
+    unit->reads_source_locations = true;
+}
+
 sxml_status sxml_ir_unit_add_expression(sxml_ir_unit *unit,
                                         const sxml_ir_expression *expression,
                                         sxml_ir_expression_index *index) {
@@ -379,6 +398,8 @@ sxml_status sxml_ir_unit_add_expression(sxml_ir_unit *unit,
     unit->expression_capacity = room.element_capacity;
     unit->expressions[room.element_count] = *expression;
     unit->expression_count = room.element_count + 1U;
+    unit->reads_source_locations =
+        unit->reads_source_locations || sxml_ir_expression_reads_source_locations(expression);
     *index = (sxml_ir_expression_index){.value = room.element_count};
     return SXML_STATUS_OK;
 }
@@ -394,6 +415,8 @@ sxml_status sxml_ir_unit_replace_expression(
         return SXML_STATUS_INVALID_ARGUMENT;
     }
     unit->expressions[replacement->index.value] = replacement->expression;
+    unit->reads_source_locations = unit->reads_source_locations ||
+                                   sxml_ir_expression_reads_source_locations(&replacement->expression);
     return SXML_STATUS_OK;
 }
 

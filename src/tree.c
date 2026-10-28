@@ -326,6 +326,26 @@ sxml_status sxml_node_describe(sxml_node_reference node,
     return SXML_STATUS_OK;
 }
 
+sxml_status sxml_node_get_location(sxml_node_reference node,
+                                   sxml_source_location *location) {
+    sxml_source_location new_location = {.source_name = {.bytes = NULL, .byte_count = 0},
+                                          .line_number = 0,
+                                          .column_number = 0,
+                                          .byte_offset = 0};
+    if (!sxml_node_index_is_in_tree(node)) {
+        return SXML_STATUS_INDEX_OUT_OF_RANGE;
+    }
+    if (node.namespace_number == 0 && node.tree->operations->get_location != NULL) {
+        const sxml_status status = node.tree->operations->get_location(
+            node.tree->state, node.node_index, &new_location);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+    }
+    *location = new_location;
+    return SXML_STATUS_OK;
+}
+
 sxml_status sxml_node_get_content(sxml_node_reference node,
                                   sxml_byte_view *content) {
     if (node.namespace_number == 0) {
@@ -416,12 +436,34 @@ typedef struct sxml_node_copy {
     sxml_tree_builder builder;
     const sxml_copy_request *request;
     sxml_tree *tree;
+    /* The source tree keeps source locations (its root of the copy has
+       one): each event carries its node's, which a builder that keeps
+       locations stores, so a copy of a parsed document (XSLT's stripped
+       source documents, a validated copy) still answers fn:location
+       (D318). */
+    bool carries_locations;
 } sxml_node_copy;
 
 static sxml_node_reference sxml_node_copy_reference(
     const sxml_node_copy *copy, uint32_t node_number) {
     return sxml_node_reference_of_stored_node((sxml_stored_node_request){
         .tree = copy->tree, .node_number = node_number});
+}
+
+/* The source location of a stored node, or none when the copy carries
+   none. */
+static sxml_source_location sxml_node_copy_location(const sxml_node_copy *copy,
+                                                    uint32_t node_number) {
+    sxml_source_location location = {.source_name = {.bytes = NULL, .byte_count = 0},
+                                      .line_number = 0,
+                                      .column_number = 0,
+                                      .byte_offset = 0};
+    if (copy->carries_locations &&
+        sxml_node_get_location(sxml_node_copy_reference(copy, node_number), &location) !=
+            SXML_STATUS_OK) {
+        location.line_number = 0;
+    }
+    return location;
 }
 
 static sxml_type_identifier sxml_node_copy_type(
@@ -602,10 +644,7 @@ static sxml_status sxml_node_copy_send_attribute(const sxml_node_copy *copy,
                            sxml_node_copy_is_xml_id(copy, description.node_name)
                      : description.is_id,
         .is_idrefs = !sxml_node_copy_strips_identity(copy) && description.is_idrefs,
-        .location = {.source_name = {.bytes = NULL, .byte_count = 0},
-                     .line_number = 0,
-                     .column_number = 0,
-                     .byte_offset = 0},
+        .location = sxml_node_copy_location(copy, node_number),
     };
     return copy->builder.operations->add_attribute(copy->builder.state,
                                                    &event);
@@ -633,10 +672,7 @@ static sxml_status sxml_node_copy_start_element(
            parent's bindings; its descendants inherit from it. */
         .ignores_parent_namespaces = element->is_top_element &&
                                      !copy->request->inherits_namespaces,
-        .location = {.source_name = {.bytes = NULL, .byte_count = 0},
-                     .line_number = 0,
-                     .column_number = 0,
-                     .byte_offset = 0},
+        .location = sxml_node_copy_location(copy, element->node_number),
     };
     sxml_status status =
         copy->builder.operations->start_element(copy->builder.state, &event);
@@ -663,11 +699,7 @@ static sxml_status sxml_node_copy_send_leaf(
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    const sxml_source_location location = {
-        .source_name = {.bytes = NULL, .byte_count = 0},
-        .line_number = 0,
-        .column_number = 0,
-        .byte_offset = 0};
+    const sxml_source_location location = sxml_node_copy_location(copy, node_number);
     const sxml_tree_builder_operations *operations = copy->builder.operations;
     switch (description->node_kind) {
     case SXML_NODE_KIND_TEXT:
@@ -818,10 +850,7 @@ static sxml_status sxml_node_copy_send_document(
     const sxml_document_start_event event = {
         .document_uri = tree_description.document_uri,
         .base_uri = tree_description.base_uri,
-        .location = {.source_name = {.bytes = NULL, .byte_count = 0},
-                     .line_number = 0,
-                     .column_number = 0,
-                     .byte_offset = 0},
+        .location = sxml_node_copy_location(copy, copy->request->node.node_index.index),
     };
     status =
         copy->builder.operations->start_document(copy->builder.state, &event);
@@ -919,11 +948,22 @@ sxml_status sxml_tree_builder_copy_node(sxml_tree_builder builder,
     if (builder.operations == NULL || request->node.tree == NULL) {
         return SXML_STATUS_INVALID_ARGUMENT;
     }
-    const sxml_node_copy copy = {
+    sxml_node_copy copy = {
         .builder = builder,
         .request = request,
         .tree = request->node.tree,
+        .carries_locations = false,
     };
+    /* One question per copy: a tree without locations costs nothing more
+       (D318). */
+    sxml_source_location root_location = {.line_number = 0};
+    copy.carries_locations =
+        sxml_node_get_location(
+            (sxml_node_reference){.tree = request->node.tree,
+                                  .node_index = request->node.node_index,
+                                  .namespace_number = 0},
+            &root_location) == SXML_STATUS_OK &&
+        root_location.line_number != 0;
     if (request->node.namespace_number != 0) {
         return sxml_node_copy_send_namespace(&copy);
     }

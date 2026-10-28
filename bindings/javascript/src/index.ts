@@ -133,6 +133,14 @@ export interface ProcessorOptions {
    *  seconds of work. A streamed document grants 500 steps more for each
    *  element it reads, so long streams run within it (D295). */
   maximumEvaluationStepCount?: number;
+  /** Which documents keep the line and column of each node, for
+   *  fn:location and for errors that name a node (the C processor setting
+   *  source_location_policy; D313, D318): 'automatic', the default, keeps
+   *  them for a document parsed before any program is compiled and for
+   *  the documents of a program that can ask (it calls fn:location, can
+   *  look up functions or validates); 'always'; 'never'. They cost 32
+   *  bytes a node. */
+  locations?: 'automatic' | 'always' | 'never';
   /** For tests: fail this allocation (counted from 1) with out of memory. */
   failingAllocationNumber?: number;
 }
@@ -852,6 +860,10 @@ export class Sxml {
     if (!Number.isSafeInteger(stepCount) || stepCount < 0) {
       throw new RangeError('sxml: maximumEvaluationStepCount must be a whole number from 0 to 2^53 - 1');
     }
+    const locationPolicy = locationPolicies.indexOf(options.locations ?? 'automatic');
+    if (locationPolicy < 0) {
+      throw new RangeError("sxml: locations must be 'automatic', 'always' or 'never'");
+    }
     const codeLanguageView = this.codeLanguageView(options.codeLanguages ?? []);
     // sxml_javascript_processor_request (sxml_javascript.h): four words
     // and the step count's two, low first.
@@ -863,7 +875,7 @@ export class Sxml {
       throw outOfMemory();
     }
     this.words().set(
-      [options.failingAllocationNumber ?? 0, featureMask >>> 0, codeLanguageView, 0, stepCount % 2 ** 32, Math.floor(stepCount / 2 ** 32)],
+      [options.failingAllocationNumber ?? 0, featureMask >>> 0, codeLanguageView, locationPolicy, stepCount % 2 ** 32, Math.floor(stepCount / 2 ** 32)],
       request / 4,
     );
     const address = this.exports.sxml_javascript_processor_create(request);
@@ -1134,6 +1146,9 @@ const resource_form_byte_reader = 4;
 const code_language_byte_count = 44;
 /** sizeof(sxml_javascript_processor_request) on wasm32 (D295). */
 const processor_request_byte_count = 24;
+/** The values of ProcessorOptions.locations, in the order of the C
+ *  enumeration sxml_source_location_policy. */
+const locationPolicies = ['automatic', 'always', 'never'];
 
 /** sxml_source_code_language_problem, as the sxml command words it
  *  (apps/sxml/code_languages.c). */

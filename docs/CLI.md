@@ -150,6 +150,29 @@ directory, read as `fn:doc` reads a file: no flag, no network.
 - **Input stays bounded.** Entity expansion is bounded to 4 MiB in every
   command that parses XML; a limit that is exceeded exits 4.
 
+### Source locations
+
+- **A document keeps the line and column of its nodes when the program
+  can ask for them** (D313, D318). `xpath`, `xquery` and `transform`
+  take `--locations=automatic|always|never`, the processor's
+  `sxml_source_location_policy`: `automatic`, the default, keeps them
+  for the documents a program reads (`--context-item`, INPUT, `fn:doc`,
+  `fn:parse-xml`, `--collection`) when it calls `fn:location`, can reach
+  functions dynamically (`fn:function-lookup`, `fn:load-xquery-module`,
+  `fn:transform`, `xsl:evaluate`) or imports a schema; they cost 32
+  bytes a node (+45 % peak memory on a large document). `always` keeps
+  them for every program, `never` for none.
+- **Compile first, then parse.** `xpath` and `xquery` compile before they
+  parse `--context-item`, as `transform` does before INPUT, so the program
+  decides; a static error is reported before a context document that
+  does not parse.
+- **An error that names a node says where it is.** When the value of a
+  dynamic error (`$err:value`: the third argument of `fn:error`, an
+  `xsl:message`'s select) holds a node whose document kept its
+  locations, a second line follows the error:
+  `books.xml:4:3: the node the error names`. For a program that cannot
+  ask for locations, `--locations=always` gives it.
+
 ### Output
 
 - Results go to standard output; diagnostics, warnings and usage errors to
@@ -178,7 +201,8 @@ the context item), `--param=NAME=VALUE` (repeatable; binds external
 variable `$NAME` to `xs:untypedAtomic(VALUE)`),
 `--method=adaptive|xml|xhtml|html|text|json|csv` (serialization of
 results), `--output=FILE` and `--force` (write results to a file; replace
-it). `--output`, `--force` and result documents arrived with packet cli-2
+it), `--locations=automatic|always|never` (source locations of input
+documents, D318). `--output`, `--force` and result documents arrived with packet cli-2
 (D217).
 
 The QT4 and XSLT 4.0 conformance drivers are not `sxml` commands but
@@ -199,7 +223,7 @@ developer tools under `tests/` built with the same framework (D44).
   file writer of `--output`, `--result-directory` and `--allow-put`). The
   query commands `xpath`, `xquery` and `serialize` share (and `transform`
   reuses) their processor, the local-file resolver, `--param`,
-  `--context-item`, the `--method` choices, error reports and result
+  `--context-item`, `--locations`, the `--method` choices, error reports and result
   writing through `query_command.h`. A new command is one
   `command_<name>.c` plus one table entry, imitating `command_version.c`.
   Files are read through the invocation's `sxml_cli_file_reader`

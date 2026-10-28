@@ -277,7 +277,10 @@ static bool sxml_processor_configuration_is_valid(
     const sxml_processor_configuration *configuration) {
     return configuration != NULL && !sxml_allocator_is_null(configuration->allocator) &&
            sxml_optional_feature_view_is_valid(configuration->optional_features) &&
-           sxml_source_code_language_view_is_valid(configuration->source_code_languages);
+           sxml_source_code_language_view_is_valid(configuration->source_code_languages) &&
+           (configuration->source_location_policy == SXML_SOURCE_LOCATION_POLICY_AUTOMATIC ||
+            configuration->source_location_policy == SXML_SOURCE_LOCATION_POLICY_ALWAYS ||
+            configuration->source_location_policy == SXML_SOURCE_LOCATION_POLICY_NEVER);
 }
 
 static sxml_name_pool_configuration sxml_processor_name_pool_configuration(
@@ -513,7 +516,12 @@ sxml_status sxml_processor_initialize(sxml_memory_view memory,
             sxml_optional_feature_slots_from_view(configuration->optional_features),
         .file_system = configuration->file_system,
         .reads_query_text_as_xml_1_1 = configuration->reads_query_text_as_xml_1_1,
-        .source_code_languages = configuration->source_code_languages};
+        .source_code_languages = configuration->source_code_languages,
+        .source_location_policy = configuration->source_location_policy,
+        .location_demand = {.has_compiled_program = false,
+                            .has_reading_program = false,
+                            .is_evaluating = false,
+                            .evaluation_reads_locations = false}};
     status = sxml_processor_place_members(new_processor, &layout, memory);
     if (status != SXML_STATUS_OK) {
         return status;
@@ -581,6 +589,9 @@ sxml_status sxml_processor_keep_schema(sxml_processor *processor, sxml_schema *s
 sxml_status sxml_processor_get_builtin_schema(sxml_processor *processor,
                                               const sxml_schema **schema) {
     if (processor->builtin_schema == NULL) {
+        /* The processor's own schema is no validation a host asked for:
+           it leaves the location demand as it was (D318). */
+        const sxml_location_demand demand = processor->location_demand;
         const sxml_status status = sxml_schema_create(
             processor->allocator,
             &(sxml_schema_configuration){
@@ -591,6 +602,7 @@ sxml_status sxml_processor_get_builtin_schema(sxml_processor *processor,
                 .maximum_content_model_state_count = 0,
                 .error_record = NULL},
             &processor->builtin_schema);
+        processor->location_demand = demand;
         if (status != SXML_STATUS_OK) {
             return status;
         }
@@ -612,6 +624,7 @@ sxml_status sxml_processor_get_function_namespace_schema(sxml_processor *process
                 .checks_target_namespace = false,
                 .target_namespace_uri = {.bytes = NULL, .byte_count = 0}};
         }
+        const sxml_location_demand demand = processor->location_demand;
         const sxml_status status = sxml_schema_create(
             processor->allocator,
             &(sxml_schema_configuration){
@@ -624,6 +637,7 @@ sxml_status sxml_processor_get_function_namespace_schema(sxml_processor *process
                 .maximum_content_model_state_count = 0,
                 .error_record = NULL},
             &processor->function_namespace_schema);
+        processor->location_demand = demand;
         if (status != SXML_STATUS_OK) {
             return status;
         }
@@ -708,6 +722,70 @@ uint32_t sxml_processor_get_maximum_expression_depth(const sxml_processor *proce
                : processor->limits.maximum_expression_depth;
 }
 
+/* ------------------------------------------------------ Source locations */
+
+void sxml_processor_note_program(sxml_processor *processor, bool reads_source_locations) {
+    processor->location_demand.has_compiled_program = true;
+    processor->location_demand.has_reading_program =
+        processor->location_demand.has_reading_program || reads_source_locations;
+}
+
+bool sxml_processor_keeps_locations(const sxml_processor *processor) {
+    const sxml_location_demand demand = processor->location_demand;
+    switch (processor->source_location_policy) {
+    case SXML_SOURCE_LOCATION_POLICY_ALWAYS:
+        return true;
+    case SXML_SOURCE_LOCATION_POLICY_NEVER:
+        return false;
+    case SXML_SOURCE_LOCATION_POLICY_AUTOMATIC:
+        break;
+    }
+    /* D313 (7): a document the host parses before any program is
+       compiled keeps its locations; after that, and during an
+       evaluation, the programs decide. */
+    if (demand.is_evaluating) {
+        return demand.evaluation_reads_locations;
+    }
+    return !demand.has_compiled_program || demand.has_reading_program;
+}
+
+bool sxml_processor_unit_reads_source_locations(const sxml_processor *processor,
+                                                const sxml_ir_unit *unit) {
+    if (unit->reads_source_locations) {
+        return true;
+    }
+    /* A unit with in-scope schemas beyond the processor's own can
+       validate (XQuery's import schema, xsl:import-schema, the host's),
+       and a validation reads source locations (D313). */
+    const sxml_schema_view schemas = unit->static_context.in_scope_schemas;
+    for (size_t schema_index = 0; schema_index < schemas.schema_count; schema_index += 1) {
+        const sxml_schema *schema = schemas.schemas[schema_index];
+        if (schema != processor->builtin_schema &&
+            schema != processor->function_namespace_schema) {
+            return true;
+        }
+    }
+    return false;
+}
+
+sxml_location_demand sxml_processor_begin_evaluation(sxml_processor *processor,
+                                                     bool reads_source_locations) {
+    const sxml_location_demand previous = processor->location_demand;
+    processor->location_demand.is_evaluating = true;
+    /* A nested evaluation (fn:transform, fn:load-xquery-module, a host
+       function's) may hand its documents to the one it runs inside. */
+    processor->location_demand.evaluation_reads_locations =
+        reads_source_locations ||
+        (previous.is_evaluating && previous.evaluation_reads_locations);
+    return previous;
+}
+
+void sxml_processor_end_evaluation(sxml_processor *processor, sxml_location_demand previous) {
+    /* Programs compiled during the evaluation stay noted. */
+    processor->location_demand.is_evaluating = previous.is_evaluating;
+    processor->location_demand.evaluation_reads_locations = previous.evaluation_reads_locations;
+}
+
 /* ------------------------------------------------------ Parsing documents */
 
 sxml_status sxml_processor_parse_document(sxml_processor *processor,
@@ -737,7 +815,7 @@ sxml_status sxml_processor_parse_document(sxml_processor *processor,
                 .maximum_node_count = processor->limits.maximum_tree_node_count,
                 .maximum_depth = processor->limits.xml_limits.maximum_depth,
                 .maximum_text_byte_count = processor->limits.maximum_tree_text_byte_count,
-                .keeps_locations = false,
+                .keeps_locations = sxml_processor_keeps_locations(processor),
                 .duplicate_attribute_policy = SXML_DUPLICATE_ATTRIBUTE_POLICY_REJECT,
                 .is_destroyed_when_unreferenced = true,
                 .error_record = NULL},

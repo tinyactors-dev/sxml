@@ -1597,6 +1597,16 @@ struct sxml_ir_unit {
        the trusted option): its functions cannot access external
        resources (FODC0016). Set by sxml_ir_unit_set_untrusted. */
     bool is_untrusted;
+    /* The unit can ask for the source locations of the documents it
+       reads (glossary `reads_source_locations`; D313, D318): it calls or
+       refers to a native function with
+       SXML_NATIVE_FUNCTION_READS_SOURCE_LOCATIONS (fn:location, and the
+       ways to reach functions dynamically). Set as expressions are added
+       and by sxml_ir_unit_set_reads_source_locations; under AUTOMATIC the
+       documents parsed for its evaluations keep locations when it, or a
+       schema it can validate with, says so
+       (sxml_processor_unit_reads_source_locations). */
+    bool reads_source_locations;
     /* Function annotations the unit owns (each copy of
        sxml_ir_unit_add_function_annotations, values retained). */
     sxml_ir_annotation_copy *annotation_copies;
@@ -1765,6 +1775,12 @@ SXML_NODISCARD sxml_status sxml_ir_unit_add_function_annotations(
 /* Marks the unit untrusted (is_untrusted). Also after sealing, before the
    unit's first evaluation. */
 void sxml_ir_unit_set_untrusted(sxml_ir_unit *unit);
+
+/* Marks the unit as one that reads source locations
+   (reads_source_locations), for a front end whose reports name input
+   nodes' locations (a Schematron validation, D313). Also after sealing,
+   before the unit's first evaluation. */
+void sxml_ir_unit_set_reads_source_locations(sxml_ir_unit *unit);
 
 /* Adds a function (its body may still be 0) and sets its unit field. The
    first function added is the main function. */

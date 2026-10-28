@@ -15,6 +15,7 @@ import {
   Processor,
   type ProcessorOptions,
   type PutDocument,
+  type Value,
   textSink,
   writableStreamSink,
 } from '../src/index.ts';
@@ -457,6 +458,49 @@ describe('memory bounds', () => {
     compiled.dispose();
     processor.dispose();
     assert.equal(processor.liveAllocationCount(), 0);
+  });
+});
+
+describe('source locations', () => {
+  // createProcessor({ locations }) (D313, D318): a document parsed before
+  // any program keeps its lines under 'automatic'; one parsed after a
+  // program that cannot ask does not; 'always' and 'never' decide alone.
+  const text = '<a>\n  <b/>\n</a>';
+  const lineOf = (processor: Processor, document: Value): string => {
+    const value = processor.evaluate('string(location(/a/b)?line-number)', { context: document });
+    const line = value.toString();
+    value.dispose();
+    return line;
+  };
+  test('locations chooses which documents keep line and column', () => {
+    for (const [locations, expected] of [
+      ['automatic', '2'],
+      ['always', '2'],
+      ['never', ''],
+    ] as const) {
+      withProcessor(
+        (processor) => {
+          const document = processor.parse(text);
+          assert.equal(lineOf(processor, document), expected);
+          document.dispose();
+        },
+        { locations },
+      );
+    }
+    withProcessor((processor) => {
+      const small = processor.parse('<a/>');
+      const counted = processor.evaluate('count(//b)', { context: small });
+      counted.dispose();
+      small.dispose();
+      // Compiled before: a program that cannot ask. The next one can.
+      const document = processor.parse(text);
+      assert.equal(lineOf(processor, document), '');
+      const later = processor.parse(text);
+      assert.equal(lineOf(processor, later), '2');
+      document.dispose();
+      later.dispose();
+    });
+    assert.throws(() => sxml.createProcessor({ locations: 'sometimes' as 'never' }), RangeError);
   });
 });
 

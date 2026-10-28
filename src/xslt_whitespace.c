@@ -522,6 +522,13 @@ static sxml_status strip_package_document(package_stripping request, sxml_item d
                              .local_name = SXML_BYTE_VIEW_FROM_LITERAL("space")},
         &filter.space_attribute_name);
     sxml_status status = collect_rules(stripping->ast, &filter);
+    /* The stripped copy keeps the source locations the document kept
+       (the copy carries them, D318), so fn:location answers for a
+       stylesheet's input. */
+    sxml_source_location document_location = {.line_number = 0};
+    if (sxml_node_get_location(node, &document_location) != SXML_STATUS_OK) {
+        document_location.line_number = 0;
+    }
     sxml_arena_tree *arena_tree = NULL;
     if (status == SXML_STATUS_OK) {
         /* As sxml_processor_parse_document's trees: destroyed with the last
@@ -535,7 +542,7 @@ static sxml_status strip_package_document(package_stripping request, sxml_item d
                 .maximum_node_count = processor->limits.maximum_tree_node_count,
                 .maximum_depth = 0,
                 .maximum_text_byte_count = processor->limits.maximum_tree_text_byte_count,
-                .keeps_locations = false,
+                .keeps_locations = document_location.line_number != 0,
                 .duplicate_attribute_policy = SXML_DUPLICATE_ATTRIBUTE_POLICY_REJECT,
                 .is_destroyed_when_unreferenced = true,
                 .error_record = NULL},

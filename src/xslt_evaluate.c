@@ -759,7 +759,8 @@ const sxml_native_function sxml_xslt_evaluate_function = {
     .function_namespace = SXML_NAMESPACE_NONE,
     .properties = (uint32_t)SXML_NATIVE_FUNCTION_USES_DYNAMIC_CONTEXT |
                   (uint32_t)SXML_NATIVE_FUNCTION_IS_NONDETERMINISTIC |
-                  (uint32_t)SXML_NATIVE_FUNCTION_CALLS_FUNCTION_ITEMS,
+                  (uint32_t)SXML_NATIVE_FUNCTION_CALLS_FUNCTION_ITEMS |
+                  (uint32_t)SXML_NATIVE_FUNCTION_READS_SOURCE_LOCATIONS,
     .local_name = SXML_BYTE_VIEW_INITIALIZER("evaluate"),
     .parameters = {evaluate_parameters,
                    sizeof evaluate_parameters / sizeof evaluate_parameters[0]},

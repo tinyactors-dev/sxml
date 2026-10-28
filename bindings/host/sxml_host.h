@@ -101,6 +101,9 @@ typedef struct sxml_host_processor_configuration {
     /* sxml_processor_limits.maximum_evaluation_step_count: 0 for sxml's
        default (D295). */
     uint64_t maximum_evaluation_step_count;
+    /* sxml_processor_configuration.source_location_policy: 0, AUTOMATIC,
+       by default (D313, D318). */
+    sxml_source_location_policy source_location_policy;
 } sxml_host_processor_configuration;
 typedef struct sxml_host_value sxml_host_value;
 typedef struct sxml_host_expression sxml_host_expression;

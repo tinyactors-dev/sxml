@@ -176,6 +176,20 @@ sxml_add_cli_test(xpath_no_focus EXIT_CODE 1 ARGUMENTS xpath "count(//x)")
 # steps up front (one per pair, D89), past the library's default of 10^8,
 # and finds its match at once, so it is quick under every preset.
 sxml_add_cli_test(xpath_no_step_limit EXIT_CODE 0 ARGUMENTS xpath "(1 to 20000) = (1 to 20000)")
+# Source locations of input documents (packet 7.29, D313, D318): kept for
+# a program that calls fn:location, for the context item and fn:doc; none
+# with --locations=never; an error whose value is a node names its line
+# and column when its document kept them (--locations=always here, since
+# the expression cannot ask).
+sxml_add_cli_test(xpath_location EXIT_CODE 0 ARGUMENTS xpath --context-item=books.xml "location(//book[2]) ! (?line-number, ?column-number), location((doc('books.xml')//title)[1])?column-number")
+sxml_add_cli_test(xpath_location_never EXIT_CODE 0 ARGUMENTS xpath --locations=never --context-item=books.xml "empty(location(//book[2])), empty(location(doc('books.xml')/*))")
+sxml_add_cli_test(xpath_location_bad_value EXIT_CODE 2 ARGUMENTS xpath --locations=sometimes "1")
+sxml_add_cli_test(xpath_error_node EXIT_CODE 1 ARGUMENTS xpath --locations=always --context-item=books.xml "error(QName('http://www.w3.org/2005/xqt-errors', 'err:FOER0000'), 'no price', //book[2])")
+sxml_add_cli_test(xpath_error_node_automatic EXIT_CODE 1 ARGUMENTS xpath --context-item=books.xml "error(QName('http://www.w3.org/2005/xqt-errors', 'err:FOER0000'), 'no price', //book[2])")
+sxml_add_cli_test(xpath_error_doc_node EXIT_CODE 1 ARGUMENTS xpath --locations=always "error(QName('http://www.w3.org/2005/xqt-errors', 'err:FOER0000'), 'no price', doc('books.xml')//book[1])")
+sxml_add_cli_test(xquery_location EXIT_CODE 0 ARGUMENTS xquery --context-item=books.xml "--expression=//book ! location(.)?line-number")
+sxml_add_cli_test(transform_location EXIT_CODE 0 ARGUMENTS transform xslt/location.xsl books.xml)
+sxml_add_cli_test(transform_location_never EXIT_CODE 0 GOLDEN transform_location_never ARGUMENTS transform --locations=never xslt/location.xsl books.xml)
 sxml_add_cli_test(xpath_context_not_well_formed EXIT_CODE 1 ARGUMENTS xpath --context-item=mismatched-tag.xml ".")
 sxml_add_cli_test(xpath_context_missing EXIT_CODE 3 ARGUMENTS xpath --context-item=missing.xml ".")
 sxml_add_cli_test(xpath_bad_param EXIT_CODE 2 ARGUMENTS xpath --param=novalue "1")

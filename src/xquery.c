@@ -491,6 +491,8 @@ sxml_status sxml_xquery_query_initialize(sxml_memory_view memory,
                                      .function_table = {.state = NULL, .operations = NULL},
                                      .revalidation_mode = compiled.revalidation_mode};
     new_query->function_table = sxml_xquery_function_table_as_table(&new_query->functions);
+    sxml_processor_note_program(processor,
+                                sxml_processor_unit_reads_source_locations(processor, compiled.unit));
     *query = new_query;
     return SXML_STATUS_OK;
 }

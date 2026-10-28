@@ -2109,7 +2109,8 @@ static const sxml_native_function node_functions[] = {
                       call_element_with_id),
     SXML_FUNCTION_ROW("idref", identifying_parameters, "xnode()*", 0, call_idref),
     SXML_FUNCTION_ROW("path", path_parameters, "xs:string?", 0, call_path),
-    SXML_FUNCTION_ROW("location", xnode_parameters, "fn:location-record?", 0, call_location),
+    SXML_FUNCTION_ROW("location", xnode_parameters, "fn:location-record?",
+                      SXML_NATIVE_FUNCTION_READS_SOURCE_LOCATIONS, call_location),
 };
 
 const sxml_native_function_view sxml_function_library_node =

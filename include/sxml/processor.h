@@ -915,6 +915,36 @@ typedef struct sxml_processor_limits {
     uint64_t maximum_evaluation_step_count;
 } sxml_processor_limits;
 
+/*
+ * Whether the documents sxml parses keep the source location of each node
+ * (glossary `source_location_policy`; D313, D318): the line and column
+ * fn:location gives (F&O 4.0, 12.1.3; dm:location, XDM 4.0) and a host
+ * prints for an error whose value is a node. A location costs 32 bytes
+ * a node. The documents are those of sxml_processor_parse_document,
+ * fn:doc, fn:document, fn:parse-xml and fn:collection; trees sxml builds
+ * for its own reading (stylesheets, schemas, the trees XSD validation
+ * reports from) keep theirs regardless, and constructed trees have none.
+ */
+typedef enum sxml_source_location_policy {
+    /* The zero value. A document parsed while no program has been
+       compiled with the processor keeps its locations. Once one has, a
+       document parsed outside an evaluation keeps them when a program
+       compiled so far can ask for them, and one parsed during an
+       evaluation (fn:doc, fn:parse-xml, fn:collection, a resolver that
+       calls sxml_processor_parse_document) when the program evaluated,
+       or one whose evaluation it runs inside, can. A program can ask
+       when it calls fn:location, can reach functions dynamically
+       (fn:function-lookup, fn:load-xquery-module, fn:transform,
+       xsl:evaluate) or validates (imports a schema); compiling a schema
+       counts as such a program. */
+    SXML_SOURCE_LOCATION_POLICY_AUTOMATIC = 0,
+    /* Every document keeps its locations. */
+    SXML_SOURCE_LOCATION_POLICY_ALWAYS,
+    /* No document keeps them: fn:location is the empty sequence for
+       every node of a parsed document. */
+    SXML_SOURCE_LOCATION_POLICY_NEVER,
+} sxml_source_location_policy;
+
 typedef struct sxml_processor_configuration {
     /* Provides all memory: the name pool, type registry and item heap,
        documents, compiled expressions. Must not be the null allocator;
@@ -959,6 +989,10 @@ typedef struct sxml_processor_configuration {
        sxml_source_code_feature() is not named. Added after the freeze
        (D99). */
     sxml_source_code_language_view source_code_languages;
+    /* Which parsed documents keep source locations (above); the zero
+       value is AUTOMATIC. A value outside the enumeration makes the
+       configuration invalid. Added after the freeze (D99, D318). */
+    sxml_source_location_policy source_location_policy;
 } sxml_processor_configuration;
 
 /*
@@ -1031,7 +1065,8 @@ SXML_EXPORT bool sxml_processor_has_optional_feature(const sxml_processor *proce
  * arena tree with the processor's limits, and writes its document node,
  * owned, to *document_node: the context item of an evaluation, the value of
  * a variable or an available document. The tree is destroyed when the last
- * item referring to it is released.
+ * item referring to it is released. It keeps the source location of each
+ * node as the configuration's source_location_policy says.
  *
  * Returns the failures of sxml_xml_parser_parse, with request->diagnostic
  * filled, and those of building the tree; *document_node is then

@@ -41,6 +41,8 @@ _Static_assert(offsetof(sxml_source_code_language, injection_regex) == 36, "lang
 _Static_assert(sizeof(sxml_source_code_language_view) == 8, "view words");
 _Static_assert(offsetof(sxml_javascript_processor_request, code_languages) == 8,
                "processor request words in src/index.ts");
+_Static_assert(offsetof(sxml_javascript_processor_request, source_location_policy) == 12,
+               "processor request words");
 _Static_assert(offsetof(sxml_javascript_processor_request, maximum_evaluation_step_count) == 16,
                "processor request words");
 _Static_assert(sizeof(sxml_javascript_processor_request) == 24, "processor request words");
@@ -58,7 +60,8 @@ sxml_javascript_processor_create(const sxml_javascript_processor_request *reques
             request->code_languages == NULL
                 ? (sxml_source_code_language_view){.languages = NULL, .language_count = 0}
                 : *request->code_languages,
-        .maximum_evaluation_step_count = request->maximum_evaluation_step_count});
+        .maximum_evaluation_step_count = request->maximum_evaluation_step_count,
+        .source_location_policy = (sxml_source_location_policy)request->source_location_policy});
 }
 
 SXML_JAVASCRIPT_EXPORT("sxml_javascript_check_code_language")

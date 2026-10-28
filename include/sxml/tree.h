@@ -407,6 +407,20 @@ SXML_NODISCARD SXML_EXPORT sxml_status sxml_node_get_in_scope_namespaces(
     sxml_node_reference element,
     sxml_namespace_binding_view *namespace_bindings);
 
+/*
+ * Writes the source location of node (dm:location, XDM 4.0; what
+ * fn:location reports, F&O 4.0, 12.1.3) to *location: where the node
+ * starts in the text it was parsed from, when its tree keeps locations
+ * (the get_location operation; a parsed document keeps them as the
+ * processor's sxml_source_location_policy says, include/sxml/processor.h).
+ * line_number is 0 when the location is unknown, and always for a
+ * namespace node. The source name is owned by the tree. Returns
+ * SXML_STATUS_INDEX_OUT_OF_RANGE for a node index the tree does not have,
+ * and the implementation's failures. Added after the freeze (D99, D318).
+ */
+SXML_NODISCARD SXML_EXPORT sxml_status sxml_node_get_location(
+    sxml_node_reference node, sxml_source_location *location);
+
 /* True when first and second are the same node (XDM 4.0, section 6.1). */
 SXML_EXPORT bool sxml_node_is_same_node(sxml_node_reference first,
                                         sxml_node_reference second);

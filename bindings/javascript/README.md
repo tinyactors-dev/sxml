@@ -446,6 +446,23 @@ default bound, while a loop that reads no more input still stops (D295).
 const processor = sxml.createProcessor({ maximumEvaluationStepCount: 1_000_000_000 });
 ```
 
+## Source locations
+
+`fn:location` gives the line and column of a node of a parsed document
+when the document kept them. `createProcessor({ locations })` decides
+which do: `'automatic'` (the default) keeps them for a document parsed
+before any program is compiled with the processor, and for the
+documents of a program that can ask for them (it calls `fn:location`,
+can look up functions with `fn:function-lookup`, `fn:transform` or
+`xsl:evaluate`, or validates); `'always'` keeps them for every document;
+`'never'` for none. They cost 32 bytes a node (D313, D318).
+
+```js
+const processor = sxml.createProcessor({ locations: 'always' });
+const book = processor.parse('<book>\n  <title>XPath</title>\n</book>');
+processor.evaluate('location(//title)?line-number', { context: book }).toString(); // '2'
+```
+
 ## Memory
 
 Processors, expressions, queries, stylesheets, schemas and values own
@@ -461,7 +478,7 @@ documents) are yours to dispose.
 | --- | --- |
 | `load({ wasm, collationData })` | Loads a module; returns an `Sxml` |
 | `Sxml.version`, `Sxml.features` | The library version and the module's optional features |
-| `Sxml.createProcessor({ resolver, features, codeLanguages, outputChunkByteCount, maximumEvaluationStepCount })` | A new `Processor` |
+| `Sxml.createProcessor({ resolver, features, codeLanguages, outputChunkByteCount, maximumEvaluationStepCount, locations })` | A new `Processor` |
 | `Sxml.loadCodeLanguage({ wasm, name, highlights, locals, injections, injectionRegex })` | A `CodeLanguage` (`name`, `abiVersion`) from a tree-sitter WebAssembly language file |
 | `Processor.parse(xml, { uri })` | A document node |
 | `Processor.compile(expression, options)` | An `XPathExpression`, with `evaluate(options)` and `variables` |
