@@ -15999,6 +15999,45 @@ Recorded 2026-10-28, after D313 (7, 8), D87, D88, D99.
   `location()`. Before the change every case was 171-175 MB.
 
 
+### D320. A compile report sink for XSLT (packet 7.28)
+Recorded 2026-10-28, after D315 ("Compile errors", the owner's 7b), D99
+and D139. The header change D315 announced for 7.28.
+- **Header** (additive): `include/sxml/xslt.h` includes `sxml/schema.h`
+  and `sxml_xslt_stylesheet_configuration` gains, at its end,
+  `sxml_schema_report_sink report_sink;` (XSD's sink type, reused: one
+  report of a compile error, code, description and location, for every
+  language). The null sink, the zero value, keeps the first-error
+  behaviour exactly.
+- **Mechanism** (glossary `compile_report_sink`, `error_collector`): one
+  internal collector (`sxml_xslt_error_collector`, src/xslt_ast.c) that
+  the reader and lowering write each error into and ask whether to go
+  on. With a sink a static or type error goes there and the work goes
+  on: the reader leaves out the attribute in error (and the element's
+  whole-element checks, which would report what follows from that), or
+  the element when the element itself is wrong, and reads the rest;
+  lowering goes on with the next template rule, stylesheet function or
+  global variable (each lowering enters and leaves its own function, so
+  nothing is left half-open). Nothing is lowered once reading reported
+  an error, and no unit is made once lowering did. An error that stops
+  a stage (a dynamic error of a static expression, the in-scope schemas,
+  outputs, streamability) goes to the sink too, once. The record holds
+  the first error.
+- **Users**: `sxml transform` gives the sink a receiver that writes each
+  error as the one line it always wrote (`FILE:LINE:COLUMN: CODE:
+  description`) and exits 1 after the compilation; Schematron (D315)
+  passes its own sink to `sxml_xslt_stylesheet_create_from_ast`; the
+  JavaScript `compileStylesheet` keeps throwing the first error and adds
+  every report (`reports`).
+- **Not done**: errors inside one template rule after its first (a
+  template is one unit of lowering); errors of included modules that are
+  not well-formed stop reading as before.
+- **Evidence**: `xslt_test` `report_sink_receives_every_compile_error`
+  (four reading errors in three declarations, three analysis errors in
+  two template rules and a function, the null sink giving the first);
+  CLI tests `transform_compile_errors`, `transform_analysis_errors`. XT40,
+  release, case by case against the base commit built the same way: 0
+  outcomes differ (12,185 passed).
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): tagging and
