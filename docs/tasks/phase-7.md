@@ -1607,6 +1607,32 @@ kind and name, merged in rule order at run time. Invoice transform
 36,612 to 2,526; xslt-many-rules 55.8 to 3.4 x 10^9 (7.0 to 0.46 s);
 XT40, XP40, XQ40 0 outcomes differ; suite 463/463, VEFA 1,133/1,133.
 
+### fix-5 Default priorities of union patterns (implementation)
+After D144, D149 and D327 (perf-15 found it; the base does the same).
+`<xsl:template match="a[@n] | b">` gets one default priority (0) instead
+of being treated as one rule per alternative. With a second rule
+`match="a"`, an `a` with `@n` gets the second rule (the tie at 0 goes
+to the later rule); XSLT 3.0, 6.5 makes the union's `a[@n]` branch a
+rule of priority 0.5, which wins. Reproduction: a stylesheet with those
+two rules applied to `<r><a n="1"/><a/></r>` prints "plain plain";
+XSLT 3.0 gives "union plain".
+- **Mechanism**: first check XSLT 4.0's text for default priorities of
+  union patterns (6.5 or wherever 4.0 puts it, and its changes
+  appendix) and the XT40 cases about it (and their outcomes today);
+  record what 4.0 says. If 4.0 keeps the 3.0 rule, a union pattern
+  without an explicit priority becomes one rule per alternative, each
+  with its own default priority and its own place for conflict
+  resolution, through the rule index of D327 (one mechanism; the
+  rules share the body). If 4.0 changed it, record that and close the
+  packet with the reproduction as a test of 4.0's rule.
+- **Owns**: `src/xslt_lower_template.c`, `src/xslt_pattern.c`,
+  `src/evaluator_template.c` and their internal headers,
+  `tests/evaluator_template_test.c`, the XSLT tests.
+- **Done when**: the rule recorded with its section; a test with the
+  reproduction; XT40 whole, base and change in the same setup: no case
+  lost, gains listed; the Schematron suite 463 of 463 and VEFA 1,133 of
+  1,133.
+
 ### 7.21 Fast Invisible XML (book, tests, implementation)
 After D215 (7.18: the Earley parser, right recursion quadratic, every
 item a step). The owner: high performance; book first, then
