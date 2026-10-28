@@ -348,4 +348,101 @@
       <assert-svrl>//svrl:failed-assert/svrl:text[lang('de')]</assert-svrl>
     </result>
   </test-case>
+  <test-case name="svrl-non-ascii" since="2020">
+    <description>Non-ASCII and astral characters of a message reach svrl:text unchanged.</description>
+    <spec clause="Annex-D"/>
+    <spec clause="6.3"/>
+    <dependency type="feature" value="svrl"/>
+    <schema file="svrl-non-ascii.sch"/>
+    <instance file="svrl-non-ascii.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Größe 𝄞.</message>
+        </finding>
+      </findings>
+      <assert-svrl>normalize-space(//svrl:failed-assert/svrl:text) = 'Größe 𝄞.'</assert-svrl>
+    </result>
+  </test-case>
+
+  <test-case name="svrl-several-patterns" since="2020">
+    <description>Three patterns reporting on one node: three active patterns and three successful reports, in an order the processor chooses.</description>
+    <spec clause="Annex-D"/>
+    <spec clause="6.6"/>
+    <dependency type="feature" value="svrl"/>
+    <schema file="svrl-several-patterns.sch"/>
+    <instance file="svrl-several-patterns.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>First.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Second.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Third.</message>
+        </finding>
+      </findings>
+      <assert-svrl>count(//svrl:active-pattern) = 3</assert-svrl>
+      <assert-svrl>count(//svrl:successful-report) = 3</assert-svrl>
+      <assert-svrl>count(//svrl:fired-rule) = 3</assert-svrl>
+    </result>
+  </test-case>
+
+  <test-case name="svrl-dynamic-severity" since="2025">
+    <description>A severity, role and flag that are variable references appear evaluated in SVRL.</description>
+    <spec clause="Annex-D"/>
+    <spec clause="5.5.16"/>
+    <spec clause="5.5.14"/>
+    <spec clause="5.5.6"/>
+    <dependency type="feature" value="svrl"/>
+    <schema file="svrl-dynamic-severity.sch"/>
+    <instance file="svrl-dynamic-severity.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]" role="item-2" flag="warning" severity="warning">
+          <message>Not two.</message>
+        </finding>
+      </findings>
+      <flags>warning</flags>
+      <assert-svrl>//svrl:failed-assert[@severity = 'warning'][@role = 'item-2'][@flag = 'warning']</assert-svrl>
+    </result>
+  </test-case>
+
+  <test-case name="svrl-visit-each-location" since="2025">
+    <description>The location of a finding for a visited node names that node.</description>
+    <spec clause="Annex-D"/>
+    <spec clause="5.5.21"/>
+    <dependency type="feature" value="svrl"/>
+    <schema file="svrl-visit-each-location.sch"/>
+    <instance file="svrl-visit-each-location.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}list[1]/Q{}entry[2]">
+          <message>Nine.</message>
+        </finding>
+      </findings>
+      <assert-svrl>count(//svrl:successful-report) = 1</assert-svrl>
+      <assert-svrl>//svrl:fired-rule[@context = 'list']</assert-svrl>
+    </result>
+  </test-case>
+
+  <test-case name="svrl-namespaced-location" since="2020">
+    <description>A finding for a node in a namespace; the ns element is reported.</description>
+    <spec clause="Annex-D"/>
+    <spec clause="5.4.10"/>
+    <dependency type="feature" value="svrl"/>
+    <schema file="svrl-namespaced-location.sch"/>
+    <instance file="svrl-namespaced-location.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{urn:example:e}item[1]">
+          <message>Item.</message>
+        </finding>
+      </findings>
+      <assert-svrl>//svrl:ns-prefix-in-attribute-values[@prefix = 'e'][@uri = 'urn:example:e']</assert-svrl>
+      <assert-svrl>count(//svrl:successful-report) = 1</assert-svrl>
+    </result>
+  </test-case>
 </test-set>
