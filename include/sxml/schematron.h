@@ -6,31 +6,33 @@
 #include "sxml/export.h"
 #include "sxml/memory.h"
 #include "sxml/processor.h"
+#include "sxml/schema.h"
 #include "sxml/serialize.h"
 #include "sxml/status.h"
 #include "sxml/view.h"
 #include "sxml/xdm.h"
-#include "sxml/xpath.h"
 
 /*
  * Schematron: compiling a Schematron schema and validating documents with
  * it (ISO/IEC 19757-3:2025, the fourth edition; docs/DECISIONS.md, D313,
- * D315).
+ * D315). Clause numbers below are those of the standard.
  *
  * A Schematron schema is compiled once, for one phase, from its
- * schematron document and every document its sch:include and sch:extends
- * href elements reach, into an sxml_schematron. Compiling reads the
- * documents into the stylesheet AST of XSLT (one mode per active
- * schematron pattern, one template rule per schematron rule, the
- * assertions as conditions in its body) and compiles that as a stylesheet
- * is compiled: no XSLT text is generated, and errors point into the
- * schematron documents. Abstract patterns, abstract rules and sch:include
- * are expanded while reading, without an expanded copy of the documents.
+ * schematron document and every document its sch:include and
+ * sch:extends href elements reach, into an sxml_schematron. Compiling
+ * reads the documents into the stylesheet AST of XSLT (one mode per
+ * active schematron pattern, one template rule per schematron rule, the
+ * assertions as conditions in its body) and compiles that as a
+ * stylesheet is compiled: no XSLT text is generated, and errors point
+ * into the schematron documents. Inclusions (sch:include, sch:extends,
+ * sch:library), abstract patterns, abstract rules and schema parameters
+ * are resolved while reading (6.2), without an expanded copy of the
+ * documents.
  *
  * The schema is then run over one node at a time (a document node
  * usually), any number of times: every finding (a failed assert or a
- * fired report) goes to a report sink as an sxml_schematron_report with
- * the assertion's attributes, its message, its diagnostics and
+ * successful report) goes to a report sink as an sxml_schematron_report
+ * with the assertion's attributes, its message, its diagnostics and
  * properties, the location of the assertion in its schematron document
  * and the subject node with its location in the instance. SVRL is one
  * output written from those reports:
@@ -42,6 +44,7 @@
  *             .processor = processor,
  *             .document_text = schema_bytes,
  *             .document_uri = schema_uri,
+ *             .report_sink = compile_sink,
  *             .error_record = &error_record,
  *         },
  *         &schematron);
@@ -56,48 +59,65 @@
  *         },
  *         &outcome);
  *
- * Query bindings (the queryBinding attribute, D313): xslt2, xslt3,
- * xpath2, xpath3 and xpath31 are read, and a schema without one as
- * xslt3. Expressions are XPath 4.0 and rule contexts XSLT 4.0 patterns
- * for every binding. Under xslt2 and xslt3 the xsl:function, xsl:key,
- * xsl:include, xsl:import and xsl:import-schema children of sch:schema,
- * and under xslt3 also xsl:accumulator and xsl:use-package, are read as
- * XSLT 4.0 declarations of the compiled stylesheet, and xsl:copy-of in a
- * sch:property as an instruction; other XSLT elements, and all of them
- * under the xpath bindings, are foreign elements, which Schematron
- * ignores. Any
- * other binding (xslt, xpath, xquery, xquery3, xquery31, ...) fails the
- * compilation with the error schematron:query-binding at the attribute.
+ * Query bindings (the queryBinding attribute, 6.5; D313 as the owner
+ * amended it): the names are compared ignoring case (6.5). A schema
+ * without the attribute, and xslt, xslt4, xpath and xpath4, are read as
+ * XSLT 4.0 and XPath 4.0, the languages sxml implements, not as XSLT 1.0
+ * and XPath 1.0 (Annex C): no XPath 1.0 compatibility mode. xslt2,
+ * xslt3, xpath2, xpath3 and xpath31 are read too; their expressions run
+ * on the same 4.0 processor. Expressions are XPath 4.0 and rule contexts
+ * XSLT 4.0 patterns under every binding. Under the xslt bindings (xslt,
+ * xslt2, xslt3, xslt4) the xsl:function, xsl:key, xsl:include,
+ * xsl:import and xsl:import-schema children of sch:schema, and except
+ * under xslt2 also xsl:accumulator and xsl:use-package, are read as
+ * XSLT 4.0 declarations of the compiled stylesheet, xsl:copy-of in a
+ * sch:property as an instruction, and the flag, role and severity
+ * attributes as attribute value templates; other XSLT elements, and
+ * all of them under the xpath bindings, are foreign elements, which
+ * Schematron ignores. Any other binding (xquery, xquery3, xquery31, stx,
+ * ...) fails the compilation with schematron:query-binding at the
+ * attribute (6.5: an implementation fails with an error).
  *
  * Expressions see the namespaces the sch:ns elements declare, besides
  * XPath's predeclared ones, and not the XML namespace declarations of the
- * schematron documents (an XSLT declaration sees both).
+ * schematron documents (5.4.10); an XSLT declaration sees both.
  *
  * Errors: errors of Schematron itself carry codes in the namespace
  * urn:sxml:schematron, shown with the prefix "schematron" (the standard
  * names none):
  * - schematron:query-binding: a query binding sxml does not read;
  * - schematron:not-schematron: a document element that is not
- *   sch:schema;
+ *   sch:schema, or that an inclusion does not allow (sch:library is
+ *   allowed only where sch:extends href reaches it);
  * - schematron:include: a document that sch:include or sch:extends href
  *   names cannot be read, is not well-formed, has no element of the
- *   fragment identifier, or includes itself;
+ *   fragment identifier, includes itself, or gives an element its place
+ *   does not allow (5.4.4, 5.4.6);
  * - schematron:reference: an id that names nothing of its kind (an
- *   active pattern, is-a, extends rule, a diagnostic, a property);
+ *   active pattern, is-a, extends rule, a diagnostic, a property, the
+ *   defaultPhase);
  * - schematron:phase: the configuration names a phase the schema does
  *   not have;
- * - schematron:variable: a variable defined twice in one scope;
+ * - schematron:variable: a variable (sch:let or a schema's sch:param)
+ *   defined twice in the scopes of one rule: its schema, phase, pattern
+ *   and rule (5.4.7);
+ * - schematron:parameter: a sch:param named twice in one scope, a
+ *   pattern instance's parameter that its abstract pattern does not
+ *   declare, an abstract pattern's parameter that neither the instance
+ *   nor the abstract pattern gives a value, a schema parameter without a
+ *   value, or a configured parameter that names no schema parameter
+ *   (5.4.11, Annex B);
  * - schematron:syntax: an element of the Schematron namespace where the
- *   schema does not allow it, or without an attribute it needs;
- * - schematron:unsupported: a construct of the fourth edition sxml does
- *   not have yet (see D315).
+ *   schema does not allow it, without an attribute it needs or with a
+ *   value its grammar does not allow (Annex A; schematronEdition other
+ *   than 2025, 5.5.15).
  * Errors in expressions keep the codes of XPath and XSLT (XPST0003,
  * XPST0008, XTSE0010, ...). Every error's location names the schematron
  * document's absolute URI with the line and column of the element or
  * attribute, or of the position inside the expression; a syntax error in
  * text a placeholder put into an expression points into the sch:param's
- * value. Dynamic errors of a validation (FORG0001, XPTY0004, ...) stop it,
- * located at the expression in its schematron document.
+ * value. Dynamic errors of a validation (FORG0001, XPTY0004, FODC0002,
+ * ...) stop it, located at the expression in its schematron document.
  *
  * Thread safety: the thread of the processor (D35).
  */
@@ -106,24 +126,26 @@
 
 /* What a report reports. The list only grows. */
 typedef enum sxml_schematron_report_kind {
-    /* An assert whose test was false for a context node: a finding. */
+    /* An assert whose test was false for a context item: a finding. */
     SXML_SCHEMATRON_REPORT_KIND_FAILED_ASSERT = 0,
-    /* A report whose test was true for a context node: a finding. */
+    /* A report whose test was true for a context item: a finding. */
     SXML_SCHEMATRON_REPORT_KIND_SUCCESSFUL_REPORT,
-    /* A rule applied to a context node; only when the validation request
+    /* A rule fired for a context node; only when the validation request
        asks (reports_fired_rules). */
     SXML_SCHEMATRON_REPORT_KIND_FIRED_RULE,
 } sxml_schematron_report_kind;
 
-/* A diagnostic the assertion names, evaluated for its context node. */
+/* A diagnostic the assertion names, evaluated for its context item. */
 typedef struct sxml_schematron_diagnostic {
     /* The sch:diagnostic's id. */
     sxml_byte_view diagnostic_id;
-    /* xml:lang in scope of the sch:diagnostic; empty when none. */
+    /* xml:lang in scope of the sch:diagnostic in its own document
+       (language fixup, 6.7); empty when none. */
     sxml_byte_view language;
     /* Its content: text, with sch:value-of and sch:name replaced by their
        values and the markup of sch:emph, sch:dir, sch:span and foreign
-       elements reduced to its text. */
+       elements reduced to its text; whitespace collapsed (5.3) unless
+       xml:space="preserve" is in scope. */
     sxml_byte_view text;
 } sxml_schematron_diagnostic;
 
@@ -132,7 +154,7 @@ typedef struct sxml_schematron_diagnostic_view {
     size_t diagnostic_count;
 } sxml_schematron_diagnostic_view;
 
-/* A property the assertion names, evaluated for its context node. */
+/* A property the assertion names, evaluated for its context item. */
 typedef struct sxml_schematron_property {
     /* The sch:property's id, role and scheme attributes; empty when
        absent. */
@@ -157,17 +179,26 @@ typedef struct sxml_schematron_property_view {
  */
 typedef struct sxml_schematron_report {
     sxml_schematron_report_kind report_kind;
-    /* The attributes of the assertion (FIRED_RULE: of the rule) as
-       written; each empty when absent. Not inherited from the rule or
-       the pattern. */
+    /* The attributes of the assertion (FIRED_RULE: of the rule), leading
+       and trailing whitespace stripped (5.3); each empty when absent.
+       Not inherited from the rule or the pattern. */
     sxml_byte_view id;
+    /* role, flag and severity are their values for this finding: as
+       written, or, when the value is a variable reference (5.5.6,
+       5.5.14, 5.5.16) or, under an xslt binding, an attribute value
+       template (Annexes C, H, J), the string it evaluates to for the
+       context item. */
     sxml_byte_view role;
     sxml_byte_view flag;
+    /* The severity attribute (5.5.16; reserved values fatal, error,
+       warning, info); empty for FIRED_RULE. */
+    sxml_byte_view severity;
     sxml_byte_view see;
     sxml_byte_view icon;
     /* The fpi attribute. */
     sxml_byte_view formal_public_identifier;
-    /* xml:lang in scope of the assertion (the rule); empty when none. */
+    /* xml:lang in scope of the assertion (the rule) in its own document
+       (language fixup, 6.7); empty when none. */
     sxml_byte_view language;
     /* The assertion's test as compiled, placeholders replaced (SVRL's
        test attribute); empty for FIRED_RULE. */
@@ -180,12 +211,14 @@ typedef struct sxml_schematron_report {
        the order of the schema. */
     sxml_byte_view pattern_id;
     size_t pattern_index;
-    /* The message: the assertion's content, evaluated as
-       sxml_schematron_diagnostic.text is. Empty for FIRED_RULE. */
+    /* The message: the assertion's content, evaluated with the message
+       context (6.3: the subject node when a subject attribute applies,
+       else the context item) and reduced as sxml_schematron_diagnostic.
+       text is. Empty for FIRED_RULE. */
     sxml_byte_view message;
     /* The diagnostics and properties the assertion names, in the order
-       its diagnostics and properties attributes give them; empty for
-       FIRED_RULE. */
+       its diagnostics and properties attributes give them, evaluated
+       for the context item; empty for FIRED_RULE. */
     sxml_schematron_diagnostic_view diagnostics;
     sxml_schematron_property_view properties;
     /* The assertion's (FIRED_RULE: the rule's) element in its schematron
@@ -193,8 +226,11 @@ typedef struct sxml_schematron_report {
        column of its start tag. Inside an abstract pattern or an abstract
        rule, the element there; pattern_id names the instance. */
     sxml_source_location schema_location;
-    /* The subject node (FIRED_RULE: the context node), in the item heap
-       of the schema's processor. */
+    /* The subject node (5.5.19): the node the assertion's subject
+       attribute, else its rule's, selects for the rule's context node;
+       else the context item when it is a node; else (a visit-each item
+       that is not a node, 5.5.21) the rule's context node. FIRED_RULE:
+       the context node. In the item heap of the schema's processor. */
     sxml_item node;
     /* The node's location as its tree keeps it: the document URI as
        source_name, line and column; line_number 0 when the tree keeps no
@@ -203,9 +239,10 @@ typedef struct sxml_schematron_report {
     /* The node's path, as fn:path gives it (F&O 4.0, "fn:path"): SVRL's
        location attribute. */
     sxml_byte_view node_path;
-    /* An error finding (D313): a FAILED_ASSERT or SUCCESSFUL_REPORT whose
-       role or flag is "fatal" or "error", or that has neither. false for
-       FIRED_RULE. */
+    /* An error finding (D313, D315): a FAILED_ASSERT or
+       SUCCESSFUL_REPORT whose severity is "fatal" or "error"; or, without
+       a severity, whose role or one of whose flag tokens is "fatal" or
+       "error", or that has neither role nor flag. false for FIRED_RULE. */
     bool is_error;
 } sxml_schematron_report;
 
@@ -254,6 +291,22 @@ typedef enum sxml_schematron_document_source {
     SXML_SCHEMATRON_DOCUMENT_SOURCE_NODE,
 } sxml_schematron_document_source;
 
+/* A value for one schema parameter (a sch:param child of sch:schema or
+   of an included sch:library, 5.4.11). */
+typedef struct sxml_schematron_parameter {
+    /* The parameter's name, an NCName. */
+    sxml_byte_view name;
+    /* The query fragment that replaces the parameter's value attribute:
+       text, put into every expression in place of $name as the value
+       attribute's text would be. */
+    sxml_byte_view value;
+} sxml_schematron_parameter;
+
+typedef struct sxml_schematron_parameter_view {
+    const sxml_schematron_parameter *parameters;
+    size_t parameter_count;
+} sxml_schematron_parameter_view;
+
 /* A Schematron schema to compile. */
 typedef struct sxml_schematron_configuration {
     /* Kept by reference; must outlive the schematron. Its allocator gives
@@ -278,12 +331,24 @@ typedef struct sxml_schematron_configuration {
     /* The base URI that a RESOLVED document_uri is resolved against;
        empty when absent. Borrowed for the call. */
     sxml_byte_view base_uri;
-    /* The phase to compile: the id of a sch:phase, "#ALL" (every
-       pattern), or "#DEFAULT" or empty (the schema's defaultPhase
-       attribute, else "#ALL"). Only the active patterns of the phase,
-       and the variables of the schema, of the phase and of those
-       patterns, are compiled. Borrowed for the call. */
+    /* The phase to compile: the id of a sch:phase; "#ALL" (every
+       pattern); "#DEFAULT" or empty (the schema's defaultPhase
+       attribute, else "#ALL"); or "#ANY" (each validation takes the
+       first phase, in schema order, whose when attribute is true for
+       the instance, else every pattern; 5.4.13, 5.5.22). Only the
+       patterns the phase can make active, and the variables of the
+       schema, of those phases and of those patterns, are compiled.
+       Borrowed for the call. */
     sxml_byte_view phase_id;
+    /* Values for schema parameters, each in place of its sch:param's
+       value attribute (5.4.11: overridden at user option); names must
+       be distinct. A name that is no schema parameter is
+       schematron:parameter. Borrowed for the call. */
+    sxml_schematron_parameter_view parameters;
+    /* Receives every error compilation finds (code, description, the
+       location in a schematron document; see the top of this header);
+       the null sink stops at the first. Borrowed for the call. */
+    sxml_schema_report_sink report_sink;
     /* Receives the first error, or the location of a limit reached; may
        be NULL. Borrowed for the call. */
     sxml_error_record *error_record;
@@ -301,29 +366,37 @@ SXML_NODISCARD SXML_EXPORT sxml_status sxml_schematron_memory_requirements(
 
 /*
  * Reads the schematron document and every document it reaches, compiles
- * the active patterns of the configured phase into a schematron placed in
+ * the patterns of the configured phase into a schematron placed in
  * memory, and writes its address to *schematron. memory must stay valid,
  * unmoved, until sxml_schematron_finalize. Compilation keeps nothing of
  * the documents' texts.
  *
+ * Every error of Schematron (the codes above) and every syntax error of
+ * an expression or a rule context (each is parsed alone) goes to the
+ * report sink, and reading goes on; the stylesheet AST is compiled only
+ * when none was found, and its compilation (names, types, XSLT
+ * declarations) stops at its first error, which also goes to the sink.
+ *
  * Returns:
  * - SXML_STATUS_STATIC_ERROR or SXML_STATUS_TYPE_ERROR, with the error
- *   record filled (code, description, location in a schematron
- *   document), for the first error of Schematron (the codes above), of
- *   an expression, a pattern or an XSLT declaration;
+ *   record filled with the first error (code, description, location in
+ *   a schematron document), when the report sink received any error or
+ *   the null sink met one;
  * - SXML_STATUS_DYNAMIC_ERROR, with the error record filled, for a
  *   dynamic error of a static expression of an XSLT declaration;
  * - SXML_STATUS_MALFORMED_INPUT, SXML_STATUS_INVALID_UTF8 or
- *   SXML_STATUS_UNSUPPORTED_FEATURE for a document that is not
+ *   SXML_STATUS_UNSUPPORTED_FEATURE for a compiled document that is not
  *   namespace-well-formed XML, with the record's diagnostic filled as
- *   sxml_xml_parser_parse fills it;
+ *   sxml_xml_parser_parse fills it (an included one is
+ *   schematron:include);
  * - SXML_STATUS_LIMIT_EXCEEDED at a limit of the processor, with only the
  *   record's diagnostic filled;
  * - SXML_STATUS_INVALID_ARGUMENT for an invalid configuration, and for a
  *   document the resolver delivered in a form its kind does not allow;
  * - SXML_STATUS_INSUFFICIENT_MEMORY or SXML_STATUS_MISALIGNED_MEMORY when
- *   memory does not meet the memory requirements, and the allocator's and
- *   the resolver's failures.
+ *   memory does not meet the memory requirements, the report sink's
+ *   status when it stopped compilation, and the allocator's and the
+ *   resolver's failures.
  * On failure *schematron is untouched and nothing is left allocated,
  * except item types the type registry interned, which stay valid.
  */
@@ -353,6 +426,27 @@ SXML_NODISCARD SXML_EXPORT sxml_status sxml_schematron_create(
  */
 SXML_EXPORT void sxml_schematron_destroy(sxml_schematron *schematron);
 
+/* What a compiled schema says of itself. Views into the schematron,
+   valid while it lives; each empty when absent. */
+typedef struct sxml_schematron_description {
+    /* The schema's sch:title, its text. */
+    sxml_byte_view title;
+    /* The schemaVersion attribute (5.4.17). */
+    sxml_byte_view schema_version;
+    /* The schematronEdition attribute (5.5.15: reported at user
+       option); "2025" when present. */
+    sxml_byte_view schematron_edition;
+    /* The queryBinding attribute as written. */
+    sxml_byte_view query_binding;
+    /* The phase compiled: a sch:phase id, "#ALL" or "#ANY" ("#DEFAULT"
+       resolved). */
+    sxml_byte_view phase_id;
+} sxml_schematron_description;
+
+/* Writes what schematron says of itself to *description. */
+SXML_EXPORT void sxml_schematron_describe(const sxml_schematron *schematron,
+                                          sxml_schematron_description *description);
+
 /* ----------------------------------------------------------- Validation */
 
 /* One validation. Everything is borrowed for the call. */
@@ -361,21 +455,20 @@ typedef struct sxml_schematron_validation_request {
        item heap of the schema's processor. A tree validated against an
        XSD schema (include/sxml/schema.h) is read with its type
        annotations. Rules apply to the node and its descendants and
-       attributes; the root of its tree is the global context item of the
-       schema's variables. Locations in reports come from its tree. */
+       attributes (under a phase with a from attribute, to the nodes it
+       selects instead, 5.5.7); the root of its tree is the instance
+       document root: the context of the variables outside rules
+       (5.4.7), of from, when and documents. Locations in reports come
+       from its tree. */
     sxml_item node;
-    /* The values of the schema's sch:let variables (the children of
-       sch:schema), by name, each in place of the variable's value
-       expression; a name that is not such a variable is ignored. Names
-       must be distinct. */
-    sxml_variable_binding_view parameters;
     /* Receives every report; the null sink only counts them. */
     sxml_schematron_report_sink report_sink;
     /* When its operations are not NULL, receives the reports as one SVRL
-       document (schematron-output with the schema's title, phase and ns
-       prefixes, then each active pattern with its fired rules and
-       findings), UTF-8, written as the validation goes. The fired rules
-       are written whether or not reports_fired_rules is set. */
+       document (schematron-output with the schema's title, phase,
+       schemaVersion, schematronEdition and ns prefixes, then each active
+       pattern or group with its fired rules and findings; Annex D),
+       UTF-8, written as the validation goes. The fired rules are written
+       whether or not reports_fired_rules is set. */
     sxml_output_stream svrl_output_stream;
     /* Receives a dynamic or type error, or the location of a limit
        reached; may be NULL. */
@@ -392,29 +485,34 @@ typedef struct sxml_schematron_outcome {
     /* Of those, the error findings (sxml_schematron_report.is_error): the
        node is valid when there are none. */
     size_t error_finding_count;
+    /* The phase in force: the compiled one, or under "#ANY" the phase
+       its when attribute chose, or "#ALL" when none did. A view into
+       the schematron. */
+    sxml_byte_view phase_id;
 } sxml_schematron_outcome;
 
 /*
  * Validates request->node: applies every active pattern, in the order of
  * the schema, to the node and its descendants and attributes, in
  * document order (a pattern with a documents attribute to the documents
- * it names instead, through the processor's resolver), and sends each
- * report to the report sink and to the SVRL output as it is made. Reports
- * come pattern by pattern; within a pattern, by context node in document
- * order (attributes before children), and for one node by rule and then
- * by assertion in the order of the schema. Writes the counts to *outcome.
+ * it names instead, through the processor's resolver, 5.4.12), and
+ * sends each report to the report sink and to the SVRL output as it is
+ * made. Reports come pattern by pattern; within a pattern, by context
+ * node in document order (attributes before children), then by
+ * visit-each item (5.5.21), and for one item by rule and then by
+ * assertion in the order of the schema. Writes the counts to *outcome.
  * Finding error findings is not a failure: the call returns
  * SXML_STATUS_OK and the outcome says so.
  *
  * Returns the statuses of sxml_xslt_stylesheet_transform (a dynamic or
  * type error of an expression, with the error record filled and located
- * in its schematron document; SXML_STATUS_LIMIT_EXCEEDED at a limit of
- * the processor, its evaluation step limit included), the report sink's
- * and the SVRL output stream's failures, and SXML_STATUS_INVALID_ARGUMENT
- * for a request that is not a node of the schema's processor or a
- * parameter of another processor. On failure *outcome is untouched;
- * reports already received stay received, and part of the SVRL may have
- * been written.
+ * in its schematron document, a subordinate document that cannot be
+ * read included; SXML_STATUS_LIMIT_EXCEEDED at a limit of the processor,
+ * its evaluation step limit included), the report sink's and the SVRL
+ * output stream's failures, and SXML_STATUS_INVALID_ARGUMENT for a
+ * request that is not a node of the schema's processor. On failure
+ * *outcome is untouched; reports already received stay received, and
+ * part of the SVRL may have been written.
  */
 SXML_NODISCARD SXML_EXPORT sxml_status sxml_schematron_validate_node(
     const sxml_schematron *schematron, const sxml_schematron_validation_request *request,
