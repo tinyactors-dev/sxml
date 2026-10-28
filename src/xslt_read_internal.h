@@ -101,3 +101,46 @@ typedef struct sxml_xslt_read_request {
 SXML_NODISCARD sxml_status sxml_xslt_read_stylesheet(const sxml_xslt_read_request *request,
                                                      sxml_xslt_ast **ast);
 
+/*
+ * One XSLT declaration that is not in a stylesheet module: an xsl:function,
+ * xsl:key, xsl:include, ... child of a Schematron schema (D315, "Foreign
+ * XSLT"), read into an AST another front end builds, exactly as the reader
+ * reads a declaration of a stylesheet module: the same nodes, attributes,
+ * expressions and static contexts, its includes and imports read in place
+ * as modules under request.module, which must be the last module added
+ * or one of its ancestors. Views are borrowed for the call.
+ */
+typedef struct sxml_xslt_declaration_request {
+    sxml_processor *processor;
+    /* Not sealed. */
+    sxml_xslt_ast *ast;
+    /* The module whose tree holds element. */
+    sxml_xslt_ast_module_index module;
+    /* The node the declaration becomes a child of (a module root), and
+       the element it stands for in the module's tree: the declaration's
+       parent element. */
+    sxml_xslt_ast_node_index parent;
+    sxml_node_index parent_element;
+    /* The static context the declaration's is derived from: version,
+       default mode, excluded namespaces, base URI. */
+    sxml_xslt_ast_static_context_index parent_static_context;
+    /* The declaration, a child of parent_element. */
+    sxml_node_index element;
+    /* Namespace bindings for the prefixes the declaration's own in-scope
+       namespaces leave unbound (Schematron's sch:ns, 5.4.10). */
+    sxml_namespace_binding_view extra_namespace_bindings;
+    sxml_error_record *error_record;
+    /* NULL, or as sxml_xslt_read_request.error_collector. */
+    sxml_xslt_error_collector *error_collector;
+} sxml_xslt_declaration_request;
+
+/*
+ * Reads request->element into request->ast as a declaration under
+ * request->parent (flag DECLARATION, appended to the declaration list).
+ * An element the reader would not take as a declaration there is read as
+ * it would be in a stylesheet (a data element, or XTSE0010). Returns the
+ * reader's statuses; SXML_STATUS_INVALID_ARGUMENT for a sealed AST, a
+ * module without a tree or no parent. On failure the AST may hold part
+ * of the declaration: the caller discards it.
+ */
+SXML_NODISCARD sxml_status sxml_xslt_read_declaration(const sxml_xslt_declaration_request *request);

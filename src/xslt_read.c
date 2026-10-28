@@ -2240,6 +2240,10 @@ typedef struct stylesheet_reader {
     sxml_error_record *error_record;
     /* NULL, or the errors to collect (D320). */
     sxml_xslt_error_collector *error_collector;
+    /* Bindings for prefixes an element's own declarations leave unbound:
+       the sch:ns of a Schematron schema whose XSLT declarations are read
+       (sxml_xslt_read_declaration, D315); empty for a stylesheet. */
+    sxml_namespace_binding_view extra_namespace_bindings;
     sxml_variable_binding_view static_parameters;
     sxml_byte_view default_collation_uri;
 
@@ -3967,9 +3971,23 @@ static sxml_status compute_static_context(stylesheet_reader *reader, const conte
                                    .first_index = 0});
         }
     } else {
+        /* The extra bindings first: a native one of the same prefix
+           replaces it. */
+        for (size_t index = 0;
+             status == SXML_STATUS_OK &&
+             index < reader->extra_namespace_bindings.namespace_binding_count;
+             index += 1) {
+            status = append_binding(
+                reader, &reader->bindings,
+                (binding_addition){
+                    .binding = reader->extra_namespace_bindings.namespace_bindings[index],
+                    .first_index = 0});
+        }
         sxml_namespace_binding_view natives = {.namespace_bindings = NULL,
                                                .namespace_binding_count = 0};
-        status = native_bindings(request->source, &natives);
+        if (status == SXML_STATUS_OK) {
+            status = native_bindings(request->source, &natives);
+        }
         for (size_t index = 0; status == SXML_STATUS_OK && index < natives.namespace_binding_count;
              index += 1) {
             const sxml_namespace_binding binding = natives.namespace_bindings[index];
@@ -7287,3 +7305,94 @@ sxml_status sxml_xslt_read_stylesheet(const sxml_xslt_read_request *request, sxm
     return SXML_STATUS_OK;
 }
 
+sxml_status sxml_xslt_read_declaration(const sxml_xslt_declaration_request *request) {
+    if (request == NULL || request->processor == NULL || request->ast == NULL ||
+        request->ast->is_sealed ||
+        sxml_xslt_ast_get_module(request->ast, request->module)->tree == NULL ||
+        sxml_xslt_ast_get_node(request->ast, request->parent)->kind == SXML_XSLT_AST_KIND_NONE) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    sxml_processor *processor = request->processor;
+    stylesheet_reader reader;
+    memset(&reader, 0, sizeof(reader));
+    reader.processor = processor;
+    reader.allocator = processor->allocator;
+    reader.name_pool = processor->name_pool;
+    reader.ast = request->ast;
+    reader.error_record = request->error_record;
+    reader.error_collector = request->error_collector;
+    reader.extra_namespace_bindings = request->extra_namespace_bindings;
+    sxml_status status = sxml_xml_parser_create(
+        reader.allocator,
+        &(sxml_xml_parser_configuration){.allocator = reader.allocator,
+                                         .name_pool = processor->name_pool,
+                                         .limits = processor->limits.xml_limits},
+        &reader.parser);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xslt_static_scope_create(
+            reader.allocator,
+            &(sxml_xslt_static_scope_configuration){
+                .processor = processor,
+                .resource_resolver = {.state = NULL, .operations = NULL}},
+            &reader.static_scope);
+    }
+    /* Every module of the AST so far reads without fixed namespaces. */
+    const uint32_t module_count = request->ast->module_count;
+    if (status == SXML_STATUS_OK) {
+        status = reserve_scratch(&reader, &reader.module_states,
+                                 (scratch_reservation){.element_size = sizeof(module_state),
+                                                       .element_alignment = alignof(module_state),
+                                                       .needed_count = module_count});
+    }
+    if (status == SXML_STATUS_OK) {
+        reader.module_states.count = module_count;
+        for (uint32_t module = 0; module < module_count; module += 1) {
+            *state_of_module(&reader, (sxml_xslt_ast_module_index){.value = module}) =
+                (module_state){.has_fixed_namespaces = false,
+                               .first_fixed_binding = 0,
+                               .fixed_binding_count = 0};
+        }
+    }
+    sxml_tree *tree = sxml_xslt_ast_get_module(request->ast, request->module)->tree;
+    sxml_node_description description;
+    memset(&description, 0, sizeof(description));
+    if (status == SXML_STATUS_OK) {
+        status = describe(tree, request->element, &description);
+    }
+    if (status == SXML_STATUS_OK) {
+        /* The parent element as a frame whose children are
+           declarations; the walk reads the declaration's content and ends
+           there. */
+        status = push_frame(&reader,
+                            &(open_element){.module = request->module,
+                                            .tree = tree,
+                                            .element = request->parent_element,
+                                            .has_next_child = false,
+                                            .next_child = {.index = 0},
+                                            .node = request->parent,
+                                            .rule = NULL,
+                                            .child_context = SXML_CHILD_CONTEXT_DECLARATIONS,
+                                            .static_context = request->parent_static_context,
+                                            .preserves_space = false,
+                                            .is_forwards_compatible = false,
+                                            .has_sequence_constructor_child = false,
+                                            .has_listed_child_after_sequence_constructor = false,
+                                            .has_required_child = false,
+                                            .requires_no_children = false,
+                                            .seen_child_mask = 0,
+                                            .last_child_position = 0,
+                                            .previous_child_kind = SXML_XSLT_AST_KIND_NONE,
+                                            .has_reported_error = false});
+    }
+    if (status == SXML_STATUS_OK) {
+        status = read_element(&reader, (element_input){.parent_index = 0,
+                                                       .element = request->element,
+                                                       .description = &description});
+        status = sxml_xslt_error_collector_go_on(reader.error_collector, status);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = walk(&reader);
+    }
+    release_reader(&reader);
+    return status;
+}
