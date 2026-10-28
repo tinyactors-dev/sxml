@@ -202,11 +202,14 @@ which makes it easy to check that nothing leaks:
 ```console
 $ ./build/memory
 333333833333500000
-allocations: 195, still live: 0
+allocations: 194, still live: 0
 ```
 
-A million squares took 195 allocations, because sequences such as
-`1 to 1000000` are computed as they are read, not stored.
+A million squares took a couple of hundred allocations, most of them
+for the processor and the compiled expression; ten squares take only a
+few fewer. Sequences such as `1 to 1000000` are computed as they are
+read, not stored. The exact count is not part of sxml's interface and
+changes between versions; that nothing is still live is what matters.
 
 Every object type in sxml can also be placed in memory you provide,
 without an allocator call for the object itself: each has a
