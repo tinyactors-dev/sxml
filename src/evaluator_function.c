@@ -445,21 +445,21 @@ typedef enum sxml_type_match_frame_kind {
 } sxml_type_match_frame_kind;
 
 typedef struct sxml_type_match_frame {
-    sxml_type_match_frame_kind frame_kind;
+    /* The next part or alternative, and how many there are. */
+    size_t next_index;
+    size_t part_count;
+    /* ITEM, CHOICE, MAP_ENTRIES, ARRAY_MEMBERS, RECORD_FIELDS: borrowed. */
+    sxml_item item;
     /* SEQUENCE: borrowed; its items are matched against
        sequence_type.item_type. */
     sxml_sequence_iterator iterator;
-    sxml_sequence_type sequence_type;
-    bool has_counted;
-    /* ITEM, CHOICE, MAP_ENTRIES, ARRAY_MEMBERS, RECORD_FIELDS: borrowed. */
-    sxml_item item;
+    sxml_type_match_frame_kind frame_kind;
     /* ITEM, CHOICE: the type. RECORD_FIELDS: the record type. MAP_ENTRIES:
        the key type (sequence_type is the value type). ARRAY_MEMBERS:
        sequence_type is the member type. */
     sxml_type_identifier item_type;
-    /* The next part or alternative, and how many there are. */
-    size_t next_index;
-    size_t part_count;
+    sxml_sequence_type sequence_type;
+    bool has_counted;
 } sxml_type_match_frame;
 
 /* Frames a matcher holds in itself before it takes allocator memory: an
@@ -470,12 +470,13 @@ typedef struct sxml_type_matcher {
     sxml_dynamic_context *dynamic_context;
     const sxml_type_registry *registry;
     sxml_error_record *error_record;
-    /* inline_frames until more are needed, then allocator memory; the
-       matcher is not moved while it runs. */
+    /* inline_frames until more are needed, then allocator memory. The
+       inline frames are the caller's array (on its C stack, not part of
+       the matcher, so making a matcher writes no frames), or NULL. */
     sxml_type_match_frame *frames;
     size_t frame_count;
     size_t frame_capacity;
-    sxml_type_match_frame inline_frames[SXML_TYPE_MATCHER_INLINE_FRAME_COUNT];
+    sxml_type_match_frame *inline_frames;
 } sxml_type_matcher;
 
 /* What advancing the top frame did. */
@@ -492,7 +493,8 @@ static sxml_status sxml_type_matcher_push(sxml_type_matcher *matcher,
                                           sxml_type_match_frame frame) {
     if (matcher->frame_count == matcher->frame_capacity) {
         /* Leaving the inline frames: a new array, and they are copied in. */
-        const bool is_inline = matcher->frames == matcher->inline_frames;
+        const bool is_inline =
+            matcher->inline_frames != NULL && matcher->frames == matcher->inline_frames;
         void *elements = is_inline ? NULL : matcher->frames;
         sxml_status status = sxml_evaluator_grow(
             matcher->dynamic_context->allocator,
@@ -1268,14 +1270,15 @@ static sxml_status sxml_run_type_matcher(sxml_dynamic_context *dynamic_context,
                                          sxml_type_match *match) {
     /* The most common case needs no allocator memory: one item against a
        type fits the inline frames. */
+    sxml_type_match_frame inline_frames[SXML_TYPE_MATCHER_INLINE_FRAME_COUNT];
     sxml_type_matcher matcher = {
         .dynamic_context = dynamic_context,
         .registry = sxml_item_heap_get_type_registry(dynamic_context->item_heap),
         .error_record = request->error_record,
-        .frames = NULL,
+        .frames = inline_frames,
         .frame_count = 0,
-        .frame_capacity = SXML_TYPE_MATCHER_INLINE_FRAME_COUNT};
-    matcher.frames = matcher.inline_frames;
+        .frame_capacity = SXML_TYPE_MATCHER_INLINE_FRAME_COUNT,
+        .inline_frames = inline_frames};
     sxml_status status = sxml_type_matcher_push(
         &matcher, sxml_sequence_match_frame(request->value, request->sequence_type));
     sxml_type_match outcome_match = {.is_match = true};
@@ -1308,11 +1311,12 @@ static sxml_status sxml_run_type_matcher(sxml_dynamic_context *dynamic_context,
 /* The computation of the memo entries of matched vectors (its address). */
 static const uint8_t sxml_matched_vector_computation = 0;
 
-/* Whether a vector's match was decided from the memo. */
-typedef struct sxml_vector_match {
+/* Whether a shortcut decided a match: a vector's by the memo, one
+   item's by the item rules alone. */
+typedef struct sxml_match_decision {
     bool is_decided;
     bool is_match;
-} sxml_vector_match;
+} sxml_match_decision;
 
 /*
  * A vector or sequence slice of 16 items or more against a sequence type
@@ -1328,7 +1332,7 @@ typedef struct sxml_vector_match {
  */
 static sxml_status sxml_match_vector_by_memo(sxml_dynamic_context *dynamic_context,
                                              const sxml_type_match_request *request,
-                                             sxml_vector_match *vector_match) {
+                                             sxml_match_decision *vector_match) {
     vector_match->is_decided = false;
     const sxml_sequence value = request->value;
     if (sxml_sequence_get_representation(value) != SXML_SEQUENCE_REPRESENTATION_VECTOR ||
@@ -1371,10 +1375,60 @@ static sxml_status sxml_match_vector_by_memo(sxml_dynamic_context *dynamic_conte
             return status;
         }
     }
-    *vector_match = (sxml_vector_match){
+    *vector_match = (sxml_match_decision){
         .is_decided = true,
         .is_match = sxml_occurrence_allows(request->sequence_type.occurrence, item_count)};
     return SXML_STATUS_OK;
+}
+
+/*
+ * No item or one item against a sequence type (glossary
+ * `single_item_shortcut`): the count decides against the occurrence, and
+ * one item is decided by the item rules of the matcher (XPath 4.0,
+ * section 3.2) without its frames when they decide at once. A choice, a
+ * typed map, array or record, or a JNode with a value type need the
+ * frames: *decision->is_decided stays false for them.
+ */
+static sxml_status sxml_match_single_item(sxml_dynamic_context *dynamic_context,
+                                          const sxml_type_match_request *request,
+                                          sxml_match_decision *decision) {
+    *decision = (sxml_match_decision){.is_decided = false, .is_match = false};
+    const sxml_sequence_representation representation =
+        sxml_sequence_get_representation(request->value);
+    const sxml_occurrence occurrence = request->sequence_type.occurrence;
+    if (representation == SXML_SEQUENCE_REPRESENTATION_EMPTY) {
+        *decision = (sxml_match_decision){.is_decided = true,
+                                          .is_match = sxml_occurrence_allows(occurrence, 0)};
+        return SXML_STATUS_OK;
+    }
+    if (representation != SXML_SEQUENCE_REPRESENTATION_SINGLE_ITEM) {
+        return SXML_STATUS_OK;
+    }
+    if (!sxml_occurrence_allows(occurrence, 1)) {
+        *decision = (sxml_match_decision){.is_decided = true, .is_match = false};
+        return SXML_STATUS_OK;
+    }
+    /* The item rules read the matcher's context and push no frame. */
+    sxml_type_matcher matcher = {
+        .dynamic_context = dynamic_context,
+        .registry = sxml_item_heap_get_type_registry(dynamic_context->item_heap),
+        .error_record = request->error_record,
+        .frames = NULL,
+        .frame_count = 0,
+        .frame_capacity = 0,
+        .inline_frames = NULL};
+    sxml_type_match_frame frame =
+        sxml_item_match_frame(request->value.content, request->sequence_type.item_type);
+    sxml_type_match_outcome outcome = SXML_TYPE_MATCH_OUTCOME_CONTINUES;
+    const sxml_status status = sxml_type_matcher_advance_item(&matcher, &frame, &outcome);
+    if (matcher.frames != NULL) {
+        sxml_allocator_release(dynamic_context->allocator, matcher.frames);
+    }
+    if (status == SXML_STATUS_OK && outcome != SXML_TYPE_MATCH_OUTCOME_CONTINUES) {
+        *decision = (sxml_match_decision){
+            .is_decided = true, .is_match = outcome == SXML_TYPE_MATCH_OUTCOME_HOLDS};
+    }
+    return status;
 }
 
 sxml_status sxml_evaluator_match_sequence_type(
@@ -1384,13 +1438,23 @@ sxml_status sxml_evaluator_match_sequence_type(
             SXML_SEQUENCE_REPRESENTATION_SINGLE_ITEM &&
         sxml_item_is_atomic(request->value.content) &&
         sxml_occurrence_allows(request->sequence_type.occurrence, 1) &&
-        sxml_type_identifier_equals(sxml_item_get_type_annotation(request->value.content),
-                                    request->sequence_type.item_type)) {
-        /* The most common case: one atomic item against its own type
+        (request->sequence_type.item_type.index == SXML_TYPE_XS_ANY_ATOMIC_TYPE ||
+         sxml_type_identifier_equals(sxml_item_get_type_annotation(request->value.content),
+                                     request->sequence_type.item_type))) {
+        /* The most common cases: one atomic item against its own type
            annotation, which it is an instance of (XDM 4.0, section 3.2;
-           XPath 4.0, 3.2.1). */
+           XPath 4.0, 3.2.1), or against xs:anyAtomicType, from which every
+           atomic type is derived (XPath 4.0, section 3.2.3). */
         match->is_match = true;
         return SXML_STATUS_OK;
+    }
+    sxml_match_decision single_match = {.is_decided = false, .is_match = false};
+    sxml_status single_status = sxml_match_single_item(dynamic_context, request, &single_match);
+    if (single_status != SXML_STATUS_OK || single_match.is_decided) {
+        if (single_status == SXML_STATUS_OK) {
+            match->is_match = single_match.is_match;
+        }
+        return single_status;
     }
     sxml_range_decision decision;
     sxml_status range_status = sxml_decide_range_match(
@@ -1401,7 +1465,7 @@ sxml_status sxml_evaluator_match_sequence_type(
         }
         return range_status;
     }
-    sxml_vector_match vector_match = {.is_decided = false, .is_match = false};
+    sxml_match_decision vector_match = {.is_decided = false, .is_match = false};
     sxml_status status = sxml_match_vector_by_memo(dynamic_context, request, &vector_match);
     if (status != SXML_STATUS_OK || vector_match.is_decided) {
         if (status == SXML_STATUS_OK) {
@@ -1758,38 +1822,32 @@ typedef enum sxml_choice_phase {
 } sxml_choice_phase;
 
 typedef struct sxml_coercion_frame {
-    sxml_coercion_frame_kind frame_kind;
     /* Where this frame's errors go: the request's record, or the scratch
        record for an alternative after the first. */
     sxml_error_record *error_record;
-    /* SEQUENCE: the value (owned when owns_input) and its required type;
-       the count is checked only when checks_occurrence. is_derived is set
-       for a value made from the item being coerced (atomized, or a JNode's
-       jvalue), which is never "unchanged". */
+    /* SEQUENCE: the value (owned when owns_input) and its required type
+       (sequence_type, below); the count is checked only when
+       checks_occurrence. is_derived is set for a value made from the item
+       being coerced (atomized, or a JNode's jvalue), which is never
+       "unchanged". */
     sxml_sequence input;
-    bool owns_input;
-    bool checks_occurrence;
-    bool is_derived;
-    sxml_sequence_type sequence_type;
     sxml_sequence_iterator iterator;
     uint64_t item_index;
     sxml_item current_item;
     /* Owned; made at the first changed item. */
     sxml_sequence_builder *builder;
     /* ITEM, CHOICE, ARRAY_MEMBERS, MAP_ENTRIES, RECORD_FIELDS: the item,
-       borrowed. ITEM, CHOICE: its required type; MAP_ENTRIES: the key type
-       (sequence_type is the value type); RECORD_FIELDS: the record type;
-       ARRAY_MEMBERS: sequence_type is the member type. */
+       borrowed. ITEM, CHOICE: its required type (item_type, below);
+       MAP_ENTRIES: the key type (sequence_type is the value type);
+       RECORD_FIELDS: the record type; ARRAY_MEMBERS: sequence_type is the
+       member type. */
     sxml_item item;
-    sxml_type_identifier item_type;
     /* CHOICE: the alternatives; RECORD_FIELDS: the fields. Borrowed from
        the registry. */
     sxml_type_identifier_view alternatives;
     const sxml_record_field *record_fields;
-    uint32_t phase;
     size_t next_index;
     size_t part_count;
-    bool has_changed;
     /* ARRAY_MEMBERS: the members; MAP_ENTRIES: key and value of each
        entry; RECORD_FIELDS: the field values. Owned, stored_count of them
        set. */
@@ -1797,8 +1855,16 @@ typedef struct sxml_coercion_frame {
     size_t stored_count;
     /* RECORD_FIELDS, MAP_ENTRIES: the value being coerced, borrowed. */
     sxml_sequence current_value;
+    sxml_coercion_frame_kind frame_kind;
+    sxml_type_identifier item_type;
+    uint32_t phase;
     /* CHOICE: how the first alternative failed. */
     sxml_status first_failure;
+    sxml_sequence_type sequence_type;
+    bool owns_input;
+    bool checks_occurrence;
+    bool is_derived;
+    bool has_changed;
 } sxml_coercion_frame;
 
 /* Frames an engine holds in itself before it takes allocator memory: a
@@ -1813,12 +1879,13 @@ typedef struct sxml_coercion_engine {
     bool applies_cast_rules;
     sxml_namespace_binding_view namespace_bindings;
     sxml_error_record scratch_record;
-    /* inline_frames until more are needed, then allocator memory; the
-       engine is not moved while it runs. */
+    /* inline_frames until more are needed, then allocator memory. The
+       inline frames are the caller's array (on its C stack, not part of
+       the engine, so making an engine writes no frames). */
     sxml_coercion_frame *frames;
     size_t frame_count;
     size_t frame_capacity;
-    sxml_coercion_frame inline_frames[SXML_COERCION_INLINE_FRAME_COUNT];
+    sxml_coercion_frame *inline_frames;
     /* What the frame popped last handed down: a result (owned value unless
        is_unchanged) or, after an unwind to a CHOICE, a failure. */
     bool has_result;
@@ -2767,6 +2834,7 @@ static void sxml_coercion_unwind(sxml_coercion_engine *engine, sxml_coercion_fai
 static sxml_status sxml_run_coercion(sxml_dynamic_context *dynamic_context,
                                      const sxml_coercion_request *request,
                                      sxml_sequence *result) {
+    sxml_coercion_frame inline_frames[SXML_COERCION_INLINE_FRAME_COUNT];
     sxml_coercion_engine engine = {
         .dynamic_context = dynamic_context,
         .registry = sxml_item_heap_get_type_registry(dynamic_context->item_heap),
@@ -2774,15 +2842,15 @@ static sxml_status sxml_run_coercion(sxml_dynamic_context *dynamic_context,
         .applies_cast_rules = request->applies_cast_rules,
         .namespace_bindings = request->namespace_bindings,
         .scratch_record = {.value = NULL},
-        .frames = NULL,
+        .frames = inline_frames,
         .frame_count = 0,
         .frame_capacity = SXML_COERCION_INLINE_FRAME_COUNT,
+        .inline_frames = inline_frames,
         .has_result = false,
         .is_unchanged = false,
         .result = sxml_sequence_empty(),
         .has_failure = false,
         .failure_status = SXML_STATUS_OK};
-    engine.frames = engine.inline_frames;
     sxml_status status = sxml_coercion_push(
         &engine, sxml_coercion_sequence_frame(request->value, request->sequence_type,
                                               request->error_record));
@@ -2818,6 +2886,116 @@ static sxml_status sxml_run_coercion(sxml_dynamic_context *dynamic_context,
     return SXML_STATUS_OK;
 }
 
+/* What the coercion of one item decided (sxml_coerce_single_item). */
+typedef struct sxml_single_coercion {
+    bool is_decided;
+    /* When is_decided: the coerced value, owned. */
+    sxml_sequence value;
+} sxml_single_coercion;
+
+/*
+ * One item against a sequence type of a plain atomic item type (glossary
+ * `single_item_shortcut`): the rules the coercion engine would apply to
+ * it (XPath 4.0, section 3.4: atomization, then the coercion of the one
+ * atomic item, section 3.4.3; then the cardinality and the final match),
+ * without its frames, its sequence builders and the match of the value
+ * that precedes them. *coercion->is_decided stays false for any other
+ * value or type, and for an item whose atomized value is not one item;
+ * the engine then decides, from the beginning (atomization reads the node
+ * and raises nothing the engine would not raise first).
+ */
+static sxml_status sxml_coerce_single_item(sxml_dynamic_context *dynamic_context,
+                                           const sxml_coercion_request *request,
+                                           sxml_single_coercion *coercion) {
+    *coercion = (sxml_single_coercion){.is_decided = false, .value = sxml_sequence_empty()};
+    const sxml_sequence_type sequence_type = request->sequence_type;
+    if (request->applies_cast_rules ||
+        sxml_sequence_get_representation(request->value) !=
+            SXML_SEQUENCE_REPRESENTATION_SINGLE_ITEM ||
+        !sxml_occurrence_allows(sequence_type.occurrence, 1)) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_item item = request->value.content;
+    if (sxml_item_is_atomic(item) &&
+        (sequence_type.item_type.index == SXML_TYPE_XS_ANY_ATOMIC_TYPE ||
+         sxml_type_identifier_equals(sxml_item_get_type_annotation(item),
+                                     sequence_type.item_type))) {
+        /* An instance of an atomic type stays as it is (section 3.4.3):
+           the most common argument, decided before the type is read. */
+        sxml_sequence_retain(request->value);
+        *coercion = (sxml_single_coercion){.is_decided = true, .value = request->value};
+        return SXML_STATUS_OK;
+    }
+    const sxml_type_registry *registry =
+        sxml_item_heap_get_type_registry(dynamic_context->item_heap);
+    sxml_type_description description;
+    sxml_status status =
+        sxml_type_registry_describe_type(registry, sequence_type.item_type, &description);
+    if (status != SXML_STATUS_OK || description.variety != SXML_TYPE_VARIETY_ATOMIC) {
+        return status;
+    }
+    /* The atomized value: the item itself, or a node's typed value. */
+    sxml_sequence atomized = request->value;
+    sxml_sequence_retain(atomized);
+    if (!sxml_item_is_atomic(item)) {
+        sxml_sequence_release(atomized);
+        status = sxml_evaluator_atomize(
+            dynamic_context,
+            &(sxml_atomization_request){.value = request->value,
+                                        .error_record = request->error_record},
+            &atomized);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        if (sxml_sequence_get_representation(atomized) !=
+            SXML_SEQUENCE_REPRESENTATION_SINGLE_ITEM) {
+            sxml_sequence_release(atomized);
+            return SXML_STATUS_OK;
+        }
+    }
+    const sxml_atomic_coercion rules = {.dynamic_context = dynamic_context,
+                                        .registry = registry,
+                                        .item_type = sequence_type.item_type,
+                                        .primitive_type = description.primitive_type,
+                                        .is_enumeration = false,
+                                        .role = request->role,
+                                        .error_record = request->error_record};
+    sxml_atomic_coercion_outcome outcome;
+    status = sxml_coerce_atomic_item(&rules, atomized.content, &outcome);
+    if (status == SXML_STATUS_OK && outcome.does_not_match) {
+        status = sxml_report_coercion_error(request->role, request->error_record);
+    }
+    if (status != SXML_STATUS_OK) {
+        sxml_sequence_release(atomized);
+        return status;
+    }
+    if (outcome.is_unchanged) {
+        /* The one atomic item matched the item type, and one item is
+           allowed: the final match holds. */
+        *coercion = (sxml_single_coercion){.is_decided = true, .value = atomized};
+        return SXML_STATUS_OK;
+    }
+    sxml_sequence_release(atomized);
+    const sxml_sequence value = outcome.result;
+    /* Finally the value must match (section 3.4, last rule). */
+    sxml_type_match match = {.is_match = false};
+    status = sxml_evaluator_match_sequence_type(
+        dynamic_context,
+        &(sxml_type_match_request){.value = value,
+                                   .sequence_type = sequence_type,
+                                   .error_record = request->error_record},
+        &match);
+    if (status == SXML_STATUS_OK && !match.is_match) {
+        status = sxml_report_coercion_error(request->role, request->error_record);
+    }
+    if (status != SXML_STATUS_OK) {
+        sxml_sequence_release(value);
+        return status;
+    }
+    *coercion = (sxml_single_coercion){.is_decided = true, .value = value};
+    return SXML_STATUS_OK;
+}
+
 sxml_status sxml_evaluator_coerce(sxml_dynamic_context *dynamic_context,
                                   const sxml_coercion_request *request,
                                   sxml_sequence *result) {
@@ -2827,6 +3005,14 @@ sxml_status sxml_evaluator_coerce(sxml_dynamic_context *dynamic_context,
         sxml_sequence_retain(request->value);
         *result = request->value;
         return SXML_STATUS_OK;
+    }
+    sxml_single_coercion single = {.is_decided = false, .value = sxml_sequence_empty()};
+    sxml_status single_status = sxml_coerce_single_item(dynamic_context, request, &single);
+    if (single_status != SXML_STATUS_OK || single.is_decided) {
+        if (single_status == SXML_STATUS_OK) {
+            *result = single.value;
+        }
+        return single_status;
     }
     const sxml_type_registry *registry =
         sxml_item_heap_get_type_registry(dynamic_context->item_heap);

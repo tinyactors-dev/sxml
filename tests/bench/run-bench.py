@@ -61,6 +61,7 @@ BENCHMARKS = [
     ("regex-reuse", ["SXML", "xquery", os.path.join(BENCH, "regex-reuse.xq")]),
     ("regex-match", ["SXML", "xquery", os.path.join(BENCH, "regex-match.xq")]),
     ("regex-literal", ["SXML", "xquery", os.path.join(BENCH, "regex-literal.xq")]),
+    ("coercion", ["SXML", "xquery", os.path.join(BENCH, "coercion.xq")]),
     ("flwor-group", xquery(os.path.join(BENCH, "flwor-group.xq"))),
     ("flwor-order", xquery(os.path.join(BENCH, "flwor-order.xq"))),
     ("xslt-key", xslt(os.path.join(BENCH, "xslt-key.xsl"))),

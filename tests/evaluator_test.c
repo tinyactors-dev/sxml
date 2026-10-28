@@ -1705,6 +1705,73 @@ static void test_path_errors_with_document(sxml_test_state *state) {
                                               "4"));
 }
 
+/* One item or none coerced or matched by the item rules alone (glossary
+   `single_item_shortcut`): the same values and errors as the coercion
+   engine and the type matcher give (XPath 4.0, sections 3.2 and 3.4). */
+static void test_single_item_shortcuts(sxml_test_state *state) {
+    SXML_TEST_EXPECT(state, path_evaluates_to("let $f := function($x as xs:string) {$x "
+                                              "instance of xs:string, $x} return "
+                                              "$f(//employee[1]/@name)",
+                                              "true Jane Doe 1"));
+    SXML_TEST_EXPECT(state, path_evaluates_to("let $f := function($x as xs:double?) {$x "
+                                              "instance of xs:double, $x * 2} return "
+                                              "$f((//hours)[1])",
+                                              "true 80"));
+    SXML_TEST_EXPECT(state, path_evaluates_to("concat(//employee[2]/@name, '!')",
+                                              "John Doe 2!"));
+    SXML_TEST_EXPECT(state, path_evaluates_to("let $f := function($x as xs:anyAtomicType) "
+                                              "{$x instance of xs:untypedAtomic} return "
+                                              "$f(//employee[1]/@name)",
+                                              "true"));
+    SXML_TEST_EXPECT(state, path_fails_with("let $f := function($x as xs:integer) {$x} "
+                                            "return $f(//employee[1]/@name)",
+                                            "FORG0001"));
+    SXML_TEST_EXPECT(state, path_fails_with("let $f := function($x as xs:QName) {$x} "
+                                            "return $f(//employee[1]/@name)",
+                                            "XPTY0117"));
+    SXML_TEST_EXPECT(state, path_fails_with("let $f := function($x as xs:string) {$x} "
+                                            "return $f(//center/@missing)",
+                                            "XPTY0004"));
+    SXML_TEST_EXPECT(state, path_evaluates_to("let $f := function($x as xs:string?) "
+                                              "{count($x)} return $f(//center/@missing)",
+                                              "0"));
+    SXML_TEST_EXPECT(state, path_evaluates_to("let $f := function($e as element()) "
+                                              "{$e instance of element(works)} return "
+                                              "$f(/works)",
+                                              "true"));
+    SXML_TEST_EXPECT(state, path_fails_with("let $f := function($e as element(employee)) "
+                                            "{1} return $f(/works)",
+                                            "XPTY0004"));
+    SXML_TEST_EXPECT(state, path_fails_with("let $f := function($e as element()) {1} "
+                                            "return $f(//employee[1]/@name)",
+                                            "XPTY0004"));
+    /* An item whose atomized value is not one item: the engine decides. */
+    SXML_TEST_EXPECT(state, evaluates_to("let $f := function($x as xs:integer) {$x + 1} "
+                                         "return $f([5])",
+                                         "6"));
+    SXML_TEST_EXPECT(state, fails_with("let $f := function($x as xs:integer) {$x} return "
+                                       "$f([1, 2])",
+                                       "XPTY0004"));
+    SXML_TEST_EXPECT(state, evaluates_to("let $f := function($x as xs:integer?) {count($x)} "
+                                         "return $f([])",
+                                         "0"));
+    SXML_TEST_EXPECT(state, fails_with("let $f := function($x as xs:string) {$x} return "
+                                       "$f({'a': 1})",
+                                       "FOTY0013"));
+    SXML_TEST_EXPECT(state, fails_with("let $f := function($x as xs:double) {$x} return "
+                                       "$f('1')",
+                                       "XPTY0004"));
+    SXML_TEST_EXPECT(state, evaluates_to("1 instance of xs:anyAtomicType, [1] instance of "
+                                         "xs:anyAtomicType, () instance of xs:string, () "
+                                         "instance of xs:string?, (1, 2) instance of "
+                                         "xs:anyAtomicType",
+                                         "true false false true false"));
+    SXML_TEST_EXPECT(state, path_evaluates_to("(//employee)[1] instance of "
+                                              "element(employee)?, (//employee)[1] instance "
+                                              "of element(works)",
+                                              "true false"));
+}
+
 /* ---------------------------------------------------------------- JNodes */
 
 static void test_json_nodes(sxml_test_state *state) {
@@ -2007,6 +2074,7 @@ static const sxml_test_case evaluator_test_cases[] = {
     {.name = "paths_in_document_order", .function = test_paths_in_document_order},
     {.name = "path_errors", .function = test_path_errors},
     {.name = "path_errors_with_document", .function = test_path_errors_with_document},
+    {.name = "single_item_shortcuts", .function = test_single_item_shortcuts},
     {.name = "json_nodes", .function = test_json_nodes},
     {.name = "errors_have_code_and_location",
      .function = test_errors_have_code_and_location},
