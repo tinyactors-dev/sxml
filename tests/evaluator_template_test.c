@@ -274,8 +274,9 @@ static void test_template_rules(sxml_test_state *state) {
    on-multiple-match across buckets, names in the default namespace. */
 static void test_rule_buckets(sxml_test_state *state) {
     static const transform_case cases[] = {
-        /* sxml gives the union one default priority, 0, so
-           the later "item" wins over it for the second item too. */
+        /* The union has one default priority, the lower of its
+           alternatives' (0; 6.4.1), so the later "item" wins over it for
+           the second item too. */
         {STYLESHEET("<xsl:template match='/'><r><xsl:apply-templates select='//node() | //@*'/>"
                     "</r></xsl:template>"
                     "<xsl:template match='item[@n=\"2\"] | b'>U</xsl:template>"
@@ -322,6 +323,67 @@ static void test_rule_buckets(sxml_test_state *state) {
          "<r>onetwoB</r>"},
     };
     CHECK(state, cases);
+}
+
+/* XSLT 4.0, 6.4.1: a union pattern's default priority is the minimum of
+   its alternatives', and the template rule stays one rule (XSLT 3.0 made
+   it one rule per alternative; 4.0 changed that, PR 1772, and 3.8.3
+   defines no difference for an effective version of 3.0). */
+static void test_union_priority(sxml_test_state *state) {
+    static const struct {
+        const char *stylesheet;
+        const char *expected_text;
+    } cases[] = {
+        /* fix-5's reproduction: "a[@n] | b" has priority 0, not 0.5 for
+           its first branch, so the later "a" wins the tie for both a's
+           (XSLT 3.0 gives "union plain"). */
+        {"<xsl:stylesheet version='3.0' " XSL_NAMESPACE ">"
+         "<xsl:template match='/'><xsl:apply-templates select='//a'/></xsl:template>"
+         "<xsl:template match='a[@n] | b'>union</xsl:template>"
+         "<xsl:template match='a'>plain</xsl:template>"
+         "</xsl:stylesheet>",
+         "plain plain"},
+        {STYLESHEET("<xsl:template match='/'><xsl:apply-templates select='//a'/></xsl:template>"
+                    "<xsl:template match='a[@n] | b'>union</xsl:template>"
+                    "<xsl:template match='a'>plain</xsl:template>"),
+         "plain plain"},
+        /* Declared after "a", the union wins the tie at 0 where it matches. */
+        {STYLESHEET("<xsl:template match='/'><xsl:apply-templates select='//a'/></xsl:template>"
+                    "<xsl:template match='a'>plain</xsl:template>"
+                    "<xsl:template match='a[@n] | b'>union</xsl:template>"),
+         "union plain"},
+        /* "node() | element(a)" is -0.5, below "*:a" at -0.25 (the shape
+           of XT40's next-match-026a). */
+        {STYLESHEET("<xsl:template match='/'><xsl:apply-templates select='//a'/></xsl:template>"
+                    "<xsl:template match='node() | element(a)'>union<xsl:next-match/>"
+                    "</xsl:template>"
+                    "<xsl:template match='*:a'>wildcard</xsl:template>"),
+         "wildcard wildcard"},
+        /* An item both branches match runs the rule once; next-match goes
+           on to the next rule, not to the other branch. */
+        {STYLESHEET("<xsl:template match='/'><xsl:apply-templates select='//a'/></xsl:template>"
+                    "<xsl:template match='a | *[@n]'>union<xsl:next-match/>"
+                    "</xsl:template>"
+                    "<xsl:template match='node()' priority='-2'>node</xsl:template>"),
+         "union node union node"},
+    };
+    static const char source[] = "<r><a n='1'/><a/></r>";
+    bool all_match = true;
+    for (size_t case_index = 0; case_index < SXML_TEST_COUNT(cases); case_index += 1) {
+        transform_outcome outcome;
+        run_transform((transform_request){.stylesheet = cases[case_index].stylesheet,
+                                          .source = source,
+                                          .source_byte_count = sizeof(source) - 1,
+                                          .applies_templates = false},
+                      &outcome);
+        const bool matches = strcmp(outcome.text, cases[case_index].expected_text) == 0;
+        if (!matches) {
+            printf("case %zu: expected %s, got %s\n", case_index, cases[case_index].expected_text,
+                   outcome.text);
+        }
+        all_match = all_match && matches;
+    }
+    SXML_TEST_EXPECT(state, all_match);
 }
 
 /* Appends one bucket to text as "category:name=positions", "item" for
@@ -639,6 +701,7 @@ static const sxml_test_case evaluator_template_test_cases[] = {
     {.name = "template_rules", .function = test_template_rules},
     {.name = "rule_buckets", .function = test_rule_buckets},
     {.name = "rule_bucket_contents", .function = test_rule_bucket_contents},
+    {.name = "union_priority", .function = test_union_priority},
     {.name = "built_in_templates", .function = test_built_in_templates},
     {.name = "modes", .function = test_modes},
     {.name = "named_templates", .function = test_named_templates},
