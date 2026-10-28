@@ -15873,6 +15873,70 @@ Recorded 2026-10-28, after D313 and D315 (as revised and accepted).
   edition, no licence: not reused), SchXslt's unit tests (MIT, not
   reused), XQS's BaseX tests (Apache-2.0, not reused); none covers the
   2025 edition.
+### D318. Source locations for parsed input documents (packet 7.29)
+Recorded 2026-10-28, after D313 (7, 8), D87, D88, D99.
+- **Header** (additive after D99, packet 7.29): `include/sxml/processor.h`
+  gains `sxml_source_location_policy` (`AUTOMATIC` = 0, `ALWAYS`,
+  `NEVER`) and, at the end of `sxml_processor_configuration`,
+  `sxml_source_location_policy source_location_policy;` (another value
+  makes the configuration invalid). `include/sxml/tree.h` (frozen)
+  gains one function, `sxml_node_get_location(node, &location)`:
+  dm:location over the tree's `get_location`, line 0 when unknown, for
+  hosts (the CLI's error report, which uses the public API only) and for
+  sxml's own copies. Nothing else in a frozen header changes.
+- **The program's flag** (glossary `reads_source_locations`): one bool
+  per IR unit, set by `sxml_ir_unit_add_expression` and
+  `_replace_expression` when a STATIC_CALL or FUNCTION_REFERENCE names a
+  native row with the new property
+  `SXML_NATIVE_FUNCTION_READS_SOURCE_LOCATIONS`: fn:location,
+  fn:function-lookup, fn:load-xquery-module, fn:transform and
+  xsl:evaluate's row. One place for XPath, XQuery and XSLT, no pass and
+  no new IR kind. `sxml_ir_unit_set_reads_source_locations` is for a
+  front end whose reports need locations (Schematron, 7.28: D315's
+  `node_location`). A unit whose in-scope schemas include any but the
+  processor's built-in ones also reads them (it can validate,
+  `sxml_processor_unit_reads_source_locations`).
+- **What AUTOMATIC decides by** (glossary `location_demand`, in the
+  processor): whether a program has been compiled, whether one of those
+  reads locations (noted by the public compile functions of XPath, XQuery
+  and XSLT, and by `sxml_schema_initialize`: a schema is a validation;
+  the processor's built-in schemas leave it as it was), and the
+  evaluation in progress. `sxml_evaluate_unit` begins and ends each
+  evaluation with its unit's answer, or'ed with the enclosing
+  evaluation's (fn:transform, fn:load-xquery-module, a host function).
+  `sxml_processor_parse_document`, the one parse behind fn:doc,
+  fn:document, fn:parse-xml, the CLI's fn:collection and a resolver's
+  DOCUMENT_NODE, keeps locations when: ALWAYS; never under NEVER; under
+  AUTOMATIC, during an evaluation as it says, otherwise when no program
+  has been compiled or one compiled reads them (D313, 7).
+- **Copies keep what they copy**: `sxml_tree_builder_copy_node` passes
+  each node's location in its events when the copied root has one (one
+  question per copy, so a copy of a tree without locations costs
+  nothing more), and XSLT's whitespace-stripped source documents
+  (`src/xslt_whitespace.c`) keep locations when the document did; so
+  `location(.)` answers for a stylesheet's input under xsl:strip-space,
+  and a validated copy keeps its input's lines.
+- **Errors** (D313, 8): an error "names an input node" when its value
+  (`$err:value`: fn:error's third argument, an xsl:message's select)
+  holds a node; the record's own location stays the expression's (the
+  frozen `sxml_error_record` has one), and the CLI prints a second line
+  `FILE:LINE:COLUMN: the node the error names` for the first node of
+  the value whose document kept locations (`sxml_query_run_fail`).
+  `src/evaluator.c` is unchanged. fn:error is not a reason to keep
+  locations (D313's list is the owner's); `--locations=always` gives
+  them to a program that cannot ask.
+- **CLI**: `--locations=automatic|always|never` for xpath, xquery and
+  transform (`SXML_QUERY_LOCATIONS_OPTION`); xpath and xquery compile
+  before they parse `--context-item` (`sxml_query_run_read_context_item`),
+  so a static error is now reported before a context document that does
+  not parse. 9 CLI tests, 21 goldens with the new usage line.
+- **Measured** (release, the 26 MB, 2.5 million node document of D313,
+  peak RSS): `xpath --context-item count(//line)` 173 MB under automatic
+  and never, 249 MB under always; `location((//line)[last()])` 249 MB
+  under automatic; xquery `count(doc(...)//line)` 175 MB automatic, 251
+  MB always; transform with `count(//line)` 174 MB automatic, 250 MB with
+  `location()`. Before the change every case was 171-175 MB.
+
 
 ## Proposed
 

@@ -65,6 +65,9 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `error_code` | The expanded QName of a specification error, such as `err:FOAR0001` |
 | `error_value` | The optional sequence that an error carries (`$err:value`) |
 | `source_location` | Source name, line number, column number and byte offset of a position in a source text |
+| `source_location_policy` | Which documents sxml parses keep the `source_location` of each node: AUTOMATIC (the zero value: the programs decide), ALWAYS or NEVER; `sxml_processor_configuration.source_location_policy` and the CLI's `--locations` (D313, D318) |
+| `reads_source_locations` | Said of a compiled program (an IR unit) that can ask for the source locations of the documents it reads: it calls or refers to fn:location, fn:function-lookup, fn:load-xquery-module, fn:transform or xsl:evaluate, or has schemas it can validate with; under AUTOMATIC its documents keep locations (D313, D318) |
+| `location_demand` | What AUTOMATIC decides by, kept in the processor: whether a program has been compiled, whether one that reads source locations has, and the evaluation in progress with its unit's answer (D318) |
 | `source_name` | The name a caller gives a source text: module URI or file name |
 | `line_number` | Line of a source position, from 1; 0 means unknown |
 | `column_number` | Column of a source position in codepoints, from 1; 0 means unknown |
