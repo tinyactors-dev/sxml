@@ -1312,6 +1312,57 @@ repetitions; 200,000 `matches` 0.382 to 0.197 s (366.9 to 200.3 x 10^6
 instructions at 20,000), regex-match.xq 1.069 to 0.652 s, regex-reuse.xq
 0.250 to 0.146 s; QT4 and XT40 regex sets unchanged case by case.
 
+### perf-8 Cheap coercion of function arguments (implementation)
+After D85 (coercion), D281 (XSLT coercion casts), D309 and D310. A
+callgrind profile of SchXslt's expand stage of EN 16931 (with
+SchXslt's sort-once fix, the step bound raised in a scratch build;
+75.3 x 10^9 instructions, 10.5 s) puts 33 % in `sxml_evaluator_coerce`,
+called 8.1 million times from `sxml_make_leaf_value`: about 3,000
+instructions a coercion. Each one creates and finishes a sequence
+builder (4.1 million), atomizes (2.7 million), casts (1.4 million,
+mostly xs:untypedAtomic attribute values to xs:string) and matches the
+sequence type (3.4 million), even when the argument is one item that
+already has the required type.
+- **Mechanism**: profile first, then general fast paths in the one
+  coercion (XPath 4.0, 3.4.3 "Coercion Rules"; XSLT 4.0 and XQuery 4.0
+  use the same): an argument that already matches the required type
+  passes through untouched, without a builder; a single atomic item
+  needs no builder either; the result of a type match is not computed
+  twice. No change of outcome, error code or step count beyond what the
+  D-record states and justifies.
+- **Owns**: `src/evaluator_function.c`, `src/evaluator.c` (its
+  `sxml_make_leaf_value` and the call paths into coercion),
+  `src/function_library_type.c`, `tests/bench/` (a new
+  `coercion.xq`), `tests/evaluator_test.c` for new cases.
+- **Done when**: each change measured before and after (instructions
+  and seconds) in a D-record and the commit messages, on the new
+  benchmark and on xmark-all; no QT4 XP40, XQ40 or XT40 outcome changes,
+  case by case, over the whole suites (coercion is everywhere); D71, the
+  memory limits and honest step counts kept.
+
+### perf-9 Required literals in regex search (implementation)
+After D310 (perf-7). The same profile puts 12.9 % in
+`sxml_regex_matcher_scan` under `fn:replace`. SchXslt's patterns have
+the shape `(\W*)\$name(\W*)`: they can match the empty string before a
+`$`, so perf-7's start filter skips nothing and every position is
+attempted, though no match exists unless the literal `$name` occurs.
+- **Mechanism**: at compile time, find a literal that every match must
+  contain (a required literal, as other engines keep a "required
+  character" or "must-have string"); at search time, find its next
+  occurrence first and attempt only start positions from which a match
+  could reach it, and give up at once when it does not occur. One
+  mechanism for `matches`, `replace`, `tokenize`, `analyze-string` and
+  `fn:regex`'s functions; errors, step limits and step counts as D310
+  settled (a skipped position counts one step).
+- **Owns**: `src/regex.c`, `src/regex_internal.h`,
+  `src/function_library_regex.c`, `tests/regex_test.c`,
+  `tests/bench/regex-*.xq`.
+- **Done when**: each change measured before and after (instructions
+  and seconds) in a D-record and the commit messages, with SchXslt's
+  expand stage; the QT4 XP40 and XQ40 regex sets and the XT40 regex
+  sets unchanged case by case, and a random comparison of
+  `fn:analyze-string` before and after as perf-7 did.
+
 ### 7.21 Fast Invisible XML (book, tests, implementation)
 After D215 (7.18: the Earley parser, right recursion quadratic, every
 item a step). The owner: high performance; book first, then

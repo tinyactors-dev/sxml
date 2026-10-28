@@ -54,8 +54,14 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 - perf-6 done (D308): a regex cache per evaluation; compiling was under
   1 % of SchXslt's expand stage. Left: `tests/bench/regex-reuse.xq` is not
   yet in `run-bench.py` (perf-5 holds that file).
-- perf-7, at the same time as perf-5 (disjoint files): faster regex
-  matching, profile first.
+- perf-7 done (D310): faster regex matching. With perf-5, perf-6 and
+  perf-7, SchXslt's expand stage with its sort-once fix takes 10.5 s
+  (75.3 x 10^9 instructions; was 14.8 s, and 1 min 39 s before perf-5).
+  Left: an error record not cleared after a caught FORX0002, so a later
+  LIMIT_EXCEEDED in the same query prints the old description.
+- perf-8 (coercion of arguments, 33 % of that profile) and perf-9
+  (required literals in regex search, 12.9 %) run together: disjoint
+  files.
 - Sorting was measured and is not a problem: 780 elements sort in about
   1.3 ms (`xsl:sort`) or 1.8 ms (`fn:sort`). SchXslt's 7 minutes were
   its own 800,000 re-sorts; the fix (sort once in
