@@ -14980,8 +14980,10 @@ implemented by nothing until 7.28). Glossary: the Schematron terms of
 2026-10-28 (`schematron` to `svrl`).
 **Revised 2026-10-28** after the owner's review of the first version
 (points A to D below) and against the text of ISO/IEC 19757-3:2025,
-which the owner bought; not yet accepted. "Where the standard overturned
-the first version" lists what changed and why.
+which the owner bought. "Where the standard overturned the first
+version" lists what changed and why. **Accepted by the owner on
+2026-10-28**, with the answers to the revision's eight choices under
+"The owner's answers".
 
 **Sources.** ISO/IEC 19757-3:2025 (the fourth edition), cited by clause
 and annex (5.4.x elements, 5.5.x ancillary elements and attributes, 6.x
@@ -15052,11 +15054,10 @@ Validation costs one walk of the document per active pattern
 4. *Compile*: only when steps 1 to 3 found no error, the sealed AST
    goes through what `sxml_xslt_compile` does after reading (in-scope
    schemas, lowering, outputs), split out of `src/xslt.c` as an
-   internal entry that takes an AST. That stage stops at its first
-   error (an unknown variable or function, a type error, an error in an
-   XSLT declaration), which goes to the sink too: XSLT's compiler has no
-   sink, and giving it one is a change to `src/xslt.c` beyond this
-   packet (see "Open for the owner").
+   internal entry that takes an AST and the report sink. 7.28 gives
+   XSLT's compiler that sink (the owner, 7b): its errors (an unknown
+   variable or function, a type error, an error in an XSLT
+   declaration) are all collected too (see "Compile errors").
 5. *Validate*: one transformation per call, in the initial mode
    `Q{urn:sxml:schematron}validate`, initial match selection the node,
    global context item `root(node)` (the instance document root of
@@ -15092,9 +15093,9 @@ synthesized names apart from the schema's):
       <xsl:template match="attribute() | text() | comment() | processing-instruction()"
                     mode="s:pattern-1" priority="-1"/>
       <xsl:template match="CONTEXT" mode="s:pattern-1" priority="N-K">   rule K of N
+        <xsl:variable name="L" select="V"/>            the rule's lets, those of extends in place
         <xsl:if test="$s:fired-rules"> FIRED-RULE ITEM </xsl:if>
         <xsl:for-each select="VISIT-EACH">               a rule with visit-each= (5.5.21); else none
-          <xsl:variable name="L" select="V"/>            the rule's lets, those of extends in place
           <xsl:choose><xsl:when test="TEST"/><xsl:otherwise> FINDING ITEM </xsl:otherwise></xsl:choose>
           <xsl:if test="TEST"> FINDING ITEM </xsl:if>    a report
         </xsl:for-each>
@@ -15171,8 +15172,9 @@ the last applying every pattern.
   `defaultPhase` (an id that names no phase is `schematron:reference`);
   `title`, `schemaVersion` and `schematronEdition` go to SVRL and to
   `sxml_schematron_describe`; `id` is not used. `schematronEdition`
-  (5.5.15) must be `2025` when present, else `schematron:syntax`;
-  its value or absence is reported at user option (5.5.15) by
+  (5.5.15): any value is accepted, never an error (the owner, 8b; the
+  "shall be 2025" binds schema authors), and its value or absence is
+  reported at user option, as 5.5.15 requires, by
   `sxml_schematron_describe`, the CLI's JSON and SVRL's attribute.
   `ns prefix uri` (5.4.10) are the statically known namespaces of every
   Schematron expression, besides XPath's predeclared ones; the XML
@@ -15191,12 +15193,14 @@ the last applying every pattern.
   matches fires (6.6); SVRL `active-group`.
 - `rule` (5.4.15): a template rule; `context` its match pattern (an
   XSLT 4.0 pattern under every binding, see "Query bindings");
-  `visit-each` (5.5.21) a `xsl:for-each` around the rule's lets and
-  assertions, after the fired-rule item: its items are the context
-  items; an empty result still counts as fired and evaluates no
-  assertion. The lets are inside the loop: 5.4.7 calculates them "to
-  the current rule and context", and the context of assertions is the
-  visited item. `id`, `role`, `flag`, `see`, `icon`, `fpi` and `title`
+  `visit-each` (5.5.21) a `xsl:for-each` around the rule's
+  assertions, after its lets and the fired-rule item: its items are the
+  context items of the assertions; an empty result still counts as
+  fired and evaluates no assertion. The rule's lets are evaluated once
+  per context node, before the loop (the owner, 6b: 5.4.7 scopes them
+  to the rule and its context, and 5.5.21 replaces the context for
+  assertions only), so the visit-each expression and the assertions
+  see them. `id`, `role`, `flag`, `see`, `icon`, `fpi` and `title`
   go to fired-rule reports and SVRL; `subject` as above;
   `abstract="true"` makes it an abstract rule.
 - `rules` (5.4.16): a container of abstract rules at the top of a
@@ -15241,7 +15245,8 @@ the last applying every pattern.
   `span` and foreign elements by their text; whitespace collapsed
   (5.3) unless `xml:space="preserve"` is in scope. Text value templates
   in messages (Annex J leaves their extent implementation-defined) are
-  not read: braces are text, as every edition before wrote them.
+  not read: braces are literal text, as every edition before wrote
+  them (the owner, 4a).
 - `let name value as` (5.4.7): `value` is an expression; without it,
   the content is the value (a temporary tree, as `templates.xsl`'s
   `schxslt:let-variable`); `as` is applied as XSLT's (Annexes H, J,
@@ -15274,9 +15279,9 @@ the last applying every pattern.
   finding; SVRL too. A flag "becomes true" when an assertion with it
   fails or a rule with it fires (5.5.6): reports carry each flag, and a
   host derives the set raised; the outcome keeps no set.
-- *Error findings* (D313 item 4, extended by 5.5.16): a finding whose
-  severity is `fatal` or `error` is an error; one with another severity
-  is not; without a severity, D313's rule: role or one of the flag's
+- *Error findings* (D313 item 4, extended by 5.5.16; the owner, 1a): a
+  finding whose severity is `fatal` or `error` is an error; one with
+  another severity is not; without a severity, D313's rule: role or one of the flag's
   tokens is `fatal` or `error`, or it has neither role nor flag. Values
   compared case-sensitively, after evaluation. The assertion's own
   attributes only, not the rule's (5.5.14; Annex D maps only the
@@ -15300,8 +15305,9 @@ variable outside a rule is evaluated at the instance root:
   becomes a global under a synthesized name and each of its rule
   templates binds the written name to it first (a local variable
   referring to the global: no second evaluation);
-- rule lets: template variables, in document order, before the
-  assertions (XRechnung writes some after the asserts that do not use
+- rule lets: template variables, in document order, evaluated once
+  per context node before the visit-each loop and the assertions
+  (XRechnung writes some after the asserts that do not use
   them; 6.6 makes let order significant).
 - A name defined twice among the scopes around one rule (its schema,
   the phase, its pattern, the rule) is `schematron:variable` (5.4.7),
@@ -15311,7 +15317,8 @@ variable outside a rule is evaluated at the instance root:
   `schematron:variable` as Annex B asks. A reference to an undefined
   variable is XPST0008 (5.4.7).
 - Values from outside: the schema parameters (5.4.11, 6.1's
-  "name-value pairs"), given at compile time; lets are not external.
+  "name-value pairs"), given at compile time; lets are not external
+  (the owner, 5a; evidence under "The owner's answers").
 
 **Abstract patterns, schema parameters and placeholders** (5.4.11,
 6.2, 6.4; the `$` convention of Annexes C, H, J). A pattern
@@ -15375,7 +15382,8 @@ amended it). One function in `src/schematron_read.c` reads
 ignoring case (6.5 and each annex permit any mix of cases), and maps:
 - none, `xslt`, `xslt4`, `xpath`, `xpath4` to XSLT 4.0 and XPath 4.0
   (the AST's version 4.0). `xslt4` and `xpath4` are reserved by 6.5
-  without definition; sxml reads them as the languages it implements;
+  without definition; sxml reads them as the languages it implements
+  (the owner, 2a);
 - `xslt2` and `xpath2` to version 2.0, `xslt3`, `xpath3` and `xpath31`
   to 3.0 (the AST's version, which changes nothing a 4.0 processor
   does: D197, XSLT 2.0 and 3.0 behaviour is 4.0's);
@@ -15427,7 +15435,7 @@ sxml's 4.0 processor too. Rule contexts are XSLT 4.0 patterns under
 the xpath bindings, which name an XPath expression (Annexes I, K, L);
 every path expression that is a pattern selects the same nodes either
 way, and a context that is an expression but no pattern is XTSE0340
-(see "Open for the owner").
+(the owner, 3a).
 
 **Findings and their two locations.** Each report has
 `schema_location`, the assertion's element in its schematron document
@@ -15452,9 +15460,24 @@ schema languages, not a second kind; its code here is a `schematron:`,
 XPath or XSLT code, not an XSD constraint name. Reading, structure,
 references, variables, parameters and every expression's syntax are
 all checked and every error reported (each expression is parsed alone,
-so one error per expression); the compile stage that follows stops at
-its first error (step 4). The null sink stops at the first error, as
-XSD's. The error record keeps the first error.
+so one error per expression); then, when none was found, the XSLT
+compile stage reports its errors to the same sink (the owner, 7b). The
+null sink stops at the first error, as XSD's. The error record keeps
+the first error.
+*XSLT gains the sink* (7.28, the owner's 7b): `sxml_xslt_configuration`
+gets a `report_sink` field of the same type (`include/sxml/xslt.h`
+includes `schema.h`; additive, its own record in 7.28). With the null
+sink a stylesheet compile stops at its first error as today; with a
+sink, reading reports every syntax error (one per attribute or
+expression, each parsed alone) and goes on, and static analysis
+reports one error per declaration or template and goes on with the
+next; nothing is lowered once an error was reported. `sxml transform`
+compiles with a sink that writes each error as today's one line,
+`FILE:LINE:COLUMN: CODE: description`, in the order found, on standard
+error, and exits 1 after the compile as it does now for the first;
+the JavaScript `compileStylesheet` throws an `SxmlError` for the first
+as today, with every report in a new `reports` member. Shown in the
+book where it shows a stylesheet error.
 
 **SVRL** (D313: one output, made from reports; Annex D, informative).
 Written by `src/schematron_svrl.c` from the reports and the compiled
@@ -15488,14 +15511,15 @@ sink of `sxml_schematron_report`s. Choices beyond D313:
 - The phase is chosen at compile time (it decides the modes); `#ANY`
   compiles every pattern and its choice in one stylesheet, and the
   outcome names the phase each validation used.
-- Compiling reports every error it can through the report sink (A;
-  first version: stopped at the first).
+- Compiling reports every error through the report sink, the XSLT
+  compile stage's included (A, 7b; first version: stopped at the
+  first).
 - Schema parameters are given at compile time as text
   (`sxml_schematron_parameter`: name, query fragment), since they are
   fragments of queries put into expressions (5.4.11); the validation
   request has no parameters (first version: schema lets as stylesheet
   parameters per validation; 5.4.11 makes params, not lets, the
-  values a user overrides).
+  values a user overrides; the owner, 5a).
 - Validation returns `SXML_STATUS_OK` whatever it finds; the outcome
   counts findings and error findings and names the phase. A failed
   assert is data, not a failure of the call (XSD's
@@ -15544,7 +15568,9 @@ to cli-4 now, and 7.28 updates it; D44: no new command):
   without findings.
 - JSON: the one object of today's command gains a `"schematron"`
   member (`{"document":"rules.sch","phase":"#ALL","edition":"2025",
-  "status":"valid"}`, `"edition"` null when absent, with `"errors"`
+  "status":"valid"}`, `"edition"` the schematronEdition as written,
+  any value, null when absent (5.5.15's report at user option; the
+  text form does not show it), with `"errors"`
   when it does not compile) and each file a `"findings"` array of
   objects with `"kind"` (`failed-assert`, `successful-report`), `"id"`,
   `"role"`, `"flag"`, `"severity"`, `"error"` (D313), `"message"`,
@@ -15637,30 +15663,32 @@ the package's (`lineNumber`, `sourceName`).
 - A compile report kind of Schematron's own beside XSD's: the same
   three fields.
 
-**Open for the owner** (new choices this revision takes; each with its
-alternative):
-- Severity decides an error finding when present, before D313's role
-  and flag rule; alternative: an error if any of severity, role or flag
-  says `fatal` or `error`.
-- `xslt4` and `xpath4` read as 4.0; alternative: rejected with
-  `schematron:query-binding` until 6.5 defines them.
-- Rule contexts are XSLT 4.0 patterns under the xpath bindings too;
-  alternative: a node matches when it is in the expression's result
-  from some ancestor-or-self (XSLT 3.0's generalized pattern semantics),
-  for contexts that are expressions but no patterns.
-- Text value templates in messages are not read (braces are text);
-  alternative: read them under `xslt3`/`xslt4`, with `{{` for a brace.
-- Schema parameters are compile-time text (`--schematron-param`);
-  alternative: global variables whose value a validation may replace,
-  as the first version did for schema lets.
-- Rule lets are evaluated per visit-each item, inside the loop;
-  alternative: once per context node, before it.
-- The compile stage after reading stops at its first error;
-  alternative: give `src/xslt.c`'s static analysis a sink (a change to
-  the XSLT compiler, also useful for stylesheets).
-- `schematronEdition` other than `2025` is an error (5.5.15 "shall");
-  alternative: a warning on standard error.
-
+**The owner's answers** (2026-10-28) to the revision's eight choices,
+applied above:
+- 1a. A present severity decides whether a finding is an error;
+  otherwise role and flag, as D313 point 4.
+- 2a. `xslt4` and `xpath4` (reserved, 6.5) are read as 4.0.
+- 3a. Rule contexts are XSLT patterns under the `xpath*` bindings too.
+- 4a. Braces in messages are literal text: no text value templates
+  (Annex J leaves their extent implementation-defined).
+- 5a (decided by the orchestrator at the owner's request, after
+  checking real rule sets): schema parameters are compile-time text
+  substitution, `--schematron-param` in the CLI. Evidence: EN 16931
+  (UBL, CII, EDIFACT) and XRechnung declare no schema-level `param`
+  (new in 2025); their thousands of params are all pattern params,
+  substituted at compile time; XRechnung's 20 global `let`s are not
+  meant to be overridden, and what users vary is the phase; the
+  pre-compiled EN 16931 stylesheet exposes only the skeleton's unused
+  file-name parameters. 5.4.11 makes the override mechanism
+  implementation-defined, and a schema parameter's value is a query
+  fragment as a pattern parameter's is.
+- 6b. A rule's `let` is evaluated once per rule context node, not per
+  visit-each item (5.4.7, 5.5.21).
+- 7b. 7.28 gives `src/xslt.c` a compile report sink, so errors of the
+  XSLT compile stage are collected too; XSLT users gain the same sink
+  ("Compile errors").
+- 8b. Any `schematronEdition` value is accepted and reported (5.5.15),
+  never an error.
 ### D316. Cheap coercion of one item: single-item shortcuts (packet perf-8)
 
 Recorded 2026-10-28, after D71, D85, D224, D229, D259, D281, D309. No

@@ -16,8 +16,10 @@ One short entry per week, newest first: what passed, what's next, what is blocke
   when with `#ANY`, schematronEdition. The standard overturned the
   first version on case, library inclusion, whole-token placeholders,
   variable scopes, the message context and external values. Header,
-  glossary and 7.28 (step 5b, gate 6) follow; 7.27 not ticked. Open:
-  eight new choices in D315.
+  glossary and 7.28 (step 5b, gate 6) follow. The owner answered the
+  eight new choices the same day and accepted D315; 7.27 done. 7.28
+  also gives XSLT's compiler a report sink (step 1b, gate 7) and waits
+  for 7.30's suite.
 
 - perf-8 done (D316): cheap coercion of one item. Matching decides no
   item or one item by the occurrence and the matcher's item rules

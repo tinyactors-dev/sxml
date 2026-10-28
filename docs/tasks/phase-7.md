@@ -1621,14 +1621,21 @@ library, rules, extends at the top, schema and abstract-pattern params,
 let/@as, visit-each, severity, dynamic flag/role/severity, phase
 from/when and `#ANY`, schematronEdition); compile errors through a
 report sink; exit status 1 for an unsupported binding. The header,
-D315, the glossary and 7.28 below follow. Still not ticked: the owner's
-review of the revision is the gate. Open for the owner: D315's eight
-new choices ("Open for the owner").
+D315, the glossary and 7.28 below follow.
+
+**Done** 2026-10-28 (D315, accepted by the owner): the owner answered
+the revision's eight choices (D315, "The owner's answers": severity
+decides when present; `xslt4`/`xpath4` as 4.0; rule contexts are XSLT
+patterns under every binding; no text value templates; schema
+parameters are compile-time text; rule lets once per context node;
+XSLT's compiler gets a report sink in 7.28; any `schematronEdition`
+accepted and reported). The header, the glossary and 7.28 follow.
 
 ### 7.28 Schematron as a front end to the XSLT AST (implementation)
 After the owner's review of 7.27 (D315, D313), after 7.29 (the
-locations a validation keeps; both touch `apps/sxml/`) and cli-4 (which
-holds `apps/sxml/` and `docs/CLI.md`). Implements
+locations a validation keeps; both touch `apps/sxml/`), after 7.30's
+suite exists (`tests/schematron/`, gate 6) and cli-4 (which holds
+`apps/sxml/` and `docs/CLI.md`). Implements
 `include/sxml/schematron.h` as D315 (revised) designs it, against
 ISO/IEC 19757-3:2025 (the owner's copy; cite clauses, copy no text); a
 change to the header needs a record first.
@@ -1647,7 +1654,15 @@ change to the header needs a record first.
     validate, reports), `src/schematron_svrl.c` (SVRL from reports and
     the static table, Annex D);
   - changed: `src/xslt.c` and `src/xslt_transform_internal.h` (compile
-    a given AST: the part of `sxml_xslt_compile` after reading),
+    a given AST: the part of `sxml_xslt_compile` after reading; a
+    compile report sink through reading and static analysis, D315
+    "Compile errors"), `include/sxml/xslt.h` (additive:
+    `sxml_xslt_configuration.report_sink`, `sxml_schema_report_sink`
+    reused; a record of its own), `src/xslt_read.c`'s and the static
+    analysis' error paths that go on after an error,
+    `apps/sxml/command_transform.c` and its tests (every compile error
+    on its own line), the JavaScript `compileStylesheet` (`reports` on
+    the error) and the book where it shows a stylesheet error,
     `src/xslt_read.c` and `src/xslt_read_internal.h` (read one foreign
     XSLT declaration into a given AST under a given parent, with extra
     namespace bindings);
@@ -1675,6 +1690,10 @@ change to the header needs a record first.
   - glossary terms it adds, LOG, its record.
 - **Order**, a commit after each step:
   1. `src/xslt.c`: compile a given AST (no change in behaviour).
+  1b. The XSLT compile report sink: `xslt.h`, reading and static
+     analysis go on after an error, `sxml transform` and JavaScript
+     report them all. XT40 unchanged case by case (the null sink keeps
+     today's first-error behaviour).
   2. `src/xslt_read.c`: read one foreign declaration into a given AST.
      XT40 unchanged case by case after steps 1 and 2.
   3. Read, inclusions (include, extends href, library), index and
@@ -1686,10 +1705,12 @@ change to the header needs a record first.
   5. Build, compile and validate the third-edition constructs, with
      fixtures; variables and their scopes (D315, "Variables"); reports
      with both locations.
-  5b. The 2025 constructs, a fixture each: group, rules, visit-each,
-     severity and the error-finding rule, dynamic flag, role and
-     severity (variable references, AVTs), let/@as, phase from, when
-     with `#ANY`, schematronEdition, the message context (6.3).
+  5b. The 2025 constructs, a fixture each: group, rules, visit-each
+     (rule lets once per context node), severity and the
+     error-finding rule (severity decides when present), dynamic flag,
+     role and severity (variable references, AVTs), let/@as, phase
+     from, when with `#ANY`, schematronEdition (any value, reported),
+     the message context (6.3).
   6. Vendor EN 16931, XRechnung and SchXslt; the driver; gates 1 and 2.
   7. SVRL; the differential test (gate 3).
   8. The CLI (`--schematron-param`, `--phase=#ANY`). 9. JavaScript.
@@ -1723,11 +1744,16 @@ change to the header needs a record first.
      a test names its assertion's line.
   5. *Locations of findings*: the instance's line and column in text,
      JSON and JavaScript reports, on an EN 16931 test instance.
-  6. *The 2025 edition*: each construct of step 5b, each Annex B
-     constraint and each query binding name (cases mixed; xquery3 and
-     an unknown name refused with exit status 1) has a fixture whose
-     reports and SVRL (active-group, severity, visit-each,
-     schematronEdition) are checked against the clause it cites.
+  6. *The 2025 edition*: 7.30's suite (`tests/schematron/`) passes,
+     100 % of its applicable cases, run by the driver; each construct
+     of step 5b, each Annex B constraint and each query binding name
+     (cases mixed; xslt4 and xpath4 read; xquery3 and an unknown name
+     refused with exit status 1) is among them, reports and SVRL
+     (active-group, severity, visit-each, schematronEdition) included.
+  7. *Compile errors of XSLT*: a stylesheet with errors in several
+     declarations gives each through the sink, in C, `sxml transform`
+     (one line each, exit 1) and JavaScript; the null sink gives the
+     first as before; XT40 unchanged case by case.
 - **Done when**: the gates pass; the C, CLI and JavaScript APIs are
   tested end to end (text, JSON and SVRL; `--schema` with
   `--schematron`; exit statuses 0, 1 (an unsupported binding among
