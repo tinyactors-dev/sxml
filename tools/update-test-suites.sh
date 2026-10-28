@@ -19,6 +19,15 @@
 # vendored, as third_party/ixml-tests, with the repository's LICENSE;
 # tests/performance (78 MB of generated inputs, which no catalog of the
 # top-level test-catalog.xml names) is left out.
+#
+# Schematron test data (packet 7.28, D323), none of it shipped: from EN
+# 16931's validation artefacts (EUPL 1.2) only the Schematron sources of
+# the UBL and CII bindings and src/test (the VEFA unit tests and test
+# files), as third_party/en16931; from XRechnung's Schematron (Apache
+# 2.0) only src/validation/schematron and test/instances, as
+# third_party/xrechnung; from SchXslt 1.10.1 (MIT) only its 2.0/
+# directory, with LICENSE and README.md, as third_party/schxslt, for the
+# differential test.
 
 set -eu
 
@@ -30,6 +39,12 @@ XSDTESTS_URL="https://github.com/w3c/xsdtests"
 XSDTESTS_COMMIT="7bc3365c652a322f3d762021b3879eb92dae7e30"
 IXML_TESTS_URL="https://codeberg.org/InvisibleXML/ixml"
 IXML_TESTS_COMMIT="d1f37f6bb1f86a1d370a2ada326d9430922e9967"
+EN16931_URL="https://github.com/ConnectingEurope/eInvoicing-EN16931"
+EN16931_COMMIT="b17b2695e5e3e021945c38658326b78a76f80f84"
+XRECHNUNG_URL="https://github.com/itplr-kosit/xrechnung-schematron"
+XRECHNUNG_COMMIT="7e3ddbe224674427fd174a8406635708b0d50ed1"
+SCHXSLT_VERSION="1.10.1"
+SCHXSLT_URL="https://github.com/schxslt/schxslt/releases/download/v$SCHXSLT_VERSION/schxslt-$SCHXSLT_VERSION-xslt-only.zip"
 XMLCONF_VERSION="xmlts20130923"
 XMLCONF_URL="https://www.w3.org/XML/Test/$XMLCONF_VERSION.tar.gz"
 
@@ -81,3 +96,32 @@ curl -sSL "$XMLCONF_URL" | tar -xz -C "$download_directory"
 rm -rf "$destination/xmlconf"
 mv "$download_directory/xmlconf" "$destination/xmlconf"
 echo "$XMLCONF_VERSION" > "$destination/xmlconf.version"
+
+update_suite "$EN16931_URL" "$EN16931_COMMIT" en16931-source
+rm -rf "$destination/en16931"
+mkdir -p "$destination/en16931/ubl" "$destination/en16931/cii"
+mv "$destination/en16931-source/src/ubl/schematron" "$destination/en16931/ubl/schematron"
+mv "$destination/en16931-source/src/cii/schematron" "$destination/en16931/cii/schematron"
+mv "$destination/en16931-source/src/test" "$destination/en16931/test"
+mv "$destination/en16931-source/src/LICENSE.txt" "$destination/en16931/LICENSE.txt"
+rm -rf "$destination/en16931-source"
+mv "$destination/en16931-source.commit" "$destination/en16931.commit"
+
+update_suite "$XRECHNUNG_URL" "$XRECHNUNG_COMMIT" xrechnung-source
+rm -rf "$destination/xrechnung"
+mkdir -p "$destination/xrechnung"
+mv "$destination/xrechnung-source/src/validation/schematron" "$destination/xrechnung/schematron"
+mv "$destination/xrechnung-source/test/instances" "$destination/xrechnung/instances"
+mv "$destination/xrechnung-source/LICENSE" "$destination/xrechnung/LICENSE"
+rm -rf "$destination/xrechnung-source"
+mv "$destination/xrechnung-source.commit" "$destination/xrechnung.commit"
+
+echo "schxslt: fetching $SCHXSLT_VERSION"
+curl -sSL -o "$download_directory/schxslt.zip" "$SCHXSLT_URL"
+(cd "$download_directory" && unzip -q schxslt.zip)
+rm -rf "$destination/schxslt"
+mkdir -p "$destination/schxslt"
+mv "$download_directory/schxslt-$SCHXSLT_VERSION/2.0" "$destination/schxslt/2.0"
+mv "$download_directory/schxslt-$SCHXSLT_VERSION/LICENSE" \
+    "$download_directory/schxslt-$SCHXSLT_VERSION/README.md" "$destination/schxslt/"
+echo "$SCHXSLT_VERSION" > "$destination/schxslt.version"
