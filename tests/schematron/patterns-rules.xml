@@ -412,4 +412,248 @@
       <implementation-defined clause="5.4.10 Annex-J">Every prefix in a query shall be declared by ns; XPath and XSLT predeclare xs. A processor that keeps XPath's predeclared prefixes finds nothing; one that applies 5.4.10 strictly rejects the schema.</implementation-defined>
     </result>
   </test-case>
+  <test-case name="rules-identical-findings-two-patterns" since="2020">
+    <description>Two patterns with the same rule: each is evaluated, so the instance has two identical findings (findings are a multiset).</description>
+    <spec clause="6.3"/>
+    <spec clause="3.13"/>
+    <schema file="rules-identical-findings-two-patterns.sch"/>
+    <instance file="rules-identical-findings-two-patterns.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Not two.</message>
+        </finding>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Not two.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="rules-order-several-patterns" since="2020">
+    <description>Three patterns report on one node; the order of the findings is implementation-dependent (6.6), their multiset is not.</description>
+    <spec clause="6.6"/>
+    <spec clause="6.3"/>
+    <schema file="rules-order-several-patterns.sch"/>
+    <instance file="rules-order-several-patterns.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Third.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>First.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Second.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="rules-context-reverse-order" since="2020">
+    <description>Under xpath31 a rule context that returns nodes in reverse document order: the rule fires for each, with the same findings.</description>
+    <spec clause="6.3"/>
+    <spec clause="Annex-L"/>
+    <dependency type="query-binding" value="xpath31"/>
+    <schema file="rules-context-reverse-order.sch"/>
+    <instance file="rules-context-reverse-order.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Not two.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="rules-context-duplicates" since="2020">
+    <description>Under xpath31 a rule context that returns every node twice.</description>
+    <spec clause="3.20"/>
+    <spec clause="6.3"/>
+    <spec clause="Annex-L"/>
+    <dependency type="query-binding" value="xpath31"/>
+    <schema file="rules-context-duplicates.sch"/>
+    <instance file="rules-context-duplicates.xml"/>
+    <result>
+      <implementation-defined clause="3.20 6.3">A rule fires for the information items its context matches; whether a node returned twice is matched once (one successful-report at /Q{}doc[1]/Q{}item[2]) or evaluated for each item of the sequence (two) is not said.</implementation-defined>
+    </result>
+  </test-case>
+
+  <test-case name="rules-context-namespaced-attribute" since="2020">
+    <description>A rule context that matches attributes in a namespace, with a prefix that differs from the instance's; an attribute of the same local name in no namespace is not matched.</description>
+    <spec clause="5.4.10"/>
+    <spec clause="Annex-J"/>
+    <schema file="rules-context-namespaced-attribute.sch"/>
+    <instance file="rules-context-namespaced-attribute.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]/@Q{urn:example:q}code">
+          <message>Code b2 starts with a capital.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="rules-context-whitespace-text" since="2025">
+    <description>Under xquery31 whitespace-only text nodes of the instance may be rule contexts; nothing strips them.</description>
+    <spec clause="Annex-N"/>
+    <dependency type="query-binding" value="xquery31"/>
+    <schema file="rules-context-whitespace-text.sch"/>
+    <instance file="rules-context-whitespace-text.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/text()[1]">
+          <message>Whitespace.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/text()[2]">
+          <message>Whitespace.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="rules-context-whitespace-text-xslt3" since="2020">
+    <description>Whitespace-only text nodes as rule context under xslt3.</description>
+    <spec clause="Annex-J"/>
+    <schema file="rules-context-whitespace-text-xslt3.sch"/>
+    <instance file="rules-context-whitespace-text-xslt3.xml"/>
+    <result>
+      <implementation-defined clause="Annex-J">Text nodes as rule context are allowed at user option; when allowed, two successful-reports at /Q{}doc[1]/text()[1] and /Q{}doc[1]/text()[2] (the binding strips no whitespace).</implementation-defined>
+    </result>
+  </test-case>
+
+  <test-case name="rules-subject-dynamic-error" since="2020">
+    <description>A dynamic error in the subject of a failed assertion: validation ends in error.</description>
+    <spec clause="5.5.19"/>
+    <spec clause="6.1"/>
+    <schema file="rules-subject-dynamic-error.sch"/>
+    <instance file="rules-subject-dynamic-error.xml"/>
+    <result>
+      <error clause="6.1"/>
+    </result>
+  </test-case>
+
+  <test-case name="rules-subject-syntax" since="2020">
+    <description>A subject that is not an expression of the query language.</description>
+    <spec clause="5.5.19"/>
+    <spec clause="7.2"/>
+    <schema file="rules-subject-syntax.sch"/>
+    <instance file="rules-subject-syntax.xml"/>
+    <result>
+      <schema-error clause="7.2"/>
+    </result>
+  </test-case>
+
+  <test-case name="rules-subject-empty" since="2020">
+    <description>A subject that selects nothing for a failed assertion.</description>
+    <spec clause="5.5.19"/>
+    <spec clause="6.3"/>
+    <spec clause="Annex-D"/>
+    <schema file="rules-subject-empty.sch"/>
+    <instance file="rules-subject-empty.xml"/>
+    <result>
+      <implementation-defined clause="5.5.19">5.5.19 does not say what identifies the finding when the subject path selects nothing: the rule's context node (a failed-assert at /Q{}doc[1]/Q{}item[2]), no location, or an error.</implementation-defined>
+    </result>
+  </test-case>
+
+  <test-case name="rules-subject-several" since="2020">
+    <description>A subject that selects several nodes.</description>
+    <spec clause="5.5.19"/>
+    <spec clause="6.3"/>
+    <spec clause="Annex-D"/>
+    <schema file="rules-subject-several.sch"/>
+    <instance file="rules-subject-several.xml"/>
+    <result>
+      <implementation-defined clause="5.5.19">The subject is a path to the nodes of interest; how a finding is located when it selects three nodes (the first, each of them, the rule's context node /Q{}doc[1]) and what the context of name and value-of then is, is not said. One failed-assert, message Two items.</implementation-defined>
+    </result>
+  </test-case>
+
+  <test-case name="rules-subject-attribute" since="2020">
+    <description>A subject that selects an attribute of the context node.</description>
+    <spec clause="5.5.19"/>
+    <schema file="rules-subject-attribute.sch"/>
+    <instance file="rules-subject-attribute.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]/@n">
+          <message>Not two.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="rules-subject-text" since="2020">
+    <description>A subject that selects a text node.</description>
+    <spec clause="5.5.19"/>
+    <schema file="rules-subject-text.sch"/>
+    <instance file="rules-subject-text.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]/text()[1]">
+          <message>Not two.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="rules-subject-ancestor" since="2020">
+    <description>A subject that selects the parent: it is the location and the context of name in the message.</description>
+    <spec clause="5.5.19"/>
+    <spec clause="6.3"/>
+    <schema file="rules-subject-ancestor.sch"/>
+    <instance file="rules-subject-ancestor.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]">
+          <message>Not two, in doc.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="rules-dynamic-error-never-fires" since="2020">
+    <description>An assertion whose test would raise a dynamic error, in a rule that never fires: it is never evaluated.</description>
+    <spec clause="6.3"/>
+    <spec clause="5.4.15"/>
+    <schema file="rules-dynamic-error-never-fires.sch"/>
+    <instance file="rules-dynamic-error-never-fires.xml"/>
+    <result>
+      <findings/>
+    </result>
+  </test-case>
+
+  <test-case name="rules-dynamic-error-blocked" since="2020">
+    <description>An assertion whose test would raise a dynamic error, in a rule whose nodes an earlier rule of the pattern matched: it is never evaluated.</description>
+    <spec clause="6.3"/>
+    <spec clause="3.20"/>
+    <schema file="rules-dynamic-error-blocked.sch"/>
+    <instance file="rules-dynamic-error-blocked.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Two.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="rules-context-non-ascii-names" since="2020">
+    <description>Element names with non-ASCII letters and with a letter outside the Basic Multilingual Plane, in contexts, name and value-of.</description>
+    <spec clause="3.11"/>
+    <spec clause="Annex-J"/>
+    <spec clause="6.3"/>
+    <schema file="rules-context-non-ascii-names.sch"/>
+    <instance file="rules-context-non-ascii-names.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}größe[1]">
+          <message>größe zu groß: 12.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}𝒳[1]">
+          <message>𝒳 hat ein Zeichen: 𝄞.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
 </test-set>

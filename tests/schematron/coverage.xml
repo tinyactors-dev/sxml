@@ -16,6 +16,7 @@
     <test set="patterns-rules" case="rules-same-node-two-patterns"/>
     <test set="group" case="group-and-pattern"/>
     <test set="patterns-rules" case="rules-empty-pattern"/>
+    <test set="patterns-rules" case="rules-identical-findings-two-patterns"/>
   </requirement>
   <requirement id="d-3.14" clause="3.14" kind="definition">
     <text>A pattern may belong to several phases; #ALL, #ANY, #DEFAULT are reserved.</text>
@@ -30,6 +31,7 @@
     <test set="patterns-rules" case="rules-passing-rule-still-blocks"/>
     <test set="patterns-rules" case="rules-attribute-not-blocked"/>
     <test set="patterns-rules" case="rules-predicate-position"/>
+    <test set="patterns-rules" case="rules-dynamic-error-blocked"/>
   </requirement>
   <requirement id="d-3.21" clause="3.21" kind="definition">
     <text>The subject is the node a finding is about.</text>
@@ -244,6 +246,7 @@
     <test set="static-errors" case="error-undeclared-prefix"/>
     <test set="static-errors" case="error-xmlns-not-used-for-queries"/>
     <test set="patterns-rules" case="rules-predeclared-xs-prefix"/>
+    <test set="patterns-rules" case="rules-context-namespaced-attribute"/>
   </requirement>
   <requirement id="r-5.4.11-schema" clause="5.4.11" kind="definition">
     <text>A schema param needs a value; its value may be overridden by the user.</text>
@@ -334,6 +337,7 @@
   <requirement id="r-5.4.15-never" clause="5.4.15" kind="definition">
     <text>A rule that never fires is not an error.</text>
     <test set="patterns-rules" case="rules-never-fires"/>
+    <test set="patterns-rules" case="rules-dynamic-error-never-fires"/>
   </requirement>
   <requirement id="r-5.4.16" clause="5.4.16" kind="definition">
     <text>rules holds abstract rules for use across patterns, at schema or library level.</text>
@@ -466,6 +470,12 @@
     <test set="patterns-rules" case="rules-subject-on-rule"/>
     <test set="patterns-rules" case="rules-subject-assert-over-rule"/>
     <test set="abstract-patterns" case="abstract-param-in-subject"/>
+    <test set="patterns-rules" case="rules-subject-dynamic-error"/>
+    <test set="patterns-rules" case="rules-subject-empty"/>
+    <test set="patterns-rules" case="rules-subject-several"/>
+    <test set="patterns-rules" case="rules-subject-attribute"/>
+    <test set="patterns-rules" case="rules-subject-text"/>
+    <test set="patterns-rules" case="rules-subject-ancestor"/>
   </requirement>
   <requirement id="r-5.5.20" clause="5.5.20" kind="definition">
     <text>title is documentation.</text>
@@ -497,6 +507,7 @@
     <test set="phases" case="phase-unknown-requested"/>
     <test set="variables" case="param-schema-override"/>
     <test set="assertions" case="report-dynamic-error"/>
+    <test set="patterns-rules" case="rules-subject-dynamic-error"/>
   </requirement>
   <requirement id="r-6.2" clause="6.2" kind="definition">
     <text>Inclusions, abstract patterns and abstract rules are resolved, reports negated, documentation removed.</text>
@@ -516,6 +527,8 @@
     <test set="patterns-rules" case="rules-first-match-wins"/>
     <test set="patterns-rules" case="rules-attribute-not-blocked"/>
     <test set="group" case="group-all-rules-fire"/>
+    <test set="patterns-rules" case="rules-context-duplicates"/>
+    <test set="patterns-rules" case="rules-dynamic-error-blocked"/>
   </requirement>
   <requirement id="r-6.3-assertions" clause="6.3" kind="definition">
     <text>Each assertion of a fired rule is evaluated for each matched node.</text>
@@ -523,12 +536,15 @@
     <test set="patterns-rules" case="rules-many-nodes"/>
     <test set="patterns-rules" case="rules-nested-matches"/>
     <test set="assertions" case="assert-duplicate"/>
+    <test set="patterns-rules" case="rules-identical-findings-two-patterns"/>
+    <test set="patterns-rules" case="rules-dynamic-error-never-fires"/>
   </requirement>
   <requirement id="r-6.3-message-context" clause="6.3" kind="definition">
     <text>name and value-of in a message use the assertion's subject, else the rule's subject, else the rule context.</text>
     <test set="name-value-of" case="value-of-subject-context"/>
     <test set="name-value-of" case="value-of-rule-subject-context"/>
     <test set="diagnostics-properties" case="diagnostic-dynamic"/>
+    <test set="patterns-rules" case="rules-subject-ancestor"/>
   </requirement>
   <requirement id="r-6.4-instance" clause="6.4" kind="shall">
     <text>An instance has no rules and a param for each parameter used.</text>
@@ -590,6 +606,7 @@
     <test set="patterns-rules" case="rules-same-node-two-patterns"/>
     <test set="variables" case="let-order-in-rule"/>
     <test set="patterns-rules" case="rules-specific-then-general"/>
+    <test set="patterns-rules" case="rules-order-several-patterns"/>
   </requirement>
   <requirement id="r-6.6-ifthenelse" clause="6.6" kind="shall">
     <text>Rules act as if-then-else in a pattern, not in a group.</text>
@@ -643,6 +660,7 @@
     <test set="static-errors" case="error-context-is-expression"/>
     <test set="name-value-of" case="value-of-select-syntax"/>
     <test set="name-value-of" case="name-path-syntax"/>
+    <test set="patterns-rules" case="rules-subject-syntax"/>
   </requirement>
   <requirement id="r-7.2-variables" clause="7.2" kind="shall">
     <text>One definition per variable name in the global and the local context.</text>
@@ -766,6 +784,9 @@
     <test set="patterns-rules" case="rules-context-descendant"/>
     <test set="static-errors" case="error-context-is-expression"/>
     <test set="patterns-rules" case="rules-context-document-element"/>
+    <test set="patterns-rules" case="rules-context-namespaced-attribute"/>
+    <test set="patterns-rules" case="rules-context-whitespace-text-xslt3"/>
+    <test set="patterns-rules" case="rules-context-non-ascii-names"/>
   </requirement>
   <requirement id="r-HJ-test" clause="Annex-J" kind="shall">
     <text>The test is reduced to its effective Boolean value.</text>
@@ -785,6 +806,7 @@
     <test set="name-value-of" case="name-path-element"/>
     <test set="name-value-of" case="name-path-attribute"/>
     <test set="name-value-of" case="name-prefixed"/>
+    <test set="patterns-rules" case="rules-context-non-ascii-names"/>
   </requirement>
   <requirement id="r-HJ-value-of" clause="Annex-J" kind="shall">
     <text>value-of uses fn:string of what select returns.</text>
@@ -842,11 +864,13 @@
     <test set="query-bindings" case="binding-xpath31-expression-context"/>
     <test set="query-bindings" case="binding-xpath31-relative-context"/>
     <test set="query-bindings" case="binding-xpath31-root-context"/>
+    <test set="patterns-rules" case="rules-context-reverse-order"/>
   </requirement>
   <requirement id="r-MN-context" clause="Annex-N" kind="shall">
     <text>Rule contexts are evaluated from the document node; text nodes are allowed.</text>
     <test set="query-bindings" case="binding-xquery-context-from-root"/>
     <test set="query-bindings" case="binding-xquery-text-context"/>
+    <test set="patterns-rules" case="rules-context-whitespace-text"/>
   </requirement>
   <requirement id="r-MN-prolog" clause="Annex-N" kind="implementation-defined">
     <text>How XQuery declarations and imports are included.</text>
