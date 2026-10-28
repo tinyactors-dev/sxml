@@ -1528,6 +1528,13 @@ takes 0.59–0.73 s, the Schematron compile 0.53–0.59 s (D323).
   in D323 and EN 16931 UBL 1,133 of 1,133 from the sources; QT4 XP40,
   XQ40 and XT40 whole, base and change in the same setup: no outcome
   changes, case by case.
+**Done** 2026-10-28 (D325): components, instances, globals and
+templates found through indexes made once; a value template without
+braces is its text; the Schematron builder parses each synthesized
+text once. Invoice 2.077 to 1.958 x 10^9 instructions, validate
+--schematron 3.366 to 2.633; growth N = 256 18.2 to 11.0; IR text
+identical; XP40, XQ40, XT40 0 outcomes differ; Schematron 463 of 463,
+VEFA 1,133 of 1,133.
 
 ### 7.21 Fast Invisible XML (book, tests, implementation)
 After D215 (7.18: the Earley parser, right recursion quadratic, every

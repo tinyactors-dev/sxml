@@ -4,6 +4,22 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-26
 
+- perf-13 done (D325): compiling XSLT and Schematron. XSLT's component
+  graph and bindings find components through indexes made once by
+  sorting (they walked every declaration or instance per reference);
+  a value template without "{" or "}" is its text, built without a
+  parse (5.6.1); the Schematron builder parses each synthesized text
+  once and copies its AST, and checks parameter names by sorting.
+  Invoice transform 2.077 to 1.958 x 10^9 instructions (0.274 to
+  0.263 s); `validate --schematron` 3.366 to 2.633 (0.442 to 0.380 s),
+  its compile 2.138 to 1.405; growth N = 256 18.2 to 11.0 (2.39 to
+  1.62 s), each doubling x 2.02 (was 2.46); xmark-all unchanged. IR
+  text identical (EN 16931, growth, all 414,470 XT40 units); XP40
+  32,785, XQ40 46,114, XT40 12,185, 0 outcomes differ; Schematron
+  suite 463 of 463, VEFA 1,133 of 1,133, findings byte-identical.
+  Proposed: streamability's mode search and the lowerer's variable
+  lookup still grow with the square of a stylesheet.
+
 - perf-12 done (D324): compiling large stylesheets in linear time,
   the IR after the passes byte-identical (EN 16931, all 414,483 XT40
   units). Three costs grew faster than the unit: the descendant pass

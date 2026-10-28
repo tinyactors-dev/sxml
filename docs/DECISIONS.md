@@ -16392,6 +16392,117 @@ public header changed; the IR after the passes is the same.
   of which the demand pass 5.4 % and the four walks that make `owners`
   3.8 %.
 
+### D325. Compiling XSLT and Schematron: the component graph, value templates, the Schematron front end (packet perf-13)
+
+Recorded 2026-10-28, after D224, D315, D320, D323 and D324 (its
+proposal "XSLT compile costs that grow with the square of a
+stylesheet"). No public header changed; the IR after the passes is the
+same, and compiled Schematron gives the same findings.
+
+- **Whom it serves**: every compile of a large stylesheet and every
+  Schematron compile, first EN 16931's (900 KB of pre-compiled XSLT;
+  the `.sch` sources compiled by `sxml validate --schematron`). **Pays**:
+  three sorted indexes made once per lowering, a node map for the
+  templates and the globals, a hash table of parsed texts per Schematron
+  compile; no new mechanism (sorting is `src/sort_internal.h`'s).
+- **Profile** (callgrind, release, at 3919bc7ce): the invoice
+  transform 2.077 x 10^9 instructions, value templates 6.3 % (each
+  attribute of a literal result element parsed, braces or not); the
+  invoice `validate --schematron` 3.366, of which the Schematron compile
+  2.138: building the AST 1.102 (XPath parses of the schema's
+  expressions 0.391; of synthesized texts 0.627: 4,567 tree-sitter
+  parses of a dozen texts such as "$Q{urn:sxml:schematron}subject", one
+  set per assertion), reading 0.355 (5.4.11's check that parameter names
+  are distinct compared each of a pattern instance's 780 parameters
+  with every earlier one: 0.185; the included documents' XML 0.138),
+  the XSLT compile 0.681. The growth series of D324 (regenerated: N
+  blocks of 8 template rules with 3 Schematron-style assertions, 8
+  globals, a function and a named template; and 2 blocks whose templates
+  hold 6 to 384 assertions) grew x 2.46 per doubling at N = 256: a
+  component found by name walked all declarations (`add_named_edges`,
+  4.17 at N = 256) or its package's instances (`find_instance` under
+  `sxml_xslt_package_bind`, 1.17); an expression's owning global walked
+  the globals, a variable reference the declaration view (1.17 with the
+  rest of the globals' ordering), `find_template_entry` the templates
+  (0.20), `check_conflicts` every pair of a package's instances.
+- **Mechanism**:
+  1. *Indexes made by sorting, searched by binary search*, each giving
+     what the walk gave, in its order: the component graph's named
+     declarations by kind, name and declaration order (the edges in
+     declaration order); the package table's instances by package, kind,
+     name and index (`find_instance` chooses the first of the highest
+     precedence whose arity range fits, as before); the names of each
+     declaration view (one index per view, shared by the static
+     contexts that have it) for the first declaration of a name; for
+     `check_conflicts`, a package's instances by kind and name, the
+     first pair in index order reported. Node maps: AST node to global
+     (the owner of an expression), AST node to template entry. A package
+     that accepts no mode skips XTSE3050's search of rules.
+  2. *A value template without "{" or "}" is its text* (XSLT 4.0,
+     5.6.1): built directly as the AST the parser made: the XPATH root,
+     the STRING_TEMPLATE body, one fixed part (none for an empty text),
+     every span the whole text at 1:1, the parser's capacities. A text
+     the fixed part scanner rejects (NUL, U+FFFE, U+FFFF, invalid UTF-8)
+     or a depth limit below 3 goes to the parser.
+  3. *The Schematron builder parses each synthesized text once*: a hash
+     table (FNV-1a, open addressing) keeps the AST of each fixed text by
+     value kind and text, and each use takes a copy, node for node and
+     the text store byte for byte, what the front end would build; the
+     spans are placed as before. 5.4.11's distinct names: the parameters
+     sorted by name and position, a name equal to the one before it
+     repeated, reported in parameter order as before.
+- **Measured**, instructions x 10^9 (callgrind, release; base 3919bc7ce
+  and each step built alike from snapshots): invoice transform 2.077 to
+  2.070 (indexes) to 1.958 (value templates; -5.7 % in all); invoice
+  validate 3.366 to 3.358 to 3.358 to 2.633 (Schematron; -21.8 %), its
+  compile 2.138 to 1.405 (build 1.102 to 0.556, read 0.355 to 0.176);
+  growth N = 8, 16, 32, 64, 128, 256: 0.397, 0.769, 1.556, 3.290, 7.392,
+  18.165 to 0.371, 0.706, 1.380, 2.731, 5.460, 11.039 (each doubling x
+  1.90 to 2.02, was x 1.94 to 2.46); at N = 256 `add_named_edges` 4.173
+  to 0.009, `sxml_xslt_package_bind` 1.167 to 0.015, ordering the
+  globals 5.343 to 0.101 (with `add_named_edges`), the value template
+  builder 0.779 to 0.057; templates of 6, 24, 96, 384 assertions 0.197,
+  0.663, 2.527, 9.982 to 0.186, 0.621, 2.358, 9.304; xmark-all 8.638 to
+  8.638 (output equal). Processor seconds (fastest of 15, interleaved, a
+  shared machine): invoice transform 0.274 to 0.263, validate 0.442 to
+  0.380; fastest of 5: N = 128 0.89 to 0.74, N = 256 2.39 to 1.62, 384
+  assertions 1.39 to 1.29; the XT40 run (its 414,483 compiles and the
+  transforms) 354.0 to 353.9 (its stylesheets are small).
+- **Same result**: the IR text form after the passes (dumped by a
+  scratch-only hook in `sxml_ir_run_passes`, as in D324) is
+  byte-identical on `EN16931-UBL-validation.xslt` (141 MB of text), on
+  the growth stylesheets, and on all 414,470 units the XT40 suite
+  compiles (an FNV-1a hash and length per unit, in order). Schematron:
+  `sxml validate --format=json` over EN 16931's 1,131 UBL unit tests
+  and 19 examples gives byte-identical output (6.3 MB, every finding
+  with its location); 7.30's suite through `sxml-schematron-test` 463
+  of 463 applicable cases, 3 deviations, 43 implementation-defined, 5
+  not applicable, as before; EN 16931 UBL 1,133 of 1,133 checks from
+  the `.sch` sources. **Conformance setup**: base and change built alike
+  (preset `release`, snapshots of 3919bc7ce and of the change), run one
+  after the other on the same machine with TZ, LANG and LC_ALL unset,
+  from each snapshot's root: `sxml-qt4 run --spec=XP40 --format=json`,
+  `sxml-qt4 run --spec=XQ40 --format=json`, `sxml-xslt-test run
+  --format=json` (default catalogs, no test list). XP40 32,785, XQ40
+  46,114 and XT40 12,185 passed in both: 0 outcomes differ, case by
+  case. debug-gcc: the whole suite passes (459 tests; kotlin/jvm and
+  swift/linux skipped); clang-tidy clean on the changed
+  files; `tools/check-call-cycles.py` finds no cycle (D71).
+- **Deviation**: `src/xslt_value_template.c` (the packet's mechanism
+  names it; its Owns list does not) is changed; no other packet owns it.
+- **Left** (see "## Proposed"): at N = 256 the costs that still grow
+  with the square of the stylesheet are about 0.29 x 10^9 of 11.04: XSLT
+  streamability's `is_streamable_mode` (`src/xslt_streamability.c`) walks
+  the declarations for each template rule (0.18); the XPath lowerer's
+  `look_up_variable` (`src/xpath_lower.c`) walks the declaration view
+  for each variable reference (0.05); the duplicate searches as
+  declarations are added (`add_own_instances`, `find_global`, 0.05).
+  In the Schematron compile the XPath front end on the schema's own
+  expressions (0.37) and the entry numbers, one parse each (0.06, 1,086
+  texts), remain; the validation of the compiled schema (1.21) costs
+  twice what the pre-compiled XSLT's transform (0.55) does on the same
+  invoice, an evaluation cost outside this packet.
+
 ## Proposed
 
 - **Third-party rule sets that are not correct Schematron** (D323,
@@ -16433,15 +16544,17 @@ public header changed; the IR after the passes is the same.
   frees); (4) a typed-value memo per evaluation for untyped nodes,
   which needs the dynamic context to reach `src/xdm_node.c`.
 
-- **XSLT compile costs that grow with the square of a stylesheet**
-  (D324, perf-12; for 7.28's files or a later perf packet). With the
-  IR passes linear, a stylesheet of 1,024 template rules and 1,024
-  globals spends 0.48 x 10^9 instructions in `add_named_edges`
-  (`src/xslt_lower_control.c`) and 0.13 x 10^9 in
-  `sxml_xslt_package_bind` (`src/xslt_package.c`), four times as much
-  as at half the size: each named reference searches the components.
-  Also `sxml_xslt_build_value_template_ast` parses attribute values of
-  literal result elements that hold no "{" (6.3 % of the EN 16931
-  invoice). Proposed default: an index of components by name and kind
-  built once per package, and a value template without braces taken
-  as its text, each measured on the growth series of D324.
+- **Compile costs that still grow with the square of a stylesheet**
+  (D325, perf-13; for the packets that own the files). With XSLT's
+  component graph linear, at 2,048 template rules and 2,048 globals
+  (D325's N = 256) about 0.29 x 10^9 of 11.04 still grow four times per
+  doubling: `is_streamable_mode` (`src/xslt_streamability.c`) walks
+  every declaration for each template rule's modes (0.18);
+  `look_up_variable` (`src/xpath_lower.c`) walks the declaration view
+  for each variable reference (0.05); `add_own_instances`
+  (`src/xslt_package.c`) and `find_global` (`src/xslt_lower_control.c`)
+  search the instances or globals made so far for each declaration
+  (0.05). Proposed default: a mode index made once for streamability,
+  and the sorted name index of D325 for the lowerer's variable lookup;
+  the duplicate searches by a sort of the declarations when they show
+  in a profile.
