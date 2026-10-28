@@ -1725,6 +1725,59 @@ the step bound to UINT64_MAX (0 would mean the default); the CLI test
 `xpath_no_step_limit` runs a comparison charged 4 x 10^8 steps to its
 end; the book's step-limit pages and docs/CLI.md updated.
 
+### 7.30 A Schematron conformance suite (tests)
+The owner (2026-10-28): the standard (ISO/IEC 19757-3:2025, bought by
+the owner) cannot be committed, so sxml writes a comprehensive
+conformance suite of its own from it. No public Schematron conformance
+suite of that scope is known; check (SchXslt's own tests, schematron.com,
+the Schematron community's repositories) and record what exists and its
+licence before writing; reuse with attribution what a licence allows.
+- **Whom it serves**: 7.28 (its gate), every later change to Schematron
+  in sxml, and other implementations if the owner publishes it. Who
+  pays: test files and a coverage list; no code in the library.
+- **The standard's text is data, not repository content**: cite clause
+  numbers, paraphrase in a few words; never copy sentences, examples or
+  schemas from it. The extracted text is in the orchestrator's
+  scratchpad (`iso-19757-3/standard.txt`), never committed.
+- **Layout** (`tests/schematron/`, imitating the QT4 catalog of
+  `third_party/qt4tests`: a catalog, test sets, test cases):
+  - `catalog.xml` naming the test sets; one test set per clause group
+    (schema structure, patterns and rules, assertions and reports,
+    `let` and parameters, abstract patterns and `extends`, inclusion,
+    phases and `from`, diagnostics and properties, `name` and
+    `value-of`, `group`, `library` and `rules`, `visit-each`,
+    `severity`/`role`/`flag` and their dynamic evaluation, query
+    bindings, `documents`, `schematronEdition`, SVRL, static errors);
+  - each test case: the clause it covers, a schema (inline or a file),
+    one or more instance documents, an optional phase and parameters,
+    and the expected result, written neutrally (no sxml API, no sxml
+    error codes): the set of findings (kind assert or report, id, the
+    location as a node path, role, flag, severity, the message text
+    after `value-of` and `name`), or "the schema is in error" (with the
+    clause that makes it so), or "implementation-defined" with the
+    clause that allows it;
+  - `coverage.xml`: every normative requirement of the standard (each
+    "shall" and each definition that constrains behaviour), as clause
+    number plus a short paraphrase, with the test cases covering it;
+    a requirement without a test is listed as such.
+- **Cross-checks**: every case using only 3rd-edition constructs runs
+  through SchXslt 1.10.1 on sxml (compile with the release CLI, which
+  now has no step limit; D314) and must agree, or the disagreement is
+  recorded with the clause that decides it. 2025-only cases are checked
+  by a second, independent agent that derives each expected result from
+  the clause without seeing the first one's answer.
+- **Owns**: `tests/schematron/` (new), a README there (format, licence,
+  how to run the cross-check), a glossary term if needed, a D-record.
+  Not the driver: 7.28 writes the driver that runs the suite against
+  sxml.
+- **Done when**: `coverage.xml` lists every normative requirement of
+  clauses 4 to 7 and the annexes that are normative, each with at least
+  one test (or a recorded reason); all cases are well-formed and
+  validate against a schema for the catalog format; the SchXslt
+  cross-check agrees on every 3rd-edition case or each difference is
+  recorded; the independent check of the 2025-only cases is recorded;
+  7.28's gates name the suite (pass rate 100 % of applicable cases).
+
 ## Proposed for the owner
 
 No phase covers these four features yet (D183 Proposed). The owner has

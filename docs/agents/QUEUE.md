@@ -59,6 +59,9 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
   (75.3 x 10^9 instructions; was 14.8 s, and 1 min 39 s before perf-5).
   Left: an error record not cleared after a caught FORX0002, so a later
   LIMIT_EXCEEDED in the same query prints the old description.
+- 7.30: a Schematron conformance suite of sxml's own, written from the
+  standard the owner bought (the text itself stays out of the
+  repository); runs now, beside 7.27's revision; it becomes 7.28's gate.
 - The owner's decisions of 2026-10-28 are D313: Schematron's open points,
   source locations (packet 7.29, after perf-8), no step limit in the sxml
   command (packet cli-4, runs now), SchXslt's fix not offered upstream.
