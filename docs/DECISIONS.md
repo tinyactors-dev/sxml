@@ -14968,6 +14968,417 @@ Recorded 2026-10-28, after D313 (9), D89, D259.
   ixml-performance.md and javascript.md cite it; c.md still shows the
   default for a C program. `docs/CLI.md` has a "Limits" rule.
 
+### D315. Schematron as a front end to the XSLT AST: the design (packet 7.27)
+Recorded 2026-10-28, after D24, D44, D52, D99, D102, D162, D165, D183
+and the owner's answers in D313, which this record follows and does not
+reopen. Brings Schematron into Phase 7 (PLAN.md names XSD only) as
+packets 7.27 (this design, for the owner's review) and 7.28 (the
+implementation). The public header is `include/sxml/schematron.h`
+(new, additive; implemented by nothing until 7.28). Glossary: the
+Schematron terms of 2026-10-28 (`schematron` to `svrl`).
+
+**Sources.** The text of ISO/IEC 19757-3:2025 (the fourth edition) was
+not available to the packet, so this record cites no section numbers.
+Behaviour comes from SchXslt 1.10.1 (`2.0/include.xsl`, `expand.xsl`,
+`compile/compile-2.0.xsl`, `compile/templates.xsl`, `svrl.xsl`, named
+where used) where SchXslt implements it, and is marked *unverified*
+where neither SchXslt nor a text confirms it. SchXslt 1.10.1 implements
+the third edition: nothing of `group` or `library` is in it.
+
+**Whom it serves, who pays.** First the maintainer of a rule set
+(errors at `rules.sch:LINE:COLUMN`, also inside abstract patterns) and
+the person reading a finding (the document's line and column beside
+the XPath); then hosts in C and JavaScript that validate many
+documents without a third-party stylesheet or its 10 s compile. They
+pay: a reader, an expander and a builder in C (five source files), one public
+header, the `validate` command's options, the JavaScript API, a book
+chapter, and two small entries in existing files (`src/xslt_read.c`
+reads one foreign declaration into a given AST; `src/xslt.c` compiles
+a given AST). Nothing per event of XPath, XQuery or XSLT: no IR kind,
+no evaluator change, no generated XSLT text. Validation costs one walk
+of the document per active pattern (EN 16931: 3, XRechnung: 4).
+
+**The path.**
+1. *Read* (`src/schematron_read.c`): the schematron document is parsed
+   by the processor's XML parser into an arena tree with locations; one
+   walk with an explicit stack (D71) follows `sch:include` and
+   `sch:extends href` in place (each document parsed once, by absolute
+   URI; a document on the path of includes is `schematron:include`),
+   and records the *index*: the `ns`, `let`, `phase`, `pattern` and
+   `group` (abstract or not), `rules`, `diagnostics`, `properties`,
+   `title` and foreign XSLT children of the schema, in order, as
+   (tree, node) pairs, with tables of ids for patterns, abstract rules,
+   diagnostics, properties and phases. The query binding is checked
+   here, first (see the end).
+2. *Choose*: the phase (`#DEFAULT` gives `defaultPhase`, else `#ALL`;
+   an unknown id is `schematron:phase`) and its active patterns, in
+   schema order.
+3. *Build* (`src/schematron_build.c`, placeholders in
+   `src/schematron_expand.c`): one walk per active pattern over
+   its elements (for a pattern instance, over its abstract pattern's,
+   with the instance's parameter table in force; `sch:extends rule`
+   pushes the abstract rule's children), emitting stylesheet AST nodes
+   (`sxml_xslt_ast_add_node`, `_add_attribute`, `_append_child`,
+   `_take_expression`) with `source_node` the Schematron element and
+   its location. Abstract patterns, abstract rules and includes are so
+   expanded while the AST is built, without an expanded copy: each
+   element is visited once per use. Two walks rather than one because
+   an instance may precede its abstract pattern and phases follow
+   patterns; both are linear.
+4. *Compile*: the sealed AST goes through what `sxml_xslt_compile`
+   does after reading (in-scope schemas, lowering, outputs), split out
+   of `src/xslt.c` as an internal entry that takes an AST. The result
+   is an XSLT stylesheet the `sxml_schematron` owns.
+5. *Validate*: one transformation per call, in the initial mode
+   `Q{urn:sxml:schematron}validate`, initial match selection the node,
+   global context item `root(node)`, the request's parameters bound as
+   stylesheet parameters, raw delivery. Its raw result is the sequence
+   of finding items; `src/schematron.c` turns each into an
+   `sxml_schematron_report`, counts it, gives it to the sink and the
+   SVRL writer.
+
+**The stylesheet the builder makes**, shown as XSLT text for reading
+only (none is ever written; `s` is `urn:sxml:schematron`, which keeps
+synthesized names apart from the schema's):
+
+    <xsl:stylesheet version="3.0">   one synthesized root per schematron document
+      <xsl:param name="L" select="V" as="T"/>        sch:schema/sch:let
+      <xsl:variable name="L" select="V" as="T"/>     sch:let of the phase and of active patterns
+      <xsl:param name="s:fired-rules" select="false()"/>
+      ...foreign XSLT declarations, read by src/xslt_read.c...
+      <xsl:template match="." mode="s:validate">
+        <xsl:apply-templates select="." mode="s:pattern-1"/>     each active pattern, in order
+        <xsl:variable name="s:base" select="base-uri(root(.))"/>
+        <xsl:for-each select="DOCUMENTS">                         a pattern with documents=
+          <xsl:apply-templates select="doc(resolve-uri(string(.), $s:base))" mode="s:pattern-2"/>
+        </xsl:for-each>
+      </xsl:template>
+      <xsl:template match="document-node() | element()" mode="s:pattern-1" priority="-1">
+        <xsl:apply-templates select="@* | node()" mode="#current"/>
+      </xsl:template>
+      <xsl:template match="attribute() | text() | comment() | processing-instruction()"
+                    mode="s:pattern-1" priority="-1"/>
+      <xsl:template match="CONTEXT" mode="s:pattern-1" priority="N-K">   rule K of N
+        <xsl:variable name="L" select="V"/>            the rule's lets, those of extends first in place
+        <xsl:if test="$s:fired-rules"> FIRED-RULE ITEM </xsl:if>
+        <xsl:choose><xsl:when test="TEST"/><xsl:otherwise> FINDING ITEM </xsl:otherwise></xsl:choose>
+        <xsl:if test="TEST"> FINDING ITEM </xsl:if>    a report
+        <xsl:apply-templates select="@* | node()" mode="#current"/>   in a pattern
+        <xsl:next-match/>                              in a group, instead
+      </xsl:template>
+    </xsl:stylesheet>
+
+- *User text is never spliced into synthesized text*: each `context`,
+  `test`, `subject`, `select`, `path`, `value` and `documents` is
+  parsed alone into its own expression AST (pattern AST for `context`)
+  with the spans of its attribute, and the synthesized expressions
+  (`.`, `base-uri(root(.))`, `$s:fired-rules`, ...) are fixed texts. So
+  an assert's negation is `xsl:choose` with an empty `xsl:when`, not
+  `not(TEST)`, and `sch:name path="P"` is `xsl:for-each select="P"` over
+  `xsl:value-of select="name()"`.
+- *A finding item* (glossary `finding_item`, internal): an `xsl:array`
+  whose members are the assertion's index in the schematron's table
+  (an integer literal), the subject node (the assertion's `subject`,
+  else the rule's, else `.`; a value that is not one node is XPTY0004),
+  the message (a sequence constructor of text nodes and `xsl:value-of`
+  for `sch:value-of`), then one member per diagnostic and per property
+  it names, in order. A fired-rule item is the rule's index and `.`.
+  The table holds everything static of each assertion and rule (ids,
+  role, flag, see, icon, fpi, xml:lang, test and context texts, the
+  pattern, the element's location), so an item carries only what
+  evaluation gives.
+- *Priorities*: rule K of N in a pattern has priority N - K, so the
+  first matching rule wins (XSLT's own rule; distinct priorities never
+  conflict), and the traversal templates at -1 come last. In a pattern
+  the rule template walks on itself; in a group it ends with
+  `xsl:next-match`, so every matching rule fires and the chain ends at
+  the traversal template. The traversal templates are explicit, not
+  `on-no-match="shallow-skip"`, because built-in rules pass parameters
+  on and the walk must not carry any.
+- *Modes per pattern, not per documents group*: SchXslt puts every
+  pattern without `documents` into one mode and lets each rule template
+  check a sequence of "patterns matched" passed along `xsl:next-match`
+  (`compile-2.0.xsl`, `schxslt:rule`). A mode per pattern makes XSLT's
+  own rule selection do Schematron's, needs no parameter per node, and
+  gives the reports in SVRL's order (grouped by pattern) without
+  buffering; it costs a walk per pattern instead of one. Rejected
+  SchXslt's form for that reason.
+
+**The mapping, construct by construct.**
+- `schema`: `queryBinding` (see the end); `defaultPhase`; `title` and
+  `schemaVersion` go to SVRL; `ns prefix uri` are the statically known
+  namespaces of every Schematron expression, besides XPath's
+  predeclared ones; the XML namespace declarations of the documents are
+  not (as SchXslt, whose generated templates see only the `sch:ns`
+  ones). `sch:p` is not used.
+- `pattern`: a mode; `id` names it in reports, `title` in SVRL's
+  `name`; `documents` as above (the instance's, else the abstract
+  pattern's, as `expand.xsl`); `let` as below; rules in order.
+- `group` (2025): as `pattern`, every matching rule fires (*unverified*
+  against the text; SchXslt 1.10.1 has no `group`).
+- `rule`: a template rule; `context` its match pattern (an XSLT 4.0
+  pattern under every binding); `id`, `role`, `flag`, `see`, `icon`,
+  `fpi` go to fired-rule reports; `subject` as above; `abstract="true"`
+  makes it an abstract rule, compiled only where it is extended.
+- `rules`: a container of abstract rules at schema level; every rule in
+  it is reached only through `extends rule` (`expand.xsl` looks up
+  `(sch:pattern | sch:rules)/sch:rule[@abstract = 'true']`).
+- `extends rule="ID"`: the abstract rule's `let`, `assert`, `report`
+  and `extends` children in its place, in order (`expand.xsl`); an
+  unknown id is `schematron:reference`. `extends href="URI#ID"`: the
+  children of the element it names, which must be of its parent's kind
+  (`include.xsl`).
+- `include href="URI#ID"`: the element it names (the document element
+  without a fragment) in its place (`include.xsl`).
+- `library` (2025): a document element that `include` reaches and
+  whose children (patterns, groups, rules, diagnostics, properties,
+  phases, `let`, `ns`) count as children of the schema (*unverified*).
+- `assert`, `report`: a condition in the rule template; attributes as
+  for `rule`, plus `diagnostics` and `properties` (lists of ids looked
+  up in the enclosing pattern's `diagnostics` or `properties`, then the
+  schema's, as `svrl.xsl` does; an unknown id is
+  `schematron:reference`). Content: text as written, `value-of select`
+  as `xsl:value-of`, `name` as `name()` of the node `path` selects, or
+  of the context node (the reading of the standard's `name` that the
+  original skeleton implements; SchXslt outputs the path's value
+  instead, `templates.xsl`), `emph`, `dir`, `span` and foreign
+  elements by their text.
+- `let name value as`: `value` is an expression; without it, the
+  content is the value (a temporary tree, as `templates.xsl`'s
+  `schxslt:let-variable`). Scopes, as SchXslt (`compile-2.0.xsl`):
+  schema lets are stylesheet parameters (a validation's parameters
+  replace them); the chosen phase's lets and every active pattern's
+  lets are global variables, so a pattern's variables are seen by other
+  patterns and by `xsl:function` (XRechnung's `variable-pattern` holds
+  `$XR-IBAN-REGEX`, which `xr:checkIBAN` reads); a rule's lets are
+  template variables bound before its assertions, in document order
+  (XRechnung writes some after the asserts that do not use them). Two
+  globals or two lets of one rule with one name are
+  `schematron:variable` (SchXslt's E0003); a rule's let may shadow a
+  global, as XSLT allows.
+- `phase id`, `active pattern`, `let`: step 2 above; an active pattern
+  id that names no pattern is `schematron:reference`.
+- `diagnostics/diagnostic`, `properties/property`: evaluated in the
+  rule template for the same context node, with the instance's
+  parameters in force (as `expand.xsl` copies them into an instance);
+  `xsl:copy-of` inside a property is read as an instruction under the
+  xslt bindings.
+- `value-of`, `name`, `emph`, `dir`, `span`, `title`, `p`: as above.
+- `role` and `flag`: free text, given to reports as written; whether a
+  finding is an error is D313's rule over the assertion's own `role`
+  and `flag`, case-sensitive (`fatal`, `error`), not inherited from the
+  rule (SVRL copies only the assertion's, `svrl.xsl`).
+- Attributes of the fourth edition this packet could not confirm
+  (`rule/@visit-each`, a severity attribute, `phase/@from`, `sch:param`
+  as a child of `sch:schema`): read in one place and rejected with
+  `schematron:unsupported` until 7.28 or a later packet confirms them
+  against the text (D162). An element or attribute of the Schematron
+  namespace where the schema does not allow it, or a missing required
+  attribute, is `schematron:syntax`; foreign elements and attributes
+  are ignored.
+
+**Abstract patterns and placeholders.** A pattern instance's `sch:param`
+elements form a table by name. While the builder emits an expression
+attribute of the abstract pattern (`context`, `test`, `subject`,
+`select` of `value-of` and of `xsl:copy-of` in a property, `path`,
+`value`, `documents`), one left-to-right scan copies the text and, at
+each `$`, takes the longest run of name characters after it, then the
+longest prefix of that run that is a parameter name (a hash lookup per
+length, longest first), and copies the value instead. Each placeholder
+is so replaced once, longest name first, without a regex per parameter;
+EN 16931's 269 and 780 parameters cost one hash lookup per `$` and
+length, not 780 regex passes per attribute (SchXslt's
+`schxslt:replace-params`, D309's 10 s). A value is not scanned again;
+SchXslt, which replaces one name after another over the whole text,
+also replaces a placeholder that an earlier value brought in. Only that
+case differs, and the differential test of 7.28 shows whether a real
+rule set has it. SchXslt does not replace in `subject`; this design
+does (no difference for EN 16931 or XRechnung, which have no subject).
+The scan records the expression's *expansion segments* (glossary
+`expansion_segment`): a syntax error inside text that a value brought
+in is reported at that `sch:param`'s `value` attribute, with the
+offset inside it; elsewhere at the abstract pattern's attribute.
+
+**Foreign XSLT.** Under `xslt2` and `xslt3`, the `xsl:function`,
+`xsl:key`, `xsl:include`, `xsl:import` and `xsl:import-schema` children
+of `sch:schema`, and under `xslt3` also `xsl:accumulator` and
+`xsl:use-package` (the lists `compile-2.0.xsl` copies), are read by
+`src/xslt_read.c` into the same AST, as declarations of the schematron
+document's module, through a new internal entry that reads one element
+subtree under a given parent: the nodes are exactly those a stylesheet
+would give. Their static context is their own XML in-scope namespaces
+plus the `sch:ns` bindings for prefixes they leave unbound (in SchXslt
+the copied element sits under a root that declares every `sch:ns`;
+XRechnung's `name="xr:checkIBAN"` needs it). `xsl:include` and
+`xsl:import` read their modules as XSLT does (an imported module has
+lower precedence than the Schematron rules). Other XSLT children are
+ignored, as SchXslt ignores them; under the xpath bindings all are.
+
+**Findings and their two locations.** Each report (`sxml_schematron_
+report`) has `schema_location`, the assertion's element in its
+schematron document (absolute URI, line, column of its start tag; for
+an abstract pattern, the element in the abstract pattern's document,
+with `pattern_id` naming the instance), and the subject node with
+`node_location` (its tree's location: the instance's line and column,
+when the tree keeps locations, which D313's AUTOMATIC setting does for
+a validation) and `node_path` (`fn:path`, SVRL's `location`). Static
+errors carry the location of the element or attribute, or of the
+position inside an expression (through the expansion segments for
+placeholders). Dynamic errors carry the location the XSLT machinery
+gives the expression: exact for unsubstituted text; for an expression
+with placeholders, the spans are placed at the attribute's start
+(D169's moved spans would otherwise point past the abstract text), so
+the line and column are those of the attribute.
+
+**SVRL** (D313: one output, made from reports). Written by
+`src/schematron_svrl.c` from the reports alone, plus the schema's
+title, `schemaVersion`, phase and `ns` (static, from the schematron):
+`svrl:schematron-output`, `svrl:ns-prefix-in-attribute-values`, then
+for each active pattern `svrl:active-pattern` (id, name, role,
+documents) followed by its `svrl:fired-rule`, `svrl:failed-assert` and
+`svrl:successful-report` elements (attributes as `svrl.xsl` writes
+them; `location` is `fn:path` of the subject, as SchXslt's XSLT 3.0
+output), with `svrl:diagnostic-reference`, `svrl:property-reference`
+and `svrl:text`. Reports arrive pattern by pattern, so SVRL is written
+as the validation goes. SVRL asks for the fired rules; they are not
+counted as findings. Choices: the message's markup (`emph`, `dir`,
+`span`) is reduced to its text, in SVRL too (SchXslt keeps it as SVRL
+elements; reports carry text only); no line or column in SVRL, which
+has no place for them (an attribute in `urn:sxml` would break SVRL's
+schema); SchXslt's `svrl:suppressed-rule` and `svrl:metadata` are not
+written.
+
+**The C API** (`include/sxml/schematron.h`; golden file
+`include/sxml/schema.h`): `sxml_schematron` with
+`memory_requirements`, `initialize`, `finalize`, `create`, `destroy`;
+`sxml_schematron_validate_node`; a report sink of
+`sxml_schematron_report`s. Choices beyond D313:
+- The phase is chosen at compile time (it decides the modes); the
+  parameters (values of schema lets) are given per validation, as an
+  XSLT transformation's stylesheet parameters are.
+- Compiling stops at the first error, filled in the error record, as a
+  stylesheet compile does; there is no compile report sink (XSD's
+  collects all errors because its compiler is its own).
+- Validation returns `SXML_STATUS_OK` whatever it finds; the outcome
+  counts findings and error findings. A failed assert is data, not a
+  failure of the call (XSD's `sxml_schema_validate_node`, which makes a
+  copy, returns an error instead).
+- The null sink counts and discards; SVRL is an optional output stream
+  in the request rather than an object of its own (one field instead of
+  a writer with a lifecycle).
+- `FIRED_RULE` reports go to the sink only when asked
+  (`reports_fired_rules`); the compiled stylesheet tests one boolean
+  parameter per fired rule otherwise.
+- `sch:include` and `extends href` documents are asked of the resolver
+  as `SXML_RESOURCE_KIND_XML_DOCUMENT` (they are XML documents; no new
+  kind in `processor.h`).
+- Error codes in `urn:sxml:schematron`, prefix `schematron`, listed in
+  the header (the standard names none; *unverified*).
+
+**The CLI** (written here; `docs/CLI.md`'s `validate` section belongs
+to cli-4 now, and 7.28 updates it; D44: no new command):
+- `sxml validate --schematron=FILE [--phase=NAME] [--schema=XSD]...
+  [--format=text|json|svrl] FILE...`. `--schematron` at most once ("-"
+  reads standard input, as `--schema`); `--schema` is no longer
+  required when `--schematron` is given; `--phase` without
+  `--schematron` is a usage error (2), and so are `--format=svrl`
+  without `--schematron` and `--format=svrl` with more than one FILE.
+- The `.sch` is compiled first (after the XSD schema); its errors are
+  reported as `SCH:LINE:COLUMN: CODE: description` on standard error,
+  and then no FILE is read.
+- Each FILE is parsed into a tree with locations. With `--schema`, it
+  is validated against the XSD schema first (D313, item 5); when valid,
+  the Schematron rules run over the validated copy (typed), otherwise
+  over the document as parsed (an invalid document has no validated
+  copy), and both are reported.
+- Text: each finding on standard error, as XSD errors are, one line:
+  `FILE:LINE:COLUMN: ID FLAG: MESSAGE (SCH:LINE:COLUMN)`, where ID is
+  the assertion's id (else `assert` or `report`), FLAG its flag (else
+  its role; nothing when it has neither), MESSAGE the message with
+  whitespace normalized, SCH the schematron document as XSD names
+  schema documents (relative to the current directory). A subject
+  without a line gives its path in place of `LINE:COLUMN`. Nothing is
+  printed for a FILE without findings.
+- JSON: the one object of today's command gains a `"schematron"`
+  member (`{"document":"rules.sch","phase":"#ALL","status":"valid"}`,
+  with `"errors"` when it does not compile) and each file a
+  `"findings"` array of objects with `"kind"` (`failed-assert`,
+  `successful-report`), `"id"`, `"role"`, `"flag"`, `"error"` (D313),
+  `"message"`, `"line"`, `"column"`, `"byte_offset"`, `"path"`,
+  `"pattern"`, `"test"`, `"assertion"` (`{"document","line","column"}`),
+  `"diagnostics"` and `"properties"`; a file's `"status"` is `invalid`
+  when the XSD validation failed or a finding is an error. Fields are
+  only ever added.
+- SVRL: the SVRL document of the one FILE on standard output; errors
+  of the XSD schema, of the FILE and of the `.sch` on standard error as
+  in text form.
+- Exit status (D313, item 4, with D44's codes): 1 when the `.sch` does
+  not compile, when a FILE has an error finding, or as today (XSD
+  invalid, not well-formed); findings that are not errors leave 0; 3
+  when the `.sch` or a FILE cannot be read; 4 when sxml fails (a limit,
+  out of memory) or the `.sch` needs what sxml does not have yet
+  (`schematron:query-binding`, `schematron:unsupported`), as `validate`
+  exits 4 today for a feature sxml does not have. The CLI sets no step
+  limit (D313, item 9; cli-4).
+- No `--param` option yet: schema lets keep their values. Adding one
+  later is one option over the request's `parameters`.
+
+**JavaScript** (the same compile-once, validate-many shape as
+`Processor.compileSchema` and `Schema.validate`):
+`processor.compileSchematron(schema: string | {text?: string |
+Uint8Array, uri?: string}, options?: {phase?: string, baseUri?:
+string}): Schematron`, throwing `SxmlError` with the code, description
+and `.sch` location; `schematron.validate(input: Value | string |
+Uint8Array, options?: {uri?: string, parameters?: Record<string,
+Input>, firedRules?: boolean, svrl?: boolean}): SchematronResult`,
+where `SchematronResult` is `{valid: boolean, findings:
+SchematronFinding[], svrl?: string}` and a finding has `kind`, `id`,
+`role`, `flag`, `isError`, `message`, `diagnostics` (`{id, language,
+text}`), `properties` (`{id, role, scheme, text}`), `patternId`,
+`test`, `path`, `sourceName`, `lineNumber`, `columnNumber` (the
+instance) and `schemaSourceName`, `schemaLineNumber`,
+`schemaColumnNumber` (the assertion). Text input is parsed with
+locations. `dispose()` as for `Schema`. Field names follow the
+package's (`lineNumber`, `sourceName`).
+
+**`xquery3` and the other bindings.** Rejected in one place (D162): the
+function in `src/schematron_read.c` that reads `queryBinding` before
+anything else of the schema, case-sensitively, maps `xslt2` and `xpath2`
+to version 2.0, `xslt3`, `xpath3`, `xpath31` and an absent attribute to
+3.0 (the stylesheet AST's version; expressions are XPath 4.0 either
+way), and fails every other value with `schematron:query-binding` at
+the attribute's location: "the query binding 'xquery3' is not
+supported; sxml reads xslt2, xslt3, xpath2, xpath3 and xpath31". The
+standard asks an implementation to reject a binding it does not
+support; that it names no error code is *unverified*. `xslt` and
+`xpath` (XSLT 1.0 and XPath 1.0) are rejected there too, as SchXslt
+rejects them (`functions.xsl`, `schxslt:xslt-version`): read as XSLT
+3.0 they would silently change comparisons; when XPath 1.0
+compatibility mode lands (7.4), this one function can map them. An
+XQuery binding would read expressions with the XQuery front end in the
+same function's place.
+
+**Rejected.**
+- Generating XSLT text and compiling it (the owner, 7.27): the cost is
+  in the text, and errors point into generated text.
+- Lowering Schematron to IR directly (7.27): it would duplicate modes,
+  patterns and priorities.
+- SchXslt's one mode per documents group (above).
+- Findings through `xsl:message` and the trace sink: they would mix
+  with the messages of the schema's own XSLT and need a marker; the raw
+  result is the transformation's own output.
+- An expanded copy of the schematron documents (what `include.xsl` and
+  `expand.xsl` build): a second tree and a second location map for
+  nothing the builder cannot do while it walks.
+- Placeholder replacement by one regex per parameter (SchXslt's): 780
+  passes per attribute.
+- SVRL with sxml attributes for line and column (above).
+
+**Open for the owner.** The 2025 constructs marked *unverified*; whether
+`role` and `flag` should be inherited from the rule for D313's rule
+(here: not); whether `xslt` and `xpath` should be read as their 2.0
+successors rather than rejected (here: rejected until 7.4).
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): tagging and
