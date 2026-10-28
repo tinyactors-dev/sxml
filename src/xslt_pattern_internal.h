@@ -204,3 +204,66 @@ typedef struct sxml_xslt_pattern_priority_request {
  */
 SXML_NODISCARD sxml_status sxml_xslt_pattern_compute_default_priority(
     const sxml_xslt_pattern_priority_request *request, double *priority);
+
+/* An element or attribute name a pattern may match (perf-15). */
+typedef struct sxml_xslt_pattern_named_category {
+    sxml_ir_item_category item_category;
+    sxml_name_identifier node_name;
+} sxml_xslt_pattern_named_category;
+
+/*
+ * The item requirement of a pattern (glossary `item_requirement`,
+ * perf-15): the item categories and names of the items it may match. An
+ * item outside it does not match the pattern; an item inside it may.
+ * Read from the pattern AST as XSLT 4.0, 6.3 defines matching: the items
+ * a pattern matches are those of the last step of a path (after "/",
+ * "//" or a rooted start), of both sides of a union, of the left of
+ * intersect and except, of the value of a filter and of the inside of
+ * parentheses. An axis step gives the kind of its node test, or for a
+ * name test or wildcard the principal node kind of its axis (XPath 4.0,
+ * 4.6.4.1), and for an EQName test of an element or attribute its
+ * expanded name; "/" gives document nodes. Every axis step may also match
+ * items that are not XNodes (OTHER: the analysis does not decide JNodes).
+ * Every other pattern ($v, id(), key(), doc(), a simple pattern, ".") may
+ * match any item. An element name read under the default namespace
+ * "##any" (any namespace) or in a typed mode (6.9.4: schema-element(E)
+ * matches its substitution group) gives elements of any name.
+ */
+typedef struct sxml_xslt_pattern_requirement {
+    /* Bit 1 << c is set when the pattern may match an item of category c
+       (sxml_ir_item_category) whatever its name. */
+    uint32_t any_name_categories;
+    /* The elements and attributes it may match beyond those, by name,
+       perhaps with duplicates; allocator memory, owned (release with
+       sxml_xslt_pattern_requirement_finalize). */
+    sxml_xslt_pattern_named_category *named_categories;
+    size_t named_category_count;
+    size_t named_category_capacity;
+    sxml_allocator allocator;
+} sxml_xslt_pattern_requirement;
+
+/* A pattern whose item requirement to find. */
+typedef struct sxml_xslt_pattern_requirement_request {
+    /* Root PATTERN. Borrowed for the call. */
+    const sxml_ast *pattern_ast;
+    /* The pattern's static context, as its match function's: names
+       resolve in it; its allocator holds the requirement's names. */
+    const sxml_xpath_static_context *static_context;
+    /* The typed mode the rule is in (6.9.4). */
+    sxml_xslt_pattern_typed_names typed_names;
+} sxml_xslt_pattern_requirement_request;
+
+/*
+ * Writes the item requirement of request->pattern_ast to *requirement,
+ * which the caller releases with sxml_xslt_pattern_requirement_finalize
+ * whatever the outcome. A name that does not resolve gives its category
+ * whatever the name (the match function reports the error). Returns
+ * SXML_STATUS_INVALID_ARGUMENT for an AST whose root is not PATTERN, and
+ * the failures of the allocator and the name pool.
+ */
+SXML_NODISCARD sxml_status sxml_xslt_pattern_find_requirement(
+    const sxml_xslt_pattern_requirement_request *request,
+    sxml_xslt_pattern_requirement *requirement);
+
+/* Releases the names of requirement and leaves it empty. */
+void sxml_xslt_pattern_requirement_finalize(sxml_xslt_pattern_requirement *requirement);

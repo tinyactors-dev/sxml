@@ -159,6 +159,8 @@ void sxml_ir_unit_finalize(sxml_ir_unit *unit) {
     sxml_allocator_release(allocator, unit->namespace_bindings);
     sxml_allocator_release(allocator, unit->modes);
     sxml_allocator_release(allocator, unit->template_rules);
+    sxml_allocator_release(allocator, unit->rule_buckets);
+    sxml_allocator_release(allocator, unit->rule_numbers);
     sxml_allocator_release(allocator, unit->static_base_uri_memory);
     sxml_allocator_release(allocator, unit->static_context_memory);
     for (uint32_t copy_index = 1; copy_index < unit->annotation_copy_count; copy_index += 1) {
@@ -729,6 +731,80 @@ sxml_status sxml_ir_unit_add_template_rules(sxml_ir_unit *unit,
     *list = (sxml_ir_template_rule_list){
         .first_template_rule_index = room.element_count,
         .template_rule_count = (uint32_t)template_rules.template_rule_count};
+    return SXML_STATUS_OK;
+}
+
+sxml_status sxml_ir_unit_add_rule_numbers(sxml_ir_unit *unit,
+                                          sxml_ir_rule_number_view rule_numbers,
+                                          sxml_ir_rule_number_list *list) {
+    if (unit->is_sealed) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    if (rule_numbers.rule_number_count == 0) {
+        *list = (sxml_ir_rule_number_list){.first_rule_number_index = 0, .rule_number_count = 0};
+        return SXML_STATUS_OK;
+    }
+    if (rule_numbers.rule_number_count > UNIT_ARRAY_MAXIMUM_COUNT) {
+        return SXML_STATUS_LIMIT_EXCEEDED;
+    }
+    array_room room = {0};
+    const sxml_status status = make_array_room(
+        unit,
+        &(array_room_request){.elements = unit->rule_numbers,
+                              .element_count = unit->rule_number_count,
+                              .element_capacity = unit->rule_number_capacity,
+                              .element_size = sizeof(uint32_t),
+                              .element_alignment = alignof(uint32_t),
+                              .added_count = (uint32_t)rule_numbers.rule_number_count},
+        &room);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    unit->rule_numbers = room.elements;
+    unit->rule_number_capacity = room.element_capacity;
+    memcpy(unit->rule_numbers + room.element_count, rule_numbers.rule_numbers,
+           rule_numbers.rule_number_count * sizeof(uint32_t));
+    unit->rule_number_count = room.element_count + (uint32_t)rule_numbers.rule_number_count;
+    *list = (sxml_ir_rule_number_list){
+        .first_rule_number_index = room.element_count,
+        .rule_number_count = (uint32_t)rule_numbers.rule_number_count};
+    return SXML_STATUS_OK;
+}
+
+sxml_status sxml_ir_unit_add_rule_buckets(sxml_ir_unit *unit,
+                                          sxml_ir_rule_bucket_view rule_buckets,
+                                          sxml_ir_rule_bucket_list *list) {
+    if (unit->is_sealed) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    if (rule_buckets.rule_bucket_count == 0) {
+        *list = (sxml_ir_rule_bucket_list){.first_rule_bucket_index = 0, .rule_bucket_count = 0};
+        return SXML_STATUS_OK;
+    }
+    if (rule_buckets.rule_bucket_count > UNIT_ARRAY_MAXIMUM_COUNT) {
+        return SXML_STATUS_LIMIT_EXCEEDED;
+    }
+    array_room room = {0};
+    const sxml_status status = make_array_room(
+        unit,
+        &(array_room_request){.elements = unit->rule_buckets,
+                              .element_count = unit->rule_bucket_count,
+                              .element_capacity = unit->rule_bucket_capacity,
+                              .element_size = sizeof(sxml_ir_rule_bucket),
+                              .element_alignment = alignof(sxml_ir_rule_bucket),
+                              .added_count = (uint32_t)rule_buckets.rule_bucket_count},
+        &room);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    unit->rule_buckets = room.elements;
+    unit->rule_bucket_capacity = room.element_capacity;
+    memcpy(unit->rule_buckets + room.element_count, rule_buckets.rule_buckets,
+           rule_buckets.rule_bucket_count * sizeof(sxml_ir_rule_bucket));
+    unit->rule_bucket_count = room.element_count + (uint32_t)rule_buckets.rule_bucket_count;
+    *list = (sxml_ir_rule_bucket_list){
+        .first_rule_bucket_index = room.element_count,
+        .rule_bucket_count = (uint32_t)rule_buckets.rule_bucket_count};
     return SXML_STATUS_OK;
 }
 

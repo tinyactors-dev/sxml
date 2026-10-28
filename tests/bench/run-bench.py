@@ -66,6 +66,7 @@ BENCHMARKS = [
     ("flwor-order", xquery(os.path.join(BENCH, "flwor-order.xq"))),
     ("xslt-key", xslt(os.path.join(BENCH, "xslt-key.xsl"))),
     ("xslt-match-variable", xslt(os.path.join(BENCH, "xslt-match-variable.xsl"))),
+    ("xslt-many-rules", xslt(os.path.join(BENCH, "xslt-many-rules.xsl"))),
     ("itunes", ["QT4", "run", "--spec=XQ40", os.path.join(BENCH, "itunes.txt")]),
 ]
 

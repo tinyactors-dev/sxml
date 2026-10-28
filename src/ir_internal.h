@@ -274,7 +274,11 @@
  * the match functions of the mode in rule order (precedence, priority,
  * declaration order, XSLT 4.0, section 6.8), calls the template function of
  * the first rule that matches, and falls back to the mode's built-in
- * template (6.10), itself a template function made by lowering.
+ * template (6.10), itself a template function made by lowering. It calls
+ * only the match functions of the rules in the item's two rule buckets
+ * (the rules that may match its node kind and name, sxml_ir_rule_bucket):
+ * the other rules of the mode cannot match it. Rule 1 above is in the
+ * bucket of elements named b of mode 1.
  *
  * Thread safety: a unit is used by the thread of its item heap (D35).
  */
@@ -1033,7 +1037,8 @@ typedef enum sxml_ir_rule_search {
  * APPLY_TEMPLATES (XSLT 4.0, sections 6.6 to 6.12; D144): for each item of
  * select, with its position and the size of select as the focus, the
  * first template rule of the mode (in the mode's order, under
- * rule_search) whose match function returns true, else the mode's
+ * rule_search, among the rules of the item's rule buckets) whose match
+ * function returns true, else the mode's
  * built-in template; its template function is called with the item,
  * position, size, parameters and tunnel_parameters, and the results are
  * concatenated, separator between two. The current mode and template
@@ -1409,12 +1414,76 @@ typedef struct sxml_ir_template_rule_list {
     uint32_t template_rule_count;
 } sxml_ir_template_rule_list;
 
+/*
+ * What an item is for choosing template rules (glossary `item_category`,
+ * perf-15): an XNode's node kind (the values of sxml_node_kind), or OTHER
+ * for every item that is not an XNode (a JNode, an atomic value, a map,
+ * an array, a function).
+ */
+typedef enum sxml_ir_item_category {
+    SXML_IR_ITEM_CATEGORY_DOCUMENT = 0,
+    SXML_IR_ITEM_CATEGORY_ELEMENT,
+    SXML_IR_ITEM_CATEGORY_ATTRIBUTE,
+    SXML_IR_ITEM_CATEGORY_TEXT,
+    SXML_IR_ITEM_CATEGORY_COMMENT,
+    SXML_IR_ITEM_CATEGORY_PROCESSING_INSTRUCTION,
+    SXML_IR_ITEM_CATEGORY_NAMESPACE,
+    SXML_IR_ITEM_CATEGORY_OTHER,
+    SXML_IR_ITEM_CATEGORY_COUNT,
+} sxml_ir_item_category;
+
+/* Rule numbers (indices into the unit's template rules) to add to a unit
+   (sxml_ir_unit_add_rule_numbers). */
+typedef struct sxml_ir_rule_number_view {
+    const uint32_t *rule_numbers;
+    size_t rule_number_count;
+} sxml_ir_rule_number_view;
+
+typedef struct sxml_ir_rule_number_list {
+    uint32_t first_rule_number_index;
+    uint32_t rule_number_count;
+} sxml_ir_rule_number_list;
+
+/*
+ * A rule bucket (glossary `rule_bucket`, perf-15): the template rules of
+ * a mode that may match an item of one item category and, for elements
+ * and attributes, one name, as rule numbers in increasing order, which is
+ * the mode's order (6.8). With node_name 0 it holds every rule of the
+ * mode that may match an item of the category whatever its name: rules
+ * whose pattern requires no particular name of that category, and rules
+ * whose requirement the analysis cannot decide. With a name it holds the
+ * rules that may match an item of the category only under some names,
+ * this one among them, and that are not in the bucket of name 0. The
+ * rules that may match an item are those of its two buckets (its
+ * category's with its name and with name 0); every other rule of the
+ * mode cannot match it, so its match function would return false.
+ */
+typedef struct sxml_ir_rule_bucket {
+    sxml_ir_item_category item_category;
+    /* An element or attribute name, or 0. */
+    sxml_name_identifier node_name;
+    sxml_ir_rule_number_list rules;
+} sxml_ir_rule_bucket;
+
+typedef struct sxml_ir_rule_bucket_view {
+    const sxml_ir_rule_bucket *rule_buckets;
+    size_t rule_bucket_count;
+} sxml_ir_rule_bucket_view;
+
+typedef struct sxml_ir_rule_bucket_list {
+    uint32_t first_rule_bucket_index;
+    uint32_t rule_bucket_count;
+} sxml_ir_rule_bucket_list;
+
 /* One mode: its rules in the order they are tried (6.8: import
    precedence, then priority, then the last in declaration order first). */
 typedef struct sxml_ir_mode {
     /* 0 for the unnamed mode. */
     sxml_name_identifier mode_name;
     sxml_ir_template_rule_list template_rules;
+    /* The rule buckets of its template rules, ordered by item category,
+       then name (0 first), no two alike; empty only without rules. */
+    sxml_ir_rule_bucket_list rule_buckets;
     sxml_ir_built_in_rule built_in_rule;
     /* A template function (as the rules') that processes an item no rule
        matches. */
@@ -1593,6 +1662,13 @@ struct sxml_ir_unit {
     sxml_ir_template_rule *template_rules;
     uint32_t template_rule_count;
     uint32_t template_rule_capacity;
+    /* The modes' rule buckets and the rule numbers they hold. */
+    sxml_ir_rule_bucket *rule_buckets;
+    uint32_t rule_bucket_count;
+    uint32_t rule_bucket_capacity;
+    uint32_t *rule_numbers;
+    uint32_t rule_number_count;
+    uint32_t rule_number_capacity;
     /* fn:load-xquery-module made the unit without trust (F&O 4.0, 18.2,
        the trusted option): its functions cannot access external
        resources (FODC0016). Set by sxml_ir_unit_set_untrusted. */
@@ -1721,6 +1797,17 @@ SXML_NODISCARD sxml_status sxml_ir_unit_add_namespace_bindings(
 SXML_NODISCARD sxml_status sxml_ir_unit_add_template_rules(
     sxml_ir_unit *unit, sxml_ir_template_rule_view template_rules,
     sxml_ir_template_rule_list *list);
+
+/* Copies rule_numbers into the unit, for the rules of a rule bucket. */
+SXML_NODISCARD sxml_status sxml_ir_unit_add_rule_numbers(
+    sxml_ir_unit *unit, sxml_ir_rule_number_view rule_numbers,
+    sxml_ir_rule_number_list *list);
+
+/* Copies rule_buckets into the unit, for the rule_buckets of a mode
+   added after them. */
+SXML_NODISCARD sxml_status sxml_ir_unit_add_rule_buckets(
+    sxml_ir_unit *unit, sxml_ir_rule_bucket_view rule_buckets,
+    sxml_ir_rule_bucket_list *list);
 
 /* Copies modes into the unit as the next modes and writes the index of
    the first to *first_mode (modes number from 1 in the order added). */
@@ -1995,6 +2082,30 @@ static inline sxml_ir_template_rule_view sxml_ir_unit_get_template_rules(
     return (sxml_ir_template_rule_view){
         .template_rules = unit->template_rules + list.first_template_rule_index,
         .template_rule_count = list.template_rule_count};
+}
+
+/* The rule buckets of list, borrowed; empty when out of range. */
+static inline sxml_ir_rule_bucket_view sxml_ir_unit_get_rule_buckets(
+    const sxml_ir_unit *unit, sxml_ir_rule_bucket_list list) {
+    if (list.rule_bucket_count == 0 || list.first_rule_bucket_index > unit->rule_bucket_count ||
+        list.rule_bucket_count > unit->rule_bucket_count - list.first_rule_bucket_index) {
+        return (sxml_ir_rule_bucket_view){.rule_buckets = NULL, .rule_bucket_count = 0};
+    }
+    return (sxml_ir_rule_bucket_view){.rule_buckets = unit->rule_buckets +
+                                                      list.first_rule_bucket_index,
+                                      .rule_bucket_count = list.rule_bucket_count};
+}
+
+/* The rule numbers of list, borrowed; empty when out of range. */
+static inline sxml_ir_rule_number_view sxml_ir_unit_get_rule_numbers(
+    const sxml_ir_unit *unit, sxml_ir_rule_number_list list) {
+    if (list.rule_number_count == 0 || list.first_rule_number_index > unit->rule_number_count ||
+        list.rule_number_count > unit->rule_number_count - list.first_rule_number_index) {
+        return (sxml_ir_rule_number_view){.rule_numbers = NULL, .rule_number_count = 0};
+    }
+    return (sxml_ir_rule_number_view){.rule_numbers = unit->rule_numbers +
+                                                      list.first_rule_number_index,
+                                      .rule_number_count = list.rule_number_count};
 }
 
 /* The global variable at index, borrowed; a zero one for 0 or out of

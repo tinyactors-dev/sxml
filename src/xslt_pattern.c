@@ -16,6 +16,7 @@
  */
 #include "xslt_pattern_internal.h"
 
+#include "memory_internal.h"
 #include "schema_scope_internal.h"
 
 #include <math.h>
@@ -4283,4 +4284,274 @@ sxml_status sxml_xslt_pattern_lower_match_function(
         *match_function = function;
     }
     return status;
+}
+
+/* ===================================================== Item requirement */
+
+/* Every item category (sxml_xslt_pattern_requirement). */
+#define SXML_XSLT_PATTERN_ALL_CATEGORIES ((1U << (uint32_t)SXML_IR_ITEM_CATEGORY_COUNT) - 1U)
+
+static uint32_t sxml_xslt_pattern_category_bit(sxml_ir_item_category category) {
+    return 1U << (uint32_t)category;
+}
+
+/* What a pattern node of kind parent_kind matches is what its child in
+   field matches (XSLT 4.0, 6.3): both sides of a union, the left of
+   intersect and except (a subset of it), the path after a root or a
+   rooted start, the last step of a relative path, the value of a filter,
+   the inside of parentheses. */
+static bool sxml_xslt_pattern_passes_matches_on(sxml_ast_kind parent_kind, sxml_ast_field field) {
+    switch ((uint32_t)parent_kind) {
+    case SXML_AST_KIND_PATTERN:
+    case SXML_AST_KIND_PARENTHESIZED_PATTERN:
+        return field == SXML_AST_FIELD_PATTERN;
+    case SXML_AST_KIND_UNION_PATTERN:
+        return field == SXML_AST_FIELD_LEFT || field == SXML_AST_FIELD_RIGHT;
+    case SXML_AST_KIND_INTERSECT_EXCEPT_PATTERN:
+        return field == SXML_AST_FIELD_LEFT;
+    case SXML_AST_KIND_ROOTED_PATH_PATTERN:
+    case SXML_AST_KIND_ABSOLUTE_PATH_PATTERN:
+        return field == SXML_AST_FIELD_PATH;
+    case SXML_AST_KIND_RELATIVE_PATH_PATTERN:
+        return field == SXML_AST_FIELD_RIGHT;
+    case SXML_AST_KIND_FILTER_PATTERN:
+        return field == SXML_AST_FIELD_VALUE;
+    default:
+        return false;
+    }
+}
+
+/* True when the items node matches are those of one of its children (the
+   kinds above, a rooted or absolute path only when it has a path). */
+static bool sxml_xslt_pattern_passes_on(const sxml_ast *ast, sxml_ast_node_index node) {
+    switch ((uint32_t)sxml_xslt_pattern_node(ast, node)->kind) {
+    case SXML_AST_KIND_PATTERN:
+    case SXML_AST_KIND_PARENTHESIZED_PATTERN:
+    case SXML_AST_KIND_UNION_PATTERN:
+    case SXML_AST_KIND_INTERSECT_EXCEPT_PATTERN:
+    case SXML_AST_KIND_RELATIVE_PATH_PATTERN:
+    case SXML_AST_KIND_FILTER_PATTERN:
+        return true;
+    case SXML_AST_KIND_ROOTED_PATH_PATTERN:
+    case SXML_AST_KIND_ABSOLUTE_PATH_PATTERN:
+        return sxml_xslt_pattern_child(ast, node, SXML_AST_FIELD_PATH).value != 0;
+    default:
+        return false;
+    }
+}
+
+/* True when the items node matches are among those the whole pattern
+   matches: every node from it up to the root passes them on. */
+static bool sxml_xslt_pattern_reaches_root(const sxml_ast *ast, sxml_ast_node_index node) {
+    const sxml_ast_node *top = sxml_xslt_pattern_node(ast, node);
+    while (top->parent.value != 0 &&
+           sxml_xslt_pattern_passes_matches_on(sxml_xslt_pattern_node(ast, top->parent)->kind,
+                                               top->field)) {
+        top = sxml_xslt_pattern_node(ast, top->parent);
+    }
+    return top->parent.value == 0 && top->kind == SXML_AST_KIND_PATTERN;
+}
+
+/* The state of finding a requirement. */
+typedef struct sxml_xslt_pattern_requirement_state {
+    const sxml_xslt_pattern_requirement_request *request;
+    sxml_xslt_pattern_requirement *requirement;
+} sxml_xslt_pattern_requirement_state;
+
+static sxml_status
+sxml_xslt_pattern_add_named_category(sxml_xslt_pattern_requirement_state *state,
+                                     sxml_xslt_pattern_named_category named) {
+    sxml_xslt_pattern_requirement *requirement = state->requirement;
+    void *elements = requirement->named_categories;
+    const sxml_status status = sxml_allocator_reserve_array(
+        requirement->allocator,
+        &(sxml_array_reservation_request){
+            .elements = &elements,
+            .capacity = &requirement->named_category_capacity,
+            .element_count = requirement->named_category_count,
+            .required_count = requirement->named_category_count + 1U,
+            .element_size = sizeof(sxml_xslt_pattern_named_category),
+            .element_alignment = alignof(sxml_xslt_pattern_named_category),
+            .minimum_capacity = 0});
+    requirement->named_categories = elements;
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    requirement->named_categories[requirement->named_category_count] = named;
+    requirement->named_category_count += 1U;
+    return SXML_STATUS_OK;
+}
+
+/* One test of an axis step on axis, a name test or a kind test (not a
+   union of them). */
+typedef struct sxml_xslt_pattern_requirement_test {
+    sxml_ast_node_index test;
+    sxml_ast_axis axis;
+} sxml_xslt_pattern_requirement_test;
+
+/* An EQName test of an element or attribute: its expanded name, or any
+   name when it does not resolve to one (see the header). */
+static sxml_status
+sxml_xslt_pattern_add_name_test(sxml_xslt_pattern_requirement_state *state,
+                                sxml_xslt_pattern_requirement_test request) {
+    const sxml_xslt_pattern_requirement_request *pattern = state->request;
+    const bool is_attribute = request.axis == SXML_AST_AXIS_ATTRIBUTE;
+    const sxml_ir_item_category category =
+        is_attribute ? SXML_IR_ITEM_CATEGORY_ATTRIBUTE : SXML_IR_ITEM_CATEGORY_ELEMENT;
+    sxml_xpath_resolved_name resolved = {0};
+    const sxml_status resolution = sxml_xpath_resolve_name(
+        &(sxml_xpath_name_request){.ast = pattern->pattern_ast,
+                                   .name_node = request.test,
+                                   .name_role = is_attribute
+                                                    ? SXML_XPATH_NAME_ROLE_NO_NAMESPACE
+                                                    : SXML_XPATH_NAME_ROLE_ELEMENT_OR_TYPE,
+                                   .static_context = pattern->static_context,
+                                   .error_record = NULL},
+        &resolved);
+    const bool is_any_name =
+        resolution != SXML_STATUS_OK ||
+        (!is_attribute && (resolved.is_any_namespace ||
+                           pattern->typed_names != SXML_XSLT_PATTERN_TYPED_NAMES_NONE));
+    if (is_any_name) {
+        state->requirement->any_name_categories |= sxml_xslt_pattern_category_bit(category);
+        return SXML_STATUS_OK;
+    }
+    sxml_name_identifier name = {0};
+    const sxml_status status = sxml_name_pool_intern_name(
+        sxml_item_heap_get_name_pool(pattern->static_context->item_heap),
+        &(sxml_name_request){.namespace_uri = resolved.namespace_uri,
+                             .local_name = resolved.local_name},
+        &name);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    return sxml_xslt_pattern_add_named_category(
+        state, (sxml_xslt_pattern_named_category){.item_category = category, .node_name = name});
+}
+
+/* The categories a kind test may match, whatever the name; all of them
+   for node(), gnode(), jnode() and a dynamic node test. */
+static uint32_t sxml_xslt_pattern_kind_test_categories(sxml_ast_kind kind) {
+    switch ((uint32_t)kind) {
+    case SXML_AST_KIND_DOCUMENT_NODE_TYPE:
+        return sxml_xslt_pattern_category_bit(SXML_IR_ITEM_CATEGORY_DOCUMENT);
+    case SXML_AST_KIND_ELEMENT_NODE_TYPE:
+    case SXML_AST_KIND_SCHEMA_ELEMENT_NODE_TYPE:
+        return sxml_xslt_pattern_category_bit(SXML_IR_ITEM_CATEGORY_ELEMENT);
+    case SXML_AST_KIND_ATTRIBUTE_NODE_TYPE:
+    case SXML_AST_KIND_SCHEMA_ATTRIBUTE_NODE_TYPE:
+        return sxml_xslt_pattern_category_bit(SXML_IR_ITEM_CATEGORY_ATTRIBUTE);
+    case SXML_AST_KIND_TEXT_NODE_TYPE:
+        return sxml_xslt_pattern_category_bit(SXML_IR_ITEM_CATEGORY_TEXT);
+    case SXML_AST_KIND_COMMENT_NODE_TYPE:
+        return sxml_xslt_pattern_category_bit(SXML_IR_ITEM_CATEGORY_COMMENT);
+    case SXML_AST_KIND_PROCESSING_INSTRUCTION_NODE_TYPE:
+        return sxml_xslt_pattern_category_bit(SXML_IR_ITEM_CATEGORY_PROCESSING_INSTRUCTION);
+    case SXML_AST_KIND_NAMESPACE_NODE_TYPE:
+        return sxml_xslt_pattern_category_bit(SXML_IR_ITEM_CATEGORY_NAMESPACE);
+    default:
+        return SXML_XSLT_PATTERN_ALL_CATEGORIES;
+    }
+}
+
+/* One test of an axis step (XPath 4.0, 4.6.4.1: a name test or wildcard
+   selects the principal node kind of its axis). */
+static sxml_status
+sxml_xslt_pattern_add_test(sxml_xslt_pattern_requirement_state *state,
+                           sxml_xslt_pattern_requirement_test request) {
+    const sxml_ast_kind kind = sxml_xslt_pattern_node(state->request->pattern_ast, request.test)->kind;
+    if (kind == SXML_AST_KIND_WILDCARD || sxml_xslt_pattern_is_name_kind(kind)) {
+        if (request.axis == SXML_AST_AXIS_NAMESPACE) {
+            state->requirement->any_name_categories |=
+                sxml_xslt_pattern_category_bit(SXML_IR_ITEM_CATEGORY_NAMESPACE);
+            return SXML_STATUS_OK;
+        }
+        if (kind == SXML_AST_KIND_WILDCARD) {
+            state->requirement->any_name_categories |= sxml_xslt_pattern_category_bit(
+                request.axis == SXML_AST_AXIS_ATTRIBUTE ? SXML_IR_ITEM_CATEGORY_ATTRIBUTE
+                                                        : SXML_IR_ITEM_CATEGORY_ELEMENT);
+            return SXML_STATUS_OK;
+        }
+        return sxml_xslt_pattern_add_name_test(state, request);
+    }
+    state->requirement->any_name_categories |= sxml_xslt_pattern_kind_test_categories(kind);
+    return SXML_STATUS_OK;
+}
+
+/* An axis step whose items the pattern matches: its test, or each test
+   of a union of node tests "(a | text())". */
+static sxml_status sxml_xslt_pattern_add_step(sxml_xslt_pattern_requirement_state *state,
+                                              sxml_ast_node_index step) {
+    const sxml_ast *ast = state->request->pattern_ast;
+    const sxml_ast_axis axis = sxml_xslt_pattern_node(ast, step)->detail.axis;
+    state->requirement->any_name_categories |=
+        sxml_xslt_pattern_category_bit(SXML_IR_ITEM_CATEGORY_OTHER);
+    const sxml_ast_node_index test = sxml_xslt_pattern_child(ast, step, SXML_AST_FIELD_TEST);
+    if (sxml_xslt_pattern_node(ast, test)->kind != SXML_AST_KIND_UNION_NODE_TEST) {
+        return sxml_xslt_pattern_add_test(
+            state, (sxml_xslt_pattern_requirement_test){.test = test, .axis = axis});
+    }
+    sxml_status status = SXML_STATUS_OK;
+    for (sxml_ast_node_index member = sxml_xslt_pattern_child(ast, test, SXML_AST_FIELD_TEST);
+         status == SXML_STATUS_OK && member.value != 0;
+         member = sxml_ast_find_next_with_same_field(ast, member)) {
+        status = sxml_xslt_pattern_add_test(
+            state, (sxml_xslt_pattern_requirement_test){.test = member, .axis = axis});
+    }
+    return status;
+}
+
+/* A loop over the AST's nodes and their ancestors, not a walk of the
+   tree (D71): each node whose matches are the pattern's own and are not
+   passed on from a child adds what it may match. */
+sxml_status sxml_xslt_pattern_find_requirement(
+    const sxml_xslt_pattern_requirement_request *request,
+    sxml_xslt_pattern_requirement *requirement) {
+    if (request == NULL || requirement == NULL || request->pattern_ast == NULL ||
+        request->static_context == NULL) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    *requirement = (sxml_xslt_pattern_requirement){.any_name_categories = 0,
+                                                   .named_categories = NULL,
+                                                   .named_category_count = 0,
+                                                   .named_category_capacity = 0,
+                                                   .allocator =
+                                                       request->static_context->allocator};
+    const sxml_ast *ast = request->pattern_ast;
+    if (sxml_xslt_pattern_node(ast, ast->root)->kind != SXML_AST_KIND_PATTERN) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    sxml_xslt_pattern_requirement_state state = {.request = request,
+                                                 .requirement = requirement};
+    sxml_status status = SXML_STATUS_OK;
+    for (uint32_t node_number = 1; status == SXML_STATUS_OK && node_number < ast->node_count;
+         node_number += 1) {
+        const sxml_ast_node_index node = {.value = node_number};
+        if (sxml_xslt_pattern_passes_on(ast, node) ||
+            !sxml_xslt_pattern_reaches_root(ast, node)) {
+            continue;
+        }
+        const sxml_ast_kind kind = sxml_xslt_pattern_node(ast, node)->kind;
+        if (kind == SXML_AST_KIND_AXIS_STEP_PATTERN) {
+            status = sxml_xslt_pattern_add_step(&state, node);
+        } else if (kind == SXML_AST_KIND_ABSOLUTE_PATH_PATTERN) {
+            /* "/" (6.3.2.2): a document node. */
+            requirement->any_name_categories |=
+                sxml_xslt_pattern_category_bit(SXML_IR_ITEM_CATEGORY_DOCUMENT) |
+                sxml_xslt_pattern_category_bit(SXML_IR_ITEM_CATEGORY_OTHER);
+        } else {
+            requirement->any_name_categories |= SXML_XSLT_PATTERN_ALL_CATEGORIES;
+        }
+    }
+    return status;
+}
+
+void sxml_xslt_pattern_requirement_finalize(sxml_xslt_pattern_requirement *requirement) {
+    if (requirement == NULL) {
+        return;
+    }
+    sxml_allocator_release(requirement->allocator, requirement->named_categories);
+    requirement->named_categories = NULL;
+    requirement->named_category_count = 0;
+    requirement->named_category_capacity = 0;
 }

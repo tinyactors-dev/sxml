@@ -18,6 +18,16 @@
  * on-multiple-match="fail" keeps looking after the first match among the
  * rules of the same import precedence and priority (XTDE0540).
  *
+ * The rules tried for an item are those of its two rule buckets (glossary
+ * `rule_bucket`, perf-15): the mode's rules that may match its item
+ * category (its node kind, or not an XNode) whatever the name, and those
+ * that may match it only under some names, its name among them. Both are
+ * in rule order, so the task merges them; a rule in neither cannot match
+ * the item, so its match function would have returned false, and the
+ * rule chosen is the one the whole mode in order would give. Every rule
+ * search, streamed modes and the built-in templates' apply-templates go
+ * through this one choice.
+ *
  * The current mode and the current template rule (6.9.2, 6.11) are the
  * dynamic context's current_mode and current_template_rule_index (an index
  * into the unit's template rules; 0 when absent, as for a built-in
@@ -46,7 +56,9 @@
  */
 #include "evaluator_machine_internal.h"
 
+#include "sxml/tree.h"
 #include "sxml/types.h"
+#include "sxml/xdm.h"
 
 #include <stdalign.h>
 #include <string.h>
@@ -105,14 +117,22 @@ typedef struct sxml_template_state {
     sxml_ir_mode_index mode_index;
     const sxml_ir_mode *mode;
     /* The candidates: rule indices of the unit from first_rule to before
-       end_rule, filtered by precedence for IMPORTED_ONLY. */
+       end_rule, filtered by precedence for IMPORTED_ONLY, among those of
+       the current item's rule buckets. */
     uint32_t first_rule;
     uint32_t end_rule;
     bool filters_precedence;
     int32_t lowest_precedence;
     int32_t precedence_bound;
-    /* The candidate tried next, and the rule chosen so far (0: none). */
-    uint32_t next_rule;
+    /* The current item's buckets: of its category and name, and of its
+       category with name 0, each with the position of its next rule. */
+    sxml_ir_rule_number_view named_rules;
+    size_t named_position;
+    sxml_ir_rule_number_view kind_rules;
+    size_t kind_position;
+    /* The rule whose match function was called last, and the rule chosen
+       so far (0: none). */
+    uint32_t tried_rule;
     uint32_t matched_rule;
     /* The values the dynamic context had before; restored when a call
        ends or the task is released while calling. */
@@ -474,13 +494,137 @@ static bool sxml_template_ties(const sxml_template_state *state, uint32_t rule_n
            !(matched->priority < rule->priority) && !(matched->priority > rule->priority);
 }
 
+/* The position of the first rule number of rules not below first_rule
+   (a binary search: the numbers increase). */
+static size_t sxml_template_skip_below(sxml_ir_rule_number_view rules, uint32_t first_rule) {
+    size_t low = 0;
+    size_t high = rules.rule_number_count;
+    while (low < high) {
+        const size_t middle = low + (high - low) / 2U;
+        if (rules.rule_numbers[middle] < first_rule) {
+            low = middle + 1U;
+        } else {
+            high = middle;
+        }
+    }
+    return low;
+}
+
+/* The bucket of mode for category and name; empty when it has none. */
+typedef struct sxml_template_bucket_key {
+    sxml_ir_item_category item_category;
+    sxml_name_identifier node_name;
+} sxml_template_bucket_key;
+
+static sxml_ir_rule_number_view sxml_template_find_bucket(const sxml_template_state *state,
+                                                          sxml_template_bucket_key key) {
+    const sxml_ir_rule_bucket_view buckets =
+        sxml_ir_unit_get_rule_buckets(state->unit, state->mode->rule_buckets);
+    size_t low = 0;
+    size_t high = buckets.rule_bucket_count;
+    while (low < high) {
+        const size_t middle = low + (high - low) / 2U;
+        const sxml_ir_rule_bucket *bucket = &buckets.rule_buckets[middle];
+        if (bucket->item_category == key.item_category &&
+            bucket->node_name.index == key.node_name.index) {
+            return sxml_ir_unit_get_rule_numbers(state->unit, bucket->rules);
+        }
+        const bool is_below = bucket->item_category != key.item_category
+                                  ? bucket->item_category < key.item_category
+                                  : bucket->node_name.index < key.node_name.index;
+        if (is_below) {
+            low = middle + 1U;
+        } else {
+            high = middle;
+        }
+    }
+    return (sxml_ir_rule_number_view){.rule_numbers = NULL, .rule_number_count = 0};
+}
+
+/* The current item's category and, for an element or attribute, name.
+   An item that is not an XNode, or one that cannot be described, is
+   OTHER, whose bucket holds every rule of the mode (each pattern may
+   match some item that is not an XNode, as the analysis has it). */
+static sxml_template_bucket_key sxml_template_key_of(sxml_item item) {
+    sxml_template_bucket_key key = {.item_category = SXML_IR_ITEM_CATEGORY_OTHER,
+                                    .node_name = {.index = 0}};
+    sxml_node_reference node = {.tree = NULL};
+    sxml_node_description description;
+    memset(&description, 0, sizeof(description));
+    if (sxml_item_get_node(item, &node) != SXML_STATUS_OK ||
+        sxml_node_describe(node, &description) != SXML_STATUS_OK) {
+        return key;
+    }
+    switch (description.node_kind) {
+    case SXML_NODE_KIND_DOCUMENT:
+        key.item_category = SXML_IR_ITEM_CATEGORY_DOCUMENT;
+        break;
+    case SXML_NODE_KIND_ELEMENT:
+        key.item_category = SXML_IR_ITEM_CATEGORY_ELEMENT;
+        key.node_name = description.node_name;
+        break;
+    case SXML_NODE_KIND_ATTRIBUTE:
+        key.item_category = SXML_IR_ITEM_CATEGORY_ATTRIBUTE;
+        key.node_name = description.node_name;
+        break;
+    case SXML_NODE_KIND_TEXT:
+        key.item_category = SXML_IR_ITEM_CATEGORY_TEXT;
+        break;
+    case SXML_NODE_KIND_COMMENT:
+        key.item_category = SXML_IR_ITEM_CATEGORY_COMMENT;
+        break;
+    case SXML_NODE_KIND_PROCESSING_INSTRUCTION:
+        key.item_category = SXML_IR_ITEM_CATEGORY_PROCESSING_INSTRUCTION;
+        break;
+    case SXML_NODE_KIND_NAMESPACE:
+        key.item_category = SXML_IR_ITEM_CATEGORY_NAMESPACE;
+        break;
+    case SXML_NODE_KIND_ANY:
+        break;
+    }
+    return key;
+}
+
+/* Takes the current item's rule buckets as its candidates, from
+   first_rule on. */
+static void sxml_template_find_candidates(sxml_template_state *state) {
+    const sxml_template_bucket_key key = sxml_template_key_of(state->current_item);
+    state->kind_rules = sxml_template_find_bucket(
+        state, (sxml_template_bucket_key){.item_category = key.item_category,
+                                          .node_name = {.index = 0}});
+    state->named_rules = key.node_name.index == 0
+                             ? (sxml_ir_rule_number_view){.rule_numbers = NULL,
+                                                          .rule_number_count = 0}
+                             : sxml_template_find_bucket(state, key);
+    state->kind_position = sxml_template_skip_below(state->kind_rules, state->first_rule);
+    state->named_position = sxml_template_skip_below(state->named_rules, state->first_rule);
+}
+
+/* The next candidate of the two buckets in rule order, or 0 when both
+   are done (rule 0 is never a mode's). */
+static uint32_t sxml_template_take_candidate(sxml_template_state *state) {
+    const bool has_kind_rule = state->kind_position < state->kind_rules.rule_number_count;
+    const bool has_named_rule = state->named_position < state->named_rules.rule_number_count;
+    if (has_kind_rule &&
+        (!has_named_rule || state->kind_rules.rule_numbers[state->kind_position] <
+                                state->named_rules.rule_numbers[state->named_position])) {
+        state->kind_position += 1;
+        return state->kind_rules.rule_numbers[state->kind_position - 1U];
+    }
+    if (has_named_rule) {
+        state->named_position += 1;
+        return state->named_rules.rule_numbers[state->named_position - 1U];
+    }
+    return 0;
+}
+
 /* Tries the next candidate for the current item, or calls the template
    chosen when none is left. */
 static sxml_status sxml_template_try_next_rule(sxml_dynamic_context *dynamic_context,
                                                sxml_template_state *state) {
-    while (state->next_rule < state->end_rule) {
-        const uint32_t rule_number = state->next_rule;
-        state->next_rule += 1;
+    for (uint32_t rule_number = sxml_template_take_candidate(state);
+         rule_number != 0 && rule_number < state->end_rule;
+         rule_number = sxml_template_take_candidate(state)) {
         if (!sxml_template_is_candidate(state, rule_number)) {
             continue;
         }
@@ -489,13 +633,14 @@ static sxml_status sxml_template_try_next_rule(sxml_dynamic_context *dynamic_con
             break;
         }
         /* The match function's call is the one whose value the next step
-           reads; next_rule - 1 is the rule it belongs to. */
+           reads. */
+        state->tried_rule = rule_number;
         return sxml_template_push_match(dynamic_context, state, rule_number);
     }
     return sxml_template_push_template(dynamic_context, state, state->matched_rule);
 }
 
-/* The match function of rule next_rule - 1 ended, or failed. */
+/* The match function of rule tried_rule ended, or failed. */
 static sxml_status sxml_template_take_match(sxml_dynamic_context *dynamic_context,
                                             sxml_template_state *state) {
     const sxml_status caught = sxml_evaluator_machine_take_caught_status(dynamic_context);
@@ -513,7 +658,7 @@ static sxml_status sxml_template_take_match(sxml_dynamic_context *dynamic_contex
     if (status != SXML_STATUS_OK || !matches.is_true) {
         return sxml_template_try_next_rule(dynamic_context, state);
     }
-    const uint32_t rule_number = state->next_rule - 1;
+    const uint32_t rule_number = state->tried_rule;
     if (state->matched_rule != 0) {
         return sxml_evaluator_machine_raise(dynamic_context, &sxml_template_multiple_match_error);
     }
@@ -581,8 +726,8 @@ static sxml_status sxml_template_next_item(sxml_dynamic_context *dynamic_context
     state->current_item = step.item;
     state->position += 1;
     state->processed_count += 1;
-    state->next_rule = state->first_rule;
     state->matched_rule = 0;
+    sxml_template_find_candidates(state);
     return sxml_template_try_next_rule(dynamic_context, state);
 }
 

@@ -3886,6 +3886,8 @@ typedef struct pending_rule {
     /* Ties of declaration order (the templates of one enclosing mode)
        go by document order. */
     uint32_t node_number;
+    /* Its template's position in the templates array. */
+    uint32_t entry_index;
 } pending_rule;
 
 /* True when first comes before second in the unit's rule array: by mode,
@@ -4261,6 +4263,278 @@ static sxml_status get_typed_rule(const sxml_xslt_lowering *lowering, const mode
     return status;
 }
 
+/* ============================================================ Rule buckets */
+
+/* Every item category, as bits (sxml_xslt_pattern_requirement). */
+#define ALL_ITEM_CATEGORIES ((1U << (uint32_t)SXML_IR_ITEM_CATEGORY_COUNT) - 1U)
+
+/* The rules of one mode with their item requirements, to put in rule
+   buckets (perf-15). */
+typedef struct mode_rule_requirements {
+    /* By template entry. */
+    const sxml_xslt_pattern_requirement *requirements;
+    /* Parallel to the mode's rules: 1 + the entry of its template, 0 for
+       a rule that may match anything (the rule of a typed mode, 6.9.4). */
+    const uint32_t *entry_numbers;
+    size_t rule_count;
+    /* The rule number of the mode's first rule. */
+    uint32_t first_rule_number;
+    /* The mode's rules read element names as schema-element() (6.9.4):
+       substitution groups make any element name possible. */
+    bool reads_typed_names;
+} mode_rule_requirements;
+
+/* One name of a rule's requirement, for a named rule bucket. */
+typedef struct named_rule {
+    uint32_t item_category;
+    uint32_t node_name;
+    uint32_t rule_number;
+} named_rule;
+
+static bool named_rule_is_before(const void *state, sxml_sort_pair pair) {
+    (void)state;
+    const named_rule *first = pair.first;
+    const named_rule *second = pair.second;
+    if (first->item_category != second->item_category) {
+        return first->item_category < second->item_category;
+    }
+    if (first->node_name != second->node_name) {
+        return first->node_name < second->node_name;
+    }
+    return first->rule_number < second->rule_number;
+}
+
+/* The requirement of the rule at position of the mode; NULL for one
+   that may match anything. */
+static const sxml_xslt_pattern_requirement *requirement_of(const mode_rule_requirements *mode,
+                                                          size_t position) {
+    const uint32_t entry_number = mode->entry_numbers[position];
+    return entry_number == 0 ? NULL : &mode->requirements[entry_number - 1U];
+}
+
+/* The categories a rule may match whatever the name, in its mode. */
+static uint32_t any_name_categories_of(const mode_rule_requirements *mode, size_t position) {
+    const sxml_xslt_pattern_requirement *requirement = requirement_of(mode, position);
+    if (requirement == NULL) {
+        return ALL_ITEM_CATEGORIES;
+    }
+    uint32_t categories = requirement->any_name_categories;
+    for (size_t name_index = 0;
+         mode->reads_typed_names && name_index < requirement->named_category_count;
+         name_index += 1) {
+        categories |= 1U << (uint32_t)requirement->named_categories[name_index].item_category;
+    }
+    return categories;
+}
+
+/* The scratch arrays of one mode's buckets: its rules' categories, their
+   names (sorted, no two alike), and the buckets with their rule numbers
+   before they are added. */
+typedef struct bucket_scratch {
+    uint32_t *categories;
+    named_rule *named_rules;
+    size_t named_rule_count;
+    uint32_t *rule_numbers;
+    size_t rule_number_count;
+    sxml_ir_rule_bucket *buckets;
+    size_t bucket_count;
+} bucket_scratch;
+
+static void release_bucket_scratch(sxml_allocator allocator, bucket_scratch *scratch) {
+    sxml_allocator_release(allocator, scratch->categories);
+    sxml_allocator_release(allocator, scratch->named_rules);
+    sxml_allocator_release(allocator, scratch->rule_numbers);
+    sxml_allocator_release(allocator, scratch->buckets);
+}
+
+/* Fills scratch->categories and scratch->named_rules (allocated here): a
+   name of a category the rule may match whatever the name is left out,
+   as that rule is in the category's bucket of name 0. */
+static sxml_status collect_named_rules(sxml_allocator allocator,
+                                       const mode_rule_requirements *mode,
+                                       bucket_scratch *scratch) {
+    void *memory = NULL;
+    sxml_status status = allocate_zeroed(
+        allocator,
+        (zeroed_request){.element_count = mode->rule_count,
+                         .element_size = sizeof(uint32_t),
+                         .element_alignment = alignof(uint32_t)},
+        &memory);
+    scratch->categories = memory;
+    size_t name_count = 0;
+    for (size_t position = 0; status == SXML_STATUS_OK && position < mode->rule_count;
+         position += 1) {
+        scratch->categories[position] = any_name_categories_of(mode, position);
+        const sxml_xslt_pattern_requirement *requirement = requirement_of(mode, position);
+        name_count += requirement == NULL ? 0 : requirement->named_category_count;
+    }
+    if (status == SXML_STATUS_OK) {
+        status = allocate_zeroed(allocator,
+                                 (zeroed_request){.element_count = name_count,
+                                                  .element_size = sizeof(named_rule),
+                                                  .element_alignment = alignof(named_rule)},
+                                 &memory);
+        scratch->named_rules = memory;
+    }
+    for (size_t position = 0; status == SXML_STATUS_OK && position < mode->rule_count;
+         position += 1) {
+        const sxml_xslt_pattern_requirement *requirement = requirement_of(mode, position);
+        for (size_t name_index = 0;
+             requirement != NULL && name_index < requirement->named_category_count;
+             name_index += 1) {
+            const sxml_xslt_pattern_named_category named =
+                requirement->named_categories[name_index];
+            if ((scratch->categories[position] & (1U << (uint32_t)named.item_category)) == 0) {
+                scratch->named_rules[scratch->named_rule_count] = (named_rule){
+                    .item_category = (uint32_t)named.item_category,
+                    .node_name = named.node_name.index,
+                    .rule_number = mode->first_rule_number + (uint32_t)position};
+                scratch->named_rule_count += 1;
+            }
+        }
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_sort_in_place(&(sxml_sort_request){.elements = scratch->named_rules,
+                                            .element_count = scratch->named_rule_count,
+                                            .element_size = sizeof(named_rule),
+                                            .is_before = named_rule_is_before,
+                                            .state = NULL});
+    /* A union may name one element twice ("a | a[@x]"). */
+    size_t kept = 0;
+    for (size_t name_index = 0; name_index < scratch->named_rule_count; name_index += 1) {
+        const named_rule *rule = &scratch->named_rules[name_index];
+        if (kept > 0 && !named_rule_is_before(NULL, (sxml_sort_pair){
+                                                        .first = &scratch->named_rules[kept - 1],
+                                                        .second = rule})) {
+            continue;
+        }
+        scratch->named_rules[kept] = *rule;
+        kept += 1;
+    }
+    scratch->named_rule_count = kept;
+    return SXML_STATUS_OK;
+}
+
+/* Closes the bucket whose rule numbers start at first_number, if it has
+   any. */
+typedef struct bucket_end {
+    sxml_ir_item_category item_category;
+    uint32_t node_name;
+    size_t first_number;
+} bucket_end;
+
+static void close_bucket(bucket_scratch *scratch, bucket_end end) {
+    if (scratch->rule_number_count == end.first_number) {
+        return;
+    }
+    scratch->buckets[scratch->bucket_count] = (sxml_ir_rule_bucket){
+        .item_category = end.item_category,
+        .node_name = {.index = end.node_name},
+        .rules = {.first_rule_number_index = (uint32_t)end.first_number,
+                  .rule_number_count = (uint32_t)(scratch->rule_number_count - end.first_number)}};
+    scratch->bucket_count += 1;
+}
+
+/* Fills scratch->buckets and scratch->rule_numbers (allocated here) in
+   the order of the mode's buckets: by category, name 0 first. */
+static sxml_status fill_buckets(sxml_allocator allocator, const mode_rule_requirements *mode,
+                                bucket_scratch *scratch) {
+    void *memory = NULL;
+    sxml_status status = allocate_zeroed(
+        allocator,
+        (zeroed_request){.element_count = (size_t)SXML_IR_ITEM_CATEGORY_COUNT * mode->rule_count +
+                                          scratch->named_rule_count,
+                         .element_size = sizeof(uint32_t),
+                         .element_alignment = alignof(uint32_t)},
+        &memory);
+    scratch->rule_numbers = memory;
+    if (status == SXML_STATUS_OK) {
+        status = allocate_zeroed(
+            allocator,
+            (zeroed_request){.element_count =
+                                 (size_t)SXML_IR_ITEM_CATEGORY_COUNT + scratch->named_rule_count,
+                             .element_size = sizeof(sxml_ir_rule_bucket),
+                             .element_alignment = alignof(sxml_ir_rule_bucket)},
+            &memory);
+        scratch->buckets = memory;
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    size_t name_index = 0;
+    for (uint32_t category = 0; category < (uint32_t)SXML_IR_ITEM_CATEGORY_COUNT;
+         category += 1) {
+        bucket_end end = {.item_category = (sxml_ir_item_category)category,
+                          .node_name = 0,
+                          .first_number = scratch->rule_number_count};
+        for (size_t position = 0; position < mode->rule_count; position += 1) {
+            if ((scratch->categories[position] & (1U << category)) != 0) {
+                scratch->rule_numbers[scratch->rule_number_count] =
+                    mode->first_rule_number + (uint32_t)position;
+                scratch->rule_number_count += 1;
+            }
+        }
+        close_bucket(scratch, end);
+        end.first_number = scratch->rule_number_count;
+        for (; name_index < scratch->named_rule_count &&
+               scratch->named_rules[name_index].item_category == category;
+             name_index += 1) {
+            const named_rule *rule = &scratch->named_rules[name_index];
+            if (rule->node_name != end.node_name) {
+                close_bucket(scratch, end);
+                end = (bucket_end){.item_category = (sxml_ir_item_category)category,
+                                   .node_name = rule->node_name,
+                                   .first_number = scratch->rule_number_count};
+            }
+            scratch->rule_numbers[scratch->rule_number_count] = rule->rule_number;
+            scratch->rule_number_count += 1;
+        }
+        close_bucket(scratch, end);
+    }
+    return SXML_STATUS_OK;
+}
+
+/* Adds the rule buckets of a mode's rules to the unit (glossary
+   `rule_bucket`, perf-15) and writes their list to *list. */
+static sxml_status add_rule_buckets(const sxml_xslt_lowering *lowering,
+                                    const mode_rule_requirements *mode,
+                                    sxml_ir_rule_bucket_list *list) {
+    *list = (sxml_ir_rule_bucket_list){.first_rule_bucket_index = 0, .rule_bucket_count = 0};
+    if (mode->rule_count == 0) {
+        return SXML_STATUS_OK;
+    }
+    sxml_xpath_lowerer *lowerer = lowering->lowerer;
+    bucket_scratch scratch = {0};
+    sxml_status status = collect_named_rules(lowerer->allocator, mode, &scratch);
+    if (status == SXML_STATUS_OK) {
+        status = fill_buckets(lowerer->allocator, mode, &scratch);
+    }
+    sxml_ir_rule_number_list numbers = {0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_ir_unit_add_rule_numbers(
+            lowerer->unit,
+            (sxml_ir_rule_number_view){.rule_numbers = scratch.rule_numbers,
+                                       .rule_number_count = scratch.rule_number_count},
+            &numbers);
+    }
+    for (size_t bucket_index = 0; status == SXML_STATUS_OK && bucket_index < scratch.bucket_count;
+         bucket_index += 1) {
+        scratch.buckets[bucket_index].rules.first_rule_number_index +=
+            numbers.first_rule_number_index;
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_ir_unit_add_rule_buckets(
+            lowerer->unit,
+            (sxml_ir_rule_bucket_view){.rule_buckets = scratch.buckets,
+                                       .rule_bucket_count = scratch.bucket_count},
+            list);
+    }
+    release_bucket_scratch(lowerer->allocator, &scratch);
+    return status;
+}
+
 /* The match functions, rules and modes of the unit. */
 static sxml_status add_rules_and_modes(const sxml_xslt_lowering *lowering) {
     sxml_xslt_template_lowering *templates = lowering->templates;
@@ -4291,6 +4565,17 @@ static sxml_status add_rules_and_modes(const sxml_xslt_lowering *lowering) {
                                  &memory);
         rules = memory;
     }
+    /* By template: what its pattern requires of an item (perf-15). */
+    sxml_xslt_pattern_requirement *requirements = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = allocate_zeroed(
+            allocator,
+            (zeroed_request){.element_count = templates->template_count,
+                             .element_size = sizeof(sxml_xslt_pattern_requirement),
+                             .element_alignment = alignof(sxml_xslt_pattern_requirement)},
+            &memory);
+        requirements = memory;
+    }
     size_t filled = 0;
     for (size_t entry_index = 0; status == SXML_STATUS_OK && entry_index < templates->template_count;
          entry_index += 1) {
@@ -4306,6 +4591,16 @@ static sxml_status add_rules_and_modes(const sxml_xslt_lowering *lowering) {
                 .pattern_ast = pattern->ast,
                 .static_context = sxml_xslt_lowering_expression_context(lowering, entry->pattern)},
             &entry->match_function);
+        if (status == SXML_STATUS_OK) {
+            const sxml_xpath_static_context *context =
+                sxml_xslt_lowering_expression_context(lowering, entry->pattern);
+            status = sxml_xslt_pattern_find_requirement(
+                &(sxml_xslt_pattern_requirement_request){
+                    .pattern_ast = pattern->ast,
+                    .static_context = context != NULL ? context : lowerer->static_context,
+                    .typed_names = SXML_XSLT_PATTERN_TYPED_NAMES_NONE},
+                &requirements[entry_index]);
+        }
         double priority = 0;
         if (status == SXML_STATUS_OK) {
             status = priority_of(lowering, entry, &priority);
@@ -4347,7 +4642,8 @@ static sxml_status add_rules_and_modes(const sxml_xslt_lowering *lowering) {
                          .import_precedence = entry->import_precedence,
                          .lowest_imported_precedence = entry->lowest_imported_precedence,
                          .declaration_order = entry->declaration_order},
-                .node_number = entry->node.value};
+                .node_number = entry->node.value,
+                .entry_index = (uint32_t)entry_index};
             filled += 1;
         }
     }
@@ -4365,6 +4661,16 @@ static sxml_status add_rules_and_modes(const sxml_xslt_lowering *lowering) {
                                                       alignof(sxml_ir_template_rule)},
                                  &memory);
         ir_rules = memory;
+    }
+    /* Parallel to ir_rules: 1 + the entry of each rule's template. */
+    uint32_t *entry_numbers = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = allocate_zeroed(allocator,
+                                 (zeroed_request){.element_count = filled + 1U,
+                                                  .element_size = sizeof(uint32_t),
+                                                  .element_alignment = alignof(uint32_t)},
+                                 &memory);
+        entry_numbers = memory;
     }
     sxml_ir_mode *ir_modes = NULL;
     if (status == SXML_STATUS_OK) {
@@ -4388,6 +4694,7 @@ static sxml_status add_rules_and_modes(const sxml_xslt_lowering *lowering) {
         size_t typed_count = 0;
         if (mode->typed.is_set) {
             status = get_typed_rule(lowering, mode, &ir_rules[0]);
+            entry_numbers[0] = 0;
             typed_count = 1;
         }
         if (status != SXML_STATUS_OK) {
@@ -4395,6 +4702,7 @@ static sxml_status add_rules_and_modes(const sxml_xslt_lowering *lowering) {
         }
         for (size_t copied = first; copied < rule_index; copied += 1) {
             ir_rules[typed_count + copied - first] = rules[copied].rule;
+            entry_numbers[typed_count + copied - first] = rules[copied].entry_index + 1U;
         }
         const size_t mode_rule_count = typed_count + rule_index - first;
         const sxml_ir_template_rule *run = mode_rule_count > 0 ? ir_rules : NULL;
@@ -4421,9 +4729,21 @@ static sxml_status add_rules_and_modes(const sxml_xslt_lowering *lowering) {
                                              .template_rule_count = mode_rule_count},
                 &list);
         }
+        sxml_ir_rule_bucket_list buckets = {0};
+        if (status == SXML_STATUS_OK) {
+            status = add_rule_buckets(
+                lowering,
+                &(mode_rule_requirements){.requirements = requirements,
+                                          .entry_numbers = entry_numbers,
+                                          .rule_count = mode_rule_count,
+                                          .first_rule_number = list.first_template_rule_index,
+                                          .reads_typed_names = mode->typed_names.value != 0},
+                &buckets);
+        }
         ir_modes[mode_index] = (sxml_ir_mode){
             .mode_name = mode->mode_name,
             .template_rules = list,
+            .rule_buckets = buckets,
             .built_in_rule = built_in,
             .built_in_template = built_in_template,
             .fails_on_multiple_match = mode->fails_on_multiple_match.is_set &&
@@ -4441,7 +4761,13 @@ static sxml_status add_rules_and_modes(const sxml_xslt_lowering *lowering) {
         status = SXML_STATUS_INVALID_ARGUMENT;
     }
     sxml_allocator_release(allocator, ir_modes);
+    sxml_allocator_release(allocator, entry_numbers);
     sxml_allocator_release(allocator, ir_rules);
+    for (size_t entry_index = 0; requirements != NULL && entry_index < templates->template_count;
+         entry_index += 1) {
+        sxml_xslt_pattern_requirement_finalize(&requirements[entry_index]);
+    }
+    sxml_allocator_release(allocator, requirements);
     sxml_allocator_release(allocator, rules);
     return status;
 }

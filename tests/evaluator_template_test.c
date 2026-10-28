@@ -2,8 +2,9 @@
  * Tests for templates and modes (src/evaluator_template.c,
  * src/xslt_lower_template.c; D144, packet 4.8): template rules, conflict
  * resolution, modes and built-in templates, named templates and their
- * parameters, tunnel parameters, next-match, errors while matching, and
- * apply-templates over a tree deeper than any C stack.
+ * parameters, tunnel parameters, next-match, errors while matching, the
+ * rule buckets rules are chosen from (perf-15), and apply-templates over
+ * a tree deeper than any C stack.
  *
  * Golden file: tests/xslt_lower_test.c (read, lower, evaluate, write the
  * value by the adaptive method with items separated by a space,
@@ -265,6 +266,170 @@ static void test_template_rules(sxml_test_state *state) {
     CHECK(state, cases);
 }
 
+/* perf-15: the rules tried for an item are those of its rule buckets
+   (its node kind, or not an XNode, and its name), merged in the mode's
+   order, so the rule chosen is the one the whole mode would give: names
+   and kinds interleaved by priority, a named rule below a kind-wide one,
+   next-match from one bucket into the other, items that are not XNodes,
+   on-multiple-match across buckets, names in the default namespace. */
+static void test_rule_buckets(sxml_test_state *state) {
+    static const transform_case cases[] = {
+        /* sxml gives the union one default priority, 0, so
+           the later "item" wins over it for the second item too. */
+        {STYLESHEET("<xsl:template match='/'><r><xsl:apply-templates select='//node() | //@*'/>"
+                    "</r></xsl:template>"
+                    "<xsl:template match='item[@n=\"2\"] | b'>U</xsl:template>"
+                    "<xsl:template match='item'>I</xsl:template>"
+                    "<xsl:template match='doc'>D</xsl:template>"
+                    "<xsl:template match='*'>E</xsl:template>"
+                    "<xsl:template match='@n'>A</xsl:template>"
+                    "<xsl:template match='text()'>T</xsl:template>"
+                    "<xsl:template match='node()' priority='-2'>N</xsl:template>"),
+         "<r>DIATIATUTNN</r>"},
+        {STYLESHEET("<xsl:template match='/'><r><xsl:apply-templates select='//item'/></r>"
+                    "</xsl:template>"
+                    "<xsl:template match='item' priority='-1'>L</xsl:template>"
+                    "<xsl:template match='*[@n=\"1\"]'>K</xsl:template>"),
+         "<r>KL</r>"},
+        {STYLESHEET("<xsl:template match='/'><r><xsl:apply-templates select='//item | //text()'/>"
+                    "</r></xsl:template>"
+                    "<xsl:template match='item'>I<xsl:next-match/></xsl:template>"
+                    "<xsl:template match='*' priority='-1'>E<xsl:next-match/></xsl:template>"
+                    "<xsl:template match='text()' priority='-1'>T<xsl:next-match/></xsl:template>"
+                    "<xsl:template match='node()' priority='-2'>N</xsl:template>"),
+         "<r>IENTNIENTNTN</r>"},
+        {STYLESHEET("<xsl:template match='/'><r><xsl:apply-templates select='1, //b, \"x\"'/>"
+                    "</r></xsl:template>"
+                    "<xsl:template match='.[. instance of xs:integer]' "
+                    "xmlns:xs='http://www.w3.org/2001/XMLSchema'>int</xsl:template>"
+                    "<xsl:template match='b'>B</xsl:template>"
+                    "<xsl:template match='.' priority='-3'>any</xsl:template>"),
+         "<r>intBany</r>"},
+        {STYLESHEET("<xsl:mode on-multiple-match='fail'/>"
+                    "<xsl:template match='/'><xsl:apply-templates select='//b'/></xsl:template>"
+                    "<xsl:template match='b' priority='1'>B</xsl:template>"
+                    "<xsl:template match='*' priority='1'>S</xsl:template>"),
+         "error:XTDE0540"},
+        {STYLESHEET("<xsl:mode on-multiple-match='fail'/>"
+                    "<xsl:template match='/'><xsl:apply-templates select='//b'/></xsl:template>"
+                    "<xsl:template match='b' priority='1'>B</xsl:template>"
+                    "<xsl:template match='*[@n]' priority='1'>S</xsl:template>"),
+         "B"},
+        {"<xsl:stylesheet version='4.0' xpath-default-namespace='urn:x' " XSL_NAMESPACE ">"
+         "<xsl:template match='/'><r><xsl:apply-templates select='//*:item'/></r></xsl:template>"
+         "<xsl:template match='item' priority='5'>X</xsl:template>"
+         "<xsl:template match='Q{}b'>B</xsl:template></xsl:stylesheet>",
+         "<r>onetwoB</r>"},
+    };
+    CHECK(state, cases);
+}
+
+/* Appends one bucket to text as "category:name=positions", "item" for
+   the name item_name, "*" for name 0; positions in the mode. */
+typedef struct bucket_text {
+    const sxml_ir_unit *unit;
+    const sxml_ir_mode *mode;
+    sxml_name_identifier item_name;
+    char *text;
+    size_t byte_count;
+    size_t written;
+} bucket_text;
+
+static void append_bucket(bucket_text *output, const sxml_ir_rule_bucket *bucket) {
+    const char *name = bucket->node_name.index == 0                         ? "*"
+                       : bucket->node_name.index == output->item_name.index ? "item"
+                                                                            : "?";
+    output->written += (size_t)snprintf(output->text + output->written,
+                                        output->byte_count - output->written, "%s%u:%s=",
+                                        output->written == 0 ? "" : " ",
+                                        (unsigned)bucket->item_category, name);
+    const sxml_ir_rule_number_view numbers =
+        sxml_ir_unit_get_rule_numbers(output->unit, bucket->rules);
+    for (size_t number_index = 0; number_index < numbers.rule_number_count; number_index += 1) {
+        output->written += (size_t)snprintf(
+            output->text + output->written, output->byte_count - output->written, "%s%u",
+            number_index == 0 ? "" : ",",
+            (unsigned)(numbers.rule_numbers[number_index] -
+                       output->mode->template_rules.first_template_rule_index));
+    }
+}
+
+/* Writes the rule buckets of output->unit's mode 1 (the unnamed mode)
+   into output->text: "1:item=0 3:*=1,3". */
+static void describe_buckets(sxml_processor *processor, bucket_text *output) {
+    output->mode = sxml_ir_unit_get_mode(output->unit, (sxml_ir_mode_index){.value = 1});
+    output->written = 0;
+    output->text[0] = '\0';
+    if (sxml_name_pool_intern_name(sxml_item_heap_get_name_pool(processor->item_heap),
+                                   &(sxml_name_request){.namespace_uri = {.index = 0},
+                                                        .local_name =
+                                                            SXML_BYTE_VIEW_FROM_LITERAL("item")},
+                                   &output->item_name) != SXML_STATUS_OK) {
+        return;
+    }
+    const sxml_ir_rule_bucket_view buckets =
+        sxml_ir_unit_get_rule_buckets(output->unit, output->mode->rule_buckets);
+    for (size_t bucket_index = 0; bucket_index < buckets.rule_bucket_count; bucket_index += 1) {
+        append_bucket(output, &buckets.rule_buckets[bucket_index]);
+    }
+}
+
+/* perf-15: a rule is only in the buckets of what its pattern may match.
+   The mode's order is item (0), text() and * (-0.5, the later first),
+   node() (-2): "item" is in the bucket of elements named item, "*" in
+   that of elements of any name, "text()" in that of text nodes, node()
+   in every category's (OTHER, 7, holds every rule). */
+static void test_rule_bucket_contents(sxml_test_state *state) {
+    sxml_processor *processor = NULL;
+    sxml_error_record error_record;
+    memset(&error_record, 0, sizeof(error_record));
+    sxml_status status = sxml_processor_create(
+        sxml_default_allocator(),
+        &(sxml_processor_configuration){.allocator = sxml_default_allocator()}, &processor);
+    sxml_xslt_ast *ast = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xslt_read_stylesheet(
+            &(sxml_xslt_read_request){
+                .processor = processor,
+                .principal_module_text = sxml_byte_view_from_c_string(
+                    STYLESHEET("<xsl:template match='item'/><xsl:template match='*'/>"
+                               "<xsl:template match='text()'/>"
+                               "<xsl:template match='node()' priority='-2'/>")),
+                .principal_module_uri = SXML_BYTE_VIEW_FROM_LITERAL("file:///test.xsl"),
+                .error_record = &error_record},
+            &ast);
+    }
+    sxml_ir_unit *unit = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xslt_lower_initial_template(
+            &(sxml_xslt_lowering_request){.ast = ast,
+                                          .processor = processor,
+                                          .template_node = {.value = 0},
+                                          .applies_templates = false,
+                                          .builds_result_document = false,
+                                          .error_record = &error_record},
+            &unit);
+    }
+    char text[512] = "";
+    if (status == SXML_STATUS_OK) {
+        describe_buckets(processor, &(bucket_text){.unit = unit,
+                                                   .mode = NULL,
+                                                   .item_name = {.index = 0},
+                                                   .text = text,
+                                                   .byte_count = sizeof(text),
+                                                   .written = 0});
+    }
+    const char *expected = "0:*=3 1:*=2,3 1:item=0 2:*=3 3:*=1,3 4:*=3 5:*=3 6:*=3 7:*=0,1,2,3";
+    const bool matches = strcmp(text, expected) == 0;
+    if (!matches) {
+        printf("expected %s, got %s\n", expected, text);
+    }
+    SXML_TEST_EXPECT(state, status == SXML_STATUS_OK && matches);
+    sxml_ir_unit_release(unit);
+    sxml_xslt_ast_destroy(ast);
+    sxml_processor_destroy(processor);
+}
+
 /* 6.10: the built-in templates of each on-no-match. */
 static void test_built_in_templates(sxml_test_state *state) {
     static const transform_case cases[] = {
@@ -472,6 +637,8 @@ static void test_absent_focus(sxml_test_state *state) {
 static const sxml_test_case evaluator_template_test_cases[] = {
     {.name = "absent_focus", .function = test_absent_focus},
     {.name = "template_rules", .function = test_template_rules},
+    {.name = "rule_buckets", .function = test_rule_buckets},
+    {.name = "rule_bucket_contents", .function = test_rule_bucket_contents},
     {.name = "built_in_templates", .function = test_built_in_templates},
     {.name = "modes", .function = test_modes},
     {.name = "named_templates", .function = test_named_templates},

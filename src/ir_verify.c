@@ -1121,8 +1121,70 @@ static bool is_function_of_arity(const sxml_ir_unit *unit, sxml_ir_function_inde
            sxml_ir_unit_get_function(unit, function)->parameter_count == arity;
 }
 
+/* True when first comes before second in a mode's rule buckets: by item
+   category, then name. */
+static bool bucket_comes_before(const sxml_ir_rule_bucket *first,
+                                const sxml_ir_rule_bucket *second) {
+    if (first->item_category != second->item_category) {
+        return first->item_category < second->item_category;
+    }
+    return first->node_name.index < second->node_name.index;
+}
+
+/* The rules of one rule bucket (perf-15): in the unit, not empty, and
+   rules of the mode in increasing order. */
+static sxml_status verify_bucket_rules(verifier *checker, const sxml_ir_mode *mode,
+                                       const sxml_ir_rule_bucket *bucket) {
+    const sxml_ir_rule_number_view numbers =
+        sxml_ir_unit_get_rule_numbers(checker->unit, bucket->rules);
+    if (numbers.rule_number_count == 0 ||
+        numbers.rule_number_count != bucket->rules.rule_number_count) {
+        return report(checker, "a rule bucket's rules are out of range or empty");
+    }
+    const uint32_t first_rule = mode->template_rules.first_template_rule_index;
+    const uint32_t end_rule = first_rule + mode->template_rules.template_rule_count;
+    uint32_t previous = 0;
+    for (size_t number_index = 0; number_index < numbers.rule_number_count; number_index += 1) {
+        const uint32_t rule_number = numbers.rule_numbers[number_index];
+        if (rule_number < first_rule || rule_number >= end_rule ||
+            (number_index > 0 && rule_number <= previous)) {
+            return report(checker, "a rule bucket holds a rule of another mode or out of order");
+        }
+        previous = rule_number;
+    }
+    return SXML_STATUS_OK;
+}
+
+/* The rule buckets of a mode (perf-15): some when it has rules, ordered
+   by item category and name, names only for elements and attributes. */
+static sxml_status verify_rule_buckets(verifier *checker, const sxml_ir_mode *mode) {
+    const sxml_ir_rule_bucket_view buckets =
+        sxml_ir_unit_get_rule_buckets(checker->unit, mode->rule_buckets);
+    if (buckets.rule_bucket_count != mode->rule_buckets.rule_bucket_count ||
+        (buckets.rule_bucket_count == 0) != (mode->template_rules.template_rule_count == 0)) {
+        return report(checker, "a mode's rule buckets are out of range");
+    }
+    for (size_t bucket_index = 0; bucket_index < buckets.rule_bucket_count; bucket_index += 1) {
+        const sxml_ir_rule_bucket *bucket = &buckets.rule_buckets[bucket_index];
+        const bool may_have_name = bucket->item_category == SXML_IR_ITEM_CATEGORY_ELEMENT ||
+                                   bucket->item_category == SXML_IR_ITEM_CATEGORY_ATTRIBUTE;
+        if ((uint32_t)bucket->item_category >= (uint32_t)SXML_IR_ITEM_CATEGORY_COUNT ||
+            (!may_have_name && bucket->node_name.index != 0) ||
+            (bucket_index > 0 &&
+             !bucket_comes_before(&buckets.rule_buckets[bucket_index - 1], bucket))) {
+            return report(checker, "a mode's rule buckets are not ordered by category and name");
+        }
+        const sxml_status status = verify_bucket_rules(checker, mode, bucket);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+    }
+    return SXML_STATUS_OK;
+}
+
 /* Modes and template rules (D144): rules in range, match functions of
-   arity 1, template functions (and built-in templates) of arity 5. */
+   arity 1, template functions (and built-in templates) of arity 5, rule
+   buckets (perf-15). */
 static sxml_status verify_modes(verifier *checker) {
     const sxml_ir_unit *unit = checker->unit;
     checker->expression = (sxml_ir_expression_index){.value = 0};
@@ -1148,6 +1210,10 @@ static sxml_status verify_modes(verifier *checker) {
                 return report(checker, "a template rule's match or template function "
                                        "has the wrong arity");
             }
+        }
+        const sxml_status status = verify_rule_buckets(checker, mode);
+        if (status != SXML_STATUS_OK) {
+            return status;
         }
     }
     return SXML_STATUS_OK;
