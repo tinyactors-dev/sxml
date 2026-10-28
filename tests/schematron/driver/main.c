@@ -426,14 +426,34 @@ typedef struct compile_request {
     sxml_byte_view schema_uri;
     sxml_byte_view phase_id;
     sxml_schematron_parameter_view parameters;
+    /* Every compile error is printed to standard error. */
+    bool prints_errors;
 } compile_request;
 
 /* Counts compile errors: the driver compiles with a sink, so that
    compilation goes on after the first (D315), on every case. */
+/* The errors of one compile: counted, and printed for report and vefa
+   (each on its own line, as "URI:LINE:COLUMN: CODE: description"). */
+typedef struct compile_errors {
+    size_t error_count;
+    bool prints_errors;
+} compile_errors;
+
 static sxml_status count_compile_error(void *state, const sxml_schema_report *report) {
-    (void)report;
-    size_t *count = state;
-    *count += 1;
+    compile_errors *errors = state;
+    errors->error_count += 1;
+    if (errors->prints_errors) {
+        (void)fprintf(stderr, "%.*s:%u:%u: %.*s:%.*s: %.*s\n",
+                      (int)report->location.source_name.byte_count,
+                      (const char *)report->location.source_name.bytes,
+                      report->location.line_number, report->location.column_number,
+                      (int)report->code.namespace_prefix.byte_count,
+                      (const char *)report->code.namespace_prefix.bytes,
+                      (int)report->code.local_name.byte_count,
+                      (const char *)report->code.local_name.bytes,
+                      (int)report->description.byte_count,
+                      (const char *)report->description.bytes);
+    }
     return SXML_STATUS_OK;
 }
 
@@ -442,7 +462,7 @@ static const sxml_schema_report_sink_operations compile_sink_operations = {
 
 static sxml_schematron *compile_schema(driver *state, const compile_request *request,
                                        sxml_error_record *record) {
-    size_t error_count = 0;
+    compile_errors errors = {.error_count = 0, .prints_errors = request->prints_errors};
     text_buffer path = {0};
     sxml_schematron *schematron = NULL;
     memset(record, 0, sizeof *record);
@@ -461,7 +481,7 @@ static sxml_schematron *compile_schema(driver *state, const compile_request *req
             .document_uri = request->schema_uri,
             .phase_id = request->phase_id,
             .parameters = request->parameters,
-            .report_sink = {.state = &error_count, .operations = &compile_sink_operations},
+            .report_sink = {.state = &errors, .operations = &compile_sink_operations},
             .error_record = record},
         &schematron);
     if (status != SXML_STATUS_OK) {
@@ -1033,7 +1053,8 @@ static int run_vefa(driver *state, const vefa_options *options) {
     (void)timespec_get(&start, TIME_UTC);
     sxml_error_record record;
     sxml_schematron *schematron = compile_schema(
-        state, &(compile_request){.schema_uri = text_view(&schema_uri)}, &record);
+        state, &(compile_request){.schema_uri = text_view(&schema_uri), .prints_errors = true},
+        &record);
     const double compile_seconds = seconds_since(start);
     release_bytes(schema_uri.bytes);
     if (schematron == NULL) {
@@ -1103,7 +1124,8 @@ static int run_report(driver *state, const report_options *options) {
     sxml_schematron *schematron = compile_schema(
         state,
         &(compile_request){.schema_uri = text_view(&uri),
-                           .phase_id = sxml_byte_view_from_c_string(options->phase_id)},
+                           .phase_id = sxml_byte_view_from_c_string(options->phase_id),
+                           .prints_errors = true},
         &record);
     if (schematron == NULL) {
         release_bytes(uri.bytes);

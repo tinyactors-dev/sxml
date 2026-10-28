@@ -617,6 +617,39 @@ static sxml_status report_expansion_error(schematron_builder *builder, expansion
                           .subject = no_text});
 }
 
+/* The text the table keeps of an expression attribute: as written,
+   placeholders replaced, but not the pattern's variables, which only the
+   compiled form renames (D323). */
+typedef struct written_text {
+    sxml_byte_view attribute_text;
+    /* Its expansion with the renames, when there are none to undo. */
+    sxml_byte_view expanded;
+    sxml_schematron_text *table_text;
+} written_text;
+
+static sxml_status add_written_text(schematron_builder *builder, written_text request) {
+    if (builder->renamed_variables.count == 0) {
+        return add_table_text(builder, sxml_xml_text_trim_whitespace(request.expanded), request.table_text);
+    }
+    sxml_schematron_expansion written;
+    sxml_status status = sxml_schematron_expand(
+        builder->compilation->allocator,
+        &(sxml_schematron_expansion_request){
+            .text = request.attribute_text,
+            .instance_parameters = builder->has_instance
+                                       ? table_of(&builder->instance_parameters)
+                                       : (sxml_schematron_parameter_table){.values = NULL, .value_count = 0},
+            .schema_parameters = table_of(&builder->schema_parameters),
+            .renamed_variables = {.values = NULL, .value_count = 0}},
+        &written);
+    if (status == SXML_STATUS_OK) {
+        status = add_table_text(builder, sxml_xml_text_trim_whitespace(sxml_schematron_buffer_text(&written.text)),
+                                request.table_text);
+        sxml_schematron_expansion_release(&written);
+    }
+    return status;
+}
+
 /* Parses an attribute alone, placeholders replaced: the AST with its
    spans in the schematron document, or an error reported (the walk goes
    on). */
@@ -653,7 +686,11 @@ static sxml_status parse_attribute(schematron_builder *builder, const expression
     }
     const sxml_byte_view expanded = sxml_schematron_buffer_text(&expansion.text);
     if (request->table_text != NULL) {
-        status = add_table_text(builder, sxml_xml_text_trim_whitespace(expanded), request->table_text);
+        status = add_written_text(builder, (written_text){.attribute_text = attribute.value,
+                                                          .expanded = request->expands
+                                                                          ? expanded
+                                                                          : attribute.value,
+                                                          .table_text = request->table_text});
     }
     if (status == SXML_STATUS_OK) {
         status = parse_with_front_end(
@@ -1805,7 +1842,9 @@ static sxml_status read_dynamic_attribute(schematron_builder *builder, dynamic_r
     const sxml_byte_view expanded = sxml_xml_text_trim_whitespace(sxml_schematron_buffer_text(&expansion.text));
     const bool is_variable = expanded.byte_count > 1 && expanded.bytes[0] == '$';
     if (!is_variable && !is_template) {
-        status = add_table_text(builder, expanded, request.static_text);
+        status = add_written_text(builder, (written_text){.attribute_text = text,
+                                                          .expanded = expanded,
+                                                          .table_text = request.static_text});
         sxml_schematron_expansion_release(&expansion);
         return status;
     }
@@ -2317,7 +2356,9 @@ static sxml_status parse_rule_context(schematron_builder *builder, rule_context_
     }
     const sxml_byte_view expanded = sxml_schematron_buffer_text(&expansion.text);
     if (table_text != NULL) {
-        status = add_table_text(builder, sxml_xml_text_trim_whitespace(expanded), table_text);
+        status = add_written_text(builder, (written_text){.attribute_text = attribute.value,
+                                                          .expanded = expanded,
+                                                          .table_text = table_text});
     }
     const sxml_byte_view source_name = source_name_of(builder, rule.document);
     if (status == SXML_STATUS_OK) {

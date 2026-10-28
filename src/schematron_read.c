@@ -254,6 +254,33 @@ typedef struct document_request {
     sxml_byte_view absolute_uri;
 } document_request;
 
+/* Reads a byte reader to its end into content (D233's form, which the
+   sxml command's resolver gives XML documents). */
+static sxml_status read_whole(const sxml_schematron_compilation *compilation, sxml_byte_reader reader,
+                              sxml_xml_buffer *content) {
+    enum { SXML_SCHEMATRON_READ_BLOCK_BYTE_COUNT = 64 * 1024 };
+    void *block = NULL;
+    sxml_status status = sxml_allocator_allocate(
+        compilation->allocator,
+        (sxml_allocation_request){.byte_count = SXML_SCHEMATRON_READ_BLOCK_BYTE_COUNT, .alignment = 1},
+        &block);
+    bool is_end = reader.operations == NULL || reader.operations->read == NULL;
+    while (status == SXML_STATUS_OK && !is_end) {
+        sxml_byte_reading reading = {.byte_count = 0, .is_end = false};
+        status = reader.operations->read(
+            reader.state,
+            (sxml_memory_view){.bytes = block, .byte_count = SXML_SCHEMATRON_READ_BLOCK_BYTE_COUNT},
+            &reading);
+        if (status == SXML_STATUS_OK && reading.byte_count > 0) {
+            status = sxml_xml_buffer_append(
+                content, (sxml_byte_view){.bytes = block, .byte_count = reading.byte_count});
+        }
+        is_end = reading.is_end || reading.byte_count == 0;
+    }
+    sxml_allocator_release(compilation->allocator, block);
+    return status;
+}
+
 /*
  * The document at request->absolute_uri: one read before, or one the
  * resolver delivers (kind XML_DOCUMENT: bytes, parsed here with locations,
@@ -321,8 +348,38 @@ static sxml_status load_document(sxml_schematron_compilation *compilation,
         document_node = resource.document_node;
         has_node = true;
         break;
+    case SXML_RESOURCE_FORM_BYTE_READER: {
+        /* Read whole, then parsed as BYTES are (a schematron document is
+           small; D323). */
+        if (resource.resource_uri.byte_count > 0) {
+            uri = resource.resource_uri;
+        }
+        sxml_xml_buffer content = sxml_xml_buffer_empty(compilation->allocator);
+        status = read_whole(compilation, resource.byte_reader, &content);
+        if (status == SXML_STATUS_OK) {
+            sxml_diagnostic diagnostic;
+            memset(&diagnostic, 0, sizeof(diagnostic));
+            status = parse_document(compilation,
+                                    &(document_text){.content = sxml_schematron_buffer_text(&content),
+                                                     .encoding_name = resource.encoding_name,
+                                                     .uri = uri,
+                                                     .diagnostic = &diagnostic},
+                                    &document_node);
+            has_node = status == SXML_STATUS_OK;
+        }
+        if (status == SXML_STATUS_INPUT_OUTPUT_FAILED) {
+            loaded->reason = "it cannot be read";
+            status = SXML_STATUS_OK;
+        } else if (status != SXML_STATUS_OK && status != SXML_STATUS_OUT_OF_MEMORY &&
+                   status != SXML_STATUS_LIMIT_EXCEEDED) {
+            loaded->reason = "it is not well-formed";
+            status = SXML_STATUS_OK;
+        }
+        sxml_xml_buffer_release(&content);
+        break;
+    }
     case SXML_RESOURCE_FORM_SEQUENCE:
-    case SXML_RESOURCE_FORM_BYTE_READER:
+        sxml_sequence_release(resource.items);
         status = SXML_STATUS_INVALID_ARGUMENT;
         break;
     }

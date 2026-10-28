@@ -7,9 +7,13 @@
 #                            and vefa.xq are read at run time).
 #   schematron/suite         the conformance suite of tests/schematron,
 #                            with the deviation list deviations.txt.
-#   schematron/en16931-ubl,  EN 16931's VEFA unit tests against the rules
-#   schematron/en16931-cii   compiled from its .sch sources, when
-#                            third_party/en16931 is vendored.
+#   schematron/en16931-ubl   EN 16931's VEFA unit tests of the UBL binding
+#                            against the rules compiled from its .sch
+#                            sources (third_party/en16931).
+#
+# differential.py, the differential test against SchXslt
+# (third_party/schxslt), is run by hand: SchXslt takes minutes to compile
+# a rule set (D323).
 
 add_executable(sxml_schematron_driver main.c)
 target_link_libraries(sxml_schematron_driver PRIVATE sxml)
@@ -31,11 +35,7 @@ if(EXISTS "${en16931}/ubl/schematron/EN16931-UBL-validation.sch")
                 vefa --quiet --schematron=${en16931}/ubl/schematron/EN16931-UBL-validation.sch
                 ${en16931_ubl_tests}
         WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}")
-    file(GLOB en16931_cii_tests "${en16931}/test/cii/*.xml")
-    list(SORT en16931_cii_tests)
-    add_test(NAME schematron/en16931-cii
-        COMMAND ${CMAKE_CROSSCOMPILING_EMULATOR} $<TARGET_FILE:sxml_schematron_driver>
-                vefa --quiet --schematron=${en16931}/cii/schematron/EN16931-CII-validation.sch
-                ${en16931_cii_tests}
-        WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}")
+    # The CII unit tests wait for the owner: EN16931-CII-syntax.sch names
+    # the parameter CII-SR-282 twice in one pattern instance, which 5.4.11
+    # and Annex B make an incorrect schema (D323, "Proposed").
 endif()
