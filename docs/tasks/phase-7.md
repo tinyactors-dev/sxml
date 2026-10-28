@@ -1600,6 +1600,12 @@ template rules pays this.
   QT4 XT40 whole (and XP40 and XQ40 if shared files change), base and
   change in the same setup: no outcome changes, case by case; the
   Schematron suite 463 of 463 and VEFA 1,133 of 1,133.
+**Done** 2026-10-28 (D327): each mode's rules in rule buckets by node
+kind and name, merged in rule order at run time. Invoice transform
+1.957 to 1.618 x 10^9 (transform 0.548 to 0.208), validate 1.903 to
+1.613 (validation 0.479 to 0.189); match calls 44,422 to 2,739 and
+36,612 to 2,526; xslt-many-rules 55.8 to 3.4 x 10^9 (7.0 to 0.46 s);
+XT40, XP40, XQ40 0 outcomes differ; suite 463/463, VEFA 1,133/1,133.
 
 ### 7.21 Fast Invisible XML (book, tests, implementation)
 After D215 (7.18: the Earley parser, right recursion quadratic, every

@@ -16594,6 +16594,106 @@ on the same invoice). No public header changed; no shared file changed
   stylesheet with many rules, the official EN 16931 one as much as
   this.
 
+### D327. Template rules chosen from rule buckets by node kind and name (packet perf-15)
+
+Recorded 2026-10-28, after D144, D149, D223, D224, D326 (its Proposed
+entry, now done and removed). No public header changed. Glossary:
+`item_category`, `item_requirement`, `rule_bucket`.
+
+- **Whom it serves**: every stylesheet with many template rules, first
+  EN 16931's (the official XSLT and sxml's compiled Schematron).
+  **Pays**: at compile time one pass over each pattern AST and a sort of
+  each mode's names; per mode at most eight buckets of rule numbers plus
+  one per element or attribute name its rules test (4 bytes per rule
+  number); at run time one node description and two binary searches per
+  item applied.
+- **Profile** (base 29719119c, release; a scratch-only hook in
+  `src/evaluator_template.c`, not committed, counted the steps taken
+  between a match function's call and its return): the invoice transform
+  1,359,249 evaluation steps, 1,201,091 of them (88 %) in 44,422 match
+  calls for 1,324 items; `validate --schematron` 1,176,633, 1,031,291
+  (88 %) in 36,612 match calls for 1,111 items. An item tried 34 rules
+  on average, nearly all of which could not match its kind or name.
+- **Mechanism**: `sxml_xslt_pattern_find_requirement`
+  (`src/xslt_pattern.c`) reads what a pattern may match from its AST, as
+  D326's walked kinds did and now in one place: the last step of a path,
+  both sides of a union, the left of intersect and except, the value of
+  a filter, parentheses (XSLT 4.0, 6.3); an axis step gives its kind
+  test's kind, or for a name test or wildcard the principal node kind of
+  its axis (XPath 4.0, 4.6.4.1), and for an EQName of an element or
+  attribute its expanded name, resolved as the lowerer resolves it;
+  "##any" and typed modes (6.9.4, substitution groups) give elements of
+  any name; "/" a document node; every other pattern (`$v`, id(),
+  key(), doc(), simple patterns, `.`) any item. Every pattern may match
+  items that are not XNodes (category OTHER: JNodes are not decided), so
+  OTHER's bucket holds every rule. The lowering
+  (`src/xslt_lower_template.c`) gives each mode its rule buckets
+  (`sxml_ir_rule_bucket`, `src/ir_internal.h`): per category the rules
+  that may match it whatever the name, and per name the rules that may
+  match only some names of that category, the name among them; a typed
+  mode's XTTE3100 rule is in every bucket. Buckets hold the unit's rule
+  numbers, so each is in the mode's order (6.8: precedence, priority,
+  the later declaration). APPLY_TEMPLATES (`src/evaluator_template.c`)
+  describes the item, takes the bucket of its category and name and the
+  bucket of its category, skips numbers below the first candidate
+  (next-match) by binary search and merges the two in rule order; the
+  precedence filter of apply-imports, on-multiple-match="fail" (ties
+  among the candidates, which hold every rule that can match) and the
+  built-in templates' apply-templates are unchanged, and streamed modes
+  go through the same choice (D223: a streamed node is an XNode of its
+  window; `evaluator_stream`'s template rules applied node by node and
+  XT40's streaming sets are unchanged). An item that is not an XNode
+  or cannot be described takes OTHER's bucket: every rule, as before.
+  The verifier checks the buckets (ordered by category and name, names
+  only for elements and attributes, rules of the mode in increasing
+  order). Not done: element() and attribute() tests with a name,
+  processing-instruction(name) and JNode keys are indexed by kind only.
+- **Measured** (callgrind, release; base 29719119c and the change built
+  alike from snapshots). Invoice transform 1.957 to 1.618 x 10^9
+  instructions, the transform itself 0.548 to 0.208 (the compile is
+  unchanged, 1.409); steps 1,359,249 to 324,824, match calls 44,422 to
+  2,739. `validate --schematron` 1.903 to 1.613, validation 0.479 to
+  0.189; steps 1,176,633 to 287,135, match calls 36,612 to 2,526. The
+  new benchmark `tests/bench/xslt-many-rules.xsl` (87 rules, one per
+  XMark element name and for attributes and text, over every node of the
+  XMark document, 152,795 items) 55.84 to 3.36 x 10^9; steps 165.2 M to
+  4.04 M, match calls 10,857,281 to 153,558. Processor seconds (a shared
+  4-CPU machine): invoice transform 0.262 to 0.222, validate 0.288 to
+  0.254 (fastest of 15, interleaved); `run-bench.py --repeat 5`:
+  xslt-many-rules 6.972 to 0.463, xmark-all 1.075 to 1.093, xslt-key
+  and xslt-match-variable within noise (interleaved reruns 0.465-0.507
+  against 0.459-0.475, 0.287-0.299 against 0.285-0.326); VEFA
+  (`sxml-schematron-test vefa`, 1,131 tests) 4.36 to 3.10 s; the XT40
+  run 363.5 to 364.0 s (its stylesheets are small; compiles dominate).
+- **Same result**: the rule chosen is the one the whole mode in order
+  would give (a skipped rule's match function returns false). Checked:
+  the official EN 16931 XSLT's SVRL over the 1,131 UBL unit test
+  documents (extracted from each VEFA `<test>`) and the 17 UBL examples,
+  per document, identical; `sxml validate --format=json` with the `.sch`
+  over the same 1,148 files in one run, 14.7 MB, byte-identical;
+  xslt-many-rules and the other benchmarks' outputs equal. 7.30's suite
+  through `sxml-schematron-test run`: 463 passed, 3 failed, 43
+  implementation-defined, 5 not applicable, as base; EN 16931 UBL 1,133
+  of 1,133 checks. New tests in `tests/evaluator_template_test.c`:
+  `rule_buckets` (names and kinds interleaved by priority, a named rule
+  below a kind-wide one, next-match from one bucket into the other,
+  atomic items, on-multiple-match across buckets, the default element
+  namespace) and `rule_bucket_contents` (the buckets a small stylesheet
+  gets). **Conformance setup**: base and change built alike (preset
+  `release`, snapshots of 29719119c and of the change), run one after
+  the other on the same machine with TZ, LANG and LC_ALL unset, from each
+  snapshot's root: `sxml-xslt-test run --format=json`, `sxml-qt4 run
+  --spec=XP40 --format=json`, `sxml-qt4 run --spec=XQ40 --format=json`
+  (default catalogs; XP40 and XQ40 because `src/ir.c` and
+  `src/ir_internal.h` changed). XT40 12,185, XP40 32,785, XQ40 46,114
+  passed in both: 0 outcomes differ, case by case (13,867, 47,313 and
+  47,313 cases). debug-gcc: the whole suite passed (459 tests;
+  kotlin/jvm and swift/linux skipped) except `evaluator_template`,
+  whose one wrong expectation (a union's default priority) was then
+  corrected; at the commit the 329 tests matching evaluator_template,
+  ir, xslt, schematron and cli pass. clang-tidy clean on the changed
+  files; `tools/check-call-cycles.py` finds no cycle (D71).
+
 ## Proposed
 
 - **Third-party rule sets that are not correct Schematron** (D323,
@@ -16634,21 +16734,6 @@ on the same invoice). No public header changed; no shared file changed
   only if the tests' leak checks are redefined (cells 4.3 % plus
   frees); (4) a typed-value memo per evaluation for untyped nodes,
   which needs the dynamic context to reach `src/xdm_node.c`.
-
-- **Template rules chosen without calling every match function**
-  (D326, perf-14; for a packet owning `src/evaluator_template.c`, the
-  lowering of template rules and `src/xslt_pattern.c`). The evaluator
-  calls a mode's match functions in rule order for each item; on the
-  EN 16931 invoice they are about 92 % of the evaluator's steps in both
-  the compiled Schematron (36,612 calls for 1,111 visits) and the
-  official stylesheet (44,422 for 1,321). Proposed default: each
-  template rule records, when lowered, the node kinds and (for a last
-  step with an EQName test) the expanded name its pattern may match,
-  computed as D326's walked kinds are; APPLY_TEMPLATES skips a rule
-  whose kinds or name exclude the item without calling its match
-  function. The order and the result of the search are unchanged; the
-  analysis then moves from `src/schematron_build.c` to
-  `src/xslt_pattern.c`.
 
 - **Compile costs that still grow with the square of a stylesheet**
   (D325, perf-13; for the packets that own the files). With XSLT's

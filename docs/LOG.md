@@ -4,6 +4,20 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-26
 
+- perf-15 done (D327): template rules chosen from rule buckets. Each
+  mode indexes its rules by what their pattern may match (node kind,
+  and the expanded name of a name test) in the mode's order;
+  apply-templates, next-match, apply-imports, streamed modes and the
+  built-in templates try only the rules of the item's kind and name
+  plus those that may match any name. Match functions were 88 % of the
+  steps on the EN 16931 invoice. Transform 1.957 to 1.618 x 10^9
+  instructions (the transform 0.548 to 0.208; steps 1.36 M to 0.32 M),
+  0.262 to 0.222 s; validate 1.903 to 1.613 (validation 0.479 to
+  0.189), 0.288 to 0.254 s; new xslt-many-rules 55.8 to 3.4 x 10^9,
+  7.0 to 0.46 s; xmark-all and XT40's run time unchanged. XT40 12,185,
+  XP40 32,785, XQ40 46,114: 0 outcomes differ; SVRL and findings
+  identical over 1,148 files; suite 463 of 463, VEFA 1,133 of 1,133.
+
 - perf-14 done (D326): running compiled Schematron. The compiled
   Schematron cost twice the official stylesheet on the EN 16931
   invoice because its walk visited text nodes (@* | node(), 1,177
