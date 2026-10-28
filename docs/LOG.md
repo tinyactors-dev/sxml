@@ -4,6 +4,22 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-26
 
+- 7.29 (D318): source locations for parsed input documents. The
+  processor setting `source_location_policy` (AUTOMATIC, ALWAYS, NEVER;
+  additive after D99) and `sxml_node_get_location` (tree.h, additive);
+  one flag per IR unit set where expressions are added (fn:location,
+  fn:function-lookup, fn:load-xquery-module, fn:transform,
+  xsl:evaluate), schemas the unit can validate with; the processor's
+  location demand decides AUTOMATIC. Copies keep locations, so a
+  stylesheet's input answers under xsl:strip-space. CLI:
+  `--locations=` for xpath, xquery and transform; xpath and xquery
+  compile before they parse `--context-item`; an error whose value is a
+  node prints `FILE:LINE:COLUMN: the node the error names`. JavaScript:
+  `createProcessor({ locations })` (not built here: no WASI SDK).
+  26 MB document: 173-175 MB peak without fn:location (unchanged),
+  249-251 MB with it or with `always`. XP40, XQ40 and XT40 identical
+  case by case.
+
 - 7.30 edge-case pass (D317 addendum): 182 cases more, 514 in 18 sets
   (78 new 2025-only), every construct varied by cardinality, order,
   errors, namespaces, text, node kinds and interaction; README tables of

@@ -1805,6 +1805,14 @@ already support locations.
   print locations; QT4 and XT40 unchanged case by case; the book's
   examples match.
 
+**Done** 2026-10-28 (D318): `sxml_source_location_policy` and
+`sxml_node_get_location` (additive); a flag per IR unit set where
+expressions are added, the processor's location demand, copies that
+keep locations; `--locations` in xpath, xquery and transform, which
+compile first; errors name a node's line; `createProcessor({ locations
+})` (not built here: no WASI SDK). 173 MB without fn:location, 249 MB
+with, on the 26 MB document; XP40, XQ40, XT40 identical case by case.
+
 ### cli-4 No step limit in the sxml command (implementation)
 After D313 (the owner: the sxml command sets no evaluation step limit).
 Today the command leaves `maximum_evaluation_step_count` at 0, the
