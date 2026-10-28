@@ -57,6 +57,9 @@ BENCHMARKS = [
     ("paths", xquery(os.path.join(BENCH, "paths.xq"))),
     ("recursion", xquery(os.path.join(BENCH, "recursion.xq"))),
     ("recursion-tail", xquery(os.path.join(BENCH, "recursion-tail.xq"))),
+    # The regex benchmarks read no document (D308, D310).
+    ("regex-reuse", ["SXML", "xquery", os.path.join(BENCH, "regex-reuse.xq")]),
+    ("regex-match", ["SXML", "xquery", os.path.join(BENCH, "regex-match.xq")]),
     ("flwor-group", xquery(os.path.join(BENCH, "flwor-group.xq"))),
     ("flwor-order", xquery(os.path.join(BENCH, "flwor-order.xq"))),
     ("xslt-key", xslt(os.path.join(BENCH, "xslt-key.xsl"))),
