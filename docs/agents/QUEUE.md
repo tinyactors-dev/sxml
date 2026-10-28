@@ -43,10 +43,15 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
   `fn:subsequence` and `$s[position() > 1]` copy the rest of a sequence,
   so recursion over a sequence is quadratic. Also open under "Proposed"
   in DECISIONS.md: source locations for parsed input documents.
-- perf-6, at the same time as perf-5 (disjoint files): compile each
-  regex once. After perf-5 lands: the cost of SORT in `src/evaluator.c`
-  (SchXslt's per-level re-sort of 780 parameters took about 7 of its 9
-  minutes, about 140 ns a comparison); profile before writing a packet.
+- perf-6 done (D308): a regex cache per evaluation; compiling was under
+  1 % of SchXslt's expand stage. Left: `tests/bench/regex-reuse.xq` is not
+  yet in `run-bench.py` (perf-5 holds that file).
+- perf-7, at the same time as perf-5 (disjoint files): faster regex
+  matching, profile first.
+- Sorting was measured and is not a problem: 780 elements sort in about
+  1.3 ms (`xsl:sort`) or 1.8 ms (`fn:sort`). SchXslt's 7 minutes were
+  its own 800,000 re-sorts; the fix (sort once in
+  `schxslt:replace-params`) belongs upstream, for the owner to offer.
 - 7.26 done (D307): tree-sitter:parse and tree-sitter:languages in
   urn:sxml:tree-sitter (name.h 17, additive), errors
   tree-sitter:unknown-language and tree-sitter:invalid-query;

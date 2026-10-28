@@ -1275,6 +1275,32 @@ evicted); 20,000 replace calls 0.103 to 0.065 s, bench-real.xsl 0.550 to
 0.488 s, SchXslt's expand stage 555 to 551 s (compiling under 1 %); QT4
 and XT40 regex sets unchanged case by case.
 
+### perf-7 Faster regex matching (implementation)
+After D53, D105 (the backtracking matcher) and D308 (perf-6: compiling
+is now under 5 % of a regex-heavy workload; matching is the rest).
+Measured (release, x86_64 Xeon 2.1 GHz): 200,000 calls of
+`matches("abc_def ghi " || ., "\w+\s\w+\s\d+")` take 0.80 s, and 0.71 s
+with explicit ranges `[a-z_]+ [a-z]+ [0-9]+`, against 0.12 s for the same
+loop with `contains`: about 3 microseconds a match of a 15-character
+string, whatever the character classes.
+- **Mechanism**: profile first (callgrind on `tests/bench/regex-reuse.xq`
+  and a new matching benchmark), then general mechanisms of the one regex
+  engine for the hot spots. Candidates to confirm or reject with numbers:
+  the matcher created and released on every call (D308 kept matchers per
+  call; a matcher could live with its cache entry while no call uses
+  it); the setup and the backtrack stack of each match; a literal prefix
+  or a required first character to skip start positions; ASCII fast
+  paths for class tests in `src/regex_unicode.c` (generated: change
+  `tools/generate-regex-tables.py` and regenerate, never edit it).
+  Errors, the regex step limit and step counts stay as before.
+- **Owns**: `src/regex.c`, `src/regex_internal.h`, `src/regex_unicode.c`,
+  `tools/generate-regex-tables.py`, `src/function_library_regex.c`,
+  `tests/regex_test.c`, `tests/bench/regex-*.xq`.
+- **Done when**: each change measured before and after (instructions and
+  seconds) in a D-record and the commit messages; the QT4 XP40 and XQ40
+  regex sets and the XT40 regex sets unchanged case by case; D71, the
+  memory limits and honest step counts kept.
+
 ### 7.21 Fast Invisible XML (book, tests, implementation)
 After D215 (7.18: the Earley parser, right recursion quadratic, every
 item a step). The owner: high performance; book first, then
