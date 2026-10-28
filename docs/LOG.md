@@ -4,6 +4,17 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-26
 
+- perf-10 done (D319): casts that keep the string relabel the source's
+  cell (xs:untypedAtomic to xs:string 1,650 to 240 instructions), one
+  item against a choice is kept by the first alternative it matches,
+  and untyped items are cast without a match first. SchXslt's expand
+  stage 52.19 to 47.78 x 10^9 instructions (coercion 21 % to 14 %),
+  about 6.7 to 5.9 s; coercion.xq 2.845 to 2.716; xmark-all 8.735 to
+  8.746. QT4 XP40 (32,785), XQ40 (46,114) and XT40 (12,185) whole,
+  release, case by case: 0 outcomes differ. Left: node atomization
+  (`src/xdm_node.c`), new vectors matched once per walk, and a choice
+  coercion gap (D319).
+
 - 7.29 (D318): source locations for parsed input documents. The
   processor setting `source_location_policy` (AUTOMATIC, ALWAYS, NEVER;
   additive after D99) and `sxml_node_get_location` (tree.h, additive);

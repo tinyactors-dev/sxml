@@ -15998,6 +15998,82 @@ Recorded 2026-10-28, after D313 (7, 8), D87, D88, D99.
   MB always; transform with `count(//line)` 174 MB automatic, 250 MB with
   `location()`. Before the change every case was 171-175 MB.
 
+### D319. Casts that keep the string, choices of one item, untyped items cast at once (packet perf-10)
+
+Recorded 2026-10-28, after D71, D85, D281, D309, D316. No public header
+changed.
+
+- **Whom it serves**: every coercion of an untyped value to xs:string
+  (XSLT passing attribute values to string functions, SchXslt first),
+  every call whose parameter is a choice type (fn:replace's
+  `$replacement`), and every cast of a string to a supertype. A
+  callgrind profile of SchXslt's expand stage of EN 16931 at a05385eb4
+  (52.19 x 10^9 instructions) put 21.3 % in `sxml_evaluator_coerce`:
+  2.7 million node atomizations (3.19), 1.36 million casts of
+  xs:untypedAtomic to xs:string through the whole cast pipeline (2.25,
+  about 1,650 instructions each: describe the target, parse, validate
+  and copy the same text), 676,000 single items against a choice type
+  through the engine and the whole matcher (about 1.8), and the
+  matches before each of those casts (0.37).
+- **Mechanism**, in the one cast (`src/cast.c`) and the one coercion
+  (`src/evaluator_function.c`), no new machinery:
+  1. *Relabelled casts* (glossary `relabelled_cast`): a cast whose
+     result has the source's own text is the source's string cell under
+     the target's annotation and primitive type, retained: an xs:string,
+     xs:untypedAtomic or xs:anyURI item cast to xs:string or
+     xs:untypedAtomic (F&O 4.0, 19.1.2.1 and 19.2: their canonical text
+     is the string; whitespace preserved; every string in the value
+     space), or an item cast to an atomic type it is derived from
+     (19.3.1; XSD 1.1 Part 2, 4.3.6: whiteSpace only strengthens by
+     restriction, facets only narrow). Casts to xs:string and
+     xs:untypedAtomic are decided before the target is described. The
+     item struct carries the annotation and the primitive type beside
+     the cell (D34), so nothing in the cell changes.
+  2. *One item against a choice* (`single_item_shortcut`): the first
+     alternative the item matches decides, as the engine's CHOICE rule
+     does (XPath 4.0, 3.4.2); when that alternative never changes the
+     items that match it (not a typed function, record, array or map
+     type), the item stays and the final match holds. No match, or a
+     first match that converts, goes to the engine from the beginning.
+  3. *Untyped items cast at once*: an xs:untypedAtomic item coerced to
+     an atomic type of another primitive type is cast without a match
+     first; its only supertypes are xs:anyAtomicType and above (XPath
+     4.0, 3.2.3).
+- **Not changed**: outcomes, error codes and their order, steps
+  (coercion and matching charge none), D71 (no new loop over nested
+  structure). Unions and enumerations of one item still take the
+  engine: the profiles here have none that do not match at once.
+- **Measured** (callgrind instructions x 10^9, release, before at
+  a05385eb4; commits 53ede6754 and f58ed07f2): SchXslt expand 52.19 to
+  50.23 (relabelled casts; a cast 1,650 to 240 instructions) to 48.44
+  (choices) to 47.78 (untyped), -8.5 % in all, coercion 21.3 % to
+  13.9 % (11.14 to 6.63), the same output byte for byte;
+  `tests/bench/coercion.xq` 2.845 to 2.753 to 2.755 to 2.716 (-4.5 %);
+  xmark-all 8.735 to 8.746 (+0.1 %: about 12 instructions more on each
+  of its 830,000 casts of untyped values to numbers, from the code the
+  check adds to the cast's entry; rearranging cut it from +0.5 %),
+  then unchanged; recursion.xq 6.561 to 6.566. Processor seconds
+  (fastest of seven, a shared and noisy machine): expand 6.6-6.7 to
+  5.7-6.1, coercion.xq 0.304 to 0.291, xmark-all 0.945 to 0.947. Every
+  benchmark's output the same. QT4 XP40 (32,785 passed), XQ40 (46,114)
+  and XT40 (12,185), whole, release, case by case against a05385eb4
+  built the same way: 0 outcomes differ. debug-gcc: all 426 tests
+  pass (evaluator_stream included), clang-tidy clean, no call cycle.
+- **Tried and dropped**: a matched-base memo per octave of the base's
+  count (D309 keeps one base per item type). The expand stage's 4,168
+  base matches are of new vectors, one per attribute (SchXslt computes
+  its parameter list again each time), not of bases evicted by their
+  own copies, so no memo keyed by the base can keep them: 0 % gain.
+- **Left**: node atomization (3.19, 6.7 %: the typed value's string is
+  copied into a new cell; `src/xdm_node.c`, not this packet's);
+  multi-item matching (0.85: the new vectors above, matched once each,
+  and vectors of 2 to 15 items); an engine gap found on the way: a
+  choice whose first alternative's rules leave an item unchanged but
+  unmatched, such as xs:untypedAtomic against (element(a) | xs:string),
+  ends in XPTY0004 instead of trying xs:string (3.4.2 tries the
+  alternatives in order; the engine counts the unchanged item as the
+  first attempt's success); unchanged here, as outcomes must be.
+
 
 ### D320. A compile report sink for XSLT (packet 7.28)
 Recorded 2026-10-28, after D315 ("Compile errors", the owner's 7b), D99

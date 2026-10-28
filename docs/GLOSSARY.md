@@ -430,6 +430,7 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `gregorian_value` | A value of one of the eight Gregorian types: xs:dateTime, xs:date, xs:time, xs:gYear, xs:gYearMonth, xs:gMonth, xs:gMonthDay, xs:gDay (F&O 4.0, section 9.3) |
 | `local_value` | A date/time value as written, without adjusting it by its timezone (F&O 4.0, section 9.6) |
 | `relabel` | Coercion that changes an atomic item's type annotation to a derived type whose value space holds the datum, keeping the datum (XPath 4.0, section 3.4.3) |
+| `relabelled_cast` | A cast whose result has the source's own text (a string, untyped or URI item to xs:string or xs:untypedAtomic, an item to a type it is derived from): the source's string cell under the target's annotation, not a new parse (internal, `src/cast.c`, D319) |
 | `civil_timezone` | The timezone offset in conventional use at a place and time (F&O 4.0, fn:civil-timezone) |
 | `ietf_date` | A date and time in the formats of RFC 822, RFC 850 and asctime that fn:parse-ietf-date reads |
 | `unix_time` | Milliseconds since 1970-01-01T00:00:00Z, leap seconds not counted (fn:unix-dateTime) |
@@ -627,7 +628,7 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `atomization` | Replacing nodes by their typed values and arrays by their members, until only atomic items remain (XPath 4.0, section 2.5.3) |
 | `type_match_frame` | An entry on the explicit stack of matching a value against a sequence type (instance of, treat as, coercion) |
 | `coercion_frame` | An entry on the explicit stack of applying the coercion rules (XPath 4.0, section 3.4) to a value: a sequence, an item, a choice being tried, or the parts of an array, map or record |
-| `single_item_shortcut` | Matching or coercing no item or one item without the frames of the type matcher or the coercion engine: the count against the occurrence, one item by the item rules alone, one item (or a node's one-item typed value) to an atomic type by the atomic coercion rules; whatever they do not decide at once goes to the frames (internal, `src/evaluator_function.c`, D316) |
+| `single_item_shortcut` | Matching or coercing no item or one item without the frames of the type matcher or the coercion engine: the count against the occurrence, one item by the item rules alone, one item (or a node's one-item typed value) to an atomic type by the atomic coercion rules, one item to a choice by the first alternative it matches when that one keeps it; whatever they do not decide at once goes to the frames (internal, `src/evaluator_function.c`, D316, D319) |
 | `caller_focus` | The focus of a static call, passed by lowering as three extra arguments (context value, position, size) to a native function that hands it on (fn:function-lookup binds a context-dependent function it finds to it) |
 | `composite_cast` | A cast to an array, map or record type (XPath 4.0, sections 4.19.2.4 to 4.19.2.7): the coercion frames run with the cast rules, so an item that does not match is cast to the item type, and a record keeps only its fields |
 | `static_namespaces` | The statically known namespaces of a compiled unit beyond the predeclared prefixes, kept for what resolves prefixes at run time (casts to xs:QName) |

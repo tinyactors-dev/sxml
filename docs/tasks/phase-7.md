@@ -1403,6 +1403,13 @@ base fails D309's whole-base match and is matched again item by item.
   and seconds) in a D-record and the commit messages, on SchXslt's
   expand stage, coercion.xq and xmark-all; QT4 XP40, XQ40 and XT40 run
   whole with no outcome changes, case by case.
+**Done** 2026-10-28 (D319): relabelled casts (a cast that keeps the
+text is the source's cell under the target's annotation), one item
+against a choice kept by its first matching alternative, untyped items
+cast without a match. SchXslt's expand stage 52.19 to 47.78 x 10^9
+instructions (coercion 11.14 to 6.63), coercion.xq 2.845 to 2.716,
+xmark-all 8.735 to 8.746; QT4 XP40, XQ40 and XT40 whole: 0 outcomes
+differ, case by case.
 
 ### 7.21 Fast Invisible XML (book, tests, implementation)
 After D215 (7.18: the Earley parser, right recursion quadratic, every
