@@ -1718,6 +1718,10 @@ growth, a cache's first use, the environment).
 - **Done when**: `tools/check-book-examples.sh` matches on `c.md` in the
   release build; the cause recorded in the LOG (a D-record only if a
   decision is made).
+**Done** 2026-10-28: the count is stable for one build (194 at HEAD,
+release and debug-gcc, any TZ, LANG and directory); it drifted with
+perf-5 (197), perf-12 (196) and perf-16 (194). The book shows 194; its
+prose no longer repeats the number.
 
 ### 7.21 Fast Invisible XML (book, tests, implementation)
 After D215 (7.18: the Earley parser, right recursion quadratic, every

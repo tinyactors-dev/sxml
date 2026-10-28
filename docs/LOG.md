@@ -4,6 +4,19 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-26
 
+- fix-6 done: the book's memory example (`docs/book/src/c.md`) counts
+  194 allocations at HEAD, the same in 30 runs each of the release
+  build and a GCC build with ASan and UBSan, with and without TZ and
+  LANG, from any working directory: stable for one build. It drifted
+  with the library: 195 when book-21 wrote it, 197 from perf-5
+  (c36c9a547, slices share items), 196 from perf-12 (6433339c9), 194
+  from perf-16 (c61054355), measured on each of the 33 commits since
+  that changed src, include or CMake. The chapter is built only by
+  `tools/check-book-examples.sh`, so those commits did not see it.
+  166 of the 194 come before evaluation; ten squares take 176. The
+  book shows 194, and its prose says "a couple of hundred" instead of
+  repeating the number, which no check reads.
+
 - perf-16 done (D330): IR passes after perf-12. Nothing grew faster
   than the unit; the loop passes walked it about ten times (owners in
   five passes, a census per function in three, the demand members, a
