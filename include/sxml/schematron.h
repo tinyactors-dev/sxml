@@ -86,9 +86,9 @@
  * urn:sxml:schematron, shown with the prefix "schematron" (the standard
  * names none):
  * - schematron:query-binding: a query binding sxml does not read;
- * - schematron:not-schematron: a document element that is not
- *   sch:schema, or that an inclusion does not allow (sch:library is
- *   allowed only where sch:extends href reaches it);
+ * - schematron:not-schematron: a compiled document whose document
+ *   element is not sch:schema (a sch:library is only ever included,
+ *   by sch:extends href, 5.4.8);
  * - schematron:include: a document that sch:include or sch:extends href
  *   names cannot be read, is not well-formed, has no element of the
  *   fragment identifier, includes itself, or gives an element its place
