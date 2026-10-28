@@ -4,6 +4,21 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-26
 
+- 7.27 designed (D315), for the owner's review: Schematron as a front
+  end to the XSLT AST. `include/sxml/schematron.h` (new, implemented by
+  nothing yet): compile once for a phase, validate many nodes, findings
+  as reports with the assertion's `.sch` location and the instance's
+  line, column and path, SVRL written from reports. The reader builds
+  one mode per active pattern and one template rule per rule (priority
+  N - K; groups chain with next-match), expands includes, abstract
+  patterns and rules while it walks, and replaces placeholders in one
+  scan; foreign `xsl:` declarations go through the XSLT reader. CLI:
+  `validate --schematron --phase --format=text|json|svrl`; JavaScript:
+  `compileSchematron` and `validate`. 7.28 rewritten with its files,
+  order and gates. Open for the owner: the 2025 constructs marked
+  unverified (the 2025 text was not available), role and flag not
+  inherited from the rule, `xslt` and `xpath` rejected until 7.4.
+
 - cli-4 done (D314): the sxml command sets no evaluation step limit
   (D313): its processor configuration asks for UINT64_MAX steps, as the
   header has no value for "no bound". `(1 to 20000) = (1 to 20000)`,

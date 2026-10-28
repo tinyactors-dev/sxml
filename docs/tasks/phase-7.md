@@ -1566,27 +1566,106 @@ Evidence from 2026-10-28 (see D309, D310 and the queue):
   - *Out of scope*: streaming validation, Schematron Quick Fix, any
     output other than reports and SVRL.
 - **Owns**: `include/sxml/schematron.h` (new), the decision record,
-  `docs/GLOSSARY.md` terms, `docs/CLI.md`'s validate section, and the
-  implementation packet 7.28's text (its files, gates and order).
+  `docs/GLOSSARY.md` terms, and the implementation packet 7.28's text
+  (its files, gates and order). The CLI design is written in the
+  decision record: `docs/CLI.md` is cli-4's while 7.27 runs, and 7.28
+  updates its validate section.
 - **Done when**: the owner has reviewed the header and the decision
   record; 7.28 is written with its file list and gates.
 
+**Designed** 2026-10-28 (D315), for the owner's review:
+`include/sxml/schematron.h` (compiles with the project's flags under
+clang and gcc, implemented by nothing yet), D315, the glossary's
+Schematron terms, 7.28 below. Not ticked: the owner's review is the
+gate. Open for the owner (D315, "Open for the owner"): the 2025
+constructs marked unverified, whether role and flag are inherited from
+the rule, whether `xslt` and `xpath` are rejected until 7.4.
+
 ### 7.28 Schematron as a front end to the XSLT AST (implementation)
-After 7.27. Owns what 7.27 lists (expected: `src/schematron_read.c`,
-`src/schematron_expand.c`, `src/schematron.c` and their internal
-headers, `tests/schematron_test.c`, a Schematron test driver,
-`apps/sxml/command_validate.c`, the JavaScript package's Schematron
-API, a book chapter).
-- **Gates**: the EN 16931 UBL and CII unit tests (1,133 and 9 checks)
-  pass with the `.sch` sources; for the EN 16931 and XRechnung rule sets
-  and their test instances, no difference in fired rules from SchXslt
-  1.10.1 running on sxml (a differential test: same ids, same
-  locations); compiling EN 16931 takes well under a second and within
-  the default step bound; errors in a rule report the `.sch` line and
-  column.
-- **Done when**: the gates pass; the CLI, C and JavaScript APIs are
-  tested end to end; the book chapter's examples match; QT4 and XT40
-  unchanged.
+After the owner's review of 7.27 (D315, D313), after 7.29 (the
+locations a validation keeps; both touch `apps/sxml/`) and cli-4 (which
+holds `apps/sxml/` and `docs/CLI.md`). Implements
+`include/sxml/schematron.h` as D315 designs it; a change to the header
+needs a record first.
+- **Owns**:
+  - new: `src/schematron_internal.h` (the index, the table of
+    assertions and rules, the layout of a finding item),
+    `src/schematron_read.c` (documents, `sch:include`, the index, the
+    query binding: D315's one place for `xquery3`),
+    `src/schematron_expand.c` (the placeholder scan and expansion
+    segments), `src/schematron_build.c` (the stylesheet AST),
+    `src/schematron.c` (the public API: compile, validate, reports),
+    `src/schematron_svrl.c` (SVRL from reports);
+  - changed: `src/xslt.c` and `src/xslt_transform_internal.h` (compile
+    a given AST: the part of `sxml_xslt_compile` after reading),
+    `src/xslt_read.c` and `src/xslt_read_internal.h` (read one foreign
+    XSLT declaration into a given AST under a given parent, with extra
+    namespace bindings);
+  - tests: `tests/schematron_test.c` (reading, placeholders, each
+    construct, error codes with their locations, the lifecycle under
+    the counting allocator), small `.sch` fixtures in
+    `tests/schematron/`, and a driver `tests/schematron/driver/`
+    (`sxml-schematron-test`, not shipped, as the XSD driver: the VEFA
+    unit tests of EN 16931 and the differential test);
+  - vendored test data in `third_party/`, pinned in
+    `tools/update-test-suites.sh` (D13), none of it shipped: EN 16931's
+    validation artefacts (ConnectingEurope/eInvoicing-EN16931, EUPL
+    1.2: `src/ubl/schematron`, `src/cii/schematron`, `src/test`),
+    XRechnung's Schematron (itplr-kosit/xrechnung-schematron v2.6.0,
+    Apache 2.0: `src/validation/schematron` and its test instances),
+    SchXslt 1.10.1 (MIT, its `2.0/` directory; D313, item 6);
+  - `apps/sxml/command_validate.c`, its tests in `tests/cli/`, and
+    `docs/CLI.md`'s validate section (D315, "The CLI");
+  - the JavaScript package's Schematron API
+    (`bindings/javascript/src/index.ts`, `sxml_javascript_exports.c`,
+    `sxml_javascript_full_exports.c`, its tests; D315, "JavaScript");
+  - a book chapter (`docs/book/src/schematron.md` and SUMMARY.md), with
+    real output;
+  - glossary terms it adds, LOG, its record.
+- **Order**, a commit after each step:
+  1. `src/xslt.c`: compile a given AST (no change in behaviour).
+  2. `src/xslt_read.c`: read one foreign declaration into a given AST.
+     XT40 unchanged case by case after steps 1 and 2.
+  3. Read, index and query binding, with unit tests.
+  4. Placeholders: the scan (longest name, values not scanned again)
+     and expansion segments (error offsets), with unit tests.
+  5. Build, compile and validate, construct by construct with fixtures;
+     reports with both locations.
+  6. Vendor EN 16931, XRechnung and SchXslt; the driver; gates 1 and 2.
+  7. SVRL; the differential test (gate 3).
+  8. The CLI. 9. JavaScript. 10. The book chapter.
+- **Gates**:
+  1. *EN 16931*: the UBL unit tests, 1,133 of 1,133 checks, and the
+     CII unit tests, 9 of 9, pass with the rules compiled from the
+     `.sch` sources (`EN16931-UBL-validation.sch`,
+     `EN16931-CII-validation.sch`), counted as on 2026-10-28 (each
+     test's rules in scope must or must not fire, with their counts).
+  2. *Compile time*: compiling `EN16931-UBL-validation.sch` takes well
+     under a second in a release build (measured, with peak memory, and
+     reported beside SchXslt's 10.5 s), within the library's default
+     step bound (10^8 steps; compiling evaluates only static
+     expressions), and each unit test validates within it too.
+  3. *Differential*: for the EN 16931 UBL and CII rule sets and
+     XRechnung's UBL and CII rule sets, over their test instances, the
+     set of (pattern, assertion id, kind, subject path) in sxml's
+     reports equals the set of (id, kind, location) in the SVRL that
+     SchXslt 1.10.1 running on sxml makes from the same `.sch`, and the
+     fired rules (context, node) agree. A difference is fixed or
+     explained in the record (a value that SchXslt scans again, D315),
+     never reclassified (D178).
+  4. *Errors in the `.sch`*: each `schematron:*` code, and a syntax
+     error in a test, in a rule context, in a `sch:param` value and in
+     a foreign `xsl:function`, has a test of its file, line and column;
+     a dynamic error in a test names its assertion's line.
+  5. *Locations of findings*: the instance's line and column in text,
+     JSON and JavaScript reports, on an EN 16931 test instance.
+- **Done when**: the gates pass; the C, CLI and JavaScript APIs are
+  tested end to end (text, JSON and SVRL; `--schema` with
+  `--schematron`; exit statuses 0, 1, 2, 3 and 4); the book chapter's
+  examples match (`tools/check-book-examples.sh`); clang-tidy and the
+  call-cycle check are clean; QT4 and XT40 unchanged; the `sxml.wasm`
+  and CLI size budgets raised in the same change if needed (D208),
+  with the growth reported.
 
 ### 7.29 Source locations for parsed input documents (design and implementation)
 After D87, D313 and perf-8 (which holds `src/evaluator.c` and
