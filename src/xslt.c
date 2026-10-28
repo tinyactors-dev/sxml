@@ -370,6 +370,88 @@ static sxml_status sxml_check_package(const sxml_xslt_stylesheet_configuration *
         configuration->error_record);
 }
 
+/* What the part of compiling after reading takes (sxml_xslt_compile_ast):
+   everything a stylesheet's configuration gives besides its module. */
+typedef struct sxml_ast_compilation {
+    sxml_processor *processor;
+    /* The host's in-scope schemas (3.13; D179). */
+    sxml_schema_view host_schemas;
+    /* Retained by the compiled stylesheet. */
+    sxml_variable_binding_view static_parameters;
+    bool falls_back_to_unstreamed;
+    sxml_error_record *error_record;
+} sxml_ast_compilation;
+
+/* Compiles the sealed AST in compiled->ast: the in-scope schemas,
+   lowering, the outputs; on failure the caller releases compiled. */
+static sxml_status sxml_xslt_compile_ast(const sxml_ast_compilation *compilation,
+                                         sxml_xslt_stylesheet *compiled) {
+    sxml_processor *processor = compilation->processor;
+    /* 3.13: the in-scope schemas, before anything resolves a type. */
+    sxml_status status = sxml_xslt_import_schemas(&(sxml_xslt_schema_request){
+        .ast = compiled->ast,
+        .processor = processor,
+        .host_schemas = compilation->host_schemas,
+        .error_record = compilation->error_record});
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xslt_lower_invocation(
+            &(sxml_unit_invocation){.stylesheet = compiled,
+                                    .initial_template = {.index = 0},
+                                    .initial_mode = {.index = 0},
+                                    .initial_function = {.index = 0},
+                                    .initial_function_arity = 0,
+                                    .applies_templates = true,
+                                    .selects_unnamed_mode = false,
+                                    .has_initial_match_selection = false,
+                                    .error_record = compilation->error_record},
+            &compiled->unit);
+    }
+    if (status == SXML_STATUS_OK && !compilation->falls_back_to_unstreamed) {
+        /* XSLT 4.0, 19.10: XTSE3430 for a construct declared streamable
+           that is not guaranteed-streamable (packet 7.6a), after the
+           static errors lowering finds, unless the user chose processing
+           without streaming instead (D219). */
+        status = sxml_xslt_check_streamability(&(sxml_xslt_streamability_request){
+            .ast = compiled->ast,
+            .allocator = processor->allocator,
+            .name_pool = sxml_item_heap_get_name_pool(processor->item_heap),
+            .maximum_frame_count = 0,
+            .error_record = compilation->error_record});
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xslt_stylesheet_outputs_create(
+            processor->allocator,
+            &(sxml_xslt_stylesheet_outputs_configuration){
+                .ast = compiled->ast,
+                .processor = processor,
+                .error_record = compilation->error_record},
+            &compiled->outputs);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_function_library_create(
+            processor->allocator,
+            &(sxml_function_library_configuration){
+                .allocator = processor->allocator,
+                .item_heap = processor->item_heap,
+                .parts = *sxml_function_library_xslt_parts()},
+            &compiled->function_library);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_static_parameters_keep(processor, compilation->static_parameters,
+                                             compiled);
+    }
+    if (status == SXML_STATUS_OK) {
+        const sxml_xslt_ast_node *root = sxml_xslt_ast_get_node(
+            compiled->ast,
+            sxml_xslt_ast_get_module(compiled->ast, (sxml_xslt_ast_module_index){.value = 1})
+                ->root);
+        compiled->prefers_xml_for_xhtml =
+            sxml_xslt_ast_get_static_context(compiled->ast, root->static_context)->version <
+            2.0;
+    }
+    return status;
+}
+
 /* Reads, lowers and compiles the outputs of the stylesheet into *compiled
    (zeroed by the caller); on failure what was made is released. */
 static sxml_status sxml_xslt_compile(const sxml_xslt_stylesheet_configuration *configuration,
@@ -394,68 +476,14 @@ static sxml_status sxml_xslt_compile(const sxml_xslt_stylesheet_configuration *c
         status = sxml_check_package(configuration, compiled->ast);
     }
     if (status == SXML_STATUS_OK) {
-        /* 3.13: the in-scope schemas, before anything resolves a type. */
-        status = sxml_xslt_import_schemas(&(sxml_xslt_schema_request){
-            .ast = compiled->ast,
-            .processor = processor,
-            .host_schemas = configuration->static_context.in_scope_schemas,
-            .error_record = configuration->error_record});
-    }
-    if (status == SXML_STATUS_OK) {
-        status = sxml_xslt_lower_invocation(
-            &(sxml_unit_invocation){.stylesheet = compiled,
-                                    .initial_template = {.index = 0},
-                                    .initial_mode = {.index = 0},
-                                    .initial_function = {.index = 0},
-                                    .initial_function_arity = 0,
-                                    .applies_templates = true,
-                                    .selects_unnamed_mode = false,
-                                    .has_initial_match_selection = false,
-                                    .error_record = configuration->error_record},
-            &compiled->unit);
-    }
-    if (status == SXML_STATUS_OK && !configuration->falls_back_to_unstreamed) {
-        /* XSLT 4.0, 19.10: XTSE3430 for a construct declared streamable
-           that is not guaranteed-streamable (packet 7.6a), after the
-           static errors lowering finds, unless the user chose processing
-           without streaming instead (D219). */
-        status = sxml_xslt_check_streamability(&(sxml_xslt_streamability_request){
-            .ast = compiled->ast,
-            .allocator = processor->allocator,
-            .name_pool = sxml_item_heap_get_name_pool(processor->item_heap),
-            .maximum_frame_count = 0,
-            .error_record = configuration->error_record});
-    }
-    if (status == SXML_STATUS_OK) {
-        status = sxml_xslt_stylesheet_outputs_create(
-            processor->allocator,
-            &(sxml_xslt_stylesheet_outputs_configuration){
-                .ast = compiled->ast,
+        status = sxml_xslt_compile_ast(
+            &(sxml_ast_compilation){
                 .processor = processor,
+                .host_schemas = configuration->static_context.in_scope_schemas,
+                .static_parameters = configuration->static_parameters,
+                .falls_back_to_unstreamed = configuration->falls_back_to_unstreamed,
                 .error_record = configuration->error_record},
-            &compiled->outputs);
-    }
-    if (status == SXML_STATUS_OK) {
-        status = sxml_function_library_create(
-            processor->allocator,
-            &(sxml_function_library_configuration){
-                .allocator = processor->allocator,
-                .item_heap = processor->item_heap,
-                .parts = *sxml_function_library_xslt_parts()},
-            &compiled->function_library);
-    }
-    if (status == SXML_STATUS_OK) {
-        status = sxml_static_parameters_keep(processor, configuration->static_parameters,
-                                             compiled);
-    }
-    if (status == SXML_STATUS_OK) {
-        const sxml_xslt_ast_node *root = sxml_xslt_ast_get_node(
-            compiled->ast,
-            sxml_xslt_ast_get_module(compiled->ast, (sxml_xslt_ast_module_index){.value = 1})
-                ->root);
-        compiled->prefers_xml_for_xhtml =
-            sxml_xslt_ast_get_static_context(compiled->ast, root->static_context)->version <
-            2.0;
+            compiled);
     }
     if (status != SXML_STATUS_OK) {
         sxml_xslt_detach_location(
@@ -519,6 +547,23 @@ sxml_status sxml_xslt_stylesheet_memory_requirements(
     return SXML_STATUS_OK;
 }
 
+/* Places a compiled stylesheet in memory (which meets the memory
+   requirements) and notes it as a program of its processor (D318). */
+static sxml_xslt_stylesheet *sxml_stylesheet_place(sxml_memory_view memory,
+                                                   const sxml_xslt_stylesheet *compiled) {
+    void *placement = memory.bytes;
+    sxml_xslt_stylesheet *new_stylesheet = placement;
+    *new_stylesheet = *compiled;
+    /* The stripping's address is the document preparation's state. */
+    new_stylesheet->stripping = (sxml_xslt_whitespace_stripping){
+        .ast = new_stylesheet->ast, .processor = new_stylesheet->processor};
+    sxml_processor_note_program(
+        new_stylesheet->processor,
+        sxml_processor_unit_reads_source_locations(new_stylesheet->processor,
+                                                   new_stylesheet->unit));
+    return new_stylesheet;
+}
+
 sxml_status sxml_xslt_stylesheet_initialize(
     sxml_memory_view memory, const sxml_xslt_stylesheet_configuration *configuration,
     sxml_xslt_stylesheet **stylesheet) {
@@ -541,17 +586,7 @@ sxml_status sxml_xslt_stylesheet_initialize(
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    void *placement = memory.bytes;
-    sxml_xslt_stylesheet *new_stylesheet = placement;
-    *new_stylesheet = compiled;
-    /* The stripping's address is the document preparation's state. */
-    new_stylesheet->stripping = (sxml_xslt_whitespace_stripping){
-        .ast = new_stylesheet->ast, .processor = new_stylesheet->processor};
-    sxml_processor_note_program(
-        new_stylesheet->processor,
-        sxml_processor_unit_reads_source_locations(new_stylesheet->processor,
-                                                   new_stylesheet->unit));
-    *stylesheet = new_stylesheet;
+    *stylesheet = sxml_stylesheet_place(memory, &compiled);
     return SXML_STATUS_OK;
 }
 
@@ -598,6 +633,48 @@ void sxml_xslt_stylesheet_destroy(sxml_xslt_stylesheet *stylesheet) {
     const sxml_allocator allocator = stylesheet->creating_allocator;
     sxml_xslt_stylesheet_finalize(stylesheet);
     sxml_allocator_release(allocator, stylesheet);
+}
+
+sxml_status sxml_xslt_stylesheet_create_from_ast(sxml_allocator allocator,
+                                                 const sxml_xslt_ast_stylesheet_request *request,
+                                                 sxml_xslt_stylesheet **stylesheet) {
+    if (request == NULL || request->processor == NULL || request->ast == NULL ||
+        !request->ast->is_sealed || stylesheet == NULL) {
+        if (request != NULL) {
+            sxml_xslt_ast_destroy(request->ast);
+        }
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    sxml_xslt_stylesheet compiled;
+    memset(&compiled, 0, sizeof(compiled));
+    compiled.processor = request->processor;
+    compiled.ast = request->ast;
+    sxml_status status = sxml_xslt_compile_ast(
+        &(sxml_ast_compilation){
+            .processor = request->processor,
+            .host_schemas = {.schemas = NULL, .schema_count = 0},
+            .static_parameters = {.variable_bindings = NULL, .variable_binding_count = 0},
+            .falls_back_to_unstreamed = true,
+            .error_record = request->error_record},
+        &compiled);
+    void *memory = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_allocator_allocate(
+            allocator,
+            (sxml_allocation_request){.byte_count = sizeof(sxml_xslt_stylesheet),
+                                      .alignment = alignof(sxml_xslt_stylesheet)},
+            &memory);
+    }
+    if (status != SXML_STATUS_OK) {
+        sxml_stylesheet_release(&compiled);
+        return status;
+    }
+    sxml_xslt_stylesheet *new_stylesheet = sxml_stylesheet_place(
+        (sxml_memory_view){.bytes = memory, .byte_count = sizeof(sxml_xslt_stylesheet)},
+        &compiled);
+    new_stylesheet->creating_allocator = allocator;
+    *stylesheet = new_stylesheet;
+    return SXML_STATUS_OK;
 }
 
 sxml_status sxml_xslt_stylesheet_get_output_definition(

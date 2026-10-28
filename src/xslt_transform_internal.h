@@ -8,6 +8,7 @@
 #include "sxml/xdm.h"
 #include "sxml/xslt.h"
 #include "xpath_api_internal.h"
+#include "xslt_ast_internal.h"
 
 /*
  * A transformation run as a unit evaluation on a running machine
@@ -83,6 +84,38 @@ void sxml_xslt_machine_transformation_destroy(sxml_xslt_machine_transformation *
 /* True when text is the memory of a module URI or source name of the
    stylesheet, which an error location may name. */
 bool sxml_xslt_stylesheet_holds_text(const sxml_xslt_stylesheet *stylesheet, sxml_byte_view text);
+
+/* ------------------------------------------------- Compiling a given AST */
+
+/*
+ * A stylesheet AST made by another front end than the stylesheet reader
+ * (Schematron, src/schematron_build.c; D315), to compile as
+ * sxml_xslt_stylesheet_create compiles what it reads: the in-scope
+ * schemas (only those its xsl:import-schema declarations bring), lowering
+ * for an apply-templates invocation in the default mode, the outputs. No
+ * static parameters; constructs declared streamable are processed without
+ * streaming (19.10's user option, D219).
+ */
+typedef struct sxml_xslt_ast_stylesheet_request {
+    /* Kept by reference; must outlive the stylesheet. */
+    sxml_processor *processor;
+    /* Sealed; owned by the call: by the stylesheet made, destroyed when
+       the call fails. */
+    sxml_xslt_ast *ast;
+    /* Receives the first error, located where the AST's nodes and
+       expressions say; may be NULL. */
+    sxml_error_record *error_record;
+} sxml_xslt_ast_stylesheet_request;
+
+/*
+ * Compiles request->ast into a stylesheet allocated through allocator
+ * (released with sxml_xslt_stylesheet_destroy), written to *stylesheet.
+ * Returns the failures of sxml_xslt_stylesheet_create after reading, and
+ * SXML_STATUS_INVALID_ARGUMENT for an AST that is not sealed.
+ */
+SXML_NODISCARD sxml_status sxml_xslt_stylesheet_create_from_ast(
+    sxml_allocator allocator, const sxml_xslt_ast_stylesheet_request *request,
+    sxml_xslt_stylesheet **stylesheet);
 
 /* -------------------------------------------------- The optional feature */
 
