@@ -185,6 +185,9 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `with_parameter` | The value one `xsl:with-param` supplies, with its name and whether it is a tunnel parameter |
 | `built_in_template` | The template function a mode calls for an item no template rule matches: the built-in template rule of its on-no-match (XSLT 4.0, 6.10) |
 | `rule_search` | Which template rules of a mode an apply-templates tries: all of them, those after the current template rule (`xsl:next-match`), or those of the levels the current rule's level imports (`xsl:apply-imports`) |
+| `item_category` | What an item is for choosing template rules: an XNode's node kind, or other for every item that is not an XNode (perf-15) |
+| `item_requirement` | The item categories and, for elements and attributes, the expanded names a pattern may match, read from its pattern AST; an item outside it does not match the pattern (perf-15) |
+| `rule_bucket` | The template rules of a mode that may match items of one item category, of one name or of any name, in the mode's order; apply-templates tries only the rules of an item's two buckets (perf-15) |
 | `current_template_rule` | The template rule whose template is running, absent in a changed focus, functions and globals (XSLT 4.0, 6.11) |
 | `current_mode` | The mode the running template was chosen in; `mode="#current"` (XSLT 4.0, 6.9.2) |
 | `enclosing_mode` | An `xsl:mode` with `xsl:template` children, the only rules of that mode (XSLT 4.0, 6.9.6) |
