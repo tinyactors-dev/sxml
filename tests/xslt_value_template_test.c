@@ -371,6 +371,67 @@ static void test_effective_values(sxml_test_state *state) {
     sxml_processor_destroy(processor);
 }
 
+/* A value template without curly brackets is its text (5.6.1): the AST
+   the parser made before it was built directly (perf-13), every span the
+   whole text, the capacities the parser's. Texts the fixed part scanner
+   rejects, and a depth limit below three nodes, still reach the parser. */
+static void test_plain_text_is_its_text(sxml_test_state *state) {
+    static const char *const texts[] = {"", "plain", "  a b \n c ", "\xc3\xa9\nx", "\r\n x\t"};
+    for (size_t text_index = 0; text_index < SXML_TEST_COUNT(texts); text_index += 1U) {
+        sxml_ast *built = NULL;
+        const sxml_ast_build_request request = request_of(texts[text_index], NULL);
+        SXML_TEST_REQUIRE(state, sxml_xslt_build_value_template_ast(&request, &built) ==
+                                     SXML_STATUS_OK);
+        const uint32_t byte_count = (uint32_t)strlen(texts[text_index]);
+        SXML_TEST_EXPECT(state, built->root.value == 1U);
+        SXML_TEST_EXPECT(state, built->node_count == (byte_count == 0 ? 3U : 4U));
+        SXML_TEST_EXPECT(state, built->node_capacity == (byte_count == 0 ? 2U : 3U));
+        SXML_TEST_EXPECT(state, built->text_byte_capacity == byte_count);
+        SXML_TEST_EXPECT(state, built->text_byte_count == byte_count);
+        for (uint32_t node_number = 1; node_number < built->node_count; node_number += 1U) {
+            const sxml_ast_node *node = &built->nodes[node_number];
+            SXML_TEST_EXPECT(state, node->source_span.byte_offset == 0 &&
+                                        node->source_span.byte_count == byte_count &&
+                                        node->source_span.line_number == 1U &&
+                                        node->source_span.column_number == 1U &&
+                                        node->flags == 0);
+        }
+        const sxml_ast_node *body = sxml_ast_get_node(built, built->nodes[1].first_child);
+        SXML_TEST_EXPECT(state, body->kind == SXML_AST_KIND_STRING_TEMPLATE &&
+                                    body->field == SXML_AST_FIELD_BODY);
+        if (byte_count != 0) {
+            const sxml_ast_node *part = sxml_ast_get_node(built, body->first_child);
+            SXML_TEST_EXPECT(state, part->kind == SXML_AST_KIND_STRING_TEMPLATE_FIXED_PART &&
+                                        part->field == SXML_AST_FIELD_PART &&
+                                        part->next_sibling.value == 0);
+            SXML_TEST_EXPECT(state, sxml_byte_view_equals(
+                                        sxml_ast_get_text(built, part->payload.text),
+                                        sxml_byte_view_from_c_string(texts[text_index])));
+        } else {
+            SXML_TEST_EXPECT(state, body->first_child.value == 0);
+        }
+        sxml_ast_destroy(built);
+    }
+    /* U+FFFE is no XML 1.1 Char: XPST0003 from the parser. */
+    sxml_error_record record;
+    memset(&record, 0, sizeof record);
+    sxml_ast *built = NULL;
+    const sxml_ast_build_request noncharacter = request_of("a\xef\xbf\xbe", &record);
+    SXML_TEST_EXPECT(state, sxml_xslt_build_value_template_ast(&noncharacter, &built) ==
+                                SXML_STATUS_STATIC_ERROR);
+    SXML_TEST_EXPECT(state, sxml_byte_view_equals(record.code.local_name,
+                                                  SXML_BYTE_VIEW_FROM_LITERAL("XPST0003")));
+    /* The fixed part is the third level: a limit of two refuses it. */
+    sxml_ast_build_request shallow = request_of("plain", NULL);
+    shallow.maximum_expression_depth = 2;
+    SXML_TEST_EXPECT(state, sxml_xslt_build_value_template_ast(&shallow, &built) ==
+                                SXML_STATUS_LIMIT_EXCEEDED);
+    shallow.maximum_expression_depth = 3;
+    SXML_TEST_REQUIRE(state, sxml_xslt_build_value_template_ast(&shallow, &built) ==
+                                 SXML_STATUS_OK);
+    sxml_ast_destroy(built);
+}
+
 static const sxml_test_case xslt_value_template_test_cases[] = {
     {.name = "templates_build_string_template_asts",
      .function = test_templates_build_string_template_asts},
@@ -379,6 +440,7 @@ static const sxml_test_case xslt_value_template_test_cases[] = {
     {.name = "curly_bracket_errors", .function = test_curly_bracket_errors},
     {.name = "requests_are_checked", .function = test_requests_are_checked},
     {.name = "effective_values", .function = test_effective_values},
+    {.name = "plain_text_is_its_text", .function = test_plain_text_is_its_text},
 };
 
 int main(int argument_count, char **arguments) {

@@ -23,6 +23,7 @@
  */
 #include "xslt_value_template_internal.h"
 
+#include "sxml/string.h"
 #include "sxml/view.h"
 
 #include <stdbool.h>
@@ -383,6 +384,122 @@ sxml_value_template_location_of(const sxml_ast_build_request *request,
     return location;
 }
 
+/* ---------------------------------------------------------- Plain text */
+
+/*
+ * True when text is a value template of fixed text only (XSLT 4.0, 5.6.1:
+ * no curly bracket, so no variable part and no escape): valid UTF-8 whose
+ * every character is one the fixed part scanner accepts (XML 1.1 [2]
+ * Char; grammars/value_template/src/scanner.c), so the parse cannot fail.
+ * Any other text goes to the parser, which judges it.
+ */
+static bool sxml_value_template_is_plain_text(sxml_byte_view text) {
+    if ((text.bytes == NULL && text.byte_count != 0) ||
+        text.byte_count > UINT32_MAX) {
+        return false;
+    }
+    for (size_t position = 0; position < text.byte_count; position += 1U) {
+        const uint8_t byte = text.bytes[position];
+        /* NUL, the brackets, and the lead byte of U+FFFE and U+FFFF
+           (EF BF BE, EF BF BF), the non-characters UTF-8 allows. */
+        if (byte == 0 || byte == '{' || byte == '}' ||
+            (byte == 0xEFU && position + 2U < text.byte_count &&
+             text.bytes[position + 1U] == 0xBFU &&
+             (text.bytes[position + 2U] == 0xBEU ||
+              text.bytes[position + 2U] == 0xBFU))) {
+            return false;
+        }
+    }
+    sxml_utf8_validation validation = {
+        .valid_byte_count = 0, .codepoint_count = 0, .is_ascii = false};
+    return sxml_utf8_validate(text, &validation) == SXML_STATUS_OK;
+}
+
+/*
+ * The AST the parser builds for plain text, without the parse (perf-13):
+ * the XPATH root, its STRING_TEMPLATE body and, unless the text is empty,
+ * one fixed part holding the text; every span the whole text from line 1,
+ * column 1. The capacities are the parser's: one node per concrete syntax
+ * tree node, as many text bytes as the text has.
+ */
+static sxml_status
+sxml_value_template_build_plain(const sxml_ast_build_request *request,
+                                sxml_ast **ast) {
+    const sxml_byte_view text = request->expression_text;
+    const sxml_ast_source_span span = {.byte_offset = 0,
+                                       .byte_count = (uint32_t)text.byte_count,
+                                       .line_number = 1,
+                                       .column_number = 1};
+    sxml_ast *new_ast = NULL;
+    sxml_status status = sxml_ast_create(
+        request->allocator,
+        &(sxml_ast_configuration){.node_capacity =
+                                      text.byte_count == 0 ? 2U : 3U,
+                                  .text_byte_capacity = text.byte_count,
+                                  .source_name = request->source_name},
+        &new_ast);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_ast_node_index root = {.value = 0};
+    sxml_ast_node_index body = {.value = 0};
+    status = sxml_ast_add_node(new_ast,
+                               &(sxml_ast_node_request){
+                                   .kind = SXML_AST_KIND_XPATH,
+                                   .detail = {.operator = SXML_AST_OPERATOR_NONE},
+                                   .flags = 0,
+                                   .source_span = span,
+                                   .payload = {.text = {.byte_offset = 0,
+                                                        .byte_count = 0}}},
+                               &root);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_ast_add_node(
+            new_ast,
+            &(sxml_ast_node_request){
+                .kind = SXML_AST_KIND_STRING_TEMPLATE,
+                .detail = {.operator = SXML_AST_OPERATOR_NONE},
+                .flags = 0,
+                .source_span = span,
+                .payload = {.text = {.byte_offset = 0, .byte_count = 0}}},
+            &body);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_ast_append_child(
+            new_ast, (sxml_ast_child_request){.parent = root,
+                                              .field = SXML_AST_FIELD_BODY,
+                                              .child = body});
+    }
+    if (status == SXML_STATUS_OK && text.byte_count != 0) {
+        sxml_ast_text stored = {.byte_offset = 0, .byte_count = 0};
+        sxml_ast_node_index fixed_part = {.value = 0};
+        status = sxml_ast_append_text(new_ast, text, &stored);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_ast_add_node(
+                new_ast,
+                &(sxml_ast_node_request){
+                    .kind = SXML_AST_KIND_STRING_TEMPLATE_FIXED_PART,
+                    .detail = {.operator = SXML_AST_OPERATOR_NONE},
+                    .flags = 0,
+                    .source_span = span,
+                    .payload = {.text = stored}},
+                &fixed_part);
+        }
+        if (status == SXML_STATUS_OK) {
+            status = sxml_ast_append_child(
+                new_ast, (sxml_ast_child_request){.parent = body,
+                                                  .field = SXML_AST_FIELD_PART,
+                                                  .child = fixed_part});
+        }
+    }
+    if (status != SXML_STATUS_OK) {
+        sxml_ast_destroy(new_ast);
+        return status;
+    }
+    new_ast->root = root;
+    *ast = new_ast;
+    return SXML_STATUS_OK;
+}
+
 /* ---------------------------------------------------------------- Entry */
 
 sxml_status
@@ -390,6 +507,14 @@ sxml_xslt_build_value_template_ast(const sxml_ast_build_request *request,
                                    sxml_ast **ast) {
     if (request == NULL || ast == NULL) {
         return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    /* XSLT 4.0, 5.6.1: without curly brackets a value template is its
+       text, so there is nothing to parse. The parser's depth limit counts
+       the three nodes, so a smaller limit goes to the parser. */
+    if ((request->maximum_expression_depth == 0 ||
+         request->maximum_expression_depth >= 3U) &&
+        sxml_value_template_is_plain_text(request->expression_text)) {
+        return sxml_value_template_build_plain(request, ast);
     }
     const sxml_status status = sxml_ast_build_with_parser_part(
         request, &sxml_value_template_part, ast);
