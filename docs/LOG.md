@@ -4,6 +4,21 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-26
 
+- 7.27 revised (D315), for the owner's review: the design brought in
+  line with ISO/IEC 19757-3:2025 and the owner's review. Compile errors
+  go to a report sink (XSD's, reused); no queryBinding, `xslt` and
+  `xpath` are read as XSLT 4.0 / XPath 4.0 (D313 point 2 amended), the
+  1.0 differences listed; binding names ignore case; an unsupported
+  binding exits 1. Designed from the text instead of rejected: group,
+  library and top-level extends, rules, schema and abstract-pattern
+  params with defaults, let/@as, visit-each, severity (reports and
+  the error-finding rule), dynamic flag/role/severity, phase from and
+  when with `#ANY`, schematronEdition. The standard overturned the
+  first version on case, library inclusion, whole-token placeholders,
+  variable scopes, the message context and external values. Header,
+  glossary and 7.28 (step 5b, gate 6) follow; 7.27 not ticked. Open:
+  eight new choices in D315.
+
 - perf-8 done (D316): cheap coercion of one item. Matching decides no
   item or one item by the occurrence and the matcher's item rules
   without frames; coercion of one item to a plain atomic type keeps an

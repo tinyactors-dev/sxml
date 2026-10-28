@@ -1611,33 +1611,50 @@ Evidence from 2026-10-28 (see D309, D310 and the queue):
 `include/sxml/schematron.h` (compiles with the project's flags under
 clang and gcc, implemented by nothing yet), D315, the glossary's
 Schematron terms, 7.28 below. Not ticked: the owner's review is the
-gate. Open for the owner (D315, "Open for the owner"): the 2025
-constructs marked unverified, whether role and flag are inherited from
-the rule, whether `xslt` and `xpath` are rejected until 7.4.
+gate.
+
+**Revised** 2026-10-28 after the owner's review (D315, points A to D;
+D313 point 2 amended: no queryBinding, `xslt` and `xpath` are read as
+XSLT 4.0 and XPath 4.0) and against the text of ISO/IEC 19757-3:2025:
+every construct of the 2025 edition designed with its clause (group,
+library, rules, extends at the top, schema and abstract-pattern params,
+let/@as, visit-each, severity, dynamic flag/role/severity, phase
+from/when and `#ANY`, schematronEdition); compile errors through a
+report sink; exit status 1 for an unsupported binding. The header,
+D315, the glossary and 7.28 below follow. Still not ticked: the owner's
+review of the revision is the gate. Open for the owner: D315's eight
+new choices ("Open for the owner").
 
 ### 7.28 Schematron as a front end to the XSLT AST (implementation)
 After the owner's review of 7.27 (D315, D313), after 7.29 (the
 locations a validation keeps; both touch `apps/sxml/`) and cli-4 (which
 holds `apps/sxml/` and `docs/CLI.md`). Implements
-`include/sxml/schematron.h` as D315 designs it; a change to the header
-needs a record first.
+`include/sxml/schematron.h` as D315 (revised) designs it, against
+ISO/IEC 19757-3:2025 (the owner's copy; cite clauses, copy no text); a
+change to the header needs a record first.
 - **Owns**:
   - new: `src/schematron_internal.h` (the index, the table of
     assertions and rules, the layout of a finding item),
-    `src/schematron_read.c` (documents, `sch:include`, the index, the
-    query binding: D315's one place for `xquery3`),
-    `src/schematron_expand.c` (the placeholder scan and expansion
-    segments), `src/schematron_build.c` (the stylesheet AST),
-    `src/schematron.c` (the public API: compile, validate, reports),
-    `src/schematron_svrl.c` (SVRL from reports);
+    `src/schematron_read.c` (documents, `sch:include`, `sch:extends
+    href` and `sch:library`, the index, the query binding: D315's one
+    place for the bindings sxml does not read, every error to the
+    compile report sink),
+    `src/schematron_expand.c` (the placeholder scan over the instance's
+    and the schema's parameters, defaults, expansion segments),
+    `src/schematron_build.c` (the stylesheet AST: variables and their
+    scopes, groups, visit-each, from, `#ANY`, dynamic attribute
+    values), `src/schematron.c` (the public API: compile, describe,
+    validate, reports), `src/schematron_svrl.c` (SVRL from reports and
+    the static table, Annex D);
   - changed: `src/xslt.c` and `src/xslt_transform_internal.h` (compile
     a given AST: the part of `sxml_xslt_compile` after reading),
     `src/xslt_read.c` and `src/xslt_read_internal.h` (read one foreign
     XSLT declaration into a given AST under a given parent, with extra
     namespace bindings);
   - tests: `tests/schematron_test.c` (reading, placeholders, each
-    construct, error codes with their locations, the lifecycle under
-    the counting allocator), small `.sch` fixtures in
+    construct of the 2025 edition, error codes with their locations,
+    several errors from one compile, the lifecycle under the counting
+    allocator), small `.sch` fixtures in
     `tests/schematron/`, and a driver `tests/schematron/driver/`
     (`sxml-schematron-test`, not shipped, as the XSD driver: the VEFA
     unit tests of EN 16931 and the differential test);
@@ -1660,14 +1677,23 @@ needs a record first.
   1. `src/xslt.c`: compile a given AST (no change in behaviour).
   2. `src/xslt_read.c`: read one foreign declaration into a given AST.
      XT40 unchanged case by case after steps 1 and 2.
-  3. Read, index and query binding, with unit tests.
-  4. Placeholders: the scan (longest name, values not scanned again)
+  3. Read, inclusions (include, extends href, library), index and
+     query binding (case ignored; none, xslt and xpath as 4.0),
+     every error to the report sink, with unit tests.
+  4. Placeholders: the scan (whole name token, the instance's table
+     then the schema's, abstract defaults, values not scanned again)
      and expansion segments (error offsets), with unit tests.
-  5. Build, compile and validate, construct by construct with fixtures;
-     reports with both locations.
+  5. Build, compile and validate the third-edition constructs, with
+     fixtures; variables and their scopes (D315, "Variables"); reports
+     with both locations.
+  5b. The 2025 constructs, a fixture each: group, rules, visit-each,
+     severity and the error-finding rule, dynamic flag, role and
+     severity (variable references, AVTs), let/@as, phase from, when
+     with `#ANY`, schematronEdition, the message context (6.3).
   6. Vendor EN 16931, XRechnung and SchXslt; the driver; gates 1 and 2.
   7. SVRL; the differential test (gate 3).
-  8. The CLI. 9. JavaScript. 10. The book chapter.
+  8. The CLI (`--schematron-param`, `--phase=#ANY`). 9. JavaScript.
+  10. The book chapter.
 - **Gates**:
   1. *EN 16931*: the UBL unit tests, 1,133 of 1,133 checks, and the
      CII unit tests, 9 of 9, pass with the rules compiled from the
@@ -1685,17 +1711,27 @@ needs a record first.
      reports equals the set of (id, kind, location) in the SVRL that
      SchXslt 1.10.1 running on sxml makes from the same `.sch`, and the
      fired rules (context, node) agree. A difference is fixed or
-     explained in the record (a value that SchXslt scans again, D315),
-     never reclassified (D178).
+     explained in the record (a value that SchXslt scans again, a
+     placeholder SchXslt matched by prefix, D315), never reclassified
+     (D178). SchXslt has no 2025 constructs: gate 6 covers them.
   4. *Errors in the `.sch`*: each `schematron:*` code, and a syntax
-     error in a test, in a rule context, in a `sch:param` value and in
-     a foreign `xsl:function`, has a test of its file, line and column;
-     a dynamic error in a test names its assertion's line.
+     error in a test, in a rule context, in a `sch:param` value (an
+     instance's, a schema's, a configured one) and in a foreign
+     `xsl:function`, has a test of its file, line and column; one
+     `.sch` with errors of several kinds gives all of them in one
+     compile, in the C API, the CLI and JavaScript; a dynamic error in
+     a test names its assertion's line.
   5. *Locations of findings*: the instance's line and column in text,
      JSON and JavaScript reports, on an EN 16931 test instance.
+  6. *The 2025 edition*: each construct of step 5b, each Annex B
+     constraint and each query binding name (cases mixed; xquery3 and
+     an unknown name refused with exit status 1) has a fixture whose
+     reports and SVRL (active-group, severity, visit-each,
+     schematronEdition) are checked against the clause it cites.
 - **Done when**: the gates pass; the C, CLI and JavaScript APIs are
   tested end to end (text, JSON and SVRL; `--schema` with
-  `--schematron`; exit statuses 0, 1, 2, 3 and 4); the book chapter's
+  `--schematron`; exit statuses 0, 1 (an unsupported binding among
+  them), 2, 3 and 4); the book chapter's
   examples match (`tools/check-book-examples.sh`); clang-tidy and the
   call-cycle check are clean; QT4 and XT40 unchanged; the `sxml.wasm`
   and CLI size budgets raised in the same change if needed (D208),
