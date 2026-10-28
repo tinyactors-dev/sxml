@@ -141,4 +141,141 @@
       </findings>
     </result>
   </test-case>
+  <test-case name="group-dynamic-error-not-blocked" since="2025">
+    <description>In a group a later rule is evaluated for nodes an earlier rule matched: its dynamic error ends validation in error (compare rules-dynamic-error-blocked).</description>
+    <spec clause="5.4.5"/>
+    <spec clause="6.6"/>
+    <spec clause="6.1"/>
+    <schema file="group-dynamic-error-not-blocked.sch"/>
+    <instance file="group-dynamic-error-not-blocked.xml"/>
+    <result>
+      <error clause="6.1"/>
+    </result>
+  </test-case>
+
+  <test-case name="group-identical-rules" since="2025">
+    <description>Two identical rules in a group both fire: two identical findings.</description>
+    <spec clause="5.4.5"/>
+    <spec clause="6.6"/>
+    <schema file="group-identical-rules.sch"/>
+    <instance file="group-identical-rules.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Not two.</message>
+        </finding>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Not two.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="group-order-with-patterns" since="2025">
+    <description>Two groups and a pattern report on one node; their order is implementation-dependent, the multiset is not.</description>
+    <spec clause="5.4.5"/>
+    <spec clause="6.6"/>
+    <schema file="group-order-with-patterns.sch"/>
+    <instance file="group-order-with-patterns.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Pattern.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Group two.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Group one, second.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Group one, first.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="group-namespaces" since="2025">
+    <description>Rules of a group with prefixes declared by ns, the instance using other prefixes and a default namespace.</description>
+    <spec clause="5.4.5"/>
+    <spec clause="5.4.10"/>
+    <schema file="group-namespaces.sch"/>
+    <instance file="group-namespaces.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{urn:example:n}doc[1]/Q{urn:example:n}item[2]">
+          <message>Element.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{urn:example:n}doc[1]/Q{urn:example:n}item[2]/@n">
+          <message>Attribute.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{urn:example:n}doc[1]/Q{urn:example:n}item[2]">
+          <message>Any.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="group-subject" since="2025">
+    <description>Rules of a group with rule and assertion subjects.</description>
+    <spec clause="5.4.5"/>
+    <spec clause="5.5.19"/>
+    <schema file="group-subject.sch"/>
+    <instance file="group-subject.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]">
+          <message>Parent of two.</message>
+        </finding>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]/@n">
+          <message>Attribute two.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="group-flags" since="2025">
+    <description>Every rule of a group that fires raises its flag, also for a node an earlier rule matched.</description>
+    <spec clause="5.4.5"/>
+    <spec clause="5.5.6"/>
+    <schema file="group-flags.sch"/>
+    <instance file="group-flags.xml"/>
+    <result>
+      <findings/>
+      <flags>first third</flags>
+    </result>
+  </test-case>
+
+  <test-case name="group-node-kinds" since="2025">
+    <description>Rules of a group for the document node, an element, an attribute, a comment and a processing instruction all fire.</description>
+    <spec clause="5.4.5"/>
+    <spec clause="Annex-J"/>
+    <schema file="group-node-kinds.sch"/>
+    <instance file="group-node-kinds.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/">
+          <message>Root.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]">
+          <message>Node doc.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/@a">
+          <message>Attribute.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/comment()[1]">
+          <message>Node .</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/comment()[1]">
+          <message>Comment.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/processing-instruction(pi)[1]">
+          <message>Node pi.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/processing-instruction(pi)[1]">
+          <message>Instruction.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
 </test-set>

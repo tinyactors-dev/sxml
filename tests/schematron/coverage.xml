@@ -136,6 +136,7 @@
     <test set="abstract-rules" case="extends-two-rules"/>
     <test set="abstract-rules" case="extends-self"/>
     <test set="abstract-rules" case="extends-twice"/>
+    <test set="visit-each" case="visit-each-extends"/>
   </requirement>
   <requirement id="r-5.4.4-href" clause="5.4.4" kind="shall">
     <text>extends href names an element of the parent's kind (schema, library, rule) whose contents replace it.</text>
@@ -166,6 +167,14 @@
     <test set="inclusion" case="include-rule-into-group"/>
     <test set="phases" case="phase-from-group"/>
     <test set="phases" case="phase-group-variable"/>
+    <test set="group" case="group-dynamic-error-not-blocked"/>
+    <test set="group" case="group-identical-rules"/>
+    <test set="group" case="group-order-with-patterns"/>
+    <test set="group" case="group-namespaces"/>
+    <test set="group" case="group-subject"/>
+    <test set="group" case="group-flags"/>
+    <test set="group" case="group-node-kinds"/>
+    <test set="visit-each" case="visit-each-in-group"/>
   </requirement>
   <requirement id="r-5.4.6-target" clause="5.4.6" kind="shall">
     <text>include href names a well-formed document or one of its elements.</text>
@@ -203,6 +212,7 @@
     <test set="variables" case="let-schema-root-context"/>
     <test set="variables" case="let-phase"/>
     <test set="phases" case="phase-variable-per-phase"/>
+    <test set="visit-each" case="visit-each-rule-variable"/>
   </requirement>
   <requirement id="r-5.4.7-value" clause="5.4.7" kind="definition">
     <text>value is an expression; without it the element content is the value.</text>
@@ -227,6 +237,7 @@
     <test set="variables" case="let-undefined"/>
     <test set="variables" case="let-forward-reference"/>
     <test set="variables" case="let-pattern-not-visible-elsewhere"/>
+    <test set="severity-role-flag" case="role-variable-undefined"/>
   </requirement>
   <requirement id="r-5.4.7-duplicate" clause="5.4.7" kind="definition">
     <text>A variable defined more than once over schema, phase, pattern and rule is an error.</text>
@@ -296,6 +307,8 @@
     <test set="schema-structure" case="ns-xml-prefix"/>
     <test set="inclusion" case="include-prefix-from-ns"/>
     <test set="documents" case="documents-namespaces"/>
+    <test set="group" case="group-namespaces"/>
+    <test set="visit-each" case="visit-each-namespaced"/>
   </requirement>
   <requirement id="r-5.4.11-schema" clause="5.4.11" kind="definition">
     <text>A schema param needs a value; its value may be overridden by the user.</text>
@@ -335,6 +348,7 @@
     <test set="documents" case="documents-duplicate-uri"/>
     <test set="documents" case="documents-reverse-order"/>
     <test set="documents" case="documents-namespaces"/>
+    <test set="visit-each" case="visit-each-documents"/>
   </requirement>
   <requirement id="r-5.4.12-scope" clause="5.4.12" kind="definition">
     <text>Pattern variables are not in scope in documents.</text>
@@ -463,12 +477,18 @@
     <test set="assertions" case="flag-token-list"/>
     <test set="assertions" case="assert-attributes-non-ascii"/>
     <test set="abstract-rules" case="extends-abstract-rule-flag"/>
+    <test set="group" case="group-flags"/>
   </requirement>
   <requirement id="r-5.5.6-dynamic" clause="5.5.6" kind="shall">
     <text>A flag that is a variable reference is evaluated.</text>
     <test set="severity-role-flag" case="flag-variable"/>
     <test set="severity-role-flag" case="rule-flag-variable"/>
     <test set="severity-role-flag" case="flag-avt"/>
+    <test set="severity-role-flag" case="flag-variable-empty"/>
+    <test set="severity-role-flag" case="flag-variable-several"/>
+    <test set="severity-role-flag" case="flag-variable-not-a-name"/>
+    <test set="severity-role-flag" case="flag-phase-variable"/>
+    <test set="severity-role-flag" case="rule-flag-rule-variable"/>
   </requirement>
   <requirement id="r-5.5.7" clause="5.5.7" kind="shall">
     <text>from is evaluated at the instance root and restricts rule contexts to what it selects.</text>
@@ -480,6 +500,7 @@
     <test set="phases" case="phase-from-overlapping"/>
     <test set="phases" case="phase-from-attributes"/>
     <test set="phases" case="phase-from-group"/>
+    <test set="visit-each" case="visit-each-from"/>
   </requirement>
   <requirement id="r-5.5.7-subordinate" clause="5.5.7" kind="shall">
     <text>from does not apply to subordinate documents.</text>
@@ -505,6 +526,8 @@
     <test set="assertions" case="assert-attributes-reported"/>
     <test set="assertions" case="assert-role-not-inherited"/>
     <test set="severity-role-flag" case="role-literal"/>
+    <test set="severity-role-flag" case="role-static-not-a-name"/>
+    <test set="severity-role-flag" case="role-on-pattern-not-inherited"/>
   </requirement>
   <requirement id="r-5.5.14-dynamic" clause="5.5.14" kind="shall">
     <text>A role that is a variable reference is evaluated.</text>
@@ -512,12 +535,19 @@
     <test set="severity-role-flag" case="role-phase-variable"/>
     <test set="severity-role-flag" case="role-avt"/>
     <test set="severity-role-flag" case="role-avt-xslt2"/>
+    <test set="severity-role-flag" case="role-variable-empty"/>
+    <test set="severity-role-flag" case="role-variable-several"/>
+    <test set="severity-role-flag" case="role-variable-not-a-name"/>
+    <test set="severity-role-flag" case="role-variable-attribute-node"/>
+    <test set="severity-role-flag" case="role-variable-undefined"/>
+    <test set="severity-role-flag" case="rule-role-variable"/>
   </requirement>
   <requirement id="r-5.5.15-value" clause="5.5.15" kind="shall">
     <text>schematronEdition, where given, is 2025.</text>
     <test set="schematron-edition" case="edition-2025"/>
     <test set="schematron-edition" case="edition-other-value"/>
     <test set="schematron-edition" case="edition-absent"/>
+    <test set="schematron-edition" case="edition-whitespace"/>
   </requirement>
   <requirement id="r-5.5.15-report" clause="5.5.15" kind="shall">
     <text>The edition or its absence is reported at user option.</text>
@@ -529,12 +559,19 @@
     <test set="severity-role-flag" case="severity-static"/>
     <test set="severity-role-flag" case="severity-with-role-and-flag"/>
     <test set="svrl" case="svrl-severity"/>
+    <test set="severity-role-flag" case="severity-static-not-a-name"/>
+    <test set="severity-role-flag" case="severity-on-rule"/>
+    <test set="severity-role-flag" case="severity-on-pattern"/>
   </requirement>
   <requirement id="r-5.5.16-dynamic" clause="5.5.16" kind="shall">
     <text>A severity that is a variable reference is evaluated.</text>
     <test set="severity-role-flag" case="severity-variable"/>
     <test set="severity-role-flag" case="severity-avt"/>
     <test set="svrl" case="svrl-dynamic-severity"/>
+    <test set="severity-role-flag" case="severity-variable-empty"/>
+    <test set="severity-role-flag" case="severity-variable-several"/>
+    <test set="severity-role-flag" case="severity-variable-not-a-name"/>
+    <test set="severity-role-flag" case="severity-abstract-parameter"/>
   </requirement>
   <requirement id="r-5.5.18" clause="5.5.18" kind="definition">
     <text>span encloses text keyed by a class.</text>
@@ -554,6 +591,8 @@
     <test set="patterns-rules" case="rules-subject-attribute"/>
     <test set="patterns-rules" case="rules-subject-text"/>
     <test set="patterns-rules" case="rules-subject-ancestor"/>
+    <test set="group" case="group-subject"/>
+    <test set="visit-each" case="visit-each-subject"/>
   </requirement>
   <requirement id="r-5.5.20" clause="5.5.20" kind="definition">
     <text>title is documentation.</text>
@@ -568,6 +607,24 @@
     <test set="visit-each" case="visit-each-syntax"/>
     <test set="visit-each" case="visit-each-on-abstract-rule"/>
     <test set="diagnostics-properties" case="property-visit-each"/>
+    <test set="visit-each" case="visit-each-reverse-order"/>
+    <test set="visit-each" case="visit-each-duplicates"/>
+    <test set="visit-each" case="visit-each-other-document"/>
+    <test set="visit-each" case="visit-each-subject"/>
+    <test set="visit-each" case="visit-each-rule-variable"/>
+    <test set="visit-each" case="visit-each-does-not-block"/>
+    <test set="visit-each" case="visit-each-attributes"/>
+    <test set="visit-each" case="visit-each-whitespace-text"/>
+    <test set="visit-each" case="visit-each-comments-and-processing-instructions"/>
+    <test set="visit-each" case="visit-each-in-group"/>
+    <test set="visit-each" case="visit-each-extends"/>
+    <test set="visit-each" case="visit-each-abstract-parameter"/>
+    <test set="visit-each" case="visit-each-documents"/>
+    <test set="visit-each" case="visit-each-from"/>
+    <test set="visit-each" case="visit-each-dynamic-error"/>
+    <test set="visit-each" case="visit-each-mixed-items"/>
+    <test set="visit-each" case="visit-each-namespaced"/>
+    <test set="visit-each" case="visit-each-astral-codepoints"/>
   </requirement>
   <requirement id="r-5.5.22" clause="5.5.22" kind="shall">
     <text>when is evaluated at the instance root; the first true phase in schema order is active.</text>
@@ -601,6 +658,7 @@
     <test set="diagnostics-properties" case="diagnostic-dynamic-error"/>
     <test set="diagnostics-properties" case="property-dynamic-error"/>
     <test set="documents" case="documents-dynamic-error"/>
+    <test set="visit-each" case="visit-each-dynamic-error"/>
   </requirement>
   <requirement id="r-6.2" clause="6.2" kind="definition">
     <text>Inclusions, abstract patterns and abstract rules are resolved, reports negated, documentation removed.</text>
@@ -626,6 +684,7 @@
     <test set="group" case="group-all-rules-fire"/>
     <test set="patterns-rules" case="rules-context-duplicates"/>
     <test set="patterns-rules" case="rules-dynamic-error-blocked"/>
+    <test set="visit-each" case="visit-each-does-not-block"/>
   </requirement>
   <requirement id="r-6.3-assertions" clause="6.3" kind="definition">
     <text>Each assertion of a fired rule is evaluated for each matched node.</text>
@@ -671,6 +730,9 @@
     <test set="abstract-patterns" case="abstract-param-value-dynamic-error"/>
     <test set="abstract-patterns" case="abstract-param-value-syntax"/>
     <test set="diagnostics-properties" case="diagnostic-abstract-parameter"/>
+    <test set="visit-each" case="visit-each-abstract-parameter"/>
+    <test set="severity-role-flag" case="severity-abstract-parameter"/>
+    <test set="severity-role-flag" case="role-abstract-parameter"/>
   </requirement>
   <requirement id="r-6.5-provide" clause="6.5" kind="shall">
     <text>A binding provides the query language, its rule-context language and the assertion test.</text>
@@ -711,11 +773,13 @@
     <test set="variables" case="let-order-in-rule"/>
     <test set="patterns-rules" case="rules-specific-then-general"/>
     <test set="patterns-rules" case="rules-order-several-patterns"/>
+    <test set="group" case="group-order-with-patterns"/>
   </requirement>
   <requirement id="r-6.6-ifthenelse" clause="6.6" kind="shall">
     <text>Rules act as if-then-else in a pattern, not in a group.</text>
     <test set="group" case="group-versus-pattern"/>
     <test set="group" case="group-all-rules-fire"/>
+    <test set="group" case="group-dynamic-error-not-blocked"/>
   </requirement>
   <requirement id="r-6.6-let" clause="6.6" kind="definition">
     <text>A let may use earlier variables of its rule and global variables.</text>
@@ -834,6 +898,8 @@
     <test set="static-errors" case="error-ns-without-uri"/>
     <test set="abstract-rules" case="extends-abstract-without-id"/>
     <test set="abstract-rules" case="rules-container-empty"/>
+    <test set="severity-role-flag" case="severity-on-rule"/>
+    <test set="severity-role-flag" case="severity-on-pattern"/>
   </requirement>
   <requirement id="r-B-active" clause="Annex-B" kind="shall">
     <text>active/@pattern matches a pattern id.</text>
@@ -916,6 +982,7 @@
     <test set="patterns-rules" case="rules-context-namespaced-attribute"/>
     <test set="patterns-rules" case="rules-context-whitespace-text-xslt3"/>
     <test set="patterns-rules" case="rules-context-non-ascii-names"/>
+    <test set="group" case="group-node-kinds"/>
   </requirement>
   <requirement id="r-HJ-test" clause="Annex-J" kind="shall">
     <text>The test is reduced to its effective Boolean value.</text>
