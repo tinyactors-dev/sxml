@@ -410,6 +410,8 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `sequence_cell` | A cell that holds a sequence of two or more items: vector, integer range, concatenation, lazy or sequence slice |
 | `sequence_slice` | A sequence cell for consecutive items of a vector, its `slice_base`, that shares the base's items instead of copying them (`src/xdm_sequence.c`); reported as a vector. "Slice" alone names `fn:slice` and the QT4 test lists (`xquery_slice`) |
 | `slice_base` | The vector a sequence slice holds one reference to and reads its items from; a slice of a slice has the same base |
+| `item_span` | Consecutive items of a sequence, from a first index up to an end index or to the end (`sxml_item_span`, `sxml_sequence_make_slice`) |
+| `positional_filter` | A FILTER whose predicate compares the context position with a value fixed for the filter (`$s[position() > 1]`, `$s[position() = $n to $m]`); over a stored input it is the sequence slice at those positions (`src/evaluator.c`) |
 | `atomic_family` | The atomic items that compare with one another: numbers, strings (with `xs:anyURI`, `xs:untypedAtomic`), binary, or one other primitive type |
 | `exact_text` | The canonical decimal text of the exact value of a double, as compared with decimals |
 | `static_error` | A specification error whose code and description are static text, reported without the heap (`sxml_static_error`) |

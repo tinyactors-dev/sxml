@@ -1236,6 +1236,12 @@ the EN 16931 UBL unit tests.
   after; no QT4 XP40, XQ40 or XT40 outcome changes, case by case; D71,
   the memory limits and honest step counts kept (a slice step counts
   one).
+**Done** 2026-10-28 (D309): sequence slices (a cell over a vector,
+reported as a vector; spans of at most 16 items or under an eighth of
+the base copied), positional filters in the evaluator's FILTER, and a
+matched-base memo for typed parameters; 100 walks over 780 elements
+10.23, 2.55, 3.03 s to 0.11 s each, linear; SchXslt's expand stage 552
+to 458 s; QT4 XP40, XQ40 and XT40 whole: 0 outcomes differ.
 
 ### perf-6 Compile each regex once (implementation)
 After D53, D105 and D114 (the regex engine and its library part) and

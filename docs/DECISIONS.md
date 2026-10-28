@@ -14623,6 +14623,92 @@ changed.
   `src/regex_unicode.c`); a matcher kept per entry would save its
   creation too, but holds a grown backtrack stack, so it is not done.
 
+### D309. Slices without copies: sequence slices, positional filters, matched bases (packet perf-5)
+Recorded 2026-10-28, after D34, D71, D89, D99, D143, D149, D224, D229,
+D259. Running SchXslt 1.10.1 to compile the EN 16931 Schematron rules
+found recursion over the rest of a sequence quadratic: `make_span`
+copied the rest into a new vector unless the input was an integer
+range, `$s[position() > 1]` tested every position, and a typed
+parameter (`as element()*`) matched every item of the rest on each
+call. SchXslt's `schxslt:replace-params` walks 780 parameters this way
+for each of 1,042 attributes.
+
+- **Whom it serves**: programs that recurse over a sequence (a common
+  XSLT 2.0 and XQuery idiom: head, then the rest), SchXslt first.
+- **Sequence slices** (glossary `sequence_slice`, `slice_base`,
+  `item_span`; `src/xdm_sequence.c`, internal `sxml_sequence_make_slice`
+  in `src/xdm_internal.h`): a sequence cell of its own class holding one
+  reference to a vector (its slice base), a first index and a count. It
+  reports `SXML_SEQUENCE_REPRESENTATION_VECTOR` and uses the vector's
+  item representation, as the descending range shares the range's
+  (D143): to every reader it is items in an array in a cell, so no
+  public header changes (D99) and no switch over representations in
+  other files. A slice of a slice has the outer slice's base, so a
+  slice never reads through another: count, get_item and iteration
+  are O(1), and nothing nests (D71). Reference counts keep the base
+  alive while a slice exists; cells are immutable, so shared items
+  never change.
+- **The copy rule**: a span of at most 16 items
+  (`SXML_SLICE_MAXIMUM_COPIED_ITEM_COUNT`), or one under an eighth of
+  its base's count (`SXML_SLICE_MINIMUM_BASE_SHARE`), is copied into a
+  new vector. A short vector costs about what a slice cell does, and
+  memory held through a slice stays within eight times what it shows.
+  Recursion over the rest of n items copies n/8 + n/64 + ... items in
+  all: linear. Spans of ranges stay ranges (ascending and now
+  descending); a concatenation or lazy input is read item by item into
+  a vector as far as the span reaches, as before (a lazy input's error
+  is raised as before). Takers: fn:tail, fn:subsequence, fn:trunk,
+  fn:slice with step 1, fn:insert-before; fn:head and fn:foot read one
+  item as before.
+- **Positional filters** (glossary `positional_filter`; the evaluator's
+  FILTER, `src/evaluator.c`; no IR pass is needed): a FILTER whose
+  predicate is one comparison (eq, lt, le, gt, ge, =, <, <=, >, >=,
+  either operand order) of the context position with an atom the
+  FILTER does not bind (a constant, a variable or a global, bound
+  already) is the slice of its input at those positions when the input
+  is stored (empty, one item, a vector, a slice, a range). The other
+  operand must be () (nothing is selected), one inline integer, or, for
+  a general comparison, an integer range: `$s[position() = $n to $m]`
+  lowers to a comparison with a slot that the hoist pass of D224 binds
+  outside the predicate. Anything else (a double, an untyped value, a
+  sequence of numbers, ne and !=) and concatenation or lazy inputs take
+  the loop as before; comparing two integers raises nothing, so values
+  and errors are those of the loop (XPath 4.0, 4.4.1, 4.11.1, 4.11.2).
+- **Matched bases** (`src/evaluator_function.c`, in
+  `sxml_evaluator_match_sequence_type`, so coercion, instance of and
+  treat share it): a vector or slice of 16 items or more is matched
+  against a sequence type by its count alone once its base has matched
+  the item type: the evaluation memo (D149) keeps, per item type, the
+  last base of 16 items or more whose every item matched (as a FILTER
+  by type keeps its last input, D229), retained until the evaluation
+  ends. A base not in the memo is matched once against the item type
+  with occurrence "*" (at most eight times the slice, by the copy
+  rule); when one of its items fails, the value itself is matched as
+  before. Without this, a typed parameter kept recursion quadratic
+  (2.55 of the 2.73 s of the tail form below).
+- **Steps** (D89): a slice is one step, the call's or the FILTER's
+  turn; a positional filter no longer charges one step per item, and a
+  memo hit charges no matching. Step counts fall, never rise.
+- **Measured** (release, processor seconds, before at 86669bc, after
+  with the change; 100 recursive walks over 780 elements, SchXslt's
+  bench-tail.xsl over s1.sch): `$items[position() > 1]` 10.23 to 0.11,
+  `tail($items)` 2.55 to 0.11, `subsequence($items, 2)` 3.03 to 0.11.
+  `tests/bench/recursion-tail.xq` (new in run-bench.py, the three forms
+  over a constructed document) 17.6 to 0.65; after, 0.23, 0.45, 0.91
+  and 1.85 s for 780, 1,560, 3,120 and 6,240 elements: linear.
+  SchXslt's expand stage of EN 16931, unpatched (step bound raised 100
+  times in a scratch build only): 552 to 458 s, the same output byte
+  for byte; the rest is SchXslt's own per-level re-sort (the packet's
+  measurement: 1 min 39 s once removed). Callgrind: xmark-all 8.737 to
+  8.737 x 10^9 instructions, recursion 6.704 to 6.714; every other
+  benchmark's output the same. QT4 XP40 (32,785 passed), XQ40 (46,114)
+  and XT40 (12,185), whole, release, case by case: 0 outcomes differ.
+- **Left**: slices of concatenations and lazy sequences copy (once:
+  the copy is a vector, so later slices share it); `fn:remove($s, 1)`
+  and `$s[position() != 1]` take the loop; the matched-base memo keeps
+  one base per item type, so two sequences of one type recursed over
+  in turn match each time.
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): tagging and

@@ -4,6 +4,17 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-26
 
+- perf-5 done (D309): a slice of a stored sequence shares its items
+  (sequence slices: a cell over a vector, reported as a vector; spans
+  of 16 items or under an eighth of the base are copied); `fn:tail`,
+  `fn:subsequence`, `fn:trunk`, `fn:slice` and positional filters
+  (`$s[position() > N]`, `= N to M`, ...) over a vector, slice or range
+  are O(1); a typed parameter matches a slice once its base matched
+  (evaluation memo). 100 walks over 780 elements: position() > 1 10.23
+  to 0.11 s, tail 2.55 to 0.11, subsequence 3.03 to 0.11, now linear;
+  SchXslt's expand stage 552 to 458 s. QT4 XP40, XQ40 and XT40 whole:
+  0 outcomes differ.
+
 - perf-6 done (D308): the regex functions compile each regex once per
   evaluation, through a regex cache in the evaluation memo (4,096
   entries, 8 MiB, least recently used unused entry evicted; errors and
