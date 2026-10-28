@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svrl:schematron-output xmlns:svrl="http://purl.oclc.org/dsdl/svrl" title="Order rules" phase="#ALL" schematronEdition="2025">
+  <svrl:active-pattern id="lines"/>
+  <svrl:fired-rule context="line"/>
+  <svrl:failed-assert id="positive-quantity" location="/Q{}order[1]/Q{}line[1]" test="@quantity > 0">
+    <svrl:text>A line orders at least one pen.</svrl:text>
+  </svrl:failed-assert>
+  <svrl:fired-rule context="line"/>
+  <svrl:successful-report id="large-quantity" location="/Q{}order[1]/Q{}line[2]" test="@quantity > 10" severity="warning">
+    <svrl:text>Many paper: 120.</svrl:text>
+  </svrl:successful-report>
+  <svrl:active-pattern id="totals"/>
+  <svrl:fired-rule context="order"/>
+  <svrl:failed-assert id="total-limit" location="/Q{}order[1]" test="sum(line/@quantity) le 100" role="error">
+    <svrl:text>At most 100 items in an order.</svrl:text>
+  </svrl:failed-assert>
+</svrl:schematron-output>

@@ -1,0 +1,1 @@
+schematron/dynamic.sch:5:20: err:FORG0003: fn:zero-or-one was called with more than one item (F&O 4.0, section 14.3.1)

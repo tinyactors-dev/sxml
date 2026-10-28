@@ -1,0 +1,1 @@
+schematron/en16931-invoice.xml:17:1: BR-CO-15 fatal: [BR-CO-15]-Invoice total amount with VAT (BT-112) = Invoice total amount without VAT (BT-109) + Invoice total VAT amount (BT-110). (../../../third_party/en16931/ubl/schematron/abstract/EN16931-model.sch:77:5)

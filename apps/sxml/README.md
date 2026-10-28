@@ -744,10 +744,11 @@ $ sxml check --validate-dtd --external-entities --format=json article.xml invali
 
 ## sxml validate
 
-Validate XML documents against an XSD 1.1 schema.
+Validate XML documents against an XSD 1.1 schema, Schematron rules, or
+both.
 
 ```
-sxml validate [--schema=SCHEMA]... [--use-schema-location] [--mode=MODE] [--format=FORMAT] FILE...
+sxml validate [--schema=SCHEMA]... [--schematron=SCH] [--phase=PHASE] [--schematron-param=NAME=VALUE]... [--use-schema-location] [--mode=MODE] [--format=FORMAT] FILE...
 ```
 
 `sxml validate` validates each FILE against the XSD 1.1 schema that the
@@ -786,10 +787,13 @@ besides its `line`, `column`, `byte_offset` and `message`.
 
 | Option | Description |
 | --- | --- |
-| `--schema=SCHEMA` | An XSD schema document; `-` reads standard input. Repeatable: all of them make one schema. Required unless `--use-schema-location` is given. |
+| `--schema=SCHEMA` | An XSD schema document; `-` reads standard input. Repeatable: all of them make one schema. Required unless `--use-schema-location` or `--schematron` is given. |
+| `--schematron=SCH` | A Schematron schema (ISO/IEC 19757-3:2025); `-` reads standard input. At most once. |
+| `--phase=PHASE` | The Schematron phase: the id of a `phase`, `#ALL`, `#ANY` (each FILE takes the first phase whose `when` holds for it) or `#DEFAULT` (the schema's `defaultPhase`, the default). Needs `--schematron`. |
+| `--schematron-param=NAME=VALUE` | The value of the Schematron schema parameter NAME, a query fragment put in place of its `param`'s value. Repeatable, one name once. Needs `--schematron`. |
 | `--use-schema-location` | Also read the schema documents that each FILE's `xsi:schemaLocation` and `xsi:noNamespaceSchemaLocation` attributes name |
 | `--mode=MODE` | `strict` (default): the schema must have a global declaration for the document element of each FILE. `lax`: a document element without a declaration is assessed laxly, and the validity of the FILE is "not known". |
-| `--format=FORMAT` | Report format: `text` (default) or `json` |
+| `--format=FORMAT` | Report format: `text` (default), `json`, or `svrl` (with `--schematron` and one FILE) |
 
 - With `--mode=lax`, the elements and attributes that have a declaration
   are validated, wherever they are. A FILE whose validity is not known is
@@ -815,14 +819,59 @@ besides its `line`, `column`, `byte_offset` and `message`.
 - Standard input is read at most once. `-` given two times, as a SCHEMA
   and a FILE or as two of either, is a usage error.
 
+With `--schematron`, the Schematron schema SCH is compiled after the XSD
+schema, with every document its `include` and `extends href` elements
+name (local files, relative to the document that refers to them). Its
+query binding is read ignoring case: `xslt`, `xslt2`, `xslt3`, `xslt4`,
+`xpath`, `xpath2`, `xpath3`, `xpath31`, `xpath4` and no `queryBinding`
+are read as XSLT 4.0 and XPath 4.0; any other binding is the error
+`schematron:query-binding`. Each error is reported on standard error as
+`SCH:LINE:COLUMN: CODE: description`, where SCH is the document that has
+it and CODE is `schematron:` followed by the rule of the standard
+(`syntax`, `include`, `reference`, `parameter`, `variable`,
+`query-binding`) or the code of an XPath or XSLT error (`err:XPST0003`);
+all of them, not only the first. Then no FILE is read.
+
+The rules run over each FILE, parsed with its line numbers; with
+`--schema`, over the validated copy of a FILE that is valid against the
+XSD schema, so that typed values are compared as their types say (such a
+copy keeps no line numbers: findings then give the node's path). Each
+finding (a failed assert or a successful report) is reported on standard
+error as `FILE:LINE:COLUMN: ID LEVEL: MESSAGE (SCH:LINE:COLUMN)`: ID is
+the assertion's `id`, else `assert` or `report`; LEVEL its `severity`,
+else its `flag`, else its `role`, left out when it has none;
+SCH:LINE:COLUMN the assertion in the Schematron schema. A finding is an
+error when its severity is `fatal` or `error`; without a severity, when
+its role or a flag is `fatal` or `error`, or when it has neither role nor
+flag. A FILE with an error finding is invalid; other findings are
+reported but do not fail. A dynamic error in the rules, such as a test
+that gives a sequence where one item is needed, is reported at its place
+in SCH and makes the FILE invalid. With `--format=svrl`, the report of
+the one FILE is an SVRL document (ISO/IEC 19757-3, annex D) on standard
+output.
+
 With `--format=json`, one JSON object on standard output gives the
-`schema` with its `documents` and its `status`, and lists each FILE in
-`files` with its `status`:
+`schema` (when there is one) with its `documents` and its `status`, the
+`schematron` (when there is one), and lists each FILE in `files` with its
+`status`:
 
 - The status of the schema is `valid`, `invalid`, `unreadable` or
   `failed`. An invalid schema has `errors`, each with `document`, `code`
   (the constraint name), `line`, `column`, `byte_offset` and `message`,
   and `files` is empty.
+- The `schematron` has its `document`, the `phase` compiled, the
+  `edition` (its `schematronEdition`, any value, `null` without one) and
+  its `status`; one that does not compile has `errors` as above, with
+  `code` such as `schematron:syntax`, and `files` is empty.
+- With `--schematron`, each FILE has `findings` and the `phase` in force
+  (under `#ANY`, the phase chosen for it). A finding has `kind`
+  (`failed-assert` or `successful-report`), `id`, `role`, `flag`,
+  `severity` (`null` when absent), `error` (true for an error finding),
+  `message`, `line`, `column` and `byte_offset` of its node in the FILE
+  (when known), `path` (the node as `fn:path` gives it), `pattern`,
+  `test`, `assertion` (`document`, `line`, `column`), `diagnostics`
+  (`id`, `language`, `text`) and `properties` (`id`, `role`, `scheme`,
+  `text`).
 - The status of a FILE is `valid`, `invalid`, `not-known` (with
   `--mode=lax`), `not-well-formed`, `unreadable` or `failed`. An invalid
   FILE has `errors` as above, without `document`. A FILE that is not
@@ -832,10 +881,12 @@ With `--format=json`, one JSON object on standard output gives the
   change.
 
 Exit status: 0 when every FILE is valid (or not known, with
-`--mode=lax`); 1 when the schema or a FILE is not valid or a FILE is not
-well-formed; 2 for a usage error; 3 when a SCHEMA or a FILE cannot be
-read; 4 when a limit is exceeded or validation needs a feature that sxml
-does not have yet. 3 has priority over 4, and 4 over 1.
+`--mode=lax`) and none of its Schematron findings is an error; 1 when the
+schema, the Schematron schema or a FILE is not valid (an unsupported
+query binding included) or a FILE is not well-formed; 2 for a usage
+error; 3 when a SCHEMA, the SCH or a FILE cannot be read; 4 when a limit
+is exceeded or validation needs a feature that sxml does not have yet. 3
+has priority over 4, and 4 over 1.
 
 ```console
 $ sxml validate --schema=books.xsd books.xml
@@ -869,6 +920,25 @@ $ sxml validate --use-schema-location hinted-offers.xml
 broken.xsd: schema_reference: A schema document has another target namespace than the one it is referred to with: urn:example:prices
 $ sxml validate --use-schema-location --schema=offers.xsd hinted-offers.xml
 ```
+
+With Schematron rules (the files of `tests/cli/input/schematron/`):
+`rules.sch` checks the lines and the total of an order; `bad-order.xml`
+has a line of no items and too many items in all.
+
+```console
+$ sxml validate --schematron=rules.sch order.xml
+$ sxml validate --schematron=rules.sch bad-order.xml
+bad-order.xml:3:3: positive-quantity: A line orders at least one pen. (rules.sch:10:7)
+bad-order.xml:4:3: large-quantity warning: Many paper: 120. (rules.sch:11:7)
+bad-order.xml:2:1: total-limit error: At most 100 items in an order. (rules.sch:16:7)
+$ sxml validate --schematron=rules.sch --phase=totals-only --schematron-param=limit=3 order.xml
+order.xml:2:1: total-limit error: At most 3 items in an order. (rules.sch:16:7)
+$ sxml validate --schematron=errors.sch order.xml
+errors.sch:6:7: schematron:syntax: an element of the Schematron namespace that the grammar does not define (Annex A)
+errors.sch:4:16: err:XTSE0340: the text is not a pattern (XSLT 4.0, 6.3.1)
+errors.sch:5:30: err:XPST0003: The text is not valid XPath 4.0 syntax (XPath 4.0, Appendix A)
+```
+
 
 ## sxml version
 

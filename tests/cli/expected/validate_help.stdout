@@ -1,6 +1,6 @@
-sxml validate - Validate XML documents against an XSD 1.1 schema
+sxml validate - Validate XML documents against an XSD 1.1 schema or Schematron rules
 
-Usage: sxml validate [--schema=SCHEMA]... [--use-schema-location] [--mode=MODE] [--format=FORMAT] FILE...
+Usage: sxml validate [--schema=SCHEMA]... [--schematron=SCH] [--phase=PHASE] [--schematron-param=NAME=VALUE]... [--use-schema-location] [--mode=MODE] [--format=FORMAT] FILE...
 
 Validates each FILE against the XSD 1.1 schema that the SCHEMA
 documents form, together with every document they include, import,
@@ -33,18 +33,38 @@ known": it is reported, but does not fail. With --format=json, one
 JSON object on standard output lists the schema and every FILE
 with its "status" and "errors".
 
+With --schematron, the Schematron schema SCH (ISO/IEC 19757-3:2025;
+query bindings xslt, xslt2, xslt3, xslt4, xpath, xpath2, xpath3,
+xpath31 and xpath4) is compiled after the XSD schema, with the phase
+--phase names and the values --schematron-param gives its schema
+parameters; each of its errors is reported as
+  SCH:LINE:COLUMN: CODE: description
+and then no FILE is read. --schema may then be left out. The rules
+run over each FILE (over its validated copy when it is valid against
+the XSD schema); each finding is reported as
+  FILE:LINE:COLUMN: ID LEVEL: MESSAGE (SCH:LINE:COLUMN)
+where ID is the assertion's id (else assert or report) and LEVEL its
+severity, else its flag, else its role. A finding whose severity,
+else role or flag, is fatal or error, or that has none of them,
+makes the FILE invalid. With --format=json each FILE also lists its
+"findings" and the "phase" in force; --format=svrl writes the SVRL
+report of the one FILE on standard output.
+
 Exit status: 0 when every FILE is valid (or not known, with
---mode=lax); 1 when the schema or a FILE is invalid or a FILE is not
-well-formed; 3 when a SCHEMA or a FILE cannot be read; 4 when a
-limit is exceeded or validation needs a feature sxml does not have
-yet.
+--mode=lax); 1 when the schema, the Schematron schema or a FILE is
+invalid or a FILE is not well-formed; 3 when a SCHEMA, the SCH or a
+FILE cannot be read; 4 when a limit is exceeded or validation needs a
+feature sxml does not have yet.
 
 Options:
-  -h, --help                 Show this help and exit
-      --schema=SCHEMA        XSD schema document; - reads standard input (repeatable)
-      --use-schema-location  Also read the schema documents a FILE's xsi:schemaLocation names
-      --mode=MODE            Assessment of the document element (one of: strict, lax; default: strict)
-      --format=FORMAT        Report format (one of: text, json; default: text)
+  -h, --help                         Show this help and exit
+      --schema=SCHEMA                XSD schema document; - reads standard input (repeatable)
+      --schematron=SCH               Schematron schema; - reads standard input
+      --phase=PHASE                  Schematron phase: an id, #ALL, #ANY or #DEFAULT (the default)
+      --schematron-param=NAME=VALUE  Value of a Schematron schema parameter, a query fragment (repeatable)
+      --use-schema-location          Also read the schema documents a FILE's xsi:schemaLocation names
+      --mode=MODE                    Assessment of the document element (one of: strict, lax; default: strict)
+      --format=FORMAT                Report format (one of: text, json, svrl; default: text)
 
 Arguments:
   FILE  XML document to validate; - reads standard input
@@ -54,3 +74,6 @@ Examples:
   sxml validate --schema=draft.xsd invalid.xml
   sxml validate --schema=draft.xsd --format=json draft.xml
   sxml validate --use-schema-location hinted-draft.xml
+  sxml validate --schematron=rules.sch draft.xml
+  sxml validate --schema=draft.xsd --schematron=rules.sch --phase=#ANY --format=json draft.xml
+  sxml validate --schematron=rules.sch --format=svrl draft.xml

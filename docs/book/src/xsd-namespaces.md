@@ -203,8 +203,8 @@ against:
 
 ```console
 $ sxml validate hinted.scxml
-sxml validate: missing option '--schema' (or give --use-schema-location)
-Usage: sxml validate [--schema=SCHEMA]... [--use-schema-location] [--mode=MODE] [--format=FORMAT] FILE...
+sxml validate: missing option '--schema' (or give --use-schema-location or --schematron)
+Usage: sxml validate [--schema=SCHEMA]... [--schematron=SCH] [--phase=PHASE] [--schematron-param=NAME=VALUE]... [--use-schema-location] [--mode=MODE] [--format=FORMAT] FILE...
 Try 'sxml validate --help'.
 ```
 

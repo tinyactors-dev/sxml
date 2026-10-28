@@ -13,7 +13,7 @@ At a glance:
 | `sxml xpath [OPTIONS] EXPRESSION` | Evaluates an XPath 4.0 expression | [Finding Things with XPath](xpath.md) |
 | `sxml xquery [OPTIONS] [QUERY-FILE]` | Runs an XQuery 4.0 query, from a file or `--expression` | [Writing Programs with XQuery](xquery.md) |
 | `sxml transform [OPTIONS] STYLESHEET [INPUT]` | Runs an XSLT 4.0 transformation | [Transforming with XSLT](xslt.md) |
-| `sxml validate [OPTIONS] FILE...` | Validates documents against an XSD 1.1 schema | [Validating with XSD](xsd.md) |
+| `sxml validate [OPTIONS] FILE...` | Validates documents against an XSD 1.1 schema, Schematron rules, or both | [Validating with XSD](xsd.md), [Validating with Schematron](schematron.md) |
 | `sxml check [OPTIONS] FILE...` | Checks that documents are well-formed, or valid against their DTD | [The sxml Command](the-sxml-command.md) |
 | `sxml serialize [OPTIONS] FILE` | Parses a document and writes it again | [The sxml Command](the-sxml-command.md) |
 | `sxml version` | Prints the version | |
@@ -38,9 +38,13 @@ The options you'll use most:
 | `--external-entities`, `--validate-dtd` | `check` | Reads external DTDs and entities; validates against the DTD |
 | `--schema=SCHEMA` | `validate` | A schema document; repeat it to combine several into one schema |
 | `--use-schema-location` | `validate` | Also reads the schema documents a document's `xsi:schemaLocation` names |
+| `--schematron=SCH` | `validate` | A Schematron schema whose rules each document is checked against |
+| `--phase=PHASE` | `validate` | The Schematron phase: an id, `#ALL`, `#ANY` or `#DEFAULT` |
+| `--schematron-param=NAME=VALUE` | `validate` | The value of a Schematron schema parameter |
 | `--mode=lax` | `validate` | Lax validation |
 | `--indent` | `serialize` | Indents the output |
 | `--format=json` | `check`, `validate`, `version` | A report as JSON, for programs |
+| `--format=svrl` | `validate` | The Schematron report of one document as SVRL |
 
 | Exit status | Meaning |
 | --- | --- |

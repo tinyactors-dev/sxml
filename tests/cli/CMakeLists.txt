@@ -355,6 +355,29 @@ sxml_add_cli_test(validate_missing_schema EXIT_CODE 3 ARGUMENTS validate --schem
 sxml_add_cli_test(validate_missing_schema_json EXIT_CODE 3 ARGUMENTS validate --format=json --schema=missing.xsd xsd/books.xml)
 sxml_add_cli_test(validate_entity_limit EXIT_CODE 4 ARGUMENTS validate --schema=xsd/books.xsd billion-laughs.xml)
 sxml_add_cli_test(validate_no_schema EXIT_CODE 2 ARGUMENTS validate xsd/books.xml)
+# sxml validate --schematron (packet 7.28, D315 "The CLI"): rules and
+# documents in tests/cli/input/schematron/.
+sxml_add_cli_test(validate_schematron_valid EXIT_CODE 0 ARGUMENTS validate --schematron=schematron/rules.sch schematron/order.xml)
+sxml_add_cli_test(validate_schematron_findings EXIT_CODE 1 ARGUMENTS validate --schematron=schematron/rules.sch schematron/order.xml schematron/bad-order.xml schematron/warning-order.xml)
+sxml_add_cli_test(validate_schematron_warning EXIT_CODE 0 ARGUMENTS validate --schematron=schematron/rules.sch schematron/warning-order.xml)
+sxml_add_cli_test(validate_schematron_json EXIT_CODE 1 ARGUMENTS validate --schematron=schematron/rules.sch --format=json schematron/order.xml schematron/bad-order.xml)
+sxml_add_cli_test(validate_schematron_svrl EXIT_CODE 1 ARGUMENTS validate --schematron=schematron/rules.sch --format=svrl schematron/bad-order.xml)
+sxml_add_cli_test(validate_schematron_with_schema EXIT_CODE 0 ARGUMENTS validate --schema=schematron/order.xsd --schematron=schematron/rules.sch "--phase=#ANY" --schematron-param=limit=3 --format=json schematron/order.xml)
+sxml_add_cli_test(validate_schematron_phase_param EXIT_CODE 1 ARGUMENTS validate --schematron=schematron/rules.sch --phase=totals-only --schematron-param=limit=3 schematron/order.xml)
+sxml_add_cli_test(validate_schematron_errors EXIT_CODE 1 ARGUMENTS validate --schematron=schematron/errors.sch schematron/order.xml)
+sxml_add_cli_test(validate_schematron_errors_json EXIT_CODE 1 ARGUMENTS validate --schematron=schematron/errors.sch --format=json schematron/order.xml)
+sxml_add_cli_test(validate_schematron_query_binding EXIT_CODE 1 ARGUMENTS validate --schematron=schematron/xquery.sch schematron/order.xml)
+sxml_add_cli_test(validate_schematron_dynamic_error EXIT_CODE 1 ARGUMENTS validate --schematron=schematron/dynamic.sch schematron/order.xml)
+sxml_add_cli_test(validate_schematron_missing EXIT_CODE 3 ARGUMENTS validate --schematron=schematron/missing.sch schematron/order.xml)
+sxml_add_cli_test(validate_schematron_entity_limit EXIT_CODE 4 ARGUMENTS validate --schematron=schematron/rules.sch billion-laughs.xml)
+sxml_add_cli_test(validate_schematron_phase_alone EXIT_CODE 2 ARGUMENTS validate --phase=totals-only schematron/order.xml)
+sxml_add_cli_test(validate_schematron_param_malformed EXIT_CODE 2 ARGUMENTS validate --schematron=schematron/rules.sch --schematron-param=limit schematron/order.xml)
+sxml_add_cli_test(validate_schematron_svrl_two_files EXIT_CODE 2 ARGUMENTS validate --schematron=schematron/rules.sch --format=svrl schematron/order.xml schematron/bad-order.xml)
+sxml_add_cli_test(validate_schematron_include EXIT_CODE 1 ARGUMENTS validate --schematron=schematron/included.sch schematron/bad-order.xml)
+# An EN 16931 invoice (third_party/en16931, packet 7.28 gate 5): the
+# finding's line and column in text and JSON.
+sxml_add_cli_test(validate_schematron_en16931 EXIT_CODE 1 ARGUMENTS validate --schematron=../../../third_party/en16931/ubl/schematron/EN16931-UBL-validation.sch schematron/en16931-invoice.xml)
+sxml_add_cli_test(validate_schematron_en16931_json EXIT_CODE 1 ARGUMENTS validate --format=json --schematron=../../../third_party/en16931/ubl/schematron/EN16931-UBL-validation.sch schematron/en16931-invoice.xml)
 # --use-schema-location (D278): each FILE's xsi:schemaLocation and
 # xsi:noNamespaceSchemaLocation hints, relative to the FILE; a hint for a
 # namespace the --schema documents have is ignored; a missing document is

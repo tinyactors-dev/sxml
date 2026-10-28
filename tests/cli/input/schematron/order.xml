@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<order>
+  <line item="pen" quantity="2"/>
+  <line item="paper" quantity="5"/>
+</order>

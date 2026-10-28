@@ -1,0 +1,1 @@
+{"schema":{"documents":["schematron/order.xsd"],"status":"valid"},"schematron":{"document":"schematron/rules.sch","phase":"#ANY","edition":"2025","status":"valid"},"files":[{"file":"schematron/order.xml","status":"valid","findings":[],"phase":"lines-only"}]}

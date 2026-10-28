@@ -19,7 +19,7 @@ Commands:
   check      Check that XML documents are well-formed
   serialize  Parse an XML document and write it out again
   transform  Transform a document with an XSLT 4.0 stylesheet
-  validate   Validate XML documents against an XSD 1.1 schema
+  validate   Validate XML documents against an XSD 1.1 schema or Schematron rules
   version    Print the sxml version
   xpath      Evaluate an XPath 4.0 expression
   xquery     Run an XQuery 4.0 query

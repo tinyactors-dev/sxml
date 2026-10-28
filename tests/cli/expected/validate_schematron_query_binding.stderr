@@ -1,0 +1,1 @@
+schematron/xquery.sch:2:62: schematron:query-binding: the query binding is not supported; sxml reads xslt, xslt2, xslt3, xslt4, xpath, xpath2, xpath3, xpath31 and xpath4 (6.5): xquery3
