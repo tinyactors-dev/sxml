@@ -200,4 +200,253 @@
       </findings>
     </result>
   </test-case>
+  <test-case name="role-variable-empty" since="2025">
+    <description>A role that is a variable reference whose value is the empty sequence.</description>
+    <spec clause="5.5.14"/>
+    <schema file="role-variable-empty.sch"/>
+    <instance file="role-variable-empty.xml"/>
+    <result>
+      <implementation-defined clause="5.5.14">role is evaluated dynamically, but 5.5.14 does not say what a finding carries when the value is the empty sequence. Readings: no role, an empty one, or an error. The finding itself is a successful-report at /Q{}doc[1]/Q{}item[1] with the message One.</implementation-defined>
+    </result>
+  </test-case>
+
+  <test-case name="role-variable-several" since="2025">
+    <description>A role that is a variable reference whose value is two strings.</description>
+    <spec clause="5.5.14"/>
+    <schema file="role-variable-several.sch"/>
+    <instance file="role-variable-several.xml"/>
+    <result>
+      <implementation-defined clause="5.5.14">role is evaluated dynamically, but 5.5.14 does not say what a finding carries when the value is two strings. Readings: the strings joined with a space, the first, or an error. The finding itself is a successful-report at /Q{}doc[1]/Q{}item[1] with the message One.</implementation-defined>
+    </result>
+  </test-case>
+
+  <test-case name="role-variable-not-a-name" since="2025">
+    <description>A role that is a variable reference whose value is a string that is not a name.</description>
+    <spec clause="5.5.14"/>
+    <schema file="role-variable-not-a-name.sch"/>
+    <instance file="role-variable-not-a-name.xml"/>
+    <result>
+      <implementation-defined clause="5.5.14">role is evaluated dynamically, but 5.5.14 does not say what a finding carries when the value is a string that is not a name. 5.5.14 calls the value a name; readings: the string as it is, or an error. The finding itself is a successful-report at /Q{}doc[1]/Q{}item[1] with the message One.</implementation-defined>
+    </result>
+  </test-case>
+
+  <test-case name="severity-variable-empty" since="2025">
+    <description>A severity that is a variable reference whose value is the empty sequence.</description>
+    <spec clause="5.5.16"/>
+    <schema file="severity-variable-empty.sch"/>
+    <instance file="severity-variable-empty.xml"/>
+    <result>
+      <implementation-defined clause="5.5.16">severity is evaluated dynamically, but 5.5.16 does not say what a finding carries when the value is the empty sequence. Readings: no severity, an empty one, or an error. The finding itself is a successful-report at /Q{}doc[1]/Q{}item[1] with the message One.</implementation-defined>
+    </result>
+  </test-case>
+
+  <test-case name="severity-variable-several" since="2025">
+    <description>A severity that is a variable reference whose value is two strings.</description>
+    <spec clause="5.5.16"/>
+    <schema file="severity-variable-several.sch"/>
+    <instance file="severity-variable-several.xml"/>
+    <result>
+      <implementation-defined clause="5.5.16">severity is evaluated dynamically, but 5.5.16 does not say what a finding carries when the value is two strings. Readings: the strings joined with a space, the first, or an error. The finding itself is a successful-report at /Q{}doc[1]/Q{}item[1] with the message One.</implementation-defined>
+    </result>
+  </test-case>
+
+  <test-case name="severity-variable-not-a-name" since="2025">
+    <description>A severity that is a variable reference whose value is a string that is not a name.</description>
+    <spec clause="5.5.16"/>
+    <schema file="severity-variable-not-a-name.sch"/>
+    <instance file="severity-variable-not-a-name.xml"/>
+    <result>
+      <implementation-defined clause="5.5.16">severity is evaluated dynamically, but 5.5.16 does not say what a finding carries when the value is a string that is not a name. 5.5.16 calls the value a name; readings: the string as it is, or an error. The finding itself is a successful-report at /Q{}doc[1]/Q{}item[1] with the message One.</implementation-defined>
+    </result>
+  </test-case>
+
+  <test-case name="flag-variable-empty" since="2025">
+    <description>A flag that is a variable reference whose value is the empty sequence.</description>
+    <spec clause="5.5.6"/>
+    <schema file="flag-variable-empty.sch"/>
+    <instance file="flag-variable-empty.xml"/>
+    <result>
+      <implementation-defined clause="5.5.6">flag is evaluated dynamically, but 5.5.6 does not say what a finding carries when the value is the empty sequence. Readings: no flag, an empty one, or an error. The finding itself is a successful-report at /Q{}doc[1]/Q{}item[1] with the message One.</implementation-defined>
+    </result>
+  </test-case>
+
+  <test-case name="flag-variable-several" since="2025">
+    <description>A flag that is a variable reference whose value is two strings.</description>
+    <spec clause="5.5.6"/>
+    <schema file="flag-variable-several.sch"/>
+    <instance file="flag-variable-several.xml"/>
+    <result>
+      <implementation-defined clause="5.5.6">flag is evaluated dynamically, but 5.5.6 does not say what a finding carries when the value is two strings. Readings: the strings joined with a space, the first, or an error. A flag is a list of names (Annex A), so a flag may also raise each name. The finding itself is a successful-report at /Q{}doc[1]/Q{}item[1] with the message One.</implementation-defined>
+    </result>
+  </test-case>
+
+  <test-case name="flag-variable-not-a-name" since="2025">
+    <description>A flag that is a variable reference whose value is a string that is not a name.</description>
+    <spec clause="5.5.6"/>
+    <schema file="flag-variable-not-a-name.sch"/>
+    <instance file="flag-variable-not-a-name.xml"/>
+    <result>
+      <implementation-defined clause="5.5.6">flag is evaluated dynamically, but 5.5.6 does not say what a finding carries when the value is a string that is not a name. 5.5.6 calls the value a name; readings: the string as it is, or an error. The finding itself is a successful-report at /Q{}doc[1]/Q{}item[1] with the message One.</implementation-defined>
+    </result>
+  </test-case>
+
+  <test-case name="severity-static-not-a-name" since="2025">
+    <description>A severity written in the schema that is not a name.</description>
+    <spec clause="5.5.16"/>
+    <spec clause="7.2"/>
+    <spec clause="Annex-A"/>
+    <schema file="severity-static-not-a-name.sch"/>
+    <instance file="severity-static-not-a-name.xml"/>
+    <result>
+      <implementation-defined clause="5.5.16 7.2">5.5.16 calls a severity a name, but Annex A types it as text and 7.2 lists only flag, id, name and prefix as attributes that shall be names: a processor may reject the schema or report a successful-report at /Q{}doc[1]/Q{}item[1] with severity 'very high'.</implementation-defined>
+    </result>
+  </test-case>
+
+  <test-case name="role-static-not-a-name" since="2020">
+    <description>A role written in the schema that is not a name.</description>
+    <spec clause="5.5.14"/>
+    <spec clause="7.2"/>
+    <spec clause="Annex-A"/>
+    <schema file="role-static-not-a-name.sch"/>
+    <instance file="role-static-not-a-name.xml"/>
+    <result>
+      <implementation-defined clause="5.5.14 7.2">5.5.14 calls a role a name, but Annex A types it as a string and 7.2 does not list role among the attributes that shall be names: a processor may reject the schema or report a successful-report at /Q{}doc[1]/Q{}item[1] with role 'business rule'.</implementation-defined>
+    </result>
+  </test-case>
+
+  <test-case name="role-variable-attribute-node" since="2025">
+    <description>A role variable whose value is an attribute node: the role is the node's string value (the reading the suite takes; role is a string in the report).</description>
+    <spec clause="5.5.14"/>
+    <spec clause="5.4.7"/>
+    <schema file="role-variable-attribute-node.sch"/>
+    <instance file="role-variable-attribute-node.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]" role="b">
+          <message>Above one.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[3]" role="c">
+          <message>Above one.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="role-variable-undefined" since="2025">
+    <description>A role written as a reference to a variable that no let defines.</description>
+    <spec clause="5.5.14"/>
+    <spec clause="5.4.7"/>
+    <spec clause="Annex-J"/>
+    <schema file="role-variable-undefined.sch"/>
+    <instance file="role-variable-undefined.xml"/>
+    <result>
+      <implementation-defined clause="5.4.7 5.5.14 Annex-J">5.4.7 makes a reference to an undefined variable an error, but Annex J treats a $ not followed by the name of an in-scope variable as a literal character: a processor may reject the schema, end in error, or report a successful-report at /Q{}doc[1]/Q{}item[1] with role '$missing'.</implementation-defined>
+    </result>
+  </test-case>
+
+  <test-case name="severity-on-rule" since="2025">
+    <description>severity belongs to assert and report; a rule has none.</description>
+    <spec clause="5.5.16"/>
+    <spec clause="Annex-A"/>
+    <schema file="severity-on-rule.sch"/>
+    <instance file="severity-on-rule.xml"/>
+    <result>
+      <schema-error clause="Annex-A"/>
+    </result>
+  </test-case>
+
+  <test-case name="severity-on-pattern" since="2025">
+    <description>severity belongs to assert and report; a pattern has none.</description>
+    <spec clause="5.5.16"/>
+    <spec clause="Annex-A"/>
+    <schema file="severity-on-pattern.sch"/>
+    <instance file="severity-on-pattern.xml"/>
+    <result>
+      <schema-error clause="Annex-A"/>
+    </result>
+  </test-case>
+
+  <test-case name="role-on-pattern-not-inherited" since="2020">
+    <description>A pattern's role is not the role of its assertions' findings.</description>
+    <spec clause="5.5.14"/>
+    <spec clause="Annex-D"/>
+    <schema file="role-on-pattern-not-inherited.sch"/>
+    <instance file="role-on-pattern-not-inherited.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Not two.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="rule-role-variable" since="2025">
+    <description>A rule's role that is a reference to the rule's own variable is evaluated for each context node; it is the role of the fired rule, not of the findings.</description>
+    <spec clause="5.5.14"/>
+    <spec clause="Annex-D"/>
+    <dependency type="feature" value="svrl"/>
+    <schema file="rule-role-variable.sch"/>
+    <instance file="rule-role-variable.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Two.</message>
+        </finding>
+      </findings>
+      <assert-svrl>//svrl:fired-rule/@role = 'kind-a' and //svrl:fired-rule/@role = 'kind-b' and //svrl:fired-rule/@role = 'kind-c'</assert-svrl>
+    </result>
+  </test-case>
+
+  <test-case name="flag-phase-variable" since="2025">
+    <description>A flag that refers to a phase variable takes the value of the selected phase.</description>
+    <spec clause="5.5.6"/>
+    <spec clause="5.4.13"/>
+    <schema file="flag-phase-variable.sch"/>
+    <instance file="flag-phase-variable.xml"/>
+    <phase>strict</phase>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]" flag="stop">
+          <message>Not two.</message>
+        </finding>
+      </findings>
+      <flags>stop</flags>
+    </result>
+  </test-case>
+
+  <test-case name="severity-abstract-parameter" since="2025">
+    <description>severity written as $sev in an abstract pattern whose instance gives a parameter sev.</description>
+    <spec clause="6.2"/>
+    <spec clause="5.5.16"/>
+    <spec clause="6.4"/>
+    <schema file="severity-abstract-parameter.sch"/>
+    <instance file="severity-abstract-parameter.xml"/>
+    <result>
+      <implementation-defined clause="6.2 5.5.16">6.2 replaces parameters only in attributes that contain queries, and 5.5.16 evaluates a severity only when it is a variable reference: whether $sev is a parameter reference (severity 'error' on a failed-assert at /Q{}doc[1]/Q{}item[2], message Not two.) or a reference to an undefined variable (an error) is not decided.</implementation-defined>
+    </result>
+  </test-case>
+
+  <test-case name="role-abstract-parameter" since="2020">
+    <description>role written as $r in an abstract pattern whose instance gives a parameter r.</description>
+    <spec clause="6.2"/>
+    <spec clause="5.5.14"/>
+    <spec clause="6.4"/>
+    <schema file="role-abstract-parameter.sch"/>
+    <instance file="role-abstract-parameter.xml"/>
+    <result>
+      <implementation-defined clause="6.2 5.5.14">Whether role is an attribute that contains a query, in which 6.2 replaces parameters (role 'business' on a failed-assert at /Q{}doc[1]/Q{}item[2], message Not two.), or text reported as written ('$r'), or a variable reference to an undefined variable (an error), is not decided.</implementation-defined>
+    </result>
+  </test-case>
+
+  <test-case name="rule-flag-rule-variable" since="2025">
+    <description>A rule's flag that refers to the rule's own variable: each evaluated name is raised when the rule fires.</description>
+    <spec clause="5.5.6"/>
+    <schema file="rule-flag-rule-variable.sch"/>
+    <instance file="rule-flag-rule-variable.xml"/>
+    <result>
+      <findings/>
+      <flags>kind-a kind-b kind-c</flags>
+    </result>
+  </test-case>
 </test-set>
