@@ -1038,3 +1038,28 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `output_chunk` | The bytes one output event carries: at most the chunk size (64 KiB by default), gathered in a buffer the shim allocates for the call and reuses; the JavaScript package copies each out of the module (D294) |
 | `output_sink` | What receives an `output_chunk` in the JavaScript package (`OutputSink`): a function, or an object with `write` and optionally `close` and `abort` (D294) |
 | `chunk_source` | An iterable of byte or text chunks a JavaScript resolver answers an XML document with (`ChunkSource`), read through the host shim's byte reader as the document is parsed (D294) |
+| `schematron` | A compiled Schematron schema (ISO/IEC 19757-3:2025): the active schematron patterns of a schematron document read into a stylesheet AST and compiled as XSLT, then run over many documents (`sxml_schematron`, include/sxml/schematron.h, D313, D315) |
+| `schematron_document` | An XML document of a Schematron schema: the one compiled (document element sch:schema) and those its sch:include and sch:extends href elements reach; read by the XML parser with locations, asked of the resource resolver as XML_DOCUMENT (D315) |
+| `query_binding` | The language of a Schematron schema's expressions, its queryBinding attribute: sxml reads xslt2, xslt3, xpath2, xpath3 and xpath31, and a schema without one as xslt3 (D313) |
+| `schematron_pattern` | A sch:pattern or sch:group of a Schematron schema: its rules in order, compiled into one mode of its own; not the XSLT `pattern`, which a rule's context is (D315) |
+| `schematron_group` | A schematron pattern of the 2025 edition (sch:group) in which every rule whose context matches a node fires, not only the first (D315) |
+| `schematron_rule` | A sch:rule: a context (an XSLT pattern), variables and schematron assertions; compiled into one template rule (D315) |
+| `schematron_assertion` | A sch:assert or sch:report: a test and a message; an assert fails when its test is false, a report fires when it is true (D315) |
+| `finding` | A failed assert or a fired report for one subject node: what a Schematron validation finds (D315) |
+| `error_finding` | A finding whose role or flag is `fatal` or `error`, or that has neither: it makes the validation fail (`is_error`, D313) |
+| `subject_node` | The node a finding is about: the value of the assertion's subject attribute, else of its rule's, evaluated for the context node, else the context node (D315) |
+| `fired_rule` | A schematron rule applied to a node it matched (in a schematron pattern only the first matching rule is); reported only when the host asks, as SVRL does (D315) |
+| `abstract_pattern` | A sch:pattern with abstract="true": rules with placeholders, compiled only through its pattern instances (D315) |
+| `pattern_instance` | A sch:pattern with is-a: the abstract pattern it names, compiled with each placeholder replaced by the value of its sch:param (D315) |
+| `placeholder` | `$name` in an expression of an abstract pattern; replaced by the value of the sch:param of that name, the longest name that matches, in one scan, its value not scanned again (D315) |
+| `expansion_segment` | A run of an expression's text after placeholders are replaced that comes from one place, the abstract pattern's attribute or a sch:param's value, so that a syntax error points into that place (internal, D315) |
+| `abstract_rule` | A sch:rule with abstract="true" (in a schematron pattern or sch:rules), or any rule in sch:rules: variables and assertions that a sch:extends rule="ID" puts into a rule in its place (D315) |
+| `schematron_phase` | A sch:phase: a named set of active patterns with its variables; a compilation chooses one, or "#ALL", or "#DEFAULT" (the defaultPhase attribute, else "#ALL") (D315) |
+| `active_pattern` | A schematron pattern the chosen schematron phase includes; only active patterns are compiled (D315) |
+| `schematron_diagnostic` | A sch:diagnostic that an assertion names in its diagnostics attribute: more text, evaluated for the same context node, in each schematron report of it (D315) |
+| `schematron_property` | A sch:property that an assertion names in its properties attribute: a role, a scheme and text, evaluated for the same context node, in each schematron report of it (D315) |
+| `schematron_report` | One finding or fired rule as a schematron report sink receives it: kind, id, role, flag, message, schematron diagnostics and properties, the assertion's location in its schematron document and the subject node with its location in the instance (D315) |
+| `schematron_report_sink` | The interface that receives every schematron report of one Schematron validation, in order (D315) |
+| `schematron_outcome` | What a Schematron validation reports at its end: how many findings and how many error findings (D315) |
+| `finding_item` | The array a compiled schematron rule adds to the transformation's raw result for one finding or fired rule: its assertion's or rule's index and the subject node, then the texts of the message, diagnostics and properties; `src/schematron.c` turns each into a schematron report (internal, D315) |
+| `svrl` | The Schematron Validation Report Language (ISO/IEC 19757-3, an annex of the standard): an XML form of one validation's reports; sxml writes it from schematron reports, never from its own data (D313, D315) |
