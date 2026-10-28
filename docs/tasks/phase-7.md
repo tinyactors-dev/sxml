@@ -1193,6 +1193,50 @@ some/every over 10^7 items 2 to 6 s to 0.004 s); the default step bound
 10^8 (8 s instead of 75 s; the drivers' bounds unchanged); xmark-all +1 %
 instructions; QT4 XQ40 and XT40 unchanged case by case.
 
+### perf-5 Slices without copies (implementation)
+After D34 (sequence representations), D143 (reverse of a range in O(1))
+and D259 (item demands). Running SchXslt 1.10.1 on sxml to compile the
+EN 16931 Schematron rules (2026-10-28) found that recursing over the
+rest of a sequence is quadratic: `make_span` in
+`src/function_library_sequence.c` copies every item after the start into
+a new vector unless the input is an integer range, so `fn:tail`,
+`fn:subsequence` and `$s[position() > 1]` cost the length of the rest.
+Measured (release, x86_64 Xeon 2.1 GHz): one recursive walk over 780
+elements takes 106 ms with `$items[position() > 1]`, 28 ms with
+`tail($items)`, 32 ms with `subsequence($items, 2)`. SchXslt's
+`schxslt:replace-params` walks 780 parameters this way for each of 1,042
+attributes: about 110 s of its expand stage (8 min 56 s in all, 1 min
+39 s once its own per-level re-sort is removed; about 9 s of that is
+`fn:replace`). The compiled rules themselves pass all 1,133 checks of
+the EN 16931 UBL unit tests.
+- **Mechanism**: general mechanisms of the one evaluator, no
+  Schematron-specific machinery: a slice of a stored sequence (a vector,
+  or another slice) shares the stored items instead of copying them, so
+  `fn:tail`, `fn:subsequence`, `fn:slice`, `fn:head` and `fn:trunk` of
+  one are O(1); `$s[position() > N]`, `$s[position() >= N]` and
+  `$s[position() = N to M]` with N and M fixed for the filter take the
+  same path (an IR pass, or the evaluator's FILTER fast path). Prefer a
+  representation internal to `src/xdm_sequence.c` (a slice cell
+  referring to its base cell); a new public
+  `sxml_sequence_representation` is an additive change to a frozen
+  header (D99) and needs its own decision record first. Reference
+  counts keep the base alive while a slice exists; a small slice of a
+  large base may be copied when the base would otherwise outlive it
+  (state the rule and its threshold in the D-record). "Slice" already
+  names QT4 test lists in `docs/GLOSSARY.md` (`xquery_slice`); add the
+  new term there first under a name of its own (for example
+  `sequence_slice`).
+- **Owns**: `src/xdm_sequence.c`, `src/function_library_sequence.c`,
+  the FILTER parts of `src/evaluator.c` and `src/ir_loop_passes.c`,
+  `tests/bench/` (a new `recursion-tail.xq` with the three forms),
+  `tests/xdm_sequence_test.c`.
+- **Done when**: the three forms walk 780 items in time linear in the
+  length (before and after in the D-record and the commit messages);
+  SchXslt's expand stage of EN 16931, unpatched, measured before and
+  after; no QT4 XP40, XQ40 or XT40 outcome changes, case by case; D71,
+  the memory limits and honest step counts kept (a slice step counts
+  one).
+
 ### 7.21 Fast Invisible XML (book, tests, implementation)
 After D215 (7.18: the Earley parser, right recursion quadratic, every
 item a step). The owner: high performance; book first, then

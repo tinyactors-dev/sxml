@@ -14563,3 +14563,48 @@ documents (D285's **Shape**) is unchanged.
   repository moves to tinyactors-dev. The license (MIT) and the npm name
   (`@tinyactors/sxml`) are settled in D239; everything else takes its
   proposed default (D208).
+- **Source locations for parsed input documents** (header change after
+  D99; the owner's direction: optional, and on by default where it
+  matters).
+  - *Whom it serves*: first the reader of a finding (a Schematron
+    `failed-assert`, an `xs:assert` failure, a report a query builds with
+    `fn:location`), who needs "invoice.xml:104:5" and not only an XPath;
+    then hosts that map findings back to an editor.
+  - *What exists*: `fn:location` (F&O 4.0, 12.1.3) over
+    `sxml_tree_operations.get_location`; the arena tree keeps a location
+    per node when `sxml_arena_tree_configuration.keeps_locations` is true;
+    the parser reports positions (D87). Stylesheets (`src/xslt_read.c`)
+    and schemas (`src/schema_assemble.c`) keep theirs, but
+    `sxml_processor_parse_document` sets `false` (`src/processor.c`), so
+    `location(.)` is empty for every input document. Flipping that flag
+    alone was tried in a scratch build: `fn:location` then answers in
+    XPath and XSLT, and an `xsl:import` wrapper of the official EN 16931
+    stylesheet reported BR-CO-16 at line 104, column 5 of the invoice.
+  - *Who pays*: 32 bytes a node (`sxml_source_location`, 64-bit).
+    Release build, x86_64 Xeon 2.1 GHz, a 26 MB document of about 2.5
+    million nodes, three runs each: peak memory 171 MB without, 248 MB
+    with (+45 %); time 3.0–3.2 s without, 3.2–3.3 s with. Streamed input
+    builds no tree and pays nothing.
+  - *Proposal*: a processor setting for parsed input documents
+    (`sxml_processor_parse_document`, `fn:doc`, `fn:parse-xml`,
+    `fn:collection`) with three values: `AUTOMATIC` (the zero value),
+    `ALWAYS`, `NEVER`. Under `AUTOMATIC` the compiler decides: a document
+    keeps locations when the compiled query or stylesheet reading it can
+    ask for them, that is when it calls `fn:location`, when it can reach
+    functions dynamically (`fn:function-lookup`, `fn:load-xquery-module`,
+    `fn:transform`, `xsl:evaluate`), or when it is a Schematron
+    validation; one flag per compiled unit records it. `sxml validate`
+    keeps locations; `xpath`, `xquery` and `transform` follow
+    `AUTOMATIC`; `--locations=always|never|automatic` overrides it for
+    every command; JavaScript gets the same three values in
+    `createProcessor`. No new IR kind.
+  - *Open for the owner*: what `AUTOMATIC` means for a document a host
+    parses before any program is compiled (keep, or not?). On the command
+    line `transform` already compiles before it parses INPUT
+    (`apps/sxml/command_transform.c`), but `xpath` and `xquery` parse
+    `--context-item` in `sxml_query_run_start`, before compiling
+    (`apps/sxml/query_command.c`), and would have to compile first.
+    Whether dynamic errors that name an input node should print its line
+    too.
+  - *Out of scope*: constructed trees (no source), attribute positions
+    beyond their element's, the streaming path.

@@ -37,6 +37,12 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 
 ## Next
 
+- perf-5 (`docs/tasks/phase-7.md`): slices without copies. Found by
+  running SchXslt on sxml for the EN 16931 rules (all 1,133 unit checks
+  pass, but its expand stage takes 8 min 56 s): `fn:tail`,
+  `fn:subsequence` and `$s[position() > 1]` copy the rest of a sequence,
+  so recursion over a sequence is quadratic. Also open under "Proposed"
+  in DECISIONS.md: source locations for parsed input documents.
 - 7.26 done (D307): tree-sitter:parse and tree-sitter:languages in
   urn:sxml:tree-sitter (name.h 17, additive), errors
   tree-sitter:unknown-language and tree-sitter:invalid-query;
