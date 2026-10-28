@@ -1699,6 +1699,26 @@ Schematron compile; fields kept per identifier. Invoice transform
 8.638; ASTs and IR text identical; XP40, XQ40, XT40 0 outcomes differ;
 suite 463/463, VEFA 1,133/1,133.
 
+### fix-6 The book's memory example counts allocations differently (book, tests)
+After D257 (the book shows real output). `docs/book/src/c.md` shows
+`allocations: 195, still live: 0` for its memory example; agents in this
+session saw 197 (7.28, cli-4) and 196 (perf-17) on different commits,
+and the same on base commits without their changes, so the count has
+drifted with later packets and may also depend on the setup (allocator
+growth, a cache's first use, the environment).
+- **Mechanism**: first find out why the count is what it is and whether
+  it is stable for one build (run the example many times, under the
+  release and the debug-gcc builds, with and without TZ and LANG); if it
+  varies within one build, find the cause and make the example
+  deterministic or show only what is stable (a count that matters to
+  the reader, D257); if it only drifted, update the book with
+  `tools/check-book-examples.sh --update` and check that the text around
+  it is still true.
+- **Owns**: `docs/book/src/c.md`, `docs/book/examples/c/`.
+- **Done when**: `tools/check-book-examples.sh` matches on `c.md` in the
+  release build; the cause recorded in the LOG (a D-record only if a
+  decision is made).
+
 ### 7.21 Fast Invisible XML (book, tests, implementation)
 After D215 (7.18: the Earley parser, right recursion quadratic, every
 item a step). The owner: high performance; book first, then

@@ -108,9 +108,15 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 - fix-5 closed (D328): XSLT 4.0, 6.4.1 gives a union pattern the minimum
   of its alternatives' default priorities (a change from 3.0); sxml
   already did; a test added.
-- perf-16 (IR passes: item demands, child walks) and perf-17 (XPath
-  parsing) run together: compiling is 87 % of `validate --schematron`
-  on an invoice (1.61 x 10^9 instructions).
+- perf-16 done (D330, the IR passes walk each body once) and perf-17
+  done (D329, fewer grammar reductions, each XPath text parsed once per
+  compilation). `validate --schematron` on one EN 16931 invoice:
+  1.12 x 10^9 instructions, about 0.20 s; the pre-compiled stylesheet
+  about 0.18 s. Left for later packets: the demand pass (0.10), owners
+  made in four passes, verify, the global-read pass (D330); sxml.wasm
+  not built in this session (no WASI SDK), its size budget unchecked
+  after perf-17's tables (+about 206 KB).
+- fix-6 (the book's memory example count) runs now.
 - Conformance baselines differ by setup: 7.29 (D318) measured XP40
   32,815, XQ40 46,158, XT40 12,283 before and after; perf-8, perf-10 and
   fix-4 measured 32,785, 46,114, 12,185 before and after on the same
