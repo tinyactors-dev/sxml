@@ -15743,6 +15743,12 @@ applied above:
   ("Compile errors").
 - 8b. Any `schematronEdition` value is accepted and reported (5.5.15),
   never an error.
+  Confirmed by the owner on 2026-10-28, after the conformance suite
+  (D317) read 5.5.15's "shall be 2025" as making another value a schema
+  error: sxml validates best-effort, since the editions are largely
+  backward compatible. The suite keeps its neutral case
+  (`edition-other-value`); 7.28's driver lists it as a deliberate
+  deviation with this record's reason, not as a failure.
 
 **The owner's amendments** (2026-10-28, after acceptance):
 - 3a amended: a context that parses as an XSLT pattern is used as one

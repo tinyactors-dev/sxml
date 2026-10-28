@@ -1751,6 +1751,11 @@ change to the header needs a record first.
      (cases mixed; xslt4 and xpath4 read; xquery3 and an unknown name
      refused with exit status 1) is among them, reports and SVRL
      (active-group, severity, visit-each, schematronEdition) included.
+     The driver keeps a list of deliberate deviations, each with its
+     record: `edition-other-value` (D315 8b, best-effort validation of
+     other editions) and the cases that depend on reading the `xslt`
+     binding and relative xpath contexts as sxml does (D313, D315); a
+     deviation outside that list is a failure.
   6b. *Expression rule contexts*: 7.30's cases whose rule contexts are
      expressions but not patterns (`(//item)[1]`, `../x`, under xpath
      and xslt bindings, with `from` and `documents`) pass; a context
