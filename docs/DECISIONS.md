@@ -14807,6 +14807,83 @@ changed.
   `("regex-reuse", ["SXML", "xquery", os.path.join(BENCH,
   "regex-reuse.xq")])` and likewise for regex-match.
 
+### D311. Required literals in regex search (packet perf-9)
+
+Recorded 2026-10-28, after D53, D71, D105, D308, D310. No public header
+changed.
+
+- **Whom it serves**: callers of the regex functions whose regex must
+  spell a literal that the input seldom holds, above all SchXslt: its
+  expansion of abstract patterns calls `replace($s, "(\W*)\$name(\W*)",
+  ...)` for every parameter on every test expression. Such a regex can
+  match the empty string before a "$", so D310's start filter skipped
+  nothing and every position was attempted, though no match exists
+  without "$name": `sxml_regex_matcher_scan` was 12.9 % of the expand
+  stage.
+- **Mechanism** (glossary `required_literal`, `read_set`; all in
+  `src/regex.c`): when a regex is compiled, a CODEPOINT instruction is
+  required when MATCH cannot be reached from the first instruction
+  while avoiding it (the successors the matcher can take: both ways of
+  a split, a counted loop's choice and a character repetition); the
+  CODEPOINT instructions after it then run right after it, so their run
+  is in every match, contiguous. Of the first 16 candidates the longest
+  required run is kept, its first 32 bytes as UTF-8. The instructions
+  reachable without the run read every character a match reads before
+  its first occurrence; their read set is the literal's prefix (a
+  back-reference or "." with s: anything). At search time the scan
+  finds the literal's next occurrence (memchr, memcmp), walks back from
+  it while the characters are in the prefix read set, and skips the
+  positions before that; when the literal does not occur, it skips
+  every position left. A position skipped counts one step within the
+  step limit, as D310 settled (skipped positions of an ASCII string
+  are counted from bytes, otherwise from codepoints). The start
+  filter's first characters became a read set too. Correct because a
+  match starting at p reads the literal at some q' at or after the
+  first occurrence q found from p, and every character in [p, q') is
+  read by a prefix instruction.
+- **What is not required, or not analysed**: a regex with lookahead or
+  lookbehind (their regexes read characters a match does not consume)
+  or more than 256 instructions gets none, and the analysis walks a
+  fixed stack (D71). Alternations, optional parts, repetitions and
+  counted loops follow from the graph (a counted loop's body is never
+  required: its choice may leave). Under flag i a character with case
+  variants is a class, so only characters without variants form a
+  literal; q and x are compiled away first; anchors, \b and
+  multi-line mode read nothing, so they do not change the literal and
+  only restrict the attempts made. `sxml_regex_matcher_match_at`
+  (XSD pattern facets) is unchanged.
+- **Measured** (release, x86_64; valgrind instructions of the process,
+  10^6, and processor seconds, the fastest runs on a shared machine),
+  before / after:
+  - SchXslt's expand stage of EN 16931 (step bound raised in a scratch
+    build only): 75,266.6 / 65,844.7 (-12.5 %), scan 12.87 % / 0.42 %
+    of it, inclusive; 10.68 / 9.14 s; the same output;
+  - bench-real.xsl (n=50, mode=regex): 2,626.5 / 2,221.5; 0.320 /
+    0.256 s;
+  - `tests/bench/regex-literal.xq` (new, registered in
+    `run-bench.py`): 5,482.3 / 1,781.7; 0.458 / 0.186 s;
+  - `tests/bench/regex-reuse.xq`: 1,417.3 / 1,180.3; 0.145 / 0.130 s;
+  - `tests/bench/regex-match.xq`: 6,152.4 / 6,174.5 (+0.36 %: its
+    literals are found where the start filter already skipped); 0.595
+    / 0.600 s;
+  - 5,000 distinct regexes compiled: 199.6 / 201.8, about 440
+    instructions more a compile; `"(\W*)\$PARAMn(\W*)"`: 250.5 / 256.8.
+- **Checked**: QT4 XP40 and XQ40 fn-analyze-string, fn-matches,
+  fn-matches.re, fn-matching-segments, fn-regex, fn-replace,
+  fn-tokenize and XT40 analyze-string, regex, regex-syntax,
+  regex-syntax-xslt20 with the release drivers: 4,405 pass, 10 fail, 1
+  wrong error, 1,154 not run, before and after, 0 outcomes differ case
+  by case. 14,400 random regexes (literals, classes, groups,
+  back-references, assertions, anchors, quantifiers; flags i, m, s, q,
+  x) on random inputs of up to 40 characters through fn:analyze-string,
+  and 3,600 in SchXslt's shape through fn:analyze-string, fn:tokenize
+  and fn:replace: the same output, except one search that reached the
+  step limit before and now ends with the right result
+  (`[^a].(.+?)+?A\S`: the positions after the last "A" are skipped).
+- **Left**: a literal inside a counted loop or an assertion is not
+  used; the step limit of a search can now be reached later than
+  before, never sooner.
+
 ### D313. The owner's decisions of 2026-10-28: Schematron, source locations, the CLI's step limit
 
 Recorded 2026-10-28 by the orchestrator, from the owner's answers to the

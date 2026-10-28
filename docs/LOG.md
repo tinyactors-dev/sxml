@@ -4,6 +4,17 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-26
 
+- perf-9 done (D311): required literals in regex search. A compiled
+  regex finds a run of characters every match contains (CODEPOINT
+  instructions every way to MATCH passes through) and what a match can
+  read before it; a search looks for the literal first, attempts only
+  start positions from which the characters up to it can be read, and
+  none when it does not occur (one step per skipped position, as
+  before). SchXslt's expand stage 75.3 to 65.8 x 10^9 instructions
+  (10.7 to 9.1 s), scan 12.9 % to 0.4 % of it; regex-literal.xq (new)
+  0.458 to 0.186 s. QT4 XP40, XQ40 and XT40 regex sets: 0 outcomes
+  differ; 18,000 random regexes give the same output.
+
 - perf-7 done (D310): faster regex matching, by four mechanisms of the
   one engine: ASCII member sets of classes and an ASCII category table
   (one bit test per ASCII character), a start filter that skips start

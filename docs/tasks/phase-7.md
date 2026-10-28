@@ -1362,6 +1362,13 @@ attempted, though no match exists unless the literal `$name` occurs.
   expand stage; the QT4 XP40 and XQ40 regex sets and the XT40 regex
   sets unchanged case by case, and a random comparison of
   `fn:analyze-string` before and after as perf-7 did.
+**Done** 2026-10-28 (D311): a required literal per compiled regex
+(the longest CODEPOINT run every way to MATCH passes through) and the
+read set of what precedes it; the scan finds the literal first and
+skips the positions that cannot reach it, all of them when it does not
+occur. SchXslt's expand stage 75.3 to 65.8 x 10^9 instructions;
+regex-literal.xq 0.458 to 0.186 s; regex sets and 18,000 random
+regexes unchanged.
 
 ### 7.21 Fast Invisible XML (book, tests, implementation)
 After D215 (7.18: the Earley parser, right recursion quadratic, every
