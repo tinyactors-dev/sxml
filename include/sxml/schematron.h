@@ -145,9 +145,11 @@ typedef struct sxml_schematron_diagnostic {
     /* xml:lang in scope of the sch:diagnostic in its own document
        (language fixup, 6.7); empty when none. */
     sxml_byte_view language;
-    /* Its content: text, with sch:value-of and sch:name replaced by their
-       values and the markup of sch:emph, sch:dir, sch:span and foreign
-       elements reduced to its text; whitespace collapsed (5.3) unless
+    /* Its content: text, with sch:value-of replaced by fn:string of its
+       select (more than one item is XPTY0004, a dynamic error of the
+       validation, Annexes C, H to N), sch:name by its name, the
+       markup of sch:emph, sch:dir, sch:span and foreign elements
+       reduced to its text; whitespace collapsed (5.3) unless
        xml:space="preserve" is in scope. */
     sxml_byte_view text;
 } sxml_schematron_diagnostic;
