@@ -43,6 +43,7 @@
     - [XSD 1.1 Features](xsd-11.md)
     - [Reading Validation Errors](xsd-errors.md)
     - [Typed Data and Schema-Aware Queries](xsd-typed-data.md)
+- [Validating with Schematron](schematron.md)
 - [Project: Self-Describing State Machines](scxml.md)
     - [Checking What the Schema Cannot](scxml-checks.md)
     - [Documenting the Machine in XHTML](scxml-xhtml.md)

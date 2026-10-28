@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<invoice currency="USD" total="40.00">
+  <line number="1" item="pen" quantity="0" price="1.50" amount="0"/>
+  <line number="2" item="paper" quantity="120" price="0.25" amount="25.00"/>
+  <line number="3" item="ink" quantity="2" price="4.00" amount="9.00"/>
+</invoice>
