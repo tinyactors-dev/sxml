@@ -146,6 +146,12 @@ typedef struct schematron_builder {
     sxml_error_record parse_record;
     /* The ASTs of the fixed texts parsed so far (perf-13). */
     fixed_memo fixed_parses;
+    /* The pattern walk of the schematron pattern being built (perf-14):
+       the walked_kind bits its rule contexts may match, and
+       sxml_xslt_ast_node_index: its rule templates, which end with the
+       walk once every context is known. */
+    uint32_t walked_kinds;
+    sxml_schematron_array walking_templates;
 } schematron_builder;
 
 
@@ -2724,6 +2730,179 @@ static sxml_status make_expression_context(schematron_builder *builder, expressi
     return status;
 }
 
+/* --------------------------------------------------------- Pattern walk */
+
+/* The node kinds a pattern walk selects only when a rule context of its
+   schematron pattern may match them (perf-14). Elements are always
+   walked, as the nodes below them are reached through them; document
+   and namespace nodes are never children or attributes, so never
+   walked. */
+typedef enum walked_kind {
+    WALKED_KIND_ATTRIBUTE = 1U << 0U,
+    WALKED_KIND_TEXT = 1U << 1U,
+    WALKED_KIND_COMMENT = 1U << 2U,
+    WALKED_KIND_PROCESSING_INSTRUCTION = 1U << 3U,
+} walked_kind;
+
+#define WALKED_KINDS_ALL                                                                   \
+    ((uint32_t)WALKED_KIND_ATTRIBUTE | (uint32_t)WALKED_KIND_TEXT |                        \
+     (uint32_t)WALKED_KIND_COMMENT | (uint32_t)WALKED_KIND_PROCESSING_INSTRUCTION)
+
+/* The walked kinds one node test of an axis step pattern may match: a
+   kind test its kind, a name test or wildcard the principal node kind
+   of its axis (XPath 4.0, 4.6.4.1: attribute for the attribute axis,
+   namespace for the namespace axis, element otherwise); any other test
+   (node(), gnode(), jnode(), a dynamic test) all of them. */
+static uint32_t test_walked_kinds(const sxml_ast_node *test, sxml_ast_axis axis) {
+    const sxml_ast_kind kind = test->kind;
+    if (kind == SXML_AST_KIND_NCNAME || kind == SXML_AST_KIND_PREFIXED_NAME ||
+        kind == SXML_AST_KIND_URI_QUALIFIED_NAME || kind == SXML_AST_KIND_WILDCARD) {
+        return axis == SXML_AST_AXIS_ATTRIBUTE ? (uint32_t)WALKED_KIND_ATTRIBUTE : 0U;
+    }
+    if (kind == SXML_AST_KIND_ELEMENT_NODE_TYPE || kind == SXML_AST_KIND_SCHEMA_ELEMENT_NODE_TYPE ||
+        kind == SXML_AST_KIND_DOCUMENT_NODE_TYPE || kind == SXML_AST_KIND_NAMESPACE_NODE_TYPE) {
+        return 0U;
+    }
+    if (kind == SXML_AST_KIND_ATTRIBUTE_NODE_TYPE || kind == SXML_AST_KIND_SCHEMA_ATTRIBUTE_NODE_TYPE) {
+        return (uint32_t)WALKED_KIND_ATTRIBUTE;
+    }
+    if (kind == SXML_AST_KIND_TEXT_NODE_TYPE) {
+        return (uint32_t)WALKED_KIND_TEXT;
+    }
+    if (kind == SXML_AST_KIND_COMMENT_NODE_TYPE) {
+        return (uint32_t)WALKED_KIND_COMMENT;
+    }
+    if (kind == SXML_AST_KIND_PROCESSING_INSTRUCTION_NODE_TYPE) {
+        return (uint32_t)WALKED_KIND_PROCESSING_INSTRUCTION;
+    }
+    return WALKED_KINDS_ALL;
+}
+
+/* The walked kinds an axis step pattern may match: those of its test, or
+   of each test of a union node test "(a | text())". */
+static uint32_t step_walked_kinds(const sxml_ast *pattern, sxml_ast_node_index step) {
+    const sxml_ast_axis axis = sxml_ast_get_node(pattern, step)->detail.axis;
+    const sxml_ast_node_index test =
+        sxml_ast_find_child(pattern, (sxml_ast_child_query){.parent = step, .field = SXML_AST_FIELD_TEST});
+    const sxml_ast_node *test_node = sxml_ast_get_node(pattern, test);
+    if (test_node->kind != SXML_AST_KIND_UNION_NODE_TEST) {
+        return test_walked_kinds(test_node, axis);
+    }
+    uint32_t kinds = 0;
+    for (sxml_ast_node_index member =
+             sxml_ast_find_child(pattern, (sxml_ast_child_query){.parent = test, .field = SXML_AST_FIELD_TEST});
+         member.value != 0; member = sxml_ast_find_next_with_same_field(pattern, member)) {
+        kinds |= test_walked_kinds(sxml_ast_get_node(pattern, member), axis);
+    }
+    return kinds;
+}
+
+/* True when the pattern node of kind parent_kind passes on what its
+   child in field matches (XSLT 4.0, 6.3): both sides of a union, the
+   left of intersect and except (a subset of it), the path after a root
+   or a rooted variable, the last step of a relative path, the value of a
+   filter, the inside of parentheses. */
+static bool passes_matches_on(sxml_ast_kind parent_kind, sxml_ast_field field) {
+    if (parent_kind == SXML_AST_KIND_PATTERN || parent_kind == SXML_AST_KIND_PARENTHESIZED_PATTERN) {
+        return field == SXML_AST_FIELD_PATTERN;
+    }
+    if (parent_kind == SXML_AST_KIND_UNION_PATTERN) {
+        return field == SXML_AST_FIELD_LEFT || field == SXML_AST_FIELD_RIGHT;
+    }
+    if (parent_kind == SXML_AST_KIND_INTERSECT_EXCEPT_PATTERN) {
+        return field == SXML_AST_FIELD_LEFT;
+    }
+    if (parent_kind == SXML_AST_KIND_ROOTED_PATH_PATTERN ||
+        parent_kind == SXML_AST_KIND_ABSOLUTE_PATH_PATTERN) {
+        return field == SXML_AST_FIELD_PATH;
+    }
+    if (parent_kind == SXML_AST_KIND_RELATIVE_PATH_PATTERN) {
+        return field == SXML_AST_FIELD_RIGHT;
+    }
+    if (parent_kind == SXML_AST_KIND_FILTER_PATTERN) {
+        return field == SXML_AST_FIELD_VALUE;
+    }
+    return false;
+}
+
+/* The walked kinds a rule context's pattern AST may match: of each node
+   whose matches the pattern's are made of (a path through nodes that
+   pass them on up to the root), its own. An axis step pattern's are its
+   test's, "/" matches a document node only, and every other pattern
+   ($v, id('a'), ".", a simple pattern, an expression rule context
+   wrapped as ".[...]") may match any. A loop over the nodes and their
+   ancestors, not a walk of the tree (D71). */
+static uint32_t pattern_walked_kinds(const sxml_ast *pattern) {
+    uint32_t kinds = 0;
+    for (uint32_t node_number = 1; node_number < pattern->node_count; node_number += 1) {
+        const sxml_ast_node *node = &pattern->nodes[node_number];
+        const bool has_path =
+            sxml_ast_find_child(pattern, (sxml_ast_child_query){.parent = {.value = node_number},
+                                                                .field = SXML_AST_FIELD_PATH})
+                .value != 0;
+        const bool passes_on = node->kind == SXML_AST_KIND_PATTERN || node->kind == SXML_AST_KIND_UNION_PATTERN ||
+                               node->kind == SXML_AST_KIND_INTERSECT_EXCEPT_PATTERN ||
+                               node->kind == SXML_AST_KIND_RELATIVE_PATH_PATTERN ||
+                               node->kind == SXML_AST_KIND_FILTER_PATTERN ||
+                               node->kind == SXML_AST_KIND_PARENTHESIZED_PATTERN ||
+                               ((node->kind == SXML_AST_KIND_ROOTED_PATH_PATTERN ||
+                                 node->kind == SXML_AST_KIND_ABSOLUTE_PATH_PATTERN) &&
+                                has_path);
+        if (passes_on) {
+            continue;
+        }
+        const sxml_ast_node *top = node;
+        while (top->parent.value != 0 && passes_matches_on(sxml_ast_get_node(pattern, top->parent)->kind, top->field)) {
+            top = sxml_ast_get_node(pattern, top->parent);
+        }
+        if (top->parent.value != 0 || top->kind != SXML_AST_KIND_PATTERN) {
+            continue;
+        }
+        if (node->kind == SXML_AST_KIND_AXIS_STEP_PATTERN) {
+            kinds |= step_walked_kinds(pattern, (sxml_ast_node_index){.value = node_number});
+        } else if (node->kind != SXML_AST_KIND_ABSOLUTE_PATH_PATTERN) {
+            kinds |= WALKED_KINDS_ALL;
+        }
+    }
+    return kinds;
+}
+
+/* The select of a pattern walk: the element children, and the
+   attributes, text, comment and processing-instruction children whose
+   kinds a rule context may match; "@* | node()" when every kind. */
+static sxml_byte_view walk_select(uint32_t walked_kinds) {
+    static const char *const selects[] = {
+        "*", "@* | *", "* | text()", "@* | * | text()", "* | comment()", "@* | * | comment()",
+        "* | text() | comment()", "@* | * | text() | comment()", "* | processing-instruction()",
+        "@* | * | processing-instruction()", "* | text() | processing-instruction()",
+        "@* | * | text() | processing-instruction()", "* | comment() | processing-instruction()",
+        "@* | * | comment() | processing-instruction()", "node()", "@* | node()"};
+    return sxml_byte_view_from_c_string(selects[walked_kinds & WALKED_KINDS_ALL]);
+}
+
+/* A pattern walk as the last instruction of parent: apply-templates to
+   walk_select in the current mode. */
+static sxml_status emit_walk(schematron_builder *builder, sxml_xslt_ast_node_index parent) {
+    sxml_xslt_ast_node_index walk = {.value = 0};
+    sxml_status status = add_fixed_node(builder,
+                                        (fixed_node){.kind = SXML_XSLT_AST_KIND_APPLY_TEMPLATES,
+                                                     .parent = parent,
+                                                     .attribute_kind = SXML_XSLT_AST_ATTRIBUTE_SELECT,
+                                                     .text = walk_select(builder->walked_kinds),
+                                                     .document = 0,
+                                                     .origin = no_span},
+                                        &walk);
+    if (status == SXML_STATUS_OK) {
+        status = add_mode_attribute(builder, walk,
+                                    (sxml_xslt_ast_name_token){.kind = SXML_XSLT_AST_NAME_TOKEN_KIND_CURRENT,
+                                                               .name = {.index = 0},
+                                                               .namespace_uri = {.index = 0},
+                                                               .has_arity = false,
+                                                               .arity = 0});
+    }
+    return status;
+}
+
 /* A rule to compile into a template rule of its pattern's mode. */
 typedef struct rule_request {
     const compiled_pattern *pattern;
@@ -2950,6 +3129,7 @@ static sxml_status emit_rule(schematron_builder *builder, const rule_request *re
                                          .has_place = true,
                                          .is_declaration = true},
                           &template_node);
+        builder->walked_kinds |= pattern_walked_kinds(match.pattern);
         if (status == SXML_STATUS_OK) {
             status = add_expression_attribute(builder,
                                               (expression_attribute){.node = template_node,
@@ -3052,23 +3232,10 @@ static sxml_status emit_rule(schematron_builder *builder, const rule_request *re
                                              .is_declaration = false},
                               &walk);
         } else {
-            status = add_fixed_node(builder,
-                                    (fixed_node){.kind = SXML_XSLT_AST_KIND_APPLY_TEMPLATES,
-                                                 .parent = template_node,
-                                                 .attribute_kind = SXML_XSLT_AST_ATTRIBUTE_SELECT,
-                                                 .text = SXML_TEXT("@* | node()"),
-                                                 .document = 0,
-                                                 .origin = no_span},
-                                    &walk);
-            if (status == SXML_STATUS_OK) {
-                status = add_mode_attribute(
-                    builder, walk,
-                    (sxml_xslt_ast_name_token){.kind = SXML_XSLT_AST_NAME_TOKEN_KIND_CURRENT,
-                                               .name = {.index = 0},
-                                               .namespace_uri = {.index = 0},
-                                               .has_arity = false,
-                                               .arity = 0});
-            }
+            /* In a pattern the template walks on: its walk is added when
+               the pattern's every rule context is known (emit_pattern). */
+            status = sxml_schematron_array_push(compilation, &builder->walking_templates,
+                                                SXML_SCHEMATRON_ELEMENT_OF(template_node));
         }
     }
     sxml_ast_destroy(match.pattern);
@@ -3145,8 +3312,8 @@ static sxml_status check_documents_variables(schematron_builder *builder, const 
 }
 
 /* The traversal template rules of a mode (D315): document and element
-   nodes walk their attributes and children, other nodes stop; priority
-   -1, below every rule. */
+   nodes walk on (the pattern walk, emit_walk), other nodes stop;
+   priority -1, below every rule. */
 static sxml_status emit_traversal(schematron_builder *builder, sxml_name_identifier mode) {
     static const char *const matches[] = {"document-node() | element()",
                                           "attribute() | text() | comment() | processing-instruction()"};
@@ -3177,24 +3344,7 @@ static sxml_status emit_traversal(schematron_builder *builder, sxml_name_identif
                                                                .payload = {.number = -1.0}}});
         }
         if (status == SXML_STATUS_OK && match_index == 0) {
-            sxml_xslt_ast_node_index walk = {.value = 0};
-            status = add_fixed_node(builder,
-                                    (fixed_node){.kind = SXML_XSLT_AST_KIND_APPLY_TEMPLATES,
-                                                 .parent = template_node,
-                                                 .attribute_kind = SXML_XSLT_AST_ATTRIBUTE_SELECT,
-                                                 .text = SXML_TEXT("@* | node()"),
-                                                 .document = 0,
-                                                 .origin = no_span},
-                                    &walk);
-            if (status == SXML_STATUS_OK) {
-                status = add_mode_attribute(
-                    builder, walk,
-                    (sxml_xslt_ast_name_token){.kind = SXML_XSLT_AST_NAME_TOKEN_KIND_CURRENT,
-                                               .name = {.index = 0},
-                                               .namespace_uri = {.index = 0},
-                                               .has_arity = false,
-                                               .arity = 0});
-            }
+            status = emit_walk(builder, template_node);
         }
     }
     return status;
@@ -3398,11 +3548,10 @@ static sxml_status emit_pattern(schematron_builder *builder, const compiled_patt
         sxml_ast_destroy(documents.ast);
     }
     if (status == SXML_STATUS_OK) {
-        status = emit_traversal(builder, mode);
-    }
-    if (status == SXML_STATUS_OK) {
         status = collect_children(builder, (children_request){.parent = pattern->rules_place, .kind = SXML_SCHEMATRON_ELEMENT_RULE}, &places);
     }
+    builder->walked_kinds = 0;
+    builder->walking_templates.count = 0;
     const sxml_schematron_place *rule_places = places.elements;
     const uint32_t rule_count = (uint32_t)places.count;
     for (uint32_t rule_index = 0; status == SXML_STATUS_OK && rule_index < rule_count; rule_index += 1) {
@@ -3415,6 +3564,18 @@ static sxml_status emit_pattern(schematron_builder *builder, const compiled_patt
                                                     .bindings = bindings});
     }
     sxml_schematron_array_release(compilation, &places);
+    /* The pattern walk, now that every rule context is known (perf-14):
+       the traversal templates' (declared after the rules; their priority
+       -1 orders them after every rule all the same) and each rule
+       template's. */
+    if (status == SXML_STATUS_OK) {
+        status = emit_traversal(builder, mode);
+    }
+    const sxml_xslt_ast_node_index *walking = builder->walking_templates.elements;
+    for (size_t template_index = 0; status == SXML_STATUS_OK && template_index < builder->walking_templates.count;
+         template_index += 1) {
+        status = emit_walk(builder, walking[template_index]);
+    }
     return status;
 }
 
@@ -4735,6 +4896,7 @@ sxml_status sxml_schematron_build(sxml_schematron_compilation *compilation) {
     sxml_schematron_array_release(compilation, &builder.local_variables);
     sxml_schematron_array_release(compilation, &builder.pattern_variables);
     sxml_schematron_array_release(compilation, &builder.renamed_variables);
+    sxml_schematron_array_release(compilation, &builder.walking_templates);
     sxml_schematron_cursor_finish(&builder.cursor);
     sxml_xml_buffer_release(&builder.scratch);
     sxml_xml_buffer_release(&builder.renamed_text);

@@ -597,6 +597,73 @@ static void test_edition_2025_constructs(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
 }
 
+/* --------------------------------------------------------- Pattern walk */
+
+/* One schematron pattern per node kind a rule context may match: a
+   pattern walk selects attributes, text, comments and processing
+   instructions only for patterns whose rules may match them (perf-14),
+   so each must still reach its nodes, and the element-only pattern the
+   nested elements. */
+static const char walk_schema[] = SCHEMA_START
+    "  <sch:pattern id='elements'><sch:rule context='item'>"
+    "<sch:report test='true()' id='element'>E</sch:report></sch:rule></sch:pattern>\n"
+    "  <sch:pattern id='attributes'><sch:rule context='item'>"
+    "<sch:report test='false()' id='never'>-</sch:report></sch:rule><sch:rule context='@n'>"
+    "<sch:report test='true()' id='attribute'>A</sch:report></sch:rule></sch:pattern>\n"
+    "  <sch:pattern id='texts'><sch:rule context='text()'>"
+    "<sch:report test='true()' id='text'>T</sch:report></sch:rule></sch:pattern>\n"
+    "  <sch:pattern id='comments'><sch:rule context='doc/(comment() | item)/comment()'>"
+    "<sch:report test='true()' id='comment'>C</sch:report></sch:rule></sch:pattern>\n"
+    "  <sch:pattern id='instructions'><sch:rule context='processing-instruction(p)'>"
+    "<sch:report test='true()' id='instruction'>P</sch:report></sch:rule></sch:pattern>\n"
+    "  <sch:pattern id='nodes'><sch:rule context='item/node() except item/*'>"
+    "<sch:report test='true()' id='node'>N</sch:report></sch:rule></sch:pattern>\n"
+    "  <sch:pattern id='expressions'><sch:rule context='if (true()) then //comment() else ()'>"
+    "<sch:report test='true()' id='expression'>X</sch:report></sch:rule></sch:pattern>\n"
+    "</sch:schema>";
+
+static void test_pattern_walk_reaches_every_kind_a_rule_matches(sxml_test_state *state) {
+    fixture test_fixture;
+    SXML_TEST_EXPECT(state, fixture_create(0, &test_fixture) == SXML_STATUS_OK);
+    sxml_schematron *schematron = NULL;
+    SXML_TEST_EXPECT(state, compile(&test_fixture, &(compile_request){.text = walk_schema}, &schematron) ==
+                                SXML_STATUS_OK);
+    if (schematron != NULL) {
+        received_lines reports;
+        memset(&reports, 0, sizeof(reports));
+        sxml_schematron_outcome outcome;
+        memset(&outcome, 0, sizeof(outcome));
+        SXML_TEST_EXPECT(state, validate(&test_fixture,
+                                         &(validation_request){
+                                             .instance_text = "<doc><item n='1'>t<!--c--><?p x?><item/></item></doc>",
+                                             .schematron = schematron,
+                                             .reports = &reports},
+                                         &outcome) == SXML_STATUS_OK);
+        for (size_t line_index = 0; line_index < reports.line_count; line_index += 1) {
+            note(state, reports.lines[line_index]);
+        }
+        static const char *const expected[] = {
+            "successful-report element /Q{}doc[1]/Q{}item[1] 1 @2 error E",
+            "successful-report element /Q{}doc[1]/Q{}item[1]/Q{}item[1] 1 @2 error E",
+            "successful-report attribute /Q{}doc[1]/Q{}item[1]/@n 1 @3 error A",
+            "successful-report text /Q{}doc[1]/Q{}item[1]/text()[1] 1 @4 error T",
+            "successful-report comment /Q{}doc[1]/Q{}item[1]/comment()[1] 1 @5 error C",
+            "successful-report instruction /Q{}doc[1]/Q{}item[1]/processing-instruction(p)[1] 1 @6 error P",
+            "successful-report node /Q{}doc[1]/Q{}item[1]/text()[1] 1 @7 error N",
+            "successful-report node /Q{}doc[1]/Q{}item[1]/comment()[1] 1 @7 error N",
+            "successful-report node /Q{}doc[1]/Q{}item[1]/processing-instruction(p)[1] 1 @7 error N",
+            "successful-report expression /Q{}doc[1]/Q{}item[1]/comment()[1] 1 @8 error X"};
+        const size_t expected_count = sizeof(expected) / sizeof(expected[0]);
+        SXML_TEST_EXPECT(state, reports.line_count == expected_count);
+        for (size_t line_index = 0; line_index < expected_count; line_index += 1) {
+            SXML_TEST_EXPECT(state, line_index < reports.line_count &&
+                                        strcmp(reports.lines[line_index], expected[line_index]) == 0);
+        }
+        sxml_schematron_destroy(schematron);
+    }
+    SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
+}
+
 /* SVRL into a buffer. */
 typedef struct text_sink {
     char bytes[8192];
@@ -750,6 +817,8 @@ static const sxml_test_case schematron_test_cases[] = {
     {.name = "dynamic_error_names_its_assertion",
      .function = test_dynamic_error_names_its_assertion},
     {.name = "edition_2025_constructs", .function = test_edition_2025_constructs},
+    {.name = "pattern_walk_reaches_every_kind_a_rule_matches",
+     .function = test_pattern_walk_reaches_every_kind_a_rule_matches},
     {.name = "svrl_lists_patterns_rules_and_findings",
      .function = test_svrl_lists_patterns_rules_and_findings},
     {.name = "lifecycle_in_caller_memory", .function = test_lifecycle_in_caller_memory},
