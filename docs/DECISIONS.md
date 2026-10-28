@@ -16751,6 +16751,127 @@ change and no public header; one new unit test case.
   (`run_vefa.py` with the official EN 16931 UBL XSLT over the Invoice
   and CreditNote unit tests) 1,133 of 1,133 checks.
 
+### D329. Parsing XPath: fewer reductions, each text once per compilation (packet perf-17)
+
+Recorded 2026-10-28, after D12, D232, D324 and D325. No public header
+changed; the ASTs and the IR are the same.
+
+- **Whom it serves**: every compile of a stylesheet or a Schematron
+  schema, first EN 16931's, where XPath parsing was 32 % of the invoice
+  transform and 30 % of the invoice validate from the `.sch`. **Pays**:
+  about 206 KB of parse tables (the `sxml` command 16.93 to 17.14 MB),
+  an AST copy per expression met again, a hash table per compilation.
+- **Profile** (callgrind, release, at ae61af90e): transform 1.618 x
+  10^9 instructions, `sxml_xpath_parse` 0.517, tree-sitter's parse of
+  XPath 0.299 over 2,418 parses; validate 1.613, `sxml_xpath_parse`
+  0.483. The cost was per reduction, not per character: a typical
+  assertion of 552 bytes and 116 tokens took 676 reductions, because
+  each primary expression was reduced once per precedence level (22
+  hidden choice rules, A.5) on its way to an operand, each reduction a
+  hidden subtree node the walk's cursor then passed through. Repeated
+  texts matter less than their count says: the official stylesheet's
+  2,246 select, test, match and use attributes are 1,042 distinct
+  texts, but the repeated ones are short (the distinct texts hold 93 %
+  of the bytes).
+- **Grammar** (`grammars/xpath`, as D232 cut XML's tokens and nodes):
+  the hidden choice rules of the operator levels, the steps, primaries,
+  literals, node tests and names are inlined (tree-sitter `inline`).
+  They make no node, so `node-types.json`, every named node and field
+  and the AST are unchanged; that assertion takes 132 reductions.
+  `_expression_single` and `_expression` stay rules: inlining them
+  doubled the states for 10 % fewer reductions. Regenerated with
+  `tools/generate-grammars.sh`: xpath 1,179 to 1,609 states,
+  xslt_pattern 1,275 to 1,706, value_template 1,166 to 1,596,
+  xpath_full_text 1,559 to 2,117 (+48, +47, +48, +63 KB of tables).
+  XQuery does not take them (`inline` is its Full Text rules only, its
+  parser byte-identical to before): they gave it 5,647 to 9,518 states,
+  +558 KB, for a parse a query makes once (xmark-all -0.15 %). The
+  corpus tests of the five grammars pass.
+- **The AST memo** (`sxml_ast_memo`, `src/xpath_ast.c`; glossary
+  `ast_memo`): an open-addressing table (FNV-1a, at most half full) of
+  the ASTs a compilation parsed, keyed by the front end's entry point,
+  the text and the parse's limits (expression depth, XML 1.1 reading),
+  which are all a front end's AST depends on besides the source name;
+  the static context does not enter a parse. A text met again takes a
+  copy (`sxml_ast_copy`: the same capacities, node entries and text
+  store, its own source name); a text in error is not kept, so each use
+  reports its own error. The XSLT reader (`src/xslt_read.c`, one memo
+  per read) and the Schematron builder (`src/schematron_build.c`, one
+  per compile) parse every expression through it; it replaces perf-13's
+  table of fixed texts and its node-by-node copy (D325, mechanism 3).
+  Memory: one AST per distinct text more during a read, from the same
+  allocator and limits; no recursion (D71).
+- **The walk** (`src/xpath_parse.c`): a named child's AST field is kept
+  per grammar field identifier, a terminal's delimitation (A.3.2) per
+  symbol, as D324 kept kinds per symbol (-1.4 % of the parse).
+- **Measured**, instructions x 10^9 (callgrind, release; base
+  ae61af90e and the change built alike from snapshots): invoice
+  transform 1.618 to 1.323 (grammar) to 1.294 (memo) to 1.291 (walk),
+  -20.2 %, `sxml_xpath_parse` 0.517 to 0.185 (14.4 % of the run), XPath
+  parses 2,418 to 1,210; invoice validate 1.613 to 1.332 to 1.323 to
+  1.321, -18.1 %, `sxml_xpath_parse` 0.483 to 0.202, parses 2,323 to
+  2,248; the new benchmark `xpath-parse` (`tests/bench/xpath-parse.xsl`,
+  250 Schematron-style assertions, compile-bound) 0.947 to 0.649;
+  xmark-all 8.641 to 8.638 (output equal). Processor seconds (fastest
+  of 15, interleaved, a shared 4-CPU machine with other builds
+  running): transform 0.212 to 0.185, validate 0.246 to 0.219,
+  xpath-parse 0.121 to 0.093; the XT40 run (its compiles and
+  transforms) 340.3 to 330.9, one run each, under other load.
+- **Same result**: a scratch harness parsed 133,165 texts with both
+  builds (each QT4 test expression as XPath and as XQuery, the XT40
+  suite's select, test, match, as and value template attributes, the
+  EN 16931 XSLT's and `.sch` files' attributes): the 119,276 that parse
+  give identical node entries, text stores, capacities and roots; the
+  13,889 in error give the same status and code. 380 of those, all
+  XPath, are located elsewhere, as tree-sitter's error recovery follows
+  the tables (often at the "(" or "[" before the old place, or at the
+  missing token after it), and 22 of them now say "The expression ends
+  early or misses a token" for "The text is not valid XPath 4.0
+  syntax". tests/schematron_test.c's two pattern errors move from 4:16
+  to 4:20 and 15:46 to 15:47, the book's `broken.sch` from 4:20 "the
+  text is not a pattern" to 4:30 "the pattern is incomplete" (the "]"
+  missing at the end), and three CLI tests' XTSE0340 for match="item["
+  and context="line[" from the pattern's start to its "[" (5:18 to 5:22,
+  4:16 to 4:20). **Conformance setup**: base ae61af90e and the
+  change built alike (preset `release`, snapshots), run one after the
+  other on the same machine with TZ, LANG and LC_ALL unset, from each
+  snapshot's root: `sxml-qt4 run --spec=XP40 --format=json`, `sxml-qt4
+  run --spec=XQ40 --format=json`, `sxml-xslt-test run --format=json`
+  (default catalogs, no test list). XP40 32,785, XQ40 46,114 and XT40
+  12,185 passed in both: 0 outcomes differ, case by case. 7.30's suite
+  (`sxml-schematron-test run`): 463 passed, 3 failed, 43
+  implementation-defined, 5 not applicable, each case as before; VEFA
+  (`run_vefa.py` with the official EN 16931 UBL XSLT, and
+  `sxml-schematron-test vefa` with the `.sch`, over the Invoice and
+  CreditNote unit tests) 1,133 of 1,133 checks. The IR text form after
+  the passes (`src/ir.c`'s printer, dumped by a scratch-only hook in
+  `sxml_ir_run_passes`, as in D324) is byte-identical on the EN 16931
+  stylesheet (141 MB of text), on the unit compiled from its `.sch`, on
+  xpath-parse, and on all 414,483 units the XT40 suite compiles (an
+  FNV-1a hash and length per unit, in order). New unit tests in
+  `tests/xpath_ast_test.c`: the copy, the memo's keys, errors not kept,
+  growth and every allocation failure. debug-gcc: 457 of 459 tests pass (kotlin/jvm and swift/linux
+  skipped); clang-tidy
+  clean on the changed files; `tools/check-call-cycles.py` finds no
+  cycle.
+- **Deviations**: `grammars/xquery/grammar.js` (to keep its tables) and
+  the regenerated parsers of `grammars/xslt_pattern`,
+  `grammars/value_template` and `grammars/xpath_full_text`, which derive
+  from grammars/xpath; `src/xslt_read.c`, `src/schematron_build.c` (the
+  packet allowed them), `tests/schematron_test.c`, three files in
+  `tests/cli/expected/` and `docs/book/src/schematron.md` (the moved
+  error locations).
+- **Left**: `sxml.wasm` was not built here (no WASI SDK); the tables
+  add about 206 KB to it (the native libraries' growth), against the
+  module's budget of 14,000,000 bytes (D288; 13,452,276 at D295), so
+  javascript/size_budget and its baseline need the owner's machine. In the parse that remains (0.185 of the
+  transform) tree-sitter's own parse is 0.097 (lexing, the stack and
+  subtrees per token, 24 reductions of `_expression_single` per
+  assertion), the walk about 0.07 (each node's children are scanned
+  twice, once for tokens and once by the cursor), and a parser made
+  and deleted per text 0.005 (D12 keeps tree-sitter's memory to the
+  parse step).
+
 ## Proposed
 
 - **Third-party rule sets that are not correct Schematron** (D323,

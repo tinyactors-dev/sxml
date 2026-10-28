@@ -4,6 +4,22 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-26
 
+- perf-17 done (D329): parsing XPath. A primary expression was reduced
+  once per precedence level (22 hidden rules) before it reached an
+  operand; grammars/xpath now inlines those choice rules (and the
+  steps', primaries' and names'), so an EN 16931 assertion takes 132
+  reductions, not 676, with the same named nodes (XQuery keeps its
+  tables: +558 KB for a parse made once). An AST memo parses each
+  expression text once per XSLT read or Schematron compile; the walk
+  keeps fields per identifier. Invoice transform 1.618 to 1.291 x 10^9
+  (-20 %), validate 1.613 to 1.321 (-18 %), XPath parsing 32 % to 14 %
+  of the transform; 0.212 to 0.185 s and 0.246 to 0.219 s; new
+  xpath-parse benchmark 0.947 to 0.649. ASTs identical on 119,276
+  texts, IR text on EN 16931 and all 414,483 XT40 units; 380 XPath
+  syntax errors are located elsewhere (the CLI and book examples
+  updated). XP40, XQ40, XT40: 0 outcomes differ; suite 463/463, VEFA
+  1,133/1,133. sxml.wasm (+206 KB of tables) not built here.
+
 - fix-5 done (D328): default priorities of union patterns. XSLT 4.0,
   6.4.1 changed 3.0's rule (PR 1772): a union pattern is one rule
   whose default priority is the minimum of its alternatives', for

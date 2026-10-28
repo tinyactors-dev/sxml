@@ -1684,6 +1684,13 @@ the expanded Schematron less so (1,086 test and context attributes,
   ASTs and the IR text identical; QT4 XP40, XQ40 and XT40 whole, base
   and change in the same setup: no outcome changes, case by case;
   Schematron 463 of 463, VEFA 1,133.
+**Done** 2026-10-28 (D329): grammars/xpath inlines its hidden choice
+rules (operator levels, steps, primaries, names): 676 to 132 reductions
+for a typical assertion, same nodes; an AST memo per XSLT read and
+Schematron compile; fields kept per identifier. Invoice transform
+1.618 to 1.291 x 10^9, validate 1.613 to 1.321; xmark-all 8.641 to
+8.638; ASTs and IR text identical; XP40, XQ40, XT40 0 outcomes differ;
+suite 463/463, VEFA 1,133/1,133.
 
 ### 7.21 Fast Invisible XML (book, tests, implementation)
 After D215 (7.18: the Earley parser, right recursion quadratic, every
