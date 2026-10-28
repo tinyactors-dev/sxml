@@ -1638,6 +1638,53 @@ from 3.0; 3.8.3: the same for version 3.0). sxml already did; the
 reproduction is now the unit test union_priority. No source change;
 XT40 0 outcomes differ (12,185 passed); suite 463/463, VEFA 1,133/1,133.
 
+### perf-16 IR passes after perf-12: item demands and child walks (implementation)
+After D259 (item demands), D324 and D327. Validating one EN 16931
+invoice with `sxml validate --schematron` costs 1.61 x 10^9
+instructions, 87 % of it compiling the `.sch`; the IR passes are 31 %,
+led by `sxml_ir_set_item_demands` (12.4 % inclusive, 4.2 % self) and
+`push_every_child` (6.5 % self), with `children_of` and `make_owners`
+behind them (`src/ir.c`, `src/ir_loop_passes.c`).
+- **Mechanism**: profile first (callgrind on that run, the pre-compiled
+  invoice run and perf-12's growth series); find why item demands and
+  the child walks cost what they do (repeated whole-unit walks, walks
+  per function or per pass that could share one) and make them
+  proportional to the unit once; the IR text form after the passes
+  stays identical.
+- **Owns**: `src/ir.c`, `src/ir_loop_passes.c`, `src/ir_global_read.c`,
+  `src/ir_internal.h` and `src/ir_pass_internal.h` (their pass parts),
+  `tests/ir_test.c`, `tests/ir_loop_passes_test.c`, `tests/bench/`.
+- **Done when**: before and after (instructions and seconds) in a
+  D-record on both invoice runs, the growth series, xmark-all and the
+  XT40 compile; IR text identical on EN 16931 and the XT40 units; QT4
+  XP40, XQ40 and XT40 whole, base and change in the same setup: no
+  outcome changes, case by case; Schematron 463 of 463, VEFA 1,133.
+
+### perf-17 Parsing XPath: each text once, and a cheaper parse (implementation)
+After D12 (tree-sitter), D232 (perf-3 for XML), D324 and D325. XPath
+parsing is 30 % of compiling the EN 16931 Schematron (tree-sitter's
+`ts_parser_parse` 23 %). The official compiled stylesheet repeats its
+expressions: 3,228 test, select and match attributes, 1,049 distinct;
+the expanded Schematron less so (1,086 test and context attributes,
+1,007 distinct).
+- **Mechanism**: profile first; parse each distinct expression text
+  once per compilation where the static context is the same (an AST
+  cache keyed by the text and the static context's identity; the
+  lowering then takes a copy or shares an immutable AST, whichever the
+  front end allows, D71 and memory limits kept); then make the parse
+  itself cheaper the way perf-3 did for XML (fewer tokens and nodes in
+  the grammar, a cheaper walk), with the grammar's tests and every
+  outcome unchanged.
+- **Owns**: `src/xpath_parse.c`, the XPath front end's AST building and
+  its internal headers, `grammars/xpath*` (if the XPath grammar lives
+  there), the XPath parser's tests, `tests/bench/`. Not the IR files
+  (perf-16).
+- **Done when**: before and after (instructions and seconds) in a
+  D-record on both invoice runs, xmark-all and the XT40 compile; the
+  ASTs and the IR text identical; QT4 XP40, XQ40 and XT40 whole, base
+  and change in the same setup: no outcome changes, case by case;
+  Schematron 463 of 463, VEFA 1,133.
+
 ### 7.21 Fast Invisible XML (book, tests, implementation)
 After D215 (7.18: the Earley parser, right recursion quadratic, every
 item a step). The owner: high performance; book first, then
