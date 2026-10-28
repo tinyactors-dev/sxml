@@ -416,4 +416,56 @@
       </findings>
     </result>
   </test-case>
+  <test-case name="abstract-param-non-ascii-name" since="2020">
+    <description>A parameter whose name has non-ASCII letters.</description>
+    <spec clause="6.4"/>
+    <spec clause="Annex-J"/>
+    <schema file="abstract-param-non-ascii-name.sch"/>
+    <instance file="abstract-param-non-ascii-name.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Not two.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="abstract-param-value-dynamic-error" since="2020">
+    <description>A parameter value that raises a dynamic error once replaced into a test.</description>
+    <spec clause="6.4"/>
+    <spec clause="6.1"/>
+    <schema file="abstract-param-value-dynamic-error.sch"/>
+    <instance file="abstract-param-value-dynamic-error.xml"/>
+    <result>
+      <error clause="6.1"/>
+    </result>
+  </test-case>
+
+  <test-case name="abstract-param-value-syntax" since="2020">
+    <description>A parameter value that makes the test, once replaced, not an expression of the query language.</description>
+    <spec clause="6.4"/>
+    <spec clause="7.2"/>
+    <schema file="abstract-param-value-syntax.sch"/>
+    <instance file="abstract-param-value-syntax.xml"/>
+    <result>
+      <schema-error clause="7.2"/>
+    </result>
+  </test-case>
+
+  <test-case name="abstract-instance-in-two-phases" since="2020">
+    <description>Two instances of one abstract pattern, each active in its own phase.</description>
+    <spec clause="6.4"/>
+    <spec clause="5.4.13"/>
+    <schema file="abstract-instance-in-two-phases.sch"/>
+    <instance file="abstract-instance-in-two-phases.xml"/>
+    <phase>second</phase>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Found $k.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
 </test-set>

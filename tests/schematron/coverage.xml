@@ -11,6 +11,8 @@
     <text>Only the patterns of the active phase are used.</text>
     <test set="phases" case="phase-named"/>
     <test set="phases" case="phase-selects-nothing"/>
+    <test set="phases" case="phase-inactive-pattern-dynamic-error"/>
+    <test set="phases" case="phase-duplicate-active"/>
   </requirement>
   <requirement id="d-3.13" clause="3.13" kind="definition">
     <text>Patterns have no defined order; pattern and group are patterns.</text>
@@ -94,6 +96,8 @@
     <test set="phases" case="phase-active-text-ignored"/>
     <test set="phases" case="phase-active-unknown"/>
     <test set="phases" case="phase-active-group"/>
+    <test set="phases" case="phase-duplicate-active"/>
+    <test set="phases" case="phase-active-abstract"/>
   </requirement>
   <requirement id="r-5.4.3-test" clause="5.4.3" kind="definition">
     <text>An assert succeeds when its test is true; it needs a test.</text>
@@ -160,6 +164,8 @@
     <test set="group" case="group-only"/>
     <test set="group" case="group-variables"/>
     <test set="inclusion" case="include-rule-into-group"/>
+    <test set="phases" case="phase-from-group"/>
+    <test set="phases" case="phase-group-variable"/>
   </requirement>
   <requirement id="r-5.4.6-target" clause="5.4.6" kind="shall">
     <text>include href names a well-formed document or one of its elements.</text>
@@ -243,6 +249,7 @@
     <test set="variables" case="let-in-name-path"/>
     <test set="name-value-of" case="value-of-variable"/>
     <test set="variables" case="let-non-ascii-name"/>
+    <test set="phases" case="phase-group-variable"/>
   </requirement>
   <requirement id="r-5.4.8" clause="5.4.8" kind="definition">
     <text>A library holds external declarations brought in by extends.</text>
@@ -288,6 +295,7 @@
     <test set="schema-structure" case="ns-xmlns-conflict"/>
     <test set="schema-structure" case="ns-xml-prefix"/>
     <test set="inclusion" case="include-prefix-from-ns"/>
+    <test set="documents" case="documents-namespaces"/>
   </requirement>
   <requirement id="r-5.4.11-schema" clause="5.4.11" kind="definition">
     <text>A schema param needs a value; its value may be overridden by the user.</text>
@@ -323,6 +331,10 @@
     <test set="documents" case="documents-relative-to-instance"/>
     <test set="documents" case="documents-empty"/>
     <test set="documents" case="documents-group"/>
+    <test set="documents" case="documents-dynamic-error"/>
+    <test set="documents" case="documents-duplicate-uri"/>
+    <test set="documents" case="documents-reverse-order"/>
+    <test set="documents" case="documents-namespaces"/>
   </requirement>
   <requirement id="r-5.4.12-scope" clause="5.4.12" kind="definition">
     <text>Pattern variables are not in scope in documents.</text>
@@ -347,6 +359,7 @@
     <test set="phases" case="phase-named"/>
     <test set="phases" case="phase-named-two-patterns"/>
     <test set="static-errors" case="error-phase-id-missing"/>
+    <test set="phases" case="phase-non-ascii-id"/>
   </requirement>
   <requirement id="r-5.4.13-reserved" clause="5.4.13" kind="shall">
     <text>#ALL, #ANY and #DEFAULT are not phase names; their meanings.</text>
@@ -415,6 +428,10 @@
     <text>The assertion's variables are in scope in its diagnostics.</text>
     <test set="diagnostics-properties" case="diagnostic-rule-variable"/>
     <test set="diagnostics-properties" case="diagnostic-dynamic"/>
+    <test set="diagnostics-properties" case="diagnostic-dynamic-error"/>
+    <test set="diagnostics-properties" case="diagnostic-shared"/>
+    <test set="diagnostics-properties" case="diagnostic-phase-variable"/>
+    <test set="diagnostics-properties" case="diagnostic-non-ascii"/>
   </requirement>
   <requirement id="r-5.5.2" clause="5.5.2" kind="definition">
     <text>diagnostics links an assertion to diagnostic elements.</text>
@@ -424,6 +441,7 @@
     <test set="diagnostics-properties" case="diagnostic-unknown"/>
     <test set="diagnostics-properties" case="diagnostic-not-when-passing"/>
     <test set="diagnostics-properties" case="diagnostic-unreferenced"/>
+    <test set="diagnostics-properties" case="diagnostic-shared"/>
   </requirement>
   <requirement id="r-5.5.4" clause="5.5.4" kind="definition">
     <text>dir is text with a direction ltr or rtl.</text>
@@ -456,6 +474,12 @@
     <text>from is evaluated at the instance root and restricts rule contexts to what it selects.</text>
     <test set="phases" case="phase-from"/>
     <test set="phases" case="phase-from-variables"/>
+    <test set="phases" case="phase-from-dynamic-error"/>
+    <test set="phases" case="phase-from-empty"/>
+    <test set="phases" case="phase-from-several"/>
+    <test set="phases" case="phase-from-overlapping"/>
+    <test set="phases" case="phase-from-attributes"/>
+    <test set="phases" case="phase-from-group"/>
   </requirement>
   <requirement id="r-5.5.7-subordinate" clause="5.5.7" kind="shall">
     <text>from does not apply to subordinate documents.</text>
@@ -472,6 +496,9 @@
     <test set="diagnostics-properties" case="property-copy-of"/>
     <test set="diagnostics-properties" case="property-unknown"/>
     <test set="diagnostics-properties" case="diagnostic-and-property"/>
+    <test set="diagnostics-properties" case="property-dynamic-error"/>
+    <test set="diagnostics-properties" case="property-several"/>
+    <test set="diagnostics-properties" case="property-visit-each"/>
   </requirement>
   <requirement id="r-5.5.14" clause="5.5.14" kind="definition">
     <text>role names the function of an assertion or rule.</text>
@@ -507,6 +534,7 @@
     <text>A severity that is a variable reference is evaluated.</text>
     <test set="severity-role-flag" case="severity-variable"/>
     <test set="severity-role-flag" case="severity-avt"/>
+    <test set="svrl" case="svrl-dynamic-severity"/>
   </requirement>
   <requirement id="r-5.5.18" clause="5.5.18" kind="definition">
     <text>span encloses text keyed by a class.</text>
@@ -539,11 +567,16 @@
     <test set="visit-each" case="visit-each-variables"/>
     <test set="visit-each" case="visit-each-syntax"/>
     <test set="visit-each" case="visit-each-on-abstract-rule"/>
+    <test set="diagnostics-properties" case="property-visit-each"/>
   </requirement>
   <requirement id="r-5.5.22" clause="5.5.22" kind="shall">
     <text>when is evaluated at the instance root; the first true phase in schema order is active.</text>
     <test set="phases" case="phase-any-first-when"/>
     <test set="phases" case="phase-when-with-variable"/>
+    <test set="phases" case="phase-when-dynamic-error"/>
+    <test set="phases" case="phase-any-later-when-error"/>
+    <test set="phases" case="phase-when-ebv"/>
+    <test set="phases" case="phase-when-ebv-error"/>
   </requirement>
   <requirement id="r-5.5.22-subordinate" clause="5.5.22" kind="shall">
     <text>when does not apply to subordinate documents.</text>
@@ -562,6 +595,12 @@
     <test set="variables" case="let-schema-dynamic-error"/>
     <test set="name-value-of" case="name-dynamic-error"/>
     <test set="name-value-of" case="value-of-dynamic-error"/>
+    <test set="abstract-patterns" case="abstract-param-value-dynamic-error"/>
+    <test set="phases" case="phase-when-dynamic-error"/>
+    <test set="phases" case="phase-from-dynamic-error"/>
+    <test set="diagnostics-properties" case="diagnostic-dynamic-error"/>
+    <test set="diagnostics-properties" case="property-dynamic-error"/>
+    <test set="documents" case="documents-dynamic-error"/>
   </requirement>
   <requirement id="r-6.2" clause="6.2" kind="definition">
     <text>Inclusions, abstract patterns and abstract rules are resolved, reports negated, documentation removed.</text>
@@ -578,6 +617,7 @@
     <text>The phase is established first, then each active pattern is processed.</text>
     <test set="phases" case="phase-named"/>
     <test set="svrl" case="svrl-phase"/>
+    <test set="phases" case="phase-inactive-pattern-dynamic-error"/>
   </requirement>
   <requirement id="r-6.3-fire" clause="6.3" kind="definition">
     <text>A rule of a pattern fires unless an earlier rule matched the node; in a group every rule may fire.</text>
@@ -602,12 +642,14 @@
     <test set="name-value-of" case="value-of-rule-subject-context"/>
     <test set="diagnostics-properties" case="diagnostic-dynamic"/>
     <test set="patterns-rules" case="rules-subject-ancestor"/>
+    <test set="diagnostics-properties" case="diagnostic-property-subject-context"/>
   </requirement>
   <requirement id="r-6.4-instance" clause="6.4" kind="shall">
     <text>An instance has no rules and a param for each parameter used.</text>
     <test set="abstract-patterns" case="abstract-instance-with-rule"/>
     <test set="abstract-patterns" case="abstract-param-missing"/>
     <test set="abstract-patterns" case="abstract-instance-with-let"/>
+    <test set="abstract-patterns" case="abstract-instance-in-two-phases"/>
   </requirement>
   <requirement id="r-6.4-replace" clause="6.4" kind="definition">
     <text>Parameter values replace the references in the abstract pattern.</text>
@@ -625,6 +667,10 @@
     <test set="abstract-patterns" case="abstract-group"/>
     <test set="documents" case="documents-abstract-parameter"/>
     <test set="documents" case="documents-in-abstract-pattern"/>
+    <test set="abstract-patterns" case="abstract-param-non-ascii-name"/>
+    <test set="abstract-patterns" case="abstract-param-value-dynamic-error"/>
+    <test set="abstract-patterns" case="abstract-param-value-syntax"/>
+    <test set="diagnostics-properties" case="diagnostic-abstract-parameter"/>
   </requirement>
   <requirement id="r-6.5-provide" clause="6.5" kind="shall">
     <text>A binding provides the query language, its rule-context language and the assertion test.</text>
@@ -721,6 +767,14 @@
     <test set="patterns-rules" case="rules-subject-syntax"/>
     <test set="variables" case="let-value-syntax"/>
     <test set="abstract-rules" case="extends-unused-syntax"/>
+    <test set="abstract-patterns" case="abstract-param-value-syntax"/>
+    <test set="phases" case="phase-inactive-pattern-syntax-error"/>
+    <test set="phases" case="phase-when-syntax"/>
+    <test set="phases" case="phase-from-syntax"/>
+    <test set="phases" case="phase-from-syntax-inactive"/>
+    <test set="diagnostics-properties" case="diagnostic-value-of-syntax"/>
+    <test set="diagnostics-properties" case="property-value-of-syntax"/>
+    <test set="documents" case="documents-syntax"/>
   </requirement>
   <requirement id="r-7.2-variables" clause="7.2" kind="shall">
     <text>One definition per variable name in the global and the local context.</text>
@@ -737,6 +791,7 @@
     <test set="static-errors" case="error-ns-prefix-not-a-name"/>
     <test set="assertions" case="assert-attributes-non-ascii"/>
     <test set="schema-structure" case="ns-non-ascii-prefix"/>
+    <test set="phases" case="phase-non-ascii-id"/>
   </requirement>
   <requirement id="r-A-order" clause="Annex-A" kind="shall">
     <text>The schema's children come in the grammar's order.</text>
@@ -783,6 +838,7 @@
   <requirement id="r-B-active" clause="Annex-B" kind="shall">
     <text>active/@pattern matches a pattern id.</text>
     <test set="phases" case="phase-active-unknown"/>
+    <test set="phases" case="phase-active-abstract"/>
   </requirement>
   <requirement id="r-B-extends" clause="Annex-B" kind="shall">
     <text>extends/@rule matches an abstract rule.</text>
@@ -908,6 +964,7 @@
     <test set="abstract-patterns" case="abstract-param-prefix-variable"/>
     <test set="abstract-patterns" case="abstract-param-in-string-literal"/>
     <test set="abstract-patterns" case="abstract-dollar-variable"/>
+    <test set="abstract-patterns" case="abstract-param-non-ascii-name"/>
   </requirement>
   <requirement id="r-HJ-xslt" clause="Annex-J" kind="may">
     <text>xsl:function, key, include, import, import-schema, use-package, accumulator before patterns.</text>
@@ -961,6 +1018,7 @@
     <test set="svrl" case="svrl-fired-rules"/>
     <test set="svrl" case="svrl-failed-assert"/>
     <test set="svrl" case="svrl-successful-report"/>
+    <test set="svrl" case="svrl-several-patterns"/>
   </requirement>
   <requirement id="r-D-mapping" clause="Annex-D" kind="may">
     <text>The mapping of Table D.1: phase, title, ns, diagnostics, properties, groups, documents.</text>
@@ -973,5 +1031,9 @@
     <test set="svrl" case="svrl-subordinate-document"/>
     <test set="svrl" case="svrl-group"/>
     <test set="svrl" case="svrl-visit-each"/>
+    <test set="svrl" case="svrl-non-ascii"/>
+    <test set="svrl" case="svrl-dynamic-severity"/>
+    <test set="svrl" case="svrl-visit-each-location"/>
+    <test set="svrl" case="svrl-namespaced-location"/>
   </requirement>
 </coverage>
