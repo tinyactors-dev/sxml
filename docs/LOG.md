@@ -4,6 +4,23 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-26
 
+- 7.28 done (D323): Schematron (ISO/IEC 19757-3:2025) as a front end
+  to the XSLT AST. C API, `sxml validate --schematron` (`--phase`,
+  `--schematron-param`, text, JSON, SVRL), the JavaScript
+  `compileSchematron` (not built here: no WASI SDK), a compile report
+  sink for XSLT (D320), the driver `sxml-schematron-test` and a book
+  chapter. 7.30's suite: 463 of 463 applicable normative cases, 3
+  listed deviations, 43 implementation-defined, 5 refused bindings; one
+  suite case corrected (`abstract-in-phase`, a duplicate id). EN 16931
+  UBL unit tests 1,133 of 1,133 from the `.sch` sources; its compile
+  0.53 s (SchXslt on sxml: 280 s), 79 MB peak with all 1,131 tests,
+  which run in 9.4 s. Differential against SchXslt: identical findings
+  and fired rules on EN 16931 UBL and, patched, CII and XRechnung UBL
+  and CII. Proposed: EN 16931 CII names a parameter twice and
+  XRechnung relies on SchXslt's leniency (global pattern variables,
+  lets after assertions, an unbound `xs`). XT40 12,185 passed, 0
+  outcomes differ.
+
 - perf-11 done (D322): node atomization describes its node once, and
   string values step over attributes by count. The profile: SchXslt's
   expand stage atomizes 4,903 distinct untyped nodes 2.71 million

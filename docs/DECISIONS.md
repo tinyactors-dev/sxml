@@ -16229,7 +16229,107 @@ changed.
   dynamic context, and the public `sxml_node_value_request` cannot
   carry it (D99).
 
+### D323. Schematron implemented: what 7.28 built and the readings it took (packet 7.28)
+Recorded 2026-10-28, after D313, D315 (revised and accepted), D317,
+D318 and D320. Implements `include/sxml/schematron.h` as D315 designs
+it; no public header changes beyond D320's.
+- **Whom it serves**: the embedder and the user of the sxml command,
+  who validate documents against Schematron rules (EN 16931, XRechnung,
+  their own) with both places of each finding. **Pays**:
+  about 9,500 lines of library C (`src/schematron*`), a driver, a CLI option set,
+  five host-shim entry points.
+- **What was built**: reading (documents, `sch:include`, `sch:extends`
+  href and rule, libraries, Annex A's grammar and Annex B's
+  constraints, every error to the compile report sink, the query
+  binding), the placeholder scan with expansion segments, the
+  stylesheet AST (one mode per active pattern, groups, visit-each,
+  phases with from, when and `#ANY`, expression rule contexts, dynamic
+  flag, role and severity, variables and their scopes), compile,
+  describe, validate, SVRL. `sxml validate --schematron` (D315 "The
+  CLI"); the host shim's `sxml_host_schematron_*` and
+  `sxml_host_compile_reports_of`, the package's
+  `Processor.compileSchematron` and `Schematron.validate`, and
+  `compileStylesheet` throwing a `SchemaError` with every error (D320).
+- **Readings and choices made on the way** (none changes the header):
+  1. *Pattern variables are in scope in their pattern only* (3.23,
+     5.4.7): every `let` of a compiled pattern is a global under a
+     synthesized name; the pattern's expressions reach it as a
+     placeholder is replaced (the rename table follows the instance and
+     schema parameter tables in the one scan), its templates through a
+     local binding of the written name; the `documents` attribute sees
+     none of them (5.4.12). SVRL and reports show the text as written.
+  2. *Errors of the grammar and of the expressions in one compile*:
+     with a report sink, building runs after reading errors and reports
+     the expressions' syntax errors too; the XSLT compile then does not
+     run (its static analysis needs a correct schema).
+  3. *An include where the grammar has none* (Annex A, `inclusion`; in
+     `rules`, `properties`) and an `ns` of a library that `extends
+     href` inserts are syntax errors; an abstract rule with
+     `visit-each` too (Annex A).
+  4. *`name path` selecting more than one item* raises XPTY0004, as
+     `fn:node-name` would (Annexes H, J).
+  5. *An expression rule context is typed `node()*`*: a context such as
+     `count(item)` fails at validation (XTTE0570) instead of matching
+     nothing.
+  6. *A validation of a document node uses the compiled unit*: the
+     default initial match selection, not a given one, which lowered
+     the stylesheet once per validation (EN 16931's 1,131 unit tests:
+     281 s before, 9.4 s after).
+  7. *Documents through a byte reader* (D233, the sxml command's
+     resolver) are read whole, then parsed.
+- **Deviations** of 7.30's suite (the driver's list,
+  `tests/schematron/driver/deviations.txt`): `edition-other-value`
+  (D315 8b); `binding-xpath2-no-maps` (D315 "Query bindings": xpath2 is
+  read by the 4.0 front end); `error-context-is-expression` (D315 3a as
+  amended: a context that is an expression is wrapped under every
+  binding, so the error is dynamic). One suite case changed, a 2020
+  case: `abstract-in-phase` gave its phase the id of its pattern
+  instance, which Annex A's `xsd:ID` forbids; the phase is now
+  `tables-phase`, the expected findings unchanged.
+- **Evidence**: suite 463 of 463 applicable normative cases, 3
+  deviations, 43 implementation-defined, 5 refused bindings (xquery*);
+  `schematron_test` (placeholders, errors with places, bindings,
+  parameters, both locations, 2025 constructs, SVRL, every allocation
+  failure); EN 16931 UBL 1,133 of 1,133 checks from the `.sch`
+  sources (ctest `schematron/en16931-ubl`); compile of
+  `EN16931-UBL-validation.sch` 0.53 to 0.59 s in a release build within
+  the default step bound, peak 79 MB for compile and all 1,131 tests,
+  against SchXslt 1.10.1 on sxml 280 s (10.5 s on Saxon, D313);
+  differential against SchXslt (`tests/schematron/driver/
+  differential.py`): EN 16931 UBL over 255 instances, EN 16931 CII,
+  XRechnung UBL and CII (patched as under "Proposed") over 128, 226
+  and 128 instances: findings (id, kind, location) and fired-rule
+  contexts identical once contexts are whitespace-normalized (SchXslt
+  writes a context as written, sxml stripped, 5.3). CLI tests for text,
+  JSON, SVRL, includes, an EN 16931 invoice with its line, exit statuses
+  0 to 4; host-shim tests natively. The JavaScript package was not
+  built (no WASI SDK); its additions typecheck.
+- **Open**: the EN 16931 CII unit tests and XRechnung's rule sets need
+  the owner's decision ("Proposed"); with `--schema`, findings over the
+  validated copy have paths, not lines (the copy keeps no locations);
+  a dynamic error in an expression rule context names no place.
+
 ## Proposed
+
+- **Third-party rule sets that are not correct Schematron** (D323,
+  7.28; for the owner). Gates 1 and 3 assumed these compile from their
+  sources; read strictly, they do not:
+  (1) EN 16931 `cii/schematron/CII/EN16931-CII-syntax.sch` names the
+  parameter `CII-SR-282` twice in one pattern instance (lines 426 and
+  428); 5.4.11 and Annex B make that `schematron:parameter`, D315 too.
+  With the second removed (SchXslt keeps the first), the CII unit tests
+  pass 9 of 9. (2) XRechnung's `common.sch` declares global variables
+  as lets of a pattern (`variable-pattern`) that other patterns read,
+  which 3.23 does not allow; (3) its rules put `let` after assertions
+  (Annex A: `let*` comes first); (4) its CII schema uses `xs:` in a
+  foreign `xsl:function` without binding the prefix. With those
+  patched (lets moved first, the variable pattern's lets made schema
+  lets, `xmlns:xs` added), the differential agrees on every instance.
+  Options: report upstream and test patched copies kept beside the
+  vendored ones; or read such schemas leniently (first parameter wins
+  with a warning; pattern lets visible schema-wide; any child order;
+  `xs` predeclared in foreign XSLT), each a deviation from the
+  standard. Until decided, ctest runs the UBL unit tests only.
 
 - **Outward-facing choices** (D208; for the owner): tagging and
   publishing releases (0.2.0 and after, `docs/RELEASE.md`, the archives of

@@ -1864,6 +1864,16 @@ change to the header needs a record first.
   and CLI size budgets raised in the same change if needed (D208),
   with the growth reported.
 
+**Done** 2026-10-28 (D323): steps 1 to 10. The suite passes 463 of
+463 applicable normative cases with 3 listed deviations
+(`edition-other-value`, `binding-xpath2-no-maps`,
+`error-context-is-expression`); EN 16931 UBL 1,133 of 1,133, compile
+0.53 s within the default step bound; the differential agrees on all
+four rule sets (CII and XRechnung patched); XT40 unchanged. Open, for
+the owner: the EN 16931 CII and XRechnung sources are not correct
+Schematron as read (D323, "Proposed"), so ctest runs the UBL unit tests
+only; the JavaScript additions are not built (no WASI SDK).
+
 ### 7.29 Source locations for parsed input documents (design and implementation)
 After D87, D313 and perf-8 (which holds `src/evaluator.c` and
 `src/evaluator_function.c`). D313 settles the behaviour: a processor
