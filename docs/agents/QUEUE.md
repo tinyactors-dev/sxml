@@ -37,12 +37,20 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 
 ## Next
 
-- perf-5 (`docs/tasks/phase-7.md`): slices without copies. Found by
-  running SchXslt on sxml for the EN 16931 rules (all 1,133 unit checks
-  pass, but its expand stage takes 8 min 56 s): `fn:tail`,
-  `fn:subsequence` and `$s[position() > 1]` copy the rest of a sequence,
-  so recursion over a sequence is quadratic. Also open under "Proposed"
-  in DECISIONS.md: source locations for parsed input documents.
+- perf-5 done (D309): slices of a stored sequence share their items;
+  100 walks over 780 elements 10.2 / 2.6 / 3.0 s to 0.11 s for
+  `[position() > 1]` / `tail` / `subsequence`, QT4 XP40, XQ40 and XT40
+  unchanged case by case. SchXslt's expand stage of EN 16931: 8 min 56 s
+  before perf-5 and perf-6; 7 min 38 s unpatched now (its own re-sorts);
+  14.8 s with SchXslt's sort-once fix (was 1 min 39 s), output identical.
+  Left: slices of concatenations and lazy sequences copy once;
+  `fn:remove($s, 1)` and `$s[position() != 1]` still loop; the memo keeps
+  one matched vector per item type.
+- The step limit: the patched expand stage needs more than the default
+  10^8 steps (it stops after 2 s); the CLI has no way to raise it. A CLI
+  option is for the owner ("## Proposed" when written up).
+- Also open under "Proposed" in DECISIONS.md: source locations for parsed
+  input documents.
 - perf-6 done (D308): a regex cache per evaluation; compiling was under
   1 % of SchXslt's expand stage. Left: `tests/bench/regex-reuse.xq` is not
   yet in `run-bench.py` (perf-5 holds that file).
