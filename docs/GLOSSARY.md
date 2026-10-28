@@ -326,6 +326,7 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `temporary_output_state` | The output state in which `xsl:result-document` is XTDE1480: inside variables, parameters, functions, keys and sort keys, and during a function call invocation (XSLT 4.0, 26.2.6) |
 | `front_end` | The code that turns the text of one language (XPath, XQuery, an XSLT pattern) into an abstract syntax tree |
 | `abstract_syntax_tree` | What a front end builds from a concrete syntax tree: one node per visible grammar production, children by grammar field, names as written, literals decoded; `ast` allowed as a module name only (`sxml_ast_node`) |
+| `ast_memo` | The ASTs one compilation has parsed, keyed by front end, expression text and the parse's limits, so a text met again is parsed once and each use takes a copy (`sxml_ast_memo`, perf-17) |
 | `ast_field` | The role of a child in its AST parent: a field name of the grammar (`left`, `predicate`, `argument`) |
 | `source_span` | Where a syntax node is: byte offset and byte count, with line and column of its first byte; a `source_location` without the source name |
 | `operator` | The token that selects what an operator expression computes (`SXML_AST_OPERATOR_PLUS`); in the IR, what a binary or unary expression computes |
