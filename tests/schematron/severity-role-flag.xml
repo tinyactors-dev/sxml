@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<test-set xmlns="urn:sxml:schematron-test-suite" name="severity-role-flag">
+  <description>The severity attribute, and role, flag and severity whose values are evaluated (variable references and attribute value templates).</description>
+  <spec clause="5.5.6"/>
+  <spec clause="5.5.14"/>
+  <spec clause="5.5.16"/>
+  <spec clause="Annex-H"/>
+  <spec clause="Annex-J"/>
+
+  <test-case name="severity-static" since="2025">
+    <description>severity is part of a finding.</description>
+    <spec clause="5.5.16"/>
+    <spec clause="5.4.3"/>
+    <spec clause="5.4.14"/>
+    <schema file="severity-static.sch"/>
+    <instance file="severity-static.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[1]" severity="warning">
+          <message>Not one.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[3]" severity="fatal">
+          <message>Three.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]" severity="minor">
+          <message>A severity outside the reserved values.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="severity-with-role-and-flag" since="2025">
+    <description>severity, role and flag together; each is reported as written.</description>
+    <spec clause="5.5.16"/>
+    <spec clause="5.5.14"/>
+    <spec clause="5.5.6"/>
+    <schema file="severity-with-role-and-flag.sch"/>
+    <instance file="severity-with-role-and-flag.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]" role="business-rule" flag="stop" severity="error">
+          <message>Not two.</message>
+        </finding>
+      </findings>
+      <flags>stop</flags>
+    </result>
+  </test-case>
+
+  <test-case name="role-variable" since="2025">
+    <description>A role that is a variable reference is evaluated.</description>
+    <spec clause="5.5.14"/>
+    <schema file="role-variable.sch"/>
+    <instance file="role-variable.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]" role="warning">
+          <message>Above one.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[3]" role="error">
+          <message>Above one.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="flag-variable" since="2025">
+    <description>A flag that is a variable reference is evaluated; the evaluated name is raised.</description>
+    <spec clause="5.5.6"/>
+    <schema file="flag-variable.sch"/>
+    <instance file="flag-variable.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]" flag="checked">
+          <message>One.</message>
+        </finding>
+      </findings>
+      <flags>checked</flags>
+    </result>
+  </test-case>
+
+  <test-case name="severity-variable" since="2025">
+    <description>A severity that is a variable reference is evaluated.</description>
+    <spec clause="5.5.16"/>
+    <schema file="severity-variable.sch"/>
+    <instance file="severity-variable.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]" severity="info">
+          <message>One.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="role-phase-variable" since="2025">
+    <description>A role varying with the selected phase through a phase variable.</description>
+    <spec clause="5.5.14"/>
+    <spec clause="5.4.13"/>
+    <schema file="role-phase-variable.sch"/>
+    <instance file="role-phase-variable.xml"/>
+    <phase>strict</phase>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]" role="error">
+          <message>Not two.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="role-avt" since="2025">
+    <description>Under xslt3 an attribute value template may compute role.</description>
+    <spec clause="Annex-J"/>
+    <spec clause="5.5.14"/>
+    <schema file="role-avt.sch"/>
+    <instance file="role-avt.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]" role="level-2">
+          <message>Above one.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[3]" role="level-3">
+          <message>Above one.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="flag-avt" since="2025">
+    <description>Under xslt3 an attribute value template may compute flag.</description>
+    <spec clause="Annex-J"/>
+    <spec clause="5.5.6"/>
+    <schema file="flag-avt.sch"/>
+    <instance file="flag-avt.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[3]" flag="seen-3">
+          <message>Three.</message>
+        </finding>
+      </findings>
+      <flags>seen-3</flags>
+    </result>
+  </test-case>
+
+  <test-case name="severity-avt" since="2025">
+    <description>Under xslt3 an attribute value template may compute severity.</description>
+    <spec clause="Annex-J"/>
+    <spec clause="5.5.16"/>
+    <schema file="severity-avt.sch"/>
+    <instance file="severity-avt.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]" severity="warning">
+          <message>One.</message>
+        </finding>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[3]" severity="error">
+          <message>One.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="role-avt-xslt2" since="2025">
+    <description>Under xslt2 too, an attribute value template may compute role.</description>
+    <spec clause="Annex-H"/>
+    <spec clause="5.5.14"/>
+    <dependency type="query-binding" value="xslt2"/>
+    <schema file="role-avt-xslt2.sch"/>
+    <instance file="role-avt-xslt2.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]" role="r2">
+          <message>Two.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="rule-flag-variable" since="2025">
+    <description>A rule's flag that is a variable reference is evaluated when the rule fires.</description>
+    <spec clause="5.5.6"/>
+    <schema file="rule-flag-variable.sch"/>
+    <instance file="rule-flag-variable.xml"/>
+    <result>
+      <findings/>
+      <flags>items-present</flags>
+    </result>
+  </test-case>
+
+  <test-case name="role-literal" since="2020">
+    <description>Only a role that is a variable reference is evaluated: other text is reported as written.</description>
+    <spec clause="5.5.14"/>
+    <schema file="role-literal.sch"/>
+    <instance file="role-literal.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]" role="cost">
+          <message>One.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+</test-set>

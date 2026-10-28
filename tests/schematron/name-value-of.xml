@@ -1,0 +1,241 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<test-set xmlns="urn:sxml:schematron-test-suite" name="name-value-of">
+  <description>The dynamic parts of a message: name and value-of, their context and their values.</description>
+  <spec clause="5.4.9"/>
+  <spec clause="5.4.18"/>
+  <spec clause="6.3"/>
+  <spec clause="Annex-J"/>
+
+  <test-case name="name-context" since="2020">
+    <description>name without path gives the name of the context node.</description>
+    <spec clause="5.4.9"/>
+    <spec clause="6.3"/>
+    <schema file="name-context.sch"/>
+    <instance file="name-context.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]">
+          <message>Node doc.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]">
+          <message>Node item.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="name-path-element" since="2020">
+    <description>name with a path gives the name of the node the path selects, not its value.</description>
+    <spec clause="5.4.9"/>
+    <spec clause="Annex-J"/>
+    <schema file="name-path-element.sch"/>
+    <instance file="name-path-element.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}order[1]">
+          <message>First child: customer.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="name-path-attribute" since="2020">
+    <description>name with a path that selects an attribute.</description>
+    <spec clause="5.4.9"/>
+    <spec clause="Annex-J"/>
+    <schema file="name-path-attribute.sch"/>
+    <instance file="name-path-attribute.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Attribute n.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="name-prefixed" since="2020">
+    <description>The name of a node in a namespace is its prefixed name in the instance.</description>
+    <spec clause="5.4.9"/>
+    <spec clause="Annex-J"/>
+    <schema file="name-prefixed.sch"/>
+    <instance file="name-prefixed.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{urn:example:vocabulary}entry[1]">
+          <message>Element x:entry, attribute x:code.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="name-attribute-context" since="2020">
+    <description>name in a rule whose context is an attribute.</description>
+    <spec clause="5.4.9"/>
+    <spec clause="6.3"/>
+    <schema file="name-attribute-context.sch"/>
+    <instance file="name-attribute-context.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]/@n">
+          <message>Attribute n is 2.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="value-of-attribute" since="2020">
+    <description>value-of gives the string value of what select returns.</description>
+    <spec clause="5.4.18"/>
+    <spec clause="Annex-J"/>
+    <schema file="value-of-attribute.sch"/>
+    <instance file="value-of-attribute.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[3]">
+          <message>n is 3.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="value-of-element" since="2020">
+    <description>The string value of an element is its text content.</description>
+    <spec clause="5.4.18"/>
+    <spec clause="Annex-J"/>
+    <schema file="value-of-element.sch"/>
+    <instance file="value-of-element.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}order[1]">
+          <message>Order: xy.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="value-of-computed" since="2020">
+    <description>value-of of numbers, Booleans and strings computed by the query.</description>
+    <spec clause="5.4.18"/>
+    <spec clause="Annex-J"/>
+    <schema file="value-of-computed.sch"/>
+    <instance file="value-of-computed.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]">
+          <message>3 items, 3 half, true, OK.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="value-of-empty" since="2020">
+    <description>value-of of an empty sequence is the empty string.</description>
+    <spec clause="5.4.18"/>
+    <spec clause="Annex-J"/>
+    <schema file="value-of-empty.sch"/>
+    <instance file="value-of-empty.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]">
+          <message>[]</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="value-of-several-items" since="2020">
+    <description>value-of is defined with fn:string(), which accepts at most one item: a select returning three attributes is an error.</description>
+    <spec clause="5.4.18"/>
+    <spec clause="Annex-J"/>
+    <schema file="value-of-several-items.sch"/>
+    <instance file="value-of-several-items.xml"/>
+    <result>
+      <any-of>
+        <error clause="Annex-J"/>
+        <schema-error clause="Annex-J"/>
+      </any-of>
+    </result>
+  </test-case>
+
+  <test-case name="value-of-subject-context" since="2020">
+    <description>name and value-of in a message are evaluated with the assertion's subject as context.</description>
+    <spec clause="6.3"/>
+    <spec clause="5.5.19"/>
+    <schema file="value-of-subject-context.sch"/>
+    <instance file="value-of-subject-context.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}order[1]/Q{}total[1]">
+          <message>The total is positive, not 0.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="value-of-rule-subject-context" since="2020">
+    <description>Without an assertion subject, the rule's subject is the context of name and value-of.</description>
+    <spec clause="6.3"/>
+    <spec clause="5.5.19"/>
+    <schema file="value-of-rule-subject-context.sch"/>
+    <instance file="value-of-rule-subject-context.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}order[1]/@ref">
+          <message>The ref has four characters, not "ABC".</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="value-of-variable" since="2020">
+    <description>value-of of a variable of the rule.</description>
+    <spec clause="5.4.18"/>
+    <schema file="value-of-variable.sch"/>
+    <instance file="value-of-variable.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Next is 3.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="value-of-in-emph" since="2020">
+    <description>value-of and name inside emph, span and dir.</description>
+    <spec clause="5.5.5"/>
+    <spec clause="Annex-A"/>
+    <schema file="value-of-in-emph.sch"/>
+    <instance file="value-of-in-emph.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]">
+          <message>item 1 2</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="value-of-select-syntax" since="2020">
+    <description>A select that is not an expression of the query language.</description>
+    <spec clause="5.4.18"/>
+    <spec clause="7.2"/>
+    <schema file="value-of-select-syntax.sch"/>
+    <instance file="value-of-select-syntax.xml"/>
+    <result>
+      <schema-error clause="7.2"/>
+    </result>
+  </test-case>
+
+  <test-case name="name-path-syntax" since="2020">
+    <description>A name path that is not an expression of the query language.</description>
+    <spec clause="5.4.9"/>
+    <spec clause="7.2"/>
+    <schema file="name-path-syntax.sch"/>
+    <instance file="name-path-syntax.xml"/>
+    <result>
+      <schema-error clause="7.2"/>
+    </result>
+  </test-case>
+</test-set>

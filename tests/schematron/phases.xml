@@ -1,0 +1,392 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<test-set xmlns="urn:sxml:schematron-test-suite" name="phases">
+  <description>Choosing the active phase: named phases, #ALL, #DEFAULT, #ANY, defaultPhase, phase variables, from and when.</description>
+  <spec clause="3.3"/>
+  <spec clause="3.4"/>
+  <spec clause="3.14"/>
+  <spec clause="5.4.2"/>
+  <spec clause="5.4.13"/>
+  <spec clause="5.4.17"/>
+  <spec clause="5.5.7"/>
+  <spec clause="5.5.22"/>
+  <spec clause="6.1"/>
+  <spec clause="6.3"/>
+  <spec clause="Annex-B"/>
+
+  <test-case name="phase-named" since="2020">
+    <description>A named phase: only its active patterns are used.</description>
+    <spec clause="5.4.13"/>
+    <spec clause="5.4.2"/>
+    <spec clause="3.3"/>
+    <schema file="phase-named.sch"/>
+    <instance file="phase-named.xml"/>
+    <phase>first</phase>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]">
+          <message>Pattern a.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="phase-named-two-patterns" since="2020">
+    <description>A phase with two active patterns.</description>
+    <spec clause="5.4.13"/>
+    <spec clause="5.4.2"/>
+    <schema file="phase-named-two-patterns.sch"/>
+    <instance file="phase-named-two-patterns.xml"/>
+    <phase>later</phase>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Pattern b.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[3]">
+          <message>Pattern c.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="phase-pattern-in-two-phases" since="2020">
+    <description>A pattern may belong to more than one phase.</description>
+    <spec clause="3.14"/>
+    <schema file="phase-pattern-in-two-phases.sch"/>
+    <instance file="phase-pattern-in-two-phases.xml"/>
+    <phase>again</phase>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]">
+          <message>Pattern a.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[3]">
+          <message>Pattern c.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="phase-all" since="2020">
+    <description>#ALL: every pattern is active.</description>
+    <spec clause="5.4.13"/>
+    <spec clause="6.1"/>
+    <schema file="phase-all.sch"/>
+    <instance file="phase-all.xml"/>
+    <phase>#ALL</phase>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]">
+          <message>Pattern a.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Pattern b.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[3]">
+          <message>Pattern c.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="phase-default-attribute" since="2020">
+    <description>No phase given: the defaultPhase attribute names the phase.</description>
+    <spec clause="5.4.17"/>
+    <spec clause="5.4.13"/>
+    <schema file="phase-default-attribute.sch"/>
+    <instance file="phase-default-attribute.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Pattern b.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[3]">
+          <message>Pattern c.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="phase-default-explicit" since="2020">
+    <description>#DEFAULT: the phase named by defaultPhase.</description>
+    <spec clause="5.4.13"/>
+    <spec clause="6.1"/>
+    <schema file="phase-default-explicit.sch"/>
+    <instance file="phase-default-explicit.xml"/>
+    <phase>#DEFAULT</phase>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]">
+          <message>Pattern a.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="phase-default-without-attribute" since="2020">
+    <description>#DEFAULT without a defaultPhase attribute: every pattern is active.</description>
+    <spec clause="5.4.13"/>
+    <schema file="phase-default-without-attribute.sch"/>
+    <instance file="phase-default-without-attribute.xml"/>
+    <phase>#DEFAULT</phase>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]">
+          <message>Pattern a.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Pattern b.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[3]">
+          <message>Pattern c.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="phase-none-no-default" since="2020">
+    <description>No phase given and no defaultPhase: every pattern is active.</description>
+    <spec clause="5.4.13"/>
+    <spec clause="5.4.17"/>
+    <schema file="phase-none-no-default.sch"/>
+    <instance file="phase-none-no-default.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]">
+          <message>Pattern a.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Pattern b.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[3]">
+          <message>Pattern c.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="phase-selects-nothing" since="2020">
+    <description>A phase without active patterns: nothing is checked and the instance is valid.</description>
+    <spec clause="5.4.13"/>
+    <spec clause="3.22"/>
+    <schema file="phase-selects-nothing.sch"/>
+    <instance file="phase-selects-nothing.xml"/>
+    <phase>nothing</phase>
+    <result>
+      <findings/>
+    </result>
+  </test-case>
+
+  <test-case name="phase-unknown-requested" since="2020">
+    <description>A phase name that the schema does not define.</description>
+    <spec clause="6.1"/>
+    <spec clause="5.4.13"/>
+    <schema file="phase-unknown-requested.sch"/>
+    <instance file="phase-unknown-requested.xml"/>
+    <phase>missing</phase>
+    <result>
+      <any-of>
+        <error clause="6.1"/>
+        <schema-error clause="6.1"/>
+      </any-of>
+    </result>
+  </test-case>
+
+  <test-case name="phase-active-unknown" since="2020">
+    <description>active names no pattern.</description>
+    <spec clause="Annex-B"/>
+    <spec clause="5.4.2"/>
+    <schema file="phase-active-unknown.sch"/>
+    <instance file="phase-active-unknown.xml"/>
+    <phase>p</phase>
+    <result>
+      <schema-error clause="Annex-B"/>
+    </result>
+  </test-case>
+
+  <test-case name="phase-default-unknown" since="2020">
+    <description>defaultPhase names no phase.</description>
+    <spec clause="5.4.17"/>
+    <spec clause="Annex-A"/>
+    <schema file="phase-default-unknown.sch"/>
+    <instance file="phase-default-unknown.xml"/>
+    <result>
+      <schema-error clause="5.4.17"/>
+    </result>
+  </test-case>
+
+  <test-case name="phase-reserved-name" since="2020">
+    <description>#ALL, #ANY and #DEFAULT may not be phase names.</description>
+    <spec clause="5.4.13"/>
+    <schema file="phase-reserved-name.sch"/>
+    <instance file="phase-reserved-name.xml"/>
+    <result>
+      <schema-error clause="5.4.13"/>
+    </result>
+  </test-case>
+
+  <test-case name="phase-variable-per-phase" since="2020">
+    <description>Each phase gives its own value to a variable its active pattern uses.</description>
+    <spec clause="5.4.7"/>
+    <spec clause="5.4.13"/>
+    <schema file="phase-variable-per-phase.sch"/>
+    <instance file="phase-variable-per-phase.xml"/>
+    <phase>strict</phase>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]">
+          <message>At most 1.</message>
+        </finding>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[3]">
+          <message>At most 1.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="phase-active-group" since="2025">
+    <description>A phase activates a group.</description>
+    <spec clause="5.4.2"/>
+    <spec clause="5.4.5"/>
+    <schema file="phase-active-group.sch"/>
+    <instance file="phase-active-group.xml"/>
+    <phase>g</phase>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Group rule one.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Group rule two.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="phase-active-text-ignored" since="2020">
+    <description>active may contain text and markup, which is documentation only.</description>
+    <spec clause="5.4.2"/>
+    <spec clause="Annex-A"/>
+    <schema file="phase-active-text-ignored.sch"/>
+    <instance file="phase-active-text-ignored.xml"/>
+    <phase>p</phase>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Pattern b.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="phase-any-first-when" since="2025">
+    <description>#ANY: the first phase in schema order whose when is true is active.</description>
+    <spec clause="5.5.22"/>
+    <spec clause="5.4.13"/>
+    <spec clause="6.1"/>
+    <schema file="phase-any-first-when.sch"/>
+    <instance file="phase-any-first-when.xml"/>
+    <phase>#ANY</phase>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Pattern b.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="phase-any-none-true" since="2025">
+    <description>#ANY with no when true: every pattern is active.</description>
+    <spec clause="5.4.13"/>
+    <spec clause="5.5.22"/>
+    <schema file="phase-any-none-true.sch"/>
+    <instance file="phase-any-none-true.xml"/>
+    <phase>#ANY</phase>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]">
+          <message>Pattern a.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Pattern b.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[3]">
+          <message>Pattern c.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="phase-when-with-variable" since="2025">
+    <description>when is evaluated with the document node as context and may use schema variables.</description>
+    <spec clause="5.5.22"/>
+    <schema file="phase-when-with-variable.sch"/>
+    <instance file="phase-when-with-variable.xml"/>
+    <phase>#ANY</phase>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[3]">
+          <message>Pattern c.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="phase-from" since="2025">
+    <description>from restricts the phase's patterns to the subset of the document it selects.</description>
+    <spec clause="5.5.7"/>
+    <spec clause="5.4.13"/>
+    <schema file="phase-from.sch"/>
+    <instance file="phase-from.xml"/>
+    <phase>second-part</phase>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}part[2]/Q{}item[1]">
+          <message>Item 3.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="phase-from-variables" since="2025">
+    <description>Variables evaluated at the document root are not affected by from.</description>
+    <spec clause="5.5.7"/>
+    <spec clause="5.4.7"/>
+    <schema file="phase-from-variables.sch"/>
+    <instance file="phase-from-variables.xml"/>
+    <phase>first-part</phase>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}part[1]/Q{}item[1]">
+          <message>One of 3.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="phase-from-not-subordinate" since="2025">
+    <description>from does not apply to documents selected by a pattern's documents attribute.</description>
+    <spec clause="5.5.7"/>
+    <spec clause="5.4.12"/>
+    <schema file="phase-from-not-subordinate.sch"/>
+    <instance file="phase-from-not-subordinate.xml"/>
+    <phase>restricted</phase>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}part[1]/Q{}item[1]">
+          <message>Local 1.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}part[1]/Q{}item[2]">
+          <message>Local 2.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}other[1]/Q{}item[1]" document="phase-from-not-subordinate/other.xml">
+          <message>Remote 7.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}other[1]/Q{}part[1]/Q{}item[1]" document="phase-from-not-subordinate/other.xml">
+          <message>Remote 8.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+</test-set>

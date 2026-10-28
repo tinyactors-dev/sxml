@@ -1,0 +1,351 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<test-set xmlns="urn:sxml:schematron-test-suite" name="svrl">
+  <description>SVRL output (Annex D, informative; 6.3 describes the structures an implementation that writes SVRL is expected to output). Each assert-svrl is an XPath expression, with the prefix svrl bound to http://purl.oclc.org/dsdl/svrl, that is true of the SVRL document.</description>
+  <spec clause="6.3"/>
+  <spec clause="6.7"/>
+  <spec clause="Annex-D"/>
+
+  <test-case name="svrl-root" since="2020">
+    <description>The report is one svrl:schematron-output element.</description>
+    <spec clause="6.3"/>
+    <spec clause="Annex-D"/>
+    <dependency type="feature" value="svrl"/>
+    <schema file="svrl-root.sch"/>
+    <instance file="svrl-root.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]" id="not-two" role="warning" flag="two">
+          <message>Not two.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]" id="three">
+          <message>Three items.</message>
+        </finding>
+      </findings>
+      <flags>item-seen two</flags>
+      <assert-svrl>/svrl:schematron-output</assert-svrl>
+      <assert-svrl>/svrl:schematron-output/@schemaVersion = '3.1'</assert-svrl>
+    </result>
+  </test-case>
+
+  <test-case name="svrl-active-patterns" since="2020">
+    <description>Each active pattern is an svrl:active-pattern with its id, title and role.</description>
+    <spec clause="6.3"/>
+    <spec clause="Annex-D"/>
+    <dependency type="feature" value="svrl"/>
+    <schema file="svrl-active-patterns.sch"/>
+    <instance file="svrl-active-patterns.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]" id="not-two" role="warning" flag="two">
+          <message>Not two.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]" id="three">
+          <message>Three items.</message>
+        </finding>
+      </findings>
+      <flags>item-seen two</flags>
+      <assert-svrl>count(//svrl:active-pattern) = 2</assert-svrl>
+      <assert-svrl>//svrl:active-pattern[@id = 'first']/@name = 'The first pattern'</assert-svrl>
+      <assert-svrl>//svrl:active-pattern[@id = 'first']/@role = 'structure'</assert-svrl>
+      <assert-svrl>//svrl:active-pattern[@id = 'second']</assert-svrl>
+    </result>
+  </test-case>
+
+  <test-case name="svrl-fired-rules" since="2020">
+    <description>Each rule that fires is an svrl:fired-rule with context, id, role, flag and title; a rule that never fires is not reported.</description>
+    <spec clause="6.3"/>
+    <spec clause="Annex-D"/>
+    <dependency type="feature" value="svrl"/>
+    <schema file="svrl-fired-rules.sch"/>
+    <instance file="svrl-fired-rules.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]" id="not-two" role="warning" flag="two">
+          <message>Not two.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]" id="three">
+          <message>Three items.</message>
+        </finding>
+      </findings>
+      <flags>item-seen two</flags>
+      <assert-svrl>count(//svrl:fired-rule[@id = 'items']) = 3</assert-svrl>
+      <assert-svrl>every $r in //svrl:fired-rule[@id = 'items'] satisfies ($r/@context = 'item' and $r/@role = 'item-rule' and $r/@flag = 'item-seen' and $r/@name = 'Items')</assert-svrl>
+      <assert-svrl>not(//svrl:fired-rule[@id = 'never'])</assert-svrl>
+      <assert-svrl>count(//svrl:fired-rule[@context = 'doc']) = 1</assert-svrl>
+    </result>
+  </test-case>
+
+  <test-case name="svrl-failed-assert" since="2020">
+    <description>A failed assert is an svrl:failed-assert with id, location, test, role, flag and the message in svrl:text, after a fired rule.</description>
+    <spec clause="6.3"/>
+    <spec clause="Annex-D"/>
+    <dependency type="feature" value="svrl"/>
+    <schema file="svrl-failed-assert.sch"/>
+    <instance file="svrl-failed-assert.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]" id="not-two" role="warning" flag="two">
+          <message>Not two.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]" id="three">
+          <message>Three items.</message>
+        </finding>
+      </findings>
+      <flags>item-seen two</flags>
+      <assert-svrl>count(//svrl:failed-assert) = 1</assert-svrl>
+      <assert-svrl>//svrl:failed-assert/@id = 'not-two'</assert-svrl>
+      <assert-svrl>//svrl:failed-assert/@test = '@n != 2'</assert-svrl>
+      <assert-svrl>//svrl:failed-assert/@role = 'warning'</assert-svrl>
+      <assert-svrl>//svrl:failed-assert/@flag = 'two'</assert-svrl>
+      <assert-svrl>normalize-space(//svrl:failed-assert/svrl:text) = 'Not two.'</assert-svrl>
+      <assert-svrl>//svrl:failed-assert/preceding-sibling::svrl:fired-rule</assert-svrl>
+    </result>
+  </test-case>
+
+  <test-case name="svrl-successful-report" since="2020">
+    <description>A fired report is an svrl:successful-report.</description>
+    <spec clause="6.3"/>
+    <spec clause="Annex-D"/>
+    <dependency type="feature" value="svrl"/>
+    <schema file="svrl-successful-report.sch"/>
+    <instance file="svrl-successful-report.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]" id="not-two" role="warning" flag="two">
+          <message>Not two.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]" id="three">
+          <message>Three items.</message>
+        </finding>
+      </findings>
+      <flags>item-seen two</flags>
+      <assert-svrl>count(//svrl:successful-report) = 1</assert-svrl>
+      <assert-svrl>//svrl:successful-report/@id = 'three'</assert-svrl>
+      <assert-svrl>//svrl:successful-report/@test = 'count(item) = 3'</assert-svrl>
+      <assert-svrl>normalize-space(//svrl:successful-report/svrl:text) = 'Three items.'</assert-svrl>
+    </result>
+  </test-case>
+
+  <test-case name="svrl-phase" since="2020">
+    <description>The phase is reported in schematron-output/@phase.</description>
+    <spec clause="6.3"/>
+    <spec clause="Annex-D"/>
+    <dependency type="feature" value="svrl"/>
+    <schema file="svrl-phase.sch"/>
+    <instance file="svrl-phase.xml"/>
+    <phase>only-first</phase>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]" id="not-two" role="warning" flag="two">
+          <message>Not two.</message>
+        </finding>
+      </findings>
+      <flags>item-seen two</flags>
+      <assert-svrl>/svrl:schematron-output/@phase = 'only-first'</assert-svrl>
+      <assert-svrl>count(//svrl:active-pattern) = 1</assert-svrl>
+    </result>
+  </test-case>
+
+  <test-case name="svrl-title" since="2020">
+    <description>The schema's title is schematron-output/@title.</description>
+    <spec clause="Annex-D"/>
+    <dependency type="feature" value="svrl"/>
+    <schema file="svrl-title.sch"/>
+    <instance file="svrl-title.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]" id="not-two" role="warning" flag="two">
+          <message>Not two.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]" id="three">
+          <message>Three items.</message>
+        </finding>
+      </findings>
+      <flags>item-seen two</flags>
+      <assert-svrl>/svrl:schematron-output/@title = 'Report title'</assert-svrl>
+    </result>
+  </test-case>
+
+  <test-case name="svrl-ns-prefix" since="2020">
+    <description>Each ns is reported as svrl:ns-prefix-in-attribute-values.</description>
+    <spec clause="Annex-D"/>
+    <dependency type="feature" value="svrl"/>
+    <schema file="svrl-ns-prefix.sch"/>
+    <instance file="svrl-ns-prefix.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]" id="not-two" role="warning" flag="two">
+          <message>Not two.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]" id="three">
+          <message>Three items.</message>
+        </finding>
+      </findings>
+      <flags>item-seen two</flags>
+      <assert-svrl>//svrl:ns-prefix-in-attribute-values[@prefix = 'e'][@uri = 'urn:example']</assert-svrl>
+      <assert-svrl>//svrl:ns-prefix-in-attribute-values[@prefix = 'f'][@uri = 'urn:example:f']</assert-svrl>
+    </result>
+  </test-case>
+
+  <test-case name="svrl-diagnostic-reference" since="2020">
+    <description>A referenced diagnostic is an svrl:diagnostic-reference with its text.</description>
+    <spec clause="Annex-D"/>
+    <spec clause="5.5.1"/>
+    <dependency type="feature" value="svrl"/>
+    <schema file="svrl-diagnostic-reference.sch"/>
+    <instance file="svrl-diagnostic-reference.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Not two.</message>
+          <diagnostic ref="fix">Use another n than 2.</diagnostic>
+        </finding>
+      </findings>
+      <assert-svrl>//svrl:failed-assert/svrl:diagnostic-reference/@diagnostic = 'fix'</assert-svrl>
+      <assert-svrl>normalize-space(//svrl:diagnostic-reference[@diagnostic = 'fix']/svrl:text) = 'Use another n than 2.'</assert-svrl>
+    </result>
+  </test-case>
+
+  <test-case name="svrl-diagnostic-language" since="2020">
+    <description>The language of a diagnostic is kept in its SVRL text.</description>
+    <spec clause="Annex-D"/>
+    <spec clause="Annex-G"/>
+    <dependency type="feature" value="svrl"/>
+    <schema file="svrl-diagnostic-language.sch"/>
+    <instance file="svrl-diagnostic-language.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Not two.</message>
+          <diagnostic ref="d-en" xml:lang="en">Two is not allowed.</diagnostic>
+          <diagnostic ref="d-de" xml:lang="de">Zwei ist nicht erlaubt.</diagnostic>
+        </finding>
+      </findings>
+      <assert-svrl>//svrl:diagnostic-reference[@diagnostic = 'd-de']/svrl:text[lang('de')]</assert-svrl>
+      <assert-svrl>//svrl:diagnostic-reference[@diagnostic = 'd-en']/svrl:text[lang('en')]</assert-svrl>
+    </result>
+  </test-case>
+
+  <test-case name="svrl-property-reference" since="2020">
+    <description>A referenced property is an svrl:property-reference with role and scheme.</description>
+    <spec clause="Annex-D"/>
+    <spec clause="5.5.13"/>
+    <dependency type="feature" value="svrl"/>
+    <schema file="svrl-property-reference.sch"/>
+    <instance file="svrl-property-reference.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]">
+          <message>Priced.</message>
+          <property ref="unit" role="currency" scheme="urn:example:iso4217">EUR</property>
+        </finding>
+      </findings>
+      <assert-svrl>//svrl:successful-report/svrl:property-reference[@property = 'unit'][@role = 'currency'][@scheme = 'urn:example:iso4217']</assert-svrl>
+      <assert-svrl>normalize-space(//svrl:property-reference[@property = 'unit']/svrl:text) = 'EUR'</assert-svrl>
+    </result>
+  </test-case>
+
+  <test-case name="svrl-subordinate-document" since="2020">
+    <description>A rule fired in a subordinate document names it in fired-rule/@document; the pattern's documents are reported.</description>
+    <spec clause="Annex-D"/>
+    <spec clause="5.4.12"/>
+    <dependency type="feature" value="svrl"/>
+    <schema file="svrl-subordinate-document.sch"/>
+    <instance file="svrl-subordinate-document.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]" document="svrl-subordinate-document/sub.xml">
+          <message>Five.</message>
+        </finding>
+      </findings>
+      <assert-svrl>//svrl:fired-rule[ends-with(@document, 'svrl-subordinate-document/sub.xml')]</assert-svrl>
+      <assert-svrl>//svrl:active-pattern[@id = 'remote']</assert-svrl>
+    </result>
+  </test-case>
+
+  <test-case name="svrl-group" since="2025">
+    <description>A group is reported as svrl:active-group.</description>
+    <spec clause="Annex-D"/>
+    <spec clause="5.4.5"/>
+    <dependency type="feature" value="svrl"/>
+    <schema file="svrl-group.sch"/>
+    <instance file="svrl-group.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]">
+          <message>One.</message>
+        </finding>
+      </findings>
+      <assert-svrl>//svrl:active-group[@id = 'g']</assert-svrl>
+      <assert-svrl>not(//svrl:active-pattern[@id = 'g'])</assert-svrl>
+    </result>
+  </test-case>
+
+  <test-case name="svrl-severity" since="2025">
+    <description>severity is reported on the finding.</description>
+    <spec clause="Annex-D"/>
+    <spec clause="5.5.16"/>
+    <dependency type="feature" value="svrl"/>
+    <schema file="svrl-severity.sch"/>
+    <instance file="svrl-severity.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]" severity="warning">
+          <message>Not two.</message>
+        </finding>
+      </findings>
+      <assert-svrl>//svrl:failed-assert/@severity = 'warning'</assert-svrl>
+    </result>
+  </test-case>
+
+  <test-case name="svrl-edition" since="2025">
+    <description>schematronEdition is reported.</description>
+    <spec clause="Annex-D"/>
+    <spec clause="5.5.15"/>
+    <dependency type="feature" value="svrl"/>
+    <schema file="svrl-edition.sch"/>
+    <instance file="svrl-edition.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]">
+          <message>One.</message>
+        </finding>
+      </findings>
+      <assert-svrl>/svrl:schematron-output/@schematronEdition = '2025'</assert-svrl>
+    </result>
+  </test-case>
+
+  <test-case name="svrl-visit-each" since="2025">
+    <description>fired-rule reports visit-each.</description>
+    <spec clause="Annex-D"/>
+    <spec clause="5.5.21"/>
+    <dependency type="feature" value="svrl"/>
+    <schema file="svrl-visit-each.sch"/>
+    <instance file="svrl-visit-each.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]">
+          <message>One.</message>
+        </finding>
+      </findings>
+      <assert-svrl>//svrl:fired-rule[@context = 'doc'][@visit-each = 'item']</assert-svrl>
+    </result>
+  </test-case>
+
+  <test-case name="svrl-language-fixup" since="2020">
+    <description>Language fixup: an assertion included from a document in another language keeps that language.</description>
+    <spec clause="6.7"/>
+    <spec clause="Annex-D"/>
+    <dependency type="feature" value="svrl"/>
+    <schema file="svrl-language-fixup.sch"/>
+    <instance file="svrl-language-fixup.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Nicht zwei.</message>
+        </finding>
+      </findings>
+      <assert-svrl>//svrl:failed-assert/svrl:text[lang('de')]</assert-svrl>
+    </result>
+  </test-case>
+</test-set>

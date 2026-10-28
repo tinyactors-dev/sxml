@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<test-set xmlns="urn:sxml:schematron-test-suite" name="schema-structure">
+  <description>The schema element, the Schematron namespace, foreign markup, whitespace and documentation elements.</description>
+  <spec clause="5.1"/>
+  <spec clause="5.2"/>
+  <spec clause="5.3"/>
+  <spec clause="5.4.1"/>
+  <spec clause="5.4.17"/>
+  <spec clause="5.5.10"/>
+  <spec clause="5.5.20"/>
+  <spec clause="7.1"/>
+  <spec clause="7.2"/>
+
+  <test-case name="struct-minimal-valid" since="2020">
+    <description>One pattern, one rule, one assert that holds everywhere: no findings.</description>
+    <spec clause="5.4.17"/>
+    <spec clause="7.1"/>
+    <schema file="struct-minimal-valid.sch"/>
+    <instance file="struct-minimal-valid.xml"/>
+    <result>
+      <findings/>
+    </result>
+  </test-case>
+
+  <test-case name="struct-minimal-invalid" since="2020">
+    <description>One assert that fails for one item.</description>
+    <spec clause="5.4.17"/>
+    <spec clause="7.1"/>
+    <schema file="struct-minimal-invalid.sch"/>
+    <instance file="struct-minimal-invalid.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]">
+          <message>The n of an item is not 2.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="struct-other-prefix" since="2020">
+    <description>The Schematron namespace bound to a prefix other than sch.</description>
+    <spec clause="5.2"/>
+    <schema file="struct-other-prefix.sch"/>
+    <instance file="struct-other-prefix.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[3]">
+          <message>Item three.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="struct-default-namespace" since="2020">
+    <description>The Schematron namespace as the default namespace of the schema; unprefixed names in a rule context still name elements in no namespace.</description>
+    <spec clause="5.2"/>
+    <spec clause="5.4.10"/>
+    <schema file="struct-default-namespace.sch"/>
+    <instance file="struct-default-namespace.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]">
+          <message>Item one.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="struct-foreign-markup" since="2020">
+    <description>Foreign elements and attributes anywhere in the schema are allowed and do not change validation.</description>
+    <spec clause="5.2"/>
+    <schema file="struct-foreign-markup.sch"/>
+    <instance file="struct-foreign-markup.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Item two.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="struct-foreign-in-message" since="2020">
+    <description>A foreign element inside a message: the message text includes its text.</description>
+    <spec clause="5.2"/>
+    <spec clause="6.3"/>
+    <schema file="struct-foreign-in-message.sch"/>
+    <instance file="struct-foreign-in-message.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]">
+          <message>Item one found.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="struct-whitespace" since="2020">
+    <description>Whitespace children anywhere and leading or trailing whitespace in attributes; message whitespace is collapsed.</description>
+    <spec clause="5.3"/>
+    <schema file="struct-whitespace.sch"/>
+    <instance file="struct-whitespace.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[3]">
+          <message>Item three.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="struct-documentation" since="2020">
+    <description>title and p in schema, pattern and rule are documentation only.</description>
+    <spec clause="5.5.10"/>
+    <spec clause="5.5.20"/>
+    <spec clause="6.2"/>
+    <schema file="struct-documentation.sch"/>
+    <instance file="struct-documentation.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]">
+          <message>Item one.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="struct-rich-attributes" since="2020">
+    <description>icon, see, fpi, xml:lang and xml:space on schema, pattern, rule and assert have no effect on validity.</description>
+    <spec clause="5.4.17"/>
+    <spec clause="5.5.8"/>
+    <spec clause="5.5.9"/>
+    <spec clause="5.5.17"/>
+    <schema file="struct-rich-attributes.sch"/>
+    <instance file="struct-rich-attributes.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Item two.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="struct-xml11" since="2020">
+    <description>A schema that is an XML 1.1 document.</description>
+    <spec clause="5.1"/>
+    <schema file="struct-xml11.sch"/>
+    <instance file="struct-xml11.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]">
+          <message>Item one.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="struct-empty-instance-element" since="2020">
+    <description>An instance whose only element no rule matches is valid.</description>
+    <spec clause="6.1"/>
+    <spec clause="3.22"/>
+    <schema file="struct-empty-instance-element.sch"/>
+    <instance file="struct-empty-instance-element.xml"/>
+    <result>
+      <findings/>
+    </result>
+  </test-case>
+</test-set>

@@ -1,0 +1,293 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<test-set xmlns="urn:sxml:schematron-test-suite" name="inclusion">
+  <description>include and extends with href, libraries, and base URI fixup.</description>
+  <spec clause="5.4.4"/>
+  <spec clause="5.4.6"/>
+  <spec clause="5.4.8"/>
+  <spec clause="6.2"/>
+  <spec clause="6.8"/>
+  <spec clause="Annex-A"/>
+
+  <test-case name="include-pattern" since="2020">
+    <description>include of a document whose element is a pattern.</description>
+    <spec clause="5.4.6"/>
+    <spec clause="6.2"/>
+    <schema file="include-pattern.sch"/>
+    <instance file="include-pattern.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Included pattern: two.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="include-fragment" since="2020">
+    <description>include of one element of a document, named by a fragment identifier (the element's id).</description>
+    <spec clause="5.4.6"/>
+    <schema file="include-fragment.sch"/>
+    <instance file="include-fragment.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[3]">
+          <message>Library pattern three.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="include-rule" since="2020">
+    <description>include of a rule inside a pattern.</description>
+    <spec clause="5.4.6"/>
+    <schema file="include-rule.sch"/>
+    <instance file="include-rule.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]">
+          <message>Included rule.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="include-assertion" since="2020">
+    <description>include of an assert inside a rule.</description>
+    <spec clause="5.4.6"/>
+    <schema file="include-assertion.sch"/>
+    <instance file="include-assertion.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[3]">
+          <message>Included assert.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="include-diagnostic" since="2020">
+    <description>include of a diagnostic inside diagnostics.</description>
+    <spec clause="5.4.6"/>
+    <spec clause="5.5.3"/>
+    <schema file="include-diagnostic.sch"/>
+    <instance file="include-diagnostic.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[3]">
+          <message>Below three.</message>
+          <diagnostic ref="d1">The included diagnostic: n is 3.</diagnostic>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="include-nested" since="2020">
+    <description>An included document that itself includes another.</description>
+    <spec clause="5.4.6"/>
+    <schema file="include-nested.sch"/>
+    <instance file="include-nested.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]">
+          <message>Inner rule.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="include-twice" since="2020">
+    <description>One document included twice gives two patterns, each with its finding.</description>
+    <spec clause="5.4.6"/>
+    <spec clause="6.2"/>
+    <schema file="include-twice.sch"/>
+    <instance file="include-twice.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Included pattern: two.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Included pattern: two.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="include-missing" since="2020">
+    <description>include of a document that does not exist.</description>
+    <spec clause="5.4.6"/>
+    <schema file="include-missing.sch"/>
+    <instance file="include-missing.xml"/>
+    <result>
+      <schema-error clause="5.4.6"/>
+    </result>
+  </test-case>
+
+  <test-case name="include-not-well-formed" since="2020">
+    <description>include of a document that is not well-formed.</description>
+    <spec clause="5.4.6"/>
+    <schema file="include-not-well-formed.sch"/>
+    <instance file="include-not-well-formed.xml"/>
+    <result>
+      <schema-error clause="5.4.6"/>
+    </result>
+  </test-case>
+
+  <test-case name="include-wrong-place" since="2020">
+    <description>The included element must be allowed where the include is: an assert directly in the schema is not.</description>
+    <spec clause="5.4.6"/>
+    <schema file="include-wrong-place.sch"/>
+    <instance file="include-wrong-place.xml"/>
+    <result>
+      <schema-error clause="5.4.6"/>
+    </result>
+  </test-case>
+
+  <test-case name="include-missing-fragment" since="2020">
+    <description>include with a fragment identifier that names no element.</description>
+    <spec clause="5.4.6"/>
+    <schema file="include-missing-fragment.sch"/>
+    <instance file="include-missing-fragment.xml"/>
+    <result>
+      <schema-error clause="5.4.6"/>
+    </result>
+  </test-case>
+
+  <test-case name="include-base-uri" since="2020">
+    <description>Base URI fixup: a relative URI in an included query resolves against the included document, not the including one.</description>
+    <spec clause="6.8"/>
+    <spec clause="5.4.6"/>
+    <schema file="include-base-uri.sch"/>
+    <instance file="include-base-uri.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]">
+          <message>Codes from the included directory.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="include-library-element" since="2025">
+    <description>A library is not allowed as a child of a schema, so it cannot be included there (its contents come in by extends).</description>
+    <spec clause="5.4.6"/>
+    <spec clause="5.4.8"/>
+    <schema file="include-library-element.sch"/>
+    <instance file="include-library-element.xml"/>
+    <result>
+      <schema-error clause="5.4.6"/>
+    </result>
+  </test-case>
+
+  <test-case name="extends-href-rule" since="2020">
+    <description>extends href in a rule inserts the children of the external rule (which need not be abstract); its context is not used.</description>
+    <spec clause="5.4.4"/>
+    <schema file="extends-href-rule.sch"/>
+    <instance file="extends-href-rule.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[3]">
+          <message>External: at most 2.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="extends-href-fragment" since="2020">
+    <description>extends href with a fragment identifier naming an abstract rule.</description>
+    <spec clause="5.4.4"/>
+    <schema file="extends-href-fragment.sch"/>
+    <instance file="extends-href-fragment.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]">
+          <message>External n one.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="extends-href-wrong-kind" since="2020">
+    <description>extends href in a rule must name a rule, not a pattern.</description>
+    <spec clause="5.4.4"/>
+    <schema file="extends-href-wrong-kind.sch"/>
+    <instance file="extends-href-wrong-kind.xml"/>
+    <result>
+      <schema-error clause="5.4.4"/>
+    </result>
+  </test-case>
+
+  <test-case name="extends-href-missing" since="2020">
+    <description>extends href to a document that does not exist.</description>
+    <spec clause="5.4.4"/>
+    <schema file="extends-href-missing.sch"/>
+    <instance file="extends-href-missing.xml"/>
+    <result>
+      <schema-error clause="5.4.4"/>
+    </result>
+  </test-case>
+
+  <test-case name="extends-href-base-uri" since="2020">
+    <description>Base URI fixup for extends: a relative URI in the inserted query resolves against the external document.</description>
+    <spec clause="6.8"/>
+    <spec clause="5.4.4"/>
+    <schema file="extends-href-base-uri.sch"/>
+    <instance file="extends-href-base-uri.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]">
+          <message>Codes from the extended directory.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="library-extends" since="2025">
+    <description>extends href at schema level to a library: its patterns, abstract rules and diagnostics become the schema's.</description>
+    <spec clause="5.4.8"/>
+    <spec clause="5.4.4"/>
+    <schema file="library-extends.sch"/>
+    <instance file="library-extends.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Library: has n.</message>
+          <diagnostic ref="add-n">Add an n to this item.</diagnostic>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[3]">
+          <message>Library pattern: three.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="library-phase" since="2025">
+    <description>A pattern from a library made active by a phase of the schema.</description>
+    <spec clause="5.4.8"/>
+    <spec clause="5.4.13"/>
+    <schema file="library-phase.sch"/>
+    <instance file="library-phase.xml"/>
+    <phase>only-library</phase>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[3]">
+          <message>Library pattern: three.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="extends-href-schema" since="2025">
+    <description>extends href at schema level to another schema document inserts its children (here an ns and a pattern).</description>
+    <spec clause="5.4.4"/>
+    <schema file="extends-href-schema.sch"/>
+    <instance file="extends-href-schema.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{urn:example}item[1]">
+          <message>Other schema: e:item.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+</test-set>

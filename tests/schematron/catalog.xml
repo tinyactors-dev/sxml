@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<catalog xmlns="urn:sxml:schematron-test-suite" standard="ISO/IEC 19757-3:2025">
+  <description>A conformance suite for Schematron, written for sxml from ISO/IEC 19757-3:2025. See README.md.</description>
+  <test-set name="schema-structure" file="schema-structure.xml" title="Schema structure"/>
+  <test-set name="static-errors" file="static-errors.xml" title="Static errors"/>
+  <test-set name="patterns-rules" file="patterns-rules.xml" title="Patterns and rules"/>
+  <test-set name="assertions" file="assertions.xml" title="Assertions and reports"/>
+  <test-set name="variables" file="variables.xml" title="Variables and parameters"/>
+  <test-set name="abstract-patterns" file="abstract-patterns.xml" title="Abstract patterns"/>
+  <test-set name="abstract-rules" file="abstract-rules.xml" title="Abstract rules and extends rule"/>
+  <test-set name="inclusion" file="inclusion.xml" title="Inclusion: include, extends href and library"/>
+  <test-set name="phases" file="phases.xml" title="Phases"/>
+  <test-set name="diagnostics-properties" file="diagnostics-properties.xml" title="Diagnostics and properties"/>
+  <test-set name="name-value-of" file="name-value-of.xml" title="name and value-of"/>
+  <test-set name="group" file="group.xml" title="group"/>
+  <test-set name="visit-each" file="visit-each.xml" title="visit-each"/>
+  <test-set name="severity-role-flag" file="severity-role-flag.xml" title="severity, role and flag"/>
+  <test-set name="query-bindings" file="query-bindings.xml" title="Query language bindings"/>
+  <test-set name="documents" file="documents.xml" title="Subordinate documents"/>
+  <test-set name="schematron-edition" file="schematron-edition.xml" title="schematronEdition"/>
+  <test-set name="svrl" file="svrl.xml" title="The Schematron Validation Report Language"/>
+</catalog>

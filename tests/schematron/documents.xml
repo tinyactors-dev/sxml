@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<test-set xmlns="urn:sxml:schematron-test-suite" name="documents">
+  <description>The documents attribute of pattern: rules checked in other documents. A finding's document attribute is the subordinate document's path relative to the test set's directory.</description>
+  <spec clause="5.4.12"/>
+  <spec clause="6.3"/>
+  <spec clause="Annex-J"/>
+
+  <test-case name="documents-basic" since="2020">
+    <description>A pattern with documents is checked in the subordinate document, not in the instance.</description>
+    <spec clause="5.4.12"/>
+    <schema file="documents-basic.sch"/>
+    <instance file="documents-basic.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]" document="documents-basic/sub.xml">
+          <message>Item 5.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]" document="documents-basic/sub.xml">
+          <message>Item 6.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="documents-and-instance" since="2020">
+    <description>A pattern without documents in the same schema checks the instance.</description>
+    <spec clause="5.4.12"/>
+    <spec clause="3.13"/>
+    <schema file="documents-and-instance.sch"/>
+    <instance file="documents-and-instance.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]" document="documents-and-instance/sub.xml">
+          <message>Item 5.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]" document="documents-and-instance/sub.xml">
+          <message>Item 6.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]">
+          <message>Instance item 1.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="documents-several" since="2020">
+    <description>documents returning a sequence of two URIs.</description>
+    <spec clause="5.4.12"/>
+    <spec clause="Annex-J"/>
+    <schema file="documents-several.sch"/>
+    <instance file="documents-several.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}alpha[1]" document="documents-several/a.xml">
+          <message>Root alpha.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}beta[1]" document="documents-several/b.xml">
+          <message>Root beta.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="documents-from-instance" since="2020">
+    <description>documents evaluated with the instance's document node as context.</description>
+    <spec clause="5.4.12"/>
+    <schema file="documents-from-instance.sch"/>
+    <instance file="documents-from-instance.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}alpha[1]" document="documents-from-instance/a.xml">
+          <message>Root alpha.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}beta[1]" document="documents-from-instance/b.xml">
+          <message>Root beta.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="documents-relative-to-instance" since="2020">
+    <description>Relative URIs resolve against the instance's base URI, not the schema's.</description>
+    <spec clause="5.4.12"/>
+    <schema file="documents-relative-to-instance.sch"/>
+    <instance file="documents-relative-to-instance/instance.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}sub[1]" document="documents-relative-to-instance/sub.xml">
+          <message>Found beside the instance.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="documents-schema-variable" since="2020">
+    <description>A schema variable may be used in documents.</description>
+    <spec clause="5.4.12"/>
+    <spec clause="5.4.7"/>
+    <schema file="documents-schema-variable.sch"/>
+    <instance file="documents-schema-variable.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]" document="documents-schema-variable/sub.xml">
+          <message>Item 5.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]" document="documents-schema-variable/sub.xml">
+          <message>Item 6.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="documents-pattern-variable" since="2020">
+    <description>Variables scoped to the pattern are not in scope in its documents attribute.</description>
+    <spec clause="5.4.12"/>
+    <schema file="documents-pattern-variable.sch"/>
+    <instance file="documents-pattern-variable.xml"/>
+    <result>
+      <schema-error clause="5.4.12"/>
+    </result>
+  </test-case>
+
+  <test-case name="documents-missing" since="2020">
+    <description>A subordinate document that cannot be retrieved shall be reported; whether validation goes on is implementation-defined.</description>
+    <spec clause="5.4.12"/>
+    <schema file="documents-missing.sch"/>
+    <instance file="documents-missing.xml"/>
+    <result>
+      <error clause="5.4.12"/>
+    </result>
+  </test-case>
+
+  <test-case name="documents-empty" since="2020">
+    <description>documents returning no URI: the pattern is sought nowhere.</description>
+    <spec clause="5.4.12"/>
+    <schema file="documents-empty.sch"/>
+    <instance file="documents-empty.xml"/>
+    <result>
+      <findings/>
+    </result>
+  </test-case>
+
+  <test-case name="documents-abstract-parameter" since="2020">
+    <description>documents in an abstract pattern with a parameter.</description>
+    <spec clause="5.4.12"/>
+    <spec clause="6.4"/>
+    <schema file="documents-abstract-parameter.sch"/>
+    <instance file="documents-abstract-parameter.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]" document="documents-abstract-parameter/sub.xml">
+          <message>Remote item.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="documents-in-abstract-pattern" since="2020">
+    <description>A parameter replaced inside the documents attribute of an abstract pattern.</description>
+    <spec clause="5.4.12"/>
+    <spec clause="6.4"/>
+    <schema file="documents-in-abstract-pattern.sch"/>
+    <instance file="documents-in-abstract-pattern.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]" document="documents-in-abstract-pattern/sub.xml">
+          <message>Remote five.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="documents-group" since="2025">
+    <description>A group with documents.</description>
+    <spec clause="5.4.12"/>
+    <spec clause="5.4.5"/>
+    <schema file="documents-group.sch"/>
+    <instance file="documents-group.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]" document="documents-group/sub.xml">
+          <message>Rule one.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]" document="documents-group/sub.xml">
+          <message>Rule two.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+</test-set>

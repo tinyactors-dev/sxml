@@ -1,0 +1,419 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<test-set xmlns="urn:sxml:schematron-test-suite" name="abstract-patterns">
+  <description>Abstract patterns and their instances: parameter substitution, the $ convention, defaults, and the constraints on both.</description>
+  <spec clause="3.1"/>
+  <spec clause="5.4.11"/>
+  <spec clause="5.4.12"/>
+  <spec clause="6.2"/>
+  <spec clause="6.4"/>
+  <spec clause="Annex-B"/>
+  <spec clause="Annex-J"/>
+
+  <test-case name="abstract-basic" since="2020">
+    <description>An instance replaces the parameter references in the abstract pattern's queries.</description>
+    <spec clause="6.4"/>
+    <spec clause="6.2"/>
+    <schema file="abstract-basic.sch"/>
+    <instance file="abstract-basic.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}table[1]/Q{}row[2]">
+          <message>The row has a grandchild.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="abstract-two-instances" since="2020">
+    <description>Two instances of one abstract pattern are two patterns.</description>
+    <spec clause="6.4"/>
+    <schema file="abstract-two-instances.sch"/>
+    <instance file="abstract-two-instances.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}table[1]/Q{}row[2]">
+          <message>The row has a grandchild.</message>
+        </finding>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}list[1]/Q{}entry[1]">
+          <message>The entry has a grandchild.</message>
+        </finding>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}list[2]">
+          <message>The list has children.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="abstract-instance-first" since="2020">
+    <description>An instance may come before the abstract pattern it instantiates.</description>
+    <spec clause="6.4"/>
+    <schema file="abstract-instance-first.sch"/>
+    <instance file="abstract-instance-first.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}table[1]/Q{}row[2]">
+          <message>The row has a grandchild.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="abstract-not-instantiated" since="2020">
+    <description>An abstract pattern without instances checks nothing, even when its rules need no parameters.</description>
+    <spec clause="3.1"/>
+    <spec clause="6.2"/>
+    <schema file="abstract-not-instantiated.sch"/>
+    <instance file="abstract-not-instantiated.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}table[1]">
+          <message>A table.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="abstract-param-in-value-of-and-name" since="2020">
+    <description>Parameters are replaced in the select of value-of and the path of name.</description>
+    <spec clause="6.4"/>
+    <spec clause="6.2"/>
+    <schema file="abstract-param-in-value-of-and-name.sch"/>
+    <instance file="abstract-param-in-value-of-and-name.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]">
+          <message>Has code = A7.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="abstract-param-in-subject" since="2020">
+    <description>Parameters are replaced in a subject attribute.</description>
+    <spec clause="6.4"/>
+    <spec clause="5.5.19"/>
+    <schema file="abstract-param-in-subject.sch"/>
+    <instance file="abstract-param-in-subject.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]/@code">
+          <message>Not bad.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="abstract-param-in-let" since="2020">
+    <description>Parameters are replaced in a let value.</description>
+    <spec clause="6.4"/>
+    <spec clause="5.4.7"/>
+    <schema file="abstract-param-in-let.sch"/>
+    <instance file="abstract-param-in-let.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}table[1]/Q{}row[2]">
+          <message>One part, not 0.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="abstract-pattern-let" since="2020">
+    <description>An abstract pattern's own variable, with a parameter in its value.</description>
+    <spec clause="6.4"/>
+    <spec clause="5.4.7"/>
+    <schema file="abstract-pattern-let.sch"/>
+    <instance file="abstract-pattern-let.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}table[1]">
+          <message>Total 2.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="abstract-param-not-in-text" since="2020">
+    <description>Parameters are replaced only in attributes that hold queries, not in message text.</description>
+    <spec clause="6.2"/>
+    <spec clause="6.4"/>
+    <schema file="abstract-param-not-in-text.sch"/>
+    <instance file="abstract-param-not-in-text.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}table[1]">
+          <message>Found $element here.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="abstract-param-in-string-literal" since="2020">
+    <description>The $ convention is lexical: a parameter reference inside a string literal of a query is replaced too.</description>
+    <spec clause="Annex-J"/>
+    <spec clause="6.4"/>
+    <schema file="abstract-param-in-string-literal.sch"/>
+    <instance file="abstract-param-in-string-literal.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}table[1]">
+          <message>Named table.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="abstract-param-prefix-both" since="2020">
+    <description>Two parameters, one name a prefix of the other ($AMOUNT and $AMOUNTX): each reference is replaced by its own parameter's value.</description>
+    <spec clause="Annex-J"/>
+    <spec clause="6.4"/>
+    <spec clause="3.11"/>
+    <schema file="abstract-param-prefix-both.sch"/>
+    <instance file="abstract-param-prefix-both.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}line[1]">
+          <message>The second amount is larger.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="abstract-param-prefix-variable" since="2020">
+    <description>A parameter AMOUNT and a variable AMOUNTX: $AMOUNTX is followed by the name AMOUNTX, which is not a parameter, so it stays a variable reference.</description>
+    <spec clause="Annex-J"/>
+    <spec clause="6.4"/>
+    <spec clause="3.11"/>
+    <schema file="abstract-param-prefix-variable.sch"/>
+    <instance file="abstract-param-prefix-variable.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}line[1]">
+          <message>Ten.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="abstract-dollar-variable" since="2020">
+    <description>A $ not followed by a parameter name is left alone: a variable of the abstract pattern's rule.</description>
+    <spec clause="Annex-J"/>
+    <spec clause="6.4"/>
+    <schema file="abstract-dollar-variable.sch"/>
+    <instance file="abstract-dollar-variable.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}table[1]/Q{}row[2]">
+          <message>Has 0 children.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="abstract-param-value-expression" since="2020">
+    <description>A parameter value may be any query fragment, with spaces and operators.</description>
+    <spec clause="6.4"/>
+    <schema file="abstract-param-value-expression.sch"/>
+    <instance file="abstract-param-value-expression.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}table[1]/Q{}row[2]">
+          <message>The condition holds.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="abstract-param-value-references-param" since="2020">
+    <description>A parameter value that contains a reference to another parameter: whether the inserted text is scanned again is not settled by the text.</description>
+    <spec clause="6.4"/>
+    <spec clause="Annex-J"/>
+    <schema file="abstract-param-value-references-param.sch"/>
+    <instance file="abstract-param-value-references-param.xml"/>
+    <result>
+      <implementation-defined clause="6.4">If the inserted value is scanned again, $b becomes @n and item 1 is reported; if not, $b is an undefined variable and the schema is in error.</implementation-defined>
+    </result>
+  </test-case>
+
+  <test-case name="abstract-in-phase" since="2020">
+    <description>A phase activates an instance by its id.</description>
+    <spec clause="6.4"/>
+    <spec clause="5.4.13"/>
+    <schema file="abstract-in-phase.sch"/>
+    <instance file="abstract-in-phase.xml"/>
+    <phase>tables</phase>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}table[1]/Q{}row[2]">
+          <message>The row has a grandchild.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="abstract-param-default" since="2025">
+    <description>An instance's param without a value takes the value of the abstract pattern's param of that name.</description>
+    <spec clause="5.4.11"/>
+    <schema file="abstract-param-default.sch"/>
+    <instance file="abstract-param-default.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[3]">
+          <message>Within 2.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="abstract-param-default-overridden" since="2025">
+    <description>An instance's param value replaces the abstract pattern's default.</description>
+    <spec clause="5.4.11"/>
+    <schema file="abstract-param-default-overridden.sch"/>
+    <instance file="abstract-param-default-overridden.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Within 1.</message>
+        </finding>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[3]">
+          <message>Within 1.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="abstract-param-without-any-value" since="2025">
+    <description>An instance param without a value, and no default in the abstract pattern.</description>
+    <spec clause="5.4.11"/>
+    <spec clause="Annex-B"/>
+    <schema file="abstract-param-without-any-value.sch"/>
+    <instance file="abstract-param-without-any-value.xml"/>
+    <result>
+      <schema-error clause="5.4.11"/>
+    </result>
+  </test-case>
+
+  <test-case name="abstract-param-missing" since="2020">
+    <description>An instance shall give a param for every parameter the abstract pattern uses; here $grandchild has none.</description>
+    <spec clause="6.4"/>
+    <spec clause="5.4.11"/>
+    <schema file="abstract-param-missing.sch"/>
+    <instance file="abstract-param-missing.xml"/>
+    <result>
+      <schema-error clause="6.4"/>
+    </result>
+  </test-case>
+
+  <test-case name="abstract-param-not-declared" since="2025">
+    <description>An instance param whose name is not a param of the abstract pattern.</description>
+    <spec clause="5.4.11"/>
+    <spec clause="Annex-B"/>
+    <schema file="abstract-param-not-declared.sch"/>
+    <instance file="abstract-param-not-declared.xml"/>
+    <result>
+      <schema-error clause="Annex-B"/>
+    </result>
+  </test-case>
+
+  <test-case name="abstract-param-duplicate" since="2020">
+    <description>Two params of one name in an instance.</description>
+    <spec clause="5.4.11"/>
+    <spec clause="Annex-B"/>
+    <schema file="abstract-param-duplicate.sch"/>
+    <instance file="abstract-param-duplicate.xml"/>
+    <result>
+      <schema-error clause="5.4.11"/>
+    </result>
+  </test-case>
+
+  <test-case name="abstract-without-id" since="2020">
+    <description>An abstract pattern needs an id.</description>
+    <spec clause="5.4.12"/>
+    <spec clause="Annex-A"/>
+    <schema file="abstract-without-id.sch"/>
+    <instance file="abstract-without-id.xml"/>
+    <result>
+      <schema-error clause="5.4.12"/>
+    </result>
+  </test-case>
+
+  <test-case name="abstract-with-is-a" since="2020">
+    <description>An abstract pattern may not itself be an instance.</description>
+    <spec clause="5.4.12"/>
+    <spec clause="Annex-A"/>
+    <schema file="abstract-with-is-a.sch"/>
+    <instance file="abstract-with-is-a.xml"/>
+    <result>
+      <schema-error clause="5.4.12"/>
+    </result>
+  </test-case>
+
+  <test-case name="abstract-instance-with-rule" since="2020">
+    <description>An instance may not contain rules.</description>
+    <spec clause="6.4"/>
+    <spec clause="Annex-A"/>
+    <schema file="abstract-instance-with-rule.sch"/>
+    <instance file="abstract-instance-with-rule.xml"/>
+    <result>
+      <schema-error clause="6.4"/>
+    </result>
+  </test-case>
+
+  <test-case name="abstract-instance-with-let" since="2020">
+    <description>An instance contains only title, p and param.</description>
+    <spec clause="Annex-A"/>
+    <schema file="abstract-instance-with-let.sch"/>
+    <instance file="abstract-instance-with-let.xml"/>
+    <result>
+      <schema-error clause="Annex-A"/>
+    </result>
+  </test-case>
+
+  <test-case name="abstract-is-a-unknown" since="2020">
+    <description>is-a names no abstract pattern.</description>
+    <spec clause="Annex-B"/>
+    <schema file="abstract-is-a-unknown.sch"/>
+    <instance file="abstract-is-a-unknown.xml"/>
+    <result>
+      <schema-error clause="Annex-B"/>
+    </result>
+  </test-case>
+
+  <test-case name="abstract-is-a-concrete" since="2020">
+    <description>is-a names a pattern that is not abstract.</description>
+    <spec clause="Annex-B"/>
+    <schema file="abstract-is-a-concrete.sch"/>
+    <instance file="abstract-is-a-concrete.xml"/>
+    <result>
+      <schema-error clause="Annex-B"/>
+    </result>
+  </test-case>
+
+  <test-case name="abstract-let-param-clash" since="2025">
+    <description>A variable with the name of an abstract pattern's parameter.</description>
+    <spec clause="Annex-B"/>
+    <schema file="abstract-let-param-clash.sch"/>
+    <instance file="abstract-let-param-clash.xml"/>
+    <result>
+      <schema-error clause="Annex-B"/>
+    </result>
+  </test-case>
+
+  <test-case name="abstract-group" since="2025">
+    <description>An abstract group and its instance: the instance is a group, so every matching rule fires.</description>
+    <spec clause="5.4.5"/>
+    <spec clause="6.4"/>
+    <schema file="abstract-group.sch"/>
+    <instance file="abstract-group.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}table[1]">
+          <message>First rule.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}table[1]">
+          <message>Second rule.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+</test-set>

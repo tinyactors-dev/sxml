@@ -1,0 +1,486 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<test-set xmlns="urn:sxml:schematron-test-suite" name="variables">
+  <description>let in schema, phase, pattern and rule: context, scope, order, duplicates, typed variables (as) and schema parameters.</description>
+  <spec clause="3.23"/>
+  <spec clause="5.4.7"/>
+  <spec clause="5.4.11"/>
+  <spec clause="6.6"/>
+  <spec clause="7.2"/>
+  <spec clause="Annex-B"/>
+  <spec clause="Annex-J"/>
+
+  <test-case name="let-rule-value" since="2020">
+    <description>A rule variable is evaluated for each context node.</description>
+    <spec clause="5.4.7"/>
+    <schema file="let-rule-value.sch"/>
+    <instance file="let-rule-value.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Not two.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="let-rule-context-node" since="2020">
+    <description>The context of a rule variable is the rule's context node.</description>
+    <spec clause="5.4.7"/>
+    <schema file="let-rule-context-node.sch"/>
+    <instance file="let-rule-context-node.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]">
+          <message>At item.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="let-pattern-root-context" since="2020">
+    <description>A pattern variable is evaluated with the document node as context (count(*) is 1 there).</description>
+    <spec clause="5.4.7"/>
+    <schema file="let-pattern-root-context.sch"/>
+    <instance file="let-pattern-root-context.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]">
+          <message>Children of the root: 1.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="let-schema-root-context" since="2020">
+    <description>A schema variable is evaluated with the document node as context.</description>
+    <spec clause="5.4.7"/>
+    <schema file="let-schema-root-context.sch"/>
+    <instance file="let-schema-root-context.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[3]">
+          <message>Last of 3, root children 1.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="let-phase" since="2020">
+    <description>A variable of the active phase is in scope in its active patterns.</description>
+    <spec clause="5.4.7"/>
+    <spec clause="5.4.13"/>
+    <schema file="let-phase.sch"/>
+    <instance file="let-phase.xml"/>
+    <phase>strict</phase>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[3]">
+          <message>At most 2.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="let-in-rule-context" since="2020">
+    <description>A schema variable used in a rule context.</description>
+    <spec clause="5.4.7"/>
+    <spec clause="Annex-J"/>
+    <schema file="let-in-rule-context.sch"/>
+    <instance file="let-in-rule-context.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[3]">
+          <message>Above the limit.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="let-pattern-in-rule-context" since="2020">
+    <description>A pattern variable used in a rule context of that pattern.</description>
+    <spec clause="5.4.7"/>
+    <spec clause="Annex-J"/>
+    <schema file="let-pattern-in-rule-context.sch"/>
+    <instance file="let-pattern-in-rule-context.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]">
+          <message>The first.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="let-in-subject" since="2020">
+    <description>A rule variable used in a subject attribute.</description>
+    <spec clause="5.4.7"/>
+    <spec clause="5.5.19"/>
+    <schema file="let-in-subject.sch"/>
+    <instance file="let-in-subject.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]/@n">
+          <message>Two.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="let-in-name-path" since="2020">
+    <description>A rule variable used in the path of a name element.</description>
+    <spec clause="5.4.7"/>
+    <spec clause="5.4.9"/>
+    <schema file="let-in-name-path.sch"/>
+    <instance file="let-in-name-path.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]">
+          <message>Attribute n.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="let-order-in-rule" since="2020">
+    <description>A rule variable may use a lexically previous one.</description>
+    <spec clause="6.6"/>
+    <schema file="let-order-in-rule.sch"/>
+    <instance file="let-order-in-rule.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Twenty.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="let-rule-uses-global" since="2020">
+    <description>A rule variable may use a schema variable.</description>
+    <spec clause="6.6"/>
+    <schema file="let-rule-uses-global.sch"/>
+    <instance file="let-rule-uses-global.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[3]">
+          <message>Thirty.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="let-forward-reference" since="2020">
+    <description>A rule variable may not use a variable declared after it in the same rule.</description>
+    <spec clause="6.6"/>
+    <spec clause="5.4.7"/>
+    <schema file="let-forward-reference.sch"/>
+    <instance file="let-forward-reference.xml"/>
+    <result>
+      <schema-error clause="6.6"/>
+    </result>
+  </test-case>
+
+  <test-case name="let-undefined" since="2020">
+    <description>A reference to a variable that no let defines.</description>
+    <spec clause="5.4.7"/>
+    <schema file="let-undefined.sch"/>
+    <instance file="let-undefined.xml"/>
+    <result>
+      <schema-error clause="5.4.7"/>
+    </result>
+  </test-case>
+
+  <test-case name="let-duplicate-in-rule" since="2020">
+    <description>Two variables of one name in one rule.</description>
+    <spec clause="5.4.7"/>
+    <spec clause="7.2"/>
+    <schema file="let-duplicate-in-rule.sch"/>
+    <instance file="let-duplicate-in-rule.xml"/>
+    <result>
+      <schema-error clause="5.4.7"/>
+    </result>
+  </test-case>
+
+  <test-case name="let-duplicate-in-schema" since="2020">
+    <description>Two schema variables of one name.</description>
+    <spec clause="5.4.7"/>
+    <spec clause="7.2"/>
+    <schema file="let-duplicate-in-schema.sch"/>
+    <instance file="let-duplicate-in-schema.xml"/>
+    <result>
+      <schema-error clause="5.4.7"/>
+    </result>
+  </test-case>
+
+  <test-case name="let-duplicate-in-pattern" since="2020">
+    <description>Two variables of one name in one pattern.</description>
+    <spec clause="5.4.7"/>
+    <spec clause="7.2"/>
+    <schema file="let-duplicate-in-pattern.sch"/>
+    <instance file="let-duplicate-in-pattern.xml"/>
+    <result>
+      <schema-error clause="5.4.7"/>
+    </result>
+  </test-case>
+
+  <test-case name="let-rule-shadows-schema" since="2020">
+    <description>A rule variable with the name of a schema variable: a variable may be defined only once over the current schema, phase, pattern and rule.</description>
+    <spec clause="5.4.7"/>
+    <spec clause="7.2"/>
+    <schema file="let-rule-shadows-schema.sch"/>
+    <instance file="let-rule-shadows-schema.xml"/>
+    <result>
+      <schema-error clause="5.4.7"/>
+    </result>
+  </test-case>
+
+  <test-case name="let-rule-shadows-pattern" since="2020">
+    <description>A rule variable with the name of its pattern's variable.</description>
+    <spec clause="5.4.7"/>
+    <spec clause="7.2"/>
+    <schema file="let-rule-shadows-pattern.sch"/>
+    <instance file="let-rule-shadows-pattern.xml"/>
+    <result>
+      <schema-error clause="5.4.7"/>
+    </result>
+  </test-case>
+
+  <test-case name="let-pattern-shadows-schema" since="2020">
+    <description>A pattern variable with the name of a schema variable.</description>
+    <spec clause="5.4.7"/>
+    <spec clause="7.2"/>
+    <schema file="let-pattern-shadows-schema.sch"/>
+    <instance file="let-pattern-shadows-schema.xml"/>
+    <result>
+      <schema-error clause="5.4.7"/>
+    </result>
+  </test-case>
+
+  <test-case name="let-phase-shadows-schema" since="2020">
+    <description>A phase variable with the name of a schema variable.</description>
+    <spec clause="5.4.7"/>
+    <spec clause="7.2"/>
+    <schema file="let-phase-shadows-schema.sch"/>
+    <instance file="let-phase-shadows-schema.xml"/>
+    <phase>ph</phase>
+    <result>
+      <schema-error clause="5.4.7"/>
+    </result>
+  </test-case>
+
+  <test-case name="let-same-name-two-patterns" since="2020">
+    <description>A pattern variable is scoped to its pattern: two patterns may each define a variable of the same name, and each sees its own.</description>
+    <spec clause="3.23"/>
+    <spec clause="5.4.7"/>
+    <schema file="let-same-name-two-patterns.sch"/>
+    <instance file="let-same-name-two-patterns.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]">
+          <message>In pattern a.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]">
+          <message>In pattern b.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="let-pattern-not-visible-elsewhere" since="2020">
+    <description>A pattern variable is not in scope in another pattern.</description>
+    <spec clause="3.23"/>
+    <spec clause="5.4.7"/>
+    <schema file="let-pattern-not-visible-elsewhere.sch"/>
+    <instance file="let-pattern-not-visible-elsewhere.xml"/>
+    <result>
+      <schema-error clause="3.23 5.4.7"/>
+    </result>
+  </test-case>
+
+  <test-case name="let-same-name-two-rules" since="2020">
+    <description>A rule variable is scoped to its rule: two rules may each define one of the same name.</description>
+    <spec clause="3.23"/>
+    <spec clause="5.4.7"/>
+    <schema file="let-same-name-two-rules.sch"/>
+    <instance file="let-same-name-two-rules.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]">
+          <message>The first.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[3]">
+          <message>The other.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="let-element-content" since="2020">
+    <description>A let without a value attribute takes its element content as value.</description>
+    <spec clause="5.4.7"/>
+    <spec clause="Annex-A"/>
+    <schema file="let-element-content.sch"/>
+    <instance file="let-element-content.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[3]">
+          <message>At most the configured maximum.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="let-value-is-sequence" since="2020">
+    <description>A variable's value may be any sequence, not only a string.</description>
+    <spec clause="5.4.7"/>
+    <spec clause="Annex-J"/>
+    <schema file="let-value-is-sequence.sch"/>
+    <instance file="let-value-is-sequence.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]">
+          <message>An allowed n.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="let-value-is-node" since="2020">
+    <description>A schema variable holding a node of the instance.</description>
+    <spec clause="5.4.7"/>
+    <spec clause="Annex-J"/>
+    <schema file="let-value-is-node.sch"/>
+    <instance file="let-value-is-node.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[3]">
+          <message>The last item.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="let-as-integer" since="2025">
+    <description>A typed variable: as="xs:integer".</description>
+    <spec clause="5.4.7"/>
+    <spec clause="Annex-J"/>
+    <schema file="let-as-integer.sch"/>
+    <instance file="let-as-integer.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]">
+          <message>Typed.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="let-as-promotion" since="2025">
+    <description>A typed variable converts its value by the rules of XSLT's as attribute: an integer becomes a double.</description>
+    <spec clause="5.4.7"/>
+    <spec clause="Annex-J"/>
+    <schema file="let-as-promotion.sch"/>
+    <instance file="let-as-promotion.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]">
+          <message>Promoted.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="let-as-untyped" since="2025">
+    <description>A typed variable casts an untyped attribute value.</description>
+    <spec clause="5.4.7"/>
+    <spec clause="Annex-J"/>
+    <schema file="let-as-untyped.sch"/>
+    <instance file="let-as-untyped.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Two.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="let-as-sequence" since="2025">
+    <description>A typed variable with an occurrence indicator.</description>
+    <spec clause="5.4.7"/>
+    <spec clause="Annex-J"/>
+    <schema file="let-as-sequence.sch"/>
+    <instance file="let-as-sequence.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]">
+          <message>Two names.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="let-as-mismatch" since="2025">
+    <description>A value that does not match the declared type is a type error.</description>
+    <spec clause="5.4.7"/>
+    <spec clause="Annex-J"/>
+    <schema file="let-as-mismatch.sch"/>
+    <instance file="let-as-mismatch.xml"/>
+    <result>
+      <any-of>
+        <error clause="Annex-J"/>
+        <schema-error clause="Annex-J"/>
+      </any-of>
+    </result>
+  </test-case>
+
+  <test-case name="param-schema" since="2025">
+    <description>A schema parameter is a variable with its value attribute's value.</description>
+    <spec clause="5.4.11"/>
+    <spec clause="3.23"/>
+    <schema file="param-schema.sch"/>
+    <instance file="param-schema.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[3]">
+          <message>Within the limit.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="param-schema-override" since="2025">
+    <description>A schema parameter's value may be overridden at user option (the mechanism is implementation-defined); overridden with 3 here.</description>
+    <spec clause="5.4.11"/>
+    <spec clause="6.1"/>
+    <dependency type="feature" value="schema-parameter-override"/>
+    <schema file="param-schema-override.sch"/>
+    <instance file="param-schema-override.xml"/>
+    <param name="limit" value="3"/>
+    <result>
+      <findings/>
+    </result>
+  </test-case>
+
+  <test-case name="param-schema-without-value" since="2025">
+    <description>A schema parameter needs a value.</description>
+    <spec clause="5.4.11"/>
+    <spec clause="Annex-B"/>
+    <schema file="param-schema-without-value.sch"/>
+    <instance file="param-schema-without-value.xml"/>
+    <result>
+      <schema-error clause="5.4.11"/>
+    </result>
+  </test-case>
+
+  <test-case name="param-schema-duplicate" since="2025">
+    <description>Parameter names are distinct within a schema.</description>
+    <spec clause="5.4.11"/>
+    <spec clause="Annex-B"/>
+    <schema file="param-schema-duplicate.sch"/>
+    <instance file="param-schema-duplicate.xml"/>
+    <result>
+      <schema-error clause="5.4.11"/>
+    </result>
+  </test-case>
+</test-set>

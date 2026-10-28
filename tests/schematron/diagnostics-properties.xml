@@ -1,0 +1,212 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<test-set xmlns="urn:sxml:schematron-test-suite" name="diagnostics-properties">
+  <description>diagnostic and property elements referenced from assertions.</description>
+  <spec clause="5.4.3"/>
+  <spec clause="5.4.14"/>
+  <spec clause="5.5.1"/>
+  <spec clause="5.5.2"/>
+  <spec clause="5.5.3"/>
+  <spec clause="5.5.11"/>
+  <spec clause="5.5.12"/>
+  <spec clause="5.5.13"/>
+  <spec clause="6.3"/>
+  <spec clause="Annex-A"/>
+  <spec clause="Annex-J"/>
+
+  <test-case name="diagnostic-basic" since="2020">
+    <description>A failed assert carries the diagnostic it references.</description>
+    <spec clause="5.5.1"/>
+    <spec clause="5.5.2"/>
+    <schema file="diagnostic-basic.sch"/>
+    <instance file="diagnostic-basic.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[3]">
+          <message>Below three.</message>
+          <diagnostic ref="too-big">Lower the value.</diagnostic>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="diagnostic-several-languages" since="2020">
+    <description>Several diagnostics, one per language, in one diagnostics attribute.</description>
+    <spec clause="5.5.1"/>
+    <spec clause="5.5.2"/>
+    <spec clause="Annex-G"/>
+    <schema file="diagnostic-several-languages.sch"/>
+    <instance file="diagnostic-several-languages.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[3]">
+          <message>Below three.</message>
+          <diagnostic ref="d-en" xml:lang="en">The value is too large.</diagnostic>
+          <diagnostic ref="d-de" xml:lang="de">Der Wert ist zu gross.</diagnostic>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="diagnostic-dynamic" since="2020">
+    <description>value-of and name in a diagnostic are evaluated for the finding's context node.</description>
+    <spec clause="5.5.1"/>
+    <spec clause="6.3"/>
+    <schema file="diagnostic-dynamic.sch"/>
+    <instance file="diagnostic-dynamic.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Below two.</message>
+          <diagnostic ref="found">The item has n = 2.</diagnostic>
+        </finding>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[3]">
+          <message>Below two.</message>
+          <diagnostic ref="found">The item has n = 3.</diagnostic>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="diagnostic-rule-variable" since="2020">
+    <description>The variables in scope for the assertion are in scope in its diagnostic.</description>
+    <spec clause="5.5.1"/>
+    <schema file="diagnostic-rule-variable.sch"/>
+    <instance file="diagnostic-rule-variable.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[3]">
+          <message>Doubled below six.</message>
+          <diagnostic ref="show">Doubled: 6.</diagnostic>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="diagnostic-on-report" since="2020">
+    <description>A fired report carries its diagnostic.</description>
+    <spec clause="5.4.14"/>
+    <spec clause="5.5.2"/>
+    <schema file="diagnostic-on-report.sch"/>
+    <instance file="diagnostic-on-report.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]">
+          <message>One.</message>
+          <diagnostic ref="one" role="note">A note about one.</diagnostic>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="diagnostic-not-when-passing" since="2020">
+    <description>An assertion that holds yields nothing, its diagnostic included.</description>
+    <spec clause="5.5.1"/>
+    <schema file="diagnostic-not-when-passing.sch"/>
+    <instance file="diagnostic-not-when-passing.xml"/>
+    <result>
+      <findings/>
+    </result>
+  </test-case>
+
+  <test-case name="diagnostic-unreferenced" since="2020">
+    <description>A diagnostic that no assertion references is not part of any finding.</description>
+    <spec clause="5.5.3"/>
+    <schema file="diagnostic-unreferenced.sch"/>
+    <instance file="diagnostic-unreferenced.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[3]">
+          <message>Below three.</message>
+          <diagnostic ref="used">Used.</diagnostic>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="diagnostic-unknown" since="2020">
+    <description>diagnostics names an id that no diagnostic has.</description>
+    <spec clause="5.5.2"/>
+    <spec clause="Annex-A"/>
+    <schema file="diagnostic-unknown.sch"/>
+    <instance file="diagnostic-unknown.xml"/>
+    <result>
+      <schema-error clause="Annex-A"/>
+    </result>
+  </test-case>
+
+  <test-case name="property-basic" since="2020">
+    <description>A finding carries the properties its assertion references, with role and scheme.</description>
+    <spec clause="5.5.11"/>
+    <spec clause="5.5.13"/>
+    <schema file="property-basic.sch"/>
+    <instance file="property-basic.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Priced.</message>
+          <property ref="currency" role="unit" scheme="urn:example:currencies">EUR</property>
+          <property ref="precision" role="digits">2</property>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="property-dynamic" since="2020">
+    <description>value-of in a property is evaluated for the context node; the variables in scope for the assertion are in scope.</description>
+    <spec clause="5.5.13"/>
+    <schema file="property-dynamic.sch"/>
+    <instance file="property-dynamic.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[3]">
+          <message>Below three.</message>
+          <property ref="value" role="value">3 squared is 9</property>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="property-copy-of" since="2020">
+    <description>Under xslt3 an xsl:copy-of without children may be used in a property; its result is part of the property's content.</description>
+    <spec clause="5.5.13"/>
+    <spec clause="Annex-J"/>
+    <schema file="property-copy-of.sch"/>
+    <instance file="property-copy-of.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]">
+          <message>One.</message>
+          <property ref="copy" role="contents">Copied: 1</property>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="property-unknown" since="2020">
+    <description>properties names an id that no property has.</description>
+    <spec clause="5.5.11"/>
+    <spec clause="Annex-A"/>
+    <schema file="property-unknown.sch"/>
+    <instance file="property-unknown.xml"/>
+    <result>
+      <schema-error clause="Annex-A"/>
+    </result>
+  </test-case>
+
+  <test-case name="diagnostic-and-property" since="2020">
+    <description>An assertion with both diagnostics and properties.</description>
+    <spec clause="5.5.2"/>
+    <spec clause="5.5.11"/>
+    <schema file="diagnostic-and-property.sch"/>
+    <instance file="diagnostic-and-property.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Not two.</message>
+          <diagnostic ref="d">Change the two.</diagnostic>
+          <property ref="p">two</property>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+</test-set>

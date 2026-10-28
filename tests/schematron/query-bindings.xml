@@ -1,0 +1,387 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<test-set xmlns="urn:sxml:schematron-test-suite" name="query-bindings">
+  <description>The queryBinding attribute and what each binding allows. A case that depends on a binding names it; an implementation that does not support that binding shall fail with an error (6.5).</description>
+  <spec clause="6.5"/>
+  <spec clause="Annex-C"/>
+  <spec clause="Annex-H"/>
+  <spec clause="Annex-I"/>
+  <spec clause="Annex-J"/>
+  <spec clause="Annex-K"/>
+  <spec clause="Annex-L"/>
+  <spec clause="Annex-M"/>
+  <spec clause="Annex-N"/>
+
+  <test-case name="binding-xslt2" since="2020">
+    <description>A schema with queryBinding="xslt2" (the context //item is both an XSLT pattern and an XPath expression).</description>
+    <spec clause="6.5"/>
+    <spec clause="Annex-H"/>
+    <dependency type="query-binding" value="xslt2"/>
+    <schema file="binding-xslt2.sch"/>
+    <instance file="binding-xslt2.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Two.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="binding-xslt3" since="2020">
+    <description>A schema with queryBinding="xslt3" (the context //item is both an XSLT pattern and an XPath expression).</description>
+    <spec clause="6.5"/>
+    <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
+    <schema file="binding-xslt3.sch"/>
+    <instance file="binding-xslt3.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Two.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="binding-xpath2" since="2020">
+    <description>A schema with queryBinding="xpath2" (the context //item is both an XSLT pattern and an XPath expression).</description>
+    <spec clause="6.5"/>
+    <spec clause="Annex-I"/>
+    <dependency type="query-binding" value="xpath2"/>
+    <schema file="binding-xpath2.sch"/>
+    <instance file="binding-xpath2.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Two.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="binding-xpath3" since="2020">
+    <description>A schema with queryBinding="xpath3" (the context //item is both an XSLT pattern and an XPath expression).</description>
+    <spec clause="6.5"/>
+    <spec clause="Annex-K"/>
+    <dependency type="query-binding" value="xpath3"/>
+    <schema file="binding-xpath3.sch"/>
+    <instance file="binding-xpath3.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Two.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="binding-xpath31" since="2020">
+    <description>A schema with queryBinding="xpath31" (the context //item is both an XSLT pattern and an XPath expression).</description>
+    <spec clause="6.5"/>
+    <spec clause="Annex-L"/>
+    <dependency type="query-binding" value="xpath31"/>
+    <schema file="binding-xpath31.sch"/>
+    <instance file="binding-xpath31.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Two.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="binding-xquery3" since="2025">
+    <description>A schema with queryBinding="xquery3".</description>
+    <spec clause="6.5"/>
+    <spec clause="Annex-M"/>
+    <dependency type="query-binding" value="xquery3"/>
+    <schema file="binding-xquery3.sch"/>
+    <instance file="binding-xquery3.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Two.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="binding-xquery31" since="2025">
+    <description>A schema with queryBinding="xquery31".</description>
+    <spec clause="6.5"/>
+    <spec clause="Annex-N"/>
+    <dependency type="query-binding" value="xquery31"/>
+    <schema file="binding-xquery31.sch"/>
+    <instance file="binding-xquery31.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Two.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="binding-upper-case" since="2020">
+    <description>A binding name in any mix of upper and lower case names the same binding: XSLT3.</description>
+    <spec clause="6.5"/>
+    <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
+    <schema file="binding-upper-case.sch"/>
+    <instance file="binding-upper-case.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Two.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="binding-mixed-case" since="2020">
+    <description>A binding name in any mix of upper and lower case: XPath31.</description>
+    <spec clause="6.5"/>
+    <spec clause="Annex-L"/>
+    <dependency type="query-binding" value="xpath31"/>
+    <schema file="binding-mixed-case.sch"/>
+    <instance file="binding-mixed-case.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Two.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="binding-unknown" since="2020">
+    <description>An implementation that does not support the binding a schema names fails with an error.</description>
+    <spec clause="6.5"/>
+    <schema file="binding-unknown.sch"/>
+    <instance file="binding-unknown.xml"/>
+    <result>
+      <schema-error clause="6.5"/>
+    </result>
+  </test-case>
+
+  <test-case name="binding-default" since="2020">
+    <description>Without queryBinding the default binding, xslt, is used. The test gives the same result in XPath 1.0 and later versions.</description>
+    <spec clause="6.5"/>
+    <spec clause="Annex-C"/>
+    <dependency type="query-binding" value="xslt"/>
+    <schema file="binding-default.sch"/>
+    <instance file="binding-default.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Two.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="binding-xslt" since="2020">
+    <description>queryBinding="xslt", with a test that gives the same result in XPath 1.0 and later versions.</description>
+    <spec clause="6.5"/>
+    <spec clause="Annex-C"/>
+    <dependency type="query-binding" value="xslt"/>
+    <schema file="binding-xslt.sch"/>
+    <instance file="binding-xslt.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Two.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="binding-xslt-version-sensitive" since="2020">
+    <description>A comparison whose result differs between XPath 1.0 (numbers) and later versions (strings): how an implementation reads the xslt binding decides it.</description>
+    <spec clause="Annex-C"/>
+    <dependency type="query-binding" value="xslt"/>
+    <schema file="binding-xslt-version-sensitive.sch"/>
+    <instance file="binding-xslt-version-sensitive.xml"/>
+    <result>
+      <implementation-defined clause="Annex-C">Under XPath 1.0 the strings are compared as numbers and nothing is reported; an implementation that reads xslt with a later XPath reports at /Q{}doc[1].</implementation-defined>
+    </result>
+  </test-case>
+
+  <test-case name="binding-xslt3-function" since="2020">
+    <description>Under xslt3 an xsl:function child of the schema can be called from tests.</description>
+    <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
+    <schema file="binding-xslt3-function.sch"/>
+    <instance file="binding-xslt3-function.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Doubled to four.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="binding-xslt2-function" since="2020">
+    <description>Under xslt2 an xsl:function child of the schema can be called from tests.</description>
+    <spec clause="Annex-H"/>
+    <dependency type="query-binding" value="xslt2"/>
+    <schema file="binding-xslt2-function.sch"/>
+    <instance file="binding-xslt2-function.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[3]">
+          <message>Tripled to nine.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="binding-xslt3-key" since="2020">
+    <description>Under xslt3 an xsl:key child of the schema can be used with key().</description>
+    <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
+    <schema file="binding-xslt3-key.sch"/>
+    <instance file="binding-xslt3-key.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}line[2]">
+          <message>The line names a known product.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="binding-xslt3-include" since="2020">
+    <description>Under xslt3 an xsl:include child of the schema brings in a stylesheet module whose functions the tests may call.</description>
+    <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
+    <schema file="binding-xslt3-include.sch"/>
+    <instance file="binding-xslt3-include.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]">
+          <message>Odd.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[3]">
+          <message>Odd.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="binding-xslt3-maps" since="2020">
+    <description>Under xslt3 the query language is XPath 3.x: maps are available.</description>
+    <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
+    <schema file="binding-xslt3-maps.sch"/>
+    <instance file="binding-xslt3-maps.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Named two.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="binding-xpath2-no-maps" since="2020">
+    <description>Under xpath2 the query language is XPath 2.0, which has no map constructor.</description>
+    <spec clause="Annex-I"/>
+    <dependency type="query-binding" value="xpath2"/>
+    <schema file="binding-xpath2-no-maps.sch"/>
+    <instance file="binding-xpath2-no-maps.xml"/>
+    <result>
+      <schema-error clause="Annex-I"/>
+    </result>
+  </test-case>
+
+  <test-case name="binding-xpath31-no-user-functions" since="2020">
+    <description>Under xpath31 no user-written functions are available: an xsl:function child of the schema does not define one.</description>
+    <spec clause="Annex-L"/>
+    <dependency type="query-binding" value="xpath31"/>
+    <schema file="binding-xpath31-no-user-functions.sch"/>
+    <instance file="binding-xpath31-no-user-functions.xml"/>
+    <result>
+      <schema-error clause="Annex-L"/>
+    </result>
+  </test-case>
+
+  <test-case name="binding-xpath31-relative-context" since="2020">
+    <description>Under the xpath bindings a rule context is an XPath expression; the binding does not say what it is evaluated against.</description>
+    <spec clause="Annex-L"/>
+    <dependency type="query-binding" value="xpath31"/>
+    <schema file="binding-xpath31-relative-context.sch"/>
+    <instance file="binding-xpath31-relative-context.xml"/>
+    <result>
+      <implementation-defined clause="Annex-L">Read as an XSLT-style pattern, item 2 is reported; evaluated from the document node, item selects nothing.</implementation-defined>
+    </result>
+  </test-case>
+
+  <test-case name="binding-xpath31-root-context" since="2020">
+    <description>The xpath bindings list elements, attributes, comments and processing instructions as rule contexts, not the document node.</description>
+    <spec clause="Annex-L"/>
+    <dependency type="query-binding" value="xpath31"/>
+    <schema file="binding-xpath31-root-context.sch"/>
+    <instance file="binding-xpath31-root-context.xml"/>
+    <result>
+      <implementation-defined clause="Annex-L">An implementation that allows the document node reports at /.</implementation-defined>
+    </result>
+  </test-case>
+
+  <test-case name="binding-xslt2-no-backwards-compatibility" since="2020">
+    <description>Under xslt2 backwards compatibility mode is off: comparing a number with a string is a type error.</description>
+    <spec clause="Annex-H"/>
+    <dependency type="query-binding" value="xslt2"/>
+    <schema file="binding-xslt2-no-backwards-compatibility.sch"/>
+    <instance file="binding-xslt2-no-backwards-compatibility.xml"/>
+    <result>
+      <any-of>
+        <error clause="Annex-H"/>
+        <schema-error clause="Annex-H"/>
+      </any-of>
+    </result>
+  </test-case>
+
+  <test-case name="binding-xslt3-text-value-template" since="2020">
+    <description>Text value templates in messages: the extent to which they are supported is implementation-defined.</description>
+    <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
+    <schema file="binding-xslt3-text-value-template.sch"/>
+    <instance file="binding-xslt3-text-value-template.xml"/>
+    <result>
+      <implementation-defined clause="Annex-J">The message is "Value 2." where text value templates are expanded, "Value {@n}." where they are not.</implementation-defined>
+    </result>
+  </test-case>
+
+  <test-case name="binding-xquery-context-from-root" since="2025">
+    <description>Under the xquery bindings a rule context is evaluated with the document node as initial context item: item selects only the document element.</description>
+    <spec clause="Annex-N"/>
+    <dependency type="query-binding" value="xquery31"/>
+    <schema file="binding-xquery-context-from-root.sch"/>
+    <instance file="binding-xquery-context-from-root.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}item[1]">
+          <message>Selected.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="binding-xquery-text-context" since="2025">
+    <description>Under the xquery bindings text nodes may be rule contexts.</description>
+    <spec clause="Annex-N"/>
+    <dependency type="query-binding" value="xquery31"/>
+    <schema file="binding-xquery-text-context.sch"/>
+    <instance file="binding-xquery-text-context.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}a[1]/text()[1]">
+          <message>Text x.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+</test-set>

@@ -1,0 +1,343 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<test-set xmlns="urn:sxml:schematron-test-suite" name="assertions">
+  <description>assert and report: when each yields a finding, the effective Boolean value of the test, the attributes reported, the message and flags.</description>
+  <spec clause="3.5"/>
+  <spec clause="3.6"/>
+  <spec clause="5.4.3"/>
+  <spec clause="5.4.14"/>
+  <spec clause="5.5.6"/>
+  <spec clause="6.2"/>
+  <spec clause="Annex-J"/>
+
+  <test-case name="assert-holds" since="2020">
+    <description>An assert whose test is true finds nothing.</description>
+    <spec clause="5.4.3"/>
+    <schema file="assert-holds.sch"/>
+    <instance file="assert-holds.xml"/>
+    <result>
+      <findings/>
+    </result>
+  </test-case>
+
+  <test-case name="assert-fails" since="2020">
+    <description>An assert whose test is false is a finding.</description>
+    <spec clause="5.4.3"/>
+    <schema file="assert-fails.sch"/>
+    <instance file="assert-fails.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]">
+          <message>Two items.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="report-fires" since="2020">
+    <description>A report whose test is true is a finding.</description>
+    <spec clause="5.4.14"/>
+    <spec clause="6.2"/>
+    <schema file="report-fires.sch"/>
+    <instance file="report-fires.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]">
+          <message>Three items.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="report-silent" since="2020">
+    <description>A report whose test is false finds nothing.</description>
+    <spec clause="5.4.14"/>
+    <schema file="report-silent.sch"/>
+    <instance file="report-silent.xml"/>
+    <result>
+      <findings/>
+    </result>
+  </test-case>
+
+  <test-case name="assert-ebv-node-present" since="2020">
+    <description>The test is reduced to its effective Boolean value: a non-empty node sequence is true.</description>
+    <spec clause="Annex-J"/>
+    <spec clause="3.6"/>
+    <schema file="assert-ebv-node-present.sch"/>
+    <instance file="assert-ebv-node-present.xml"/>
+    <result>
+      <findings/>
+    </result>
+  </test-case>
+
+  <test-case name="assert-ebv-node-absent" since="2020">
+    <description>The test is reduced to its effective Boolean value: an empty sequence is false.</description>
+    <spec clause="Annex-J"/>
+    <spec clause="3.6"/>
+    <schema file="assert-ebv-node-absent.sch"/>
+    <instance file="assert-ebv-node-absent.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]">
+          <message>Holds.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="assert-ebv-empty-string" since="2020">
+    <description>The test is reduced to its effective Boolean value: the empty string is false.</description>
+    <spec clause="Annex-J"/>
+    <spec clause="3.6"/>
+    <schema file="assert-ebv-empty-string.sch"/>
+    <instance file="assert-ebv-empty-string.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]">
+          <message>Holds.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="assert-ebv-string" since="2020">
+    <description>The test is reduced to its effective Boolean value: a non-empty string is true, whatever it says.</description>
+    <spec clause="Annex-J"/>
+    <spec clause="3.6"/>
+    <schema file="assert-ebv-string.sch"/>
+    <instance file="assert-ebv-string.xml"/>
+    <result>
+      <findings/>
+    </result>
+  </test-case>
+
+  <test-case name="assert-ebv-zero" since="2020">
+    <description>The test is reduced to its effective Boolean value: zero is false.</description>
+    <spec clause="Annex-J"/>
+    <spec clause="3.6"/>
+    <schema file="assert-ebv-zero.sch"/>
+    <instance file="assert-ebv-zero.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]">
+          <message>Holds.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="assert-ebv-number" since="2020">
+    <description>The test is reduced to its effective Boolean value: a non-zero number is true.</description>
+    <spec clause="Annex-J"/>
+    <spec clause="3.6"/>
+    <schema file="assert-ebv-number.sch"/>
+    <instance file="assert-ebv-number.xml"/>
+    <result>
+      <findings/>
+    </result>
+  </test-case>
+
+  <test-case name="assert-ebv-nan" since="2020">
+    <description>The test is reduced to its effective Boolean value: NaN is false.</description>
+    <spec clause="Annex-J"/>
+    <spec clause="3.6"/>
+    <schema file="assert-ebv-nan.sch"/>
+    <instance file="assert-ebv-nan.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]">
+          <message>Holds.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="assert-ebv-boolean-attribute" since="2020">
+    <description>The test is reduced to its effective Boolean value: an attribute node is true even when its value is 'false'.</description>
+    <spec clause="Annex-J"/>
+    <spec clause="3.6"/>
+    <schema file="assert-ebv-boolean-attribute.sch"/>
+    <instance file="assert-ebv-boolean-attribute.xml"/>
+    <result>
+      <findings/>
+    </result>
+  </test-case>
+
+  <test-case name="assert-ebv-error" since="2020">
+    <description>A test whose value has no effective Boolean value (two numbers) is an error.</description>
+    <spec clause="Annex-J"/>
+    <spec clause="6.1"/>
+    <schema file="assert-ebv-error.sch"/>
+    <instance file="assert-ebv-error.xml"/>
+    <result>
+      <any-of>
+        <error clause="Annex-J"/>
+        <schema-error clause="Annex-J"/>
+      </any-of>
+    </result>
+  </test-case>
+
+  <test-case name="assert-attributes-reported" since="2020">
+    <description>id, role and flag of an assert are part of its finding.</description>
+    <spec clause="5.4.3"/>
+    <spec clause="5.5.6"/>
+    <spec clause="5.5.14"/>
+    <schema file="assert-attributes-reported.sch"/>
+    <instance file="assert-attributes-reported.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]" id="no-two" role="warning" flag="odd">
+          <message>Not two.</message>
+        </finding>
+      </findings>
+      <flags>odd</flags>
+    </result>
+  </test-case>
+
+  <test-case name="report-attributes-reported" since="2020">
+    <description>id, role and flag of a report are part of its finding.</description>
+    <spec clause="5.4.14"/>
+    <spec clause="5.5.6"/>
+    <spec clause="5.5.14"/>
+    <schema file="report-attributes-reported.sch"/>
+    <instance file="report-attributes-reported.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]" id="is-two" role="info" flag="seen">
+          <message>Two.</message>
+        </finding>
+      </findings>
+      <flags>seen</flags>
+    </result>
+  </test-case>
+
+  <test-case name="assert-role-not-inherited" since="2020">
+    <description>A rule's role is not the role of its assertions' findings.</description>
+    <spec clause="5.5.14"/>
+    <spec clause="Annex-D"/>
+    <schema file="assert-role-not-inherited.sch"/>
+    <instance file="assert-role-not-inherited.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[1]">
+          <message>Not one.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="flag-raised-by-failure" since="2020">
+    <description>A flag becomes true when an assertion with that flag fails.</description>
+    <spec clause="5.5.6"/>
+    <schema file="flag-raised-by-failure.sch"/>
+    <instance file="flag-raised-by-failure.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[3]" flag="big">
+          <message>Small.</message>
+        </finding>
+      </findings>
+      <flags>big</flags>
+    </result>
+  </test-case>
+
+  <test-case name="flag-not-raised-by-success" since="2020">
+    <description>A flag stays false when every assertion with it holds.</description>
+    <spec clause="5.5.6"/>
+    <schema file="flag-not-raised-by-success.sch"/>
+    <instance file="flag-not-raised-by-success.xml"/>
+    <result>
+      <findings/>
+      <flags></flags>
+    </result>
+  </test-case>
+
+  <test-case name="flag-raised-by-rule" since="2020">
+    <description>A flag becomes true when a rule with that flag fires, with no finding.</description>
+    <spec clause="5.5.6"/>
+    <schema file="flag-raised-by-rule.sch"/>
+    <instance file="flag-raised-by-rule.xml"/>
+    <result>
+      <findings/>
+      <flags>has-items</flags>
+    </result>
+  </test-case>
+
+  <test-case name="flag-token-list" since="2020">
+    <description>A flag attribute is a list of names; each becomes true.</description>
+    <spec clause="5.5.6"/>
+    <spec clause="Annex-A"/>
+    <schema file="flag-token-list.sch"/>
+    <instance file="flag-token-list.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]" flag="alpha beta">
+          <message>One.</message>
+        </finding>
+      </findings>
+      <flags>alpha beta</flags>
+    </result>
+  </test-case>
+
+  <test-case name="message-markup" since="2020">
+    <description>emph, dir and span in a message contribute their text.</description>
+    <spec clause="5.4.3"/>
+    <spec clause="5.5.4"/>
+    <spec clause="5.5.5"/>
+    <spec clause="5.5.18"/>
+    <schema file="message-markup.sch"/>
+    <instance file="message-markup.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]">
+          <message>This is very much item 1.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="message-empty" since="2020">
+    <description>An assertion without text has an empty message.</description>
+    <spec clause="5.4.14"/>
+    <spec clause="Annex-A"/>
+    <schema file="message-empty.sch"/>
+    <instance file="message-empty.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]">
+          <message></message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="message-entities" since="2020">
+    <description>Characters escaped in the schema appear in the message as themselves.</description>
+    <spec clause="5.4.3"/>
+    <schema file="message-entities.sch"/>
+    <instance file="message-entities.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]">
+          <message>n &lt; 2 &amp; n &gt; 0</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="assert-current-function" since="2020">
+    <description>Under xslt3 the XSLT function current() is available in a test.</description>
+    <spec clause="Annex-J"/>
+    <schema file="assert-current-function.sch"/>
+    <instance file="assert-current-function.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]">
+          <message>Has a successor.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Has a successor.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+</test-set>

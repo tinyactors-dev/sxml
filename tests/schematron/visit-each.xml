@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<test-set xmlns="urn:sxml:schematron-test-suite" name="visit-each">
+  <description>visit-each: the items a rule's assertions are evaluated for.</description>
+  <spec clause="5.4.15"/>
+  <spec clause="5.5.21"/>
+
+  <test-case name="visit-each-nodes" since="2025">
+    <description>Each node visit-each selects becomes the context of the assertions.</description>
+    <spec clause="5.5.21"/>
+    <schema file="visit-each-nodes.sch"/>
+    <instance file="visit-each-nodes.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}list[1]/Q{}entry[2]">
+          <message>Entry below five, not 9.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="visit-each-empty-fires" since="2025">
+    <description>When visit-each selects nothing, the rule still fires: no assertion is evaluated, its flag is raised, and a later rule in the pattern does not fire for the node.</description>
+    <spec clause="5.5.21"/>
+    <spec clause="6.3"/>
+    <schema file="visit-each-empty-fires.sch"/>
+    <instance file="visit-each-empty-fires.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}list[1]/Q{}entry[1]">
+          <message>Visited.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}list[1]/Q{}entry[2]">
+          <message>Visited.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}list[1]/Q{}entry[3]">
+          <message>Visited.</message>
+        </finding>
+      </findings>
+      <flags>visited</flags>
+    </result>
+  </test-case>
+
+  <test-case name="visit-each-atomic" since="2025">
+    <description>visit-each may select atomic values; the assertions see each as the context item. (The location of such a finding is not compared.)</description>
+    <spec clause="5.5.21"/>
+    <schema file="visit-each-atomic.sch"/>
+    <instance file="visit-each-atomic.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report">
+          <message>Code "DE" is not three characters long.</message>
+        </finding>
+        <finding kind="successful-report">
+          <message>Code "IJKL" is not three characters long.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="visit-each-variables" since="2025">
+    <description>visit-each with a variable of the schema.</description>
+    <spec clause="5.5.21"/>
+    <spec clause="5.4.7"/>
+    <schema file="visit-each-variables.sch"/>
+    <instance file="visit-each-variables.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}list[1]/Q{}entry[2]">
+          <message>Over the maximum.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="visit-each-syntax" since="2025">
+    <description>A visit-each that is not an expression of the query language.</description>
+    <spec clause="5.5.21"/>
+    <spec clause="7.2"/>
+    <schema file="visit-each-syntax.sch"/>
+    <instance file="visit-each-syntax.xml"/>
+    <result>
+      <schema-error clause="7.2"/>
+    </result>
+  </test-case>
+
+  <test-case name="visit-each-on-abstract-rule" since="2025">
+    <description>visit-each belongs to a rule with a context; an abstract rule has none.</description>
+    <spec clause="5.4.15"/>
+    <spec clause="Annex-A"/>
+    <schema file="visit-each-on-abstract-rule.sch"/>
+    <instance file="visit-each-on-abstract-rule.xml"/>
+    <result>
+      <schema-error clause="Annex-A"/>
+    </result>
+  </test-case>
+</test-set>

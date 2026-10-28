@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<doc>
+  <part name="first"><item n="1"/><item n="2"/></part>
+  <part name="second"><item n="3"/></part>
+</doc>

@@ -1,0 +1,283 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<test-set xmlns="urn:sxml:schematron-test-suite" name="abstract-rules">
+  <description>Abstract rules in patterns and in rules, extends with a rule attribute, and their constraints.</description>
+  <spec clause="3.2"/>
+  <spec clause="5.4.4"/>
+  <spec clause="5.4.15"/>
+  <spec clause="5.4.16"/>
+  <spec clause="6.2"/>
+  <spec clause="Annex-A"/>
+  <spec clause="Annex-B"/>
+
+  <test-case name="extends-basic" since="2020">
+    <description>A rule that extends an abstract rule evaluates the abstract rule's assertions in its own context.</description>
+    <spec clause="5.4.4"/>
+    <spec clause="5.4.15"/>
+    <spec clause="6.2"/>
+    <schema file="extends-basic.sch"/>
+    <instance file="extends-basic.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]">
+          <message>The item has an n.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="extends-abstract-does-not-fire" since="2020">
+    <description>An abstract rule never fires by itself.</description>
+    <spec clause="3.2"/>
+    <spec clause="5.4.15"/>
+    <schema file="extends-abstract-does-not-fire.sch"/>
+    <instance file="extends-abstract-does-not-fire.xml"/>
+    <result>
+      <findings/>
+    </result>
+  </test-case>
+
+  <test-case name="extends-with-own-assertions" since="2020">
+    <description>The rule's own assertions and the extended ones are all evaluated.</description>
+    <spec clause="5.4.4"/>
+    <schema file="extends-with-own-assertions.sch"/>
+    <instance file="extends-with-own-assertions.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Has n.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[3]">
+          <message>Three.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="extends-nested" since="2020">
+    <description>An abstract rule may extend another abstract rule.</description>
+    <spec clause="5.4.4"/>
+    <spec clause="Annex-A"/>
+    <schema file="extends-nested.sch"/>
+    <instance file="extends-nested.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Has n.</message>
+        </finding>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[3]">
+          <message>Small n.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="extends-sees-rule-variables" since="2020">
+    <description>The extended assertions become the rule's: they see its variables.</description>
+    <spec clause="5.4.4"/>
+    <spec clause="5.4.7"/>
+    <schema file="extends-sees-rule-variables.sch"/>
+    <instance file="extends-sees-rule-variables.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[3]">
+          <message>At most 1.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="extends-abstract-variables" since="2020">
+    <description>An abstract rule's own variables come with its assertions.</description>
+    <spec clause="5.4.4"/>
+    <spec clause="5.4.7"/>
+    <schema file="extends-abstract-variables.sch"/>
+    <instance file="extends-abstract-variables.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]">
+          <message>Label #1.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="extends-subject" since="2020">
+    <description>An extended assertion's subject is evaluated in the extending rule's context.</description>
+    <spec clause="5.4.4"/>
+    <spec clause="5.5.19"/>
+    <schema file="extends-subject.sch"/>
+    <instance file="extends-subject.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[3]/@n">
+          <message>Not three.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="extends-two-rules" since="2020">
+    <description>Two rules extend one abstract rule.</description>
+    <spec clause="5.4.4"/>
+    <schema file="extends-two-rules.sch"/>
+    <instance file="extends-two-rules.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]">
+          <message>The doc has an n.</message>
+        </finding>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]">
+          <message>The item has an n.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="extends-other-pattern" since="2020">
+    <description>A rule extends an abstract rule that sits in another pattern.</description>
+    <spec clause="5.4.15"/>
+    <spec clause="5.4.16"/>
+    <spec clause="Annex-B"/>
+    <schema file="extends-other-pattern.sch"/>
+    <instance file="extends-other-pattern.xml"/>
+    <result>
+      <implementation-defined clause="5.4.16 Annex-B">Annex B checks only that an abstract rule of that id exists anywhere, so the finding at /Q{}doc[1]/Q{}item[2] follows; 5.4.16 introduces rules for use across patterns, which suggests a pattern's abstract rules are local to it, and an implementation may reject this.</implementation-defined>
+    </result>
+  </test-case>
+
+  <test-case name="extends-rules-container" since="2025">
+    <description>Abstract rules in a rules element at schema level.</description>
+    <spec clause="5.4.16"/>
+    <spec clause="5.4.4"/>
+    <schema file="extends-rules-container.sch"/>
+    <instance file="extends-rules-container.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Has n.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="extends-rules-two-patterns" since="2025">
+    <description>One abstract rule of a rules element used in two patterns.</description>
+    <spec clause="5.4.16"/>
+    <schema file="extends-rules-two-patterns.sch"/>
+    <instance file="extends-rules-two-patterns.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]">
+          <message>The item has an n.</message>
+        </finding>
+        <finding kind="failed-assert" location="/Q{}doc[1]">
+          <message>The doc has an n.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="extends-rules-not-abstract" since="2025">
+    <description>A rules element holds only abstract rules.</description>
+    <spec clause="5.4.16"/>
+    <spec clause="Annex-A"/>
+    <schema file="extends-rules-not-abstract.sch"/>
+    <instance file="extends-rules-not-abstract.xml"/>
+    <result>
+      <schema-error clause="Annex-A"/>
+    </result>
+  </test-case>
+
+  <test-case name="extends-in-group" since="2025">
+    <description>A rule of a group extends an abstract rule.</description>
+    <spec clause="5.4.5"/>
+    <spec clause="5.4.4"/>
+    <schema file="extends-in-group.sch"/>
+    <instance file="extends-in-group.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Has n.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Second.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="extends-unknown" since="2020">
+    <description>extends names no abstract rule.</description>
+    <spec clause="Annex-B"/>
+    <spec clause="5.4.4"/>
+    <schema file="extends-unknown.sch"/>
+    <instance file="extends-unknown.xml"/>
+    <result>
+      <schema-error clause="Annex-B"/>
+    </result>
+  </test-case>
+
+  <test-case name="extends-concrete-rule" since="2020">
+    <description>extends rule names a rule that is not abstract.</description>
+    <spec clause="Annex-B"/>
+    <spec clause="5.4.4"/>
+    <schema file="extends-concrete-rule.sch"/>
+    <instance file="extends-concrete-rule.xml"/>
+    <result>
+      <schema-error clause="Annex-B"/>
+    </result>
+  </test-case>
+
+  <test-case name="extends-abstract-with-context" since="2020">
+    <description>An abstract rule may not have a context.</description>
+    <spec clause="5.4.15"/>
+    <spec clause="Annex-A"/>
+    <schema file="extends-abstract-with-context.sch"/>
+    <instance file="extends-abstract-with-context.xml"/>
+    <result>
+      <schema-error clause="5.4.15"/>
+    </result>
+  </test-case>
+
+  <test-case name="extends-abstract-without-id" since="2020">
+    <description>An abstract rule needs an id.</description>
+    <spec clause="Annex-A"/>
+    <schema file="extends-abstract-without-id.sch"/>
+    <instance file="extends-abstract-without-id.xml"/>
+    <result>
+      <schema-error clause="Annex-A"/>
+    </result>
+  </test-case>
+
+  <test-case name="extends-rule-and-href" since="2020">
+    <description>extends has a rule or an href attribute, not both.</description>
+    <spec clause="5.4.4"/>
+    <spec clause="Annex-A"/>
+    <schema file="extends-rule-and-href.sch"/>
+    <instance file="extends-rule-and-href.xml"/>
+    <result>
+      <schema-error clause="5.4.4"/>
+    </result>
+  </test-case>
+
+  <test-case name="extends-neither" since="2020">
+    <description>extends without rule or href.</description>
+    <spec clause="5.4.4"/>
+    <spec clause="Annex-A"/>
+    <schema file="extends-neither.sch"/>
+    <instance file="extends-neither.xml"/>
+    <result>
+      <schema-error clause="5.4.4"/>
+    </result>
+  </test-case>
+
+  <test-case name="extends-cycle" since="2020">
+    <description>Abstract rules that extend each other cannot be resolved.</description>
+    <spec clause="5.4.4"/>
+    <schema file="extends-cycle.sch"/>
+    <instance file="extends-cycle.xml"/>
+    <result>
+      <schema-error clause="5.4.4"/>
+    </result>
+  </test-case>
+</test-set>

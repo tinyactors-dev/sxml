@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<test-set xmlns="urn:sxml:schematron-test-suite" name="group">
+  <description>group: a pattern whose rules do not act as if-then-else.</description>
+  <spec clause="5.4.5"/>
+  <spec clause="6.3"/>
+  <spec clause="6.6"/>
+  <spec clause="Annex-A"/>
+
+  <test-case name="group-all-rules-fire" since="2025">
+    <description>In a group every rule whose context matches a node fires for it.</description>
+    <spec clause="5.4.5"/>
+    <spec clause="6.3"/>
+    <spec clause="6.6"/>
+    <schema file="group-all-rules-fire.sch"/>
+    <instance file="group-all-rules-fire.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Specific.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>General 2.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[3]">
+          <message>General 3.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="group-versus-pattern" since="2020">
+    <description>The same rules in a pattern: only the first match fires.</description>
+    <spec clause="5.4.5"/>
+    <spec clause="6.6"/>
+    <schema file="group-versus-pattern.sch"/>
+    <instance file="group-versus-pattern.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Specific.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[3]">
+          <message>General 3.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="group-and-pattern" since="2025">
+    <description>A schema with a group and a pattern matching the same node.</description>
+    <spec clause="5.4.5"/>
+    <spec clause="3.13"/>
+    <schema file="group-and-pattern.sch"/>
+    <instance file="group-and-pattern.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Specific.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>General 2.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[3]">
+          <message>General 3.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Specific.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[3]">
+          <message>General 3.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="group-empty" since="2025">
+    <description>A group without rules.</description>
+    <spec clause="5.4.5"/>
+    <spec clause="Annex-A"/>
+    <schema file="group-empty.sch"/>
+    <instance file="group-empty.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]">
+          <message>One.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="group-only" since="2025">
+    <description>A schema whose only pattern is a group.</description>
+    <spec clause="5.4.5"/>
+    <spec clause="Annex-A"/>
+    <schema file="group-only.sch"/>
+    <instance file="group-only.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]">
+          <message>Two items.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="group-variables" since="2025">
+    <description>A group's variables and its rules' variables, as in a pattern.</description>
+    <spec clause="5.4.5"/>
+    <spec clause="5.4.7"/>
+    <schema file="group-variables.sch"/>
+    <instance file="group-variables.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[3]">
+          <message>Within the limit.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[3]">
+          <message>Thirty.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="group-attribute-and-element" since="2025">
+    <description>In a group, rules for an element and for its attribute both fire as usual, and two rules for the attribute both fire.</description>
+    <spec clause="5.4.5"/>
+    <spec clause="6.3"/>
+    <schema file="group-attribute-and-element.sch"/>
+    <instance file="group-attribute-and-element.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]/@n">
+          <message>Attribute rule one.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]/@n">
+          <message>Attribute rule two.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]">
+          <message>Element rule.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+</test-set>

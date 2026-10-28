@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<test-set xmlns="urn:sxml:schematron-test-suite" name="schematron-edition">
+  <description>The schematronEdition attribute of the schema.</description>
+  <spec clause="5.5.15"/>
+
+  <test-case name="edition-2025" since="2025">
+    <description>schematronEdition="2025".</description>
+    <spec clause="5.5.15"/>
+    <schema file="edition-2025.sch"/>
+    <instance file="edition-2025.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]">
+          <message>One.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="edition-absent" since="2025">
+    <description>Without schematronEdition (which schemas should specify) the schema is still correct.</description>
+    <spec clause="5.5.15"/>
+    <schema file="edition-absent.sch"/>
+    <instance file="edition-absent.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]">
+          <message>One.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="edition-other-value" since="2025">
+    <description>Where specified, the value shall be 2025.</description>
+    <spec clause="5.5.15"/>
+    <schema file="edition-other-value.sch"/>
+    <instance file="edition-other-value.xml"/>
+    <result>
+      <schema-error clause="5.5.15"/>
+    </result>
+  </test-case>
+
+  <test-case name="edition-reported" since="2025">
+    <description>Implementations shall report the value or the absence of schematronEdition at user option; how is the implementation's.</description>
+    <spec clause="5.5.15"/>
+    <schema file="edition-reported.sch"/>
+    <instance file="edition-reported.xml"/>
+    <result>
+      <implementation-defined clause="5.5.15">On request the implementation reports the edition 2025 (in SVRL, schematron-output/@schematronEdition).</implementation-defined>
+    </result>
+  </test-case>
+</test-set>
