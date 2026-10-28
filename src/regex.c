@@ -276,6 +276,16 @@ typedef struct sxml_regex_group {
 } sxml_regex_group;
 
 /*
+ * A read set: the characters some instructions of a regex may read, as an
+ * ASCII member set and whether a character outside ASCII may be among
+ * them (larger than needed, never smaller).
+ */
+typedef struct sxml_regex_read_set {
+    sxml_regex_ascii_set ascii_members;
+    bool accepts_non_ascii;
+} sxml_regex_read_set;
+
+/*
  * Where a match can start (D310), found from the instructions a match
  * runs before it reads its first character. A search skips the start
  * positions the filter excludes without an attempt; each skipped position
@@ -290,15 +300,40 @@ typedef struct sxml_regex_start_filter {
     /* Some path begins with "^" (without m): an attempt at byte offset 0
        is always made. */
     bool may_start_at_input_start;
-    /* A first character outside ASCII may begin a match. */
-    bool accepts_non_ascii;
-    /* The ASCII characters a match may begin with, as a member set. */
-    uint32_t ascii_first_bits[SXML_REGEX_ASCII_WORD_COUNT];
+    /* The characters a match may begin with. */
+    sxml_regex_read_set first_characters;
 } sxml_regex_start_filter;
+
+/* The bytes of a required literal kept: a longer literal keeps its
+   first codepoints that fit, which every match contains too. */
+#define SXML_REGEX_REQUIRED_LITERAL_BYTE_CAPACITY 32U
+
+/*
+ * A required literal (D311): a run of characters every match contains,
+ * found from the instructions when the regex is compiled. A search looks
+ * for its next occurrence first and attempts only the start positions
+ * from which the characters before it are all in the prefix read set;
+ * when it does not occur, no position is attempted. Skipped positions
+ * count one step each, as the start filter's do.
+ */
+typedef struct sxml_regex_required_literal {
+    /* False when the regex has none, or one could not be found within
+       the bounds of the analysis. */
+    bool is_used;
+    /* The literal's UTF-8 bytes. */
+    uint32_t byte_count;
+    uint8_t bytes[SXML_REGEX_REQUIRED_LITERAL_BYTE_CAPACITY];
+    /* What a match may read before it reaches the literal. */
+    sxml_regex_read_set prefix_characters;
+    /* The prefix may read any character (a back-reference, "." with the
+       s flag): every start position before an occurrence is attempted. */
+    bool prefix_reads_anything;
+} sxml_regex_required_literal;
 
 struct sxml_regex {
     sxml_regex_flags flags;
     sxml_regex_start_filter start_filter;
+    sxml_regex_required_literal required_literal;
     uint32_t group_count;
     /* Two slots per group, group 0 included, then one per progress
        register of an unbounded loop and two per counted loop. */
@@ -2780,6 +2815,7 @@ static sxml_status sxml_regex_compile(
 
 static void sxml_regex_find_ascii_members(sxml_regex *regex);
 static void sxml_regex_find_start_filter(sxml_regex *regex);
+static void sxml_regex_find_required_literal(sxml_regex *regex);
 
 /* Where the parts of a compiled regex go in its one block. */
 typedef struct sxml_regex_layout {
@@ -2980,6 +3016,7 @@ sxml_status sxml_regex_initialize(sxml_memory_view memory,
     }
     sxml_regex_find_ascii_members(new_regex);
     sxml_regex_find_start_filter(new_regex);
+    sxml_regex_find_required_literal(new_regex);
     *regex = new_regex;
     return SXML_STATUS_OK;
 }
@@ -3681,29 +3718,29 @@ static bool sxml_regex_class_may_hold_non_ascii(const sxml_regex *regex,
 #define SXML_REGEX_START_WALK_STACK_COUNT 32U
 #define SXML_REGEX_START_WALK_VISIT_COUNT 256U
 
-/* Adds what a first instruction that reads a character may read to
-   *filter. */
-static void sxml_regex_start_filter_add_read(
-    const sxml_regex *regex, sxml_regex_instruction instruction,
-    sxml_regex_start_filter *filter) {
+/* Adds what an instruction that reads a character may read to
+   *read_set. */
+static void sxml_regex_read_set_add_read(const sxml_regex *regex,
+                                         sxml_regex_instruction instruction,
+                                         sxml_regex_read_set *read_set) {
     switch (instruction.operation) {
     case SXML_REGEX_OPERATION_CODEPOINT:
         if (instruction.operand < SXML_REGEX_ASCII_LIMIT) {
-            filter->ascii_first_bits[instruction.operand / 32U] |=
+            read_set->ascii_members.words[instruction.operand / 32U] |=
                 (uint32_t)1 << (instruction.operand % 32U);
         } else {
-            filter->accepts_non_ascii = true;
+            read_set->accepts_non_ascii = true;
         }
         break;
     case SXML_REGEX_OPERATION_CLASS:
         for (uint32_t word_index = 0;
              word_index < SXML_REGEX_ASCII_WORD_COUNT; word_index++) {
-            filter->ascii_first_bits[word_index] |=
+            read_set->ascii_members.words[word_index] |=
                 regex->classes[instruction.operand]
                     .ascii_member_bits[word_index];
         }
-        filter->accepts_non_ascii =
-            filter->accepts_non_ascii ||
+        read_set->accepts_non_ascii =
+            read_set->accepts_non_ascii ||
             sxml_regex_class_may_hold_non_ascii(regex, instruction.operand);
         break;
     case SXML_REGEX_OPERATION_ANY_BUT_NEWLINE:
@@ -3712,9 +3749,9 @@ static void sxml_regex_start_filter_add_read(
            keep every position. */
         for (uint32_t word_index = 0;
              word_index < SXML_REGEX_ASCII_WORD_COUNT; word_index++) {
-            filter->ascii_first_bits[word_index] = UINT32_MAX;
+            read_set->ascii_members.words[word_index] = UINT32_MAX;
         }
-        filter->accepts_non_ascii = true;
+        read_set->accepts_non_ascii = true;
         break;
     case SXML_REGEX_OPERATION_SPLIT_NEXT_FIRST:
     case SXML_REGEX_OPERATION_SPLIT_TARGET_FIRST:
@@ -3738,9 +3775,22 @@ static void sxml_regex_start_filter_add_read(
     case SXML_REGEX_OPERATION_COUNTED_LOOP_END:
     case SXML_REGEX_OPERATION_REPEAT_CHARACTER:
     case SXML_REGEX_OPERATION_MATCH:
-        /* Read nothing; the walk does not pass them here. */
+        /* Read no character of their own. */
         break;
     }
+}
+
+/* True when the character at byte_offset of input (not its end) is in
+   read_set. */
+static bool sxml_regex_read_set_contains(const sxml_regex_read_set *read_set,
+                                         sxml_string input,
+                                         size_t byte_offset) {
+    uint8_t first_byte = input.utf8.bytes[byte_offset];
+    if (first_byte >= SXML_REGEX_ASCII_LIMIT) {
+        return read_set->accepts_non_ascii;
+    }
+    return (read_set->ascii_members.words[first_byte / 32U] &
+            ((uint32_t)1 << (first_byte % 32U))) != 0;
 }
 
 /*
@@ -3757,10 +3807,11 @@ static void sxml_regex_start_filter_add_read(
  * (no recursion, D71; loops are cut by the visit bound).
  */
 static void sxml_regex_find_start_filter(sxml_regex *regex) {
-    sxml_regex_start_filter filter = {.is_used = true,
-                                      .may_start_at_input_start = false,
-                                      .accepts_non_ascii = false,
-                                      .ascii_first_bits = {0}};
+    sxml_regex_start_filter filter = {
+        .is_used = true,
+        .may_start_at_input_start = false,
+        .first_characters = {.ascii_members = {.words = {0}},
+                             .accepts_non_ascii = false}};
     regex->start_filter = (sxml_regex_start_filter){.is_used = false};
     uint32_t pending[SXML_REGEX_START_WALK_STACK_COUNT];
     size_t pending_count = 0;
@@ -3779,7 +3830,8 @@ static void sxml_regex_find_start_filter(sxml_regex *regex) {
         case SXML_REGEX_OPERATION_CLASS:
         case SXML_REGEX_OPERATION_ANY_BUT_NEWLINE:
         case SXML_REGEX_OPERATION_ANY:
-            sxml_regex_start_filter_add_read(regex, instruction, &filter);
+            sxml_regex_read_set_add_read(regex, instruction,
+                                         &filter.first_characters);
             next_count = 0;
             break;
         case SXML_REGEX_OPERATION_STRING_START:
@@ -3831,6 +3883,280 @@ static void sxml_regex_find_start_filter(sxml_regex *regex) {
     regex->start_filter = filter;
 }
 
+/* Bounds of the required literal's analysis (D311): a regex of more
+   instructions gets no required literal, and at most so many candidate
+   instructions are tried. */
+#define SXML_REGEX_LITERAL_ANALYSIS_INSTRUCTION_LIMIT 256U
+#define SXML_REGEX_LITERAL_ANALYSIS_WORD_COUNT \
+    (SXML_REGEX_LITERAL_ANALYSIS_INSTRUCTION_LIMIT / 32U)
+#define SXML_REGEX_LITERAL_CANDIDATE_LIMIT 16U
+
+/* A set of instruction indexes below the analysis's limit. */
+typedef struct sxml_regex_instruction_set {
+    uint32_t words[SXML_REGEX_LITERAL_ANALYSIS_WORD_COUNT];
+} sxml_regex_instruction_set;
+
+static bool sxml_regex_instruction_set_contains(
+    const sxml_regex_instruction_set *set, uint32_t instruction_index) {
+    return (set->words[instruction_index / 32U] &
+            ((uint32_t)1 << (instruction_index % 32U))) != 0;
+}
+
+/* The instructions a thread may go on with after an instruction. */
+typedef struct sxml_regex_successors {
+    uint32_t indexes[2];
+    uint32_t count;
+} sxml_regex_successors;
+
+/*
+ * The successors of instruction_index, as the matcher may take them; a
+ * character repetition's own character (the instruction after it) is
+ * treated as a successor too, followed by the instruction after that.
+ * Assertions are not modelled: a regex with any has no required literal.
+ */
+static sxml_regex_successors sxml_regex_find_successors(
+    const sxml_regex *regex, uint32_t instruction_index) {
+    const sxml_regex_instruction instruction =
+        regex->instructions[instruction_index];
+    sxml_regex_successors successors = {
+        .indexes = {instruction_index + 1, 0}, .count = 1};
+    switch (instruction.operation) {
+    case SXML_REGEX_OPERATION_JUMP:
+    case SXML_REGEX_OPERATION_COUNTED_LOOP_END:
+        successors.indexes[0] = instruction.operand;
+        break;
+    case SXML_REGEX_OPERATION_SPLIT_NEXT_FIRST:
+    case SXML_REGEX_OPERATION_SPLIT_TARGET_FIRST:
+        successors.indexes[1] = instruction.operand;
+        successors.count = 2;
+        break;
+    case SXML_REGEX_OPERATION_COUNTED_LOOP_CHOOSE:
+    case SXML_REGEX_OPERATION_REPEAT_CHARACTER:
+        successors.indexes[1] = instruction_index + 2;
+        successors.count = 2;
+        break;
+    case SXML_REGEX_OPERATION_MATCH:
+        successors.count = 0;
+        break;
+    case SXML_REGEX_OPERATION_CODEPOINT:
+    case SXML_REGEX_OPERATION_CLASS:
+    case SXML_REGEX_OPERATION_ANY_BUT_NEWLINE:
+    case SXML_REGEX_OPERATION_ANY:
+    case SXML_REGEX_OPERATION_SAVE:
+    case SXML_REGEX_OPERATION_CHECK_PROGRESS:
+    case SXML_REGEX_OPERATION_STRING_START:
+    case SXML_REGEX_OPERATION_STRING_END:
+    case SXML_REGEX_OPERATION_LINE_START:
+    case SXML_REGEX_OPERATION_LINE_END:
+    case SXML_REGEX_OPERATION_BACK_REFERENCE:
+    case SXML_REGEX_OPERATION_WORD_BOUNDARY:
+    case SXML_REGEX_OPERATION_NOT_WORD_BOUNDARY:
+    case SXML_REGEX_OPERATION_POSITIVE_LOOK_START:
+    case SXML_REGEX_OPERATION_NEGATIVE_LOOK_START:
+    case SXML_REGEX_OPERATION_LOOK_END:
+    case SXML_REGEX_OPERATION_STEP_BACK:
+    case SXML_REGEX_OPERATION_COUNTED_LOOP_START:
+    case SXML_REGEX_OPERATION_COUNTED_LOOP_BODY:
+        break;
+    }
+    return successors;
+}
+
+/*
+ * Writes to *reached the instructions a thread may reach from the first
+ * without running avoided_index, which is not among them. Each
+ * instruction is pushed once on a fixed stack (no recursion, D71); the
+ * regex has at most SXML_REGEX_LITERAL_ANALYSIS_INSTRUCTION_LIMIT.
+ */
+static void sxml_regex_find_reachable(const sxml_regex *regex,
+                                      uint32_t avoided_index,
+                                      sxml_regex_instruction_set *reached) {
+    uint16_t pending[SXML_REGEX_LITERAL_ANALYSIS_INSTRUCTION_LIMIT];
+    size_t pending_count = 0;
+    *reached = (sxml_regex_instruction_set){.words = {0}};
+    if (avoided_index != 0) {
+        reached->words[0] = 1U;
+        pending[pending_count++] = 0;
+    }
+    while (pending_count != 0) {
+        const sxml_regex_successors successors =
+            sxml_regex_find_successors(regex, pending[--pending_count]);
+        for (uint32_t successor_number = 0; successor_number < successors.count;
+             successor_number++) {
+            const uint32_t successor = successors.indexes[successor_number];
+            if (successor == avoided_index ||
+                successor >= regex->instruction_count ||
+                sxml_regex_instruction_set_contains(reached, successor)) {
+                continue;
+            }
+            reached->words[successor / 32U] |= (uint32_t)1 << (successor % 32U);
+            pending[pending_count++] = (uint16_t)successor;
+        }
+    }
+}
+
+/* Writes the UTF-8 form of codepoint (RFC 3629, section 3) to bytes and
+   returns its length. */
+static uint32_t sxml_regex_encode_utf8(uint32_t codepoint, uint8_t bytes[4]) {
+    if (codepoint < 0x80U) {
+        bytes[0] = (uint8_t)codepoint;
+        return 1;
+    }
+    if (codepoint < 0x800U) {
+        bytes[0] = (uint8_t)(0xC0U | (codepoint >> 6U));
+        bytes[1] = (uint8_t)(0x80U | (codepoint & 0x3FU));
+        return 2;
+    }
+    if (codepoint < 0x10000U) {
+        bytes[0] = (uint8_t)(0xE0U | (codepoint >> 12U));
+        bytes[1] = (uint8_t)(0x80U | ((codepoint >> 6U) & 0x3FU));
+        bytes[2] = (uint8_t)(0x80U | (codepoint & 0x3FU));
+        return 3;
+    }
+    bytes[0] = (uint8_t)(0xF0U | (codepoint >> 18U));
+    bytes[1] = (uint8_t)(0x80U | ((codepoint >> 12U) & 0x3FU));
+    bytes[2] = (uint8_t)(0x80U | ((codepoint >> 6U) & 0x3FU));
+    bytes[3] = (uint8_t)(0x80U | (codepoint & 0x3FU));
+    return 4;
+}
+
+/* True when the instruction at instruction_index reads one character of
+   the input each time a thread runs it: a CODEPOINT that is not the
+   character of a character repetition. */
+static bool sxml_regex_is_literal_instruction(const sxml_regex *regex,
+                                              uint32_t instruction_index) {
+    return regex->instructions[instruction_index].operation ==
+               SXML_REGEX_OPERATION_CODEPOINT &&
+           (instruction_index == 0 ||
+            regex->instructions[instruction_index - 1].operation !=
+                SXML_REGEX_OPERATION_REPEAT_CHARACTER);
+}
+
+/* Writes the literal of the CODEPOINT instructions from first_index on,
+   as many as fit, to *literal. */
+static void sxml_regex_required_literal_write_bytes(
+    const sxml_regex *regex, uint32_t first_index,
+    sxml_regex_required_literal *literal) {
+    literal->byte_count = 0;
+    for (uint32_t instruction_index = first_index;
+         instruction_index < regex->instruction_count &&
+         regex->instructions[instruction_index].operation ==
+             SXML_REGEX_OPERATION_CODEPOINT;
+         instruction_index++) {
+        uint8_t encoded[4] = {0};
+        const uint32_t encoded_count = sxml_regex_encode_utf8(
+            regex->instructions[instruction_index].operand, encoded);
+        if (literal->byte_count + encoded_count >
+            SXML_REGEX_REQUIRED_LITERAL_BYTE_CAPACITY) {
+            return;
+        }
+        memcpy(literal->bytes + literal->byte_count, encoded, encoded_count);
+        literal->byte_count += encoded_count;
+    }
+}
+
+/* Writes the prefix read set of *literal: what the instructions in
+   reached may read, those sxml_regex_find_reachable finds while avoiding
+   the literal's first instruction. */
+static void sxml_regex_required_literal_write_prefix(
+    const sxml_regex *regex, const sxml_regex_instruction_set *reached,
+    sxml_regex_required_literal *literal) {
+    literal->prefix_characters = (sxml_regex_read_set){
+        .ascii_members = {.words = {0}}, .accepts_non_ascii = false};
+    literal->prefix_reads_anything = false;
+    for (uint32_t instruction_index = 0;
+         instruction_index < regex->instruction_count; instruction_index++) {
+        if (!sxml_regex_instruction_set_contains(reached, instruction_index)) {
+            continue;
+        }
+        const sxml_regex_instruction instruction =
+            regex->instructions[instruction_index];
+        if (instruction.operation == SXML_REGEX_OPERATION_BACK_REFERENCE ||
+            instruction.operation == SXML_REGEX_OPERATION_ANY) {
+            literal->prefix_reads_anything = true;
+            return;
+        }
+        sxml_regex_read_set_add_read(regex, instruction,
+                                     &literal->prefix_characters);
+    }
+}
+
+/*
+ * Writes regex->required_literal (D311). A CODEPOINT instruction is
+ * required when every way from the first instruction to MATCH runs it,
+ * that is when MATCH cannot be reached while avoiding it; the CODEPOINT
+ * instructions after it run right after it, each reading the next
+ * character, so the run they make is in every match, contiguous. Of the
+ * required runs found among the first candidates, the longest is kept.
+ * The characters a match reads before its first run of the literal are
+ * read by the instructions reachable without running it: they form the
+ * prefix read set (a back-reference or "." with the s flag may read
+ * anything). A regex with an assertion (lookahead or lookbehind, whose
+ * regexes read characters a match does not consume) or more instructions
+ * than the analysis takes gets none.
+ */
+static void sxml_regex_find_required_literal(sxml_regex *regex) {
+    sxml_regex_required_literal literal = {.is_used = false};
+    regex->required_literal = literal;
+    const uint32_t instruction_count = regex->instruction_count;
+    if (instruction_count == 0 ||
+        instruction_count > SXML_REGEX_LITERAL_ANALYSIS_INSTRUCTION_LIMIT ||
+        regex->instructions[instruction_count - 1].operation !=
+            SXML_REGEX_OPERATION_MATCH) {
+        return;
+    }
+    for (uint32_t instruction_index = 0; instruction_index < instruction_count;
+         instruction_index++) {
+        const sxml_regex_operation operation =
+            regex->instructions[instruction_index].operation;
+        if (operation == SXML_REGEX_OPERATION_POSITIVE_LOOK_START ||
+            operation == SXML_REGEX_OPERATION_NEGATIVE_LOOK_START ||
+            operation == SXML_REGEX_OPERATION_LOOK_END ||
+            operation == SXML_REGEX_OPERATION_STEP_BACK) {
+            return;
+        }
+    }
+    uint32_t best_index = 0;
+    uint32_t best_length = 0;
+    sxml_regex_instruction_set best_reached = {.words = {0}};
+    uint32_t candidate_count = 0;
+    uint32_t instruction_index = 0;
+    while (instruction_index < instruction_count &&
+           candidate_count < SXML_REGEX_LITERAL_CANDIDATE_LIMIT) {
+        if (!sxml_regex_is_literal_instruction(regex, instruction_index)) {
+            instruction_index += 1;
+            continue;
+        }
+        candidate_count += 1;
+        sxml_regex_instruction_set reached = {.words = {0}};
+        sxml_regex_find_reachable(regex, instruction_index, &reached);
+        if (sxml_regex_instruction_set_contains(&reached,
+                                                instruction_count - 1)) {
+            instruction_index += 1;
+            continue;
+        }
+        uint32_t length = 0;
+        while (instruction_index + length < instruction_count &&
+               regex->instructions[instruction_index + length].operation ==
+                   SXML_REGEX_OPERATION_CODEPOINT) {
+            length += 1;
+        }
+        if (length > best_length) {
+            best_index = instruction_index;
+            best_length = length;
+            best_reached = reached;
+        }
+        instruction_index += length;
+    }
+    if (best_length == 0) {
+        return;
+    }
+    sxml_regex_required_literal_write_bytes(regex, best_index, &literal);
+    sxml_regex_required_literal_write_prefix(regex, &best_reached, &literal);
+    literal.is_used = true;
+    regex->required_literal = literal;
+}
+
 /* True when an attempt at byte_offset of input may find a match, by the
    regex's start filter. */
 static bool sxml_regex_may_start_at(const sxml_regex *regex,
@@ -3843,12 +4169,8 @@ static bool sxml_regex_may_start_at(const sxml_regex *regex,
     if (byte_offset == input.utf8.byte_count) {
         return false;
     }
-    uint8_t first_byte = input.utf8.bytes[byte_offset];
-    if (first_byte >= SXML_REGEX_ASCII_LIMIT) {
-        return filter->accepts_non_ascii;
-    }
-    return (filter->ascii_first_bits[first_byte / 32U] &
-            ((uint32_t)1 << (first_byte % 32U))) != 0;
+    return sxml_regex_read_set_contains(&filter->first_characters, input,
+                                        byte_offset);
 }
 
 /* Reads the codepoint at *byte_offset and advances it; false at the end.
@@ -4531,17 +4853,149 @@ sxml_status sxml_regex_matcher_match_at(
     return SXML_STATUS_OK;
 }
 
-/* Tries each start position from start_byte_offset in turn. */
+/* The start positions in range of input: the codepoints that begin
+   there, each byte of an ASCII string. */
+static uint64_t sxml_regex_count_positions(sxml_string input,
+                                           sxml_byte_range range) {
+    if (input.is_ascii) {
+        return range.byte_count;
+    }
+    uint64_t position_count = 0;
+    for (size_t byte_offset = range.byte_offset;
+         byte_offset < range.byte_offset + range.byte_count; byte_offset++) {
+        if ((input.utf8.bytes[byte_offset] & 0xC0U) != 0x80U) {
+            position_count += 1;
+        }
+    }
+    return position_count;
+}
+
+/* Counts position_count start positions skipped, one step each, within
+   the step limit, as skipping them one at a time would. */
+static sxml_status sxml_regex_matcher_skip_positions(
+    sxml_regex_matcher *matcher, uint64_t position_count) {
+    if (position_count > matcher->maximum_step_count - matcher->step_count) {
+        matcher->step_count = matcher->maximum_step_count;
+        return SXML_STATUS_LIMIT_EXCEEDED;
+    }
+    matcher->step_count += position_count;
+    return SXML_STATUS_OK;
+}
+
+/* Finds the first occurrence of literal in input at or after *byte_offset
+   and writes its offset there; false when there is none. */
+static bool sxml_regex_find_literal_occurrence(
+    const sxml_regex_required_literal *literal, sxml_string input,
+    size_t *byte_offset) {
+    const uint8_t *bytes = input.utf8.bytes;
+    const size_t total_byte_count = input.utf8.byte_count;
+    size_t search_offset = *byte_offset;
+    while (total_byte_count - search_offset >= literal->byte_count) {
+        const uint8_t *found =
+            memchr(bytes + search_offset, literal->bytes[0],
+                   total_byte_count - search_offset - literal->byte_count + 1);
+        if (found == NULL) {
+            return false;
+        }
+        const size_t found_offset = (size_t)(found - bytes);
+        if (memcmp(found + 1, literal->bytes + 1, literal->byte_count - 1) ==
+            0) {
+            *byte_offset = found_offset;
+            return true;
+        }
+        search_offset = found_offset + 1;
+    }
+    return false;
+}
+
+/* Where a scan with a required literal stands. */
+typedef struct sxml_regex_scan_position {
+    /* The start position to try next. */
+    size_t byte_offset;
+    /* The occurrence of the required literal the positions up to it
+       look for, when has_literal_offset. */
+    size_t literal_offset;
+    bool has_literal_offset;
+    /* The literal does not occur at or after byte_offset: no position is
+       left to try. */
+    bool is_exhausted;
+} sxml_regex_scan_position;
+
+/*
+ * Moves position past the start positions from which no match can reach
+ * the next occurrence of the required literal (D311): the literal must
+ * occur at or after the start, and every character between the start and
+ * the occurrence is one the prefix may read (the first occurrence comes
+ * no later than the one a match uses). Each skipped position counts one
+ * step; when the literal does not occur, every position left, the end
+ * included, is skipped.
+ */
+static sxml_status sxml_regex_matcher_skip_to_literal(
+    sxml_regex_matcher *matcher, sxml_regex_scan_position *position) {
+    const sxml_regex_required_literal *literal =
+        &matcher->regex->required_literal;
+    const sxml_string input = matcher->regex_input;
+    size_t literal_offset = position->byte_offset;
+    if (!sxml_regex_find_literal_occurrence(literal, input, &literal_offset)) {
+        position->is_exhausted = true;
+        return sxml_regex_matcher_skip_positions(
+            matcher, sxml_regex_count_positions(
+                         input, (sxml_byte_range){
+                                    .byte_offset = position->byte_offset,
+                                    .byte_count = input.utf8.byte_count -
+                                                  position->byte_offset}) +
+                         1U);
+    }
+    size_t earliest_offset = literal_offset;
+    if (literal->prefix_reads_anything) {
+        earliest_offset = position->byte_offset;
+    }
+    while (earliest_offset > position->byte_offset) {
+        const size_t previous_offset =
+            sxml_regex_previous_codepoint_offset(input, earliest_offset);
+        if (!sxml_regex_read_set_contains(&literal->prefix_characters, input,
+                                          previous_offset)) {
+            break;
+        }
+        earliest_offset = previous_offset;
+    }
+    const sxml_status status = sxml_regex_matcher_skip_positions(
+        matcher, sxml_regex_count_positions(
+                     input, (sxml_byte_range){
+                                .byte_offset = position->byte_offset,
+                                .byte_count =
+                                    earliest_offset - position->byte_offset}));
+    position->byte_offset = earliest_offset;
+    position->literal_offset = literal_offset;
+    position->has_literal_offset = true;
+    return status;
+}
+
+/* Tries each start position from start_byte_offset in turn, skipping
+   those the required literal and the start filter exclude. */
 static sxml_status sxml_regex_matcher_scan(sxml_regex_matcher *matcher,
                                            size_t start_byte_offset,
                                            sxml_regex_search_result *result) {
-    size_t byte_offset = start_byte_offset;
+    const bool has_required_literal =
+        matcher->regex->required_literal.is_used;
+    sxml_regex_scan_position position = {.byte_offset = start_byte_offset,
+                                         .literal_offset = 0,
+                                         .has_literal_offset = false,
+                                         .is_exhausted = false};
     for (;;) {
         sxml_regex_search_result attempt_result = sxml_regex_nothing_found;
         sxml_status status = SXML_STATUS_OK;
-        if (sxml_regex_may_start_at(matcher->regex, matcher->regex_input,
-                                    byte_offset)) {
-            status = sxml_regex_matcher_attempt(matcher, byte_offset,
+        if (has_required_literal &&
+            (!position.has_literal_offset ||
+             position.literal_offset < position.byte_offset)) {
+            status = sxml_regex_matcher_skip_to_literal(matcher, &position);
+        }
+        if (status != SXML_STATUS_OK || position.is_exhausted) {
+            /* Nothing to attempt. */
+        } else if (sxml_regex_may_start_at(matcher->regex,
+                                           matcher->regex_input,
+                                           position.byte_offset)) {
+            status = sxml_regex_matcher_attempt(matcher, position.byte_offset,
                                                 &attempt_result);
         } else if (matcher->step_count >= matcher->maximum_step_count) {
             status = SXML_STATUS_LIMIT_EXCEEDED;
@@ -4555,14 +5009,14 @@ static sxml_status sxml_regex_matcher_scan(sxml_regex_matcher *matcher,
             matcher->has_next_search = false;
             return status;
         }
-        if (attempt_result.is_found ||
-            byte_offset == matcher->regex_input.utf8.byte_count) {
+        if (attempt_result.is_found || position.is_exhausted ||
+            position.byte_offset == matcher->regex_input.utf8.byte_count) {
             sxml_regex_matcher_record_search(matcher, attempt_result);
             *result = attempt_result;
             return SXML_STATUS_OK;
         }
-        byte_offset =
-            sxml_regex_next_codepoint_offset(matcher->regex_input, byte_offset);
+        position.byte_offset = sxml_regex_next_codepoint_offset(
+            matcher->regex_input, position.byte_offset);
     }
 }
 

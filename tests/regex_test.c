@@ -1184,7 +1184,9 @@ static void test_named_groups(sxml_test_state *state) {
 
 static void test_catastrophic_backtracking_reaches_the_step_limit(
     sxml_test_state *state) {
-    test_compilation compilation = {.regex_text = "(a*)*b",
+    /* "[bc]", not "b": a required literal (D311) that does not occur
+       ends the search before any attempt. */
+    test_compilation compilation = {.regex_text = "(a*)*[bc]",
                                     .flags_text = "",
                                     .maximum_step_count = 100000};
     test_compile(&compilation);
@@ -2071,6 +2073,110 @@ static void test_start_filter_skips_positions(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, test_release(&compilation));
 }
 
+/* Searches regex_text (no flags) in input_text with a step limit and
+   writes the status and the steps the search took. */
+typedef struct test_counted_search {
+    const char *regex_text;
+    const char *input_text;
+    uint64_t maximum_step_count;
+    sxml_status status;
+    uint64_t step_count;
+} test_counted_search;
+
+static void test_count_search_steps(test_counted_search *search) {
+    test_compilation compilation = {.regex_text = search->regex_text,
+                                    .flags_text = "",
+                                    .maximum_step_count = search->maximum_step_count};
+    test_compile(&compilation);
+    search->status = compilation.status;
+    if (compilation.status == SXML_STATUS_OK) {
+        sxml_regex_search_result result = {.is_found = false};
+        search->status = sxml_regex_matcher_find(
+            compilation.matcher,
+            &(sxml_regex_search_request){.regex_input = test_string(search->input_text),
+                                         .start_byte_offset = 0},
+            &result);
+        search->step_count = sxml_regex_matcher_get_step_count(compilation.matcher);
+    }
+    (void)test_release(&compilation);
+}
+
+/* A required literal (D311) skips the start positions from which no match
+   can reach it, and every position when it does not occur; what is
+   required follows alternations, optional parts, repetitions, flags and
+   anchors. */
+static void test_required_literal_skips_positions(sxml_test_state *state) {
+    static const struct {
+        test_search search;
+        const char *expected;
+    } cases[] = {
+        {{"(\\W*)\\$name(\\W*)", "", "a + $name)"}, "[ $name)]< ><)>"},
+        {{"(\\W*)\\$name(\\W*)", "", "$nam $names"}, "[ $name]< ><>"},
+        {{"(\\W*)\\$name(\\W*)", "", "$na"}, "none"},
+        {{"cat|dog", "", "hotdog"}, "[dog]"},
+        {{"a(b|c)d", "", "abxacd"}, "[acd]<c>"},
+        {{"x?abc", "", "zxabzabc"}, "[abc]"},
+        {{"(ab)?cd", "", "abxcd"}, "[cd]<->"},
+        {{"(?:ab)+c", "", "xababc"}, "[ababc]"},
+        {{"ab*c", "", "abbbd ac"}, "[ac]"},
+        {{"ab+c", "", "abbbd abc"}, "[abc]"},
+        {{"(?:ab){2,300}c", "", "abc ababc"}, "[ababc]"},
+        {{"(a)\\1b", "", "abaab"}, "[aab]<a>"},
+        {{"(\\w)\\1-x", "", "ab-x bb-x"}, "[bb-x]<b>"},
+        {{"\\$K", "i", "$x $k"}, "[$k]"},
+        {{"a.b", "q", "axb a.b"}, "[a.b]"},
+        {{"^ab", "", "cab"}, "none"},
+        {{"^ab", "m", "c\nab"}, "[ab]"},
+        {{"\\w*ab$", "", "ab xab"}, "[xab]"},
+        {{"\\bab", "", "xab ab"}, "[ab]"},
+        {{"\\w*\xC3\xA9" "b", "", "a \xC3\xA9\xC3\xA9" "b"}, "[\xC3\xA9\xC3\xA9" "b]"},
+        {{"[\xC3\xA9]*xy", "", "a\xC3\xA9\xC3\xA9xy"}, "[\xC3\xA9\xC3\xA9xy]"},
+        {{".*ab", "s", "x\nyab"}, "[x\nyab]"},
+        {{".*ab", "", "x\nyab"}, "[yab]"},
+        {{"(?=a)ab", "", "xab"}, "[ab]"},
+        {{"(?<=x)ab", "", "abxab"}, "[ab]"},
+        {{"abcdefghijklmnopqrstuvwxyz0123456789ABC", "", "-abcdefghijklmnopqrstuvwxyz0123456789AB"
+                                                        "abcdefghijklmnopqrstuvwxyz0123456789ABC"},
+         "[abcdefghijklmnopqrstuvwxyz0123456789ABC]"},
+    };
+    for (size_t case_index = 0; case_index < SXML_TEST_COUNT(cases); case_index++) {
+        SXML_TEST_EXPECT(state, test_first_match_is(cases[case_index].search,
+                                                    cases[case_index].expected));
+    }
+    SXML_TEST_EXPECT(state, test_tokenize_is((test_search){"\\s*,\\s*", "", "a , b,c"},
+                                             "[a][b][c]"));
+    SXML_TEST_EXPECT(state, test_tokenize_is((test_search){"x*,", "", ",a,,xx,"},
+                                             "[][a][][][]"));
+    /* No "$" in the input: each of the eight positions, the end included,
+       is one skipped step, and no attempt is made. */
+    test_counted_search search = {.regex_text = "(\\W*)\\$x(\\W*)",
+                                  .input_text = "abc - f",
+                                  .maximum_step_count = 1000};
+    test_count_search_steps(&search);
+    SXML_TEST_EXPECT(state, search.status == SXML_STATUS_OK && search.step_count == 8);
+    /* Before the "$", only " - " can be read by \W*: positions 0 to 6
+       are skipped (the start filter alone attempts 0 to 2: 46 steps),
+       then the attempt at 7 matches. */
+    search = (test_counted_search){.regex_text = "(\\W*)\\$x",
+                                   .input_text = " - abc - $x",
+                                   .maximum_step_count = 1000};
+    test_count_search_steps(&search);
+    SXML_TEST_EXPECT(state, search.status == SXML_STATUS_OK && search.step_count == 16);
+    /* Skipped positions count against the step limit. */
+    search = (test_counted_search){
+        .regex_text = "(a*)*b", .input_text = "aaaaaaaa", .maximum_step_count = 8};
+    test_count_search_steps(&search);
+    SXML_TEST_EXPECT(state, search.status == SXML_STATUS_LIMIT_EXCEEDED);
+    search.maximum_step_count = 9;
+    test_count_search_steps(&search);
+    SXML_TEST_EXPECT(state, search.status == SXML_STATUS_OK && search.step_count == 9);
+    /* A position is a codepoint, not a byte: two and the end. */
+    search = (test_counted_search){
+        .regex_text = "b", .input_text = "\xC3\xA9\xE2\x84\xAA", .maximum_step_count = 10};
+    test_count_search_steps(&search);
+    SXML_TEST_EXPECT(state, search.status == SXML_STATUS_OK && search.step_count == 3);
+}
+
 /* Character repetitions (D310) match as the loops they replace: the
    longest run first, given back one codepoint at a time, dropped by a
    positive assertion and undone by a negative one, and every character
@@ -2229,6 +2335,8 @@ static const sxml_test_case regex_test_cases[] = {
     {.name = "ascii_member_sets", .function = test_ascii_member_sets},
     {.name = "start_filter_skips_positions",
      .function = test_start_filter_skips_positions},
+    {.name = "required_literal_skips_positions",
+     .function = test_required_literal_skips_positions},
     {.name = "character_repetitions", .function = test_character_repetitions},
     {.name = "matcher_reset", .function = test_matcher_reset},
 };
