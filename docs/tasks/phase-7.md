@@ -1569,6 +1569,38 @@ only the node kinds its rule contexts may match. Invoice validation
 to 26.3 x 10^9, 7.5 to 4.7 s; findings byte-identical (1,150 files);
 suite 463/463, VEFA 1,133/1,133; no shared file changed.
 
+### perf-15 Template rules indexed by node kind and name (implementation)
+After D144, D149, D326 (perf-14, whose Proposed entry this is). In both
+EN 16931 stylesheets, sxml's compiled Schematron and the official one,
+match functions are about 92 % of evaluation steps: APPLY_TEMPLATES
+tries every rule of the mode in order for every item, and most rules
+cannot match the item's node kind or name. Any stylesheet with many
+template rules pays this.
+- **Mechanism**: profile first; at compile time, give each mode an index
+  of its rules by what their pattern requires of the item (node kind,
+  and the expanded name for name tests), keeping each rule's place in
+  the conflict order (XSLT 4.0, 6.5 and 6.6: import precedence, then
+  priority, then the last in document order, or the mode's
+  on-multiple-match); at run time try only the rules indexed for the
+  item's kind and name plus the rules that can match anything, in their
+  conflict order. Patterns whose requirement the analysis cannot decide
+  (variables, functions, predicates on the root, `.`) go with the rules
+  that can match anything. One mechanism for xsl:apply-templates,
+  xsl:next-match, xsl:apply-imports, streamed modes (D223: check what
+  streaming needs) and the built-in rules.
+- **Owns**: `src/evaluator_template.c`, `src/xslt_lower_template.c`,
+  `src/xslt_pattern.c` and their internal headers, the APPLY_TEMPLATES
+  parts of `src/ir.c`, `src/ir_internal.h`, `src/ir_verify.c`,
+  `tests/evaluator_template_test.c`, `tests/bench/` (a stylesheet with
+  many rules).
+- **Done when**: before and after (steps, instructions and seconds) in a
+  D-record and the commit messages on both EN 16931 runs, the new
+  benchmark, xmark-all and the XT40 suite's run time; the same rule
+  chosen for every item (the IR text form may change; outputs may not);
+  QT4 XT40 whole (and XP40 and XQ40 if shared files change), base and
+  change in the same setup: no outcome changes, case by case; the
+  Schematron suite 463 of 463 and VEFA 1,133 of 1,133.
+
 ### 7.21 Fast Invisible XML (book, tests, implementation)
 After D215 (7.18: the Earley parser, right recursion quadratic, every
 item a step). The owner: high performance; book first, then

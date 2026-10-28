@@ -99,8 +99,10 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 - perf-13 done (D325): component graph linear, value templates without
   braces, the Schematron builder parses once; `validate --schematron` on
   an invoice about 0.41 s (was 0.59–0.73).
-- perf-14 (running compiled Schematron: 1.21 against the skeleton
-  stylesheet's 0.55 x 10^9 on one invoice) runs now.
+- perf-14 done (D326): the Schematron walk visits only the node kinds
+  its rules can match; invoice validation 1.21 to 0.48 x 10^9
+  instructions (the official stylesheet: 0.55), about 0.3 s.
+- perf-15 (template rules indexed by node kind and name) runs now.
 - Conformance baselines differ by setup: 7.29 (D318) measured XP40
   32,815, XQ40 46,158, XT40 12,283 before and after; perf-8, perf-10 and
   fix-4 measured 32,785, 46,114, 12,185 before and after on the same
