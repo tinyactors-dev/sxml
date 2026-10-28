@@ -187,4 +187,68 @@
       </findings>
     </result>
   </test-case>
+  <test-case name="documents-dynamic-error" since="2020">
+    <description>A dynamic error in documents: validation ends in error.</description>
+    <spec clause="5.4.12"/>
+    <spec clause="6.1"/>
+    <schema file="documents-dynamic-error.sch"/>
+    <instance file="documents-dynamic-error.xml"/>
+    <result>
+      <error clause="6.1"/>
+    </result>
+  </test-case>
+
+  <test-case name="documents-syntax" since="2020">
+    <description>A documents attribute that is not an expression of the query language.</description>
+    <spec clause="5.4.12"/>
+    <spec clause="7.2"/>
+    <schema file="documents-syntax.sch"/>
+    <instance file="documents-syntax.xml"/>
+    <result>
+      <schema-error clause="7.2"/>
+    </result>
+  </test-case>
+
+  <test-case name="documents-duplicate-uri" since="2020">
+    <description>documents returning one URI twice.</description>
+    <spec clause="5.4.12"/>
+    <schema file="documents-duplicate-uri.sch"/>
+    <instance file="documents-duplicate-uri.xml"/>
+    <result>
+      <implementation-defined clause="5.4.12">The pattern is sought in each document located at the URIs; whether one document named twice is sought once (one successful-report, Item 1., at /Q{}doc[1]/Q{}item[1] of documents-two/a.xml) or twice is not said.</implementation-defined>
+    </result>
+  </test-case>
+
+  <test-case name="documents-reverse-order" since="2020">
+    <description>documents returning two URIs in reverse order: both documents are sought, with the same findings.</description>
+    <spec clause="5.4.12"/>
+    <spec clause="6.6"/>
+    <schema file="documents-reverse-order.sch"/>
+    <instance file="documents-reverse-order.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]" document="documents-two/a.xml">
+          <message>Item 1.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]" document="documents-two/b.xml">
+          <message>Item 2.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="documents-namespaces" since="2020">
+    <description>A subordinate document using another prefix for the URI that ns declares.</description>
+    <spec clause="5.4.12"/>
+    <spec clause="5.4.10"/>
+    <schema file="documents-namespaces.sch"/>
+    <instance file="documents-namespaces.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{urn:example:e}doc[1]/Q{urn:example:e}item[1]" document="documents-namespaces/sub.xml">
+          <message>Namespaced item.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
 </test-set>
