@@ -1632,6 +1632,11 @@ XSLT 3.0 gives "union plain".
   reproduction; XT40 whole, base and change in the same setup: no case
   lost, gains listed; the Schematron suite 463 of 463 and VEFA 1,133 of
   1,133.
+**Done** 2026-10-28 (D328): XSLT 4.0, 6.4.1 makes a union pattern one
+rule at the minimum of its alternatives' priorities (PR 1772, a change
+from 3.0; 3.8.3: the same for version 3.0). sxml already did; the
+reproduction is now the unit test union_priority. No source change;
+XT40 0 outcomes differ (12,185 passed); suite 463/463, VEFA 1,133/1,133.
 
 ### 7.21 Fast Invisible XML (book, tests, implementation)
 After D215 (7.18: the Earley parser, right recursion quadratic, every

@@ -4,6 +4,15 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-26
 
+- fix-5 done (D328): default priorities of union patterns. XSLT 4.0,
+  6.4.1 changed 3.0's rule (PR 1772): a union pattern is one rule
+  whose default priority is the minimum of its alternatives', for
+  version="3.0" too (3.8.3). sxml already does this, so the
+  reproduction's "plain plain" is 4.0's answer; a unit test now holds
+  it. XT40 12,185 passed before and after, 0 outcomes differ; suite
+  463 of 463, VEFA 1,133 of 1,133. next-match-025a, -026a and
+  conflict-resolution-1901a still expect another rule than 6.4.1's.
+
 - perf-15 done (D327): template rules chosen from rule buckets. Each
   mode indexes its rules by what their pattern may match (node kind,
   and the expanded name of a name test) in the mode's order;
