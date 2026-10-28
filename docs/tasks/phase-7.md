@@ -1710,7 +1710,8 @@ change to the header needs a record first.
      error-finding rule (severity decides when present), dynamic flag,
      role and severity (variable references, AVTs), let/@as, phase
      from, when with `#ANY`, schematronEdition (any value, reported),
-     the message context (6.3).
+     the message context (6.3), expression rule contexts (with
+     from, with documents, under `#ANY`).
   6. Vendor EN 16931, XRechnung and SchXslt; the driver; gates 1 and 2.
   7. SVRL; the differential test (gate 3).
   8. The CLI (`--schematron-param`, `--phase=#ANY`). 9. JavaScript.
@@ -1750,6 +1751,10 @@ change to the header needs a record first.
      (cases mixed; xslt4 and xpath4 read; xquery3 and an unknown name
      refused with exit status 1) is among them, reports and SVRL
      (active-group, severity, visit-each, schematronEdition) included.
+  6b. *Expression rule contexts*: 7.30's cases whose rule contexts are
+     expressions but not patterns (`(//item)[1]`, `../x`, under xpath
+     and xslt bindings, with `from` and `documents`) pass; a context
+     that is a pattern compiles as before (no global, no intersect).
   7. *Compile errors of XSLT*: a stylesheet with errors in several
      declarations gives each through the sink, in C, `sxml transform`
      (one line each, exit 1) and JavaScript; the null sink gives the

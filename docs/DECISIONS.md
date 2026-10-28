@@ -15191,8 +15191,9 @@ the last applying every pattern.
   references and reports XPST0008 for one.
 - `group` (5.4.5): as `pattern`, except that every rule whose context
   matches fires (6.6); SVRL `active-group`.
-- `rule` (5.4.15): a template rule; `context` its match pattern (an
-  XSLT 4.0 pattern under every binding, see "Query bindings");
+- `rule` (5.4.15): a template rule; `context` its match pattern: an
+  XSLT 4.0 pattern, or an *expression rule context* wrapped as one
+  (the owner's amendment of 3a, see "Query bindings");
   `visit-each` (5.5.21) a `xsl:for-each` around the rule's
   assertions, after its lets and the fired-rule item: its items are the
   context items of the assertions; an empty result still counts as
@@ -15246,7 +15247,8 @@ the last applying every pattern.
   (5.3) unless `xml:space="preserve"` is in scope. Text value templates
   in messages (Annex J leaves their extent implementation-defined) are
   not read: braces are literal text, as every edition before wrote
-  them (the owner, 4a).
+  them (the owner, 4a, with the evidence under "The owner's
+  answers").
 - `let name value as` (5.4.7): `value` is an expression; without it,
   the content is the value (a temporary tree, as `templates.xsl`'s
   `schxslt:let-variable`); `as` is applied as XSLT's (Annexes H, J,
@@ -15431,11 +15433,44 @@ compares by fn:atomic-equal, so `key('k', 3.7)` no longer finds the
 string "3.7" (XSLT 4.0 20.2.2, D289); 4.0's coercion rules accept some
 calls that failed in 3.1 (an error can become a value, never the
 reverse). 7.28's differential test cannot show these: SchXslt runs on
-sxml's 4.0 processor too. Rule contexts are XSLT 4.0 patterns under
-the xpath bindings, which name an XPath expression (Annexes I, K, L);
-every path expression that is a pattern selects the same nodes either
-way, and a context that is an expression but no pattern is XTSE0340
-(the owner, 3a).
+sxml's 4.0 processor too.
+
+*Rule contexts* (the owner's amendment of 3a). Under every binding a
+`context` is parsed first as an XSLT 4.0 pattern and, when it is one,
+used as one (Annexes C, H, J name XSLT's pattern production; every
+path expression that is a pattern selects the same nodes either way).
+A context that is no pattern but a valid XPath 4.0 expression (Annexes
+I, K, L define xpath-binding contexts as expressions: `(//item)[1]`,
+`../x`, `$doc//x`) is an *expression rule context*: the builder wraps
+its expression AST, unchanged and spliced into no text, in the
+predicate pattern `.[. intersect $s:context-K]` (K the rule), where
+`$s:context-K` is a global variable holding the expression's value
+evaluated with each *start node* as context item, `$s:start !
+(EXPRESSION)`. The start nodes are those the pattern is applied to:
+the instance root (`root(node)`, the root of the validated node's
+tree), or under a phase with `from` the nodes `from` selects
+(`$s:start` is one global, under `#ANY` an `xsl:choose` on
+`$s:phase`, 5.5.7). So the context matches exactly the nodes the
+expression selects from the instance root, or from the `from` nodes.
+In a pattern with `documents` the start is each subordinate
+document's root, which a global cannot hold: there the pattern is
+`.[. intersect root(.) ! (EXPRESSION)]`. A value with an item that is
+not a node is XPTY0004 (intersect). Variables in the expression are
+the globals (schema, phase, pattern lets), as for any match pattern.
+*Cost*, paid only by expression rule contexts: the expression is
+evaluated once per validation (per start, through the global; per
+tested node in a `documents` pattern), and each node the mode tests
+against the rule (nodes no rule of higher priority matched first) pays
+one `intersect`, which sxml evaluates as a merge walk over both
+operands in document order (`src/evaluator_path.c`): up to m
+document-order comparisons for a context selecting m nodes, so O(n·m)
+per validation over n tested nodes at worst; negligible for the usual
+`(//item)[1]`, large for a context selecting most of a big document
+(a hash of the selected nodes would make it O(n + m), a later
+optimisation, not designed). A context that is neither a pattern nor
+an expression gets the expression parser's error (XPST0003) under the
+xpath bindings and the pattern parser's (XTSE0340) under the xslt
+bindings. XTSE0340 is no longer raised for a valid expression.
 
 **Findings and their two locations.** Each report has
 `schema_location`, the assertion's element in its schematron document
@@ -15689,6 +15724,22 @@ applied above:
   ("Compile errors").
 - 8b. Any `schematronEdition` value is accepted and reported (5.5.15),
   never an error.
+
+**The owner's amendments** (2026-10-28, after acceptance):
+- 3a amended: a context that parses as an XSLT pattern is used as one
+  under every binding; a valid expression that is no pattern is
+  wrapped as an expression rule context (see "Query bindings": the
+  form, the start nodes and the cost). One mechanism, the match
+  pattern; only those contexts pay for the expression.
+- 4a confirmed with evidence: none of six real rule sets uses braces
+  in assert, report, diagnostic, property, title or p text: EN 16931
+  UBL, CII and EDIFACT; XRechnung UBL and CII; Peppol BIS Billing 3
+  UBL and CII (branch 2026-Q2-QA2). EN 16931 and XRechnung insert
+  values with `value-of`; Peppol's messages are fixed text. SchXslt
+  does not evaluate text value templates in messages either. Text
+  value templates may come later as an opt-in for `xslt4` and `xpath4`
+  schemas only; out of scope now.
+
 ### D316. Cheap coercion of one item: single-item shortcuts (packet perf-8)
 
 Recorded 2026-10-28, after D71, D85, D224, D229, D259, D281, D309. No
