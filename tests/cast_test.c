@@ -935,6 +935,142 @@ static void test_strings_follow_their_whitespace_facet(sxml_test_state *state) {
     cast_fixture_destroy(&fixture);
 }
 
+/* Casts source (made from text) to target; true when the result is one
+   item of the target's annotation and primitive type, with source's text,
+   and (when shares_cell) the source's own cell. */
+typedef struct relabel_case {
+    const char *text;
+    type_pair types;
+    sxml_builtin_type primitive_type;
+    bool shares_cell;
+} relabel_case;
+
+static bool cast_relabels(const cast_fixture *fixture, relabel_case test) {
+    cast_source source;
+    if (make_source(fixture, from_item(test.text, test.types), &source) !=
+        SXML_STATUS_OK) {
+        return false;
+    }
+    sxml_sequence result = sxml_sequence_empty();
+    sxml_status status = sxml_cast_make_value(
+        fixture->item_heap,
+        &(sxml_cast_request){.value = sxml_sequence_from_item(source.item),
+                             .target_type = builtin(test.types.target),
+                             .allows_empty = false,
+                             .namespace_bindings = fixture->namespace_bindings,
+                             .error_record = NULL},
+        &result);
+    bool is_expected = false;
+    if (status == SXML_STATUS_OK) {
+        const sxml_item item = result.content;
+        sxml_atomic_datum datum;
+        is_expected =
+            sxml_sequence_get_representation(result) ==
+                SXML_SEQUENCE_REPRESENTATION_SINGLE_ITEM &&
+            sxml_item_get_type_annotation(item).index == test.types.target &&
+            sxml_atomic_item_get_primitive_type(item).index == test.primitive_type &&
+            (item.payload.cell == source.item.payload.cell) == test.shares_cell &&
+            sxml_atomic_item_get_datum(item, &datum) == SXML_STATUS_OK &&
+            datum.datum_kind == SXML_DATUM_KIND_STRING &&
+            sxml_byte_view_equals(datum.datum_details.string.utf8,
+                                  text_view(test.text));
+        sxml_sequence_release(result);
+    }
+    sxml_item_release(source.item);
+    return is_expected;
+}
+
+static void test_casts_that_keep_the_text_relabel(sxml_test_state *state) {
+    cast_fixture fixture;
+    SXML_TEST_REQUIRE(state, cast_fixture_create(&fixture) == SXML_STATUS_OK);
+    /* To xs:string and xs:untypedAtomic: the same text (F&O 4.0, 19.1.2.1,
+       19.2), the source's cell under the target's annotation. */
+    SXML_TEST_EXPECT(
+        state,
+        cast_relabels(&fixture,
+                      (relabel_case){.text = " a\tb ",
+                                     .types = {.source = SXML_TYPE_XS_UNTYPED_ATOMIC,
+                                               .target = SXML_TYPE_XS_STRING},
+                                     .primitive_type = SXML_TYPE_XS_STRING,
+                                     .shares_cell = true}));
+    SXML_TEST_EXPECT(
+        state,
+        cast_relabels(&fixture,
+                      (relabel_case){.text = "",
+                                     .types = {.source = SXML_TYPE_XS_UNTYPED_ATOMIC,
+                                               .target = SXML_TYPE_XS_STRING},
+                                     .primitive_type = SXML_TYPE_XS_STRING,
+                                     .shares_cell = true}));
+    SXML_TEST_EXPECT(
+        state,
+        cast_relabels(&fixture,
+                      (relabel_case){.text = " a ",
+                                     .types = {.source = SXML_TYPE_XS_STRING,
+                                               .target = SXML_TYPE_XS_UNTYPED_ATOMIC},
+                                     .primitive_type = SXML_TYPE_XS_UNTYPED_ATOMIC,
+                                     .shares_cell = true}));
+    SXML_TEST_EXPECT(
+        state,
+        cast_relabels(&fixture,
+                      (relabel_case){.text = "http://a",
+                                     .types = {.source = SXML_TYPE_XS_ANY_URI,
+                                               .target = SXML_TYPE_XS_STRING},
+                                     .primitive_type = SXML_TYPE_XS_STRING,
+                                     .shares_cell = true}));
+    SXML_TEST_EXPECT(
+        state,
+        cast_relabels(&fixture,
+                      (relabel_case){.text = "x",
+                                     .types = {.source = SXML_TYPE_XS_NCNAME,
+                                               .target = SXML_TYPE_XS_UNTYPED_ATOMIC},
+                                     .primitive_type = SXML_TYPE_XS_UNTYPED_ATOMIC,
+                                     .shares_cell = true}));
+    /* To a type the source is derived from (19.3.1). */
+    SXML_TEST_EXPECT(
+        state,
+        cast_relabels(&fixture,
+                      (relabel_case){.text = "x",
+                                     .types = {.source = SXML_TYPE_XS_NCNAME,
+                                               .target = SXML_TYPE_XS_TOKEN},
+                                     .primitive_type = SXML_TYPE_XS_STRING,
+                                     .shares_cell = true}));
+    SXML_TEST_EXPECT(
+        state,
+        cast_relabels(&fixture,
+                      (relabel_case){.text = "a b",
+                                     .types = {.source = SXML_TYPE_XS_TOKEN,
+                                               .target = SXML_TYPE_XS_NORMALIZED_STRING},
+                                     .primitive_type = SXML_TYPE_XS_STRING,
+                                     .shares_cell = true}));
+    /* Otherwise the target's lexical form is parsed into a new cell. */
+    SXML_TEST_EXPECT(
+        state,
+        cast_relabels(&fixture,
+                      (relabel_case){.text = "x",
+                                     .types = {.source = SXML_TYPE_XS_UNTYPED_ATOMIC,
+                                               .target = SXML_TYPE_XS_NCNAME},
+                                     .primitive_type = SXML_TYPE_XS_STRING,
+                                     .shares_cell = false}));
+    SXML_TEST_EXPECT(
+        state,
+        cast_relabels(&fixture,
+                      (relabel_case){.text = "http://a",
+                                     .types = {.source = SXML_TYPE_XS_STRING,
+                                               .target = SXML_TYPE_XS_ANY_URI},
+                                     .primitive_type = SXML_TYPE_XS_ANY_URI,
+                                     .shares_cell = false}));
+    EXPECT_TEXT(state, &fixture,
+                from_item(" a  b ", (type_pair){SXML_TYPE_XS_UNTYPED_ATOMIC,
+                                                SXML_TYPE_XS_TOKEN}),
+                "a b");
+    EXPECT_ERROR(state, &fixture,
+                 from_item("1", (type_pair){SXML_TYPE_XS_STRING,
+                                            SXML_TYPE_XS_NCNAME}),
+                 "FORG0001");
+    SXML_TEST_EXPECT(state, live_cell_count(&fixture) == 0);
+    cast_fixture_destroy(&fixture);
+}
+
 static void test_qnames_resolve_their_prefix(sxml_test_state *state) {
     cast_fixture fixture;
     SXML_TEST_REQUIRE(state, cast_fixture_create(&fixture) == SXML_STATUS_OK);
@@ -1883,6 +2019,8 @@ static const sxml_test_case cast_test_cases[] = {
     {.name = "binary_lexical_forms", .function = test_binary_lexical_forms},
     {.name = "strings_follow_their_whitespace_facet",
      .function = test_strings_follow_their_whitespace_facet},
+    {.name = "casts_that_keep_the_text_relabel",
+     .function = test_casts_that_keep_the_text_relabel},
     {.name = "qnames_resolve_their_prefix",
      .function = test_qnames_resolve_their_prefix},
     {.name = "nmtokens_split_into_items",

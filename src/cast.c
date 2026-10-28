@@ -883,8 +883,59 @@ static sxml_status sxml_cast_check_item_facets(sxml_item_heap *item_heap,
 }
 
 /*
+ * True when casting item to target gives the item's own text under
+ * the target's annotation (glossary `relabelled_cast`): a string, an
+ * xs:untypedAtomic or an xs:anyURI item cast to xs:string or
+ * xs:untypedAtomic, whose whitespace is preserved and whose value space
+ * holds every string (F&O 4.0, 19.1.2.1 and 19.2: the canonical text of
+ * these types is their string); or an item cast to an atomic type it is
+ * derived from, whose value space and facets hold every value of the
+ * derived type, and whose whitespace facet is no stricter (XSD 1.1 Part
+ * 2, 4.3.6: whiteSpace may only be strengthened by restriction; F&O 4.0,
+ * 19.3.1, casting to a supertype keeps the value).
+ */
+static bool sxml_cast_keeps_text(sxml_item_heap *item_heap, sxml_item item,
+                                 const sxml_atomic_target *target) {
+    const sxml_builtin_type target_primitive = target->primitive_type;
+    if ((target_primitive != SXML_TYPE_XS_STRING &&
+         target_primitive != SXML_TYPE_XS_UNTYPED_ATOMIC &&
+         target_primitive != SXML_TYPE_XS_ANY_URI) ||
+        sxml_item_get_representation(item) != SXML_ITEM_REPRESENTATION_ATOMIC_CELL) {
+        return false;
+    }
+    const uint32_t source_primitive = sxml_atomic_item_get_primitive_type(item).index;
+    if (source_primitive != SXML_TYPE_XS_STRING &&
+        source_primitive != SXML_TYPE_XS_UNTYPED_ATOMIC &&
+        source_primitive != SXML_TYPE_XS_ANY_URI) {
+        return false;
+    }
+    if (target->type.index == SXML_TYPE_XS_STRING ||
+        target->type.index == SXML_TYPE_XS_UNTYPED_ATOMIC) {
+        return true;
+    }
+    return (uint32_t)target_primitive == source_primitive &&
+           sxml_type_registry_is_derived_from(
+               sxml_item_heap_get_type_registry(item_heap),
+               (sxml_type_pair){
+                   .derived_type = sxml_item_get_type_annotation(item),
+                   .base_type = target->type});
+}
+
+/* The source's string cell under the target's annotation, retained. */
+static sxml_item sxml_cast_relabel(sxml_item item,
+                                   const sxml_atomic_target *target) {
+    sxml_item_retain(item);
+    return sxml_item_from_cell(&(sxml_cell_item_request){
+        .representation = SXML_ITEM_REPRESENTATION_ATOMIC_CELL,
+        .type_annotation = target->type,
+        .primitive_type = sxml_builtin_type_identifier(target->primitive_type),
+        .cell = sxml_item_get_cell(item)});
+}
+
+/*
  * Casts cast->source to an atomic target: unchanged when it already has
- * the target's annotation; through the lexical form from the string
+ * the target's annotation; relabelled when the cast keeps its text
+ * (sxml_cast_keeps_text); through the lexical form from the string
  * types; through the canonical text to the string types; through the
  * datum otherwise.
  */
@@ -901,6 +952,13 @@ static sxml_status sxml_cast_to_atomic_target(const sxml_atomic_cast *cast,
     }
     sxml_builtin_type source_primitive = sxml_source_primitive_type(source);
     sxml_builtin_type target_primitive = cast->target.primitive_type;
+    if (!source.is_text &&
+        (sxml_primitive_is_string_source(target_primitive) ||
+         target_primitive == SXML_TYPE_XS_ANY_URI) &&
+        sxml_cast_keeps_text(item_heap, source.item, &cast->target)) {
+        *result = sxml_cast_relabel(source.item, &cast->target);
+        return SXML_STATUS_OK;
+    }
     if (sxml_primitive_is_string_source(source_primitive)) {
         sxml_byte_view text = {.bytes = NULL, .byte_count = 0};
         sxml_status status = sxml_source_text(source, &text);
@@ -1578,6 +1636,22 @@ static bool sxml_cast_deliver(sxml_cast_machine *machine,
 
 static sxml_status sxml_cast_to_target(const sxml_target_cast *cast,
                                        sxml_sequence *result) {
+    const uint32_t target_index = cast->target_type.index;
+    if ((target_index == SXML_TYPE_XS_STRING ||
+         target_index == SXML_TYPE_XS_UNTYPED_ATOMIC) &&
+        !cast->source.is_text) {
+        /* The most common cast of all, xs:untypedAtomic to xs:string,
+           decided before the target is described. */
+        const sxml_atomic_target target = {
+            .type = cast->target_type,
+            .builtin_type = (sxml_builtin_type)target_index,
+            .primitive_type = (sxml_builtin_type)target_index};
+        if (sxml_cast_keeps_text(cast->item_heap, cast->source.item, &target)) {
+            *result = sxml_sequence_from_item(
+                sxml_cast_relabel(cast->source.item, &target));
+            return SXML_STATUS_OK;
+        }
+    }
     sxml_cast_machine machine = {
         .cast = cast, .frames = NULL, .frame_count = 0, .frame_capacity = 0};
     sxml_cast_outcome outcome;
