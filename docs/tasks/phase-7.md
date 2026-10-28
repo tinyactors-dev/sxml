@@ -1411,6 +1411,48 @@ instructions (coercion 11.14 to 6.63), coercion.xq 2.845 to 2.716,
 xmark-all 8.735 to 8.746; QT4 XP40, XQ40 and XT40 whole: 0 outcomes
 differ, case by case.
 
+### fix-4 Choice coercion and a stale error description (implementation)
+After D316 and D319, which found the first, and D310 (perf-7), which
+found the second.
+- **Choice coercion**: a function parameter of type
+  `(element(a) | xs:string)` given `xs:untypedAtomic("v")` raises
+  XPTY0004 (`sxml xpath 'let $f := function($x as (element(a) |
+  xs:string)) { $x } return $f(xs:untypedAtomic("v"))'`). XPath 4.0,
+  3.4.2 (coercion rules) tries the alternatives of a choice in order,
+  so the untyped value is cast to xs:string. The coercion engine counts
+  the unchanged item as the first alternative's success (D319).
+- **Stale description**: after a `try`/`catch` catches FORX0002, a later
+  LIMIT_EXCEEDED in the same query printed the caught error's
+  description (D310): the error record is not cleared. Reproduce first
+  (the sxml command has no step bound since D314; use a regex step
+  bound, a memory limit, or the C API with a small step bound); if it
+  cannot be reproduced, record why.
+- **Owns**: `src/evaluator_function.c`, `tests/evaluator_test.c`, and the
+  file that clears the error record after a caught error (find it;
+  not `src/xslt*.c` or `src/schematron*.c`, which 7.28 holds).
+- **Done when**: both fixed with tests, each citing its section; QT4
+  XP40, XQ40 and XT40 whole: no outcome lost case by case (gains
+  listed); the SchXslt expand stage of EN 16931 unchanged in output and
+  not slower.
+
+### perf-11 Cheaper node atomization (implementation)
+After D316 and D319. In SchXslt's expand stage of EN 16931 (47.78 x 10^9
+instructions after perf-10), node atomization in coercion is the
+largest coercion cost: 3.19 x 10^9 (6.7 %), in `src/xdm_node.c`.
+- **Mechanism**: profile first (callgrind on the expand stage,
+  `tests/bench/coercion.xq` and xmark-all); a general fast path for the
+  common case (an attribute or a text-only element of an untyped tree:
+  one xs:untypedAtomic from the string value, without building a
+  sequence), and whatever else the profile shows in atomization (XPath
+  4.0, 2.4.2 atomization; XDM 4.0, typed-value).
+- **Owns**: `src/xdm_node.c`, its internal header, the tree's typed
+  value and string value paths (`src/arena_tree.c` only for those),
+  `tests/` for them, `tests/bench/`.
+- **Done when**: before and after in a D-record and the commit messages
+  (instructions and seconds) on the expand stage, coercion.xq and
+  xmark-all; QT4 XP40, XQ40 and XT40 whole: no outcome changes, case by
+  case.
+
 ### 7.21 Fast Invisible XML (book, tests, implementation)
 After D215 (7.18: the Earley parser, right recursion quadratic, every
 item a step). The owner: high performance; book first, then

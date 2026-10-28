@@ -77,8 +77,10 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
   done (D311, regex search 12.9 % to 0.4 %). SchXslt's expand stage of
   EN 16931: 7.7–8.5 s with its sort-once fix, 4 min 51 s unpatched (8 min
   56 s this morning); output identical.
-- perf-10 (casts that keep the string, D316's leftovers) and 7.29
-  (source locations, D313) run together.
+- perf-10 done (D319): relabelled casts, choices of one item; SchXslt's
+  expand stage 52.19 to 47.78 x 10^9 instructions, about 6.7 s.
+- fix-4 (choice coercion bug, stale error description) and perf-11 (node
+  atomization) run beside 7.28: disjoint files.
 - Leftovers without a packet: the error record is not cleared after a
   caught FORX0002, so a later LIMIT_EXCEEDED prints the old description
   (perf-7); `c.md`'s memory example prints 197 allocations where the book
