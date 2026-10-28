@@ -4,8 +4,14 @@
  * matching segments behind fn:tokenize, and limits. The fn:tokenize cases
  * of the torture slice (fn-tokenize-1a, fn-tokenize-35) are run here at
  * the level of matching segments; the function itself is packet 1.20.
+ * The last part runs the regex functions through the public API to check
+ * the regex cache of src/function_library_regex.c (D308).
  */
 #include "regex_internal.h"
+#include "sxml/processor.h"
+#include "sxml/serialize.h"
+#include "sxml/xdm.h"
+#include "sxml/xquery.h"
 #include "test_runner.h"
 
 #include <stdalign.h>
@@ -1707,6 +1713,230 @@ static void test_group_stack_allocation_failures(sxml_test_state *state) {
     sxml_allocator_release(sxml_default_allocator(), regex_text);
 }
 
+/* -------------------------------------------------------- The regex cache */
+
+/*
+ * The regex cache (D308) through the public API: a regex used again, or by
+ * a call nested in another's use of it, gives the values a fresh compile
+ * gives; errors are raised by every call; more regexes than the cache
+ * holds are evicted and compiled again; nothing leaks, also under every
+ * allocation failure. Golden file: tests/function_library_uri_test.c
+ * (fixture, running, case tables).
+ */
+
+typedef struct cache_fixture {
+    sxml_counting_allocator *counting_allocator;
+    sxml_processor *processor;
+    sxml_output_buffer *output_buffer;
+} cache_fixture;
+
+static sxml_status cache_fixture_create(uint64_t failing_allocation_number,
+                                        cache_fixture *test_fixture) {
+    *test_fixture =
+        (cache_fixture){.counting_allocator = NULL, .processor = NULL, .output_buffer = NULL};
+    sxml_status status = sxml_counting_allocator_create(
+        sxml_default_allocator(),
+        &(sxml_counting_allocator_configuration){.backing_allocator = sxml_default_allocator(),
+                                                 .failing_allocation_number =
+                                                     failing_allocation_number},
+        &test_fixture->counting_allocator);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    const sxml_allocator allocator =
+        sxml_counting_allocator_as_allocator(test_fixture->counting_allocator);
+    status = sxml_processor_create(
+        allocator, &(sxml_processor_configuration){.allocator = allocator},
+        &test_fixture->processor);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_output_buffer_create(
+            sxml_default_allocator(),
+            &(sxml_output_buffer_configuration){.allocator = sxml_default_allocator(),
+                                                .maximum_byte_count = 0},
+            &test_fixture->output_buffer);
+    }
+    return status;
+}
+
+/* Destroys the fixture; true when no cell and no allocation leaked. */
+static bool cache_fixture_destroy(cache_fixture *test_fixture) {
+    bool has_no_leak = true;
+    if (test_fixture->processor != NULL) {
+        sxml_item_heap *item_heap = sxml_processor_get_item_heap(test_fixture->processor);
+        sxml_item_heap_clear_raised_error(item_heap);
+        has_no_leak = sxml_item_heap_read_counts(item_heap).live_cell_count == 0;
+    }
+    sxml_processor_destroy(test_fixture->processor);
+    sxml_output_buffer_destroy(test_fixture->output_buffer);
+    if (test_fixture->counting_allocator != NULL) {
+        has_no_leak = has_no_leak && sxml_counting_allocator_read_counts(
+                                         test_fixture->counting_allocator)
+                                             .live_allocation_count == 0;
+        sxml_counting_allocator_destroy(test_fixture->counting_allocator);
+    }
+    return has_no_leak;
+}
+
+/* An expression to evaluate, and the error its evaluation raised. */
+typedef struct cache_query {
+    sxml_byte_view expression_text;
+    sxml_error_record error_record;
+} cache_query;
+
+/* Evaluates the query (XQuery, for try and catch) and writes its value by the adaptive method, items
+   separated by a space, into the fixture's output buffer. */
+static sxml_status run_cache_query(const cache_fixture *test_fixture, cache_query *query) {
+    memset(&query->error_record, 0, sizeof(query->error_record));
+    sxml_output_buffer_clear(test_fixture->output_buffer);
+    sxml_xquery_query *xquery_query = NULL;
+    sxml_status status = sxml_xquery_query_create(
+        sxml_counting_allocator_as_allocator(test_fixture->counting_allocator),
+        &(sxml_xquery_query_configuration){
+            .processor = test_fixture->processor,
+            .expression_text = query->expression_text,
+            .source_name = SXML_BYTE_VIEW_FROM_LITERAL("test.xq"),
+            .error_record = &query->error_record},
+        &xquery_query);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_sequence result = sxml_sequence_empty();
+    status = sxml_xquery_query_evaluate(
+        xquery_query, &(sxml_xquery_evaluation_request){.error_record = &query->error_record},
+        &result);
+    sxml_xquery_query_destroy(xquery_query);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_serialize_sequence(
+            sxml_processor_get_item_heap(test_fixture->processor),
+            &(sxml_serialization_request){
+                .value = result,
+                .serialization_parameters = {.serialization_method =
+                                                 SXML_SERIALIZATION_METHOD_ADAPTIVE,
+                                             .has_item_separator = true,
+                                             .item_separator = SXML_BYTE_VIEW_FROM_LITERAL(" ")},
+                .error_record = &query->error_record},
+            sxml_output_buffer_as_output_stream(test_fixture->output_buffer));
+    }
+    sxml_sequence_release(result);
+    return status;
+}
+
+/* An expression and its adaptive output, or the code of its error. */
+typedef struct cache_case {
+    const char *expression_text;
+    const char *expected_output;
+    const char *expected_error_code;
+} cache_case;
+
+static bool cache_case_holds(const cache_fixture *test_fixture, const cache_case *test_case) {
+    cache_query query = {.expression_text =
+                             sxml_byte_view_from_c_string(test_case->expression_text)};
+    const sxml_status status = run_cache_query(test_fixture, &query);
+    const sxml_byte_view output = sxml_output_buffer_get_bytes(test_fixture->output_buffer);
+    const bool holds =
+        test_case->expected_error_code != NULL
+            ? status != SXML_STATUS_OK &&
+                  test_view_equals_text(query.error_record.code.local_name,
+                                        test_case->expected_error_code)
+            : status == SXML_STATUS_OK && test_view_equals_text(output, test_case->expected_output);
+    if (!holds) {
+        const sxml_byte_view status_name = sxml_status_name(status);
+        (void)fprintf(stderr, "case %s: status %.*s, error %.*s, output %.*s\n",
+                      test_case->expression_text, (int)status_name.byte_count,
+                      (const char *)status_name.bytes,
+                      (int)query.error_record.code.local_name.byte_count,
+                      (const char *)query.error_record.code.local_name.bytes,
+                      (int)output.byte_count, (const char *)output.bytes);
+    }
+    return holds;
+}
+
+static void test_cache_reuses_regexes(sxml_test_state *state) {
+    static const cache_case cases[] = {
+        /* One regex text for many calls of every function. */
+        {"string-join((1 to 3) ! replace('a1b2', '([a-z])([0-9])', '$2$1'), ',')",
+         "\"1a2b,1a2b,1a2b\"", NULL},
+        {"(1 to 3) ! matches('x' || ., 'x[13]')", "true() false() true()", NULL},
+        {"(1 to 2) ! count(tokenize('a,b;c', '[,;]'))", "3 3", NULL},
+        {"(1 to 2) ! count(analyze-string('k=v', '(\\w)=(\\w)')//fn:group)", "2 2", NULL},
+        {"(1 to 2) ! count(matching-segments('abab', 'b'))", "2 2", NULL},
+        {"let $r := regex('(?<d>[0-9])') return (1 to 2) ! $r?matches('a' || .)",
+         "true() true()", NULL},
+        /* The same text with other flags is another regex. */
+        {"matches('A', 'a'), matches('A', 'a', 'i'), matches('A', 'a'), "
+         "matches('A', 'a', 'ii'), matches('a.', '.', 'q'), matches('ab', '.', 'q')",
+         "false() true() false() true() true() false()", NULL},
+        /* Errors are raised by every call, not cached. */
+        {"(1 to 3) ! (try { matches('a', '(') } catch err:FORX0002 { 'x' || . })",
+         "\"x1\" \"x2\" \"x3\"", NULL},
+        {"(1 to 2) ! (try { matches('a', 'a', 'z') } catch err:FORX0001 { . })", "1 2", NULL},
+        {"matches('a', 'a'), matches('a', 'a', 'z')", NULL, "FORX0001"},
+        /* A call that uses a regex while an outer call holds it. */
+        {"replace('ab', '(a|b)', fn($m, $g) { replace($m, '(a|b)', '[$1]') })", "\"[a][b]\"",
+         NULL},
+        /* More regexes than the cache holds while an outer call holds its
+           entry: the entry stays, the others are evicted and compiled
+           again. */
+        {"replace('ab', 'a', fn($m, $g) { string(count((1 to 4200, 1 to 300)"
+         "[matches(string(.), '^' || . || '$')])) })",
+         "\"4500b\"", NULL},
+    };
+    cache_fixture test_fixture;
+    SXML_TEST_REQUIRE(state, cache_fixture_create(0, &test_fixture) == SXML_STATUS_OK);
+    for (size_t case_index = 0; case_index < SXML_TEST_COUNT(cases); case_index += 1) {
+        SXML_TEST_EXPECT(state, cache_case_holds(&test_fixture, &cases[case_index]));
+    }
+    SXML_TEST_EXPECT(state, cache_fixture_destroy(&test_fixture));
+}
+
+/* Every regex function, each regex used twice, under one allocation
+   failure: OUT_OF_MEMORY exactly when an allocation failed, else the
+   value, and no leak. */
+static const char cache_failure_expression[] =
+    "(1 to 2) ! (replace('a1', '([a-z])([0-9])', '$2$1'), matches('ab', 'b+'), "
+    "count(tokenize('a b', ' ')), count(analyze-string('ab', '(a)')/*), "
+    "replace('ab', 'b', fn($m, $g) { replace($m, 'b', 'c') }))";
+static const char cache_failure_output[] =
+    "\"1a\" true() 2 2 \"ac\" \"1a\" true() 2 2 \"ac\"";
+
+static sxml_status run_cache_with_failure(sxml_test_state *state, uint64_t failing_number) {
+    cache_fixture test_fixture;
+    sxml_status status = cache_fixture_create(failing_number, &test_fixture);
+    if (status == SXML_STATUS_OK) {
+        cache_query query = {.expression_text =
+                                 sxml_byte_view_from_c_string(cache_failure_expression)};
+        status = run_cache_query(&test_fixture, &query);
+        /* The cache reports a failed allocation as before; it does not
+           hide one by compiling for the call. */
+        const bool has_failed_allocation =
+            sxml_counting_allocator_read_counts(test_fixture.counting_allocator)
+                .failed_allocation_count > 0;
+        SXML_TEST_EXPECT(state, has_failed_allocation == (status == SXML_STATUS_OUT_OF_MEMORY));
+        if (status == SXML_STATUS_OK) {
+            SXML_TEST_EXPECT(state,
+                             test_view_equals_text(
+                                 sxml_output_buffer_get_bytes(test_fixture.output_buffer),
+                                 cache_failure_output));
+        }
+    }
+    SXML_TEST_EXPECT(state, cache_fixture_destroy(&test_fixture));
+    return status;
+}
+
+static void test_cache_survives_every_allocation_failure(sxml_test_state *state) {
+    sxml_status status = SXML_STATUS_OUT_OF_MEMORY;
+    uint64_t failing_number = 1;
+    for (; status != SXML_STATUS_OK && failing_number < 100000; failing_number += 1) {
+        status = run_cache_with_failure(state, failing_number);
+        SXML_TEST_EXPECT(state, status == SXML_STATUS_OK || status == SXML_STATUS_OUT_OF_MEMORY);
+        if (status != SXML_STATUS_OK && status != SXML_STATUS_OUT_OF_MEMORY) {
+            break;
+        }
+    }
+    SXML_TEST_EXPECT(state, status == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, failing_number > 10);
+}
+
 static const sxml_test_case regex_test_cases[] = {
     {.name = "flags_are_read", .function = test_flags_are_read},
     {.name = "unknown_flag_raises_forx0001",
@@ -1767,6 +1997,9 @@ static const sxml_test_case regex_test_cases[] = {
      .function = test_class_subtraction_nested_ten_thousand_deep},
     {.name = "group_stack_without_allocator",
      .function = test_group_stack_without_allocator},
+    {.name = "cache_reuses_regexes", .function = test_cache_reuses_regexes},
+    {.name = "cache_survives_every_allocation_failure",
+     .function = test_cache_survives_every_allocation_failure},
     {.name = "group_stack_allocation_failures",
      .function = test_group_stack_allocation_failures},
 };

@@ -87,11 +87,87 @@ static sxml_byte_view write_decimal(uint64_t number, decimal_digits *digits) {
 
 /* ------------------------------------------------------------- Patterns */
 
-/* A compiled $pattern with its matcher, for one call. */
+/*
+ * The regex cache (glossary `regex_cache`, D308): the compiled regexes of
+ * one evaluation, keyed by the regex text and the parsed flags, so that a
+ * regex is compiled once however many calls use it (SchXslt's expand stage
+ * calls fn:replace about 810,000 times with about 1,050 regex texts). It
+ * lives in the evaluation memo as the state of a function item no
+ * expression sees (golden file: the parser function of
+ * src/function_library_ixml.c), so the memo releases it when the
+ * evaluation ends, and each call that uses an entry holds a reference.
+ *
+ * Bounds: at most SXML_REGEX_CACHE_MAXIMUM_ENTRY_COUNT entries and
+ * SXML_REGEX_CACHE_MAXIMUM_BYTE_COUNT bytes of compiled regexes and their
+ * texts; a regex larger than that is compiled for its call alone. A new
+ * entry evicts the least recently used entry that no call is using. The
+ * memory comes from the item heap, so it counts against its limit: when
+ * the cache's memory would pass it (SXML_STATUS_LIMIT_EXCEEDED), the
+ * entries no call is using are released and the allocation is tried once
+ * more, or the call compiles for itself, so the cache never makes a call
+ * reach the limit that would stay within it without the cache. Other
+ * allocation failures are reported as before. Flags are parsed for every call (FORX0001), and
+ * a regex that does not compile (FORX0002) is never cached, so errors are
+ * raised by every call as before; matchers, and so the step limit, are per
+ * call.
+ */
+#define SXML_REGEX_CACHE_MAXIMUM_ENTRY_COUNT 4096U
+#define SXML_REGEX_CACHE_MAXIMUM_BYTE_COUNT ((size_t)8 << 20U)
+#define SXML_REGEX_CACHE_INITIAL_ENTRY_CAPACITY 16U
+
+/* One compiled regex. Its block holds the regex, then the regex text. */
+typedef struct regex_cache_entry {
+    /* NULL for a free entry. */
+    sxml_regex *regex;
+    sxml_byte_view regex_text;
+    sxml_regex_flags flags;
+    uint64_t key_hash;
+    size_t block_byte_count;
+    /* The value of the cache's use clock at the last use. */
+    uint64_t last_use;
+    /* Calls using the regex now; such an entry is never evicted. */
+    uint32_t user_count;
+    /* The next entry of the bucket, or of the free list: entry number
+       plus one, 0 for none. */
+    uint32_t next_entry;
+} regex_cache_entry;
+
+typedef struct regex_cache {
+    /* The item heap's allocator. */
+    sxml_allocator allocator;
+    /* The memo's function item and every call using an entry. */
+    size_t reference_count;
+    regex_cache_entry *entries;
+    /* Entries ever used (free ones included) and allocated. */
+    uint32_t entry_count;
+    uint32_t entry_capacity;
+    /* entry_capacity buckets: entry number plus one, 0 for none. */
+    uint32_t *buckets;
+    /* The free entries below entry_count: entry number plus one. */
+    uint32_t free_entry;
+    uint64_t use_clock;
+    /* The blocks of the entries. */
+    size_t byte_count;
+} regex_cache;
+
+/* A compiled $pattern with its matcher, for one call: the regex is an
+   entry of cache (entry_number), or, with cache NULL, the call's own,
+   allocated with own_allocator. */
 typedef struct pattern_matcher {
     sxml_regex *regex;
     sxml_regex_matcher *matcher;
+    regex_cache *cache;
+    uint32_t entry_number;
+    sxml_allocator own_allocator;
 } pattern_matcher;
+
+static pattern_matcher pattern_matcher_empty(void) {
+    return (pattern_matcher){.regex = NULL,
+                             .matcher = NULL,
+                             .cache = NULL,
+                             .entry_number = 0,
+                             .own_allocator = {.state = NULL, .operations = NULL}};
+}
 
 /* The texts of a regex: $pattern and $flags. */
 typedef struct regex_source {
@@ -99,30 +175,454 @@ typedef struct regex_source {
     sxml_string flags_text;
 } regex_source;
 
-/* Compiles a regex (F&O 4.0, sections 6.1 and 6.2): FORX0001 and FORX0002
+/* A regex text (borrowed) and parsed flags, the key of an entry. */
+typedef struct regex_key {
+    sxml_string regex_text;
+    sxml_regex_flags flags;
+    uint64_t key_hash;
+} regex_key;
+
+static uint32_t flag_bits(sxml_regex_flags flags) {
+    return (flags.is_dot_all ? 1U : 0U) | (flags.is_multi_line ? 2U : 0U) |
+           (flags.is_case_insensitive ? 4U : 0U) | (flags.is_whitespace_removed ? 8U : 0U) |
+           (flags.is_literal ? 16U : 0U) | (flags.has_comments ? 32U : 0U) |
+           (flags.is_xsd_pattern ? 64U : 0U);
+}
+
+/* FNV-1a over the regex text, then the flags. */
+static regex_key make_regex_key(sxml_string regex_text, sxml_regex_flags flags) {
+    uint64_t key_hash = UINT64_C(14695981039346656037);
+    for (size_t byte_index = 0; byte_index < regex_text.utf8.byte_count; byte_index += 1) {
+        key_hash = (key_hash ^ regex_text.utf8.bytes[byte_index]) * UINT64_C(1099511628211);
+    }
+    key_hash = (key_hash ^ flag_bits(flags)) * UINT64_C(1099511628211);
+    return (regex_key){.regex_text = regex_text, .flags = flags, .key_hash = key_hash};
+}
+
+static bool entry_has_key(const regex_cache_entry *entry, const regex_key *key) {
+    return entry->key_hash == key->key_hash &&
+           flag_bits(entry->flags) == flag_bits(key->flags) &&
+           entry->regex_text.byte_count == key->regex_text.utf8.byte_count &&
+           (entry->regex_text.byte_count == 0 ||
+            memcmp(entry->regex_text.bytes, key->regex_text.utf8.bytes,
+                   entry->regex_text.byte_count) == 0);
+}
+
+static uint32_t bucket_of(const regex_cache *cache, uint64_t key_hash) {
+    return (uint32_t)(key_hash & (uint64_t)(cache->entry_capacity - 1U));
+}
+
+/* The number of the entry with key plus one; 0 when none has it. */
+static uint32_t find_entry(const regex_cache *cache, const regex_key *key) {
+    if (cache->entry_capacity == 0) {
+        return 0;
+    }
+    uint32_t entry_reference = cache->buckets[bucket_of(cache, key->key_hash)];
+    while (entry_reference != 0 && !entry_has_key(&cache->entries[entry_reference - 1U], key)) {
+        entry_reference = cache->entries[entry_reference - 1U].next_entry;
+    }
+    return entry_reference;
+}
+
+/* Releases the regex of entry entry_number (no call uses it), unlinks it
+   from its bucket and puts it on the free list. */
+static void evict_entry(regex_cache *cache, uint32_t entry_number) {
+    regex_cache_entry *entry = &cache->entries[entry_number];
+    uint32_t *link = &cache->buckets[bucket_of(cache, entry->key_hash)];
+    while (*link != entry_number + 1U) {
+        link = &cache->entries[*link - 1U].next_entry;
+    }
+    *link = entry->next_entry;
+    sxml_regex_finalize(entry->regex);
+    sxml_allocator_release(cache->allocator, entry->regex);
+    cache->byte_count -= entry->block_byte_count;
+    *entry = (regex_cache_entry){.regex = NULL, .next_entry = cache->free_entry};
+    cache->free_entry = entry_number + 1U;
+}
+
+/* Evicts the least recently used entry no call uses; false when every
+   entry is in use. */
+static bool evict_least_recently_used(regex_cache *cache) {
+    uint32_t victim = 0;
+    for (uint32_t entry_index = 0; entry_index < cache->entry_count; entry_index += 1) {
+        const regex_cache_entry *entry = &cache->entries[entry_index];
+        if (entry->regex != NULL && entry->user_count == 0 &&
+            (victim == 0 || entry->last_use < cache->entries[victim - 1U].last_use)) {
+            victim = entry_index + 1U;
+        }
+    }
+    if (victim == 0) {
+        return false;
+    }
+    evict_entry(cache, victim - 1U);
+    return true;
+}
+
+/* Evicts every entry no call uses (after an allocation failed). */
+static void evict_unused_entries(regex_cache *cache) {
+    for (uint32_t entry_index = 0; entry_index < cache->entry_count; entry_index += 1) {
+        if (cache->entries[entry_index].regex != NULL &&
+            cache->entries[entry_index].user_count == 0) {
+            evict_entry(cache, entry_index);
+        }
+    }
+}
+
+/* Doubles the entries and buckets (rehashing every entry). */
+static sxml_status grow_cache(regex_cache *cache) {
+    const uint32_t new_capacity = cache->entry_capacity == 0
+                                      ? SXML_REGEX_CACHE_INITIAL_ENTRY_CAPACITY
+                                      : cache->entry_capacity * 2U;
+    void *entries_memory = NULL;
+    sxml_status status = sxml_allocator_allocate(
+        cache->allocator,
+        (sxml_allocation_request){.byte_count = sizeof(regex_cache_entry) * new_capacity,
+                                  .alignment = alignof(regex_cache_entry)},
+        &entries_memory);
+    void *buckets_memory = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_allocator_allocate(
+            cache->allocator,
+            (sxml_allocation_request){.byte_count = sizeof(uint32_t) * new_capacity,
+                                      .alignment = alignof(uint32_t)},
+            &buckets_memory);
+        if (status != SXML_STATUS_OK) {
+            sxml_allocator_release(cache->allocator, entries_memory);
+        }
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    regex_cache_entry *entries = entries_memory;
+    if (cache->entry_count > 0) {
+        memcpy(entries, cache->entries, sizeof(regex_cache_entry) * cache->entry_count);
+    }
+    if (cache->entry_capacity > 0) {
+        sxml_allocator_release(cache->allocator, cache->entries);
+        sxml_allocator_release(cache->allocator, cache->buckets);
+    }
+    cache->entries = entries;
+    cache->buckets = buckets_memory;
+    cache->entry_capacity = new_capacity;
+    memset(cache->buckets, 0, sizeof(uint32_t) * new_capacity);
+    cache->free_entry = 0;
+    for (uint32_t entry_index = cache->entry_count; entry_index > 0; entry_index -= 1) {
+        regex_cache_entry *entry = &cache->entries[entry_index - 1U];
+        if (entry->regex == NULL) {
+            entry->next_entry = cache->free_entry;
+            cache->free_entry = entry_index;
+        } else {
+            uint32_t *bucket = &cache->buckets[bucket_of(cache, entry->key_hash)];
+            entry->next_entry = *bucket;
+            *bucket = entry_index;
+        }
+    }
+    return SXML_STATUS_OK;
+}
+
+/* Writes the number plus one of a free entry for a new regex to
+   *entry_reference, grown or evicted as the bounds allow; 0 when the cache
+   has no room (every entry is in use, or growing reached the heap's limit
+   and none can be evicted). Returns the other failures of growing. */
+static sxml_status take_free_entry(regex_cache *cache, uint32_t *entry_reference) {
+    *entry_reference = 0;
+    if (cache->free_entry == 0 && cache->entry_count == cache->entry_capacity) {
+        sxml_status status = SXML_STATUS_LIMIT_EXCEEDED;
+        if (cache->entry_capacity < SXML_REGEX_CACHE_MAXIMUM_ENTRY_COUNT) {
+            status = grow_cache(cache);
+        }
+        if (status != SXML_STATUS_OK && status != SXML_STATUS_LIMIT_EXCEEDED) {
+            return status;
+        }
+        if (status != SXML_STATUS_OK && !evict_least_recently_used(cache)) {
+            return SXML_STATUS_OK;
+        }
+    }
+    *entry_reference = cache->free_entry;
+    if (*entry_reference != 0) {
+        cache->free_entry = cache->entries[*entry_reference - 1U].next_entry;
+    } else {
+        cache->entry_count += 1;
+        *entry_reference = cache->entry_count;
+    }
+    return SXML_STATUS_OK;
+}
+
+static void retain_cache(void *state) {
+    regex_cache *cache = state;
+    cache->reference_count += 1;
+}
+
+static void release_cache(void *state) {
+    regex_cache *cache = state;
+    cache->reference_count -= 1;
+    if (cache->reference_count > 0) {
+        return;
+    }
+    evict_unused_entries(cache);
+    if (cache->entry_capacity > 0) {
+        sxml_allocator_release(cache->allocator, cache->entries);
+        sxml_allocator_release(cache->allocator, cache->buckets);
+    }
+    sxml_allocator_release(cache->allocator, cache);
+}
+
+/* The memo's function item is never called: no expression can reach it. */
+static sxml_status call_cache(void *state, const sxml_function_call *call,
+                              sxml_sequence *result) {
+    (void)state;
+    (void)call;
+    (void)result;
+    return SXML_STATUS_INVALID_ARGUMENT;
+}
+
+static const sxml_function_body_operations cache_body_operations = {
+    .call = call_cache,
+    .retain = retain_cache,
+    .release = release_cache,
+};
+
+/* What the cache's memo entry is computed for: its address names it. */
+static const uint8_t regex_cache_computation = 0;
+
+static sxml_evaluation_memo_key cache_memo_key(void) {
+    return (sxml_evaluation_memo_key){.computation = &regex_cache_computation,
+                                      .computation_number = 0,
+                                      .subject = sxml_atomic_item_from_integer(0)};
+}
+
+/* Makes the cache and its function item, stored in the memo. */
+static sxml_status make_cache(const sxml_function_call *call, regex_cache **cache) {
+    sxml_type_identifier signature = {.index = SXML_TYPE_NONE};
+    sxml_status status = sxml_type_registry_register_item_type(
+        sxml_item_heap_get_type_registry(call->item_heap),
+        &(sxml_type_description){
+            .variety = SXML_TYPE_VARIETY_FUNCTION,
+            .variety_details = {.function_type = {.is_any_function = false,
+                                                  .parameter_types = {.sequence_types = NULL,
+                                                                      .sequence_type_count = 0},
+                                                  .result_type = {.item_type =
+                                                                      sxml_builtin_type_identifier(
+                                                                          SXML_TYPE_ITEM),
+                                                                  .occurrence =
+                                                                      SXML_OCCURRENCE_ZERO_OR_MORE}}}},
+        &signature);
+    const sxml_allocator allocator = sxml_item_heap_as_allocator(call->item_heap);
+    void *memory = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_allocator_allocate(
+            allocator,
+            (sxml_allocation_request){.byte_count = sizeof(regex_cache),
+                                      .alignment = alignof(regex_cache)},
+            &memory);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    regex_cache *new_cache = memory;
+    *new_cache = (regex_cache){.allocator = allocator, .reference_count = 0};
+    sxml_item function_item = {.representation = SXML_ITEM_REPRESENTATION_NONE};
+    status = sxml_function_item_make(
+        call->item_heap,
+        &(sxml_function_item_request){
+            .function_name = {.index = 0},
+            .signature = signature,
+            .function_annotations = {.function_annotations = NULL, .function_annotation_count = 0},
+            .captured_values = {.sequences = NULL, .sequence_count = 0},
+            .body = {.state = new_cache, .operations = &cache_body_operations}},
+        &function_item);
+    if (status != SXML_STATUS_OK) {
+        sxml_allocator_release(allocator, new_cache);
+        return status;
+    }
+    status = sxml_dynamic_context_store_memo(
+        call->dynamic_context,
+        &(sxml_evaluation_memo_entry){.key = cache_memo_key(),
+                                      .value = sxml_sequence_from_item(function_item)});
+    /* The memo holds its own reference; without it the cache goes now. */
+    sxml_item_release(function_item);
+    if (status == SXML_STATUS_OK) {
+        *cache = new_cache;
+    }
+    return status;
+}
+
+/* Writes the evaluation's regex cache, made at its first use, to *cache;
+   NULL outside an evaluation, and when making it reached the heap's limit:
+   the call then compiles for itself, as it would without a cache. Returns
+   the other failures of making it. */
+static sxml_status find_cache(const sxml_function_call *call, regex_cache **cache) {
+    *cache = NULL;
+    if (call->dynamic_context == NULL) {
+        return SXML_STATUS_OK;
+    }
+    const sxml_evaluation_memo_key key = cache_memo_key();
+    sxml_sequence value = sxml_sequence_empty();
+    if (!sxml_dynamic_context_find_memo(call->dynamic_context, &key, &value)) {
+        const sxml_status status = make_cache(call, cache);
+        return status == SXML_STATUS_LIMIT_EXCEEDED ? SXML_STATUS_OK : status;
+    }
+    sxml_function_item_description description;
+    const sxml_status status = sxml_function_item_describe(value.content, &description);
+    if (status == SXML_STATUS_OK) {
+        *cache = description.body.state;
+    }
+    return status;
+}
+
+/* A regex to compile for a call, and the cache it may enter. */
+typedef struct regex_compilation {
+    const sxml_function_call *call;
+    const regex_key *key;
+    regex_cache *cache;
+} regex_compilation;
+
+/* Compiles the key's regex into a block of its own, the regex text after
+   it, and writes the entry it would be to *entry, after evicting what the
+   cache's byte bound asks. FORX0002 into the call's error record. */
+static sxml_status compile_block(regex_compilation compilation, regex_cache_entry *entry) {
+    const sxml_allocator allocator = sxml_item_heap_as_allocator(compilation.call->item_heap);
+    const sxml_regex_configuration configuration = {
+        .regex_text = compilation.key->regex_text,
+        .flags = compilation.key->flags,
+        .maximum_instruction_count = 0,
+        .maximum_group_depth = 0,
+        .stack_allocator = allocator,
+        .error_record = compilation.call->error_record};
+    sxml_memory_requirements requirements = {.byte_count = 0, .alignment = 1};
+    sxml_status status = sxml_regex_memory_requirements(&configuration, &requirements);
+    size_t block_byte_count = 0;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_size_add(requirements.byte_count, compilation.key->regex_text.utf8.byte_count,
+                               &block_byte_count);
+    }
+    const bool is_cached = compilation.cache != NULL &&
+                           block_byte_count <= SXML_REGEX_CACHE_MAXIMUM_BYTE_COUNT;
+    while (status == SXML_STATUS_OK && is_cached &&
+           compilation.cache->byte_count + block_byte_count >
+               SXML_REGEX_CACHE_MAXIMUM_BYTE_COUNT &&
+           evict_least_recently_used(compilation.cache)) {
+    }
+    void *memory = NULL;
+    if (status == SXML_STATUS_OK) {
+        const sxml_allocation_request request = {.byte_count = block_byte_count,
+                                                 .alignment = requirements.alignment};
+        status = sxml_allocator_allocate(allocator, request, &memory);
+        if (status == SXML_STATUS_LIMIT_EXCEEDED && compilation.cache != NULL &&
+            compilation.cache->byte_count > 0) {
+            evict_unused_entries(compilation.cache);
+            status = sxml_allocator_allocate(allocator, request, &memory);
+        }
+    }
+    sxml_regex *regex = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_regex_initialize(
+            (sxml_memory_view){.bytes = memory, .byte_count = requirements.byte_count},
+            &configuration, &regex);
+        if (status != SXML_STATUS_OK) {
+            sxml_allocator_release(allocator, memory);
+        }
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    uint8_t *text_copy = (uint8_t *)memory + requirements.byte_count;
+    const sxml_byte_view regex_text = compilation.key->regex_text.utf8;
+    if (regex_text.byte_count > 0) {
+        memcpy(text_copy, regex_text.bytes, regex_text.byte_count);
+    }
+    *entry = (regex_cache_entry){
+        .regex = regex,
+        .regex_text = {.bytes = text_copy, .byte_count = regex_text.byte_count},
+        .flags = compilation.key->flags,
+        .key_hash = compilation.key->key_hash,
+        .block_byte_count = block_byte_count,
+        .last_use = 0,
+        .user_count = 0,
+        .next_entry = 0};
+    return SXML_STATUS_OK;
+}
+
+/* Writes the regex of key to pattern: the cache's entry, compiled into
+   the cache on a miss, or the call's own when the cache has no room. */
+static sxml_status find_regex(const sxml_function_call *call, const regex_key *key,
+                              pattern_matcher *pattern) {
+    regex_cache *cache = NULL;
+    sxml_status status = find_cache(call, &cache);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    uint32_t entry_reference = cache == NULL ? 0 : find_entry(cache, key);
+    if (entry_reference == 0) {
+        regex_cache_entry compiled;
+        status = compile_block((regex_compilation){.call = call, .key = key, .cache = cache},
+                               &compiled);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        if (cache != NULL && compiled.block_byte_count <= SXML_REGEX_CACHE_MAXIMUM_BYTE_COUNT) {
+            status = take_free_entry(cache, &entry_reference);
+        }
+        if (status != SXML_STATUS_OK) {
+            sxml_regex_finalize(compiled.regex);
+            sxml_allocator_release(sxml_item_heap_as_allocator(call->item_heap), compiled.regex);
+            return status;
+        }
+        if (entry_reference == 0) {
+            pattern->regex = compiled.regex;
+            pattern->own_allocator = sxml_item_heap_as_allocator(call->item_heap);
+            return SXML_STATUS_OK;
+        }
+        regex_cache_entry *entry = &cache->entries[entry_reference - 1U];
+        *entry = compiled;
+        uint32_t *bucket = &cache->buckets[bucket_of(cache, key->key_hash)];
+        entry->next_entry = *bucket;
+        *bucket = entry_reference;
+        cache->byte_count += compiled.block_byte_count;
+    }
+    regex_cache_entry *entry = &cache->entries[entry_reference - 1U];
+    cache->use_clock += 1;
+    entry->last_use = cache->use_clock;
+    entry->user_count += 1;
+    retain_cache(cache);
+    pattern->regex = entry->regex;
+    pattern->cache = cache;
+    pattern->entry_number = entry_reference - 1U;
+    return SXML_STATUS_OK;
+}
+
+/* Ends the call's use of its regex and matcher; accepts an empty
+   pattern. */
+static void release_pattern(pattern_matcher *pattern) {
+    sxml_regex_matcher_destroy(pattern->matcher);
+    if (pattern->cache != NULL) {
+        pattern->cache->entries[pattern->entry_number].user_count -= 1;
+        release_cache(pattern->cache);
+    } else if (pattern->regex != NULL) {
+        sxml_regex_finalize(pattern->regex);
+        sxml_allocator_release(pattern->own_allocator, pattern->regex);
+    }
+    *pattern = pattern_matcher_empty();
+}
+
+/* Compiles a regex (F&O 4.0, sections 6.1 and 6.2), or finds it in the
+   regex cache, and makes a matcher for the call: FORX0001 and FORX0002
    into the call's error record. Memory comes from the item heap, so it
    counts against the heap's limits. */
 static sxml_status compile_pattern(const sxml_function_call *call, regex_source source,
                                    pattern_matcher *pattern) {
-    *pattern = (pattern_matcher){.regex = NULL, .matcher = NULL};
+    *pattern = pattern_matcher_empty();
     sxml_regex_flags flags = {.is_dot_all = false};
     sxml_status status = sxml_regex_parse_flags(
         &(sxml_regex_flags_request){.flags_text = source.flags_text,
                                     .error_record = call->error_record},
         &flags);
-    const sxml_allocator allocator = sxml_item_heap_as_allocator(call->item_heap);
     if (status == SXML_STATUS_OK) {
-        status = sxml_regex_create(
-            allocator,
-            &(sxml_regex_configuration){.regex_text = source.pattern_text,
-                                        .flags = flags,
-                                        .maximum_instruction_count = 0,
-                                        .maximum_group_depth = 0,
-                                        .stack_allocator = {.state = NULL, .operations = NULL},
-                                        .error_record = call->error_record},
-            &pattern->regex);
+        const regex_key key = make_regex_key(source.pattern_text, flags);
+        status = find_regex(call, &key, pattern);
     }
     if (status == SXML_STATUS_OK) {
+        const sxml_allocator allocator = sxml_item_heap_as_allocator(call->item_heap);
         status = sxml_regex_matcher_create(
             allocator,
             &(sxml_regex_matcher_configuration){.regex = pattern->regex,
@@ -133,17 +633,11 @@ static sxml_status compile_pattern(const sxml_function_call *call, regex_source 
             &pattern->matcher);
     }
     if (status != SXML_STATUS_OK) {
-        sxml_regex_destroy(pattern->regex);
-        pattern->regex = NULL;
+        release_pattern(pattern);
     }
     return status;
 }
 
-static void release_pattern(pattern_matcher *pattern) {
-    sxml_regex_matcher_destroy(pattern->matcher);
-    sxml_regex_destroy(pattern->regex);
-    *pattern = (pattern_matcher){.regex = NULL, .matcher = NULL};
-}
 
 /* After a search that gave search_status: charges the instructions it ran
    to the evaluation (D89, D91), so a bound on evaluation steps also bounds
@@ -258,7 +752,7 @@ static sxml_status matches_with(const sxml_function_call *call, call_shape shape
                                 sxml_sequence *result) {
     regex_inputs inputs;
     sxml_status status = read_inputs(call, shape, &inputs);
-    pattern_matcher pattern = {.regex = NULL, .matcher = NULL};
+    pattern_matcher pattern = pattern_matcher_empty();
     if (status == SXML_STATUS_OK) {
         status = compile_pattern(call, inputs.source, &pattern);
     }
@@ -389,7 +883,7 @@ static sxml_status tokenize_with(const sxml_function_call *call, call_shape shap
         status = sxml_function_library_read_optional_item(call, 1, &pattern_argument);
         has_pattern = pattern_argument.has_item;
     }
-    pattern_matcher pattern = {.regex = NULL, .matcher = NULL};
+    pattern_matcher pattern = pattern_matcher_empty();
     if (status == SXML_STATUS_OK && has_pattern) {
         status = compile_pattern(call, inputs.source, &pattern);
     }
@@ -1304,7 +1798,7 @@ static sxml_status matching_segments_with(const sxml_function_call *call, call_s
                                           sxml_sequence *result) {
     regex_inputs inputs;
     sxml_status status = read_inputs(call, shape, &inputs);
-    pattern_matcher pattern = {.regex = NULL, .matcher = NULL};
+    pattern_matcher pattern = pattern_matcher_empty();
     if (status == SXML_STATUS_OK) {
         status = compile_pattern(call, inputs.source, &pattern);
     }
@@ -1850,7 +2344,7 @@ static sxml_status analyze_string_with(const sxml_function_call *call, call_shap
                                        sxml_sequence *result) {
     regex_inputs inputs;
     sxml_status status = read_inputs(call, shape, &inputs);
-    pattern_matcher pattern = {.regex = NULL, .matcher = NULL};
+    pattern_matcher pattern = pattern_matcher_empty();
     if (status == SXML_STATUS_OK) {
         status = compile_pattern(call, inputs.source, &pattern);
     }
@@ -2033,7 +2527,7 @@ static sxml_status call_regex(const sxml_function_call *call, sxml_sequence *res
     if (status == SXML_STATUS_OK) {
         status = sxml_function_library_read_string_argument(call, 1, &source.flags_text);
     }
-    pattern_matcher pattern = {.regex = NULL, .matcher = NULL};
+    pattern_matcher pattern = pattern_matcher_empty();
     if (status == SXML_STATUS_OK) {
         status = compile_pattern(call, source, &pattern);
     }
