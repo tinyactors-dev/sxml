@@ -1,7 +1,8 @@
 /*
- * Integer ranges, concatenations and lazy sequences: the sequence cells
- * that src/xdm.c reads through their cell classes, and the sequence
- * functions of include/sxml/xdm.h built on them (D34, D41, D43, D60, D62).
+ * Integer ranges, concatenations, lazy sequences and sequence slices: the
+ * sequence cells that src/xdm.c reads through their cell classes, and the
+ * sequence functions of include/sxml/xdm.h built on them (D34, D41, D43,
+ * D60, D62; sequence slices perf-5).
  *
  * Golden file: src/xdm.c (vector cells: a cell struct whose first member is
  * the header, a static const cell class, checked sizes, outputs untouched
@@ -533,6 +534,263 @@ sxml_status sxml_sequence_concatenate(sxml_item_heap *item_heap,
     *sequence = sxml_sequence_from_cell(
         SXML_ITEM_REPRESENTATION_CONCATENATION_CELL, cell);
     return SXML_STATUS_OK;
+}
+
+/* ------------------------------------------------------ Sequence slices */
+
+/*
+ * A sequence slice: item_count consecutive items of its slice base, a
+ * vector, from first_index on. The base holds the items and their
+ * references; the slice holds one reference to the base, so the items
+ * live while either does. A slice of a slice has the outer slice's base,
+ * so a slice never reads through another slice and reading an item is
+ * O(1). Cells are immutable, so the shared items never change.
+ */
+typedef struct sxml_slice_cell {
+    sxml_cell cell;
+    /* A vector cell; holds one reference. */
+    sxml_sequence slice_base;
+    uint64_t first_index;
+    /* At least 2: shorter spans have no cell. */
+    uint64_t item_count;
+} sxml_slice_cell;
+
+/*
+ * When a slice copies its items instead of sharing them: a span of at
+ * most SXML_SLICE_MAXIMUM_COPIED_ITEM_COUNT items, or one shorter than
+ * its base's count divided by SXML_SLICE_MINIMUM_BASE_SHARE. A short
+ * vector costs about what a slice cell does, and a slice that would keep
+ * a base more than eight times its own length alive copies instead, so
+ * memory held through slices stays within eight times what they show.
+ * Recursion over the rest of a sequence of n items copies at most n/8 +
+ * n/64 + ... items in all: linear.
+ */
+enum {
+    SXML_SLICE_MAXIMUM_COPIED_ITEM_COUNT = 16,
+    SXML_SLICE_MINIMUM_BASE_SHARE = 8,
+};
+
+static sxml_slice_cell *sxml_slice_cell_from_cell(sxml_cell *cell) {
+    return (sxml_slice_cell *)cell;
+}
+
+static void sxml_slice_cell_release_contents(sxml_cell *cell) {
+    sxml_sequence_release(sxml_slice_cell_from_cell(cell)->slice_base);
+}
+
+static sxml_status sxml_slice_cell_count(sxml_cell *cell,
+                                         sxml_error_record *error_record,
+                                         uint64_t *item_count) {
+    (void)error_record;
+    *item_count = sxml_slice_cell_from_cell(cell)->item_count;
+    return SXML_STATUS_OK;
+}
+
+static sxml_status sxml_slice_cell_get_item(sxml_cell *cell,
+                                            sxml_item_request request,
+                                            sxml_item *item) {
+    const sxml_slice_cell *slice = sxml_slice_cell_from_cell(cell);
+    if (request.item_index >= slice->item_count) {
+        return SXML_STATUS_INDEX_OUT_OF_RANGE;
+    }
+    /* The base is a vector: O(1), borrowed from the base. */
+    return sxml_sequence_get_item(
+        slice->slice_base,
+        (sxml_item_request){.item_index = slice->first_index + request.item_index,
+                            .error_record = request.error_record},
+        item);
+}
+
+static sxml_status sxml_slice_cell_next(sxml_sequence_iterator *iterator,
+                                        sxml_error_record *error_record,
+                                        sxml_iteration_step *step) {
+    sxml_item item = {.representation = 0};
+    sxml_status status = sxml_slice_cell_get_item(
+        sxml_item_get_cell(iterator->sequence.content),
+        (sxml_item_request){.item_index = iterator->next_item_index,
+                            .error_record = error_record},
+        &item);
+    if (status == SXML_STATUS_INDEX_OUT_OF_RANGE) {
+        *step = sxml_iteration_step_end();
+        return SXML_STATUS_OK;
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    iterator->next_item_index += 1;
+    *step = (sxml_iteration_step){.has_item = true, .item = item};
+    return SXML_STATUS_OK;
+}
+
+/* A slice is read as its items in an array in a cell: a vector to every
+   reader (sxml_sequence_get_representation). */
+static const sxml_sequence_cell_operations sxml_slice_sequence_operations = {
+    .sequence_representation = SXML_SEQUENCE_REPRESENTATION_VECTOR,
+    .count = sxml_slice_cell_count,
+    .get_item = sxml_slice_cell_get_item,
+    .next = sxml_slice_cell_next,
+};
+
+static const sxml_cell_class sxml_slice_cell_class = {
+    .class_name = SXML_BYTE_VIEW_INITIALIZER("sequence slice"),
+    .release_contents = sxml_slice_cell_release_contents,
+    .sequence_operations = &sxml_slice_sequence_operations,
+};
+
+/* The span of a range, ascending or descending (D143), as a range. */
+static sxml_status sxml_sequence_make_range_slice(sxml_item_heap *item_heap,
+                                                  const sxml_item_span *span,
+                                                  sxml_sequence *sequence) {
+    sxml_cell *cell = sxml_item_get_cell(span->input.content);
+    const sxml_integer_range range =
+        sxml_integer_range_cell_from_cell(cell)->range;
+    const uint64_t last_offset = sxml_integer_range_get_last_offset(range);
+    if (span->first_index > last_offset ||
+        (span->has_end && span->end_index <= span->first_index)) {
+        *sequence = sxml_sequence_empty();
+        return SXML_STATUS_OK;
+    }
+    /* The last index taken, at most last_offset (also for a range of 2^64
+       integers, whose count does not fit uint64_t). */
+    const uint64_t last_index =
+        span->has_end && span->end_index - 1 < last_offset ? span->end_index - 1
+                                                           : last_offset;
+    const int64_t first_member =
+        sxml_integer_range_cell_member_at(cell, span->first_index);
+    const int64_t last_member = sxml_integer_range_cell_member_at(cell, last_index);
+    const bool is_descending = sxml_integer_range_cell_is_descending(cell);
+    return sxml_sequence_make_range_of_class(
+        item_heap,
+        (sxml_integer_range_request){
+            .range = {.first_integer = is_descending ? last_member : first_member,
+                      .last_integer = is_descending ? first_member : last_member},
+            .cell_class = is_descending
+                              ? &sxml_descending_integer_range_cell_class
+                              : &sxml_integer_range_cell_class},
+        sequence);
+}
+
+/* Reads span's items one by one into a new vector: a concatenation or a
+   lazy input (read only as far as the span reaches), or a short span. */
+static sxml_status sxml_sequence_copy_span(sxml_item_heap *item_heap,
+                                           const sxml_item_span *span,
+                                           sxml_sequence *sequence) {
+    sxml_sequence_builder *builder = NULL;
+    sxml_status status = sxml_sequence_builder_create(
+        sxml_item_heap_as_allocator(item_heap),
+        &(sxml_sequence_builder_configuration){.item_heap = item_heap},
+        &builder);
+    for (uint64_t item_index = span->first_index;
+         status == SXML_STATUS_OK &&
+         (!span->has_end || item_index < span->end_index);
+         item_index += 1) {
+        sxml_item item = {.representation = 0};
+        status = sxml_sequence_get_item(
+            span->input,
+            (sxml_item_request){.item_index = item_index,
+                                .error_record = span->error_record},
+            &item);
+        if (status == SXML_STATUS_INDEX_OUT_OF_RANGE) {
+            status = SXML_STATUS_OK;
+            break;
+        }
+        if (status == SXML_STATUS_OK) {
+            status = sxml_sequence_builder_append_item(builder, item);
+        }
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_sequence_builder_finish(builder, sequence);
+    }
+    sxml_sequence_builder_destroy(builder);
+    return status;
+}
+
+sxml_status sxml_sequence_make_slice(sxml_item_heap *item_heap,
+                                     const sxml_item_span *span,
+                                     sxml_sequence *sequence) {
+    const sxml_sequence input = span->input;
+    if (input.content.representation ==
+        SXML_ITEM_REPRESENTATION_INTEGER_RANGE_CELL) {
+        return sxml_sequence_make_range_slice(item_heap, span, sequence);
+    }
+    if (sxml_sequence_get_representation(input) !=
+        SXML_SEQUENCE_REPRESENTATION_VECTOR) {
+        /* Empty, one item, a concatenation or a lazy sequence. */
+        return sxml_sequence_copy_span(item_heap, span, sequence);
+    }
+    /* A vector or a slice: the count is known without reading. */
+    sxml_cell *cell = sxml_item_get_cell(input.content);
+    const bool is_slice = cell->cell_class == &sxml_slice_cell_class;
+    uint64_t input_count = 0;
+    sxml_status status = sxml_sequence_count(input, span->error_record,
+                                             &input_count);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    const uint64_t end_index =
+        span->has_end && span->end_index < input_count ? span->end_index
+                                                       : input_count;
+    if (span->first_index >= end_index) {
+        *sequence = sxml_sequence_empty();
+        return SXML_STATUS_OK;
+    }
+    if (span->first_index == 0 && end_index == input_count) {
+        sxml_sequence_retain(input);
+        *sequence = input;
+        return SXML_STATUS_OK;
+    }
+    const uint64_t item_count = end_index - span->first_index;
+    sxml_sequence slice_base = input;
+    uint64_t base_first_index = span->first_index;
+    uint64_t base_count = input_count;
+    if (is_slice) {
+        const sxml_slice_cell *outer = sxml_slice_cell_from_cell(cell);
+        slice_base = outer->slice_base;
+        base_first_index += outer->first_index;
+        status = sxml_sequence_count(slice_base, span->error_record, &base_count);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+    }
+    if (item_count <= SXML_SLICE_MAXIMUM_COPIED_ITEM_COUNT ||
+        item_count < base_count / SXML_SLICE_MINIMUM_BASE_SHARE) {
+        const sxml_item_span copied = {.input = slice_base,
+                                       .first_index = base_first_index,
+                                       .has_end = true,
+                                       .end_index = base_first_index + item_count,
+                                       .error_record = span->error_record};
+        return sxml_sequence_copy_span(item_heap, &copied, sequence);
+    }
+    sxml_cell *slice_cell = NULL;
+    status = sxml_item_heap_allocate_cell(
+        item_heap,
+        &(sxml_cell_request){.cell_class = &sxml_slice_cell_class,
+                             .byte_count = sizeof(sxml_slice_cell),
+                             .alignment = alignof(sxml_slice_cell)},
+        &slice_cell);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_sequence_retain(slice_base);
+    *sxml_slice_cell_from_cell(slice_cell) =
+        (sxml_slice_cell){.cell = *slice_cell,
+                          .slice_base = slice_base,
+                          .first_index = base_first_index,
+                          .item_count = item_count};
+    *sequence = sxml_sequence_from_cell(SXML_ITEM_REPRESENTATION_VECTOR_CELL,
+                                        slice_cell);
+    return SXML_STATUS_OK;
+}
+
+sxml_sequence sxml_sequence_get_slice_base(sxml_sequence sequence) {
+    if (sequence.content.representation ==
+            SXML_ITEM_REPRESENTATION_VECTOR_CELL &&
+        sxml_item_get_cell(sequence.content)->cell_class ==
+            &sxml_slice_cell_class) {
+        return sxml_slice_cell_from_cell(sxml_item_get_cell(sequence.content))
+            ->slice_base;
+    }
+    return sequence;
 }
 
 /* ------------------------------------------------------ Lazy sequences */

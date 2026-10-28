@@ -137,7 +137,8 @@ static sxml_status call_exists(const sxml_function_call *call, sxml_sequence *re
 /* ------------------------------------------------------------ Selecting */
 
 /* The items from first_index (from 0) up to, not including, end_index,
-   or to the end; a range stays a range. */
+   or to the end: in O(1) for a range, a vector or a sequence slice, which
+   the result shares (sxml_sequence_make_slice); the call is its steps. */
 typedef struct item_span {
     sxml_sequence input;
     uint64_t first_index;
@@ -147,64 +148,13 @@ typedef struct item_span {
 
 static sxml_status make_span(const sxml_function_call *call, item_span span,
                              sxml_sequence *result) {
-    const sxml_sequence input = span.input;
-    if (sxml_sequence_get_representation(input) == SXML_SEQUENCE_REPRESENTATION_INTEGER_RANGE) {
-        uint64_t item_count = 0;
-        sxml_item first = {.representation = 0};
-        sxml_status status = sxml_sequence_count(input, call->error_record, &item_count);
-        if (status == SXML_STATUS_OK) {
-            status = sxml_sequence_get_item(
-                input, (sxml_item_request){.item_index = 0, .error_record = call->error_record},
-                &first);
-        }
-        if (status != SXML_STATUS_OK) {
-            return status;
-        }
-        const uint64_t end_index =
-            span.has_end && span.end_index < item_count ? span.end_index : item_count;
-        if (span.first_index >= end_index) {
-            *result = sxml_sequence_empty();
-            return SXML_STATUS_OK;
-        }
-        sxml_atomic_datum datum;
-        status = sxml_atomic_item_get_datum(first, &datum);
-        if (status != SXML_STATUS_OK) {
-            return status;
-        }
-        /* Members are first + index, computed in uint64_t (D62). */
-        const uint64_t start = (uint64_t)datum.datum_details.integer;
-        return sxml_sequence_make_integer_range(
-            call->item_heap,
-            (sxml_integer_range){
-                .first_integer = (int64_t)(start + span.first_index),
-                .last_integer = (int64_t)(start + end_index - 1)},
-            result);
-    }
-    sxml_sequence_builder *builder = NULL;
-    sxml_status status = sxml_sequence_builder_create(
-        sxml_item_heap_as_allocator(call->item_heap),
-        &(sxml_sequence_builder_configuration){.item_heap = call->item_heap}, &builder);
-    for (uint64_t item_index = span.first_index;
-         status == SXML_STATUS_OK && (!span.has_end || item_index < span.end_index);
-         item_index += 1) {
-        sxml_item item = {.representation = 0};
-        status = sxml_sequence_get_item(
-            input,
-            (sxml_item_request){.item_index = item_index, .error_record = call->error_record},
-            &item);
-        if (status == SXML_STATUS_INDEX_OUT_OF_RANGE) {
-            status = SXML_STATUS_OK;
-            break;
-        }
-        if (status == SXML_STATUS_OK) {
-            status = sxml_sequence_builder_append_item(builder, item);
-        }
-    }
-    if (status == SXML_STATUS_OK) {
-        status = sxml_sequence_builder_finish(builder, result);
-    }
-    sxml_sequence_builder_destroy(builder);
-    return status;
+    return sxml_sequence_make_slice(call->item_heap,
+                                    &(sxml_item_span){.input = span.input,
+                                                      .first_index = span.first_index,
+                                                      .has_end = span.has_end,
+                                                      .end_index = span.end_index,
+                                                      .error_record = call->error_record},
+                                    result);
 }
 
 /* fn:head($input) (F&O 4.0, section 14.1.6). */
@@ -1516,6 +1466,19 @@ static sxml_status call_slice(const sxml_function_call *call, sxml_sequence *res
         first = 1 + (int64_t)past_one;
     }
     const int64_t last = end < item_count ? end : item_count;
+    if (last < first) {
+        *result = sxml_sequence_empty();
+        return SXML_STATUS_OK;
+    }
+    if (step == 1 && !is_reversed) {
+        /* Consecutive items: shared, not copied. */
+        return make_span(call,
+                         (item_span){.input = input,
+                                     .first_index = (uint64_t)first - 1,
+                                     .has_end = true,
+                                     .end_index = (uint64_t)last},
+                         result);
+    }
     sxml_sequence_builder *builder = NULL;
     status = sxml_sequence_builder_create(
         sxml_item_heap_as_allocator(call->item_heap),

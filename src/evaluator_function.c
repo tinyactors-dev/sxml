@@ -1261,30 +1261,11 @@ static sxml_status sxml_decide_range_match(const sxml_type_registry *registry,
     return SXML_STATUS_OK;
 }
 
-sxml_status sxml_evaluator_match_sequence_type(
-    sxml_dynamic_context *dynamic_context, const sxml_type_match_request *request,
-    sxml_type_match *match) {
-    if (sxml_sequence_get_representation(request->value) ==
-            SXML_SEQUENCE_REPRESENTATION_SINGLE_ITEM &&
-        sxml_item_is_atomic(request->value.content) &&
-        sxml_occurrence_allows(request->sequence_type.occurrence, 1) &&
-        sxml_type_identifier_equals(sxml_item_get_type_annotation(request->value.content),
-                                    request->sequence_type.item_type)) {
-        /* The most common case: one atomic item against its own type
-           annotation, which it is an instance of (XDM 4.0, section 3.2;
-           XPath 4.0, 3.2.1). */
-        match->is_match = true;
-        return SXML_STATUS_OK;
-    }
-    sxml_range_decision decision;
-    sxml_status range_status = sxml_decide_range_match(
-        sxml_item_heap_get_type_registry(dynamic_context->item_heap), request, &decision);
-    if (range_status != SXML_STATUS_OK || decision.is_decided) {
-        if (range_status == SXML_STATUS_OK) {
-            match->is_match = decision.is_match;
-        }
-        return range_status;
-    }
+/* Matches request->value against its sequence type with the type
+   matcher, item by item. */
+static sxml_status sxml_run_type_matcher(sxml_dynamic_context *dynamic_context,
+                                         const sxml_type_match_request *request,
+                                         sxml_type_match *match) {
     /* The most common case needs no allocator memory: one item against a
        type fits the inline frames. */
     sxml_type_matcher matcher = {
@@ -1318,6 +1299,117 @@ sxml_status sxml_evaluator_match_sequence_type(
         match->is_match = outcome_match.is_match;
     }
     return status;
+}
+
+/* The fewest items of a vector whose match is kept in the evaluation
+   memo: below, matching the items costs less than the memo does. */
+#define SXML_TYPE_MATCH_MEMO_MINIMUM_ITEM_COUNT 16
+
+/* The computation of the memo entries of matched vectors (its address). */
+static const uint8_t sxml_matched_vector_computation = 0;
+
+/* Whether a vector's match was decided from the memo. */
+typedef struct sxml_vector_match {
+    bool is_decided;
+    bool is_match;
+} sxml_vector_match;
+
+/*
+ * A vector or sequence slice of 16 items or more against a sequence type
+ * (perf-5): every item of a slice is an item of its slice base, so once
+ * every item of the base matched the item type, every slice of it does,
+ * and only its count is left to check against the occurrence. The
+ * evaluation memo (D149) keeps, per item type, the last base of 16 items
+ * or more whose every item matched (as a FILTER by type keeps its last
+ * input, D229): recursion over the rest of a sequence passed to a typed
+ * parameter matches the sequence once instead of once per call. A base
+ * not in the memo is matched once against the item type with occurrence
+ * "*"; when an item fails, the value itself is matched as before.
+ */
+static sxml_status sxml_match_vector_by_memo(sxml_dynamic_context *dynamic_context,
+                                             const sxml_type_match_request *request,
+                                             sxml_vector_match *vector_match) {
+    vector_match->is_decided = false;
+    const sxml_sequence value = request->value;
+    if (sxml_sequence_get_representation(value) != SXML_SEQUENCE_REPRESENTATION_VECTOR ||
+        request->sequence_type.occurrence == SXML_OCCURRENCE_ZERO) {
+        return SXML_STATUS_OK;
+    }
+    uint64_t item_count = 0;
+    sxml_status status = sxml_sequence_count(value, request->error_record, &item_count);
+    if (status != SXML_STATUS_OK || item_count < SXML_TYPE_MATCH_MEMO_MINIMUM_ITEM_COUNT) {
+        return status;
+    }
+    const sxml_sequence slice_base = sxml_sequence_get_slice_base(value);
+    const sxml_type_identifier item_type = request->sequence_type.item_type;
+    const sxml_evaluation_memo_key memo_key = {.computation = &sxml_matched_vector_computation,
+                                               .computation_number = item_type.index,
+                                               .subject = sxml_atomic_item_from_integer(0)};
+    sxml_sequence matched_base = sxml_sequence_empty();
+    const bool is_known = sxml_dynamic_context_find_memo(dynamic_context, &memo_key,
+                                                         &matched_base) &&
+                          matched_base.content.representation ==
+                              slice_base.content.representation &&
+                          matched_base.content.payload.bits == slice_base.content.payload.bits;
+    if (!is_known) {
+        sxml_type_match base_match = {.is_match = false};
+        status = sxml_run_type_matcher(
+            dynamic_context,
+            &(sxml_type_match_request){
+                .value = slice_base,
+                .sequence_type = {.item_type = item_type,
+                                  .occurrence = SXML_OCCURRENCE_ZERO_OR_MORE},
+                .error_record = request->error_record},
+            &base_match);
+        if (status != SXML_STATUS_OK || !base_match.is_match) {
+            return status;
+        }
+        status = sxml_dynamic_context_store_memo(
+            dynamic_context,
+            &(sxml_evaluation_memo_entry){.key = memo_key, .value = slice_base});
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+    }
+    *vector_match = (sxml_vector_match){
+        .is_decided = true,
+        .is_match = sxml_occurrence_allows(request->sequence_type.occurrence, item_count)};
+    return SXML_STATUS_OK;
+}
+
+sxml_status sxml_evaluator_match_sequence_type(
+    sxml_dynamic_context *dynamic_context, const sxml_type_match_request *request,
+    sxml_type_match *match) {
+    if (sxml_sequence_get_representation(request->value) ==
+            SXML_SEQUENCE_REPRESENTATION_SINGLE_ITEM &&
+        sxml_item_is_atomic(request->value.content) &&
+        sxml_occurrence_allows(request->sequence_type.occurrence, 1) &&
+        sxml_type_identifier_equals(sxml_item_get_type_annotation(request->value.content),
+                                    request->sequence_type.item_type)) {
+        /* The most common case: one atomic item against its own type
+           annotation, which it is an instance of (XDM 4.0, section 3.2;
+           XPath 4.0, 3.2.1). */
+        match->is_match = true;
+        return SXML_STATUS_OK;
+    }
+    sxml_range_decision decision;
+    sxml_status range_status = sxml_decide_range_match(
+        sxml_item_heap_get_type_registry(dynamic_context->item_heap), request, &decision);
+    if (range_status != SXML_STATUS_OK || decision.is_decided) {
+        if (range_status == SXML_STATUS_OK) {
+            match->is_match = decision.is_match;
+        }
+        return range_status;
+    }
+    sxml_vector_match vector_match = {.is_decided = false, .is_match = false};
+    sxml_status status = sxml_match_vector_by_memo(dynamic_context, request, &vector_match);
+    if (status != SXML_STATUS_OK || vector_match.is_decided) {
+        if (status == SXML_STATUS_OK) {
+            match->is_match = vector_match.is_match;
+        }
+        return status;
+    }
+    return sxml_run_type_matcher(dynamic_context, request, match);
 }
 
 /* ------------------------------------------------------------- Coercion */

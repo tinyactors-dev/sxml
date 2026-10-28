@@ -4151,6 +4151,275 @@ static sxml_status sxml_filter_by_constant(sxml_dynamic_context *context,
     return sxml_machine_finish(context, value);
 }
 
+/* The positions a positional predicate selects, from 1, both included;
+   none when last_position < first_position. */
+typedef struct sxml_position_interval {
+    int64_t first_position;
+    int64_t last_position;
+} sxml_position_interval;
+
+/* How the context position compares with the other operand. */
+typedef enum sxml_position_order {
+    SXML_POSITION_ORDER_EQUAL,
+    SXML_POSITION_ORDER_LESS,
+    SXML_POSITION_ORDER_LESS_OR_EQUAL,
+    SXML_POSITION_ORDER_GREATER,
+    SXML_POSITION_ORDER_GREATER_OR_EQUAL,
+} sxml_position_order;
+
+/* A comparison of the context position, read with the position on the
+   left: 3 < position() is position() > 3. */
+typedef struct sxml_position_comparison {
+    sxml_position_order order;
+    /* A general comparison (existential); otherwise a value comparison. */
+    bool is_general;
+} sxml_position_comparison;
+
+/* One order comparison operator: its order with the position on the left
+   and on the right. */
+typedef struct sxml_position_operator {
+    sxml_ir_binary_operator binary_operator;
+    sxml_position_order order_from_left;
+    sxml_position_order order_from_right;
+    bool is_general;
+} sxml_position_operator;
+
+static const sxml_position_operator sxml_position_operators[] = {
+    {SXML_IR_BINARY_OPERATOR_VALUE_EQUAL, SXML_POSITION_ORDER_EQUAL, SXML_POSITION_ORDER_EQUAL,
+     false},
+    {SXML_IR_BINARY_OPERATOR_VALUE_LESS, SXML_POSITION_ORDER_LESS, SXML_POSITION_ORDER_GREATER,
+     false},
+    {SXML_IR_BINARY_OPERATOR_VALUE_LESS_OR_EQUAL, SXML_POSITION_ORDER_LESS_OR_EQUAL,
+     SXML_POSITION_ORDER_GREATER_OR_EQUAL, false},
+    {SXML_IR_BINARY_OPERATOR_VALUE_GREATER, SXML_POSITION_ORDER_GREATER, SXML_POSITION_ORDER_LESS,
+     false},
+    {SXML_IR_BINARY_OPERATOR_VALUE_GREATER_OR_EQUAL, SXML_POSITION_ORDER_GREATER_OR_EQUAL,
+     SXML_POSITION_ORDER_LESS_OR_EQUAL, false},
+    {SXML_IR_BINARY_OPERATOR_GENERAL_EQUAL, SXML_POSITION_ORDER_EQUAL, SXML_POSITION_ORDER_EQUAL,
+     true},
+    {SXML_IR_BINARY_OPERATOR_GENERAL_LESS, SXML_POSITION_ORDER_LESS, SXML_POSITION_ORDER_GREATER,
+     true},
+    {SXML_IR_BINARY_OPERATOR_GENERAL_LESS_OR_EQUAL, SXML_POSITION_ORDER_LESS_OR_EQUAL,
+     SXML_POSITION_ORDER_GREATER_OR_EQUAL, true},
+    {SXML_IR_BINARY_OPERATOR_GENERAL_GREATER, SXML_POSITION_ORDER_GREATER,
+     SXML_POSITION_ORDER_LESS, true},
+    {SXML_IR_BINARY_OPERATOR_GENERAL_GREATER_OR_EQUAL, SXML_POSITION_ORDER_GREATER_OR_EQUAL,
+     SXML_POSITION_ORDER_LESS_OR_EQUAL, true},
+};
+
+/* Reads binary_operator as a comparison of the position; false for an
+   operator that is no order comparison (ne, !=, node comparisons, ...). */
+typedef struct sxml_position_operand {
+    sxml_ir_binary_operator binary_operator;
+    bool is_position_left;
+} sxml_position_operand;
+
+static bool sxml_position_comparison_read(sxml_position_operand operand,
+                                          sxml_position_comparison *comparison) {
+    for (size_t operator_index = 0;
+         operator_index < sizeof(sxml_position_operators) / sizeof(sxml_position_operators[0]);
+         operator_index += 1) {
+        const sxml_position_operator *row = &sxml_position_operators[operator_index];
+        if (row->binary_operator == operand.binary_operator) {
+            *comparison = (sxml_position_comparison){
+                .order = operand.is_position_left ? row->order_from_left : row->order_from_right,
+                .is_general = row->is_general};
+            return true;
+        }
+    }
+    return false;
+}
+
+/* The positions p with "p comparison bound" (XPath 4.0, 4.11.1 and
+   4.11.2 on xs:integer operands): lowest and highest are the least and
+   greatest integers of the other operand (equal for one integer); a
+   general comparison is true when it holds for one of them. */
+typedef struct sxml_position_bounds {
+    int64_t lowest;
+    int64_t highest;
+} sxml_position_bounds;
+
+static sxml_position_interval sxml_position_interval_of(sxml_position_comparison comparison,
+                                                        sxml_position_bounds bounds) {
+    const sxml_position_interval none = {.first_position = 1, .last_position = 0};
+    switch (comparison.order) {
+    case SXML_POSITION_ORDER_EQUAL:
+        return (sxml_position_interval){.first_position = bounds.lowest,
+                                        .last_position = bounds.highest};
+    case SXML_POSITION_ORDER_LESS:
+        return bounds.highest <= 1 ? none
+                                   : (sxml_position_interval){.first_position = 1,
+                                                              .last_position =
+                                                                  bounds.highest - 1};
+    case SXML_POSITION_ORDER_LESS_OR_EQUAL:
+        return (sxml_position_interval){.first_position = 1, .last_position = bounds.highest};
+    case SXML_POSITION_ORDER_GREATER:
+        return bounds.lowest == INT64_MAX
+                   ? none
+                   : (sxml_position_interval){.first_position = bounds.lowest + 1,
+                                              .last_position = INT64_MAX};
+    case SXML_POSITION_ORDER_GREATER_OR_EQUAL:
+        return (sxml_position_interval){.first_position = bounds.lowest,
+                                        .last_position = INT64_MAX};
+    }
+    return none;
+}
+
+/* Whether a FILTER is a positional filter, and the positions it selects. */
+typedef struct sxml_positional_filter {
+    bool is_positional;
+    sxml_position_interval positions;
+} sxml_positional_filter;
+
+/* The value of an atom that the FILTER does not bind, borrowed; false
+   when it is not bound yet (the loop reports that as before). */
+static bool sxml_filter_read_fixed_atom(sxml_dynamic_context *context, sxml_ir_atom atom,
+                                        sxml_sequence *value) {
+    if (atom.atom_kind == SXML_IR_ATOM_KIND_CONSTANT) {
+        *value = sxml_ir_unit_get_constant(sxml_machine_top(context)->function->unit,
+                                           atom.constant);
+        return true;
+    }
+    const sxml_evaluator_slot *slot = NULL;
+    if (sxml_machine_find_slot(context, atom, &slot) != SXML_STATUS_OK || slot == NULL ||
+        slot->slot_state != SXML_EVALUATOR_SLOT_STATE_BOUND) {
+        return false;
+    }
+    *value = slot->value;
+    return true;
+}
+
+/*
+ * Recognizes a positional filter (glossary `positional_filter`): a FILTER
+ * whose predicate compares the context position with an atom the FILTER
+ * does not bind (a constant, a variable or a global: fixed while the
+ * FILTER runs), as $s[position() > 1], $s[position() >= $n] and, with the
+ * range hoisted out of the predicate (D224), $s[position() = $n to $m].
+ * The other operand must be the empty sequence, one inline xs:integer or,
+ * for a general comparison, an integer range; anything else (a double, an
+ * untyped value, a type error) is left to the loop, which raises what the
+ * comparison raises.
+ */
+static void sxml_filter_find_positions(sxml_dynamic_context *context,
+                                       const sxml_ir_filter *filter,
+                                       sxml_positional_filter *positional) {
+    positional->is_positional = false;
+    const sxml_evaluator_task *task = sxml_machine_top(context);
+    const sxml_ir_expression *predicate =
+        sxml_ir_unit_get_expression(task->function->unit, filter->predicate);
+    const sxml_ir_slot position_slot = filter->focus.context_position;
+    if (predicate->expression_kind != SXML_IR_EXPRESSION_KIND_BINARY || position_slot.value == 0 ||
+        filter->index.key.value != 0) {
+        return;
+    }
+    const sxml_ir_binary *binary = &predicate->binary;
+    const bool is_position_left = binary->left_operand.atom_kind == SXML_IR_ATOM_KIND_SLOT &&
+                                  binary->left_operand.slot.value == position_slot.value;
+    const bool is_position_right = binary->right_operand.atom_kind == SXML_IR_ATOM_KIND_SLOT &&
+                                   binary->right_operand.slot.value == position_slot.value;
+    if (is_position_left == is_position_right) {
+        return;
+    }
+    const sxml_ir_atom other = is_position_left ? binary->right_operand : binary->left_operand;
+    if (other.atom_kind == SXML_IR_ATOM_KIND_SLOT &&
+        (other.slot.value == filter->focus.context_value.value ||
+         other.slot.value == filter->focus.context_size.value)) {
+        return;
+    }
+    sxml_position_comparison comparison;
+    sxml_sequence value = sxml_sequence_empty();
+    if (!sxml_position_comparison_read(
+            (sxml_position_operand){.binary_operator = binary->operator,
+                                    .is_position_left = is_position_left},
+            &comparison) ||
+        !sxml_filter_read_fixed_atom(context, other, &value)) {
+        return;
+    }
+    const sxml_sequence_representation representation = sxml_sequence_get_representation(value);
+    sxml_position_bounds bounds = {.lowest = 0, .highest = 0};
+    if (representation == SXML_SEQUENCE_REPRESENTATION_EMPTY) {
+        /* A comparison with () is false or (): no position is selected. */
+        *positional = (sxml_positional_filter){
+            .is_positional = true, .positions = {.first_position = 1, .last_position = 0}};
+        return;
+    }
+    if (representation == SXML_SEQUENCE_REPRESENTATION_SINGLE_ITEM &&
+        sxml_item_get_representation(value.content) == SXML_ITEM_REPRESENTATION_INTEGER) {
+        bounds = (sxml_position_bounds){.lowest = value.content.payload.integer,
+                                        .highest = value.content.payload.integer};
+    } else if (comparison.is_general &&
+               (representation == SXML_SEQUENCE_REPRESENTATION_INTEGER_RANGE ||
+                representation == SXML_SEQUENCE_REPRESENTATION_DESCENDING_INTEGER_RANGE)) {
+        uint64_t item_count = 0;
+        sxml_item first = {.representation = 0};
+        sxml_item last = {.representation = 0};
+        if (sxml_sequence_count(value, NULL, &item_count) != SXML_STATUS_OK ||
+            sxml_sequence_get_item(value, (sxml_item_request){.item_index = 0, .error_record = NULL},
+                                   &first) != SXML_STATUS_OK ||
+            sxml_sequence_get_item(
+                value, (sxml_item_request){.item_index = item_count - 1, .error_record = NULL},
+                &last) != SXML_STATUS_OK) {
+            return;
+        }
+        const int64_t first_integer = first.payload.integer;
+        const int64_t last_integer = last.payload.integer;
+        bounds = (sxml_position_bounds){
+            .lowest = first_integer < last_integer ? first_integer : last_integer,
+            .highest = first_integer < last_integer ? last_integer : first_integer};
+    } else {
+        return;
+    }
+    *positional = (sxml_positional_filter){
+        .is_positional = true, .positions = sxml_position_interval_of(comparison, bounds)};
+}
+
+/*
+ * A positional filter over a stored input (a vector, a sequence slice or
+ * a range) is the slice of its input at those positions, shared, not
+ * copied (sxml_sequence_make_slice): one step, as the FILTER's turn,
+ * instead of one per item. A concatenation or a lazy input is left to
+ * the loop, which reads it item by item as before.
+ */
+typedef struct sxml_position_filter {
+    bool is_handled;
+} sxml_position_filter;
+
+static sxml_status sxml_filter_by_positions(sxml_dynamic_context *context,
+                                            const sxml_ir_filter *filter,
+                                            sxml_position_filter *outcome) {
+    outcome->is_handled = false;
+    const sxml_sequence input = sxml_machine_top(context)->details.loop.input;
+    const sxml_sequence_representation representation = sxml_sequence_get_representation(input);
+    if (representation == SXML_SEQUENCE_REPRESENTATION_CONCATENATION ||
+        representation == SXML_SEQUENCE_REPRESENTATION_LAZY) {
+        return SXML_STATUS_OK;
+    }
+    sxml_positional_filter positional = {.is_positional = false,
+                                         .positions = {.first_position = 0, .last_position = 0}};
+    sxml_filter_find_positions(context, filter, &positional);
+    if (!positional.is_positional) {
+        return SXML_STATUS_OK;
+    }
+    outcome->is_handled = true;
+    const sxml_position_interval positions = positional.positions;
+    const int64_t first_position = positions.first_position < 1 ? 1 : positions.first_position;
+    sxml_sequence value = sxml_sequence_empty();
+    if (positions.last_position >= first_position) {
+        const sxml_status status = sxml_sequence_make_slice(
+            context->item_heap,
+            &(sxml_item_span){.input = input,
+                              .first_index = (uint64_t)first_position - 1,
+                              .has_end = positions.last_position != INT64_MAX,
+                              .end_index = (uint64_t)positions.last_position,
+                              .error_record = context->error_record},
+            &value);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+    }
+    return sxml_machine_finish(context, value);
+}
+
 static sxml_status sxml_make_leaf_value(sxml_dynamic_context *context,
                                         const sxml_ir_expression *expression,
                                         sxml_sequence *result);
@@ -4539,6 +4808,11 @@ static sxml_status sxml_machine_step_filter(sxml_dynamic_context *context,
             return status;
         }
         task = sxml_machine_top(context);
+        sxml_position_filter position_filter = {.is_handled = false};
+        status = sxml_filter_by_positions(context, filter, &position_filter);
+        if (status != SXML_STATUS_OK || position_filter.is_handled) {
+            return status;
+        }
         if (predicate->expression_kind == SXML_IR_EXPRESSION_KIND_INSTANCE_OF &&
             predicate->type_test.value.atom_kind == SXML_IR_ATOM_KIND_SLOT &&
             predicate->type_test.value.slot.value == filter->focus.context_value.value &&

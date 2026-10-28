@@ -1,7 +1,7 @@
 /*
- * Tests for integer ranges, concatenations, lazy sequences and
- * sxml_sequence_test_emptiness (include/sxml/xdm.h, src/xdm_sequence.c;
- * D34, D41, D43, D60, D62).
+ * Tests for integer ranges, concatenations, lazy sequences, sequence
+ * slices and sxml_sequence_test_emptiness (include/sxml/xdm.h,
+ * src/xdm_sequence.c; D34, D41, D43, D60, D62; slices perf-5).
  *
  * Imitates tests/xdm_test.c: behaviour first, then allocation-failure
  * loops (D23). Every case that makes values checks with
@@ -13,6 +13,7 @@
 #include "test_runner.h"
 #include "xdm_internal.h"
 
+#include <stdio.h>
 #include <string.h>
 
 /* A name pool, a type registry and an item heap over one allocator. */
@@ -900,6 +901,333 @@ static void test_lazy_sequence_refuses_reentry(sxml_test_state *state) {
     heap_fixture_destroy(&fixture);
 }
 
+/* ------------------------------------------------------ Sequence slices */
+
+/* A vector of the strings "0" to "item_count - 1" (cells, so that the
+   slices' sharing shows in the heap's counts); empty after a failure. */
+static sxml_sequence make_string_vector(sxml_item_heap *item_heap,
+                                        size_t item_count) {
+    sxml_item items[256];
+    sxml_status status = SXML_STATUS_OK;
+    size_t made_count = 0;
+    for (; status == SXML_STATUS_OK && made_count < item_count &&
+           made_count < sizeof(items) / sizeof(items[0]);
+         made_count += 1) {
+        char text[8];
+        const int byte_count = snprintf(text, sizeof(text), "%zu", made_count);
+        status = make_string_item(
+            item_heap,
+            (sxml_byte_view){.bytes = (const uint8_t *)text,
+                             .byte_count = (size_t)byte_count},
+            &items[made_count]);
+    }
+    if (status != SXML_STATUS_OK) {
+        made_count -= 1;
+    }
+    sxml_sequence sequence = sxml_sequence_empty();
+    if (status == SXML_STATUS_OK) {
+        status = sxml_sequence_make_vector(
+            item_heap,
+            (sxml_item_view){.items = items, .item_count = made_count},
+            &sequence);
+    }
+    for (size_t item_index = 0; item_index < made_count; item_index += 1) {
+        sxml_item_release(items[item_index]);
+    }
+    return status == SXML_STATUS_OK ? sequence : sxml_sequence_empty();
+}
+
+/* The number the string at item_index of sequence spells; -1 for anything
+   else. */
+static int64_t number_at(sxml_sequence sequence, uint64_t item_index) {
+    sxml_item item = {.representation = 0};
+    sxml_atomic_datum datum;
+    if (sxml_sequence_get_item(
+            sequence,
+            (sxml_item_request){.item_index = item_index,
+                                .error_record = NULL},
+            &item) != SXML_STATUS_OK ||
+        sxml_atomic_item_get_datum(item, &datum) != SXML_STATUS_OK ||
+        datum.datum_kind != SXML_DATUM_KIND_STRING) {
+        return -1;
+    }
+    const sxml_byte_view text =
+        datum.datum_details.string.utf8;
+    int64_t number = 0;
+    for (size_t byte_index = 0; byte_index < text.byte_count;
+         byte_index += 1) {
+        number = number * 10 + (text.bytes[byte_index] - '0');
+    }
+    return number;
+}
+
+/* The items first_index to end_index (excluded, or to the end) of input. */
+static sxml_sequence slice_of(sxml_item_heap *item_heap, sxml_sequence input,
+                              sxml_item_span span) {
+    span.input = input;
+    sxml_sequence sequence = sxml_sequence_empty();
+    if (sxml_sequence_make_slice(item_heap, &span, &sequence) !=
+        SXML_STATUS_OK) {
+        return sxml_sequence_empty();
+    }
+    return sequence;
+}
+
+static sxml_item_span span_from(uint64_t first_index) {
+    return (sxml_item_span){.input = sxml_sequence_empty(),
+                            .first_index = first_index,
+                            .has_end = false,
+                            .end_index = 0,
+                            .error_record = NULL};
+}
+
+static sxml_item_span span_between(uint64_t first_index, uint64_t end_index) {
+    return (sxml_item_span){.input = sxml_sequence_empty(),
+                            .first_index = first_index,
+                            .has_end = true,
+                            .end_index = end_index,
+                            .error_record = NULL};
+}
+
+static bool is_slice_cell(sxml_sequence sequence) {
+    return sequence.content.representation >=
+               SXML_ITEM_REPRESENTATION_FIRST_SEQUENCE_CELL &&
+           sxml_byte_view_equals(
+               sxml_item_get_cell(sequence.content)->cell_class->class_name,
+               SXML_BYTE_VIEW_FROM_LITERAL("sequence slice"));
+}
+
+static void test_slice_of_vector_shares_its_items(sxml_test_state *state) {
+    heap_fixture fixture;
+    SXML_TEST_REQUIRE(state, default_heap_fixture_create(&fixture) ==
+                                 SXML_STATUS_OK);
+    sxml_sequence vector = make_string_vector(fixture.item_heap, 100);
+    SXML_TEST_REQUIRE(state, count_of(vector) == 100);
+    const uint64_t cells_before = live_cell_count(&fixture);
+    sxml_sequence rest = slice_of(fixture.item_heap, vector, span_from(1));
+    /* One cell, the slice: the strings are shared, not copied. */
+    SXML_TEST_EXPECT(state, live_cell_count(&fixture) == cells_before + 1);
+    SXML_TEST_EXPECT(state, is_slice_cell(rest));
+    SXML_TEST_EXPECT(state, sxml_sequence_get_representation(rest) ==
+                                SXML_SEQUENCE_REPRESENTATION_VECTOR);
+    SXML_TEST_EXPECT(state, count_of(rest) == 99);
+    SXML_TEST_EXPECT(state, number_at(rest, 0) == 1);
+    SXML_TEST_EXPECT(state, number_at(rest, 98) == 99);
+    sxml_item item = {.representation = 0};
+    SXML_TEST_EXPECT(
+        state, sxml_sequence_get_item(rest,
+                                      (sxml_item_request){.item_index = 99,
+                                                          .error_record = NULL},
+                                      &item) == SXML_STATUS_INDEX_OUT_OF_RANGE);
+    /* A slice of the slice reads the same base. */
+    sxml_sequence middle =
+        slice_of(fixture.item_heap, rest, span_between(9, 59));
+    SXML_TEST_EXPECT(state, is_slice_cell(middle));
+    SXML_TEST_EXPECT(state, count_of(middle) == 50);
+    SXML_TEST_EXPECT(state,
+                     sxml_sequence_get_slice_base(middle).content.payload.bits ==
+                         vector.content.payload.bits);
+    /* The base outlives its own sequence while a slice holds it. */
+    sxml_sequence_release(vector);
+    sxml_sequence_release(rest);
+    int64_t expected_number = 10;
+    bool reads_in_order = true;
+    sxml_sequence_iterator iterator = sxml_sequence_iterator_start(middle);
+    for (;;) {
+        sxml_iteration_step step;
+        SXML_TEST_REQUIRE(state, sxml_sequence_iterator_next(
+                                     &iterator, NULL, &step) == SXML_STATUS_OK);
+        if (!step.has_item) {
+            break;
+        }
+        reads_in_order = reads_in_order &&
+                         number_at(sxml_sequence_from_item(step.item), 0) ==
+                             expected_number;
+        expected_number += 1;
+    }
+    SXML_TEST_EXPECT(state, reads_in_order && expected_number == 60);
+    /* The whole input is the input itself; nothing is empty. */
+    sxml_sequence whole =
+        slice_of(fixture.item_heap, middle, span_between(0, 1000));
+    SXML_TEST_EXPECT(state, whole.content.payload.bits ==
+                                middle.content.payload.bits);
+    sxml_sequence nothing = slice_of(fixture.item_heap, middle, span_from(50));
+    SXML_TEST_EXPECT(state, sxml_sequence_get_representation(nothing) ==
+                                SXML_SEQUENCE_REPRESENTATION_EMPTY);
+    sxml_sequence one =
+        slice_of(fixture.item_heap, middle, span_between(5, 6));
+    SXML_TEST_EXPECT(state, sxml_sequence_get_representation(one) ==
+                                SXML_SEQUENCE_REPRESENTATION_SINGLE_ITEM);
+    SXML_TEST_EXPECT(state, number_at(one, 0) == 15);
+    sxml_sequence_release(one);
+    sxml_sequence_release(whole);
+    sxml_sequence_release(middle);
+    SXML_TEST_EXPECT(state, live_cell_count(&fixture) == 0);
+    SXML_TEST_EXPECT(state, live_byte_count(&fixture) == 0);
+    heap_fixture_destroy(&fixture);
+}
+
+/* A short slice, or one under an eighth of its base, is copied, so a
+   slice never keeps a base more than eight times its length alive. */
+static void test_short_slice_is_copied(sxml_test_state *state) {
+    heap_fixture fixture;
+    SXML_TEST_REQUIRE(state, default_heap_fixture_create(&fixture) ==
+                                 SXML_STATUS_OK);
+    sxml_sequence vector = make_string_vector(fixture.item_heap, 200);
+    SXML_TEST_REQUIRE(state, count_of(vector) == 200);
+    sxml_sequence sixteen =
+        slice_of(fixture.item_heap, vector, span_between(3, 19));
+    SXML_TEST_EXPECT(state, count_of(sixteen) == 16 && !is_slice_cell(sixteen));
+    SXML_TEST_EXPECT(state, number_at(sixteen, 15) == 18);
+    sxml_sequence under_an_eighth =
+        slice_of(fixture.item_heap, vector, span_from(176));
+    SXML_TEST_EXPECT(state, count_of(under_an_eighth) == 24 &&
+                                !is_slice_cell(under_an_eighth));
+    sxml_sequence an_eighth = slice_of(fixture.item_heap, vector, span_from(175));
+    SXML_TEST_EXPECT(state, count_of(an_eighth) == 25 && is_slice_cell(an_eighth));
+    /* Of a slice, the eighth is of its base. */
+    sxml_sequence inner =
+        slice_of(fixture.item_heap, an_eighth, span_between(0, 24));
+    SXML_TEST_EXPECT(state, count_of(inner) == 24 && !is_slice_cell(inner));
+    SXML_TEST_EXPECT(state, number_at(inner, 23) == 198);
+    sxml_sequence_release(inner);
+    sxml_sequence_release(an_eighth);
+    sxml_sequence_release(under_an_eighth);
+    sxml_sequence_release(sixteen);
+    sxml_sequence_release(vector);
+    SXML_TEST_EXPECT(state, live_cell_count(&fixture) == 0);
+    heap_fixture_destroy(&fixture);
+}
+
+static void test_slice_of_range_is_a_range(sxml_test_state *state) {
+    heap_fixture fixture;
+    SXML_TEST_REQUIRE(state, default_heap_fixture_create(&fixture) ==
+                                 SXML_STATUS_OK);
+    sxml_sequence range = make_range(fixture.item_heap, 10, 1000000);
+    sxml_sequence rest = slice_of(fixture.item_heap, range, span_from(1));
+    SXML_TEST_EXPECT(state, sxml_sequence_get_representation(rest) ==
+                                SXML_SEQUENCE_REPRESENTATION_INTEGER_RANGE);
+    SXML_TEST_EXPECT(state, integer_at(rest, 0) == 11);
+    SXML_TEST_EXPECT(state, count_of(rest) == 999990);
+    sxml_sequence part =
+        slice_of(fixture.item_heap, range, span_between(5, 8));
+    SXML_TEST_EXPECT(state, count_of(part) == 3 && integer_at(part, 0) == 15 &&
+                                integer_at(part, 2) == 17);
+    sxml_sequence descending = sxml_sequence_empty();
+    SXML_TEST_REQUIRE(state,
+                      sxml_sequence_make_descending_integer_range(
+                          fixture.item_heap,
+                          (sxml_integer_range){.first_integer = 1,
+                                               .last_integer = 10},
+                          &descending) == SXML_STATUS_OK);
+    sxml_sequence down =
+        slice_of(fixture.item_heap, descending, span_between(2, 5));
+    SXML_TEST_EXPECT(state,
+                     sxml_sequence_get_representation(down) ==
+                         SXML_SEQUENCE_REPRESENTATION_DESCENDING_INTEGER_RANGE);
+    SXML_TEST_EXPECT(state, count_of(down) == 3 && integer_at(down, 0) == 8 &&
+                                integer_at(down, 2) == 6);
+    sxml_sequence past = slice_of(fixture.item_heap, descending, span_from(10));
+    SXML_TEST_EXPECT(state, sxml_sequence_get_representation(past) ==
+                                SXML_SEQUENCE_REPRESENTATION_EMPTY);
+    /* All 2^64 integers: the span still ends at the last one. */
+    sxml_sequence all = make_range(fixture.item_heap, INT64_MIN, INT64_MAX);
+    sxml_sequence top = slice_of(fixture.item_heap, all, span_from(UINT64_MAX - 1));
+    SXML_TEST_EXPECT(state, count_of(top) == 2 &&
+                                integer_at(top, 1) == INT64_MAX);
+    sxml_sequence_release(top);
+    sxml_sequence_release(all);
+    sxml_sequence_release(down);
+    sxml_sequence_release(descending);
+    sxml_sequence_release(part);
+    sxml_sequence_release(rest);
+    sxml_sequence_release(range);
+    SXML_TEST_EXPECT(state, live_cell_count(&fixture) == 0);
+    heap_fixture_destroy(&fixture);
+}
+
+/* A lazy input is read only as far as the span reaches, into a vector. */
+static void test_slice_of_lazy_sequence_reads_what_it_takes(
+    sxml_test_state *state) {
+    heap_fixture fixture;
+    SXML_TEST_REQUIRE(state, default_heap_fixture_create(&fixture) ==
+                                 SXML_STATUS_OK);
+    counting_generator generator = counting_generator_of(1000);
+    sxml_sequence lazy = sxml_sequence_empty();
+    SXML_TEST_REQUIRE(state, make_lazy_over(fixture.item_heap, &generator,
+                                            &lazy) == SXML_STATUS_OK);
+    sxml_sequence part = slice_of(fixture.item_heap, lazy, span_between(2, 40));
+    SXML_TEST_EXPECT(state, count_of(part) == 38 && integer_at(part, 0) == 2);
+    SXML_TEST_EXPECT(state, !is_slice_cell(part));
+    SXML_TEST_EXPECT(state, generator.next_call_count == 40);
+    sxml_sequence_release(part);
+    sxml_sequence_release(lazy);
+    SXML_TEST_EXPECT(state, generator.release_call_count == 1);
+    SXML_TEST_EXPECT(state, live_cell_count(&fixture) == 0);
+    heap_fixture_destroy(&fixture);
+}
+
+/* D23: every allocation of making a vector and slices of it fails in turn
+   without a leak. */
+static void test_slices_survive_every_allocation_failure(
+    sxml_test_state *state) {
+    uint64_t failing_allocation_number = 1;
+    for (;;) {
+        sxml_counting_allocator *counting_allocator = NULL;
+        SXML_TEST_REQUIRE(state,
+                          sxml_counting_allocator_create(
+                              sxml_default_allocator(),
+                              &(sxml_counting_allocator_configuration){
+                                  .backing_allocator = sxml_default_allocator(),
+                                  .failing_allocation_number =
+                                      failing_allocation_number},
+                              &counting_allocator) == SXML_STATUS_OK);
+        heap_fixture fixture;
+        SXML_TEST_REQUIRE(
+            state,
+            heap_fixture_create(
+                sxml_counting_allocator_as_allocator(counting_allocator),
+                &fixture) == SXML_STATUS_OK);
+        sxml_sequence vector = make_string_vector(fixture.item_heap, 40);
+        sxml_status status = count_of(vector) == 40 ? SXML_STATUS_OK
+                                                    : SXML_STATUS_OUT_OF_MEMORY;
+        sxml_sequence rest = sxml_sequence_empty();
+        sxml_sequence short_part = sxml_sequence_empty();
+        if (status == SXML_STATUS_OK) {
+            sxml_item_span span = span_from(1);
+            span.input = vector;
+            status = sxml_sequence_make_slice(fixture.item_heap, &span, &rest);
+        }
+        if (status == SXML_STATUS_OK) {
+            sxml_item_span span = span_between(2, 6);
+            span.input = rest;
+            status =
+                sxml_sequence_make_slice(fixture.item_heap, &span, &short_part);
+        }
+        if (status == SXML_STATUS_OK) {
+            SXML_TEST_EXPECT(state, count_of(rest) == 39 &&
+                                        number_at(short_part, 0) == 3);
+        }
+        sxml_sequence_release(short_part);
+        sxml_sequence_release(rest);
+        sxml_sequence_release(vector);
+        SXML_TEST_EXPECT(state, live_cell_count(&fixture) == 0);
+        heap_fixture_destroy(&fixture);
+        sxml_allocation_counts counts =
+            sxml_counting_allocator_read_counts(counting_allocator);
+        sxml_counting_allocator_destroy(counting_allocator);
+        SXML_TEST_EXPECT(state, counts.live_allocation_count == 0);
+        if (status == SXML_STATUS_OK) {
+            SXML_TEST_EXPECT(state, counts.failed_allocation_count == 0);
+            break;
+        }
+        failing_allocation_number += 1;
+        SXML_TEST_REQUIRE(state, failing_allocation_number < 200);
+    }
+    /* 40 strings, the vector, the slice, the copied part. */
+    SXML_TEST_EXPECT(state, failing_allocation_number > 42);
+}
+
 /* ------------------------------------------------- Allocation failures */
 
 /*
@@ -1037,6 +1365,15 @@ static const sxml_test_case xdm_sequence_test_cases[] = {
      .function = test_concatenation_reads_lazy_parts_lazily},
     {.name = "lazy_sequence_refuses_reentry",
      .function = test_lazy_sequence_refuses_reentry},
+    {.name = "slice_of_vector_shares_its_items",
+     .function = test_slice_of_vector_shares_its_items},
+    {.name = "short_slice_is_copied", .function = test_short_slice_is_copied},
+    {.name = "slice_of_range_is_a_range",
+     .function = test_slice_of_range_is_a_range},
+    {.name = "slice_of_lazy_sequence_reads_what_it_takes",
+     .function = test_slice_of_lazy_sequence_reads_what_it_takes},
+    {.name = "slices_survive_every_allocation_failure",
+     .function = test_slices_survive_every_allocation_failure},
     {.name = "sequences_survive_every_allocation_failure",
      .function = test_sequences_survive_every_allocation_failure},
 };

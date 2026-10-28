@@ -341,6 +341,36 @@ static inline sxml_sequence sxml_sequence_from_cell(
 SXML_NODISCARD sxml_status sxml_sequence_make_vector_taking(
     sxml_item_heap *item_heap, sxml_item_view items, sxml_sequence *sequence);
 
+/* Consecutive items of a sequence: those from first_index (from 0) up to,
+   not including, end_index, or to the end; items past the end are not
+   there. */
+typedef struct sxml_item_span {
+    sxml_sequence input;
+    uint64_t first_index;
+    bool has_end;
+    uint64_t end_index;
+    /* Receives a lazy input's error; may be NULL. */
+    sxml_error_record *error_record;
+} sxml_item_span;
+
+/*
+ * Makes the sequence of span's items and writes it, owned, to *sequence,
+ * in O(1) for a stored input: a range stays a range, a vector or a
+ * sequence slice gives a sequence slice that shares the items of its
+ * slice base (src/xdm_sequence.c says when a short one is copied
+ * instead). A concatenation or lazy input is read item by item into a
+ * vector, as far as the span reaches.
+ *
+ * Returns the input's failures (a lazy input's error) and the heap's.
+ */
+SXML_NODISCARD sxml_status sxml_sequence_make_slice(sxml_item_heap *item_heap,
+                                                    const sxml_item_span *span,
+                                                    sxml_sequence *sequence);
+
+/* The slice base of a sequence slice (a vector holding every item of the
+   slice); any other sequence itself. Borrowed from sequence. */
+sxml_sequence sxml_sequence_get_slice_base(sxml_sequence sequence);
+
 /* -------------------------------------------------------------- JNodes */
 
 /*

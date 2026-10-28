@@ -56,6 +56,7 @@ BENCHMARKS = [
     ("descendant-join", xquery(os.path.join(BENCH, "descendant-join.xq"))),
     ("paths", xquery(os.path.join(BENCH, "paths.xq"))),
     ("recursion", xquery(os.path.join(BENCH, "recursion.xq"))),
+    ("recursion-tail", xquery(os.path.join(BENCH, "recursion-tail.xq"))),
     ("flwor-group", xquery(os.path.join(BENCH, "flwor-group.xq"))),
     ("flwor-order", xquery(os.path.join(BENCH, "flwor-order.xq"))),
     ("xslt-key", xslt(os.path.join(BENCH, "xslt-key.xsl"))),
