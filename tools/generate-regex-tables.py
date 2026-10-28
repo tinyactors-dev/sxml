@@ -11,6 +11,8 @@ The output holds:
     category (unassigned codepoints are Cn), for \\p{..} and \\P{..}
     (XSD 1.1 Part 2, appendix G, "Category escapes"), \\d (= \\p{Nd}) and
     \\w (= [#x0000-#x10FFFF]-[\\p{P}\\p{Z}\\p{C}]);
+  - the general categories of the ASCII codepoints again, as a table the
+    commonest lookups read without searching the runs (D310);
   - the blocks of Blocks.txt, named without their spaces, for \\p{IsX}
     ("Block escapes"), with the four XSD 1.0 names that Unicode renamed;
   - the case variants of F&O 4.0, section 6.2 (flag i) that the case
@@ -161,6 +163,16 @@ def emit_category_runs(runs):
     return "\n".join(lines)
 
 
+def emit_ascii_categories(categories):
+    lines = ["static const uint8_t sxml_regex_ascii_categories[] = {"]
+    for first in range(0, 128, 8):
+        names = categories[first:first + 8]
+        indexes = ", ".join(f"{CATEGORIES.index(name):2d}U" for name in names)
+        lines.append(f"    {indexes}, /* 0x{first:02X}: {' '.join(names)} */")
+    lines.append("};")
+    return "\n".join(lines)
+
+
 def emit_blocks(blocks):
     lines = ["static const sxml_regex_block sxml_regex_blocks[] = {"]
     for name, first, last in blocks:
@@ -223,6 +235,9 @@ typedef struct sxml_regex_case_variant_pair {
 /* clang-format off */
 @CATEGORIES@
 
+/* The categories of codepoints 0 to 127, as in the runs. */
+@ASCII@
+
 @BLOCKS@
 
 @EXTRAS@
@@ -232,6 +247,10 @@ typedef struct sxml_regex_case_variant_pair {
 
 sxml_regex_general_category sxml_regex_get_general_category(
     uint32_t codepoint) {
+    if (codepoint < SXML_REGEX_ARRAY_COUNT(sxml_regex_ascii_categories)) {
+        return (sxml_regex_general_category)
+            sxml_regex_ascii_categories[codepoint];
+    }
     /* The last run that starts at or before codepoint; the first run
        starts at 0. */
     size_t low_index = 0;
@@ -248,6 +267,19 @@ sxml_regex_general_category sxml_regex_get_general_category(
     }
     return (sxml_regex_general_category)(sxml_regex_category_runs[low_index] &
                                          SXML_REGEX_CATEGORY_MASK);
+}
+
+sxml_regex_ascii_set sxml_regex_find_ascii_category_members(
+    uint32_t category_mask) {
+    sxml_regex_ascii_set members = {.words = {0}};
+    for (uint32_t codepoint = 0; codepoint < SXML_REGEX_ASCII_LIMIT;
+         codepoint++) {
+        if ((category_mask &
+             ((uint32_t)1 << sxml_regex_ascii_categories[codepoint])) != 0) {
+            members.words[codepoint / 32U] |= (uint32_t)1 << (codepoint % 32U);
+        }
+    }
+    return members;
 }
 
 bool sxml_regex_is_decimal_digit(uint32_t codepoint) {
@@ -403,7 +435,8 @@ void sxml_regex_find_case_variants(uint32_t codepoint,
 def main():
     data_path, special_path, blocks_path = sys.argv[1], sys.argv[2], sys.argv[3]
     case_module = load_case_module()
-    runs = category_runs(read_categories(data_path))
+    categories = read_categories(data_path)
+    runs = category_runs(categories)
     blocks = read_blocks(blocks_path)
     extras = extra_case_variants(case_module, data_path, special_path)
     data_digest = digest_of(data_path)
@@ -416,6 +449,7 @@ def main():
         ("@SPECIAL0@", special_digest[:32]), ("@SPECIAL1@", special_digest[32:]),
         ("@BLOCKS0@", blocks_digest[:32]), ("@BLOCKS1@", blocks_digest[32:]),
         ("@CATEGORIES@", emit_category_runs(runs)),
+        ("@ASCII@", emit_ascii_categories(categories[:128])),
         ("@BLOCKS@", emit_blocks(blocks)),
         ("@EXTRAS@", emit_extras(extras)),
     ):

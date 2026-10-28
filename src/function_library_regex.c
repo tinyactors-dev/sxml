@@ -99,8 +99,9 @@ static sxml_byte_view write_decimal(uint64_t number, decimal_digits *digits) {
  * evaluation ends, and each call that uses an entry holds a reference.
  *
  * Bounds: at most SXML_REGEX_CACHE_MAXIMUM_ENTRY_COUNT entries and
- * SXML_REGEX_CACHE_MAXIMUM_BYTE_COUNT bytes of compiled regexes and their
- * texts; a regex larger than that is compiled for its call alone. A new
+ * SXML_REGEX_CACHE_MAXIMUM_BYTE_COUNT bytes of compiled regexes, their
+ * texts and their idle matchers; a regex larger than that is compiled for
+ * its call alone. A new
  * entry evicts the least recently used entry that no call is using. The
  * memory comes from the item heap, so it counts against its limit: when
  * the cache's memory would pass it (SXML_STATUS_LIMIT_EXCEEDED), the
@@ -109,8 +110,10 @@ static sxml_byte_view write_decimal(uint64_t number, decimal_digits *digits) {
  * reach the limit that would stay within it without the cache. Other
  * allocation failures are reported as before. Flags are parsed for every call (FORX0001), and
  * a regex that does not compile (FORX0002) is never cached, so errors are
- * raised by every call as before; matchers, and so the step limit, are per
- * call.
+ * raised by every call as before. Each call has a matcher of its own, so
+ * the step limit is per call: its entry's idle matcher (D310), which the
+ * last call to finish with the regex left there reset, or a new one when
+ * another call holds it.
  */
 #define SXML_REGEX_CACHE_MAXIMUM_ENTRY_COUNT 4096U
 #define SXML_REGEX_CACHE_MAXIMUM_BYTE_COUNT ((size_t)8 << 20U)
@@ -128,6 +131,12 @@ typedef struct regex_cache_entry {
     uint64_t last_use;
     /* Calls using the regex now; such an entry is never evicted. */
     uint32_t user_count;
+    /* The entry's idle matcher (D310): a matcher of the regex no call is
+       using, reset, which the next call takes instead of making one; NULL
+       for none. Its bytes, matcher_byte_count, count in the cache's
+       byte_count while it is idle. */
+    sxml_regex_matcher *idle_matcher;
+    size_t matcher_byte_count;
     /* The next entry of the bucket, or of the free list: entry number
        plus one, 0 for none. */
     uint32_t next_entry;
@@ -234,6 +243,10 @@ static void evict_entry(regex_cache *cache, uint32_t entry_number) {
         link = &cache->entries[*link - 1U].next_entry;
     }
     *link = entry->next_entry;
+    if (entry->idle_matcher != NULL) {
+        sxml_regex_matcher_destroy(entry->idle_matcher);
+        cache->byte_count -= entry->matcher_byte_count;
+    }
     sxml_regex_finalize(entry->regex);
     sxml_allocator_release(cache->allocator, entry->regex);
     cache->byte_count -= entry->block_byte_count;
@@ -540,6 +553,8 @@ static sxml_status compile_block(regex_compilation compilation, regex_cache_entr
         .block_byte_count = block_byte_count,
         .last_use = 0,
         .user_count = 0,
+        .idle_matcher = NULL,
+        .matcher_byte_count = 0,
         .next_entry = 0};
     return SXML_STATUS_OK;
 }
@@ -592,14 +607,79 @@ static sxml_status find_regex(const sxml_function_call *call, const regex_key *k
     return SXML_STATUS_OK;
 }
 
+/* The configuration of every matcher of a call: the item heap grows its
+   backtrack stack, within the default limits. */
+static sxml_regex_matcher_configuration matcher_configuration(const sxml_regex *regex,
+                                                              sxml_allocator allocator) {
+    return (sxml_regex_matcher_configuration){.regex = regex,
+                                              .backtrack_allocator = allocator,
+                                              .initial_backtrack_entry_count = 0,
+                                              .maximum_backtrack_byte_count = 0,
+                                              .maximum_step_count = 0};
+}
+
+/* Keeps the call's matcher as its entry's idle matcher (D310), reset,
+   when the entry has none and the cache's byte bound has room;
+   otherwise destroys it. */
+static void park_matcher(pattern_matcher *pattern) {
+    regex_cache *cache = pattern->cache;
+    regex_cache_entry *entry = &cache->entries[pattern->entry_number];
+    if (entry->idle_matcher == NULL && entry->matcher_byte_count == 0) {
+        sxml_memory_requirements requirements = {.byte_count = 0, .alignment = 1};
+        const sxml_regex_matcher_configuration configuration =
+            matcher_configuration(pattern->regex, cache->allocator);
+        if (sxml_regex_matcher_memory_requirements(&configuration, &requirements) ==
+            SXML_STATUS_OK) {
+            entry->matcher_byte_count = requirements.byte_count;
+        }
+    }
+    if (entry->idle_matcher != NULL || entry->matcher_byte_count == 0 ||
+        cache->byte_count + entry->matcher_byte_count > SXML_REGEX_CACHE_MAXIMUM_BYTE_COUNT) {
+        sxml_regex_matcher_destroy(pattern->matcher);
+        return;
+    }
+    sxml_regex_matcher_reset(pattern->matcher);
+    entry->idle_matcher = pattern->matcher;
+    cache->byte_count += entry->matcher_byte_count;
+}
+
+/* Writes a matcher for the call's regex to pattern: its entry's idle
+   matcher when there is one, otherwise a new one from the item heap.
+   When the heap's limit is reached, the entries no call uses are released
+   and making it is tried once more (as compile_block does). */
+static sxml_status take_matcher(const sxml_function_call *call, pattern_matcher *pattern) {
+    regex_cache *cache = pattern->cache;
+    if (cache != NULL) {
+        regex_cache_entry *entry = &cache->entries[pattern->entry_number];
+        if (entry->idle_matcher != NULL) {
+            pattern->matcher = entry->idle_matcher;
+            entry->idle_matcher = NULL;
+            cache->byte_count -= entry->matcher_byte_count;
+            return SXML_STATUS_OK;
+        }
+    }
+    const sxml_allocator allocator = sxml_item_heap_as_allocator(call->item_heap);
+    const sxml_regex_matcher_configuration configuration =
+        matcher_configuration(pattern->regex, allocator);
+    sxml_status status = sxml_regex_matcher_create(allocator, &configuration, &pattern->matcher);
+    if (status == SXML_STATUS_LIMIT_EXCEEDED && cache != NULL && cache->byte_count > 0) {
+        evict_unused_entries(cache);
+        status = sxml_regex_matcher_create(allocator, &configuration, &pattern->matcher);
+    }
+    return status;
+}
+
 /* Ends the call's use of its regex and matcher; accepts an empty
    pattern. */
 static void release_pattern(pattern_matcher *pattern) {
-    sxml_regex_matcher_destroy(pattern->matcher);
     if (pattern->cache != NULL) {
+        if (pattern->matcher != NULL) {
+            park_matcher(pattern);
+        }
         pattern->cache->entries[pattern->entry_number].user_count -= 1;
         release_cache(pattern->cache);
     } else if (pattern->regex != NULL) {
+        sxml_regex_matcher_destroy(pattern->matcher);
         sxml_regex_finalize(pattern->regex);
         sxml_allocator_release(pattern->own_allocator, pattern->regex);
     }
@@ -623,15 +703,7 @@ static sxml_status compile_pattern(const sxml_function_call *call, regex_source 
         status = find_regex(call, &key, pattern);
     }
     if (status == SXML_STATUS_OK) {
-        const sxml_allocator allocator = sxml_item_heap_as_allocator(call->item_heap);
-        status = sxml_regex_matcher_create(
-            allocator,
-            &(sxml_regex_matcher_configuration){.regex = pattern->regex,
-                                                .backtrack_allocator = allocator,
-                                                .initial_backtrack_entry_count = 0,
-                                                .maximum_backtrack_byte_count = 0,
-                                                .maximum_step_count = 0},
-            &pattern->matcher);
+        status = take_matcher(call, pattern);
     }
     if (status != SXML_STATUS_OK) {
         release_pattern(pattern);

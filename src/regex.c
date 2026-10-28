@@ -175,6 +175,18 @@ typedef enum sxml_regex_operation {
     /* operand: the loop's COUNTED_LOOP_CHOOSE, whose operand names the
        loop. */
     SXML_REGEX_OPERATION_COUNTED_LOOP_END,
+    /*
+     * A character repetition (D310): x* or x{n,} greedy, where x is the
+     * next instruction and reads one character (CODEPOINT, CLASS, ANY or
+     * ANY_BUT_NEWLINE). The repetition reads as many characters as x
+     * matches, each a step, and goes on at the instruction after x; when
+     * it read any, one backtrack entry gives them back one at a time
+     * (section 6.1.4: the longest first). x itself is run only through
+     * the repetition. It replaces the loop of split, save, x, progress
+     * check and jump, which ran five instructions and pushed two entries
+     * per character.
+     */
+    SXML_REGEX_OPERATION_REPEAT_CHARACTER,
     /* The whole regex has matched. */
     SXML_REGEX_OPERATION_MATCH,
 } sxml_regex_operation;
@@ -225,6 +237,11 @@ typedef struct sxml_regex_class {
     bool is_negated;
     /* The class subtracted ([a-z-[aeiou]]), plus one; 0 for none. */
     uint32_t subtracted_class_number;
+    /* Bit c (word c / 32, bit c % 32) is set when ASCII codepoint c is in
+       the whole class, negation, subtraction and case variants included:
+       the class's ASCII member set (D310), found once when the regex is
+       compiled, so that matching an ASCII character is one bit test. */
+    uint32_t ascii_member_bits[SXML_REGEX_ASCII_WORD_COUNT];
 } sxml_regex_class;
 
 /*
@@ -258,8 +275,30 @@ typedef struct sxml_regex_group {
     bool is_in_lookahead;
 } sxml_regex_group;
 
+/*
+ * Where a match can start (D310), found from the instructions a match
+ * runs before it reads its first character. A search skips the start
+ * positions the filter excludes without an attempt; each skipped position
+ * still counts one step, the character it looked at, so the step limit
+ * bounds a search as before.
+ */
+typedef struct sxml_regex_start_filter {
+    /* False when every start position must be tried: a match can begin
+       with something other than reading a character (an assertion, a
+       back-reference, an empty match). */
+    bool is_used;
+    /* Some path begins with "^" (without m): an attempt at byte offset 0
+       is always made. */
+    bool may_start_at_input_start;
+    /* A first character outside ASCII may begin a match. */
+    bool accepts_non_ascii;
+    /* The ASCII characters a match may begin with, as a member set. */
+    uint32_t ascii_first_bits[SXML_REGEX_ASCII_WORD_COUNT];
+} sxml_regex_start_filter;
+
 struct sxml_regex {
     sxml_regex_flags flags;
+    sxml_regex_start_filter start_filter;
     uint32_t group_count;
     /* Two slots per group, group 0 included, then one per progress
        register of an unbounded loop and two per counted loop. */
@@ -374,6 +413,12 @@ typedef struct sxml_regex_compiler {
     /* Atoms parsed, copies included: bounds compile work even for atoms
        that emit nothing, as in (?:){1000}{1000}. */
     uint32_t atom_parse_count;
+    /* The last instruction emitted, and whether it reads one character:
+       an atom of that one instruction can be a character repetition
+       (D310). Known in the counting pass too, so both passes emit
+       alike. */
+    uint32_t last_emitted_index;
+    bool last_emitted_reads_one_character;
     /* The stack of open groups; frames[0] is the whole regex, so the
        group depth is frame_count - 1. */
     sxml_regex_group_frame *frames;
@@ -520,6 +565,12 @@ static sxml_status sxml_regex_compiler_emit(
     if (compiler->regex != NULL) {
         compiler->regex->instructions[new_index] = instruction;
     }
+    compiler->last_emitted_index = new_index;
+    compiler->last_emitted_reads_one_character =
+        instruction.operation == SXML_REGEX_OPERATION_CODEPOINT ||
+        instruction.operation == SXML_REGEX_OPERATION_CLASS ||
+        instruction.operation == SXML_REGEX_OPERATION_ANY ||
+        instruction.operation == SXML_REGEX_OPERATION_ANY_BUT_NEWLINE;
     *instruction_index = new_index;
     return SXML_STATUS_OK;
 }
@@ -667,6 +718,9 @@ typedef struct sxml_regex_atom_copy_source {
     uint32_t register_count;
     /* The atoms parsing it took, which every copy counts again. */
     uint32_t atom_parse_count;
+    /* The atom is one instruction that reads one character, so a greedy
+       unbounded quantifier makes it a character repetition (D310). */
+    bool reads_one_character;
 } sxml_regex_atom_copy_source;
 
 /*
@@ -2184,6 +2238,21 @@ static sxml_status sxml_regex_compiler_wrap_in_loop(
     sxml_regex_compiler *compiler, const sxml_regex_atom_copy_source *atom,
     sxml_regex_quantifier quantifier) {
     uint32_t loop_start = atom->instructions.first_instruction_index;
+    if (atom->reads_one_character && !quantifier.is_reluctant) {
+        sxml_status status = sxml_regex_compiler_insert(
+            compiler, (sxml_regex_instruction_range){
+                          .first_instruction_index = loop_start,
+                          .instruction_count = 1,
+                      });
+        if (status == SXML_STATUS_OK) {
+            sxml_regex_compiler_write(
+                compiler, loop_start,
+                (sxml_regex_instruction){
+                    .operation = SXML_REGEX_OPERATION_REPEAT_CHARACTER,
+                    .operand = 0});
+        }
+        return status;
+    }
     sxml_status status = sxml_regex_compiler_insert(
         compiler, (sxml_regex_instruction_range){
                       .first_instruction_index = loop_start,
@@ -2209,6 +2278,14 @@ static sxml_status sxml_regex_compiler_wrap_in_loop(
 static sxml_status sxml_regex_compiler_emit_loop(
     sxml_regex_compiler *compiler, const sxml_regex_atom_copy_source *atom,
     sxml_regex_quantifier quantifier) {
+    if (atom->reads_one_character && !quantifier.is_reluctant) {
+        sxml_status status = sxml_regex_compiler_emit_operation(
+            compiler, SXML_REGEX_OPERATION_REPEAT_CHARACTER, 0);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_regex_compiler_emit_copy(compiler, atom);
+        }
+        return status;
+    }
     uint32_t loop_start = 0;
     sxml_status status = sxml_regex_compiler_emit(
         compiler,
@@ -2371,6 +2448,12 @@ static sxml_status sxml_regex_compiler_apply_quantifier(
                           atom_start->counts.register_count,
         .atom_parse_count =
             compiler->atom_parse_count - atom_start->atom_parse_count,
+        .reads_one_character =
+            compiler->counts.instruction_count ==
+                atom_start->counts.instruction_count + 1 &&
+            compiler->last_emitted_index ==
+                atom_start->counts.instruction_count &&
+            compiler->last_emitted_reads_one_character,
     };
     if (sxml_regex_quantifier_needs_counted_loop(
             quantifier, atom.instructions.instruction_count)) {
@@ -2648,6 +2731,8 @@ static sxml_status sxml_regex_compile(
                                    ? SXML_REGEX_DEFAULT_MAXIMUM_GROUP_DEPTH
                                    : configuration->maximum_group_depth,
         .atom_parse_count = 0,
+        .last_emitted_index = 0,
+        .last_emitted_reads_one_character = false,
         .frames = inline_frames,
         .frame_count = 0,
         .frame_capacity = SXML_REGEX_INLINE_FRAME_COUNT,
@@ -2692,6 +2777,9 @@ static sxml_status sxml_regex_compile(
 }
 
 /* ------------------------------------------------------- Regex lifecycle */
+
+static void sxml_regex_find_ascii_members(sxml_regex *regex);
+static void sxml_regex_find_start_filter(sxml_regex *regex);
 
 /* Where the parts of a compiled regex go in its one block. */
 typedef struct sxml_regex_layout {
@@ -2890,6 +2978,8 @@ sxml_status sxml_regex_initialize(sxml_memory_view memory,
            reached; reported rather than assumed. */
         return status;
     }
+    sxml_regex_find_ascii_members(new_regex);
+    sxml_regex_find_start_filter(new_regex);
     *regex = new_regex;
     return SXML_STATUS_OK;
 }
@@ -3006,6 +3096,14 @@ typedef enum sxml_regex_backtrack_kind {
        backtracking means the assertion holds, and matching resumes at
        instruction index (after its LOOK_END) and byte_offset. */
     SXML_REGEX_BACKTRACK_KIND_NEGATIVE_ASSERTION,
+    /* Where a character repetition (D310) started, byte_offset: always
+       right below its REPEAT_RESUME entry, which it bounds. */
+    SXML_REGEX_BACKTRACK_KIND_REPEAT_FLOOR,
+    /* A character repetition that read up to byte_offset: backtracking
+       gives back its last character and resumes at instruction index
+       with one character fewer, keeping the entry while characters are
+       left above the floor. */
+    SXML_REGEX_BACKTRACK_KIND_REPEAT_RESUME,
 } sxml_regex_backtrack_kind;
 
 typedef struct sxml_regex_backtrack_entry {
@@ -3184,6 +3282,20 @@ void sxml_regex_matcher_finalize(sxml_regex_matcher *matcher) {
         return;
     }
     sxml_regex_matcher_release_entries(matcher);
+}
+
+void sxml_regex_matcher_reset(sxml_regex_matcher *matcher) {
+    sxml_regex_matcher_release_entries(matcher);
+    matcher->entry_count = 0;
+    matcher->step_count = 0;
+    matcher->regex_input = (sxml_string){
+        .utf8 = {.bytes = NULL, .byte_count = 0},
+        .codepoint_count = 0,
+        .is_ascii = true};
+    matcher->has_searched = false;
+    matcher->has_match = false;
+    matcher->has_next_search = false;
+    matcher->next_search_byte_offset = 0;
 }
 
 sxml_status sxml_regex_matcher_create(
@@ -3409,25 +3521,22 @@ static bool sxml_regex_class_own_contains(const sxml_regex_class *regex_class,
 }
 
 /*
- * True when codepoint is in class class_index. A class with a subtraction
- * contains what its own items contain and the subtracted class does not
- * (XSD 1.1 Part 2, appendix G, charClassSub), so along the chain of
- * subtracted classes C0, C1, ... membership is own(C0) and not (own(C1)
+ * True when query->codepoint is in class class_index. A class with a
+ * subtraction contains what its own items contain and the subtracted class
+ * does not (XSD 1.1 Part 2, appendix G, charClassSub), so along the chain
+ * of subtracted classes C0, C1, ... membership is own(C0) and not (own(C1)
  * and not (...)): a loop that stops at the first class whose own items
- * leave codepoint out, or at the end of the chain, and counts the
+ * leave the codepoint out, or at the end of the chain, and counts the
  * negations passed. Subtracted classes come later in the class array, so
  * the chain ends.
  */
-static bool sxml_regex_class_contains(const sxml_regex *regex,
-                                      uint32_t class_index,
-                                      uint32_t codepoint) {
-    sxml_regex_class_query query = {.codepoint = codepoint,
-                                    .has_variants = false,
-                                    .variants = {.codepoint_count = 0}};
+static bool sxml_regex_class_contains_query(const sxml_regex *regex,
+                                            uint32_t class_index,
+                                            sxml_regex_class_query *query) {
     bool is_negated = false;
     const sxml_regex_class *regex_class = &regex->classes[class_index];
     for (;;) {
-        if (!sxml_regex_class_own_contains(regex_class, regex, &query)) {
+        if (!sxml_regex_class_own_contains(regex_class, regex, query)) {
             return is_negated;
         }
         if (regex_class->subtracted_class_number == 0) {
@@ -3438,10 +3547,322 @@ static bool sxml_regex_class_contains(const sxml_regex *regex,
     }
 }
 
-/* Reads the codepoint at *byte_offset and advances it; false at the end. */
+/* True when codepoint is in class class_index: one bit test for an ASCII
+   codepoint (the class's ASCII member set), the class's items otherwise. */
+static bool sxml_regex_class_contains(const sxml_regex *regex,
+                                      uint32_t class_index,
+                                      uint32_t codepoint) {
+    if (codepoint < SXML_REGEX_ASCII_LIMIT) {
+        return (regex->classes[class_index].ascii_member_bits[codepoint / 32U] &
+                ((uint32_t)1 << (codepoint % 32U))) != 0;
+    }
+    sxml_regex_class_query query = {.codepoint = codepoint,
+                                    .has_variants = false,
+                                    .variants = {.codepoint_count = 0}};
+    return sxml_regex_class_contains_query(regex, class_index, &query);
+}
+
+/* The general categories of \d and \w (XSD 1.1 Part 2, appendix G:
+   \d is \p{Nd}, \w leaves out \p{P}, \p{Z} and \p{C}). */
+#define SXML_REGEX_DECIMAL_DIGIT_CATEGORY_MASK                               \
+    ((uint32_t)1 << (uint32_t)SXML_REGEX_GENERAL_CATEGORY_ND)
+#define SXML_REGEX_WORD_CHARACTER_CATEGORY_MASK                              \
+    (~(SXML_REGEX_CATEGORY_MASK_P | SXML_REGEX_CATEGORY_MASK_Z |             \
+       SXML_REGEX_CATEGORY_MASK_C))
+
+/* The ASCII codepoints item holds, as sxml_regex_class_item_contains
+   decides: a range without the i flag and the category items (\d, \w,
+   \p{..}) directly, any other item by asking it of each codepoint (a
+   range under the i flag then finds the codepoint's case variants). */
+static sxml_regex_ascii_set sxml_regex_find_item_ascii_members(
+    const sxml_regex_class_item *item) {
+    sxml_regex_ascii_set members = {.words = {0}};
+    if (item->kind == SXML_REGEX_CLASS_ITEM_KIND_RANGE &&
+        !item->is_case_insensitive) {
+        for (uint32_t codepoint = item->first_codepoint;
+             codepoint <= item->last_codepoint &&
+             codepoint < SXML_REGEX_ASCII_LIMIT;
+             codepoint++) {
+            members.words[codepoint / 32U] |= (uint32_t)1 << (codepoint % 32U);
+        }
+    } else if (item->kind == SXML_REGEX_CLASS_ITEM_KIND_DECIMAL_DIGIT) {
+        members = sxml_regex_find_ascii_category_members(
+            SXML_REGEX_DECIMAL_DIGIT_CATEGORY_MASK);
+    } else if (item->kind == SXML_REGEX_CLASS_ITEM_KIND_WORD_CHARACTER) {
+        members = sxml_regex_find_ascii_category_members(
+            SXML_REGEX_WORD_CHARACTER_CATEGORY_MASK);
+    } else if (item->kind == SXML_REGEX_CLASS_ITEM_KIND_CATEGORY) {
+        members = sxml_regex_find_ascii_category_members(item->category_mask);
+    } else {
+        for (uint32_t codepoint = 0; codepoint < SXML_REGEX_ASCII_LIMIT;
+             codepoint++) {
+            sxml_regex_class_query query = {
+                .codepoint = codepoint,
+                .has_variants = false,
+                .variants = {.codepoint_count = 0}};
+            if (sxml_regex_class_item_contains(item, &query)) {
+                members.words[codepoint / 32U] |= (uint32_t)1
+                                                  << (codepoint % 32U);
+            }
+        }
+        return members;
+    }
+    if (item->is_complemented) {
+        for (uint32_t word_index = 0; word_index < SXML_REGEX_ASCII_WORD_COUNT;
+             word_index++) {
+            members.words[word_index] = ~members.words[word_index];
+        }
+    }
+    return members;
+}
+
+/*
+ * Writes the ASCII member set of every class of regex (D310), as
+ * sxml_regex_class_contains_query decides membership: the union of a
+ * class's items, complemented when it is negated, less the member set of
+ * the class it subtracts. Subtracted classes come later in the array, so
+ * the classes are done from the last.
+ */
+static void sxml_regex_find_ascii_members(sxml_regex *regex) {
+    for (uint32_t class_number = regex->class_count; class_number > 0;
+         class_number--) {
+        sxml_regex_class *regex_class = &regex->classes[class_number - 1];
+        uint32_t bits[SXML_REGEX_ASCII_WORD_COUNT] = {0};
+        for (uint32_t item_index = regex_class->first_item_index;
+             item_index <
+             regex_class->first_item_index + regex_class->item_count;
+             item_index++) {
+            const sxml_regex_ascii_set item_members =
+                sxml_regex_find_item_ascii_members(
+                    &regex->class_items[item_index]);
+            for (uint32_t word_index = 0;
+                 word_index < SXML_REGEX_ASCII_WORD_COUNT; word_index++) {
+                bits[word_index] |= item_members.words[word_index];
+            }
+        }
+        for (uint32_t word_index = 0;
+             word_index < SXML_REGEX_ASCII_WORD_COUNT; word_index++) {
+            uint32_t word =
+                regex_class->is_negated ? ~bits[word_index] : bits[word_index];
+            if (regex_class->subtracted_class_number != 0) {
+                word &= ~regex->classes[regex_class->subtracted_class_number - 1]
+                             .ascii_member_bits[word_index];
+            }
+            regex_class->ascii_member_bits[word_index] = word;
+        }
+    }
+}
+
+/* True when class_index may hold a codepoint outside ASCII: its own items
+   (what it holds is within them, the subtractions only remove) are not
+   all ranges below 128 of the regex as written. A case-insensitive range
+   also holds the non-ASCII variants of its letters (KELVIN SIGN for k). */
+static bool sxml_regex_class_may_hold_non_ascii(const sxml_regex *regex,
+                                                uint32_t class_index) {
+    const sxml_regex_class *regex_class = &regex->classes[class_index];
+    if (regex_class->is_negated) {
+        return true;
+    }
+    for (uint32_t item_index = regex_class->first_item_index;
+         item_index < regex_class->first_item_index + regex_class->item_count;
+         item_index++) {
+        const sxml_regex_class_item *item = &regex->class_items[item_index];
+        if (item->kind != SXML_REGEX_CLASS_ITEM_KIND_RANGE ||
+            item->is_complemented || item->is_case_insensitive ||
+            item->last_codepoint >= SXML_REGEX_ASCII_LIMIT) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/* Bounds of the start filter's walk; a regex that needs more gets no
+   filter. */
+#define SXML_REGEX_START_WALK_STACK_COUNT 32U
+#define SXML_REGEX_START_WALK_VISIT_COUNT 256U
+
+/* Adds what a first instruction that reads a character may read to
+   *filter. */
+static void sxml_regex_start_filter_add_read(
+    const sxml_regex *regex, sxml_regex_instruction instruction,
+    sxml_regex_start_filter *filter) {
+    switch (instruction.operation) {
+    case SXML_REGEX_OPERATION_CODEPOINT:
+        if (instruction.operand < SXML_REGEX_ASCII_LIMIT) {
+            filter->ascii_first_bits[instruction.operand / 32U] |=
+                (uint32_t)1 << (instruction.operand % 32U);
+        } else {
+            filter->accepts_non_ascii = true;
+        }
+        break;
+    case SXML_REGEX_OPERATION_CLASS:
+        for (uint32_t word_index = 0;
+             word_index < SXML_REGEX_ASCII_WORD_COUNT; word_index++) {
+            filter->ascii_first_bits[word_index] |=
+                regex->classes[instruction.operand]
+                    .ascii_member_bits[word_index];
+        }
+        filter->accepts_non_ascii =
+            filter->accepts_non_ascii ||
+            sxml_regex_class_may_hold_non_ascii(regex, instruction.operand);
+        break;
+    case SXML_REGEX_OPERATION_ANY_BUT_NEWLINE:
+    case SXML_REGEX_OPERATION_ANY:
+        /* Every character but newline and carriage return is enough to
+           keep every position. */
+        for (uint32_t word_index = 0;
+             word_index < SXML_REGEX_ASCII_WORD_COUNT; word_index++) {
+            filter->ascii_first_bits[word_index] = UINT32_MAX;
+        }
+        filter->accepts_non_ascii = true;
+        break;
+    case SXML_REGEX_OPERATION_SPLIT_NEXT_FIRST:
+    case SXML_REGEX_OPERATION_SPLIT_TARGET_FIRST:
+    case SXML_REGEX_OPERATION_JUMP:
+    case SXML_REGEX_OPERATION_SAVE:
+    case SXML_REGEX_OPERATION_CHECK_PROGRESS:
+    case SXML_REGEX_OPERATION_STRING_START:
+    case SXML_REGEX_OPERATION_STRING_END:
+    case SXML_REGEX_OPERATION_LINE_START:
+    case SXML_REGEX_OPERATION_LINE_END:
+    case SXML_REGEX_OPERATION_BACK_REFERENCE:
+    case SXML_REGEX_OPERATION_WORD_BOUNDARY:
+    case SXML_REGEX_OPERATION_NOT_WORD_BOUNDARY:
+    case SXML_REGEX_OPERATION_POSITIVE_LOOK_START:
+    case SXML_REGEX_OPERATION_NEGATIVE_LOOK_START:
+    case SXML_REGEX_OPERATION_LOOK_END:
+    case SXML_REGEX_OPERATION_STEP_BACK:
+    case SXML_REGEX_OPERATION_COUNTED_LOOP_START:
+    case SXML_REGEX_OPERATION_COUNTED_LOOP_CHOOSE:
+    case SXML_REGEX_OPERATION_COUNTED_LOOP_BODY:
+    case SXML_REGEX_OPERATION_COUNTED_LOOP_END:
+    case SXML_REGEX_OPERATION_REPEAT_CHARACTER:
+    case SXML_REGEX_OPERATION_MATCH:
+        /* Read nothing; the walk does not pass them here. */
+        break;
+    }
+}
+
+/*
+ * Writes regex->start_filter (D310): walks the instructions from the
+ * first, through those that read nothing and cannot fail on their own
+ * (saves, jumps, splits, progress checks, counted loop bookkeeping, a
+ * character repetition, which may read none of its characters), to
+ * each instruction that reads a character, and collects what those read.
+ * Both ways of a split and of a counted loop's choice are walked, so the
+ * set may be larger than needed, never smaller. Any other instruction
+ * reached first ("$", "\b", a back-reference, an assertion, the match
+ * itself) leaves the filter unused. The walk keeps its pending
+ * instructions on a fixed stack and stops after a fixed number of visits
+ * (no recursion, D71; loops are cut by the visit bound).
+ */
+static void sxml_regex_find_start_filter(sxml_regex *regex) {
+    sxml_regex_start_filter filter = {.is_used = true,
+                                      .may_start_at_input_start = false,
+                                      .accepts_non_ascii = false,
+                                      .ascii_first_bits = {0}};
+    regex->start_filter = (sxml_regex_start_filter){.is_used = false};
+    uint32_t pending[SXML_REGEX_START_WALK_STACK_COUNT];
+    size_t pending_count = 0;
+    pending[pending_count++] = 0;
+    for (uint32_t visit_count = 0; pending_count != 0; visit_count++) {
+        if (visit_count == SXML_REGEX_START_WALK_VISIT_COUNT) {
+            return;
+        }
+        uint32_t instruction_index = pending[--pending_count];
+        const sxml_regex_instruction instruction =
+            regex->instructions[instruction_index];
+        uint32_t next_indexes[2] = {instruction_index + 1, 0};
+        size_t next_count = 1;
+        switch (instruction.operation) {
+        case SXML_REGEX_OPERATION_CODEPOINT:
+        case SXML_REGEX_OPERATION_CLASS:
+        case SXML_REGEX_OPERATION_ANY_BUT_NEWLINE:
+        case SXML_REGEX_OPERATION_ANY:
+            sxml_regex_start_filter_add_read(regex, instruction, &filter);
+            next_count = 0;
+            break;
+        case SXML_REGEX_OPERATION_STRING_START:
+            filter.may_start_at_input_start = true;
+            next_count = 0;
+            break;
+        case SXML_REGEX_OPERATION_SAVE:
+        case SXML_REGEX_OPERATION_CHECK_PROGRESS:
+        case SXML_REGEX_OPERATION_COUNTED_LOOP_START:
+        case SXML_REGEX_OPERATION_COUNTED_LOOP_BODY:
+            break;
+        case SXML_REGEX_OPERATION_JUMP:
+        case SXML_REGEX_OPERATION_COUNTED_LOOP_END:
+            next_indexes[0] = instruction.operand;
+            break;
+        case SXML_REGEX_OPERATION_SPLIT_NEXT_FIRST:
+        case SXML_REGEX_OPERATION_SPLIT_TARGET_FIRST:
+            next_indexes[1] = instruction.operand;
+            next_count = 2;
+            break;
+        case SXML_REGEX_OPERATION_COUNTED_LOOP_CHOOSE:
+        case SXML_REGEX_OPERATION_REPEAT_CHARACTER:
+            /* A counted loop's choice: the jump out, and the next
+               iteration after it. A character repetition: its
+               character, or none and what follows it. */
+            next_indexes[1] = instruction_index + 2;
+            next_count = 2;
+            break;
+        case SXML_REGEX_OPERATION_STRING_END:
+        case SXML_REGEX_OPERATION_LINE_START:
+        case SXML_REGEX_OPERATION_LINE_END:
+        case SXML_REGEX_OPERATION_BACK_REFERENCE:
+        case SXML_REGEX_OPERATION_WORD_BOUNDARY:
+        case SXML_REGEX_OPERATION_NOT_WORD_BOUNDARY:
+        case SXML_REGEX_OPERATION_POSITIVE_LOOK_START:
+        case SXML_REGEX_OPERATION_NEGATIVE_LOOK_START:
+        case SXML_REGEX_OPERATION_LOOK_END:
+        case SXML_REGEX_OPERATION_STEP_BACK:
+        case SXML_REGEX_OPERATION_MATCH:
+            return;
+        }
+        if (pending_count + next_count > SXML_REGEX_START_WALK_STACK_COUNT) {
+            return;
+        }
+        for (size_t next_index = 0; next_index < next_count; next_index++) {
+            pending[pending_count++] = next_indexes[next_index];
+        }
+    }
+    regex->start_filter = filter;
+}
+
+/* True when an attempt at byte_offset of input may find a match, by the
+   regex's start filter. */
+static bool sxml_regex_may_start_at(const sxml_regex *regex,
+                                    sxml_string input, size_t byte_offset) {
+    const sxml_regex_start_filter *filter = &regex->start_filter;
+    if (!filter->is_used ||
+        (byte_offset == 0 && filter->may_start_at_input_start)) {
+        return true;
+    }
+    if (byte_offset == input.utf8.byte_count) {
+        return false;
+    }
+    uint8_t first_byte = input.utf8.bytes[byte_offset];
+    if (first_byte >= SXML_REGEX_ASCII_LIMIT) {
+        return filter->accepts_non_ascii;
+    }
+    return (filter->ascii_first_bits[first_byte / 32U] &
+            ((uint32_t)1 << (first_byte % 32U))) != 0;
+}
+
+/* Reads the codepoint at *byte_offset and advances it; false at the end.
+   An ASCII byte is its codepoint (RFC 3629, section 3). */
 static bool sxml_regex_matcher_read_codepoint(
     const sxml_regex_matcher *matcher, size_t *byte_offset,
     uint32_t *codepoint) {
+    const sxml_byte_view input = matcher->regex_input.utf8;
+    if (*byte_offset < input.byte_count &&
+        input.bytes[*byte_offset] < SXML_REGEX_ASCII_LIMIT) {
+        *codepoint = input.bytes[*byte_offset];
+        *byte_offset += 1;
+        return true;
+    }
     sxml_codepoint_iterator iterator = {.string = matcher->regex_input,
                                         .byte_offset = *byte_offset};
     if (!sxml_codepoint_iterator_next(&iterator, codepoint)) {
@@ -3710,6 +4131,98 @@ static sxml_status sxml_regex_matcher_end_iteration(
                                        new_counter);
 }
 
+/* Runs instruction, one that reads one character (CODEPOINT, CLASS, ANY,
+   ANY_BUT_NEWLINE), at *byte_offset: true, with *byte_offset after the
+   character, when it matches. */
+static bool sxml_regex_matcher_read_character(
+    const sxml_regex_matcher *matcher, sxml_regex_instruction instruction,
+    size_t *byte_offset) {
+    uint32_t codepoint = 0;
+    if (!sxml_regex_matcher_read_codepoint(matcher, byte_offset, &codepoint)) {
+        return false;
+    }
+    switch (instruction.operation) {
+    case SXML_REGEX_OPERATION_CODEPOINT:
+        return codepoint == instruction.operand;
+    case SXML_REGEX_OPERATION_CLASS:
+        return sxml_regex_class_contains(matcher->regex, instruction.operand,
+                                         codepoint);
+    case SXML_REGEX_OPERATION_ANY_BUT_NEWLINE:
+        return codepoint != '\n' && codepoint != '\r';
+    case SXML_REGEX_OPERATION_ANY:
+        return true;
+    case SXML_REGEX_OPERATION_SPLIT_NEXT_FIRST:
+    case SXML_REGEX_OPERATION_SPLIT_TARGET_FIRST:
+    case SXML_REGEX_OPERATION_JUMP:
+    case SXML_REGEX_OPERATION_SAVE:
+    case SXML_REGEX_OPERATION_CHECK_PROGRESS:
+    case SXML_REGEX_OPERATION_STRING_START:
+    case SXML_REGEX_OPERATION_STRING_END:
+    case SXML_REGEX_OPERATION_LINE_START:
+    case SXML_REGEX_OPERATION_LINE_END:
+    case SXML_REGEX_OPERATION_BACK_REFERENCE:
+    case SXML_REGEX_OPERATION_WORD_BOUNDARY:
+    case SXML_REGEX_OPERATION_NOT_WORD_BOUNDARY:
+    case SXML_REGEX_OPERATION_POSITIVE_LOOK_START:
+    case SXML_REGEX_OPERATION_NEGATIVE_LOOK_START:
+    case SXML_REGEX_OPERATION_LOOK_END:
+    case SXML_REGEX_OPERATION_STEP_BACK:
+    case SXML_REGEX_OPERATION_COUNTED_LOOP_START:
+    case SXML_REGEX_OPERATION_COUNTED_LOOP_CHOOSE:
+    case SXML_REGEX_OPERATION_COUNTED_LOOP_BODY:
+    case SXML_REGEX_OPERATION_COUNTED_LOOP_END:
+    case SXML_REGEX_OPERATION_REPEAT_CHARACTER:
+    case SXML_REGEX_OPERATION_MATCH:
+        break;
+    }
+    return false;
+}
+
+/*
+ * REPEAT_CHARACTER at thread (D310): reads every character its
+ * instruction matches, each counted as a step within the step limit (the
+ * one that does not match too), and goes on after that instruction. When
+ * it read some, it pushes the floor and the entry that gives them back.
+ */
+static sxml_status sxml_regex_matcher_repeat_character(
+    sxml_regex_matcher *matcher, sxml_regex_thread *thread) {
+    const uint32_t repeat_index = thread->instruction_index;
+    const sxml_regex_instruction character_instruction =
+        matcher->regex->instructions[repeat_index + 1];
+    const size_t start_byte_offset = thread->byte_offset;
+    size_t end_byte_offset = start_byte_offset;
+    for (;;) {
+        if (matcher->step_count >= matcher->maximum_step_count) {
+            return SXML_STATUS_LIMIT_EXCEEDED;
+        }
+        matcher->step_count += 1;
+        size_t next_byte_offset = end_byte_offset;
+        if (!sxml_regex_matcher_read_character(matcher, character_instruction,
+                                               &next_byte_offset)) {
+            break;
+        }
+        end_byte_offset = next_byte_offset;
+    }
+    thread->instruction_index = repeat_index + 2;
+    thread->byte_offset = end_byte_offset;
+    if (end_byte_offset == start_byte_offset) {
+        return SXML_STATUS_OK;
+    }
+    sxml_status status = sxml_regex_matcher_push(
+        matcher, (sxml_regex_backtrack_entry){
+                     .kind = SXML_REGEX_BACKTRACK_KIND_REPEAT_FLOOR,
+                     .index = repeat_index,
+                     .byte_offset = start_byte_offset});
+    if (status == SXML_STATUS_OK) {
+        status = sxml_regex_matcher_push(
+            matcher, (sxml_regex_backtrack_entry){
+                         .kind = SXML_REGEX_BACKTRACK_KIND_REPEAT_RESUME,
+                         .index = repeat_index + 2,
+                         .byte_offset = end_byte_offset});
+    }
+    return status;
+}
+
 /*
  * Runs one instruction of thread (in/out). Returns a failure status only
  * for limits and allocation.
@@ -3719,30 +4232,19 @@ static sxml_status sxml_regex_matcher_step(sxml_regex_matcher *matcher,
     const sxml_regex_instruction instruction =
         matcher->regex->instructions[thread->instruction_index];
     uint32_t next_index = thread->instruction_index + 1;
-    uint32_t codepoint = 0;
     bool is_successful = true;
     sxml_status status = SXML_STATUS_OK;
     switch (instruction.operation) {
     case SXML_REGEX_OPERATION_CODEPOINT:
-        is_successful = sxml_regex_matcher_read_codepoint(
-                            matcher, &thread->byte_offset, &codepoint) &&
-                        codepoint == instruction.operand;
-        break;
     case SXML_REGEX_OPERATION_CLASS:
-        is_successful = sxml_regex_matcher_read_codepoint(
-                            matcher, &thread->byte_offset, &codepoint) &&
-                        sxml_regex_class_contains(matcher->regex,
-                                                  instruction.operand,
-                                                  codepoint);
-        break;
     case SXML_REGEX_OPERATION_ANY_BUT_NEWLINE:
-        is_successful = sxml_regex_matcher_read_codepoint(
-                            matcher, &thread->byte_offset, &codepoint) &&
-                        codepoint != '\n' && codepoint != '\r';
-        break;
     case SXML_REGEX_OPERATION_ANY:
-        is_successful = sxml_regex_matcher_read_codepoint(
-            matcher, &thread->byte_offset, &codepoint);
+        is_successful = sxml_regex_matcher_read_character(
+            matcher, instruction, &thread->byte_offset);
+        break;
+    case SXML_REGEX_OPERATION_REPEAT_CHARACTER:
+        status = sxml_regex_matcher_repeat_character(matcher, thread);
+        next_index = thread->instruction_index;
         break;
     case SXML_REGEX_OPERATION_SPLIT_NEXT_FIRST:
         status = sxml_regex_matcher_push(
@@ -3868,8 +4370,28 @@ static bool sxml_regex_matcher_backtrack(sxml_regex_matcher *matcher,
             matcher->slots[entry.index] = entry.byte_offset;
             break;
         case SXML_REGEX_BACKTRACK_KIND_POSITIVE_ASSERTION:
-            /* The assertion's regex failed: so does the assertion. */
+        case SXML_REGEX_BACKTRACK_KIND_REPEAT_FLOOR:
+            /* A positive assertion's regex failed: so does the assertion.
+               A repetition's floor goes with its REPEAT_RESUME entry and
+               is not reached alone. */
             break;
+        case SXML_REGEX_BACKTRACK_KIND_REPEAT_RESUME: {
+            /* One character fewer; the floor is the entry below. */
+            const size_t shorter_byte_offset =
+                sxml_regex_previous_codepoint_offset(matcher->regex_input,
+                                                     entry.byte_offset);
+            if (shorter_byte_offset >
+                matcher->entries[matcher->entry_count - 1].byte_offset) {
+                matcher->entries[matcher->entry_count].byte_offset =
+                    shorter_byte_offset;
+                matcher->entry_count += 1;
+            } else {
+                matcher->entry_count -= 1;
+            }
+            thread->instruction_index = entry.index;
+            thread->byte_offset = shorter_byte_offset;
+            return true;
+        }
         case SXML_REGEX_BACKTRACK_KIND_RESUME:
         case SXML_REGEX_BACKTRACK_KIND_NEGATIVE_ASSERTION:
             thread->instruction_index = entry.index;
@@ -4015,9 +4537,19 @@ static sxml_status sxml_regex_matcher_scan(sxml_regex_matcher *matcher,
                                            sxml_regex_search_result *result) {
     size_t byte_offset = start_byte_offset;
     for (;;) {
-        sxml_regex_search_result attempt_result = {.is_found = false};
-        sxml_status status =
-            sxml_regex_matcher_attempt(matcher, byte_offset, &attempt_result);
+        sxml_regex_search_result attempt_result = sxml_regex_nothing_found;
+        sxml_status status = SXML_STATUS_OK;
+        if (sxml_regex_may_start_at(matcher->regex, matcher->regex_input,
+                                    byte_offset)) {
+            status = sxml_regex_matcher_attempt(matcher, byte_offset,
+                                                &attempt_result);
+        } else if (matcher->step_count >= matcher->maximum_step_count) {
+            status = SXML_STATUS_LIMIT_EXCEEDED;
+        } else {
+            /* A skipped position is one step, the character it looked
+               at, as the failing first instruction of an attempt was. */
+            matcher->step_count += 1;
+        }
         if (status != SXML_STATUS_OK) {
             matcher->has_match = false;
             matcher->has_next_search = false;

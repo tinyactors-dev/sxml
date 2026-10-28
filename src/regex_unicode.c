@@ -4143,6 +4143,26 @@ static const uint32_t sxml_regex_category_runs[] = {
     0x10FFFEU << 5U | 29U, /* Cn */
 };
 
+/* The categories of codepoints 0 to 127, as in the runs. */
+static const uint8_t sxml_regex_ascii_categories[] = {
+    25U, 25U, 25U, 25U, 25U, 25U, 25U, 25U, /* 0x00: Cc Cc Cc Cc Cc Cc Cc Cc */
+    25U, 25U, 25U, 25U, 25U, 25U, 25U, 25U, /* 0x08: Cc Cc Cc Cc Cc Cc Cc Cc */
+    25U, 25U, 25U, 25U, 25U, 25U, 25U, 25U, /* 0x10: Cc Cc Cc Cc Cc Cc Cc Cc */
+    25U, 25U, 25U, 25U, 25U, 25U, 25U, 25U, /* 0x18: Cc Cc Cc Cc Cc Cc Cc Cc */
+    18U, 17U, 17U, 17U, 22U, 17U, 17U, 17U, /* 0x20: Zs Po Po Po Sc Po Po Po */
+    13U, 14U, 17U, 21U, 17U, 12U, 17U, 17U, /* 0x28: Ps Pe Po Sm Po Pd Po Po */
+     8U,  8U,  8U,  8U,  8U,  8U,  8U,  8U, /* 0x30: Nd Nd Nd Nd Nd Nd Nd Nd */
+     8U,  8U, 17U, 17U, 21U, 21U, 21U, 17U, /* 0x38: Nd Nd Po Po Sm Sm Sm Po */
+    17U,  0U,  0U,  0U,  0U,  0U,  0U,  0U, /* 0x40: Po Lu Lu Lu Lu Lu Lu Lu */
+     0U,  0U,  0U,  0U,  0U,  0U,  0U,  0U, /* 0x48: Lu Lu Lu Lu Lu Lu Lu Lu */
+     0U,  0U,  0U,  0U,  0U,  0U,  0U,  0U, /* 0x50: Lu Lu Lu Lu Lu Lu Lu Lu */
+     0U,  0U,  0U, 13U, 17U, 14U, 23U, 11U, /* 0x58: Lu Lu Lu Ps Po Pe Sk Pc */
+    23U,  1U,  1U,  1U,  1U,  1U,  1U,  1U, /* 0x60: Sk Ll Ll Ll Ll Ll Ll Ll */
+     1U,  1U,  1U,  1U,  1U,  1U,  1U,  1U, /* 0x68: Ll Ll Ll Ll Ll Ll Ll Ll */
+     1U,  1U,  1U,  1U,  1U,  1U,  1U,  1U, /* 0x70: Ll Ll Ll Ll Ll Ll Ll Ll */
+     1U,  1U,  1U, 13U, 21U, 14U, 21U, 25U, /* 0x78: Ll Ll Ll Ps Sm Pe Sm Cc */
+};
+
 static const sxml_regex_block sxml_regex_blocks[] = {
     {0x1E900, 0x1E95F, "Adlam", 5},
     {0x10100, 0x1013F, "AegeanNumbers", 13},
@@ -4596,6 +4616,10 @@ static const sxml_regex_case_variant_pair sxml_regex_extra_case_variants[] = {
 
 sxml_regex_general_category sxml_regex_get_general_category(
     uint32_t codepoint) {
+    if (codepoint < SXML_REGEX_ARRAY_COUNT(sxml_regex_ascii_categories)) {
+        return (sxml_regex_general_category)
+            sxml_regex_ascii_categories[codepoint];
+    }
     /* The last run that starts at or before codepoint; the first run
        starts at 0. */
     size_t low_index = 0;
@@ -4612,6 +4636,19 @@ sxml_regex_general_category sxml_regex_get_general_category(
     }
     return (sxml_regex_general_category)(sxml_regex_category_runs[low_index] &
                                          SXML_REGEX_CATEGORY_MASK);
+}
+
+sxml_regex_ascii_set sxml_regex_find_ascii_category_members(
+    uint32_t category_mask) {
+    sxml_regex_ascii_set members = {.words = {0}};
+    for (uint32_t codepoint = 0; codepoint < SXML_REGEX_ASCII_LIMIT;
+         codepoint++) {
+        if ((category_mask &
+             ((uint32_t)1 << sxml_regex_ascii_categories[codepoint])) != 0) {
+            members.words[codepoint / 32U] |= (uint32_t)1 << (codepoint % 32U);
+        }
+    }
+    return members;
 }
 
 bool sxml_regex_is_decimal_digit(uint32_t codepoint) {

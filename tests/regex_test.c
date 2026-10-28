@@ -1259,9 +1259,11 @@ static void test_compile_limits(sxml_test_state *state) {
 static void test_fixed_backtrack_stack_reports_capacity(
     sxml_test_state *state) {
     sxml_regex *regex = NULL;
+    /* A loop over a group pushes entries for every iteration; a* would
+       be a character repetition (D310), two entries in all. */
     SXML_TEST_REQUIRE(state, sxml_regex_create(sxml_default_allocator(),
                                                &(sxml_regex_configuration){
-                                                   .regex_text = test_string("a*b"),
+                                                   .regex_text = test_string("(a)*b"),
                                                },
                                                &regex) == SXML_STATUS_OK);
     sxml_regex_matcher *matcher = NULL;
@@ -1937,6 +1939,228 @@ static void test_cache_survives_every_allocation_failure(sxml_test_state *state)
     SXML_TEST_EXPECT(state, failing_number > 10);
 }
 
+/* ------------------------------------------------- Matching fast paths */
+
+/* Writes the printable ASCII characters (0x20 to 0x7E) the regex matches
+   as a whole, by match_at, to *members; "error" when compiling or
+   matching fails. */
+static void test_ascii_members(test_search search, test_text *members) {
+    *members = (test_text){.character_count = 0};
+    members->characters[0] = '\0';
+    test_compilation compilation = {.regex_text = search.regex_text,
+                                    .flags_text = search.flags_text};
+    test_compile(&compilation);
+    for (char character = 0x20;
+         compilation.status == SXML_STATUS_OK && character < 0x7F;
+         character++) {
+        const char input_text[2] = {character, '\0'};
+        sxml_regex_search_result result = {.is_found = false};
+        compilation.status = sxml_regex_matcher_match_at(
+            compilation.matcher,
+            &(sxml_regex_search_request){.regex_input = test_string(input_text),
+                                         .start_byte_offset = 0},
+            &result);
+        if (result.is_found && result.matching_segment.byte_count == 1) {
+            test_text_append(members, (sxml_byte_view){
+                                          .bytes = (const uint8_t *)input_text,
+                                          .byte_count = 1});
+        }
+    }
+    if (compilation.status != SXML_STATUS_OK) {
+        *members = (test_text){.character_count = 0};
+        test_text_append(members, SXML_BYTE_VIEW_FROM_LITERAL("error"));
+    }
+    if (!test_release(&compilation)) {
+        test_text_append(members, SXML_BYTE_VIEW_FROM_LITERAL(" leaked"));
+    }
+}
+
+/* A class's ASCII member set (D310) holds what its items, negation,
+   subtraction and case variants say, and the items still decide outside
+   ASCII. */
+static void test_ascii_member_sets(sxml_test_state *state) {
+    static const struct {
+        test_search search;
+        const char *expected;
+    } cases[] = {
+        /* \w leaves out P, Z and C only: symbols are word characters. */
+        {{"\\w", "", ""},
+         "$+0123456789<=>ABCDEFGHIJKLMNOPQRSTUVWXYZ^`abcdefghijklmnopqrstuvwxyz|~"},
+        {{"\\W", "", ""}, " !\"#%&'()*,-./:;?@[\\]_{}"},
+        {{"[^\\d\\p{L}]", "", ""}, " !\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~"},
+        {{"\\s", "", ""}, " "},
+        {{"\\p{Sm}", "", ""}, "+<=>|~"},
+        {{"[\\i-[:A-Z]]", "", ""}, "_abcdefghijklmnopqrstuvwxyz"},
+        {{"[a-f-[b-e-[c]]]", "", ""}, "acf"},
+        {{"[a-e-[c]]", "i", ""}, "ABDEabde"},
+        {{"[^k-m]", "i", ""}, " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJNOPQRSTUVWXYZ"
+                             "[\\]^_`abcdefghijnopqrstuvwxyz{|}~"},
+        {{"k", "i", ""}, "Kk"},
+    };
+    for (size_t case_index = 0; case_index < SXML_TEST_COUNT(cases); case_index++) {
+        test_text members = {.character_count = 0};
+        test_ascii_members(cases[case_index].search, &members);
+        SXML_TEST_EXPECT(state, strcmp(members.characters, cases[case_index].expected) == 0);
+    }
+    /* KELVIN SIGN (U+212A) is a case variant of k, outside ASCII. */
+    SXML_TEST_EXPECT(state, test_first_match_is((test_search){"[j-l]", "i", "\xE2\x84\xAA"},
+                                                "[\xE2\x84\xAA]"));
+    SXML_TEST_EXPECT(state, test_first_match_is((test_search){"[a-z-[k]]", "i", "\xE2\x84\xAA"},
+                                                "none"));
+    SXML_TEST_EXPECT(state, test_first_match_is((test_search){"\\w+", "", "\xC3\xA9t\xC3\xA9"},
+                                                "[\xC3\xA9t\xC3\xA9]"));
+}
+
+/* The start filter (D310) skips only start positions where no match can
+   start. */
+static void test_start_filter_skips_positions(sxml_test_state *state) {
+    static const struct {
+        test_search search;
+        const char *expected;
+    } cases[] = {
+        {{"^b", "", "ab"}, "none"},
+        {{"^a|b", "", "cab"}, "[b]"},
+        {{"^a", "m", "b\na"}, "[a]"},
+        {{"cat|dog", "", "hotdog"}, "[dog]"},
+        {{"a*b", "", "ccb"}, "[b]"},
+        {{"(?:x?){3}y", "", "zzy"}, "[y]"},
+        {{"(?:ab){2,5000}", "", "xababab"}, "[ababab]"},
+        {{"k", "i", "xx\xE2\x84\xAA"}, "[\xE2\x84\xAA]"},
+        {{"\xC3\xA9", "", "ca\xC3\xA9"}, "[\xC3\xA9]"},
+        {{"[^a]", "", "aa\xC3\xA9"}, "[\xC3\xA9]"},
+        {{"[a-c]", "", "\xC3\xA9\xC3\xA9" "c"}, "[c]"},
+        {{"(?=b)", "", "ab"}, "[]"},
+        {{"\\bb", "", "a b"}, "[b]"},
+        {{"x*", "", "ab"}, "[]"},
+        {{"(a)|\\1b", "", "cb"}, "[b]<->"},
+        {{"$", "", "ab"}, "[]"},
+    };
+    for (size_t case_index = 0; case_index < SXML_TEST_COUNT(cases); case_index++) {
+        SXML_TEST_EXPECT(state, test_first_match_is(cases[case_index].search,
+                                                    cases[case_index].expected));
+    }
+    SXML_TEST_EXPECT(state, test_tokenize_is((test_search){"[,;]", "", "a,b;;c"},
+                                             "[a][b][][c]"));
+    /* A skipped position counts one step, as the failing attempt there
+       did: "b" in "aaab" is three skipped positions, then the character
+       and the match. */
+    test_compilation compilation = {.regex_text = "b", .flags_text = ""};
+    test_compile(&compilation);
+    SXML_TEST_REQUIRE(state, compilation.status == SXML_STATUS_OK);
+    sxml_regex_search_result result = {.is_found = false};
+    SXML_TEST_EXPECT(state, sxml_regex_matcher_find(
+                                compilation.matcher,
+                                &(sxml_regex_search_request){
+                                    .regex_input = test_string("aaab"), .start_byte_offset = 0},
+                                &result) == SXML_STATUS_OK &&
+                                result.is_found && result.matching_segment.byte_offset == 3);
+    SXML_TEST_EXPECT(state, sxml_regex_matcher_get_step_count(compilation.matcher) == 5);
+    /* "^a" from offset 1 makes no attempt, but looks at four positions,
+       the end included. */
+    SXML_TEST_EXPECT(state, test_release(&compilation));
+    compilation = (test_compilation){.regex_text = "^a", .flags_text = ""};
+    test_compile(&compilation);
+    SXML_TEST_REQUIRE(state, compilation.status == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, sxml_regex_matcher_find(
+                                compilation.matcher,
+                                &(sxml_regex_search_request){
+                                    .regex_input = test_string("aaaa"), .start_byte_offset = 1},
+                                &result) == SXML_STATUS_OK &&
+                                !result.is_found);
+    SXML_TEST_EXPECT(state, sxml_regex_matcher_get_step_count(compilation.matcher) == 4);
+    SXML_TEST_EXPECT(state, test_release(&compilation));
+}
+
+/* Character repetitions (D310) match as the loops they replace: the
+   longest run first, given back one codepoint at a time, dropped by a
+   positive assertion and undone by a negative one, and every character
+   they read counts against the step limit. */
+static void test_character_repetitions(sxml_test_state *state) {
+    static const struct {
+        test_search search;
+        const char *expected;
+    } cases[] = {
+        {{"a*ab", "", "aaab"}, "[aaab]"},
+        {{"\xC3\xA9*\xC3\xA9", "", "\xC3\xA9\xC3\xA9\xC3\xA9"},
+         "[\xC3\xA9\xC3\xA9\xC3\xA9]"},
+        {{"(x[a-c]*)c", "", "xabcabc"}, "[xabcabc]<xabcab>"},
+        {{".*b", "", "abab"}, "[abab]"},
+        {{"\\w+@\\w+", "", "a bc@de f"}, "[bc@de]"},
+        {{"(?=a*b)a", "", "aab"}, "[a]"},
+        {{"(?=(a*))a", "", "aab"}, "[a]<aa>"},
+        {{"(?!a*b)a", "", "aab"}, "none"},
+        {{"a{2,}b", "", "aaab"}, "[aaab]"},
+        {{"(?:a*)*b", "", "aab"}, "[aab]"},
+        {{"(a*)+b", "", "aab"}, "[aab]<aa>"},
+        {{"x[^x]*x", "", "axbcxd"}, "[xbcx]"},
+        {{"(?<=a)b*c", "", "abbc"}, "[bbc]"},
+        {{"[a-z]*(\\d+)", "", "abc123"}, "[abc123]<123>"},
+        {{"(\\s*,\\s*)", "", "a  ,  b"}, "[  ,  ]<  ,  >"},
+        {{"K*k", "i", "k\xE2\x84\xAAK"}, "[k\xE2\x84\xAAK]"},
+        {{"a*?b", "", "aab"}, "[aab]"},
+    };
+    for (size_t case_index = 0; case_index < SXML_TEST_COUNT(cases); case_index++) {
+        SXML_TEST_EXPECT(state, test_first_match_is(cases[case_index].search,
+                                                    cases[case_index].expected));
+    }
+    char long_input[1001];
+    memset(long_input, 'a', sizeof(long_input) - 1);
+    long_input[sizeof(long_input) - 1] = '\0';
+    static const char *const limited_texts[] = {"a*b", "a*a*a*c"};
+    for (size_t text_index = 0; text_index < SXML_TEST_COUNT(limited_texts); text_index++) {
+        test_compilation compilation = {.regex_text = limited_texts[text_index],
+                                        .flags_text = "",
+                                        .maximum_step_count = 500};
+        test_compile(&compilation);
+        SXML_TEST_REQUIRE(state, compilation.status == SXML_STATUS_OK);
+        sxml_regex_search_result result = {.is_found = false};
+        SXML_TEST_EXPECT(state, sxml_regex_matcher_find(
+                                    compilation.matcher,
+                                    &(sxml_regex_search_request){
+                                        .regex_input = test_string(long_input),
+                                        .start_byte_offset = 0},
+                                    &result) == SXML_STATUS_LIMIT_EXCEEDED);
+        SXML_TEST_EXPECT(state, test_release(&compilation));
+    }
+}
+
+/* A reset matcher is as new: no search, no match, no grown stack. */
+static void test_matcher_reset(sxml_test_state *state) {
+    test_compilation compilation = {.regex_text = "(a)*", .flags_text = ""};
+    test_compile(&compilation);
+    SXML_TEST_REQUIRE(state, compilation.status == SXML_STATUS_OK);
+    char long_input[1001];
+    memset(long_input, 'a', sizeof(long_input) - 1);
+    long_input[sizeof(long_input) - 1] = '\0';
+    sxml_regex_search_result result = {.is_found = false};
+    SXML_TEST_EXPECT(state, sxml_regex_matcher_find(
+                                compilation.matcher,
+                                &(sxml_regex_search_request){
+                                    .regex_input = test_string(long_input),
+                                    .start_byte_offset = 0},
+                                &result) == SXML_STATUS_OK &&
+                                result.matching_segment.byte_count == 1000);
+    const sxml_allocation_counts grown =
+        sxml_counting_allocator_read_counts(compilation.counting_allocator);
+    sxml_regex_matcher_reset(compilation.matcher);
+    const sxml_allocation_counts reset =
+        sxml_counting_allocator_read_counts(compilation.counting_allocator);
+    SXML_TEST_EXPECT(state, reset.live_allocation_count + 1 == grown.live_allocation_count);
+    sxml_regex_captured_group group = {.is_captured = false};
+    SXML_TEST_EXPECT(state, sxml_regex_matcher_get_captured_group(compilation.matcher, 0, &group) ==
+                                SXML_STATUS_INVALID_ARGUMENT);
+    SXML_TEST_EXPECT(state, sxml_regex_matcher_find_next(compilation.matcher, &result) ==
+                                SXML_STATUS_INVALID_ARGUMENT);
+    SXML_TEST_EXPECT(state, sxml_regex_matcher_get_step_count(compilation.matcher) == 0);
+    SXML_TEST_EXPECT(state, sxml_regex_matcher_find(
+                                compilation.matcher,
+                                &(sxml_regex_search_request){.regex_input = test_string("baa"),
+                                                             .start_byte_offset = 0},
+                                &result) == SXML_STATUS_OK &&
+                                result.is_found && result.matching_segment.byte_count == 0);
+    SXML_TEST_EXPECT(state, test_release(&compilation));
+}
+
 static const sxml_test_case regex_test_cases[] = {
     {.name = "flags_are_read", .function = test_flags_are_read},
     {.name = "unknown_flag_raises_forx0001",
@@ -2002,6 +2226,11 @@ static const sxml_test_case regex_test_cases[] = {
      .function = test_cache_survives_every_allocation_failure},
     {.name = "group_stack_allocation_failures",
      .function = test_group_stack_allocation_failures},
+    {.name = "ascii_member_sets", .function = test_ascii_member_sets},
+    {.name = "start_filter_skips_positions",
+     .function = test_start_filter_skips_positions},
+    {.name = "character_repetitions", .function = test_character_repetitions},
+    {.name = "matcher_reset", .function = test_matcher_reset},
 };
 
 int main(int argument_count, char **arguments) {

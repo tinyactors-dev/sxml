@@ -310,6 +310,15 @@ SXML_NODISCARD sxml_status sxml_regex_matcher_initialize(
 void sxml_regex_matcher_finalize(sxml_regex_matcher *matcher);
 
 /*
+ * Returns the matcher to the state sxml_regex_matcher_initialize left it
+ * in: releases the backtrack stack it grew and forgets its last search
+ * (the regex input, the match, where find_next would go on). A caller
+ * that keeps a matcher between uses resets it after each, so it holds no
+ * more memory than a new one and no reference to an input (D310).
+ */
+void sxml_regex_matcher_reset(sxml_regex_matcher *matcher);
+
+/*
  * Allocates a matcher through allocator and initializes it. allocator is
  * stored and must outlive the matcher; it may also be the backtrack
  * allocator.
@@ -468,6 +477,21 @@ typedef enum sxml_regex_general_category {
 #define SXML_REGEX_CATEGORY_MASK_Z 0x001C0000U
 #define SXML_REGEX_CATEGORY_MASK_S 0x01E00000U
 #define SXML_REGEX_CATEGORY_MASK_C 0x3E000000U
+
+/* Codepoints below this are ASCII. */
+#define SXML_REGEX_ASCII_LIMIT 128U
+#define SXML_REGEX_ASCII_WORD_COUNT (SXML_REGEX_ASCII_LIMIT / 32U)
+
+/* A set of ASCII codepoints: codepoint c is bit c % 32 of words[c / 32]
+   (D310). */
+typedef struct sxml_regex_ascii_set {
+    uint32_t words[SXML_REGEX_ASCII_WORD_COUNT];
+} sxml_regex_ascii_set;
+
+/* The ASCII codepoints whose general category is in category_mask (bit c
+   for category c), read from a table without searching the runs. */
+sxml_regex_ascii_set sxml_regex_find_ascii_category_members(
+    uint32_t category_mask);
 
 /* The general category of codepoint; Cn for unassigned codepoints. */
 sxml_regex_general_category sxml_regex_get_general_category(
