@@ -109,8 +109,7 @@
  *   (5.4.11, Annex B);
  * - schematron:syntax: an element of the Schematron namespace where the
  *   schema does not allow it, without an attribute it needs or with a
- *   value its grammar does not allow (Annex A; schematronEdition other
- *   than 2025, 5.5.15).
+ *   value its grammar does not allow (Annex A).
  * Errors in expressions keep the codes of XPath and XSLT (XPST0003,
  * XPST0008, XTSE0010, ...). Every error's location names the schematron
  * document's absolute URI with the line and column of the element or
@@ -374,8 +373,9 @@ SXML_NODISCARD SXML_EXPORT sxml_status sxml_schematron_memory_requirements(
  * Every error of Schematron (the codes above) and every syntax error of
  * an expression or a rule context (each is parsed alone) goes to the
  * report sink, and reading goes on; the stylesheet AST is compiled only
- * when none was found, and its compilation (names, types, XSLT
- * declarations) stops at its first error, which also goes to the sink.
+ * when none was found, and the errors of that compilation (names,
+ * types, XSLT declarations) go to the sink too, one per declaration or
+ * template rule.
  *
  * Returns:
  * - SXML_STATUS_STATIC_ERROR or SXML_STATUS_TYPE_ERROR, with the error
@@ -433,8 +433,8 @@ typedef struct sxml_schematron_description {
     sxml_byte_view title;
     /* The schemaVersion attribute (5.4.17). */
     sxml_byte_view schema_version;
-    /* The schematronEdition attribute (5.5.15: reported at user
-       option); "2025" when present. */
+    /* The schematronEdition attribute as written, any value (5.5.15:
+       reported at user option; never an error). */
     sxml_byte_view schematron_edition;
     /* The queryBinding attribute as written. */
     sxml_byte_view query_binding;
