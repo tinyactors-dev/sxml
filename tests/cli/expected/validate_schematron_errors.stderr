@@ -1,3 +1,3 @@
 schematron/errors.sch:6:7: schematron:syntax: an element of the Schematron namespace that the grammar does not define (Annex A)
-schematron/errors.sch:4:16: err:XTSE0340: the text is not a pattern (XSLT 4.0, 6.3.1)
+schematron/errors.sch:4:20: err:XTSE0340: the text is not a pattern (XSLT 4.0, 6.3.1)
 schematron/errors.sch:5:30: err:XPST0003: The text is not valid XPath 4.0 syntax (XPath 4.0, Appendix A)
