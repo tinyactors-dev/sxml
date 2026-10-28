@@ -188,6 +188,9 @@
     <test set="variables" case="let-element-content"/>
     <test set="variables" case="let-value-is-sequence"/>
     <test set="variables" case="let-value-is-node"/>
+    <test set="variables" case="let-dynamic-error"/>
+    <test set="variables" case="let-schema-dynamic-error"/>
+    <test set="variables" case="let-unused-dynamic-error"/>
   </requirement>
   <requirement id="r-5.4.7-as" clause="5.4.7" kind="shall">
     <text>The binding decides whether and how as is processed.</text>
@@ -212,6 +215,8 @@
     <test set="variables" case="let-rule-shadows-pattern"/>
     <test set="variables" case="let-pattern-shadows-schema"/>
     <test set="variables" case="let-phase-shadows-schema"/>
+    <test set="variables" case="let-pattern-shadows-phase"/>
+    <test set="variables" case="param-schema-and-let-same-name"/>
   </requirement>
   <requirement id="r-5.4.7-use" clause="5.4.7" kind="definition">
     <text>Variables are substituted into tests and other expressions of the rule.</text>
@@ -220,6 +225,7 @@
     <test set="variables" case="let-in-subject"/>
     <test set="variables" case="let-in-name-path"/>
     <test set="name-value-of" case="value-of-variable"/>
+    <test set="variables" case="let-non-ascii-name"/>
   </requirement>
   <requirement id="r-5.4.8" clause="5.4.8" kind="definition">
     <text>A library holds external declarations brought in by extends.</text>
@@ -234,6 +240,8 @@
     <test set="name-value-of" case="name-path-attribute"/>
     <test set="name-value-of" case="name-prefixed"/>
     <test set="name-value-of" case="name-attribute-context"/>
+    <test set="name-value-of" case="name-default-namespace"/>
+    <test set="name-value-of" case="name-dynamic-error"/>
   </requirement>
   <requirement id="r-5.4.10-prefix" clause="5.4.10" kind="definition">
     <text>ns prefix is a name without a colon; uri is required.</text>
@@ -247,12 +255,16 @@
     <test set="static-errors" case="error-xmlns-not-used-for-queries"/>
     <test set="patterns-rules" case="rules-predeclared-xs-prefix"/>
     <test set="patterns-rules" case="rules-context-namespaced-attribute"/>
+    <test set="variables" case="let-namespace-prefix"/>
+    <test set="name-value-of" case="value-of-namespaced-attribute"/>
   </requirement>
   <requirement id="r-5.4.11-schema" clause="5.4.11" kind="definition">
     <text>A schema param needs a value; its value may be overridden by the user.</text>
     <test set="variables" case="param-schema"/>
     <test set="variables" case="param-schema-override"/>
     <test set="variables" case="param-schema-without-value"/>
+    <test set="variables" case="param-schema-dynamic-error"/>
+    <test set="variables" case="param-schema-override-undeclared"/>
   </requirement>
   <requirement id="r-5.4.11-instance" clause="5.4.11" kind="definition">
     <text>An instance's param value, else the abstract param's, is used; no value is an error.</text>
@@ -269,6 +281,7 @@
     <text>Parameter names are distinct within a pattern or schema.</text>
     <test set="abstract-patterns" case="abstract-param-duplicate"/>
     <test set="variables" case="param-schema-duplicate"/>
+    <test set="variables" case="param-schema-and-let-same-name"/>
   </requirement>
   <requirement id="r-5.4.12-documents" clause="5.4.12" kind="definition">
     <text>documents is evaluated at the instance root; the pattern is sought only in those documents, resolved against the instance's base URI.</text>
@@ -361,6 +374,9 @@
     <test set="name-value-of" case="value-of-computed"/>
     <test set="name-value-of" case="value-of-empty"/>
     <test set="static-errors" case="error-value-of-without-select"/>
+    <test set="name-value-of" case="value-of-dynamic-error"/>
+    <test set="name-value-of" case="value-of-order"/>
+    <test set="name-value-of" case="value-of-namespaced-attribute"/>
   </requirement>
   <requirement id="r-5.5.1" clause="5.5.1" kind="shall">
     <text>The assertion's variables are in scope in its diagnostics.</text>
@@ -508,6 +524,10 @@
     <test set="variables" case="param-schema-override"/>
     <test set="assertions" case="report-dynamic-error"/>
     <test set="patterns-rules" case="rules-subject-dynamic-error"/>
+    <test set="variables" case="let-dynamic-error"/>
+    <test set="variables" case="let-schema-dynamic-error"/>
+    <test set="name-value-of" case="name-dynamic-error"/>
+    <test set="name-value-of" case="value-of-dynamic-error"/>
   </requirement>
   <requirement id="r-6.2" clause="6.2" kind="definition">
     <text>Inclusions, abstract patterns and abstract rules are resolved, reports negated, documentation removed.</text>
@@ -661,12 +681,14 @@
     <test set="name-value-of" case="value-of-select-syntax"/>
     <test set="name-value-of" case="name-path-syntax"/>
     <test set="patterns-rules" case="rules-subject-syntax"/>
+    <test set="variables" case="let-value-syntax"/>
   </requirement>
   <requirement id="r-7.2-variables" clause="7.2" kind="shall">
     <text>One definition per variable name in the global and the local context.</text>
     <test set="variables" case="let-duplicate-in-rule"/>
     <test set="variables" case="let-duplicate-in-schema"/>
     <test set="variables" case="let-rule-shadows-schema"/>
+    <test set="variables" case="let-pattern-shadows-phase"/>
   </requirement>
   <requirement id="r-7.2-names" clause="7.2" kind="shall">
     <text>flag, id, name and prefix are well-formed names.</text>
@@ -703,6 +725,7 @@
     <test set="abstract-rules" case="extends-rules-not-abstract"/>
     <test set="visit-each" case="visit-each-on-abstract-rule"/>
     <test set="assertions" case="message-emph-nested"/>
+    <test set="variables" case="param-in-phase"/>
   </requirement>
   <requirement id="r-A-required" clause="Annex-A" kind="shall">
     <text>Required attributes are present (test, context, select, class, uri, id).</text>
@@ -807,12 +830,17 @@
     <test set="name-value-of" case="name-path-attribute"/>
     <test set="name-value-of" case="name-prefixed"/>
     <test set="patterns-rules" case="rules-context-non-ascii-names"/>
+    <test set="name-value-of" case="name-default-namespace"/>
+    <test set="name-value-of" case="name-path-empty"/>
+    <test set="name-value-of" case="name-path-several"/>
+    <test set="name-value-of" case="name-path-processing-instruction"/>
   </requirement>
   <requirement id="r-HJ-value-of" clause="Annex-J" kind="shall">
     <text>value-of uses fn:string of what select returns.</text>
     <test set="name-value-of" case="value-of-attribute"/>
     <test set="name-value-of" case="value-of-several-items"/>
     <test set="name-value-of" case="value-of-empty"/>
+    <test set="name-value-of" case="value-of-mixed-content"/>
   </requirement>
   <requirement id="r-HJ-let" clause="Annex-J" kind="shall">
     <text>A let is an XSLT variable; as follows XSLT's rules.</text>

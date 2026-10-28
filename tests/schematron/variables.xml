@@ -483,4 +483,137 @@
       <schema-error clause="5.4.11"/>
     </result>
   </test-case>
+  <test-case name="let-dynamic-error" since="2020">
+    <description>A dynamic error in a rule variable's value that a test uses: validation ends in error.</description>
+    <spec clause="5.4.7"/>
+    <spec clause="6.1"/>
+    <schema file="let-dynamic-error.sch"/>
+    <instance file="let-dynamic-error.xml"/>
+    <result>
+      <error clause="6.1"/>
+    </result>
+  </test-case>
+
+  <test-case name="let-schema-dynamic-error" since="2020">
+    <description>A dynamic error in a schema variable's value (evaluated at the document root) that a test uses.</description>
+    <spec clause="5.4.7"/>
+    <spec clause="6.1"/>
+    <schema file="let-schema-dynamic-error.sch"/>
+    <instance file="let-schema-dynamic-error.xml"/>
+    <result>
+      <error clause="6.1"/>
+    </result>
+  </test-case>
+
+  <test-case name="let-unused-dynamic-error" since="2020">
+    <description>A rule variable that nothing references and whose value would raise a dynamic error.</description>
+    <spec clause="5.4.7"/>
+    <spec clause="6.6"/>
+    <spec clause="Annex-J"/>
+    <schema file="let-unused-dynamic-error.sch"/>
+    <instance file="let-unused-dynamic-error.xml"/>
+    <result>
+      <implementation-defined clause="6.6 Annex-J">Schematron says nothing of variables that are never referenced, and the query language (XPath 3.1, 2.3.4 Errors and Optimization; XSLT 3.0 variables) lets an implementation skip evaluating them: the outcome is valid (no findings) or error.</implementation-defined>
+    </result>
+  </test-case>
+
+  <test-case name="let-value-syntax" since="2020">
+    <description>A let value that is not an expression of the query language.</description>
+    <spec clause="5.4.7"/>
+    <spec clause="7.2"/>
+    <schema file="let-value-syntax.sch"/>
+    <instance file="let-value-syntax.xml"/>
+    <result>
+      <schema-error clause="7.2"/>
+    </result>
+  </test-case>
+
+  <test-case name="let-non-ascii-name" since="2020">
+    <description>A variable whose name has non-ASCII letters.</description>
+    <spec clause="5.4.7"/>
+    <spec clause="3.11"/>
+    <schema file="let-non-ascii-name.sch"/>
+    <instance file="let-non-ascii-name.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[3]">
+          <message>At most 2.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="let-namespace-prefix" since="2020">
+    <description>A variable's value uses a prefix declared by ns that differs from the instance's prefix for the same URI.</description>
+    <spec clause="5.4.7"/>
+    <spec clause="5.4.10"/>
+    <schema file="let-namespace-prefix.sch"/>
+    <instance file="let-namespace-prefix.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]">
+          <message>One item, not 2.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="let-pattern-shadows-phase" since="2020">
+    <description>A pattern variable with the name of a variable of a phase that activates the pattern: a variable may be defined once over the current schema, phase, pattern and rule.</description>
+    <spec clause="5.4.7"/>
+    <spec clause="7.2"/>
+    <schema file="let-pattern-shadows-phase.sch"/>
+    <instance file="let-pattern-shadows-phase.xml"/>
+    <phase>p</phase>
+    <result>
+      <schema-error clause="5.4.7"/>
+    </result>
+  </test-case>
+
+  <test-case name="param-in-phase" since="2025">
+    <description>param is a child of a schema or a pattern, not of a phase.</description>
+    <spec clause="5.4.11"/>
+    <spec clause="Annex-A"/>
+    <schema file="param-in-phase.sch"/>
+    <instance file="param-in-phase.xml"/>
+    <result>
+      <schema-error clause="Annex-A"/>
+    </result>
+  </test-case>
+
+  <test-case name="param-schema-dynamic-error" since="2025">
+    <description>A schema parameter whose value raises a dynamic error when a test uses it.</description>
+    <spec clause="5.4.11"/>
+    <spec clause="6.1"/>
+    <schema file="param-schema-dynamic-error.sch"/>
+    <instance file="param-schema-dynamic-error.xml"/>
+    <result>
+      <error clause="6.1"/>
+    </result>
+  </test-case>
+
+  <test-case name="param-schema-and-let-same-name" since="2025">
+    <description>A schema parameter and a schema variable of one name: both are variables (3.23), defined twice.</description>
+    <spec clause="5.4.7"/>
+    <spec clause="5.4.11"/>
+    <spec clause="3.23"/>
+    <spec clause="7.2"/>
+    <schema file="param-schema-and-let-same-name.sch"/>
+    <instance file="param-schema-and-let-same-name.xml"/>
+    <result>
+      <schema-error clause="5.4.7"/>
+    </result>
+  </test-case>
+
+  <test-case name="param-schema-override-undeclared" since="2025">
+    <description>A value given at user option for a schema parameter that the schema does not declare.</description>
+    <spec clause="5.4.11"/>
+    <dependency type="feature" value="schema-parameter-override"/>
+    <schema file="param-schema-override-undeclared.sch"/>
+    <instance file="param-schema-override-undeclared.xml"/>
+    <param name="other" value="3"/>
+    <result>
+      <implementation-defined clause="5.4.11">The override mechanism is implementation-defined, and so is what it does with a name the schema does not declare: ignore it (two failed-asserts at items 2 and 3), or reject it.</implementation-defined>
+    </result>
+  </test-case>
 </test-set>
