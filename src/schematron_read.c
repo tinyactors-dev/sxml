@@ -14,6 +14,7 @@
 #include "schematron_internal.h"
 
 #include "processor_internal.h"
+#include "sort_internal.h"
 #include "tree_internal.h"
 #include "xdm_internal.h"
 
@@ -2333,29 +2334,91 @@ static sxml_byte_view parameter_name(const sxml_schematron_compilation *compilat
                                  .place = parameter, .attribute_kind = SXML_SCHEMATRON_ATTRIBUTE_NAME});
 }
 
-/* 5.4.11: names distinct within the scope of a pattern or schema. */
+/* A parameter's name and position among its siblings, sorted by name to
+   find the names given twice (perf-13: a search of the earlier ones for
+   each was quadratic in a pattern instance's parameters). */
+typedef struct named_parameter {
+    sxml_byte_view name;
+    size_t position;
+    bool is_repeated;
+} named_parameter;
+
+/* By name in byte order, then position. */
+static bool is_named_parameter_before(const void *state, sxml_sort_pair pair) {
+    (void)state;
+    const named_parameter *first = pair.first;
+    const named_parameter *second = pair.second;
+    const size_t common = first->name.byte_count < second->name.byte_count ? first->name.byte_count
+                                                                           : second->name.byte_count;
+    const int order = common == 0 ? 0 : memcmp(first->name.bytes, second->name.bytes, common);
+    if (order != 0) {
+        return order < 0;
+    }
+    if (first->name.byte_count != second->name.byte_count) {
+        return first->name.byte_count < second->name.byte_count;
+    }
+    return first->position < second->position;
+}
+
+static bool is_position_before(const void *state, sxml_sort_pair pair) {
+    (void)state;
+    return ((const named_parameter *)pair.first)->position <
+           ((const named_parameter *)pair.second)->position;
+}
+
+/* 5.4.11: names distinct within the scope of a pattern or schema. Each
+   parameter whose name an earlier one has is reported, in order. */
 static sxml_status check_distinct_parameters(sxml_schematron_compilation *compilation,
                                              const sxml_schematron_array *parameters) {
     const sxml_schematron_place *places = parameters->elements;
+    if (parameters->count < 2U) {
+        return SXML_STATUS_OK;
+    }
+    size_t byte_count = 0;
+    sxml_status status = sxml_size_multiply(parameters->count, sizeof(named_parameter), &byte_count);
+    void *memory = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_allocator_allocate(
+            compilation->allocator,
+            (sxml_allocation_request){.byte_count = byte_count, .alignment = alignof(named_parameter)},
+            &memory);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    named_parameter *named = memory;
     for (size_t parameter_index = 0; parameter_index < parameters->count; parameter_index += 1) {
-        const sxml_byte_view name = parameter_name(compilation, places[parameter_index]);
-        for (size_t earlier_index = 0; earlier_index < parameter_index; earlier_index += 1) {
-            if (sxml_byte_view_equals(name, parameter_name(compilation, places[earlier_index]))) {
-                const sxml_status status = report_at(
-                    compilation, (place_error){.code = "parameter",
-                                               .description = "a parameter is named twice in one "
-                                                              "scope (5.4.11, Annex B)",
-                                               .place = places[parameter_index],
-                                               .attribute_span = {.line_number = 0},
-                                               .subject = name});
-                if (status != SXML_STATUS_OK) {
-                    return status;
-                }
-                break;
-            }
+        named[parameter_index] = (named_parameter){
+            .name = parameter_name(compilation, places[parameter_index]),
+            .position = parameter_index,
+            .is_repeated = false};
+    }
+    sxml_sort_request sort = {.elements = named,
+                              .element_count = parameters->count,
+                              .element_size = sizeof(named_parameter),
+                              .is_before = is_named_parameter_before,
+                              .state = NULL};
+    sxml_sort_in_place(&sort);
+    for (size_t sorted_index = 1; sorted_index < parameters->count; sorted_index += 1) {
+        named[sorted_index].is_repeated =
+            sxml_byte_view_equals(named[sorted_index].name, named[sorted_index - 1U].name);
+    }
+    sort.is_before = is_position_before;
+    sxml_sort_in_place(&sort);
+    for (size_t parameter_index = 0; status == SXML_STATUS_OK && parameter_index < parameters->count;
+         parameter_index += 1) {
+        if (named[parameter_index].is_repeated) {
+            status = report_at(compilation,
+                               (place_error){.code = "parameter",
+                                             .description = "a parameter is named twice in one "
+                                                            "scope (5.4.11, Annex B)",
+                                             .place = places[parameter_index],
+                                             .attribute_span = {.line_number = 0},
+                                             .subject = named[parameter_index].name});
         }
     }
-    return SXML_STATUS_OK;
+    sxml_allocator_release(compilation->allocator, memory);
+    return status;
 }
 
 /* A pattern instance against its abstract pattern (5.4.11, Annex B). */

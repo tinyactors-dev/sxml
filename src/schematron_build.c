@@ -73,6 +73,28 @@ typedef struct compiled_pattern {
     bool has_documents;
 } compiled_pattern;
 
+/* A fixed text parsed once (perf-13): synthesized texts recur, one per
+   assertion ("$Q{urn:sxml:schematron}subject" and the like), and each
+   parse costs a tree-sitter run; a copy of the AST is cheap. */
+typedef struct fixed_parse {
+    /* 0 for an empty slot. */
+    uint64_t hash;
+    sxml_xslt_ast_value_kind value_kind;
+    /* The text, in fixed_memo.texts. */
+    size_t text_offset;
+    size_t text_byte_count;
+    /* As the front end made it, owned. */
+    sxml_ast *ast;
+} fixed_parse;
+
+/* An open-addressing hash table of fixed_parse, at most half full. */
+typedef struct fixed_memo {
+    fixed_parse *slots;
+    size_t slot_count;
+    size_t used_count;
+    sxml_xml_buffer texts;
+} fixed_memo;
+
 typedef struct schematron_builder {
     sxml_schematron_compilation *compilation;
     sxml_xslt_ast *ast;
@@ -122,6 +144,8 @@ typedef struct schematron_builder {
     sxml_xml_buffer scratch;
     /* The error of the last parse. */
     sxml_error_record parse_record;
+    /* The ASTs of the fixed texts parsed so far (perf-13). */
+    fixed_memo fixed_parses;
 } schematron_builder;
 
 
@@ -726,12 +750,189 @@ typedef struct fixed_expression {
     sxml_ast_source_span origin;
 } fixed_expression;
 
+/* FNV-1a over the value kind and the text; never 0, which marks an
+   empty slot. */
+static uint64_t fixed_hash(sxml_xslt_ast_value_kind value_kind, sxml_byte_view text) {
+    uint64_t hash = UINT64_C(14695981039346656037) ^ (uint64_t)value_kind;
+    hash *= UINT64_C(1099511628211);
+    for (size_t byte_index = 0; byte_index < text.byte_count; byte_index += 1) {
+        hash ^= text.bytes[byte_index];
+        hash *= UINT64_C(1099511628211);
+    }
+    return hash == 0 ? 1 : hash;
+}
+
+/* The slot of the text in the memo: its entry, or the empty slot where it
+   goes. The table is never full. */
+typedef struct fixed_key {
+    uint64_t hash;
+    sxml_xslt_ast_value_kind value_kind;
+    sxml_byte_view text;
+} fixed_key;
+
+static fixed_parse *find_fixed_slot(const fixed_memo *memo, fixed_key key) {
+    size_t slot_index = (size_t)(key.hash & (memo->slot_count - 1U));
+    for (;;) {
+        fixed_parse *entry = &memo->slots[slot_index];
+        if (entry->hash == 0) {
+            return entry;
+        }
+        if (entry->hash == key.hash && entry->value_kind == key.value_kind &&
+            sxml_byte_view_equals(sxml_xml_buffer_view(&memo->texts,
+                                                       (sxml_byte_range){.byte_offset = entry->text_offset,
+                                                                        .byte_count = entry->text_byte_count}),
+                                  key.text)) {
+            return entry;
+        }
+        slot_index = (slot_index + 1U) & (memo->slot_count - 1U);
+    }
+}
+
+/* Doubles the slots (64 at first), moving the entries. */
+static sxml_status grow_fixed_memo(schematron_builder *builder) {
+    fixed_memo *memo = &builder->fixed_parses;
+    const size_t slot_count = memo->slot_count == 0 ? 64U : memo->slot_count * 2U;
+    size_t byte_count = 0;
+    sxml_status status = sxml_size_multiply(slot_count, sizeof(fixed_parse), &byte_count);
+    void *memory = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_allocator_allocate(
+            builder->compilation->allocator,
+            (sxml_allocation_request){.byte_count = byte_count, .alignment = alignof(fixed_parse)},
+            &memory);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    memset(memory, 0, byte_count);
+    const fixed_memo old = *memo;
+    memo->slots = memory;
+    memo->slot_count = slot_count;
+    for (size_t slot_index = 0; slot_index < old.slot_count; slot_index += 1) {
+        const fixed_parse *entry = &old.slots[slot_index];
+        if (entry->hash == 0) {
+            continue;
+        }
+        *find_fixed_slot(memo,
+                         (fixed_key){.hash = entry->hash,
+                                     .value_kind = entry->value_kind,
+                                     .text = sxml_xml_buffer_view(
+                                         &memo->texts, (sxml_byte_range){.byte_offset = entry->text_offset,
+                                                                        .byte_count = entry->text_byte_count})}) =
+            *entry;
+    }
+    sxml_allocator_release(builder->compilation->allocator, old.slots);
+    return SXML_STATUS_OK;
+}
+
+static void release_fixed_memo(schematron_builder *builder) {
+    fixed_memo *memo = &builder->fixed_parses;
+    for (size_t slot_index = 0; slot_index < memo->slot_count; slot_index += 1) {
+        sxml_ast_destroy(memo->slots[slot_index].ast);
+    }
+    sxml_allocator_release(builder->compilation->allocator, memo->slots);
+    sxml_xml_buffer_release(&memo->texts);
+    memo->slots = NULL;
+    memo->slot_count = 0;
+    memo->used_count = 0;
+}
+
+/* A copy of a parsed AST, node for node (each node at its index, the
+   text store byte for byte), with its own source name: what the front end
+   would build from the same text. */
+typedef struct ast_copy {
+    const sxml_ast *original;
+    sxml_byte_view source_name;
+} ast_copy;
+
+static sxml_status copy_ast(schematron_builder *builder, ast_copy request, sxml_ast **ast) {
+    const sxml_ast *original = request.original;
+    sxml_ast *copy = NULL;
+    sxml_status status = sxml_ast_create(builder->compilation->allocator,
+                                         &(sxml_ast_configuration){.node_capacity = original->node_capacity,
+                                                                   .text_byte_capacity =
+                                                                       original->text_byte_capacity,
+                                                                   .source_name = request.source_name},
+                                         &copy);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (original->text_byte_count != 0) {
+        sxml_ast_text text = {.byte_offset = 0, .byte_count = 0};
+        status = sxml_ast_append_text(
+            copy, (sxml_byte_view){.bytes = original->text_bytes, .byte_count = original->text_byte_count},
+            &text);
+    }
+    for (uint32_t node_number = 1; status == SXML_STATUS_OK && node_number < original->node_count;
+         node_number += 1) {
+        const sxml_ast_node *node = &original->nodes[node_number];
+        sxml_ast_node_index added = {.value = 0};
+        status = sxml_ast_add_node(copy,
+                                   &(sxml_ast_node_request){.kind = node->kind,
+                                                            .detail = node->detail,
+                                                            .flags = node->flags,
+                                                            .source_span = node->source_span,
+                                                            .payload = node->payload},
+                                   &added);
+    }
+    for (uint32_t node_number = 1; status == SXML_STATUS_OK && node_number < original->node_count;
+         node_number += 1) {
+        for (sxml_ast_node_index child = original->nodes[node_number].first_child;
+             status == SXML_STATUS_OK && child.value != 0;
+             child = original->nodes[child.value].next_sibling) {
+            status = sxml_ast_append_child(
+                copy, (sxml_ast_child_request){.parent = {.value = node_number},
+                                               .field = original->nodes[child.value].field,
+                                               .child = child});
+        }
+    }
+    if (status != SXML_STATUS_OK) {
+        sxml_ast_destroy(copy);
+        return status;
+    }
+    copy->root = original->root;
+    *ast = copy;
+    return SXML_STATUS_OK;
+}
+
 static sxml_status parse_fixed(schematron_builder *builder, fixed_expression fixed, sxml_ast **ast) {
-    const sxml_status status = parse_with_front_end(
-        builder, (front_end_request){.value_kind = fixed.value_kind,
-                                     .text = fixed.text,
-                                     .source_name = source_name_of(builder, fixed.document)},
-        ast);
+    fixed_memo *memo = &builder->fixed_parses;
+    sxml_status status = SXML_STATUS_OK;
+    if ((memo->used_count + 1U) * 2U > memo->slot_count) {
+        status = grow_fixed_memo(builder);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    const fixed_key key = {.hash = fixed_hash(fixed.value_kind, fixed.text),
+                           .value_kind = fixed.value_kind,
+                           .text = fixed.text};
+    fixed_parse *entry = find_fixed_slot(memo, key);
+    if (entry->hash == 0) {
+        sxml_ast *parsed = NULL;
+        status = parse_with_front_end(builder,
+                                      (front_end_request){.value_kind = fixed.value_kind,
+                                                          .text = fixed.text,
+                                                          .source_name = source_name_of(builder, fixed.document)},
+                                      &parsed);
+        const size_t text_offset = memo->texts.byte_count;
+        if (status == SXML_STATUS_OK) {
+            status = sxml_xml_buffer_append(&memo->texts, fixed.text);
+        }
+        if (status != SXML_STATUS_OK) {
+            sxml_ast_destroy(parsed);
+            return status;
+        }
+        *entry = (fixed_parse){.hash = key.hash,
+                               .value_kind = fixed.value_kind,
+                               .text_offset = text_offset,
+                               .text_byte_count = fixed.text.byte_count,
+                               .ast = parsed};
+        memo->used_count += 1;
+    }
+    status = copy_ast(builder,
+                      (ast_copy){.original = entry->ast, .source_name = source_name_of(builder, fixed.document)},
+                      ast);
     if (status == SXML_STATUS_OK) {
         place_spans_at(*ast, fixed.origin);
     }
@@ -4440,6 +4641,7 @@ sxml_status sxml_schematron_build(sxml_schematron_compilation *compilation) {
                                               .expands_rules = true};
     builder.scratch = sxml_xml_buffer_empty(compilation->allocator);
     builder.renamed_text = sxml_xml_buffer_empty(compilation->allocator);
+    builder.fixed_parses.texts = sxml_xml_buffer_empty(compilation->allocator);
     sxml_schematron_array bindings_array = {.elements = NULL, .count = 0, .capacity = 0};
     sxml_status status = intern_builder_names(&builder);
     if (status == SXML_STATUS_OK) {
@@ -4536,5 +4738,6 @@ sxml_status sxml_schematron_build(sxml_schematron_compilation *compilation) {
     sxml_schematron_cursor_finish(&builder.cursor);
     sxml_xml_buffer_release(&builder.scratch);
     sxml_xml_buffer_release(&builder.renamed_text);
+    release_fixed_memo(&builder);
     return status;
 }
