@@ -728,6 +728,8 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `regex_flags` | The flags of a regular expression, from the `$flags` string: `s` dot-all, `m` multi-line, `i` case-insensitive, `x` whitespace removed, `q` literal, `c` comments (F&O 4.0, section 6.2) |
 | `regex_matcher` | The working state of matching one compiled regex: backtrack stack, captured groups, step count; one per thread (`sxml_regex_matcher`) |
 | `regex_cache` | The compiled regexes of one evaluation, keyed by regex text and regex flags, so `fn:matches`, `fn:replace`, `fn:tokenize`, `fn:analyze-string`, `fn:matching-segments` and fn:regex's functions compile a regex once; bounded, the least recently used entry no call is using evicted first, kept in the evaluation memo (internal, `src/function_library_regex.c`, D308) |
+| `ascii_member_set` | The ASCII codepoints a regex character class contains, negation, subtraction and case variants included: 128 bits per class, found when the regex is compiled, so matching an ASCII character is one bit test (internal, `src/regex.c`, D309) |
+| `start_filter` | What a compiled regex knows of where a match can start: the first characters it can read (an ASCII set and whether a non-ASCII one can follow) and whether it can start only at the start of the input; a search skips the start positions it excludes (internal, `src/regex.c`, D309) |
 | `regex_input` | The string a regex matcher searches (`$value` of `fn:tokenize`, the "input string" of F&O 4.0, section 6.1.1) |
 | `regex_instruction` | One operation of a compiled regex, run by the backtracking matcher |
 | `matching_segment` | A segment of the regex input that a regex matches: start and length, held as a byte range (F&O 4.0, section 6.1.1) |
