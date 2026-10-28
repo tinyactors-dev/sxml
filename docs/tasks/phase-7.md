@@ -1491,7 +1491,10 @@ the 7.22 and 7.26 entries here).
 
 ### 7.27 Schematron as a front end to the XSLT AST (design)
 The owner accepted Schematron on 2026-10-28, as a front end beside XSLT
-and XQuery, not by generating XSLT text. No phase covered it (PLAN.md
+and XQuery, not by generating XSLT text. The owner settled the open
+points in D313 (edition 2025, bindings, outputs, exit status, order
+with XSD, SchXslt as a test reference only): the design follows them.
+No phase covered it (PLAN.md
 names XSD only): the packet's decision record brings it into Phase 7.
 Evidence from 2026-10-28 (see D309, D310 and the queue):
 - the official pre-compiled EN 16931 stylesheets pass all 1,133 checks
@@ -1577,6 +1580,60 @@ API, a book chapter).
 - **Done when**: the gates pass; the CLI, C and JavaScript APIs are
   tested end to end; the book chapter's examples match; QT4 and XT40
   unchanged.
+
+### 7.29 Source locations for parsed input documents (design and implementation)
+After D87, D313 and perf-8 (which holds `src/evaluator.c` and
+`src/evaluator_function.c`). D313 settles the behaviour: a processor
+setting `AUTOMATIC` (the zero value), `ALWAYS`, `NEVER`; under
+`AUTOMATIC` documents a host parses keep locations, and where sxml
+parses for a program the compiled program decides (it calls
+`fn:location`, can reach functions dynamically, or is a validation);
+dynamic errors that name an input node print its line and column;
+`--locations=` in the sxml command, the same three values in
+JavaScript. Today `sxml_processor_parse_document` sets
+`keeps_locations = false` (`src/processor.c`), so `fn:location` is the
+empty sequence for every input document; the arena tree and the parser
+already support locations.
+- **Design**: the field in `sxml_processor_configuration`
+  (`include/sxml/processor.h`, additive after D99, with its decision
+  record); one flag per compiled unit (XPath, XQuery, XSLT) that the
+  lowering sets; where `fn:doc`, `fn:parse-xml` and `fn:collection` read
+  it; `xpath` and `xquery` in the sxml command compile before they parse
+  `--context-item`; which error records gain the location.
+- **Owns**: `include/sxml/processor.h` (the new field), `src/processor.c`,
+  the parts of the lowering that set the flag, the call sites of
+  `fn:doc`, `fn:parse-xml` and `fn:collection`, `apps/sxml/query_command.c`,
+  `apps/sxml/command_xpath.c`, `apps/sxml/command_xquery.c`,
+  `apps/sxml/command_transform.c` (option only), `docs/CLI.md`, the
+  JavaScript package's option, tests.
+- **Done when**: `location(.)` gives line and column for the context
+  item, `fn:doc` and a stylesheet's input under `AUTOMATIC` in a
+  program that calls it, and nothing is kept for one that cannot ask
+  (memory measured both ways on the 26 MB document of D313); errors
+  print locations; QT4 and XT40 unchanged case by case; the book's
+  examples match.
+
+### cli-4 No step limit in the sxml command (implementation)
+After D313 (the owner: the sxml command sets no evaluation step limit).
+Today the command leaves `maximum_evaluation_step_count` at 0, the
+library's default of 10^8 steps (D89, D259), about 2 s of work after
+perf-5 to perf-7; a long batch job such as a Schematron compile cannot
+finish, and there is no option to raise it. The library's default stays
+for embedders and the JavaScript package; the drivers keep their own
+bounds (D166, D178).
+- **Mechanism**: the command's processor configuration asks for no
+  step bound. If the header has no way to say "no bound" (0 means the
+  default), use the largest value and say so in the decision record,
+  or propose a named constant under "## Proposed" if that reads better
+  (PACKET.md step 4).
+- **Owns**: `apps/sxml/` (the processor configuration only),
+  the CLI tests that rely on the step limit, `docs/CLI.md`, and the
+  book's pages that describe the command stopping: `performance.md`
+  ("The step limit"), `appendix-differences.md`, `ixml-performance.md`,
+  `javascript.md` (which keeps the default, but cites the chapter).
+- **Done when**: a command that ran into the bound runs to its end (an
+  example that took more than 10^8 steps); the book's examples match
+  (`tools/check-book-examples.sh`); the CLI tests pass.
 
 ## Proposed for the owner
 

@@ -14807,6 +14807,63 @@ changed.
   `("regex-reuse", ["SXML", "xquery", os.path.join(BENCH,
   "regex-reuse.xq")])` and likewise for regex-match.
 
+### D313. The owner's decisions of 2026-10-28: Schematron, source locations, the CLI's step limit
+
+Recorded 2026-10-28 by the orchestrator, from the owner's answers to the
+open points of packet 7.27 and of the "Source locations for parsed
+input documents" item that was under "## Proposed" (moved here).
+
+**Schematron (packet 7.27, its design follows these):**
+1. The edition is ISO/IEC 19757-3:2025 (4th edition, with `group`,
+   `library` and `rules`, and the XSLT 3.1 and XQuery 3.1 binding);
+   older schemas are read as the 4th edition reads them.
+2. Query bindings: `xslt2`, `xslt3` and `xpath2`, `xpath3`, `xpath31`
+   are accepted; a schema without `queryBinding` is read as `xslt3`
+   (not XSLT 1.0, whose stylesheets sxml refuses with XTDE0160 until
+   backwards compatibility lands); `xquery3` is rejected in one place
+   with the error the standard gives.
+3. Outputs: text and `--format=json` as for XSD, and `--format=svrl`.
+4. Exit status 1 for a failed `assert` or a fired `report` whose role
+   or flag is `fatal` or `error`, or that has neither; findings with
+   other roles (warning, info) are printed and leave the status 0.
+5. `--schema` with `--schematron`: XSD validation first, then the
+   Schematron rules over the typed result; both reported, also when
+   XSD validation fails.
+6. SchXslt 1.10.1 (MIT) is vendored in `third_party/` as the reference
+   of a differential test only; nothing of it ships.
+
+**Source locations for parsed input documents** (the owner's direction:
+optional, and on by default where it matters):
+- A processor setting with three values, `AUTOMATIC` (the zero value),
+  `ALWAYS`, `NEVER`, for the documents sxml parses: by
+  `sxml_processor_parse_document`, `fn:doc`, `fn:parse-xml`,
+  `fn:collection`.
+- 7. Under `AUTOMATIC` a document that a host parses before any program
+  is compiled keeps its locations. Where sxml parses on a program's
+  behalf, the compiled program decides: locations are kept when it
+  calls `fn:location`, can reach functions dynamically
+  (`fn:function-lookup`, `fn:load-xquery-module`, `fn:transform`,
+  `xsl:evaluate`), or is a Schematron or XSD validation. `xpath` and
+  `xquery` in the sxml command compile before they parse
+  `--context-item`.
+- 8. A dynamic error that names an input node prints its line and
+  column when the node's document kept its locations.
+- `--locations=always|never|automatic` in the sxml command; the same
+  three values in the JavaScript package.
+- Cost measured: 32 bytes a node; a 26 MB document of about 2.5 million
+  nodes, release build, x86_64 Xeon 2.1 GHz: peak memory 171 MB without,
+  248 MB with (+45 %), time 3.0–3.2 s against 3.2–3.3 s. Streamed input
+  builds no tree and pays nothing. Packet 7.29.
+
+**The sxml command's step limit** (9): the sxml command sets no
+evaluation step limit; a long run is stopped by the person running it.
+The library's default (D89, D259) stays for embedders and the
+JavaScript package; the conformance drivers keep their own bounds
+(D166, D178). Packet cli-4.
+
+**SchXslt upstream** (10): the sort-once fix for
+`schxslt:replace-params` is not offered upstream.
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): tagging and
@@ -14815,48 +14872,3 @@ changed.
   repository moves to tinyactors-dev. The license (MIT) and the npm name
   (`@tinyactors/sxml`) are settled in D239; everything else takes its
   proposed default (D208).
-- **Source locations for parsed input documents** (header change after
-  D99; the owner's direction: optional, and on by default where it
-  matters).
-  - *Whom it serves*: first the reader of a finding (a Schematron
-    `failed-assert`, an `xs:assert` failure, a report a query builds with
-    `fn:location`), who needs "invoice.xml:104:5" and not only an XPath;
-    then hosts that map findings back to an editor.
-  - *What exists*: `fn:location` (F&O 4.0, 12.1.3) over
-    `sxml_tree_operations.get_location`; the arena tree keeps a location
-    per node when `sxml_arena_tree_configuration.keeps_locations` is true;
-    the parser reports positions (D87). Stylesheets (`src/xslt_read.c`)
-    and schemas (`src/schema_assemble.c`) keep theirs, but
-    `sxml_processor_parse_document` sets `false` (`src/processor.c`), so
-    `location(.)` is empty for every input document. Flipping that flag
-    alone was tried in a scratch build: `fn:location` then answers in
-    XPath and XSLT, and an `xsl:import` wrapper of the official EN 16931
-    stylesheet reported BR-CO-16 at line 104, column 5 of the invoice.
-  - *Who pays*: 32 bytes a node (`sxml_source_location`, 64-bit).
-    Release build, x86_64 Xeon 2.1 GHz, a 26 MB document of about 2.5
-    million nodes, three runs each: peak memory 171 MB without, 248 MB
-    with (+45 %); time 3.0–3.2 s without, 3.2–3.3 s with. Streamed input
-    builds no tree and pays nothing.
-  - *Proposal*: a processor setting for parsed input documents
-    (`sxml_processor_parse_document`, `fn:doc`, `fn:parse-xml`,
-    `fn:collection`) with three values: `AUTOMATIC` (the zero value),
-    `ALWAYS`, `NEVER`. Under `AUTOMATIC` the compiler decides: a document
-    keeps locations when the compiled query or stylesheet reading it can
-    ask for them, that is when it calls `fn:location`, when it can reach
-    functions dynamically (`fn:function-lookup`, `fn:load-xquery-module`,
-    `fn:transform`, `xsl:evaluate`), or when it is a Schematron
-    validation; one flag per compiled unit records it. `sxml validate`
-    keeps locations; `xpath`, `xquery` and `transform` follow
-    `AUTOMATIC`; `--locations=always|never|automatic` overrides it for
-    every command; JavaScript gets the same three values in
-    `createProcessor`. No new IR kind.
-  - *Open for the owner*: what `AUTOMATIC` means for a document a host
-    parses before any program is compiled (keep, or not?). On the command
-    line `transform` already compiles before it parses INPUT
-    (`apps/sxml/command_transform.c`), but `xpath` and `xquery` parse
-    `--context-item` in `sxml_query_run_start`, before compiling
-    (`apps/sxml/query_command.c`), and would have to compile first.
-    Whether dynamic errors that name an input node should print its line
-    too.
-  - *Out of scope*: constructed trees (no source), attribute positions
-    beyond their element's, the streaming path.
