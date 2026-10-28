@@ -347,6 +347,50 @@ static sxml_status build_fixed_document(const node_fixture *fixture,
     return built_tree_finish(built, &writer);
 }
 
+/*
+ * A document whose elements carry attributes before, between and after
+ * their text, with node numbers:
+ *
+ *   0 #doc
+ *   1   <e a="1" b="2">                            2 @a, 3 @b
+ *   4     <f c="3"/>                               5 @c
+ *   6     t
+ *   7     <g d="4">u</g></e>                       8 @d, 9 u
+ */
+#define TEST_E_ELEMENT 1
+#define TEST_F_ELEMENT 4
+#define TEST_G_ELEMENT 7
+
+static void write_plain_attribute(event_writer *writer, const char *local_name,
+                                  const char *value) {
+    write_attribute(writer, (test_attribute){
+                                .is_xml = false, .local_name = local_name,
+                                .value = value});
+}
+
+static sxml_status build_attributed_document(const node_fixture *fixture,
+                                             built_tree *built) {
+    event_writer writer;
+    if (built_tree_start(fixture, built, &writer) != SXML_STATUS_OK) {
+        return writer.status;
+    }
+    write_start_document(&writer, "http://example.com/a.xml");
+    write_element(&writer, "e");
+    write_plain_attribute(&writer, "a", "1");
+    write_plain_attribute(&writer, "b", "2");
+    write_element(&writer, "f");
+    write_plain_attribute(&writer, "c", "3");
+    write_end_element(&writer);
+    write_text(&writer, "t");
+    write_element(&writer, "g");
+    write_plain_attribute(&writer, "d", "4");
+    write_text(&writer, "u");
+    write_end_element(&writer);
+    write_end_element(&writer);
+    write_end_document(&writer);
+    return built_tree_finish(built, &writer);
+}
+
 /* A document whose element <e> carries xml:base="reference" (none when
    reference is NULL), under a document with base_uri. */
 typedef struct base_document_request {
@@ -1643,7 +1687,58 @@ test_accessors_survive_every_allocation_failure(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, failing_allocation_number == 12);
 }
 
+/*
+ * The string value of a document or element is its text descendants only
+ * (XDM 4.0, sections 7.2.12 and 7.3.12): the walk steps over attributes,
+ * also those that end an element or the tree.
+ */
+static void test_string_values_skip_attributes(sxml_test_state *state) {
+    node_fixture fixture;
+    SXML_TEST_REQUIRE(state, node_fixture_create(&fixture) == SXML_STATUS_OK);
+    built_tree built;
+    SXML_TEST_REQUIRE(state, build_attributed_document(&fixture, &built) ==
+                                 SXML_STATUS_OK);
+    static const string_value_case cases[] = {
+        {TEST_DOCUMENT_NODE, 0, "tu", SXML_TYPE_XS_UNTYPED_ATOMIC},
+        {TEST_E_ELEMENT, 0, "tu", SXML_TYPE_XS_UNTYPED_ATOMIC},
+        {TEST_F_ELEMENT, 0, "", SXML_TYPE_XS_UNTYPED_ATOMIC},
+        {TEST_G_ELEMENT, 0, "u", SXML_TYPE_XS_UNTYPED_ATOMIC},
+    };
+    for (size_t case_index = 0; case_index < SXML_TEST_COUNT(cases);
+         case_index += 1) {
+        sxml_node_reference node = node_at(&built, cases[case_index].node_number);
+        sxml_item string_value = {.representation = 0};
+        SXML_TEST_EXPECT(state, sxml_node_make_string_value(
+                                    fixture.item_heap, node, &string_value) ==
+                                    SXML_STATUS_OK);
+        SXML_TEST_EXPECT(state,
+                         item_has_text(string_value,
+                                       (expected_text){
+                                           .type = SXML_TYPE_XS_STRING,
+                                           .text = cases[case_index].string_value}));
+        sxml_item_release(string_value);
+        sxml_sequence typed_value = sxml_sequence_empty();
+        SXML_TEST_EXPECT(
+            state, sxml_node_make_typed_value(
+                       fixture.item_heap,
+                       &(sxml_node_value_request){.node = node,
+                                                  .error_record = NULL},
+                       &typed_value) == SXML_STATUS_OK);
+        SXML_TEST_EXPECT(
+            state, sequence_has_text(
+                       typed_value,
+                       (expected_text){.type = cases[case_index].typed_value_type,
+                                       .text = cases[case_index].string_value}));
+        sxml_sequence_release(typed_value);
+    }
+    built_tree_destroy(&built);
+    SXML_TEST_EXPECT(state, live_cell_count(&fixture) == 0);
+    node_fixture_destroy(&fixture);
+}
+
 static const sxml_test_case xdm_node_test_cases[] = {
+    {.name = "string_values_skip_attributes",
+     .function = test_string_values_skip_attributes},
     {.name = "node_items_hold_their_tree",
      .function = test_node_items_hold_their_tree},
     {.name = "string_and_typed_values",

@@ -77,9 +77,11 @@ sxml_string_item_make(sxml_item_heap *item_heap,
         item);
 }
 
-/* A string value to make as an atomic item of a string type. */
+/* A string value to make as an atomic item of a string type: the node
+   with the description its caller already has, so a typed value
+   describes its node once. */
 typedef struct sxml_string_value_request {
-    sxml_node_reference node;
+    const sxml_described_node *described;
     /* xs:string or xs:untypedAtomic. */
     sxml_builtin_type type;
 } sxml_string_value_request;
@@ -99,7 +101,9 @@ typedef struct sxml_text_measure {
 /*
  * Calls visit for each text descendant of a document or element in
  * document order: the nodes after it up to its last descendant (D39),
- * which are its descendants and attributes; attributes are skipped by kind.
+ * which are its descendants and attributes. An element's attributes are
+ * stored right after it (D39), so the walk steps over them by count
+ * without describing them.
  */
 typedef struct sxml_text_visitor {
     void *state;
@@ -110,8 +114,17 @@ static sxml_status
 sxml_node_visit_text_descendants(const sxml_described_node *described,
                                  sxml_text_visitor visitor) {
     uint32_t last_number = described->description.last_descendant.index;
+    uint32_t skipped_count = described->description.attribute_count;
     for (uint32_t node_number = described->node.node_index.index + 1;
          node_number <= last_number && node_number != 0; node_number += 1) {
+        if (skipped_count != 0) {
+            /* Never past the last descendant, whatever a tree reports. */
+            if (skipped_count > last_number - node_number) {
+                break;
+            }
+            node_number += skipped_count;
+            skipped_count = 0;
+        }
         sxml_node_reference descendant = sxml_node_reference_of_stored_node(
             (sxml_stored_node_request){.tree = described->node.tree,
                                        .node_number = node_number});
@@ -121,6 +134,9 @@ sxml_node_visit_text_descendants(const sxml_described_node *described,
             return status;
         }
         if (description.node_kind != SXML_NODE_KIND_TEXT) {
+            if (description.node_kind == SXML_NODE_KIND_ELEMENT) {
+                skipped_count = description.attribute_count;
+            }
             continue;
         }
         sxml_byte_view text = {.bytes = NULL, .byte_count = 0};
@@ -228,31 +244,26 @@ sxml_node_make_concatenated_text(sxml_item_heap *item_heap,
 }
 
 /*
- * dm:string-value of request->node as an item of request->type. Documents
- * and elements concatenate their text descendants; every other kind has
- * its content as string value (XDM 4.0, section 7; a namespace node's is
- * its URI).
+ * dm:string-value of the described node as an item of request->type.
+ * Documents and elements concatenate their text descendants; every other
+ * kind has its content as string value (XDM 4.0, section 7; a namespace
+ * node's is its URI).
  */
 static sxml_status
 sxml_node_make_string_value_as(sxml_item_heap *item_heap,
                                const sxml_string_value_request *request,
                                sxml_item *item) {
-    sxml_described_node described = {.has_node = true, .node = request->node};
-    sxml_status status =
-        sxml_node_describe(request->node, &described.description);
-    if (status != SXML_STATUS_OK) {
-        return status;
-    }
-    if (described.description.node_kind == SXML_NODE_KIND_DOCUMENT ||
-        described.description.node_kind == SXML_NODE_KIND_ELEMENT) {
+    const sxml_described_node *described = request->described;
+    if (described->description.node_kind == SXML_NODE_KIND_DOCUMENT ||
+        described->description.node_kind == SXML_NODE_KIND_ELEMENT) {
         return sxml_node_make_concatenated_text(
             item_heap,
-            &(sxml_concatenation_request){.described = &described,
+            &(sxml_concatenation_request){.described = described,
                                           .type = request->type},
             item);
     }
     sxml_byte_view content = {.bytes = NULL, .byte_count = 0};
-    status = sxml_node_get_content(request->node, &content);
+    sxml_status status = sxml_node_get_content(described->node, &content);
     if (status != SXML_STATUS_OK) {
         return status;
     }
@@ -265,9 +276,14 @@ sxml_node_make_string_value_as(sxml_item_heap *item_heap,
 sxml_status sxml_node_make_string_value(sxml_item_heap *item_heap,
                                         sxml_node_reference node,
                                         sxml_item *item) {
+    sxml_described_node described = {.has_node = true, .node = node};
+    sxml_status status = sxml_node_describe(node, &described.description);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
     return sxml_node_make_string_value_as(
         item_heap,
-        &(sxml_string_value_request){.node = node,
+        &(sxml_string_value_request){.described = &described,
                                      .type = SXML_TYPE_XS_STRING},
         item);
 }
@@ -317,7 +333,7 @@ static const sxml_static_error sxml_node_no_typed_value_error = {
 /* A validated element or attribute of a tree without get_typed_value. */
 typedef struct sxml_derived_value_request {
     const sxml_node_value_request *node_request;
-    const sxml_node_description *description;
+    const sxml_described_node *described;
 } sxml_derived_value_request;
 
 /*
@@ -334,7 +350,7 @@ sxml_node_derive_typed_value(sxml_item_heap *item_heap,
                              const sxml_derived_value_request *request,
                              sxml_sequence *typed_value) {
     const sxml_node_reference node = request->node_request->node;
-    const sxml_node_description *description = request->description;
+    const sxml_node_description *description = &request->described->description;
     if (description->node_kind == SXML_NODE_KIND_ELEMENT &&
         description->is_nilled) {
         *typed_value = sxml_sequence_empty();
@@ -371,7 +387,7 @@ sxml_node_derive_typed_value(sxml_item_heap *item_heap,
     sxml_item string_value = {.representation = SXML_ITEM_REPRESENTATION_NONE};
     status = sxml_node_make_string_value_as(
         item_heap,
-        &(sxml_string_value_request){.node = node,
+        &(sxml_string_value_request){.described = request->described,
                                      .type = is_string ? SXML_TYPE_XS_STRING
                                                        : SXML_TYPE_XS_UNTYPED_ATOMIC},
         &string_value);
@@ -416,20 +432,21 @@ sxml_node_derive_typed_value(sxml_item_heap *item_heap,
 sxml_status sxml_node_make_typed_value(sxml_item_heap *item_heap,
                                        const sxml_node_value_request *request,
                                        sxml_sequence *typed_value) {
-    sxml_node_description description;
-    sxml_status status = sxml_node_describe(request->node, &description);
+    sxml_described_node described = {.has_node = true, .node = request->node};
+    sxml_status status = sxml_node_describe(request->node, &described.description);
     if (status != SXML_STATUS_OK) {
         return status;
     }
+    const sxml_node_description *description = &described.description;
     /* XDM 4.0, section 7.6.14 and the dm:typed-value accessor of each node
        kind: documents, text and unvalidated elements and attributes give
        xs:untypedAtomic; comments, processing instructions and namespace
        nodes xs:string. */
     sxml_builtin_type type = SXML_TYPE_XS_UNTYPED_ATOMIC;
-    switch (description.node_kind) {
+    switch (description->node_kind) {
     case SXML_NODE_KIND_ELEMENT:
     case SXML_NODE_KIND_ATTRIBUTE:
-        if (!sxml_type_annotation_is_untyped(description.type_annotation)) {
+        if (!sxml_type_annotation_is_untyped(description->type_annotation)) {
             if (request->node.tree->operations->get_typed_value != NULL) {
                 return sxml_node_get_validated_typed_value(item_heap, request,
                                                            typed_value);
@@ -437,7 +454,7 @@ sxml_status sxml_node_make_typed_value(sxml_item_heap *item_heap,
             return sxml_node_derive_typed_value(
                 item_heap,
                 &(sxml_derived_value_request){.node_request = request,
-                                              .description = &description},
+                                              .described = &described},
                 typed_value);
         }
         break;
@@ -455,7 +472,7 @@ sxml_status sxml_node_make_typed_value(sxml_item_heap *item_heap,
     sxml_item item = {.representation = SXML_ITEM_REPRESENTATION_NONE};
     status = sxml_node_make_string_value_as(
         item_heap,
-        &(sxml_string_value_request){.node = request->node, .type = type},
+        &(sxml_string_value_request){.described = &described, .type = type},
         &item);
     if (status != SXML_STATUS_OK) {
         return status;
