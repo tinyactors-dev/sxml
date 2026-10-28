@@ -280,4 +280,122 @@
       <schema-error clause="5.4.4"/>
     </result>
   </test-case>
+  <test-case name="extends-self" since="2020">
+    <description>An abstract rule that extends itself cannot be resolved.</description>
+    <spec clause="5.4.4"/>
+    <spec clause="6.2"/>
+    <schema file="extends-self.sch"/>
+    <instance file="extends-self.xml"/>
+    <result>
+      <schema-error clause="5.4.4"/>
+    </result>
+  </test-case>
+
+  <test-case name="extends-unused-syntax" since="2020">
+    <description>A syntax error in an abstract rule that no rule extends: the schema is still not correct.</description>
+    <spec clause="7.2"/>
+    <schema file="extends-unused-syntax.sch"/>
+    <instance file="extends-unused-syntax.xml"/>
+    <result>
+      <schema-error clause="7.2"/>
+    </result>
+  </test-case>
+
+  <test-case name="extends-twice" since="2020">
+    <description>A rule that extends one abstract rule twice receives its assertions twice (6.2): two identical findings.</description>
+    <spec clause="5.4.4"/>
+    <spec clause="6.2"/>
+    <schema file="extends-twice.sch"/>
+    <instance file="extends-twice.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Not two.</message>
+        </finding>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Not two.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="extends-variable-clash" since="2020">
+    <description>An abstract rule and the rule extending it each declare a variable of one name: after the insertion the rule defines it twice.</description>
+    <spec clause="5.4.7"/>
+    <spec clause="6.2"/>
+    <spec clause="7.2"/>
+    <schema file="extends-variable-clash.sch"/>
+    <instance file="extends-variable-clash.xml"/>
+    <result>
+      <schema-error clause="5.4.7"/>
+    </result>
+  </test-case>
+
+  <test-case name="extends-abstract-rule-flag" since="2020">
+    <description>The flag of an abstract rule is not raised: the abstract rule never fires (3.2) and extends inserts its contents, not its attributes (6.2).</description>
+    <spec clause="3.2"/>
+    <spec clause="5.5.6"/>
+    <spec clause="6.2"/>
+    <schema file="extends-abstract-rule-flag.sch"/>
+    <instance file="extends-abstract-rule-flag.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Not two.</message>
+        </finding>
+      </findings>
+      <flags></flags>
+    </result>
+  </test-case>
+
+  <test-case name="rules-container-empty" since="2025">
+    <description>A rules element needs at least one abstract rule.</description>
+    <spec clause="5.4.16"/>
+    <spec clause="Annex-A"/>
+    <schema file="rules-container-empty.sch"/>
+    <instance file="rules-container-empty.xml"/>
+    <result>
+      <schema-error clause="Annex-A"/>
+    </result>
+  </test-case>
+
+  <test-case name="rules-container-two" since="2025">
+    <description>Two rules elements at schema level; rules of a pattern extend abstract rules of both.</description>
+    <spec clause="5.4.16"/>
+    <schema file="rules-container-two.sch"/>
+    <instance file="rules-container-two.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]">
+          <message>One.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Two.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="rules-container-duplicate-id" since="2025">
+    <description>Two abstract rules with one id in two rules elements: ids are of type ID.</description>
+    <spec clause="5.4.16"/>
+    <spec clause="Annex-A"/>
+    <schema file="rules-container-duplicate-id.sch"/>
+    <instance file="rules-container-duplicate-id.xml"/>
+    <result>
+      <schema-error clause="Annex-A"/>
+    </result>
+  </test-case>
+
+  <test-case name="rules-container-include" since="2025">
+    <description>The grammar of rules has no include: an abstract rule cannot be included into it.</description>
+    <spec clause="5.4.16"/>
+    <spec clause="5.4.6"/>
+    <spec clause="Annex-A"/>
+    <schema file="rules-container-include.sch"/>
+    <instance file="rules-container-include.xml"/>
+    <result>
+      <schema-error clause="Annex-A"/>
+    </result>
+  </test-case>
 </test-set>
