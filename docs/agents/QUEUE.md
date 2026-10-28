@@ -43,6 +43,10 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
   `fn:subsequence` and `$s[position() > 1]` copy the rest of a sequence,
   so recursion over a sequence is quadratic. Also open under "Proposed"
   in DECISIONS.md: source locations for parsed input documents.
+- perf-6, at the same time as perf-5 (disjoint files): compile each
+  regex once. After perf-5 lands: the cost of SORT in `src/evaluator.c`
+  (SchXslt's per-level re-sort of 780 parameters took about 7 of its 9
+  minutes, about 140 ns a comparison); profile before writing a packet.
 - 7.26 done (D307): tree-sitter:parse and tree-sitter:languages in
   urn:sxml:tree-sitter (name.h 17, additive), errors
   tree-sitter:unknown-language and tree-sitter:invalid-query;

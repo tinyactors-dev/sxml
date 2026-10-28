@@ -1237,6 +1237,39 @@ the EN 16931 UBL unit tests.
   the memory limits and honest step counts kept (a slice step counts
   one).
 
+### perf-6 Compile each regex once (implementation)
+After D53, D105 and D114 (the regex engine and its library part) and
+the SchXslt measurements of perf-5. `compile_pattern` in
+`src/function_library_regex.c` parses and compiles the pattern and
+creates a matcher on every call of `fn:matches`, `fn:replace`,
+`fn:tokenize` and `fn:analyze-string`, also when the pattern and flags
+are literals. Measured (release, x86_64 Xeon 2.1 GHz): 20,000 calls of
+`replace($s, "(\W*)\$AMOUNT(\W*)", "$1x$2")` take 0.156 s, against
+0.054 s for the literal pattern `"\$AMOUNT"`; SchXslt's expand stage of
+EN 16931 makes about 810,000 `fn:replace` calls with about 1,050
+distinct patterns (about 9 s).
+- **Mechanism**: one general mechanism, no Schematron-specific
+  machinery: a compiled regex (with its parsed flags) is reused for
+  every call with the same pattern text and flags. Prefer a bounded
+  cache owned by the evaluation (or the processor, if its lifetime and
+  limits fit better), keyed by pattern and flags, its memory from the
+  allocator and counted against the limits; state the bound and the
+  eviction rule in the D-record. Where the pattern and flags are literals
+  the lowering may compile once instead; one mechanism, not two, if the
+  cache already gives the speed. Errors (FORX0001, FORX0002) and the
+  regex step limit behave as before, per call. New terms go into the
+  glossary first.
+- **Owns**: `src/function_library_regex.c`, `src/regex.c`,
+  `src/regex_internal.h`, `tests/function_library_regex_test.c` (or the
+  regex tests that exist), `tests/bench/` (a new `regex-reuse.xq`). Not
+  `src/evaluator.c`, which perf-5 holds: if the cache needs a field
+  there, write the need under "## Proposed" and use what the dynamic
+  context already offers.
+- **Done when**: the benchmark before and after in the D-record and the
+  commit messages; SchXslt's expand stage of EN 16931 measured; no QT4
+  XP40, XQ40 or XT40 outcome changes, case by case; the regex suites
+  unchanged; D71, the memory limits and honest step counts kept.
+
 ### 7.21 Fast Invisible XML (book, tests, implementation)
 After D215 (7.18: the Earley parser, right recursion quadratic, every
 item a step). The owner: high performance; book first, then
