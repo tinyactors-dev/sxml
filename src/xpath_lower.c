@@ -5195,6 +5195,8 @@ sxml_status sxml_xpath_lowering_push_procedure(
 /* Checks a static context against the rules of
    sxml_static_context_configuration (see "Entry points"). */
 static sxml_status check_static_context(const sxml_xpath_static_context *context);
+static sxml_status check_embedded_static_context(sxml_xpath_lowerer *lowerer,
+                                                 const sxml_xpath_static_context *context);
 
 static bool allocators_are_equal(sxml_allocator first, sxml_allocator second) {
     return first.state == second.state && first.operations == second.operations;
@@ -5231,7 +5233,7 @@ sxml_status sxml_xpath_lowering_call_embedded(
             !allocators_are_equal(context->allocator, state->allocator)) {
             return SXML_STATUS_INVALID_ARGUMENT;
         }
-        const sxml_status status = check_static_context(context);
+        const sxml_status status = check_embedded_static_context(machine->state, context);
         if (status != SXML_STATUS_OK) {
             return status;
         }
@@ -9957,9 +9959,9 @@ sxml_status sxml_xpath_lowerer_lower_embedded(
 
 /* --------------------------------------------------------- Entry points */
 
-/* Checks the static context against the rules of
-   sxml_static_context_configuration. */
-static sxml_status check_static_context(const sxml_xpath_static_context *context) {
+/* Checks the namespace bindings of the static context against the rules
+   of sxml_static_context_configuration. */
+static sxml_status check_namespace_bindings(const sxml_xpath_static_context *context) {
     if (context->item_heap == NULL || sxml_allocator_is_null(context->allocator)) {
         return SXML_STATUS_INVALID_ARGUMENT;
     }
@@ -9986,8 +9988,11 @@ static sxml_status check_static_context(const sxml_xpath_static_context *context
             }
         }
     }
-    const sxml_variable_declaration_view declarations =
-        context->variable_declarations;
+    return SXML_STATUS_OK;
+}
+
+/* Checks that no two of declarations have one name. */
+static sxml_status check_variable_declarations(sxml_variable_declaration_view declarations) {
     for (size_t declaration_index = 0;
          declaration_index < declarations.variable_declaration_count;
          declaration_index += 1) {
@@ -10002,6 +10007,33 @@ static sxml_status check_static_context(const sxml_xpath_static_context *context
         }
     }
     return SXML_STATUS_OK;
+}
+
+/* Checks the static context against the rules of
+   sxml_static_context_configuration. */
+static sxml_status check_static_context(const sxml_xpath_static_context *context) {
+    const sxml_status status = check_namespace_bindings(context);
+    return status == SXML_STATUS_OK ? check_variable_declarations(context->variable_declarations)
+                                    : status;
+}
+
+/* check_static_context for an embedding's context; its declarations only
+   when they are not the view checked last (lowerer->checked_declarations). */
+static sxml_status check_embedded_static_context(sxml_xpath_lowerer *lowerer,
+                                                 const sxml_xpath_static_context *context) {
+    sxml_status status = check_namespace_bindings(context);
+    const sxml_variable_declaration_view declarations = context->variable_declarations;
+    const sxml_variable_declaration_view checked = lowerer->checked_declarations;
+    if (status != SXML_STATUS_OK || declarations.variable_declaration_count == 0 ||
+        (declarations.variable_declarations == checked.variable_declarations &&
+         declarations.variable_declaration_count == checked.variable_declaration_count)) {
+        return status;
+    }
+    status = check_variable_declarations(declarations);
+    if (status == SXML_STATUS_OK) {
+        lowerer->checked_declarations = declarations;
+    }
+    return status;
 }
 
 /* Lowers embedding's AST as the main function of the unit, after the

@@ -216,6 +216,13 @@ typedef struct sxml_xpath_lowerer {
     sxml_ir_constant_index true_constant;
     sxml_ir_constant_index false_constant;
     sxml_ir_constant_index one_constant;
+    /* The variable declarations an embedding's static context had when
+       they were last found free of duplicate names: an embedding whose
+       context has the same view (the same array and count, unchanged
+       while the lowerer uses it) is not checked again, so a stylesheet's
+       expressions, which share their package's view, do not check every
+       global against every other once per expression. */
+    sxml_variable_declaration_view checked_declarations;
 } sxml_xpath_lowerer;
 
 /* The LETs bound while lowering one expression; see the file comment. */

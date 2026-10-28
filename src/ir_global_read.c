@@ -27,18 +27,24 @@
  */
 #include "ir_internal.h"
 #include "ir_pass_internal.h"
+#include "memory_internal.h"
 
 #include <stdalign.h>
 #include <stdbool.h>
 #include <stdint.h>
 
-/* The globals with an initializer one expression reads, each once, in
-   the order first read; capacity grows in allocator memory. */
+/* The globals with an initializer one chain reads, each once, in the
+   order first read; capacity grows in allocator memory. chain_marks has
+   one entry per global of the unit: the chain head that added it last, so
+   finding whether a chain has a global costs the same however many it
+   has. */
 typedef struct global_reads {
     sxml_allocator allocator;
     uint32_t *global_numbers;
     size_t global_count;
     size_t global_capacity;
+    uint32_t *chain_marks;
+    uint32_t chain_head;
 } global_reads;
 
 /* Adds the global atom reads, when it is a global with an initializer
@@ -49,10 +55,8 @@ static sxml_status add_read(const sxml_ir_unit *unit, global_reads *reads, sxml_
         sxml_ir_unit_get_global_variable(unit, atom.global_variable)->initializer.value == 0) {
         return SXML_STATUS_OK;
     }
-    for (size_t read_index = 0; read_index < reads->global_count; read_index += 1) {
-        if (reads->global_numbers[read_index] == atom.global_variable.value) {
-            return SXML_STATUS_OK;
-        }
+    if (reads->chain_marks[atom.global_variable.value] == reads->chain_head) {
+        return SXML_STATUS_OK;
     }
     if (reads->global_count == reads->global_capacity) {
         const size_t capacity = reads->global_capacity == 0 ? 4 : reads->global_capacity * 2;
@@ -77,6 +81,7 @@ static sxml_status add_read(const sxml_ir_unit *unit, global_reads *reads, sxml_
     }
     reads->global_numbers[reads->global_count] = atom.global_variable.value;
     reads->global_count += 1;
+    reads->chain_marks[atom.global_variable.value] = reads->chain_head;
     return SXML_STATUS_OK;
 }
 
@@ -289,29 +294,57 @@ static sxml_status wrap_expression(sxml_ir_unit *unit, sxml_ir_expression_index 
 }
 
 /* Per expression of the unit: the LET whose bound expression or body it
-   is (0 for none), and the lists of expressions by the head of their LET
-   chain: first[head] and next[expression], 0 ending them. */
+   is (0 for none), the head of its LET chain (itself for a head), and the
+   lists of expressions by the head of their LET chain: first[head] and
+   next[expression], 0 ending them. */
 typedef struct chain_lists {
     uint32_t *let_parents;
+    uint32_t *heads;
     uint32_t *first;
     uint32_t *next;
 } chain_lists;
+
+/* Writes heads[number] for each expression: climbs from it to its chain's
+   head or to an expression whose head is known, then writes the head
+   along the path climbed, so each expression is climbed through once and
+   the lists are linear in the unit's size, not in its size times the
+   depth of its LET chains. */
+static void find_chain_heads(const chain_lists *lists, uint32_t count) {
+    for (uint32_t number = 1; number < count; number += 1) {
+        uint32_t head = number;
+        size_t climbed = 0;
+        while (lists->heads[head] == 0 && lists->let_parents[head] != 0 && climbed < count) {
+            head = lists->let_parents[head];
+            climbed += 1;
+        }
+        if (lists->heads[head] != 0) {
+            head = lists->heads[head];
+        }
+        uint32_t member = number;
+        for (size_t written = 0; written <= climbed && lists->heads[member] == 0; written += 1) {
+            lists->heads[member] = head;
+            member = lists->let_parents[member];
+        }
+    }
+}
 
 static sxml_status make_chain_lists(const sxml_ir_unit *unit, chain_lists *lists) {
     const size_t count = unit->expression_count;
     void *memory = NULL;
     const sxml_status status = sxml_allocator_allocate(
         unit->allocator,
-        (sxml_allocation_request){.byte_count = 3U * count * sizeof(uint32_t),
+        (sxml_allocation_request){.byte_count = 4U * count * sizeof(uint32_t),
                                   .alignment = alignof(uint32_t)},
         &memory);
     if (status != SXML_STATUS_OK) {
         return status;
     }
     uint32_t *arrays = memory;
-    *lists = (chain_lists){
-        .let_parents = arrays, .first = arrays + count, .next = arrays + 2U * count};
-    for (size_t index = 0; index < 3U * count; index += 1) {
+    *lists = (chain_lists){.let_parents = arrays,
+                           .heads = arrays + count,
+                           .first = arrays + 2U * count,
+                           .next = arrays + 3U * count};
+    for (size_t index = 0; index < 4U * count; index += 1) {
         arrays[index] = 0;
     }
     for (uint32_t number = 1; number < count; number += 1) {
@@ -328,14 +361,10 @@ static sxml_status make_chain_lists(const sxml_ir_unit *unit, chain_lists *lists
             }
         }
     }
+    find_chain_heads(lists, (uint32_t)count);
     /* Backwards, so each list is in index order. */
     for (uint32_t number = (uint32_t)count; number > 1; number -= 1) {
-        uint32_t chain_head = number - 1;
-        size_t climbed = 0;
-        while (lists->let_parents[chain_head] != 0 && climbed < count) {
-            chain_head = lists->let_parents[chain_head];
-            climbed += 1;
-        }
+        const uint32_t chain_head = lists->heads[number - 1];
         lists->next[number - 1] = lists->first[chain_head];
         lists->first[chain_head] = number - 1;
     }
@@ -356,12 +385,23 @@ sxml_status sxml_ir_read_globals_lazily(const sxml_ir_pass_request *request) {
     global_reads reads = {.allocator = unit->allocator,
                           .global_numbers = NULL,
                           .global_count = 0,
-                          .global_capacity = 0};
+                          .global_capacity = 0,
+                          .chain_marks = NULL,
+                          .chain_head = 0};
+    void *memory = NULL;
+    status = sxml_allocator_allocate_array(
+        unit->allocator,
+        (sxml_array_allocation_request){.element_count = unit->global_variable_count,
+                                        .element_size = sizeof(uint32_t),
+                                        .element_alignment = alignof(uint32_t)},
+        &memory);
+    reads.chain_marks = memory;
     /* Each LET chain (an expression no LET holds, with the LETs below it)
        runs whole once it starts: its globals are read at its head. */
     for (uint32_t chain_head = 1; status == SXML_STATUS_OK && chain_head < expression_count;
          chain_head += 1) {
         reads.global_count = 0;
+        reads.chain_head = chain_head;
         for (uint32_t member = lists.first[chain_head]; status == SXML_STATUS_OK && member != 0;
              member = lists.next[member]) {
             status = collect_reads(
@@ -374,6 +414,9 @@ sxml_status sxml_ir_read_globals_lazily(const sxml_ir_pass_request *request) {
         }
     }
     sxml_allocator_release(unit->allocator, lists.let_parents);
+    if (reads.chain_marks != NULL) {
+        sxml_allocator_release(unit->allocator, reads.chain_marks);
+    }
     if (reads.global_numbers != NULL) {
         sxml_allocator_release(reads.allocator, reads.global_numbers);
     }

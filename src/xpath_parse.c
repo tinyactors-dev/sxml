@@ -391,6 +391,10 @@ typedef struct sxml_xpath_previous_terminal {
     uint32_t end_byte;
 } sxml_xpath_previous_terminal;
 
+/* Grammar symbols below this many have their AST kind kept once found
+   (sxml_xpath_kind_of); the XPath and XQuery grammars have fewer. */
+#define SXML_XPATH_KIND_CACHE_COUNT 1024U
+
 /* The state of one call of the front end (sxml_ast_front_end in
    src/xpath_ast_internal.h). */
 struct sxml_ast_front_end {
@@ -415,6 +419,11 @@ struct sxml_ast_front_end {
     sxml_byte_view error_code;
     sxml_byte_view error_description;
     uint32_t error_byte_offset;
+    /* Per grammar symbol: its AST kind plus one, 0 until found. A
+       symbol's kind depends on its name and the part only, both fixed
+       for the call, so the tables are searched once per symbol, not once
+       per node (twice: the walk asks on the way down and up). */
+    uint16_t kinds_by_symbol[SXML_XPATH_KIND_CACHE_COUNT];
 };
 
 /* A concrete syntax tree node with the AST kind it becomes. */
@@ -609,10 +618,15 @@ static sxml_ast_field sxml_xpath_part_field_of(sxml_ast_field_view table,
  * occurrence_indicator). A node of this kind opens an AST node, so the walk
  * calls this both on the way down and on the way up.
  */
-static sxml_ast_kind sxml_xpath_kind_of(const sxml_ast_front_end *front_end,
+static sxml_ast_kind sxml_xpath_kind_of(sxml_ast_front_end *front_end,
                                         TSNode node) {
     if (!ts_node_is_named(node)) {
         return SXML_AST_KIND_NONE;
+    }
+    const TSSymbol symbol = ts_node_symbol(node);
+    if (symbol < SXML_XPATH_KIND_CACHE_COUNT &&
+        front_end->kinds_by_symbol[symbol] != 0) {
+        return (sxml_ast_kind)(front_end->kinds_by_symbol[symbol] - 1U);
     }
     const char *node_type = ts_node_type(node);
     sxml_ast_kind kind = sxml_xpath_kind_of_node_type(node_type);
@@ -622,6 +636,9 @@ static sxml_ast_kind sxml_xpath_kind_of(const sxml_ast_front_end *front_end,
          table_part = table_part->extension) {
         kind = sxml_xpath_part_kind_of(table_part->node_types,
                                        sxml_byte_view_from_c_string(node_type));
+    }
+    if (symbol < SXML_XPATH_KIND_CACHE_COUNT && (uint32_t)kind < UINT16_MAX) {
+        front_end->kinds_by_symbol[symbol] = (uint16_t)((uint32_t)kind + 1U);
     }
     return kind;
 }

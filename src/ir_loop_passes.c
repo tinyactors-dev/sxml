@@ -1055,8 +1055,10 @@ static sxml_status index_filter(loop_pass *pass, sxml_ir_expression_index index)
 /* Pushes every child expression of the expression at index, of any kind,
    to pass->walk. */
 static sxml_status push_every_child(loop_pass *pass, sxml_ir_expression_index index) {
-    const sxml_ir_expression expression = expression_at(pass, index);
-    const expression_children children = children_of(&expression);
+    /* Read in place, not copied: appending to pass->walk does not move
+       the unit's expressions. */
+    const sxml_ir_expression *expression = sxml_ir_unit_get_expression(pass->unit, index);
+    const expression_children children = children_of(expression);
     sxml_status status = SXML_STATUS_OK;
     for (size_t child_index = 0; status == SXML_STATUS_OK && child_index < children.child_count;
          child_index += 1) {
@@ -1064,12 +1066,12 @@ static sxml_status push_every_child(loop_pass *pass, sxml_ir_expression_index in
             pass_array_append(pass->allocator, &pass->walk, &children.children[child_index]);
     }
     sxml_ir_expression_index extra[2] = {{.value = 0}, {.value = 0}};
-    const sxml_ir_expression_kind kind = expression.expression_kind;
+    const sxml_ir_expression_kind kind = expression->expression_kind;
     if (kind == SXML_IR_EXPRESSION_KIND_TRY_CATCH) {
-        extra[0] = expression.try_catch.body;
-        extra[1] = expression.try_catch.finally_body;
+        extra[0] = expression->try_catch.body;
+        extra[1] = expression->try_catch.finally_body;
         const sxml_ir_catch_clause_view clauses =
-            sxml_ir_unit_get_catch_clauses(pass->unit, expression.try_catch.catch_clauses);
+            sxml_ir_unit_get_catch_clauses(pass->unit, expression->try_catch.catch_clauses);
         for (size_t clause_index = 0;
              status == SXML_STATUS_OK && clause_index < clauses.catch_clause_count;
              clause_index += 1) {
@@ -1084,23 +1086,23 @@ static sxml_status push_every_child(loop_pass *pass, sxml_ir_expression_index in
                kind == SXML_IR_EXPRESSION_KIND_COMMENT_CONSTRUCTOR ||
                kind == SXML_IR_EXPRESSION_KIND_PROCESSING_INSTRUCTION_CONSTRUCTOR ||
                kind == SXML_IR_EXPRESSION_KIND_SHALLOW_COPY) {
-        extra[0] = expression.node_construction.content;
+        extra[0] = expression->node_construction.content;
     } else if (kind == SXML_IR_EXPRESSION_KIND_SORT) {
         const sxml_ir_sort_key_view keys =
-            sxml_ir_unit_get_sort_keys(pass->unit, expression.sort.keys);
+            sxml_ir_unit_get_sort_keys(pass->unit, expression->sort.keys);
         for (size_t key_index = 0; status == SXML_STATUS_OK && key_index < keys.sort_key_count;
              key_index += 1) {
             status =
                 pass_array_append(pass->allocator, &pass->walk, &keys.sort_keys[key_index].key);
         }
     } else if (kind == SXML_IR_EXPRESSION_KIND_STREAM) {
-        extra[0] = expression.stream.predicate;
-        extra[1] = expression.stream.body;
+        extra[0] = expression->stream.predicate;
+        extra[1] = expression->stream.body;
     } else if (kind == SXML_IR_EXPRESSION_KIND_MERGE) {
-        extra[0] = expression.merge.order;
-        extra[1] = expression.merge.body;
+        extra[0] = expression->merge.order;
+        extra[1] = expression->merge.body;
         const sxml_ir_merge_stream_view streams =
-            sxml_ir_unit_get_merge_streams(pass->unit, expression.merge.streams);
+            sxml_ir_unit_get_merge_streams(pass->unit, expression->merge.streams);
         for (size_t stream_index = 0;
              status == SXML_STATUS_OK && stream_index < streams.merge_stream_count;
              stream_index += 1) {
@@ -3067,6 +3069,34 @@ static void fusion_state_finalize(loop_pass *pass, fusion_state *state) {
     state->member_numbers = NULL;
 }
 
+/* Writes whether the body of the function at function_number holds a
+   QUANTIFIED: a plain walk, cheaper than the census and the members a
+   fusion needs, which most functions (none with a QUANTIFIED) are spared.
+   Uses pass->walk. */
+static sxml_status find_quantified(loop_pass *pass, uint32_t function_number,
+                                   bool *has_quantified) {
+    const sxml_ir_function *function = sxml_ir_unit_get_function(
+        pass->unit, (sxml_ir_function_index){.value = function_number});
+    *has_quantified = false;
+    pass->walk.element_count = 0;
+    sxml_status status = SXML_STATUS_OK;
+    if (function->body.value != 0) {
+        status = pass_array_append(pass->allocator, &pass->walk, &function->body);
+    }
+    while (status == SXML_STATUS_OK && !*has_quantified && pass->walk.element_count > 0) {
+        pass->walk.element_count -= 1;
+        const sxml_ir_expression_index index =
+            ((const sxml_ir_expression_index *)pass->walk.elements)[pass->walk.element_count];
+        if (index.value == 0 || index.value >= pass->unit->expression_count) {
+            continue;
+        }
+        *has_quantified = sxml_ir_unit_get_expression(pass->unit, index)->expression_kind ==
+                          SXML_IR_EXPRESSION_KIND_QUANTIFIED;
+        status = push_every_child(pass, index);
+    }
+    return status;
+}
+
 /* Fuses one QUANTIFIED of the function, if any may be, and writes
    whether it did. */
 static sxml_status fuse_one_quantified(loop_pass *pass, uint32_t function_number,
@@ -3082,7 +3112,12 @@ static sxml_status fuse_one_quantified(loop_pass *pass, uint32_t function_number
         .member_numbers = NULL,
         .member_number_count = 0};
     state.demand.census = &state.census;
-    sxml_status status = make_slot_census(pass, function_number, &state.census);
+    bool has_quantified = false;
+    sxml_status status = find_quantified(pass, function_number, &has_quantified);
+    if (status != SXML_STATUS_OK || !has_quantified) {
+        return status;
+    }
+    status = make_slot_census(pass, function_number, &state.census);
     if (status == SXML_STATUS_OK) {
         const sxml_ir_function *function = sxml_ir_unit_get_function(
             pass->unit, (sxml_ir_function_index){.value = function_number});
@@ -3216,20 +3251,95 @@ sxml_status sxml_ir_index_filters(const sxml_ir_pass_request *request) {
     return status == SXML_STATUS_LIMIT_EXCEEDED ? SXML_STATUS_OK : status;
 }
 
+/* The expressions of owners grouped by function, each group in index
+   order: the expression numbers of function f are
+   expression_numbers[starts[f]] to expression_numbers[starts[f + 1] - 1]. */
+typedef struct owned_expressions {
+    uint32_t *starts;
+    uint32_t *expression_numbers;
+} owned_expressions;
+
+static void owned_expressions_finalize(const loop_pass *pass, owned_expressions *owned) {
+    if (owned->starts != NULL) {
+        sxml_allocator_release(pass->allocator, owned->starts);
+    }
+    if (owned->expression_numbers != NULL) {
+        sxml_allocator_release(pass->allocator, owned->expression_numbers);
+    }
+    *owned = (owned_expressions){.starts = NULL, .expression_numbers = NULL};
+}
+
+/* Groups the expressions of owners by function, one counting sort, so a
+   pass that visits each function's expressions reads each expression
+   once, not once per function. */
+static sxml_status make_owned_expressions(const loop_pass *pass, owned_expressions *owned) {
+    const size_t function_count = pass->unit->function_count;
+    void *memory = NULL;
+    sxml_status status = sxml_allocator_allocate_array(
+        pass->allocator,
+        (sxml_array_allocation_request){.element_count = function_count + 1U,
+                                        .element_size = sizeof(uint32_t),
+                                        .element_alignment = alignof(uint32_t)},
+        &memory);
+    owned->starts = memory;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_allocator_allocate_array(
+            pass->allocator,
+            (sxml_array_allocation_request){.element_count = pass->owner_count + 1U,
+                                            .element_size = sizeof(uint32_t),
+                                            .element_alignment = alignof(uint32_t)},
+            &memory);
+        owned->expression_numbers = memory;
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    /* starts[f + 1] counts f's expressions, then holds where f's end. */
+    for (size_t number = 1; number < pass->owner_count; number += 1) {
+        const uint32_t owner = pass->owners[number];
+        if (owner != 0 && owner < function_count) {
+            owned->starts[owner + 1U] += 1;
+        }
+    }
+    for (size_t function_number = 1; function_number < function_count; function_number += 1) {
+        owned->starts[function_number + 1U] += owned->starts[function_number];
+    }
+    /* Ascending, so each group is in index order; starts[f] moves to
+       where f's group ends and is set back below. */
+    for (uint32_t number = 1; number < pass->owner_count; number += 1) {
+        const uint32_t owner = pass->owners[number];
+        if (owner != 0 && owner < function_count) {
+            owned->expression_numbers[owned->starts[owner]] = number;
+            owned->starts[owner] += 1;
+        }
+    }
+    for (size_t function_number = function_count - 1U; function_number > 0;
+         function_number -= 1) {
+        owned->starts[function_number] = owned->starts[function_number - 1U];
+    }
+    owned->starts[0] = 0;
+    return SXML_STATUS_OK;
+}
+
 sxml_status sxml_ir_shorten_descendant_paths(const sxml_ir_pass_request *request) {
     loop_pass pass = loop_pass_start(request);
     const uint32_t expression_count = request->unit->expression_count;
+    owned_expressions owned = {.starts = NULL, .expression_numbers = NULL};
     sxml_status status = make_owners(&pass, expression_count);
+    if (status == SXML_STATUS_OK && request->unit->function_count > 1) {
+        status = make_owned_expressions(&pass, &owned);
+    }
     for (uint32_t function_number = 1;
          status == SXML_STATUS_OK && function_number < request->unit->function_count;
          function_number += 1) {
         slot_census census = {.uses = NULL, .use_count = 0};
         status = make_slot_census(&pass, function_number, &census);
-        for (uint32_t expression_number = 1;
-             status == SXML_STATUS_OK && expression_number < expression_count;
-             expression_number += 1) {
+        for (uint32_t owned_number = owned.starts[function_number];
+             status == SXML_STATUS_OK && owned_number < owned.starts[function_number + 1U];
+             owned_number += 1) {
+            const uint32_t expression_number = owned.expression_numbers[owned_number];
             const sxml_ir_expression_index index = {.value = expression_number};
-            if (pass.owners[expression_number] != function_number || is_left_alone(&pass, index)) {
+            if (is_left_alone(&pass, index)) {
                 continue;
             }
             const sxml_ir_expression_kind kind = expression_at(&pass, index).expression_kind;
@@ -3241,6 +3351,7 @@ sxml_status sxml_ir_shorten_descendant_paths(const sxml_ir_pass_request *request
         }
         slot_census_finalize(&pass, &census);
     }
+    owned_expressions_finalize(&pass, &owned);
     loop_pass_finalize(&pass);
     return status;
 }
