@@ -11,6 +11,7 @@
 #include "xpath_ast_internal.h"
 
 #include <stdalign.h>
+#include <stdio.h>
 #include <string.h>
 
 /* Defined by the generated parser of grammars/xpath (D12). */
@@ -733,6 +734,171 @@ static void test_part_syntax_errors(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, ast == NULL);
 }
 
+/* ------------------------------------------------------- Copies and memo */
+
+static void test_copy_is_the_original_with_its_source_name(
+    sxml_test_state *state) {
+    const sxml_ast_build_request request = build_request_of(
+        SXML_BYTE_VIEW_FROM_LITERAL("for $x in (1, 'a''b') return $x[. eq 2]"),
+        NULL);
+    sxml_ast *original = NULL;
+    SXML_TEST_REQUIRE(state,
+                      sxml_xpath_build_ast(&request, &original) == SXML_STATUS_OK);
+    sxml_ast *copy = NULL;
+    SXML_TEST_REQUIRE(
+        state, sxml_ast_copy(&(sxml_ast_copy_request){
+                                 .original = original,
+                                 .allocator = sxml_default_allocator(),
+                                 .source_name =
+                                     SXML_BYTE_VIEW_FROM_LITERAL("other.xsl")},
+                             &copy) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, asts_are_equal(original, copy));
+    SXML_TEST_EXPECT(state, copy->node_capacity == original->node_capacity);
+    SXML_TEST_EXPECT(state,
+                     copy->text_byte_capacity == original->text_byte_capacity);
+    SXML_TEST_EXPECT(state, sxml_byte_view_equals(
+                                copy->source_name,
+                                SXML_BYTE_VIEW_FROM_LITERAL("other.xsl")));
+    sxml_ast_destroy(copy);
+    sxml_ast_destroy(original);
+}
+
+/* A memo build of text through build, compared with a direct build. */
+typedef struct memo_case {
+    sxml_ast_build_function build;
+    const char *text;
+} memo_case;
+
+static void test_memo_parses_each_text_once(sxml_test_state *state) {
+    static const memo_case cases[] = {
+        {.build = sxml_xpath_build_ast, .text = "1 + 2"},
+        {.build = sxml_xpath_build_ast, .text = "@a = 'b'"},
+        {.build = sxml_xpath_build_ast, .text = "1 + 2"},
+        {.build = sxml_xslt_pattern_build_ast, .text = "a/b"},
+        {.build = sxml_xpath_build_ast, .text = "a/b"},
+        {.build = sxml_xpath_build_sequence_type_ast, .text = "xs:integer*"},
+        {.build = sxml_xpath_build_ast, .text = "@a = 'b'"},
+        {.build = sxml_xslt_pattern_build_ast, .text = "a/b"},
+    };
+    sxml_ast_memo memo = sxml_ast_memo_empty(sxml_default_allocator());
+    for (size_t case_index = 0; case_index < sizeof cases / sizeof cases[0];
+         case_index += 1U) {
+        const sxml_ast_build_request request = build_request_of(
+            sxml_byte_view_from_c_string(cases[case_index].text), NULL);
+        sxml_ast *expected = NULL;
+        sxml_ast *memoized = NULL;
+        SXML_TEST_REQUIRE(state, cases[case_index].build(&request, &expected) ==
+                                     SXML_STATUS_OK);
+        SXML_TEST_EXPECT(state,
+                         sxml_ast_memo_build(
+                             &memo,
+                             &(sxml_ast_memo_request){
+                                 .build = cases[case_index].build,
+                                 .build_request = &request},
+                             &memoized) == SXML_STATUS_OK);
+        SXML_TEST_EXPECT(state, memoized != NULL &&
+                                    asts_are_equal(expected, memoized) &&
+                                    memoized->node_capacity ==
+                                        expected->node_capacity &&
+                                    sxml_byte_view_equals(memoized->source_name,
+                                                          request.source_name));
+        sxml_ast_destroy(memoized);
+        sxml_ast_destroy(expected);
+    }
+    /* The same text by another front end is another entry. */
+    SXML_TEST_EXPECT(state, memo.used_count == 5);
+    /* Other limits are another entry too. */
+    sxml_ast_build_request bounded =
+        build_request_of(SXML_BYTE_VIEW_FROM_LITERAL("1 + 2"), NULL);
+    bounded.maximum_expression_depth = 10;
+    sxml_ast *ast = NULL;
+    SXML_TEST_EXPECT(state, sxml_ast_memo_build(
+                                &memo,
+                                &(sxml_ast_memo_request){
+                                    .build = sxml_xpath_build_ast,
+                                    .build_request = &bounded},
+                                &ast) == SXML_STATUS_OK);
+    sxml_ast_destroy(ast);
+    SXML_TEST_EXPECT(state, memo.used_count == 6);
+    sxml_ast_memo_release(&memo);
+    SXML_TEST_EXPECT(state, memo.used_count == 0 && memo.slot_count == 0);
+}
+
+static void test_memo_keeps_no_error(sxml_test_state *state) {
+    sxml_ast_memo memo = sxml_ast_memo_empty(sxml_default_allocator());
+    for (int attempt = 0; attempt < 2; attempt += 1) {
+        sxml_error_record record;
+        memset(&record, 0, sizeof record);
+        const sxml_ast_build_request request =
+            build_request_of(SXML_BYTE_VIEW_FROM_LITERAL("1 +"), &record);
+        sxml_ast *ast = NULL;
+        SXML_TEST_EXPECT(state, sxml_ast_memo_build(
+                                    &memo,
+                                    &(sxml_ast_memo_request){
+                                        .build = sxml_xpath_build_ast,
+                                        .build_request = &request},
+                                    &ast) == SXML_STATUS_STATIC_ERROR);
+        SXML_TEST_EXPECT(state, ast == NULL);
+        /* Each use reports the error itself. */
+        SXML_TEST_EXPECT(state, sxml_byte_view_equals(
+                                    record.code.local_name,
+                                    SXML_BYTE_VIEW_FROM_LITERAL("XPST0003")));
+    }
+    SXML_TEST_EXPECT(state, memo.used_count == 0);
+    sxml_ast_memo_release(&memo);
+}
+
+static void test_memo_grows_and_survives_every_allocation_failure(
+    sxml_test_state *state) {
+    uint64_t failing_allocation_number = 1;
+    for (;;) {
+        counting_fixture fixture = {.storage = {0}, .counting_allocator = NULL};
+        SXML_TEST_REQUIRE(state, counting_fixture_initialize(
+                                     &fixture, failing_allocation_number) ==
+                                     SXML_STATUS_OK);
+        const sxml_allocator allocator =
+            sxml_counting_allocator_as_allocator(fixture.counting_allocator);
+        sxml_ast_memo memo = sxml_ast_memo_empty(allocator);
+        sxml_status status = SXML_STATUS_OK;
+        /* 40 texts, each twice: the table grows past its first 64 slots. */
+        char text[16];
+        for (int pass_number = 0; pass_number < 2 && status == SXML_STATUS_OK;
+             pass_number += 1) {
+            for (int text_number = 0;
+                 text_number < 40 && status == SXML_STATUS_OK;
+                 text_number += 1) {
+                const int length = snprintf(text, sizeof text, "%d + .", text_number);
+                sxml_ast_build_request request = build_request_of(
+                    (sxml_byte_view){.bytes = (const uint8_t *)text,
+                                     .byte_count = (size_t)length},
+                    NULL);
+                request.allocator = allocator;
+                sxml_ast *ast = NULL;
+                status = sxml_ast_memo_build(
+                    &memo,
+                    &(sxml_ast_memo_request){.build = sxml_xpath_build_ast,
+                                             .build_request = &request},
+                    &ast);
+                SXML_TEST_EXPECT(state, (status == SXML_STATUS_OK) == (ast != NULL));
+                sxml_ast_destroy(ast);
+            }
+        }
+        const size_t used_count = memo.used_count;
+        sxml_ast_memo_release(&memo);
+        sxml_allocation_counts counts =
+            sxml_counting_allocator_read_counts(fixture.counting_allocator);
+        sxml_counting_allocator_finalize(fixture.counting_allocator);
+        SXML_TEST_EXPECT(state, counts.live_allocation_count == 0);
+        if (status == SXML_STATUS_OK) {
+            SXML_TEST_EXPECT(state, used_count == 40);
+            break;
+        }
+        SXML_TEST_EXPECT(state, status == SXML_STATUS_OUT_OF_MEMORY);
+        failing_allocation_number += 1;
+        SXML_TEST_REQUIRE(state, failing_allocation_number < 1000);
+    }
+}
+
 static const sxml_test_case xpath_ast_test_cases[] = {
     {.name = "requirements_grow_with_capacities",
      .function = test_requirements_grow_with_capacities},
@@ -768,6 +934,13 @@ static const sxml_test_case xpath_ast_test_cases[] = {
     {.name = "part_hook_raises_its_code",
      .function = test_part_hook_raises_its_code},
     {.name = "part_syntax_errors", .function = test_part_syntax_errors},
+    {.name = "copy_is_the_original_with_its_source_name",
+     .function = test_copy_is_the_original_with_its_source_name},
+    {.name = "memo_parses_each_text_once",
+     .function = test_memo_parses_each_text_once},
+    {.name = "memo_keeps_no_error", .function = test_memo_keeps_no_error},
+    {.name = "memo_grows_and_survives_every_allocation_failure",
+     .function = test_memo_grows_and_survives_every_allocation_failure},
 };
 
 int main(int argument_count, char **arguments) {

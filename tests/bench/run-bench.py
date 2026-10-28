@@ -67,6 +67,10 @@ BENCHMARKS = [
     ("xslt-key", xslt(os.path.join(BENCH, "xslt-key.xsl"))),
     ("xslt-match-variable", xslt(os.path.join(BENCH, "xslt-match-variable.xsl"))),
     ("xslt-many-rules", xslt(os.path.join(BENCH, "xslt-many-rules.xsl"))),
+    # Compiling 250 Schematron-style assertions (perf-17): the source is
+    # the stylesheet itself, so the time is mostly the compile.
+    ("xpath-parse", ["SXML", "transform", os.path.join(BENCH, "xpath-parse.xsl"),
+                     os.path.join(BENCH, "xpath-parse.xsl")]),
     ("itunes", ["QT4", "run", "--spec=XQ40", os.path.join(BENCH, "itunes.txt")]),
 ]
 

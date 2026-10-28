@@ -76,6 +76,48 @@ module.exports = grammar({
     $._error_sentinel,
   ],
 
+  // perf-17: the hidden choice rules below are inlined, so a primary
+  // expression is not reduced once per precedence level on its way to an
+  // operand (22 reductions and hidden subtree nodes per leaf before). They
+  // add no node of their own, so the concrete syntax tree's named nodes
+  // and fields are the same; only the parse tables change.
+  inline: ($) => [
+    // The binary operator levels (A.5), lowest precedence first.
+    $._or_level,
+    $._and_level,
+    $._comparison_level,
+    $._otherwise_level,
+    $._string_concatenation_level,
+    $._range_level,
+    $._additive_level,
+    $._multiplicative_level,
+    $._union_level,
+    $._intersect_except_level,
+    $._but_with_level,
+    $._instance_of_level,
+    $._treat_level,
+    $._castable_level,
+    $._cast_level,
+    $._pipeline_level,
+    $._arrow_level,
+    $._unary_level,
+    $._value_expression,
+    $._simple_map_level,
+    $._path_level,
+    $._relative_path_level,
+    // Steps, primaries and names.
+    $._step_expression,
+    $._postfix_expression,
+    $._primary_expression,
+    $._literal,
+    $._node_test,
+    $._simple_node_test,
+    $._eq_name,
+    $._function_eq_name,
+    $._ncname,
+    $._function_ncname,
+  ],
+
   conflicts: ($) => [
     // "namespace #x {...}" (computed namespace constructor) against
     // "namespace#1" (named function reference): decided by the token after "#".

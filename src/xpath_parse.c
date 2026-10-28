@@ -395,6 +395,10 @@ typedef struct sxml_xpath_previous_terminal {
    (sxml_xpath_kind_of); the XPath and XQuery grammars have fewer. */
 #define SXML_XPATH_KIND_CACHE_COUNT 1024U
 
+/* Grammar field identifiers below this many have their AST field kept
+   once found (sxml_xpath_visit); the grammars have fewer. */
+#define SXML_XPATH_FIELD_CACHE_COUNT 256U
+
 /* The state of one call of the front end (sxml_ast_front_end in
    src/xpath_ast_internal.h). */
 struct sxml_ast_front_end {
@@ -424,6 +428,14 @@ struct sxml_ast_front_end {
        for the call, so the tables are searched once per symbol, not once
        per node (twice: the walk asks on the way down and up). */
     uint16_t kinds_by_symbol[SXML_XPATH_KIND_CACHE_COUNT];
+    /* Per grammar symbol of a terminal: 1 when delimiting, 2 when not
+       (XPath 4.0, A.3.2), 0 until found; the same holds (perf-17). */
+    uint8_t delimitation_by_symbol[SXML_XPATH_KIND_CACHE_COUNT];
+    /* Per grammar field identifier: its AST field plus one, 0 until
+       found. A named field's AST field depends on its name and the part
+       only (sxml_xpath_field_of), so the tables are searched once per
+       field, not once per node (perf-17). */
+    uint16_t fields_by_identifier[SXML_XPATH_FIELD_CACHE_COUNT];
 };
 
 /* A concrete syntax tree node with the AST kind it becomes. */
@@ -757,7 +769,18 @@ static bool sxml_xpath_is_non_delimiting(TSNode terminal) {
  */
 static sxml_status sxml_xpath_check_terminal(sxml_ast_front_end *front_end,
                                              TSNode terminal) {
-    const bool is_non_delimiting = sxml_xpath_is_non_delimiting(terminal);
+    const TSSymbol symbol = ts_node_symbol(terminal);
+    bool is_non_delimiting = false;
+    if (symbol < SXML_XPATH_KIND_CACHE_COUNT &&
+        front_end->delimitation_by_symbol[symbol] != 0) {
+        is_non_delimiting = front_end->delimitation_by_symbol[symbol] == 2U;
+    } else {
+        is_non_delimiting = sxml_xpath_is_non_delimiting(terminal);
+        if (symbol < SXML_XPATH_KIND_CACHE_COUNT) {
+            front_end->delimitation_by_symbol[symbol] =
+                is_non_delimiting ? 2U : 1U;
+        }
+    }
     const uint32_t start_byte = ts_node_start_byte(terminal);
     const sxml_xpath_previous_terminal previous = front_end->previous_terminal;
     if (previous.exists && previous.is_non_delimiting && is_non_delimiting &&
@@ -1320,11 +1343,26 @@ static sxml_status sxml_xpath_visit(sxml_ast_front_end *front_end,
     if (walk->parent.value != 0) {
         const sxml_ast_kind parent_kind =
             sxml_ast_get_node(front_end->ast, walk->parent)->kind;
-        field = sxml_xpath_field_of(
-            front_end, (sxml_xpath_field_query){
-                           .field_name =
-                               ts_tree_cursor_current_field_name(cursor),
-                           .parent_kind = parent_kind});
+        const TSFieldId field_identifier =
+            ts_tree_cursor_current_field_id(cursor);
+        if (field_identifier != 0 &&
+            field_identifier < SXML_XPATH_FIELD_CACHE_COUNT &&
+            front_end->fields_by_identifier[field_identifier] != 0) {
+            field = (sxml_ast_field)(
+                front_end->fields_by_identifier[field_identifier] - 1U);
+        } else {
+            field = sxml_xpath_field_of(
+                front_end, (sxml_xpath_field_query){
+                               .field_name =
+                                   ts_tree_cursor_current_field_name(cursor),
+                               .parent_kind = parent_kind});
+            if (field_identifier != 0 &&
+                field_identifier < SXML_XPATH_FIELD_CACHE_COUNT &&
+                (uint32_t)field < UINT16_MAX) {
+                front_end->fields_by_identifier[field_identifier] =
+                    (uint16_t)((uint32_t)field + 1U);
+            }
+        }
         if (field == SXML_AST_FIELD_NONE) {
             /* Every named child of grammars/xpath has a field; a node
                without one is not XPath this front end knows. */

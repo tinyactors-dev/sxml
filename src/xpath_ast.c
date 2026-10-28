@@ -349,3 +349,247 @@ sxml_status sxml_ast_append_text(sxml_ast *ast, sxml_byte_view bytes,
     }
     return SXML_STATUS_OK;
 }
+
+/* ---------------------------------------------------------------- Copies */
+
+sxml_status sxml_ast_copy(const sxml_ast_copy_request *request,
+                          sxml_ast **copy) {
+    const sxml_ast *original = request->original;
+    sxml_ast *made = NULL;
+    const sxml_status status = sxml_ast_create(
+        request->allocator,
+        &(sxml_ast_configuration){
+            .node_capacity = original->node_capacity,
+            .text_byte_capacity = original->text_byte_capacity,
+            .source_name = request->source_name},
+        &made);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    /* Nodes refer to each other and to the text store by index, so the
+       entries copy as they are; entry 0 is the sentinel in both. */
+    memcpy(made->nodes, original->nodes,
+           (size_t)original->node_count * sizeof(original->nodes[0]));
+    if (original->text_byte_count != 0) {
+        memcpy(made->text_bytes, original->text_bytes,
+               original->text_byte_count);
+    }
+    made->node_count = original->node_count;
+    made->text_byte_count = original->text_byte_count;
+    made->root = original->root;
+    *copy = made;
+    return SXML_STATUS_OK;
+}
+
+/* ------------------------------------------------------------- AST memo */
+
+struct sxml_ast_memo_entry {
+    /* 0 for an empty slot. */
+    uint64_t hash;
+    sxml_ast_build_function build;
+    uint32_t maximum_expression_depth;
+    bool reads_xml_1_1;
+    /* The text, owned (allocated with the memo's allocator; NULL when
+       empty). */
+    uint8_t *text_bytes;
+    size_t text_byte_count;
+    /* As the front end made it, with no source name; owned. */
+    sxml_ast *ast;
+};
+
+sxml_ast_memo sxml_ast_memo_empty(sxml_allocator allocator) {
+    return (sxml_ast_memo){
+        .allocator = allocator, .slots = NULL, .slot_count = 0, .used_count = 0};
+}
+
+void sxml_ast_memo_release(sxml_ast_memo *memo) {
+    for (size_t slot_index = 0; slot_index < memo->slot_count;
+         slot_index += 1) {
+        sxml_ast_memo_entry *entry = &memo->slots[slot_index];
+        if (entry->hash != 0) {
+            sxml_ast_destroy(entry->ast);
+            sxml_allocator_release(memo->allocator, entry->text_bytes);
+        }
+    }
+    sxml_allocator_release(memo->allocator, memo->slots);
+    *memo = sxml_ast_memo_empty(memo->allocator);
+}
+
+/* The key of a parse: everything the AST depends on but the source name. */
+typedef struct sxml_ast_memo_key {
+    uint64_t hash;
+    sxml_ast_build_function build;
+    uint32_t maximum_expression_depth;
+    bool reads_xml_1_1;
+    sxml_byte_view text;
+} sxml_ast_memo_key;
+
+/* FNV-1a over the limits and the text; never 0, which marks an empty
+   slot. The front end is compared, not hashed (a function pointer has no
+   portable integer value). */
+static uint64_t sxml_ast_memo_hash(const sxml_ast_build_request *request) {
+    const uint64_t prime = UINT64_C(1099511628211);
+    uint64_t hash = UINT64_C(14695981039346656037);
+    hash = (hash ^ request->maximum_expression_depth) * prime;
+    hash = (hash ^ (request->reads_xml_1_1 ? 1U : 0U)) * prime;
+    const sxml_byte_view text = request->expression_text;
+    for (size_t byte_index = 0; byte_index < text.byte_count;
+         byte_index += 1) {
+        hash = (hash ^ text.bytes[byte_index]) * prime;
+    }
+    return hash == 0 ? 1 : hash;
+}
+
+/* The slot of key: its entry, or the empty slot where it goes. The table
+   is never full. */
+static sxml_ast_memo_entry *sxml_ast_memo_find(const sxml_ast_memo *memo,
+                                               const sxml_ast_memo_key *key) {
+    const size_t mask = memo->slot_count - 1U;
+    size_t slot_index = (size_t)(key->hash & mask);
+    for (;;) {
+        sxml_ast_memo_entry *entry = &memo->slots[slot_index];
+        if (entry->hash == 0 ||
+            (entry->hash == key->hash && entry->build == key->build &&
+             entry->maximum_expression_depth ==
+                 key->maximum_expression_depth &&
+             entry->reads_xml_1_1 == key->reads_xml_1_1 &&
+             sxml_byte_view_equals(
+                 (sxml_byte_view){.bytes = entry->text_bytes,
+                                  .byte_count = entry->text_byte_count},
+                 key->text))) {
+            return entry;
+        }
+        slot_index = (slot_index + 1U) & mask;
+    }
+}
+
+/* Doubles the slots (64 at first), moving the entries. */
+static sxml_status sxml_ast_memo_grow(sxml_ast_memo *memo) {
+    const size_t slot_count =
+        memo->slot_count == 0 ? 64U : memo->slot_count * 2U;
+    size_t byte_count = 0;
+    sxml_status status = sxml_size_multiply(
+        slot_count, sizeof(sxml_ast_memo_entry), &byte_count);
+    void *memory = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_allocator_allocate(
+            memo->allocator,
+            (sxml_allocation_request){
+                .byte_count = byte_count,
+                .alignment = alignof(sxml_ast_memo_entry)},
+            &memory);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    memset(memory, 0, byte_count);
+    sxml_ast_memo_entry *old_slots = memo->slots;
+    const size_t old_slot_count = memo->slot_count;
+    memo->slots = memory;
+    memo->slot_count = slot_count;
+    for (size_t slot_index = 0; slot_index < old_slot_count;
+         slot_index += 1) {
+        const sxml_ast_memo_entry *entry = &old_slots[slot_index];
+        if (entry->hash != 0) {
+            *sxml_ast_memo_find(
+                memo, &(sxml_ast_memo_key){
+                          .hash = entry->hash,
+                          .build = entry->build,
+                          .maximum_expression_depth =
+                              entry->maximum_expression_depth,
+                          .reads_xml_1_1 = entry->reads_xml_1_1,
+                          .text = {.bytes = entry->text_bytes,
+                                   .byte_count = entry->text_byte_count}}) =
+                *entry;
+        }
+    }
+    sxml_allocator_release(memo->allocator, old_slots);
+    return SXML_STATUS_OK;
+}
+
+/* Keeps a copy of ast, which build made from text, in the empty slot
+   entry. */
+typedef struct sxml_ast_memo_addition {
+    sxml_ast_memo_entry *entry;
+    const sxml_ast_memo_key *key;
+    const sxml_ast *ast;
+} sxml_ast_memo_addition;
+
+static sxml_status sxml_ast_memo_add(sxml_ast_memo *memo,
+                                     sxml_ast_memo_addition addition) {
+    const sxml_byte_view text = addition.key->text;
+    void *text_memory = NULL;
+    sxml_status status = SXML_STATUS_OK;
+    if (text.byte_count != 0) {
+        status = sxml_allocator_allocate(
+            memo->allocator,
+            (sxml_allocation_request){.byte_count = text.byte_count,
+                                      .alignment = 1},
+            &text_memory);
+    }
+    sxml_ast *kept = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_ast_copy(
+            &(sxml_ast_copy_request){
+                .original = addition.ast,
+                .allocator = memo->allocator,
+                .source_name = {.bytes = NULL, .byte_count = 0}},
+            &kept);
+    }
+    if (status != SXML_STATUS_OK) {
+        sxml_allocator_release(memo->allocator, text_memory);
+        return status;
+    }
+    if (text.byte_count != 0) {
+        memcpy(text_memory, text.bytes, text.byte_count);
+    }
+    *addition.entry = (sxml_ast_memo_entry){
+        .hash = addition.key->hash,
+        .build = addition.key->build,
+        .maximum_expression_depth = addition.key->maximum_expression_depth,
+        .reads_xml_1_1 = addition.key->reads_xml_1_1,
+        .text_bytes = text_memory,
+        .text_byte_count = text.byte_count,
+        .ast = kept};
+    memo->used_count += 1U;
+    return SXML_STATUS_OK;
+}
+
+sxml_status sxml_ast_memo_build(sxml_ast_memo *memo,
+                                const sxml_ast_memo_request *request,
+                                sxml_ast **ast) {
+    const sxml_ast_build_request *build_request = request->build_request;
+    sxml_status status = SXML_STATUS_OK;
+    if ((memo->used_count + 1U) * 2U > memo->slot_count) {
+        status = sxml_ast_memo_grow(memo);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    const sxml_ast_memo_key key = {
+        .hash = sxml_ast_memo_hash(build_request),
+        .build = request->build,
+        .maximum_expression_depth = build_request->maximum_expression_depth,
+        .reads_xml_1_1 = build_request->reads_xml_1_1,
+        .text = build_request->expression_text};
+    sxml_ast_memo_entry *entry = sxml_ast_memo_find(memo, &key);
+    if (entry->hash != 0) {
+        return sxml_ast_copy(
+            &(sxml_ast_copy_request){.original = entry->ast,
+                                     .allocator = build_request->allocator,
+                                     .source_name = build_request->source_name},
+            ast);
+    }
+    sxml_ast *built = NULL;
+    status = request->build(build_request, &built);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_ast_memo_add(
+            memo, (sxml_ast_memo_addition){.entry = entry, .key = &key, .ast = built});
+    }
+    if (status != SXML_STATUS_OK) {
+        sxml_ast_destroy(built);
+        return status;
+    }
+    *ast = built;
+    return SXML_STATUS_OK;
+}

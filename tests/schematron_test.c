@@ -325,13 +325,14 @@ static void test_compile_reports_every_error_with_its_location(sxml_test_state *
                              &schematron) == SXML_STATUS_STATIC_ERROR);
     SXML_TEST_EXPECT(state, schematron == NULL);
     /* Each error at its place: the schema parameter's value (2), the
-       rule context (4), the test (8), the unknown element (9), the
-       instance's parameter value (15), the foreign function (16). */
+       rule context (4, at its unclosed "["), the test (8), the unknown
+       element (9), the instance's parameter value (15, at its "["), the
+       foreign function (16). */
     SXML_TEST_EXPECT(state, errors.line_count == 6);
     SXML_TEST_EXPECT(state, has_line(&errors, "schematron:syntax 9:7"));
-    SXML_TEST_EXPECT(state, has_line(&errors, "err:XTSE0340 4:16"));
+    SXML_TEST_EXPECT(state, has_line(&errors, "err:XTSE0340 4:20"));
     SXML_TEST_EXPECT(state, has_line(&errors, "err:XPST0003 8:23"));
-    SXML_TEST_EXPECT(state, has_line(&errors, "err:XTSE0340 15:46"));
+    SXML_TEST_EXPECT(state, has_line(&errors, "err:XTSE0340 15:47"));
     SXML_TEST_EXPECT(state, has_line(&errors, "err:XPST0003 16:96"));
     SXML_TEST_EXPECT(state, has_line(&errors, "err:XPST0003 2:30"));
     for (size_t line_index = 0; line_index < errors.line_count; line_index += 1) {

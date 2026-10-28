@@ -1645,6 +1645,79 @@ SXML_NODISCARD sxml_status sxml_xquery_build_ast(
 SXML_NODISCARD sxml_status sxml_xslt_pattern_build_ast(
     const sxml_ast_build_request *request, sxml_ast **ast);
 
+/* ---------------------------------------------------------------- Copies */
+
+/* A copy of an AST with its own source name. */
+typedef struct sxml_ast_copy_request {
+    const sxml_ast *original;
+    /* Memory for the copy, made with sxml_ast_create. */
+    sxml_allocator allocator;
+    /* Becomes the copy's source name; borrowed, must outlive the copy. */
+    sxml_byte_view source_name;
+} sxml_ast_copy_request;
+
+/*
+ * Writes a copy of request->original to *copy, owned (release with
+ * sxml_ast_destroy): the same capacities, nodes and text store, entry for
+ * entry, and root, so it is what the front end that built the original
+ * builds from the same text; only the source name is request's. Returns
+ * the failures of sxml_ast_create.
+ */
+SXML_NODISCARD sxml_status sxml_ast_copy(const sxml_ast_copy_request *request,
+                                         sxml_ast **copy);
+
+/* ------------------------------------------------------------- AST memo */
+
+/* A front end's entry point: sxml_xpath_build_ast and the others above,
+   or sxml_xslt_build_value_template_ast. */
+typedef sxml_status (*sxml_ast_build_function)(
+    const sxml_ast_build_request *request, sxml_ast **ast);
+
+/* One entry of an AST memo; private to src/xpath_ast.c. */
+typedef struct sxml_ast_memo_entry sxml_ast_memo_entry;
+
+/*
+ * The ASTs one compilation has parsed (glossary `ast_memo`, perf-17): an
+ * open-addressing hash table, at most half full, keyed by the front end,
+ * the expression text and the parse's limits (expression depth, XML 1.1
+ * reading), which are all a front end's AST depends on besides the source
+ * name. The static context does not enter a parse. Each entry owns a
+ * copy of its text and the AST the front end built; a use takes a copy
+ * with its own source name. Texts that fail to parse are not kept, so
+ * each use reports its own error. Zero-initialized and given an allocator
+ * it is empty; released with sxml_ast_memo_release.
+ */
+typedef struct sxml_ast_memo {
+    sxml_allocator allocator;
+    sxml_ast_memo_entry *slots;
+    size_t slot_count;
+    size_t used_count;
+} sxml_ast_memo;
+
+/* An empty memo whose entries come from allocator. */
+sxml_ast_memo sxml_ast_memo_empty(sxml_allocator allocator);
+
+/* Releases every entry; the memo is empty afterwards. */
+void sxml_ast_memo_release(sxml_ast_memo *memo);
+
+/* A text to parse through a memo. */
+typedef struct sxml_ast_memo_request {
+    sxml_ast_build_function build;
+    /* As for build; its allocator makes the AST written. */
+    const sxml_ast_build_request *build_request;
+} sxml_ast_memo_request;
+
+/*
+ * Writes to *ast, owned, the AST request->build makes from
+ * request->build_request: a copy of the memo's when the same front end
+ * has parsed the same text with the same limits, else the front end's
+ * own, a copy of which the memo keeps. Returns what build returns (the
+ * error record filled by it), and the failures of the allocators.
+ */
+SXML_NODISCARD sxml_status sxml_ast_memo_build(
+    sxml_ast_memo *memo, const sxml_ast_memo_request *request,
+    sxml_ast **ast);
+
 /* ---------------------------------------------------------- Parser parts */
 
 /*

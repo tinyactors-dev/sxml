@@ -2277,6 +2277,9 @@ typedef struct stylesheet_reader {
     /* The first text node of the text being collected, and where it is. */
     sxml_node_index text_node;
     sxml_ast_source_span text_span;
+    /* The expressions parsed so far: a text met again is copied, not
+       parsed (perf-17). */
+    sxml_ast_memo parsed_expressions;
 } stylesheet_reader;
 
 /* The size and alignment of a scratch array's elements, and the count
@@ -3285,21 +3288,34 @@ static sxml_status parse_expression(stylesheet_reader *reader, const expression_
         .maximum_expression_depth = sxml_processor_get_maximum_expression_depth(reader->processor),
         .error_record = reader->error_record};
     sxml_status status = SXML_STATUS_INVALID_ARGUMENT;
+    sxml_ast_memo *memo = &reader->parsed_expressions;
     switch (expression->kind) {
     case SXML_XSLT_AST_VALUE_KIND_EXPRESSION:
-        status = sxml_xpath_build_ast(&request, ast);
+        status = sxml_ast_memo_build(
+            memo, &(sxml_ast_memo_request){.build = sxml_xpath_build_ast, .build_request = &request}, ast);
         break;
     case SXML_XSLT_AST_VALUE_KIND_PATTERN:
-        status = sxml_xslt_pattern_build_ast(&request, ast);
+        status = sxml_ast_memo_build(
+            memo, &(sxml_ast_memo_request){.build = sxml_xslt_pattern_build_ast, .build_request = &request},
+            ast);
         break;
     case SXML_XSLT_AST_VALUE_KIND_VALUE_TEMPLATE:
-        status = sxml_xslt_build_value_template_ast(&request, ast);
+        status = sxml_ast_memo_build(
+            memo,
+            &(sxml_ast_memo_request){.build = sxml_xslt_build_value_template_ast, .build_request = &request},
+            ast);
         break;
     case SXML_XSLT_AST_VALUE_KIND_SEQUENCE_TYPE:
-        status = sxml_xpath_build_sequence_type_ast(&request, ast);
+        status = sxml_ast_memo_build(
+            memo,
+            &(sxml_ast_memo_request){.build = sxml_xpath_build_sequence_type_ast, .build_request = &request},
+            ast);
         break;
     case SXML_XSLT_AST_VALUE_KIND_ITEM_TYPE:
-        status = sxml_xpath_build_sequence_type_ast(&request, ast);
+        status = sxml_ast_memo_build(
+            memo,
+            &(sxml_ast_memo_request){.build = sxml_xpath_build_sequence_type_ast, .build_request = &request},
+            ast);
         if (status == SXML_STATUS_OK &&
             sxml_ast_get_node(*ast, (*ast)->root)->detail.occurrence !=
                 SXML_OCCURRENCE_EXACTLY_ONE) {
@@ -7224,6 +7240,7 @@ static void release_reader(stylesheet_reader *reader) {
         sxml_allocator_release(reader->allocator, arrays[index]->elements);
         *arrays[index] = (scratch_array){.elements = NULL, .count = 0, .capacity = 0};
     }
+    sxml_ast_memo_release(&reader->parsed_expressions);
     sxml_xslt_static_scope_destroy(reader->static_scope);
     sxml_xml_parser_destroy(reader->parser);
     reader->static_scope = NULL;
@@ -7247,6 +7264,7 @@ sxml_status sxml_xslt_read_stylesheet(const sxml_xslt_read_request *request, sxm
     reader.error_collector = request->error_collector;
     reader.static_parameters = request->static_parameters;
     reader.default_collation_uri = request->default_collation_uri;
+    reader.parsed_expressions = sxml_ast_memo_empty(reader.allocator);
     const uint64_t node_limit = processor->limits.maximum_tree_node_count;
     sxml_status status = sxml_xslt_ast_create(
         reader.allocator,
@@ -7322,6 +7340,7 @@ sxml_status sxml_xslt_read_declaration(const sxml_xslt_declaration_request *requ
     reader.error_record = request->error_record;
     reader.error_collector = request->error_collector;
     reader.extra_namespace_bindings = request->extra_namespace_bindings;
+    reader.parsed_expressions = sxml_ast_memo_empty(reader.allocator);
     sxml_status status = sxml_xml_parser_create(
         reader.allocator,
         &(sxml_xml_parser_configuration){.allocator = reader.allocator,
