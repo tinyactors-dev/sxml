@@ -63,6 +63,8 @@ Every evaluation runs under limits on the work it does, the depth of its
 calls and the memory it uses, which a program sets in the processor's
 configuration. The defaults are generous (a hundred million evaluation steps,
 a million nested calls), and they keep an accidental infinite loop
-from running forever. sxml never uses the C stack for deep nesting, so
-deeply nested documents and deeply recursive functions are bounded only
-by these limits and by memory.
+from running forever. The `sxml` command sets no step limit: a query
+runs to its end, and you stop one that takes too long with Ctrl-C
+([The step limit](performance.md#the-step-limit)). sxml never uses the
+C stack for deep nesting, so deeply nested documents and deeply
+recursive functions are bounded only by these limits and by memory.

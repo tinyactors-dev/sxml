@@ -18,12 +18,19 @@
 
 #include <stdalign.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <string.h>
 
 #define SXML_TEXT(literal) SXML_BYTE_VIEW_FROM_LITERAL(literal)
 
 /* As sxml check: entity expansion is bounded, nesting is not. */
 enum { SXML_QUERY_MAXIMUM_EXPANSION_BYTE_COUNT = 4 * 1024 * 1024 };
+
+/* The command sets no bound on evaluation steps (D313): a long run is
+   stopped by the person running it. 0 would mean the library's default
+   (sxml_processor_limits), so the largest count stands for "no bound";
+   at one step a nanosecond it would take five centuries (D314). */
+#define SXML_QUERY_MAXIMUM_EVALUATION_STEP_COUNT UINT64_MAX
 
 const sxml_byte_view sxml_query_methods[SXML_QUERY_METHOD_COUNT] = {
     SXML_BYTE_VIEW_INITIALIZER("adaptive"), SXML_BYTE_VIEW_INITIALIZER("xml"),
@@ -1192,7 +1199,8 @@ sxml_cli_exit_code sxml_query_run_start(sxml_query_run *run) {
             .allocator = invocation->allocator,
             .limits = {.xml_limits = {.maximum_depth = 0,
                                       .maximum_entity_expansion_byte_count =
-                                          SXML_QUERY_MAXIMUM_EXPANSION_BYTE_COUNT}},
+                                          SXML_QUERY_MAXIMUM_EXPANSION_BYTE_COUNT},
+                       .maximum_evaluation_step_count = SXML_QUERY_MAXIMUM_EVALUATION_STEP_COUNT},
             .resource_resolver = {.state = &run->resolver,
                                   .operations = &sxml_query_file_resolver_operations},
             .clock = sxml_system_clock(),

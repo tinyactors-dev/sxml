@@ -205,10 +205,11 @@ and the string. `textSink` decodes UTF-8 in TextDecoder's stream mode,
 so a character split between two chunks comes out whole.
 
 A long stream takes many evaluation steps. Every evaluation stops after
-a hundred million of them ("The step limit" in "Performance and
-Memory"), but a streamed document grants 500 more for each element it
-reads, so a streamed transformation of a long input runs within the
-bound, while a loop that reads nothing more still stops. For other work
+a hundred million of them, the library's default for every program that
+embeds sxml (the `sxml` command alone sets no limit; see [The step
+limit](performance.md#the-step-limit)), but a streamed document grants
+500 more for each element it reads, so a streamed transformation of a
+long input runs within the bound, while a loop that reads nothing more still stops. For other work
 that needs more, or to keep untrusted queries shorter, set the bound
 with `createProcessor({ maximumEvaluationStepCount })`.
 

@@ -177,11 +177,13 @@ grammar is linear again.
 Every item the parser makes, every node of the parse tree, and every
 run of an automaton, with one more for every 16 characters it reads,
 counts as one step of the evaluation, so the step limit that stops a
-runaway query stops a runaway parse too. A linear grammar makes a few
-items for each character that no automaton reads, so the default limit
-of 10<sup>8</sup> steps allows inputs of many megabytes: the log of
-100 MB parses within it. A host that embeds sxml can set a higher limit
-(Chapter "Embedding sxml in C").
+runaway query in a program stops a runaway parse too ([The step
+limit](performance.md#the-step-limit)). A linear grammar makes a few
+items for each character that no automaton reads, so the library's
+default limit of 10<sup>8</sup> steps allows inputs of many megabytes:
+the log of 100 MB parses within it. A host that embeds sxml can set a
+higher limit (Chapter "Embedding sxml in C"). The `sxml` command sets
+none: a parse there runs to its end, however long the input.
 
 ## Compared with tree-sitter
 

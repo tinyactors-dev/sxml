@@ -142,24 +142,33 @@ trust can't take the machine down with it.
 
 ## The step limit
 
-Every evaluation counts its steps, and stops after a hundred million by
-default, a few seconds of work. A query that would run for hours stops,
-after about ten seconds, with an error that says so, instead of hanging:
+Every evaluation counts its steps. A program that embeds sxml bounds
+them: by default an evaluation stops after a hundred million steps, a
+few seconds of work, with `SXML_STATUS_LIMIT_EXCEEDED` and an error that
+says so, instead of hanging ([Embedding sxml in C](c.md) shows one). A
+program sets the limit in its processor configuration, higher or lower,
+to fit the work it expects; in JavaScript, it is
+`createProcessor({ maximumEvaluationStepCount })`, with the same default.
+
+The `sxml` command sets no step limit: you are there to watch it, so a
+query runs to its end however many steps it takes. A general comparison
+is charged a step for every pair of items it may compare before it
+starts, so this one counts four hundred million steps, more than a
+program's default allows, though it finds a match at once:
 
 ```console
-$ sxml xpath 'some $n in 1 to 100000000000 satisfies $n = 0'
-expression: the evaluation took more steps than maximum_evaluation_step_count allows
+$ sxml xpath '(1 to 20000) = (1 to 20000)'
+true()
 ```
 
-A program sets the limit in its processor configuration, higher or
-lower, to fit the work it expects; in JavaScript, it is
-`createProcessor({ maximumEvaluationStepCount })`.
+A query that would run for hours runs for hours. Stop it as you stop any
+other command, with Ctrl-C.
 
-A streamed document is counted differently. Each element it reads
-grants 500 more steps, so the bound grows with the input. The streamed
-identity of a 93 MB file of 2.7 million elements takes about 50 steps an
-element and runs to the end; a loop inside a template that reads
-nothing more still stops.
+Under a limit, a streamed document is counted differently. Each element
+it reads grants 500 more steps, so the bound grows with the input. The
+streamed identity of a 93 MB file of 2.7 million elements takes about
+50 steps an element and runs to the end; a loop inside a template that
+reads nothing more still stops.
 
 ## Habits that help
 

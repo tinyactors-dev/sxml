@@ -137,6 +137,19 @@ directory, read as `fn:doc` reads a file: no flag, no network.
   where it has none (Windows today, D200), every collection raises
   FODC0002.
 
+### Limits
+
+- **The person running a command bounds its time, not sxml.** The commands
+  set no bound on evaluation steps (their one processor configuration is
+  in `query_command.c`): a query runs to its end, and a run that takes
+  too long is stopped with Ctrl-C (SIGINT) like any other program. The
+  library's default bound of 10^8 steps is for programs that embed sxml
+  and the JavaScript package; the conformance drivers set their own.
+  `sxml_processor_limits` has no value for "no bound" (0 means the
+  default), so the command asks for the largest count (D314).
+- **Input stays bounded.** Entity expansion is bounded to 4 MiB in every
+  command that parses XML; a limit that is exceeded exits 4.
+
 ### Output
 
 - Results go to standard output; diagnostics, warnings and usage errors to

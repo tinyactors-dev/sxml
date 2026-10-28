@@ -172,6 +172,10 @@ sxml_add_cli_test(xquery_xinclude_untrusted EXIT_CODE 1 ARGUMENTS xquery "--expr
 sxml_add_cli_test(xpath_dynamic_error EXIT_CODE 1 ARGUMENTS xpath "error(QName('http://www.w3.org/2005/xqt-errors', 'err:FOER0000'), 'stop here')")
 sxml_add_cli_test(xpath_type_error EXIT_CODE 1 ARGUMENTS xpath "(1, 2) eq 1")
 sxml_add_cli_test(xpath_no_focus EXIT_CODE 1 ARGUMENTS xpath "count(//x)")
+# No step limit in the command (D313): the comparison is charged 4 x 10^8
+# steps up front (one per pair, D89), past the library's default of 10^8,
+# and finds its match at once, so it is quick under every preset.
+sxml_add_cli_test(xpath_no_step_limit EXIT_CODE 0 ARGUMENTS xpath "(1 to 20000) = (1 to 20000)")
 sxml_add_cli_test(xpath_context_not_well_formed EXIT_CODE 1 ARGUMENTS xpath --context-item=mismatched-tag.xml ".")
 sxml_add_cli_test(xpath_context_missing EXIT_CODE 3 ARGUMENTS xpath --context-item=missing.xml ".")
 sxml_add_cli_test(xpath_bad_param EXIT_CODE 2 ARGUMENTS xpath --param=novalue "1")
