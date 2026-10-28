@@ -414,4 +414,106 @@
       </findings>
     </result>
   </test-case>
+  <test-case name="instance-dtd-default-attribute" since="2020">
+    <description>An attribute defaulted by the instance's internal DTD subset is an attribute of the data model (XDM from the infoset): tests and contexts see it.</description>
+    <spec clause="Annex-J"/>
+    <spec clause="6.5"/>
+    <schema file="instance-dtd-default-attribute.sch"/>
+    <instance file="instance-dtd-default-attribute.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Open, not closed.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]/@status">
+          <message>Status open.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]/@status">
+          <message>Status closed.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="instance-entities" since="2020">
+    <description>Entity references in the instance are expanded: value-of sees the replacement text and the referenced character.</description>
+    <spec clause="Annex-J"/>
+    <schema file="instance-entities.sch"/>
+    <instance file="instance-entities.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]">
+          <message>Item: Acme Ltd 𝄞.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="instance-xml-id" since="2020">
+    <description>xml:id attributes of the instance are IDs: fn:id finds them.</description>
+    <spec clause="Annex-J"/>
+    <schema file="instance-xml-id.sch"/>
+    <instance file="instance-xml-id.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}ref[2]">
+          <message>Target none exists.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="instance-dtd-id" since="2020">
+    <description>Attributes declared as ID in the instance's internal DTD subset are IDs: fn:id finds them.</description>
+    <spec clause="Annex-J"/>
+    <schema file="instance-dtd-id.sch"/>
+    <instance file="instance-dtd-id.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}ref[2]">
+          <message>Target none exists.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="instance-cdata" since="2020">
+    <description>A CDATA section in the instance is text: value-of gives its characters.</description>
+    <spec clause="Annex-J"/>
+    <schema file="instance-cdata.sch"/>
+    <instance file="instance-cdata.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}code[1]">
+          <message>Code: a &lt; b &amp;&amp; c.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="instance-utf16" since="2020">
+    <description>An instance encoded in UTF-16.</description>
+    <spec clause="Annex-J"/>
+    <schema file="instance-utf16.sch"/>
+    <instance file="instance-utf16.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[1]">
+          <message>Not a: ä.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="binding-whitespace" since="2020">
+    <description>A queryBinding with leading and trailing whitespace.</description>
+    <spec clause="6.5"/>
+    <spec clause="5.3"/>
+    <spec clause="Annex-A"/>
+    <schema file="binding-whitespace.sch"/>
+    <instance file="binding-whitespace.xml"/>
+    <result>
+      <implementation-defined clause="5.3 Annex-A">Annex A types queryBinding as xsd:token, whose value is xslt3, and 5.3 says such whitespace should be stripped: a processor that strips it reports one failed-assert at /Q{}doc[1]/Q{}item[2]; one that does not fails for an unsupported binding (6.5).</implementation-defined>
+    </result>
+  </test-case>
 </test-set>

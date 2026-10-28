@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE doc [
+<!ATTLIST item status CDATA "open">
+]>
+<doc><item n="1"/><item n="2" status="closed"/></doc>
