@@ -1770,6 +1770,32 @@ static void test_single_item_shortcuts(sxml_test_state *state) {
                                               "element(employee)?, (//employee)[1] instance "
                                               "of element(works)",
                                               "true false"));
+    /* One item against a choice: the first alternative it matches keeps
+       it, unless that alternative converts; otherwise the engine. */
+    SXML_TEST_EXPECT(state, evaluates_to("let $f := function($x as (xs:string | fn(item()) "
+                                         "as item())?) {$x instance of xs:string, $x} "
+                                         "return $f('s')",
+                                         "true s"));
+    SXML_TEST_EXPECT(state, path_evaluates_to("let $f := function($x as (element(works) | "
+                                              "xs:string)) {$x instance of element()} "
+                                              "return ($f(/works), $f('s'))",
+                                              "true false"));
+    SXML_TEST_EXPECT(state, evaluates_to("let $f := function($x as (fn(xs:integer) as "
+                                         "xs:integer | xs:string)) {$x(1)} return "
+                                         "$f(fn($a) {$a + 1})",
+                                         "2"));
+    SXML_TEST_EXPECT(state, fails_with("let $f := function($x as (xs:integer | xs:date)) "
+                                       "{$x} return $f('s')",
+                                       "XPTY0004"));
+    /* An untyped value cast to xs:string keeps its text (glossary
+       `relabelled_cast`). */
+    SXML_TEST_EXPECT(state, path_evaluates_to("let $f := function($x as xs:string) {$x "
+                                              "instance of xs:untypedAtomic, $x instance of "
+                                              "xs:string, $x} return "
+                                              "$f(//employee[1]/@name), "
+                                              "xs:untypedAtomic(' a ') cast as xs:string "
+                                              "instance of xs:string",
+                                              "false true Jane Doe 1 true"));
 }
 
 /* ---------------------------------------------------------------- JNodes */

@@ -1599,15 +1599,30 @@ static sxml_status sxml_coerce_atomic_item(const sxml_atomic_coercion *coercion,
     *outcome = (sxml_atomic_coercion_outcome){.is_unchanged = false,
                                               .does_not_match = false,
                                               .result = sxml_sequence_empty()};
+    const sxml_type_identifier item_primitive =
+        sxml_atomic_item_get_primitive_type(item);
+    /* An xs:untypedAtomic item is an instance of no atomic type of
+       another primitive type: its only supertypes are xs:anyAtomicType
+       and above (XPath 4.0, section 3.2.3; XDM 4.0, section 2.7.2), so
+       it is cast without a match. */
+    const uint32_t required_primitive = coercion->primitive_type.index;
+    const bool cannot_match = item_primitive.index == SXML_TYPE_XS_UNTYPED_ATOMIC &&
+                              required_primitive != SXML_TYPE_NONE &&
+                              required_primitive != SXML_TYPE_XS_UNTYPED_ATOMIC &&
+                              required_primitive != SXML_TYPE_XS_ANY_ATOMIC_TYPE &&
+                              coercion->item_type.index != SXML_TYPE_XS_ANY_ATOMIC_TYPE;
     sxml_type_match match = {.is_match = false};
-    sxml_status status = sxml_evaluator_match_sequence_type(
-        coercion->dynamic_context,
-        &(sxml_type_match_request){
-            .value = sxml_sequence_from_item(item),
-            .sequence_type = {.item_type = coercion->item_type,
-                              .occurrence = SXML_OCCURRENCE_EXACTLY_ONE},
-            .error_record = coercion->error_record},
-        &match);
+    sxml_status status = SXML_STATUS_OK;
+    if (!cannot_match) {
+        status = sxml_evaluator_match_sequence_type(
+            coercion->dynamic_context,
+            &(sxml_type_match_request){
+                .value = sxml_sequence_from_item(item),
+                .sequence_type = {.item_type = coercion->item_type,
+                                  .occurrence = SXML_OCCURRENCE_EXACTLY_ONE},
+                .error_record = coercion->error_record},
+            &match);
+    }
     if (status != SXML_STATUS_OK) {
         return status;
     }
@@ -1616,8 +1631,6 @@ static sxml_status sxml_coerce_atomic_item(const sxml_atomic_coercion *coercion,
         return SXML_STATUS_OK;
     }
     const sxml_type_identifier annotation = sxml_item_get_type_annotation(item);
-    const sxml_type_identifier item_primitive =
-        sxml_atomic_item_get_primitive_type(item);
     const sxml_type_identifier target = coercion->item_type;
     if (item_primitive.index == SXML_TYPE_XS_UNTYPED_ATOMIC) {
         /* untypedAtomic is cast to the required type; never to a
@@ -2893,14 +2906,69 @@ typedef struct sxml_single_coercion {
     sxml_sequence value;
 } sxml_single_coercion;
 
+/* One item against a choice type (sxml_coerce_single_item_to_choice). */
+typedef struct sxml_choice_coercion {
+    const sxml_coercion_request *request;
+    sxml_type_identifier_view alternatives;
+} sxml_choice_coercion;
+
+/*
+ * One item against a choice item type, as the coercion engine's CHOICE
+ * rule takes it (XPath 4.0, section 3.4.2): the first alternative the
+ * item matches decides; when that alternative never changes the items
+ * that match it (not a typed function, record, array or map type), the
+ * item stays as it is, and it matches the choice, so the final match
+ * holds. An item that matches no alternative, or whose first match is
+ * one that converts, is left to the engine (*coercion->is_decided
+ * false). The matches are the engine's own, without an error record.
+ */
+static sxml_status sxml_coerce_single_item_to_choice(sxml_dynamic_context *dynamic_context,
+                                                     sxml_choice_coercion choice,
+                                                     sxml_single_coercion *coercion) {
+    const sxml_sequence value = choice.request->value;
+    const sxml_type_registry *registry =
+        sxml_item_heap_get_type_registry(dynamic_context->item_heap);
+    for (size_t alternative_index = 0;
+         alternative_index < choice.alternatives.type_identifier_count;
+         alternative_index += 1) {
+        const sxml_type_identifier alternative =
+            choice.alternatives.type_identifiers[alternative_index];
+        sxml_type_match match = {.is_match = false};
+        sxml_status status = sxml_evaluator_match_sequence_type(
+            dynamic_context,
+            &(sxml_type_match_request){
+                .value = value,
+                .sequence_type = {.item_type = alternative,
+                                  .occurrence = SXML_OCCURRENCE_EXACTLY_ONE},
+                .error_record = NULL},
+            &match);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        if (!match.is_match) {
+            continue;
+        }
+        sxml_atomicity converts = {.is_atomic = true};
+        status = sxml_type_converts_matching_items(registry, alternative, &converts);
+        if (status == SXML_STATUS_OK && !converts.is_atomic) {
+            sxml_sequence_retain(value);
+            *coercion = (sxml_single_coercion){.is_decided = true, .value = value};
+        }
+        return status;
+    }
+    return SXML_STATUS_OK;
+}
+
 /*
  * One item against a sequence type of a plain atomic item type (glossary
  * `single_item_shortcut`): the rules the coercion engine would apply to
  * it (XPath 4.0, section 3.4: atomization, then the coercion of the one
  * atomic item, section 3.4.3; then the cardinality and the final match),
  * without its frames, its sequence builders and the match of the value
- * that precedes them. *coercion->is_decided stays false for any other
- * value or type, and for an item whose atomized value is not one item;
+ * that precedes them; or one item against a choice type, when an
+ * alternative it matches keeps it (sxml_coerce_single_item_to_choice).
+ * *coercion->is_decided stays false for any other value or type, and
+ * for an item whose atomized value is not one item;
  * the engine then decides, from the beginning (atomization reads the node
  * and raises nothing the engine would not raise first).
  */
@@ -2931,6 +2999,13 @@ static sxml_status sxml_coerce_single_item(sxml_dynamic_context *dynamic_context
     sxml_type_description description;
     sxml_status status =
         sxml_type_registry_describe_type(registry, sequence_type.item_type, &description);
+    if (status == SXML_STATUS_OK && description.variety == SXML_TYPE_VARIETY_CHOICE) {
+        return sxml_coerce_single_item_to_choice(
+            dynamic_context,
+            (sxml_choice_coercion){.request = request,
+                                   .alternatives = description.variety_details.member_types},
+            coercion);
+    }
     if (status != SXML_STATUS_OK || description.variety != SXML_TYPE_VARIETY_ATOMIC) {
         return status;
     }
