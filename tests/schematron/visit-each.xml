@@ -93,4 +93,321 @@
       <schema-error clause="Annex-A"/>
     </result>
   </test-case>
+  <test-case name="visit-each-reverse-order" since="2025">
+    <description>visit-each returning nodes in reverse document order: every item is visited; the findings are the same.</description>
+    <spec clause="5.5.21"/>
+    <spec clause="6.6"/>
+    <schema file="visit-each-reverse-order.sch"/>
+    <instance file="visit-each-reverse-order.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}list[1]/Q{}entry[2]">
+          <message>Entry 9 below five.</message>
+        </finding>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}list[1]/Q{}entry[3]">
+          <message>Entry 7 below five.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="visit-each-duplicates" since="2025">
+    <description>visit-each returning one node twice: the sequence has two items, so the assertions are evaluated twice and there are two findings for the node.</description>
+    <spec clause="5.5.21"/>
+    <schema file="visit-each-duplicates.sch"/>
+    <instance file="visit-each-duplicates.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}list[1]/Q{}entry[2]">
+          <message>Entry 9.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}list[1]/Q{}entry[2]">
+          <message>Entry 9.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="visit-each-other-document" since="2025">
+    <description>visit-each selecting nodes of another document (doc() resolves against the schema's base URI): they are the assertions' context. The document is not a subordinate document (5.4.12); the location is the node's path in its own document.</description>
+    <spec clause="5.5.21"/>
+    <spec clause="Annex-J"/>
+    <schema file="visit-each-other-document.sch"/>
+    <instance file="visit-each-other-document.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}list[1]/Q{}entry[2]">
+          <message>Other entry 8.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="visit-each-subject" since="2025">
+    <description>An assertion subject in a rule with visit-each.</description>
+    <spec clause="5.5.19"/>
+    <spec clause="5.5.21"/>
+    <spec clause="6.3"/>
+    <schema file="visit-each-subject.sch"/>
+    <instance file="visit-each-subject.xml"/>
+    <result>
+      <implementation-defined clause="5.5.19 5.5.21">5.5.19 evaluates subject with the context node of the current rule; with visit-each that is either the visited entry (failed-asserts at /Q{}doc[1]/Q{}list[1]/Q{}entry[2]/@v and /Q{}doc[1]/Q{}list[1]/Q{}entry[3]/@v) or the rule's context node list, which has no v attribute (no subject node). Messages Entry 9 below five. and Entry 7 below five. in the first reading.</implementation-defined>
+    </result>
+  </test-case>
+
+  <test-case name="visit-each-rule-variable" since="2025">
+    <description>A rule variable in a rule with visit-each.</description>
+    <spec clause="5.4.7"/>
+    <spec clause="5.5.21"/>
+    <schema file="visit-each-rule-variable.sch"/>
+    <instance file="visit-each-rule-variable.xml"/>
+    <result>
+      <implementation-defined clause="5.4.7 5.5.21">5.4.7 calculates a rule variable with the rule's context; with visit-each that is the rule context node list (limit 8: one failed-assert at /Q{}doc[1]/Q{}list[1]/Q{}entry[2]) or each visited entry (no limit attribute, NaN: three failed-asserts).</implementation-defined>
+    </result>
+  </test-case>
+
+  <test-case name="visit-each-does-not-block" since="2025">
+    <description>Items visited by a rule are not matched by its context: a later rule of the pattern whose context matches them still fires.</description>
+    <spec clause="5.5.21"/>
+    <spec clause="3.20"/>
+    <spec clause="6.3"/>
+    <schema file="visit-each-does-not-block.sch"/>
+    <instance file="visit-each-does-not-block.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}list[1]/Q{}entry[1]">
+          <message>Visited 3.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}list[1]/Q{}entry[2]">
+          <message>Visited 9.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}list[1]/Q{}entry[3]">
+          <message>Visited 7.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}list[1]/Q{}entry[1]">
+          <message>Entry 3.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}list[1]/Q{}entry[2]">
+          <message>Entry 9.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}list[1]/Q{}entry[3]">
+          <message>Entry 7.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="visit-each-attributes" since="2025">
+    <description>visit-each selecting attribute nodes: each attribute is the context and the subject.</description>
+    <spec clause="5.5.21"/>
+    <schema file="visit-each-attributes.sch"/>
+    <instance file="visit-each-attributes.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}list[1]/Q{}entry[2]/@v">
+          <message>Value 9 below five.</message>
+        </finding>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}list[1]/Q{}entry[3]/@v">
+          <message>Value 7 below five.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="visit-each-whitespace-text" since="2025">
+    <description>visit-each selecting whitespace-only text nodes of the instance: the binding strips none, so each is visited.</description>
+    <spec clause="5.5.21"/>
+    <spec clause="Annex-J"/>
+    <schema file="visit-each-whitespace-text.sch"/>
+    <instance file="visit-each-whitespace-text.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}list[1]/text()[1]">
+          <message>Whitespace-only text.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}list[1]/text()[2]">
+          <message>Whitespace-only text.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}list[1]/text()[3]">
+          <message>Whitespace-only text.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="visit-each-comments-and-processing-instructions" since="2025">
+    <description>visit-each selecting a comment and a processing instruction.</description>
+    <spec clause="5.5.21"/>
+    <schema file="visit-each-comments-and-processing-instructions.sch"/>
+    <instance file="visit-each-comments-and-processing-instructions.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}list[1]/comment()[1]">
+          <message>Visited first.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}list[1]/processing-instruction(note)[1]">
+          <message>Visited second.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="visit-each-in-group" since="2025">
+    <description>Two rules with visit-each in a group: both fire for the same context node.</description>
+    <spec clause="5.5.21"/>
+    <spec clause="5.4.5"/>
+    <schema file="visit-each-in-group.sch"/>
+    <instance file="visit-each-in-group.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}list[1]/Q{}entry[1]">
+          <message>A 3.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}list[1]/Q{}entry[2]">
+          <message>A 9.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}list[1]/Q{}entry[3]">
+          <message>A 7.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}list[1]/Q{}entry[2]">
+          <message>B 9.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}list[1]/Q{}entry[3]">
+          <message>B 7.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="visit-each-extends" since="2025">
+    <description>A rule with visit-each that extends an abstract rule: the extended assertions are evaluated for each visited item.</description>
+    <spec clause="5.5.21"/>
+    <spec clause="5.4.4"/>
+    <schema file="visit-each-extends.sch"/>
+    <instance file="visit-each-extends.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}list[1]/Q{}entry[2]">
+          <message>Entry 9 below five.</message>
+        </finding>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}list[1]/Q{}entry[3]">
+          <message>Entry 7 below five.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="visit-each-abstract-parameter" since="2025">
+    <description>A parameter reference in visit-each is replaced when the abstract pattern is instantiated (visit-each holds a query).</description>
+    <spec clause="5.5.21"/>
+    <spec clause="6.2"/>
+    <spec clause="6.4"/>
+    <schema file="visit-each-abstract-parameter.sch"/>
+    <instance file="visit-each-abstract-parameter.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}list[1]/Q{}entry[2]">
+          <message>Big 9.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}list[1]/Q{}entry[3]">
+          <message>Big 7.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="visit-each-documents" since="2025">
+    <description>visit-each in a pattern with documents: the visited items are nodes of the subordinate document.</description>
+    <spec clause="5.5.21"/>
+    <spec clause="5.4.12"/>
+    <schema file="visit-each-documents.sch"/>
+    <instance file="visit-each-documents.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}list[1]/Q{}entry[1]" document="visit-each-documents/sub.xml">
+          <message>Big 6.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="visit-each-from" since="2025">
+    <description>from restricts the rule contexts, not what visit-each selects: the rule fires only for the list inside the subset, and visits every entry of the document.</description>
+    <spec clause="5.5.21"/>
+    <spec clause="5.5.7"/>
+    <schema file="visit-each-from.sch"/>
+    <instance file="visit-each-from.xml"/>
+    <phase>first</phase>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}part[1]/Q{}list[1]/Q{}entry[1]">
+          <message>Entry 1.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}part[2]/Q{}list[1]/Q{}entry[1]">
+          <message>Entry 2.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="visit-each-dynamic-error" since="2025">
+    <description>A dynamic error in visit-each: validation ends in error.</description>
+    <spec clause="5.5.21"/>
+    <spec clause="6.1"/>
+    <schema file="visit-each-dynamic-error.sch"/>
+    <instance file="visit-each-dynamic-error.xml"/>
+    <result>
+      <error clause="6.1"/>
+    </result>
+  </test-case>
+
+  <test-case name="visit-each-mixed-items" since="2025">
+    <description>visit-each returning a node and an atomic value: both are visited. (The second finding's subject is not a node; its location is not compared.)</description>
+    <spec clause="5.5.21"/>
+    <schema file="visit-each-mixed-items.sch"/>
+    <instance file="visit-each-mixed-items.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}list[1]/Q{}entry[1]">
+          <message>Item 3.</message>
+        </finding>
+        <finding kind="successful-report">
+          <message>Item label.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="visit-each-namespaced" since="2025">
+    <description>visit-each with a prefix declared by ns that differs from the instance's prefix for the same URI.</description>
+    <spec clause="5.5.21"/>
+    <spec clause="5.4.10"/>
+    <schema file="visit-each-namespaced.sch"/>
+    <instance file="visit-each-namespaced.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{urn:example:e}list[1]/Q{urn:example:e}entry[2]">
+          <message>Entry 9 below five.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="visit-each-astral-codepoints" since="2025">
+    <description>visit-each over the code points of a string with a character outside the Basic Multilingual Plane: a character is one item, not two.</description>
+    <spec clause="5.5.21"/>
+    <spec clause="Annex-J"/>
+    <schema file="visit-each-astral-codepoints.sch"/>
+    <instance file="visit-each-astral-codepoints.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report">
+          <message>Codepoint 97.</message>
+        </finding>
+        <finding kind="successful-report">
+          <message>Codepoint 119070.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
 </test-set>
