@@ -1641,6 +1641,10 @@ bounds (D166, D178).
 - **Done when**: a command that ran into the bound runs to its end (an
   example that took more than 10^8 steps); the book's examples match
   (`tools/check-book-examples.sh`); the CLI tests pass.
+**Done** 2026-10-28 (D314): the command's processor configuration sets
+the step bound to UINT64_MAX (0 would mean the default); the CLI test
+`xpath_no_step_limit` runs a comparison charged 4 x 10^8 steps to its
+end; the book's step-limit pages and docs/CLI.md updated.
 
 ## Proposed for the owner
 

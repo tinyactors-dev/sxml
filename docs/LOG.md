@@ -4,6 +4,14 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-26
 
+- cli-4 done (D314): the sxml command sets no evaluation step limit
+  (D313): its processor configuration asks for UINT64_MAX steps, as the
+  header has no value for "no bound". `(1 to 20000) = (1 to 20000)`,
+  charged 4 x 10^8 steps, gave LIMIT_EXCEEDED and now gives true()
+  (new CLI test). The library's default of 10^8 stays for embedders and
+  the JavaScript package. The book's "The step limit" and three pages
+  citing it, and docs/CLI.md "Limits", updated.
+
 - perf-9 done (D311): required literals in regex search. A compiled
   regex finds a run of characters every match contains (CODEPOINT
   instructions every way to MATCH passes through) and what a match can

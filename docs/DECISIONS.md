@@ -14941,6 +14941,33 @@ JavaScript package; the conformance drivers keep their own bounds
 **SchXslt upstream** (10): the sort-once fix for
 `schxslt:replace-params` is not offered upstream.
 
+### D314. The sxml command asks for no step bound (packet cli-4)
+Recorded 2026-10-28, after D313 (9), D89, D259.
+- **Mechanism**: the command's one processor configuration
+  (`apps/sxml/query_command.c`, shared by xpath, xquery, transform,
+  serialize, validate and check) sets
+  `sxml_processor_limits.maximum_evaluation_step_count` to `UINT64_MAX`
+  (`SXML_QUERY_MAXIMUM_EVALUATION_STEP_COUNT`). The header has no value
+  for "no bound": 0 means the library's default of 10^8. The largest
+  count is no bound in practice (about 585 years at a step a
+  nanosecond), and the charge in `sxml_dynamic_context_charge_steps`
+  cannot overflow at it. No named constant is proposed: the header's
+  interface stays as it is (D99), and an embedder that wants no bound
+  writes the same value.
+- **Kept**: the library's default for embedders and the JavaScript
+  package; the conformance drivers' bounds (D166, D178); entity
+  expansion stays bounded to 4 MiB; a run is stopped with Ctrl-C.
+- **Test**: `cli/xpath_no_step_limit`, `(1 to 20000) = (1 to 20000)`:
+  a general comparison is charged a step per pair up front (D89),
+  4 x 10^8, and finds its match at once. It gave LIMIT_EXCEEDED (exit 4)
+  before and gives true() now, in milliseconds under every preset; a
+  loop of 10^8 real steps takes 25 s in a loaded release build and far
+  longer under the sanitizers, so no test runs one.
+- **Book**: "The step limit" (performance.md) shows the command running
+  past the default and says how to stop a run; appendix-differences.md,
+  ixml-performance.md and javascript.md cite it; c.md still shows the
+  default for a C program. `docs/CLI.md` has a "Limits" rule.
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): tagging and
