@@ -27,6 +27,7 @@ binding SchXslt does not support is recorded as such.
 import argparse
 import collections
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -42,7 +43,9 @@ TIMEOUT = 120
 
 
 def normalize(text):
-    return " ".join((text or "").split())
+    # Whitespace as 5.3 defines it: U+0020, U+0009, U+000D, U+000A only
+    # (str.split() would also collapse U+00A0 and other Unicode spaces).
+    return " ".join(part for part in re.split("[ \t\r\n]+", text or "") if part)
 
 
 def run(command, output_file=None):

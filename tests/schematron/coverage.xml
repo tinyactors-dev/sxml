@@ -73,6 +73,9 @@
     <text>Strip whitespace around attribute values; collapse whitespace in text.</text>
     <test set="schema-structure" case="struct-whitespace"/>
     <test set="assertions" case="message-markup"/>
+    <test set="assertions" case="message-combining-characters"/>
+    <test set="assertions" case="message-no-break-space"/>
+    <test set="assertions" case="message-whitespace-only"/>
   </requirement>
   <requirement id="r-5.4.1" clause="5.4.1" kind="shall">
     <text>A schema follows the grammar of Annex A.</text>
@@ -92,6 +95,7 @@
     <test set="assertions" case="assert-holds"/>
     <test set="assertions" case="assert-fails"/>
     <test set="static-errors" case="error-assert-without-test"/>
+    <test set="assertions" case="message-non-ascii"/>
   </requirement>
   <requirement id="r-5.4.3-statement" clause="5.4.3" kind="shall">
     <text>The natural-language assertion is a positive statement.</text>
@@ -314,6 +318,8 @@
     <test set="assertions" case="report-attributes-reported"/>
     <test set="assertions" case="message-empty"/>
     <test set="assertions" case="message-entities"/>
+    <test set="assertions" case="report-dynamic-error"/>
+    <test set="assertions" case="message-astral"/>
   </requirement>
   <requirement id="r-5.4.14-statement" clause="5.4.14" kind="shall">
     <text>A report's text states a found pattern or a negated constraint.</text>
@@ -370,11 +376,13 @@
     <text>dir is text with a direction ltr or rtl.</text>
     <test set="assertions" case="message-markup"/>
     <test set="static-errors" case="error-dir-bad-value"/>
+    <test set="assertions" case="message-dir-and-span-unicode"/>
   </requirement>
   <requirement id="r-5.5.5" clause="5.5.5" kind="definition">
     <text>emph encloses emphasized text.</text>
     <test set="assertions" case="message-markup"/>
     <test set="name-value-of" case="value-of-in-emph"/>
+    <test set="assertions" case="message-emph-nested"/>
   </requirement>
   <requirement id="r-5.5.6" clause="5.5.6" kind="definition">
     <text>A flag becomes true when an assertion with it fails or a rule with it fires.</text>
@@ -382,6 +390,7 @@
     <test set="assertions" case="flag-not-raised-by-success"/>
     <test set="assertions" case="flag-raised-by-rule"/>
     <test set="assertions" case="flag-token-list"/>
+    <test set="assertions" case="assert-attributes-non-ascii"/>
   </requirement>
   <requirement id="r-5.5.6-dynamic" clause="5.5.6" kind="shall">
     <text>A flag that is a variable reference is evaluated.</text>
@@ -449,6 +458,7 @@
     <text>span encloses text keyed by a class.</text>
     <test set="assertions" case="message-markup"/>
     <test set="static-errors" case="error-span-without-class"/>
+    <test set="assertions" case="message-dir-and-span-unicode"/>
   </requirement>
   <requirement id="r-5.5.19" clause="5.5.19" kind="should">
     <text>subject is evaluated in the rule's context; without it the context node is used.</text>
@@ -486,6 +496,7 @@
     <test set="patterns-rules" case="rules-dynamic-error"/>
     <test set="phases" case="phase-unknown-requested"/>
     <test set="variables" case="param-schema-override"/>
+    <test set="assertions" case="report-dynamic-error"/>
   </requirement>
   <requirement id="r-6.2" clause="6.2" kind="definition">
     <text>Inclusions, abstract patterns and abstract rules are resolved, reports negated, documentation removed.</text>
@@ -511,6 +522,7 @@
     <test set="patterns-rules" case="rules-all-assertions-evaluated"/>
     <test set="patterns-rules" case="rules-many-nodes"/>
     <test set="patterns-rules" case="rules-nested-matches"/>
+    <test set="assertions" case="assert-duplicate"/>
   </requirement>
   <requirement id="r-6.3-message-context" clause="6.3" kind="definition">
     <text>name and value-of in a message use the assertion's subject, else the rule's subject, else the rule context.</text>
@@ -644,6 +656,7 @@
     <test set="static-errors" case="error-flag-not-a-name"/>
     <test set="static-errors" case="error-let-name-not-a-name"/>
     <test set="static-errors" case="error-ns-prefix-not-a-name"/>
+    <test set="assertions" case="assert-attributes-non-ascii"/>
   </requirement>
   <requirement id="r-A-order" clause="Annex-A" kind="shall">
     <text>The schema's children come in the grammar's order.</text>
@@ -671,6 +684,7 @@
     <test set="abstract-patterns" case="abstract-instance-with-let"/>
     <test set="abstract-rules" case="extends-rules-not-abstract"/>
     <test set="visit-each" case="visit-each-on-abstract-rule"/>
+    <test set="assertions" case="message-emph-nested"/>
   </requirement>
   <requirement id="r-A-required" clause="Annex-A" kind="shall">
     <text>Required attributes are present (test, context, select, class, uri, id).</text>
@@ -764,6 +778,7 @@
     <test set="assertions" case="assert-ebv-nan"/>
     <test set="assertions" case="assert-ebv-boolean-attribute"/>
     <test set="assertions" case="assert-ebv-error"/>
+    <test set="assertions" case="assert-test-astral-length"/>
   </requirement>
   <requirement id="r-HJ-name" clause="Annex-J" kind="shall">
     <text>name uses fn:node-name of what path selects.</text>
