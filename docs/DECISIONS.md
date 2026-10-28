@@ -15242,8 +15242,19 @@ the last applying every pattern.
   `properties` (lists of ids looked up in the schema's `diagnostics`
   and `properties`, those of included libraries among them; an unknown
   id is `schematron:reference`). Content: text as written,
-  `value-of select` as `xsl:value-of`, `name` as above, `emph`, `dir`,
-  `span` and foreign elements by their text; whitespace collapsed
+  `value-of select` as the string of `string(SELECT)` in the
+  message (the select's expression AST as the argument of a static call
+  to fn:string, nothing spliced; every binding defines the value-of
+  query as fn:string of the result, Annexes C, H to N, corrected after
+  7.30's suite, D317), so a result of more than one item is XPTY0004:
+  a dynamic error that stops the validation, located at the
+  `value-of`'s `select` in its schematron document, with the instance
+  node (the message context) in the error's description. SchXslt and
+  the ISO skeleton use `xsl:value-of`, which joins the items with
+  spaces: 7.28's differential test may show findings whose message
+  sxml refuses where SchXslt joins, an expected, explained difference
+  (D315), not a bug. `name` as above, `emph`, `dir`, `span` and
+  foreign elements by their text; whitespace collapsed
   (5.3) unless `xml:space="preserve"` is in scope. Text value templates
   in messages (Annex J leaves their extent implementation-defined) are
   not read: braces are literal text, as every edition before wrote
@@ -15416,8 +15427,8 @@ for 1.0 can observe:
 5. numeric literals with a point are xs:decimal: `1 div 0` is FOAR0001
    (1.0: Infinity), and string forms differ (`string(1 div 3)`;
    doubles of 1e6 and above print with an exponent);
-6. `value-of` over several nodes gives all their values joined by
-   spaces (1.0: the first node's);
+6. `value-of` over several nodes is XPTY0004 (fn:string, as every
+   binding defines it; 1.0 took the first node's value);
 7. a `let` keeps its value's type (Annex C makes it a string) and its
    `as` is applied (Annex C ignores it);
 8. names, syntax and functions 1.0 lacks are available.
