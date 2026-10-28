@@ -275,6 +275,9 @@ uint32_t sxml_host_processor_destroy(sxml_host_processor *processor) {
         return 0;
     }
     sxml_item_heap_clear_raised_error(sxml_processor_get_item_heap(processor->processor));
+    if (processor->finalize_compile_reports != NULL) {
+        processor->finalize_compile_reports(processor);
+    }
     sxml_serialization_parameter_reader_destroy(processor->parameter_reader);
     sxml_output_buffer_destroy(processor->output_buffer);
     sxml_processor_destroy(processor->processor);

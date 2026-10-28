@@ -340,6 +340,46 @@ processor.evaluate('/book/@year instance of attribute(*, xs:gYear)', { context: 
 // 'true()'
 ```
 
+## Schematron validation
+
+`processor.compileSchematron(schema, { phase, parameters, baseUri })`
+compiles a Schematron schema (ISO/IEC 19757-3:2025): its text, `{ text,
+uri }`, or `{ uri }`, which the resolver is asked for, as are the
+documents its `include` and `extends href` elements name (kind
+`'xml-document'`). `phase` is a phase id, `'#ALL'`, `'#ANY'` or
+`'#DEFAULT'` (the default); `parameters` gives schema parameters their
+values. If the schema has errors, a `SchemaError` is thrown with every
+one in its `reports`, with codes such as `'schematron:syntax'` or
+`'err:XPST0003'`. The schema's `title`, `schemaVersion`,
+`schematronEdition`, `queryBinding` and `phase` are on the result.
+
+`schematron.validate(input, { uri, firedRules, svrl })` checks XML text
+(parsed with its locations) or a node and gives `{ valid, phase,
+findings, svrl }`. Each finding has its `kind`, `id`, `role`, `flag`,
+`severity`, `isError`, `message`, `diagnostics`, `properties`,
+`patternId`, `test`, `path`, the node's `lineNumber` and `columnNumber`,
+and the assertion's `schemaLineNumber` and `schemaColumnNumber`. `valid`
+is false when a finding is an error: its severity is `fatal` or
+`error`, or without a severity its role or a flag is, or it has neither.
+
+```js
+const rules = processor.compileSchematron(`
+<sch:schema xmlns:sch="http://purl.oclc.org/dsdl/schematron">
+  <sch:pattern>
+    <sch:rule context="line">
+      <sch:assert test="@quantity > 0" id="positive">A line orders at least one item.</sch:assert>
+    </sch:rule>
+  </sch:pattern>
+</sch:schema>`);
+const result = rules.validate('<order>\n<line quantity="0"/>\n</order>');
+result.valid; // false
+result.findings.map(({ id, lineNumber, message }) => `${lineNumber} ${id}: ${message}`);
+// ['2 positive: A line orders at least one item.']
+```
+
+A stylesheet with errors also throws a `SchemaError` from
+`compileStylesheet`, with every error in `reports`.
+
 ## Code languages
 
 `tree-sitter:parse` (the `source-code` feature; the prefix `tree-sitter`
@@ -486,6 +526,7 @@ documents) are yours to dispose.
 | `Processor.compileQuery(text, options)` | An `XQuery`, with `evaluate`, `serialize`, `run` and `isUpdating` |
 | `Processor.compileStylesheet(text, options)` | A `Stylesheet`, with `transform` |
 | `Processor.compileSchema(documents, options)` | A `Schema`, with `validate` |
+| `Processor.compileSchematron(schema, options)` | A `Schematron`, with `validate` and its `title`, `phase` and edition |
 | `Processor.value(data)` | JavaScript data as a value |
 | `Processor.serialize(value, options)` | The same as `value.serialize(options)` |
 | `Value.toString()`, `Value.serialize(options)` | The value's text |

@@ -590,3 +590,97 @@ describe('memory of the languages', () => {
     }
   });
 });
+
+describe('Schematron', () => {
+  const rules = `<sch:schema xmlns:sch="http://purl.oclc.org/dsdl/schematron" queryBinding="xslt3"
+    schematronEdition="2025">
+  <sch:title>Orders</sch:title>
+  <sch:param name="limit" value="10"/>
+  <sch:pattern id="lines">
+    <sch:rule context="line">
+      <sch:assert test="@quantity &gt; 0" id="positive">A line orders at least one <sch:value-of select="@item"/>.</sch:assert>
+      <sch:report test="@quantity &gt; $limit" id="many" severity="warning">Many.</sch:report>
+    </sch:rule>
+  </sch:pattern>
+</sch:schema>`;
+
+  test('compiles, describes and validates with both locations', () => {
+    withProcessor((processor) => {
+      const schematron = processor.compileSchematron({ text: rules, uri: 'urn:rules.sch' }, { parameters: { limit: '1' } });
+      assert.equal(schematron.title, 'Orders');
+      assert.equal(schematron.schematronEdition, '2025');
+      assert.equal(schematron.phase, '#ALL');
+      const result = schematron.validate('<order>\n<line item="pen" quantity="0"/>\n<line item="ink" quantity="2"/></order>', {
+        uri: 'urn:order.xml',
+        svrl: true,
+      });
+      assert.equal(result.valid, false);
+      assert.equal(result.phase, '#ALL');
+      assert.deepEqual(
+        result.findings.map(({ kind, id, severity, isError, message, path, lineNumber, schemaLineNumber }) => [
+          kind, id, severity, isError, message, path, lineNumber, schemaLineNumber,
+        ]),
+        [
+          ['failed-assert', 'positive', '', true, 'A line orders at least one pen.', '/Q{}order[1]/Q{}line[1]', 2, 7],
+          ['successful-report', 'many', 'warning', false, 'Many.', '/Q{}order[1]/Q{}line[2]', 3, 8],
+        ],
+      );
+      assert.match(result.svrl ?? '', /<svrl:schematron-output/);
+      schematron.dispose();
+    });
+  });
+
+  test('throws a SchemaError with every compile error', () => {
+    withProcessor((processor) => {
+      assert.throws(
+        () =>
+          processor.compileSchematron({
+            text: `<sch:schema xmlns:sch="http://purl.oclc.org/dsdl/schematron">
+<sch:pattern><sch:rule context="a["><sch:assert test="1 +">x</sch:assert></sch:rule></sch:pattern>
+<sch:bogus/>
+</sch:schema>`,
+            uri: 'urn:bad.sch',
+          }),
+        (error: unknown) => {
+          assert.ok(error instanceof SchemaError);
+          assert.deepEqual(
+            error.reports.map(({ code, lineNumber }) => [code, lineNumber]),
+            [
+              ['schematron:syntax', 3],
+              ['err:XTSE0340', 2],
+              ['err:XPST0003', 2],
+            ],
+          );
+          return true;
+        },
+      );
+      assert.throws(
+        () => processor.compileSchematron('<sch:schema xmlns:sch="http://purl.oclc.org/dsdl/schematron" queryBinding="xquery3"/>'),
+        (error: unknown) => error instanceof SchemaError && error.reports[0]?.code === 'schematron:query-binding',
+      );
+    });
+  });
+
+  test('a stylesheet with errors gives every one', () => {
+    withProcessor((processor) => {
+      assert.throws(
+        () =>
+          processor.compileStylesheet(`<xsl:stylesheet version="3.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
+<xsl:template match="a"><xsl:value-of select="1 +"/></xsl:template>
+<xsl:template match="b"><xsl:value-of select="2 *"/></xsl:template>
+</xsl:stylesheet>`),
+        (error: unknown) => {
+          assert.ok(error instanceof SchemaError);
+          assert.deepEqual(
+            error.reports.map(({ code, lineNumber }) => [code, lineNumber]),
+            [
+              ['err:XPST0003', 2],
+              ['err:XPST0003', 3],
+            ],
+          );
+          return true;
+        },
+      );
+    });
+  });
+});

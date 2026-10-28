@@ -348,6 +348,110 @@ static void test_xquery_compile_evaluate_serialize(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, sxml_host_processor_destroy(processor) == 0);
 }
 
+/* -------------------------------------------------------------- Schematron */
+
+/* True when the processor's output contains text. */
+static bool output_contains(const sxml_host_processor *processor, const char *text) {
+    const sxml_byte_view *output = sxml_host_output_of(processor);
+    const size_t text_byte_count = strlen(text);
+    for (size_t offset = 0; offset + text_byte_count <= output->byte_count; offset += 1) {
+        if (memcmp(output->bytes + offset, text, text_byte_count) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static void test_schematron_compile_describe_validate(sxml_test_state *state) {
+    resolver_state resolver = note_resolver();
+    sxml_host_processor *processor = make_processor(&resolver, 0);
+    SXML_TEST_REQUIRE(state, processor != NULL);
+    /* Errors: every one a side result, its code with its prefix. */
+    sxml_host_schematron *broken = sxml_host_schematron_create(processor);
+    SXML_TEST_REQUIRE(state, broken != NULL);
+    sxml_host_schematron_compile_request broken_request = {
+        .text = TEXT("<sch:schema xmlns:sch='http://purl.oclc.org/dsdl/schematron'>\n"
+                     "<sch:pattern><sch:rule context='a['><sch:assert test='1 +'>x</sch:assert>"
+                     "</sch:rule></sch:pattern></sch:schema>"),
+        .uri = TEXT("http://example.com/broken.sch")};
+    SXML_TEST_EXPECT(state, sxml_host_schematron_compile(broken, &broken_request) ==
+                                SXML_STATUS_STATIC_ERROR);
+    SXML_TEST_EXPECT(state, broken_request.side_results.side_result_count == 2);
+    if (broken_request.side_results.side_result_count == 2) {
+        SXML_TEST_EXPECT(state, sxml_byte_view_equals(broken_request.side_results.side_results[0].code,
+                                                      TEXT("err:XTSE0340")));
+        SXML_TEST_EXPECT(state, broken_request.side_results.side_results[1].line_number == 2);
+    }
+    sxml_host_schematron_destroy(broken);
+    /* A schema, described, then a validation of text. */
+    sxml_host_schematron *schematron = sxml_host_schematron_create(processor);
+    SXML_TEST_REQUIRE(state, schematron != NULL);
+    const sxml_host_schematron_parameter limit = {.name = TEXT("limit"), .value = TEXT("1")};
+    sxml_host_schematron_compile_request request = {
+        .text = TEXT("<sch:schema xmlns:sch='http://purl.oclc.org/dsdl/schematron' "
+                     "schematronEdition='2025'>\n"
+                     "<sch:title>Items</sch:title><sch:param name='limit' value='5'/>\n"
+                     "<sch:pattern id='p'><sch:rule context='item'>\n"
+                     "<sch:assert test='@n &lt;= $limit' id='small'>\"<sch:value-of "
+                     "select='@n'/>\" is large.</sch:assert>\n"
+                     "</sch:rule></sch:pattern></sch:schema>"),
+        .uri = TEXT("http://example.com/items.sch"),
+        .parameters = &limit,
+        .parameter_count = 1};
+    SXML_TEST_EXPECT(state, sxml_host_schematron_compile(schematron, &request) == SXML_STATUS_OK);
+    sxml_host_schematron_description description;
+    sxml_host_schematron_describe(schematron, &description);
+    SXML_TEST_EXPECT(state, sxml_byte_view_equals(description.title, TEXT("Items")));
+    SXML_TEST_EXPECT(state, sxml_byte_view_equals(description.schematron_edition, TEXT("2025")));
+    SXML_TEST_EXPECT(state, sxml_byte_view_equals(description.phase, TEXT("#ALL")));
+    const sxml_host_schematron_validate_request validation = {
+        .node = NULL,
+        .text = TEXT("<doc>\n<item n='1'/>\n<item n='2'/></doc>"),
+        .document_uri = TEXT("http://example.com/doc.xml"),
+        .reports_fired_rules = 0,
+        .writes_svrl = 1};
+    SXML_TEST_EXPECT(state, sxml_host_schematron_validate(schematron, &validation) ==
+                                SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, output_contains(processor, "{\"findings\":[{\"kind\":\"failed-assert\","
+                                                       "\"id\":\"small\""));
+    SXML_TEST_EXPECT(state, output_contains(processor, "\"message\":\"\\\"2\\\" is large.\""));
+    SXML_TEST_EXPECT(state, output_contains(processor, "\"lineNumber\":3"));
+    SXML_TEST_EXPECT(state, output_contains(processor, "\"schemaLineNumber\":4"));
+    SXML_TEST_EXPECT(state, output_contains(processor, "\"valid\":false,\"phase\":\"#ALL\""));
+    SXML_TEST_EXPECT(state, output_contains(processor, "\"svrl\":\"<?xml version=\\\"1.0\\\""));
+    sxml_host_schematron_destroy(schematron);
+    SXML_TEST_EXPECT(state, sxml_host_processor_destroy(processor) == 0);
+}
+
+static void test_stylesheet_compile_reports_every_error(sxml_test_state *state) {
+    resolver_state resolver = note_resolver();
+    sxml_host_processor *processor = make_processor(&resolver, 0);
+    SXML_TEST_REQUIRE(state, processor != NULL);
+    sxml_host_stylesheet *stylesheet = sxml_host_stylesheet_compile(
+        processor,
+        &(sxml_host_stylesheet_compile_request){
+            .stylesheet_text = TEXT(
+                "<xsl:stylesheet version='3.0' xmlns:xsl='http://www.w3.org/1999/XSL/Transform'>\n"
+                "<xsl:template match='a'><xsl:value-of select='1 +'/></xsl:template>\n"
+                "<xsl:template match='b'><xsl:value-of select='2 *'/></xsl:template>\n"
+                "</xsl:stylesheet>"),
+            .static_base_uri = TEXT("http://example.com/errors.xsl"),
+            .static_parameters = {.bindings = NULL, .binding_count = 0}});
+    SXML_TEST_EXPECT(state, stylesheet == NULL);
+    SXML_TEST_EXPECT(state, error_code_is(processor, "XPST0003"));
+    const sxml_host_side_result_list *reports = sxml_host_compile_reports_of(processor);
+    SXML_TEST_EXPECT(state, reports->side_result_count == 2);
+    if (reports->side_result_count == 2) {
+        SXML_TEST_EXPECT(state, sxml_byte_view_equals(reports->side_results[0].code,
+                                                      TEXT("err:XPST0003")));
+        SXML_TEST_EXPECT(state, reports->side_results[0].line_number == 2);
+        SXML_TEST_EXPECT(state, sxml_byte_view_equals(reports->side_results[1].code,
+                                                      TEXT("err:XPST0003")));
+        SXML_TEST_EXPECT(state, reports->side_results[1].line_number == 3);
+    }
+    SXML_TEST_EXPECT(state, sxml_host_processor_destroy(processor) == 0);
+}
+
 /* ----------------------------------------------------------------- Streams */
 
 /* What a test's output writer received (D294). */
@@ -568,6 +672,10 @@ static const sxml_test_case host_shim_test_cases[] = {
     {.name = "output_writer_receives_chunks", .function = test_output_writer_receives_chunks},
     {.name = "byte_reader_delivers_a_document",
      .function = test_byte_reader_delivers_a_document},
+    {.name = "stylesheet_compile_reports_every_error",
+     .function = test_stylesheet_compile_reports_every_error},
+    {.name = "schematron_compile_describe_validate",
+     .function = test_schematron_compile_describe_validate},
 };
 
 int main(int argument_count, char **arguments) {

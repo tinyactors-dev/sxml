@@ -407,6 +407,51 @@ typedef struct sxml_host_validate_request {
     sxml_host_side_result_list side_results;
 } sxml_host_validate_request;
 
+typedef struct sxml_host_schematron sxml_host_schematron;
+
+/* One schema parameter's value (sxml_schematron_parameter). */
+typedef struct sxml_host_schematron_parameter {
+    sxml_byte_view name;
+    sxml_byte_view value;
+} sxml_host_schematron_parameter;
+
+typedef struct sxml_host_schematron_compile_request {
+    /* The schema's text, or (bytes NULL) a URI reference the resolver
+       delivers (include/sxml/schematron.h, TEXT and RESOLVED). */
+    sxml_byte_view text;
+    sxml_byte_view uri;
+    sxml_byte_view base_uri;
+    /* A phase id, #ALL, #ANY, or empty for #DEFAULT. */
+    sxml_byte_view phase;
+    const sxml_host_schematron_parameter *parameters;
+    size_t parameter_count;
+    /* Written by the call: every compile error, its code with its prefix
+       (schematron:syntax, err:XPST0003). */
+    sxml_host_side_result_list side_results;
+} sxml_host_schematron_compile_request;
+
+/* What sxml_schematron_describe gives; views into the handle. */
+typedef struct sxml_host_schematron_description {
+    sxml_byte_view title;
+    sxml_byte_view schema_version;
+    sxml_byte_view schematron_edition;
+    sxml_byte_view query_binding;
+    sxml_byte_view phase;
+} sxml_host_schematron_description;
+
+typedef struct sxml_host_schematron_validate_request {
+    /* A node of the schematron's processor, or NULL to validate text,
+       parsed with the processor's location policy. */
+    const sxml_host_value *node;
+    sxml_byte_view text;
+    /* The text's document URI, and its locations' source name. */
+    sxml_byte_view document_uri;
+    /* Nonzero: the fired rules are findings of kind fired-rule too. */
+    uint32_t reports_fired_rules;
+    /* Nonzero: the result has the SVRL report. */
+    uint32_t writes_svrl;
+} sxml_host_schematron_validate_request;
+
 /* ------------------------------------------------------------- Functions */
 
 /*
@@ -551,6 +596,11 @@ sxml_host_stylesheet *sxml_host_stylesheet_compile(
     sxml_host_processor *processor,
     const sxml_host_stylesheet_compile_request *request);
 
+/* The errors of the processor's last stylesheet compilation, every one
+   of them (D320), as SCHEMA_REPORT side results with prefixed codes
+   (err:XTSE0010); valid until the next compilation. */
+const sxml_host_side_result_list *sxml_host_compile_reports_of(sxml_host_processor *processor);
+
 /* Destroys a stylesheet and its side results; NULL does nothing. */
 void sxml_host_stylesheet_destroy(sxml_host_stylesheet *stylesheet);
 
@@ -577,3 +627,27 @@ uint32_t sxml_host_schema_compile(sxml_host_schema *schema,
    without it when the node is invalid (request->validity). */
 sxml_host_value *sxml_host_schema_validate(sxml_host_schema *schema,
                                            sxml_host_validate_request *request);
+
+/* In sxml_host_schematron.c (D323): a Schematron handle, made empty and
+   compiled once (include/sxml/schematron.h); NULL when out of memory. */
+sxml_host_schematron *sxml_host_schematron_create(sxml_host_processor *processor);
+
+/* Destroys a Schematron handle and its side results; NULL does nothing. */
+void sxml_host_schematron_destroy(sxml_host_schematron *schematron);
+
+/* Compiles the Schematron schema of request, every compile error a side
+   result. Returns the status; a handle compiles once. */
+uint32_t sxml_host_schematron_compile(sxml_host_schematron *schematron,
+                                      sxml_host_schematron_compile_request *request);
+
+/* Writes the compiled schema's title, schemaVersion, schematronEdition,
+   queryBinding and phase (all empty before it compiled). */
+void sxml_host_schematron_describe(const sxml_host_schematron *schematron,
+                                   sxml_host_schematron_description *description);
+
+/* Validates request's node or text and writes the result, one JSON
+   object (see sxml_host_schematron.c), as the processor's output. Returns
+   the status: a dynamic error of the rules, text that is not
+   well-formed, a limit. */
+uint32_t sxml_host_schematron_validate(sxml_host_schematron *schematron,
+                                       const sxml_host_schematron_validate_request *request);

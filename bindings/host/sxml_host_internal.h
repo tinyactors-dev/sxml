@@ -16,6 +16,7 @@
 #include "sxml/memory.h"
 #include "sxml/name.h"
 #include "sxml/processor.h"
+#include "sxml/schema.h"
 #include "sxml/serialize.h"
 #include "sxml/status.h"
 #include "sxml/view.h"
@@ -51,6 +52,12 @@ struct sxml_host_processor {
     size_t chunk_byte_count;
     /* The processor's byte reader (sxml_host_set_byte_reader). */
     sxml_host_byte_reader byte_reader;
+    /* The errors of the last stylesheet compilation (D320), made by the
+       full module on its first compilation, and its finalizer; NULL
+       until then. */
+    struct sxml_host_side_results *compile_reports;
+    void (*finalize_compile_reports)(sxml_host_processor *processor);
+    sxml_host_side_result_list compile_report_view;
 };
 
 /* A value: an owned sequence in the processor's item heap. */
@@ -236,6 +243,12 @@ sxml_status sxml_host_read_bindings(sxml_host_processor *processor,
    NULL with the processor's error set. */
 sxml_host_value *sxml_host_value_retain(sxml_host_processor *processor,
                                         sxml_sequence sequence);
+
+/* A schema report sink whose state is an sxml_host_side_result_target:
+   each report becomes a SCHEMA_REPORT side result, its code with its
+   prefix (err:XTSE0010, schematron:syntax). In
+   sxml_host_schematron.c. */
+extern const sxml_schema_report_sink_operations sxml_host_prefixed_report_operations;
 
 /* A trace sink whose state is an sxml_host_side_result_target: each
    event becomes a MESSAGE side result. */

@@ -404,6 +404,81 @@ export interface ValidationResult {
   document: Value | undefined;
 }
 
+export interface SchematronCompileOptions {
+  /** The phase: an id, '#ALL', '#ANY' (each validation takes the first
+   *  phase whose when holds for the document) or '#DEFAULT' (the
+   *  default: the schema's defaultPhase, else '#ALL'). */
+  phase?: string;
+  /** Against which a schema given by URI resolves. */
+  baseUri?: string;
+  /** Values of schema parameters by name: query fragments, each put in
+   *  place of its param's value. */
+  parameters?: Record<string, string>;
+}
+
+export interface SchematronValidateOptions {
+  /** The document URI of text input. */
+  uri?: string;
+  /** Also list each rule that fires, as a finding of kind 'fired-rule'. */
+  firedRules?: boolean;
+  /** Also give the SVRL report (ISO/IEC 19757-3, annex D). */
+  svrl?: boolean;
+}
+
+/** A diagnostic an assertion names, evaluated for the finding. */
+export interface SchematronDiagnostic {
+  id: string;
+  language: string;
+  text: string;
+}
+
+/** A property an assertion names, evaluated for the finding. */
+export interface SchematronProperty {
+  id: string;
+  role: string;
+  scheme: string;
+  text: string;
+}
+
+/** A failed assert, a successful report, or (with firedRules) a rule that
+ *  fired. Empty strings for attributes the assertion does not have. */
+export interface SchematronFinding {
+  kind: 'failed-assert' | 'successful-report' | 'fired-rule';
+  id: string;
+  role: string;
+  flag: string;
+  severity: string;
+  /** An error finding: its severity is 'fatal' or 'error'; without one,
+   *  its role or a flag is, or it has neither role nor flag. */
+  isError: boolean;
+  message: string;
+  diagnostics: SchematronDiagnostic[];
+  properties: SchematronProperty[];
+  patternId: string;
+  /** The test as compiled, placeholders replaced. */
+  test: string;
+  /** The subject node as fn:path gives it. */
+  path: string;
+  /** The node's place in the document (0 when the tree keeps none). */
+  sourceName: string;
+  lineNumber: number;
+  columnNumber: number;
+  /** The assertion's place in the Schematron schema. */
+  schemaSourceName: string;
+  schemaLineNumber: number;
+  schemaColumnNumber: number;
+}
+
+export interface SchematronResult {
+  /** No error finding. */
+  valid: boolean;
+  /** The phase in force (under '#ANY', the one chosen). */
+  phase: string;
+  findings: SchematronFinding[];
+  /** With options.svrl. */
+  svrl?: string;
+}
+
 // ----------------------------------------------------------------- Errors
 
 /** A failure in sxml: a static, dynamic or type error of the expression
@@ -513,6 +588,12 @@ interface Exports {
   sxml_javascript_schema_destroy(schema: number): void;
   sxml_javascript_schema_compile(schema: number, request: number): number;
   sxml_javascript_schema_validate(schema: number, request: number): number;
+  sxml_javascript_compile_reports_of(processor: number): number;
+  sxml_javascript_schematron_create(processor: number): number;
+  sxml_javascript_schematron_destroy(schematron: number): void;
+  sxml_javascript_schematron_compile(schematron: number, request: number): number;
+  sxml_javascript_schematron_describe(schematron: number, description: number): void;
+  sxml_javascript_schematron_validate(schematron: number, request: number): number;
   // Streams (sxml_javascript_stream.c, D294).
   sxml_javascript_set_output(processor: number, chunkByteCount: number): number;
   sxml_javascript_set_byte_reader(processor: number): number;
@@ -546,7 +627,7 @@ const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
 /** The kinds of handle a processor makes. */
-type HandleKind = 'value' | 'expression' | 'query' | 'stylesheet' | 'schema';
+type HandleKind = 'value' | 'expression' | 'query' | 'stylesheet' | 'schema' | 'schematron';
 
 /** What a handle's finalizer needs: kept apart from the JavaScript object,
  *  which is gone by then. */
@@ -642,6 +723,9 @@ class ProcessorState {
         break;
       case 'schema':
         exports.sxml_javascript_schema_destroy?.(address);
+        break;
+      case 'schematron':
+        exports.sxml_javascript_schematron_destroy?.(address);
         break;
     }
   }
@@ -1360,7 +1444,9 @@ export class Processor {
 
   /** Compiles an XSLT 4.0 stylesheet, with the modules it includes and
    *  imports (kind 'xslt-module') and the packages it uses (kind
-   *  'xslt-package'), for running it many times. */
+   *  'xslt-package'), for running it many times. A stylesheet with errors
+   *  throws a SchemaError with every error as its reports (codes with
+   *  their prefix, such as 'err:XPST0003'). */
   compileStylesheet(stylesheet: string | Uint8Array, options: StylesheetCompileOptions = {}): Stylesheet {
     const exports = this.exports();
     const state = this.enter();
@@ -1375,7 +1461,10 @@ export class Processor {
       ]);
       address = exports.sxml_javascript_stylesheet_compile(state.address, request);
       if (address === 0) {
-        throw this.failure();
+        // Every error of the compilation (D320), on the exception.
+        const reports = schemaReports(this.sideResults(exports.sxml_javascript_compile_reports_of(state.address) / 4));
+        const failure = this.failure();
+        throw failure instanceof SxmlError && reports.length > 0 ? new SchemaError(failure, reports) : failure;
       }
     } finally {
       scratch.release();
@@ -1433,6 +1522,67 @@ export class Processor {
       scratch.release();
     }
     return schema;
+  }
+
+  /** Compiles a Schematron schema (ISO/IEC 19757-3:2025) from its text or
+   *  its URI (the resolver is asked, kind 'xml-document', for it and for
+   *  the documents its include and extends href name), for the phase
+   *  options.phase names (an id, '#ALL', '#ANY', or '#DEFAULT', the
+   *  default) with the schema parameters options.parameters gives. Throws a
+   *  SchemaError with every error when it does not compile (codes such as
+   *  'schematron:syntax', 'err:XPST0003'). */
+  compileSchematron(schema: string | SchemaDocument, options: SchematronCompileOptions = {}): Schematron {
+    const exports = this.exports();
+    const state = this.enter();
+    const address = exports.sxml_javascript_schematron_create(state.address);
+    if (address === 0) {
+      throw outOfMemory();
+    }
+    const compiled = new Schematron(this, address);
+    this.track(compiled, 'schematron', address);
+    const scratch = new Scratch(state);
+    try {
+      const { text, uri } = typeof schema === 'string' ? { text: schema, uri: '' } : schema;
+      const parameterWords: number[] = [];
+      const parameters = Object.entries(options.parameters ?? {});
+      for (const [name, value] of parameters) {
+        parameterWords.push(...scratch.view(name), ...scratch.view(value));
+      }
+      const request = scratch.words([
+        ...(text === undefined ? [0, 0] : scratch.view(text)),
+        ...scratch.view(uri ?? ''),
+        ...scratch.view(options.baseUri ?? ''),
+        ...scratch.view(options.phase ?? ''),
+        parameterWords.length > 0 ? scratch.words(parameterWords) : 0,
+        parameters.length,
+        0,
+        0,
+      ]);
+      const status = exports.sxml_javascript_schematron_compile(address, request);
+      const reports = schemaReports(this.sideResults(request / 4 + 10));
+      if (status !== status_ok) {
+        const failure = this.failure();
+        throw failure instanceof SxmlError ? new SchemaError(failure, reports) : failure;
+      }
+      const description = scratch.words([0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+      exports.sxml_javascript_schematron_describe(address, description);
+      const words = state.module.words();
+      const field = (index: number): string =>
+        state.module.text(words[description / 4 + index * 2] ?? 0, words[description / 4 + index * 2 + 1] ?? 0);
+      compiled.describe({
+        title: field(0),
+        schemaVersion: field(1),
+        schematronEdition: field(2),
+        queryBinding: field(3),
+        phase: field(4),
+      });
+    } catch (exception) {
+      compiled.dispose();
+      throw exception;
+    } finally {
+      scratch.release();
+    }
+    return compiled;
   }
 
   /** Converts JSON-like data to a value (see JsonData). */
@@ -2256,6 +2406,85 @@ export class Schema {
   private address(): number {
     if (this.handle === 0) {
       throw disposed('schema');
+    }
+    return this.handle;
+  }
+}
+
+// ------------------------------------------------------------ Schematron
+
+/** A compiled Schematron schema (include/sxml/schematron.h).
+ *  Processor.compileSchematron makes it. */
+export class Schematron {
+  readonly processor: Processor;
+  private handle: number;
+  /** The schema's title, schemaVersion, schematronEdition (any value, as
+   *  written) and queryBinding; empty when absent. */
+  title = '';
+  schemaVersion = '';
+  schematronEdition = '';
+  queryBinding = '';
+  /** The phase compiled ('#DEFAULT' resolved). */
+  phase = '';
+
+  /** @internal Use Processor.compileSchematron(). */
+  constructor(processor: Processor, address: number) {
+    this.processor = processor;
+    this.handle = address;
+  }
+
+  /** @internal */
+  describe(fields: { title: string; schemaVersion: string; schematronEdition: string; queryBinding: string; phase: string }): void {
+    this.title = fields.title;
+    this.schemaVersion = fields.schemaVersion;
+    this.schematronEdition = fields.schematronEdition;
+    this.queryBinding = fields.queryBinding;
+    this.phase = fields.phase;
+  }
+
+  /** Validates a document: XML text, parsed with its locations, or a node
+   *  of this processor. Findings are not exceptions: see the result. A
+   *  dynamic error in the rules, or text that is not well-formed, throws. */
+  validate(input: Value | string | Uint8Array, options: SchematronValidateOptions = {}): SchematronResult {
+    const processor = this.processor;
+    const exports = processor.exports();
+    const address = this.address();
+    if (input instanceof Value) {
+      processor.check(input);
+    }
+    const state = processor.enter();
+    const scratch = new Scratch(state);
+    let status = status_ok;
+    let output = '';
+    try {
+      const request = scratch.words([
+        input instanceof Value ? input.address() : 0,
+        ...(input instanceof Value ? [0, 0] : scratch.view(input)),
+        ...scratch.view(options.uri ?? ''),
+        options.firedRules === true ? 1 : 0,
+        options.svrl === true ? 1 : 0,
+      ]);
+      status = exports.sxml_javascript_schematron_validate(address, request);
+      output = status === status_ok ? processor.output() : '';
+    } finally {
+      scratch.release();
+    }
+    if (status !== status_ok) {
+      throw processor.failure();
+    }
+    return JSON.parse(output) as SchematronResult;
+  }
+
+  dispose(): void {
+    if (this.handle !== 0) {
+      this.processor.releaseHandle(this, 'schematron', this.handle);
+      this.handle = 0;
+    }
+  }
+
+  private address(): number {
+    if (this.handle === 0) {
+      throw disposed('schematron');
     }
     return this.handle;
   }

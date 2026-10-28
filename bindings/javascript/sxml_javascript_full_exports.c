@@ -1,5 +1,6 @@
 /*
- * The exports of sxml.wasm for XQuery, XSLT and XSD (D216, D238, D272),
+ * The exports of sxml.wasm for XQuery, XSLT, XSD and Schematron (D216,
+ * D238, D272, D323),
  * each the host shim function of the same name with sxml_host_ in place
  * of sxml_javascript_. Golden file: sxml_javascript_exports.c.
  */
@@ -42,6 +43,12 @@ sxml_host_stylesheet *sxml_javascript_stylesheet_compile(
     return sxml_host_stylesheet_compile(processor, request);
 }
 
+SXML_JAVASCRIPT_EXPORT("sxml_javascript_compile_reports_of")
+const sxml_host_side_result_list *sxml_javascript_compile_reports_of(
+    sxml_host_processor *processor) {
+    return sxml_host_compile_reports_of(processor);
+}
+
 SXML_JAVASCRIPT_EXPORT("sxml_javascript_stylesheet_destroy")
 void sxml_javascript_stylesheet_destroy(sxml_host_stylesheet *stylesheet) {
     sxml_host_stylesheet_destroy(stylesheet);
@@ -73,4 +80,32 @@ SXML_JAVASCRIPT_EXPORT("sxml_javascript_schema_validate")
 sxml_host_value *sxml_javascript_schema_validate(sxml_host_schema *schema,
                                                  sxml_host_validate_request *request) {
     return sxml_host_schema_validate(schema, request);
+}
+
+SXML_JAVASCRIPT_EXPORT("sxml_javascript_schematron_create")
+sxml_host_schematron *sxml_javascript_schematron_create(sxml_host_processor *processor) {
+    return sxml_host_schematron_create(processor);
+}
+
+SXML_JAVASCRIPT_EXPORT("sxml_javascript_schematron_destroy")
+void sxml_javascript_schematron_destroy(sxml_host_schematron *schematron) {
+    sxml_host_schematron_destroy(schematron);
+}
+
+SXML_JAVASCRIPT_EXPORT("sxml_javascript_schematron_compile")
+uint32_t sxml_javascript_schematron_compile(sxml_host_schematron *schematron,
+                                            sxml_host_schematron_compile_request *request) {
+    return sxml_host_schematron_compile(schematron, request);
+}
+
+SXML_JAVASCRIPT_EXPORT("sxml_javascript_schematron_describe")
+void sxml_javascript_schematron_describe(const sxml_host_schematron *schematron,
+                                         sxml_host_schematron_description *description) {
+    sxml_host_schematron_describe(schematron, description);
+}
+
+SXML_JAVASCRIPT_EXPORT("sxml_javascript_schematron_validate")
+uint32_t sxml_javascript_schematron_validate(
+    sxml_host_schematron *schematron, const sxml_host_schematron_validate_request *request) {
+    return sxml_host_schematron_validate(schematron, request);
 }

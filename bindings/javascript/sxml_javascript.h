@@ -101,6 +101,8 @@ sxml_host_value *sxml_javascript_query_evaluate(sxml_host_query *query,
 uint32_t sxml_javascript_query_serialize(sxml_host_query *query, const sxml_host_value *value);
 sxml_host_stylesheet *sxml_javascript_stylesheet_compile(
     sxml_host_processor *processor, const sxml_host_stylesheet_compile_request *request);
+const sxml_host_side_result_list *sxml_javascript_compile_reports_of(
+    sxml_host_processor *processor);
 void sxml_javascript_stylesheet_destroy(sxml_host_stylesheet *stylesheet);
 sxml_host_value *sxml_javascript_stylesheet_transform(sxml_host_stylesheet *stylesheet,
                                                       sxml_host_transform_request *request);
@@ -110,3 +112,11 @@ uint32_t sxml_javascript_schema_compile(sxml_host_schema *schema,
                                         sxml_host_schema_compile_request *request);
 sxml_host_value *sxml_javascript_schema_validate(sxml_host_schema *schema,
                                                  sxml_host_validate_request *request);
+sxml_host_schematron *sxml_javascript_schematron_create(sxml_host_processor *processor);
+void sxml_javascript_schematron_destroy(sxml_host_schematron *schematron);
+uint32_t sxml_javascript_schematron_compile(sxml_host_schematron *schematron,
+                                            sxml_host_schematron_compile_request *request);
+void sxml_javascript_schematron_describe(const sxml_host_schematron *schematron,
+                                         sxml_host_schematron_description *description);
+uint32_t sxml_javascript_schematron_validate(
+    sxml_host_schematron *schematron, const sxml_host_schematron_validate_request *request);

@@ -53,6 +53,43 @@ void sxml_host_stylesheet_destroy(sxml_host_stylesheet *stylesheet) {
     sxml_allocator_release(stylesheet->owner->allocator, stylesheet);
 }
 
+/* ------------------------------------------------------ Compile reports */
+
+static void sxml_host_finalize_compile_reports(sxml_host_processor *processor) {
+    const sxml_host_side_result_target target = {.processor = processor,
+                                                 .side_results = processor->compile_reports};
+    sxml_host_side_results_finalize(&target);
+    sxml_allocator_release(processor->allocator, processor->compile_reports);
+    processor->compile_reports = NULL;
+}
+
+/* The processor's list of compile reports, made on first use and
+   emptied; NULL when out of memory. */
+static sxml_host_side_results *sxml_host_start_compile_reports(sxml_host_processor *processor) {
+    if (processor->compile_reports == NULL) {
+        processor->compile_reports = sxml_host_allocate_bytes(
+            processor->allocator, sizeof(sxml_host_side_results), alignof(sxml_host_side_results));
+        if (processor->compile_reports == NULL) {
+            return NULL;
+        }
+        *processor->compile_reports = (sxml_host_side_results){
+            .side_results = NULL, .side_result_count = 0, .side_result_capacity = 0};
+        processor->finalize_compile_reports = sxml_host_finalize_compile_reports;
+    }
+    const sxml_host_side_result_target target = {.processor = processor,
+                                                 .side_results = processor->compile_reports};
+    sxml_host_side_results_clear(&target);
+    return processor->compile_reports;
+}
+
+const sxml_host_side_result_list *sxml_host_compile_reports_of(sxml_host_processor *processor) {
+    processor->compile_report_view =
+        processor->compile_reports == NULL
+            ? (sxml_host_side_result_list){.side_results = NULL, .side_result_count = 0}
+            : sxml_host_side_results_view(processor->compile_reports);
+    return &processor->compile_report_view;
+}
+
 /*
  * Compiles a stylesheet whose principal module is request's text, with its
  * static parameters (XSLT 4.0, 9.6), and returns it, or NULL with the
@@ -75,8 +112,12 @@ sxml_host_stylesheet *sxml_host_stylesheet_compile(
         .stylesheet = NULL,
         .side_results = {.side_results = NULL, .side_result_count = 0, .side_result_capacity = 0}};
     sxml_variable_binding *static_parameters = NULL;
+    sxml_host_side_results *reports = sxml_host_start_compile_reports(processor);
+    sxml_host_side_result_target report_target = {.processor = processor, .side_results = reports};
     sxml_status status =
-        sxml_host_read_bindings(processor, &request->static_parameters, &static_parameters);
+        reports == NULL
+            ? SXML_STATUS_OUT_OF_MEMORY
+            : sxml_host_read_bindings(processor, &request->static_parameters, &static_parameters);
     if (status == SXML_STATUS_OK) {
         status = sxml_xslt_stylesheet_create(
             processor->allocator,
@@ -88,7 +129,10 @@ sxml_host_stylesheet *sxml_host_stylesheet_compile(
                                           request->static_parameters.binding_count},
                 .static_context = {.static_base_uri = request->static_base_uri},
                 .principal_module_source = SXML_XSLT_PRINCIPAL_MODULE_SOURCE_TEXT,
-                .error_record = &processor->error_record},
+                .error_record = &processor->error_record,
+                /* Every error (D320); sxml_host_compile_reports_of. */
+                .report_sink = {.state = &report_target,
+                                .operations = &sxml_host_prefixed_report_operations}},
             &stylesheet->stylesheet);
     }
     sxml_allocator_release(processor->allocator, static_parameters);
