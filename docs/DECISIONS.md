@@ -15879,6 +15879,44 @@ Recorded 2026-10-28, after D313 and D315 (as revised and accepted).
   edition, no licence: not reused), SchXslt's unit tests (MIT, not
   reused), XQS's BaseX tests (Apache-2.0, not reused); none covers the
   2025 edition.
+- **Addendum (2026-10-28): the independent check of the 67 2025-only
+  cases.** A separate agent derived each result from the standard alone,
+  on copies with `result` and `description` removed; it never saw the
+  suite, D315 or D317 and ran no implementation. 52 identical; the other
+  15 agree in substance (fired-rule listings against `flags` and
+  `assert-svrl`, `@n` against `@Q{}n`, the conditional findings of the
+  five optional-binding cases, `let-as-mismatch` an error either way,
+  `visit-each-atomic`'s uncompared location, `edition-reported` at user
+  option). No case changed.
+- **Addendum (2026-10-28): the edge-case pass.** 182 cases more (514 in
+  18 sets; 104 `since="2020"`, 78 `since="2025"`), each construct varied
+  by cardinality, order, static and dynamic errors, namespaces, text
+  (non-ASCII, astral, combining, whitespace-only, mixed), node kinds and
+  interaction with phases, group, documents, from, visit-each, subject,
+  abstract patterns and extends; the README's "Edge cases" table marks
+  each pair covered, implementation-defined or not applicable (22
+  reasons). New readings, in the README's "Ambiguities in the standard":
+  dynamic role/flag/severity that are empty, several or not names,
+  static role and severity that are not names, `role="$undefined"`
+  (5.4.7 against Annex J), parameters in role and severity (6.2),
+  subject and rule variables under visit-each, the context of
+  diagnostics and properties with a subject, subjects selecting none or
+  several, overlapping and attribute `from`, later `when` under `#ANY`,
+  duplicate documents and rule-context items, two `ns` for one prefix,
+  a library as the schema, `active` naming an abstract pattern,
+  whitespace in queryBinding and schematronEdition: all
+  implementation-defined. Normative readings: include and extends-href
+  cycles are schema errors (6.2), `visit-each` duplicates are evaluated
+  twice, a role from an attribute node is its string value, syntax
+  errors in unused abstract rules and inactive phases still make the
+  schema incorrect (7.2). Every case on the `xslt3` binding now declares
+  the dependency (485 cases): only the default binding is mandatory
+  (6.5). `crosscheck.py` collapses only 5.3's four whitespace
+  characters. SchXslt cross-check of the 369 2020 cases: 281 agree, 55
+  disagree (6 new, each by the clauses already recorded: Annex A, 7.2,
+  6.3, Annexes H and J), 18 implementation-defined, 15 need a binding
+  SchXslt lacks. The 78 new 2025-only cases wait for the independent
+  check.
 ### D318. Source locations for parsed input documents (packet 7.29)
 Recorded 2026-10-28, after D313 (7, 8), D87, D88, D99.
 - **Header** (additive after D99, packet 7.29): `include/sxml/processor.h`

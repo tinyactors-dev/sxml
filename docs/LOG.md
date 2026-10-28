@@ -4,6 +4,16 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-26
 
+- 7.30 edge-case pass (D317 addendum): 182 cases more, 514 in 18 sets
+  (78 new 2025-only), every construct varied by cardinality, order,
+  errors, namespaces, text, node kinds and interaction; README tables of
+  construct x dimension and of the standard's ambiguities; `xslt3`
+  declared as a dependency of 485 cases. SchXslt cross-check of the 369
+  2020 cases: 281 agree, 55 disagree (each with its clause), 18
+  implementation-defined, 15 not applicable. The independent check of
+  the first 67 2025-only cases agreed (52 identical, 15 in substance);
+  the 78 new ones wait for it. 7.30 stays unticked until then.
+
 - 7.30 (D317): `tests/schematron/`, a Schematron conformance suite of
   sxml's own for ISO/IEC 19757-3:2025: 332 cases in 18 test sets,
   neutral expected results, `catalog.xsd`, `coverage.xml` (139
