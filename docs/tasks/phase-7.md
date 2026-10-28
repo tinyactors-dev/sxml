@@ -1269,6 +1269,11 @@ distinct patterns (about 9 s).
   commit messages; SchXslt's expand stage of EN 16931 measured; no QT4
   XP40, XQ40 or XT40 outcome changes, case by case; the regex suites
   unchanged; D71, the memory limits and honest step counts kept.
+**Done** 2026-10-28 (D308): a regex cache per evaluation in the
+evaluation memo (4,096 entries, 8 MiB, least recently used unused entry
+evicted); 20,000 replace calls 0.103 to 0.065 s, bench-real.xsl 0.550 to
+0.488 s, SchXslt's expand stage 555 to 551 s (compiling under 1 %); QT4
+and XT40 regex sets unchanged case by case.
 
 ### 7.21 Fast Invisible XML (book, tests, implementation)
 After D215 (7.18: the Earley parser, right recursion quadratic, every

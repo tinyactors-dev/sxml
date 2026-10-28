@@ -15,7 +15,8 @@
  * 6.1.1); the engine works in byte offsets, so a position is counted from
  * the last one known. The record that fn:regex returns holds function
  * items whose bodies are the rows of record_function_rows below: they
- * capture the pattern and the flags and compile them for each call.
+ * capture the pattern and the flags, and every call finds the compiled
+ * regex in the regex cache (D308) as the other functions do.
  */
 #include "cast_internal.h"
 #include "evaluator_internal.h"

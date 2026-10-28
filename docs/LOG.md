@@ -2,6 +2,17 @@
 
 One short entry per week, newest first: what passed, what's next, what is blocked.
 
+## Week of 2026-10-26
+
+- perf-6 done (D308): the regex functions compile each regex once per
+  evaluation, through a regex cache in the evaluation memo (4,096
+  entries, 8 MiB, least recently used unused entry evicted; errors and
+  step counts per call as before). 20,000 replace calls 0.103 to
+  0.065 s; regex-reuse.xq (new) 0.342 to 0.247 s; bench-real.xsl 0.550
+  to 0.488 s; SchXslt's expand stage 555 to 551 s (compiling was under
+  1 %, the rest is perf-5's). QT4 XP40, XQ40 and XT40 regex sets: 0
+  outcomes differ.
+
 ## Week of 2026-10-19
 
 - 7.26 done (D307): the tree-sitter functions are `tree-sitter:parse`

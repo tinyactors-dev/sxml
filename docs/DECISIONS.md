@@ -14555,6 +14555,74 @@ documents (D285's **Shape**) is unchanged.
   codegen-pipeline, codegen-typescript, ixml-performance, appendix-cli:
   89 examples; javascript: 6) match.
 
+### D308. Each regex is compiled once per evaluation: the regex cache (packet perf-6)
+
+Recorded 2026-10-28, after D53, D71, D105, D114, D148, D259. No header
+changed.
+
+- **Whom it serves**: stylesheets and queries that call the regex
+  functions in loops, above all SchXslt, whose expand stage calls
+  fn:replace about 810,000 times with about 1,050 regex texts built
+  from abstract patterns' parameter names. Each call parsed, compiled
+  and placed its regex anew (`compile_pattern`).
+- **Mechanism** (glossary `regex_cache`, `src/function_library_regex.c`):
+  one cache per evaluation, keyed by the regex text and the parsed
+  flags (so `i` and `ii` share an entry), used by fn:matches,
+  fn:replace, fn:tokenize, fn:analyze-string, fn:matching-segments and
+  fn:regex's functions alike. It lives where the dynamic context
+  already keeps per-evaluation values: the evaluation memo (D148), as
+  the state of a function item no expression can reach, made at the
+  first regex call with a reference count (the parser function of
+  fn:invisible-xml is the model). The memo releases it when the
+  evaluation ends; each call using an entry holds a reference, so an
+  fn:replace whose replacement function runs on the machine keeps its
+  regex however the evaluation unwinds. The processor was not chosen:
+  its lifetime and threads would need a lock and a header change, and
+  one evaluation is where the repetition is. No field was added to the
+  dynamic context, so `src/evaluator.c` (perf-5's) is unchanged. The
+  lowering does not compile literal patterns: the cache gives the speed
+  with one mechanism.
+- **Bound and eviction**: at most 4,096 entries and 8 MiB of compiled
+  regexes with their texts (each entry is one block: the regex placed
+  with `sxml_regex_initialize`, its text after it). A regex larger than
+  8 MiB is compiled for its call alone. A new entry evicts the least
+  recently used entry that no call is using (a use clock and a scan:
+  only a cache that is full scans); when every entry is in use the call
+  compiles for itself. 4,096 covers SchXslt's 1,050 regexes used in a
+  cycle, which a smaller least-recently-used cache would miss every
+  time.
+- **Limits**: the memory comes from the item heap, so it counts against
+  `maximum_item_heap_byte_count`. When an allocation for the cache
+  reaches that limit (LIMIT_EXCEEDED), the unused entries are released
+  and the allocation is tried once more, or the call compiles for
+  itself, so the cache never makes a call reach the limit that would
+  stay within it without the cache; other allocation failures are
+  reported as before (the allocation-failure tests require it).
+- **Errors and steps, per call**: flags are parsed by every call
+  (FORX0001); a regex that does not compile (FORX0002, or a compile
+  limit) is never cached, so every call raises its error. Matchers are
+  made per call as before (about 800 instructions), so the regex step
+  limit and the steps charged to the evaluation are those of each
+  search; compiling was never charged steps.
+- **Measured** (release, x86_64, processor seconds, fastest of five,
+  before and after): 20,000 `replace($s, "(\W*)\$AMOUNT(\W*)",
+  "$1x$2")` 0.103 to 0.065; with `"\$AMOUNT"` 0.050 to 0.031;
+  `tests/bench/regex-reuse.xq` (new) 0.342 to 0.247; bench-real.xsl
+  (39,000 fn:replace calls, 780 regexes) 0.550 to 0.488, at n=10 1.289
+  to 1.083 x 10^9 instructions, `compile_pattern` 20 % to 5 % of them
+  (782 compiles for 23,400 calls); what is left is matching (the
+  backtracking of `(\W*)` at every start position and
+  `sxml_regex_is_word_character`'s binary search). SchXslt's expand
+  stage of EN 16931 (step bound raised in a scratch build only): 555.5
+  to 550.9 s, the same output; compiling regexes was under 1 % of it,
+  the rest is perf-5's problem. QT4 XP40 and XQ40 fn-analyze-string,
+  fn-matches, fn-matches.re, fn-matching-segments, fn-regex,
+  fn-replace, fn-tokenize, and XT40 analyze-string, regex,
+  regex-syntax, regex-syntax-xslt20: 0 outcomes differ, case by case.
+- **Left**: an ASCII fast path for `\w` and `\d` (the generated
+  `src/regex_unicode.c`); a matcher kept per entry would save its
+  creation too, but holds a grown backtrack stack, so it is not done.
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): tagging and
