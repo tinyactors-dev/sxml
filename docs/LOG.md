@@ -4,6 +4,20 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-26
 
+- perf-12 done (D324): compiling large stylesheets in linear time,
+  the IR after the passes byte-identical (EN 16931, all 414,483 XT40
+  units). Three costs grew faster than the unit: the descendant pass
+  scanned the unit once per function, the global-read pass climbed
+  LET chains per expression, and the XPath lowerer checked every
+  global against every other per expression. Then the fusion pass
+  skips functions without a QUANTIFIED, and the XPath front end keeps
+  AST kinds per grammar symbol. Invoice 2.680 to 2.076 x 10^9
+  instructions (0.386 to 0.305 s); a stylesheet of 1,024 templates
+  57.1 to 6.2 (4.34 to 0.91 s), each doubling now x 2; xmark-all and
+  SchXslt expand unchanged. XP40 32,785, XQ40 46,114, XT40 12,185,
+  0 outcomes differ; VEFA 1,133 of 1,133. Proposed: XSLT's component
+  graph is now the cost that grows with the square of a stylesheet.
+
 - 7.28 done (D323): Schematron (ISO/IEC 19757-3:2025) as a front end
   to the XSLT AST. C API, `sxml validate --schematron` (`--phase`,
   `--schematron-param`, text, JSON, SVRL), the JavaScript

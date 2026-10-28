@@ -1494,6 +1494,11 @@ compile pays this.
   stage; the IR text form identical; QT4 XP40, XQ40 and XT40 whole,
   base and change built and run in the same setup: no outcome changes,
   case by case.
+**Done** 2026-10-28 (D324): descendant and global-read passes and the
+lowerer's declaration check linear; fusion skips functions without a
+QUANTIFIED; AST kinds kept per grammar symbol. Invoice 2.680 to 2.076
+x 10^9 instructions; growth N = 128 57.1 to 6.2; IR text identical;
+XP40, XQ40, XT40 0 outcomes differ.
 
 ### 7.21 Fast Invisible XML (book, tests, implementation)
 After D215 (7.18: the Earley parser, right recursion quadratic, every
