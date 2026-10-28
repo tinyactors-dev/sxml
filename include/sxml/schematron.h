@@ -65,8 +65,12 @@
  * XSLT 4.0 and XPath 4.0, the languages sxml implements, not as XSLT 1.0
  * and XPath 1.0 (Annex C): no XPath 1.0 compatibility mode. xslt2,
  * xslt3, xpath2, xpath3 and xpath31 are read too; their expressions run
- * on the same 4.0 processor. Expressions are XPath 4.0 and rule contexts
- * XSLT 4.0 patterns under every binding. Under the xslt bindings (xslt,
+ * on the same 4.0 processor. Expressions are XPath 4.0 under every
+ * binding; a rule context is an XSLT 4.0 pattern, or, when it is no
+ * pattern but an XPath 4.0 expression (Annexes I, K, L), matches the
+ * nodes that expression selects from the instance root (from the nodes
+ * a phase's from selects, from a subordinate document's root under
+ * documents; D315). Under the xslt bindings (xslt,
  * xslt2, xslt3, xslt4) the xsl:function, xsl:key, xsl:include,
  * xsl:import and xsl:import-schema children of sch:schema, and except
  * under xslt2 also xsl:accumulator and xsl:use-package, are read as
