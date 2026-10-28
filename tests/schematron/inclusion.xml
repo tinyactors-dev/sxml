@@ -290,4 +290,168 @@
       </findings>
     </result>
   </test-case>
+  <test-case name="include-cycle" since="2020">
+    <description>Two documents that include each other: the inclusions cannot be resolved (and the second puts a pattern inside a rule).</description>
+    <spec clause="5.4.6"/>
+    <spec clause="6.2"/>
+    <schema file="include-cycle.sch"/>
+    <instance file="include-cycle.xml"/>
+    <result>
+      <schema-error clause="5.4.6 6.2"/>
+    </result>
+  </test-case>
+
+  <test-case name="include-self" since="2020">
+    <description>A document that includes itself.</description>
+    <spec clause="5.4.6"/>
+    <spec clause="6.2"/>
+    <schema file="include-self.sch"/>
+    <instance file="include-self.xml"/>
+    <result>
+      <schema-error clause="5.4.6 6.2"/>
+    </result>
+  </test-case>
+
+  <test-case name="extends-href-cycle" since="2020">
+    <description>Two external rules that extend each other by href: each is a rule in a rule, as 5.4.4 allows, but the insertion never ends.</description>
+    <spec clause="5.4.4"/>
+    <spec clause="6.2"/>
+    <schema file="extends-href-cycle.sch"/>
+    <instance file="extends-href-cycle.xml"/>
+    <result>
+      <schema-error clause="5.4.4 6.2"/>
+    </result>
+  </test-case>
+
+  <test-case name="extends-href-self" since="2020">
+    <description>An external rule that extends itself by href.</description>
+    <spec clause="5.4.4"/>
+    <spec clause="6.2"/>
+    <schema file="extends-href-self.sch"/>
+    <instance file="extends-href-self.xml"/>
+    <result>
+      <schema-error clause="5.4.4 6.2"/>
+    </result>
+  </test-case>
+
+  <test-case name="include-prefix-from-ns" since="2020">
+    <description>An included pattern uses a prefix: the schema's ns declares it, not the xmlns declaration in the included document (which names another URI).</description>
+    <spec clause="5.4.6"/>
+    <spec clause="5.4.10"/>
+    <schema file="include-prefix-from-ns.sch"/>
+    <instance file="include-prefix-from-ns.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{urn:example:e}item[1]">
+          <message>Two.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="include-in-phase" since="2020">
+    <description>include inside a phase brings in an active element.</description>
+    <spec clause="5.4.6"/>
+    <spec clause="5.4.13"/>
+    <schema file="include-in-phase.sch"/>
+    <instance file="include-in-phase.xml"/>
+    <phase>second</phase>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Second pattern.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="include-rule-into-group" since="2025">
+    <description>include of a rule inside a group.</description>
+    <spec clause="5.4.6"/>
+    <spec clause="5.4.5"/>
+    <schema file="include-rule-into-group.sch"/>
+    <instance file="include-rule-into-group.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Included rule.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Group rule.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="library-as-schema" since="2025">
+    <description>A library given as the schema itself (library is an allowed root element).</description>
+    <spec clause="5.4.8"/>
+    <spec clause="Annex-A"/>
+    <spec clause="3.7"/>
+    <schema file="library-as-schema.sch"/>
+    <instance file="library-as-schema.xml"/>
+    <result>
+      <implementation-defined clause="5.4.8 Annex-A">Annex A allows library as a root, but 5.4.8 describes it as a container of declarations for extends, not a schema to validate with: a processor may reject it or validate with its patterns (one failed-assert at /Q{}doc[1]/Q{}item[2]).</implementation-defined>
+    </result>
+  </test-case>
+
+  <test-case name="library-with-ns" since="2025">
+    <description>A library has no ns element in its grammar.</description>
+    <spec clause="5.4.8"/>
+    <spec clause="Annex-A"/>
+    <schema file="library-with-ns.sch"/>
+    <instance file="library-with-ns.xml"/>
+    <result>
+      <schema-error clause="Annex-A"/>
+    </result>
+  </test-case>
+
+  <test-case name="library-let" since="2025">
+    <description>A library's let becomes a variable of the schema that extends it.</description>
+    <spec clause="5.4.8"/>
+    <spec clause="5.4.4"/>
+    <spec clause="5.4.7"/>
+    <schema file="library-let.sch"/>
+    <instance file="library-let.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[3]">
+          <message>Within the limit.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="library-empty" since="2025">
+    <description>A library with no declarations: extending it adds nothing.</description>
+    <spec clause="5.4.8"/>
+    <spec clause="Annex-A"/>
+    <schema file="library-empty.sch"/>
+    <instance file="library-empty.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Not two.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="library-nested-extends" since="2025">
+    <description>A library that extends another library: both libraries' patterns reach the schema.</description>
+    <spec clause="5.4.8"/>
+    <spec clause="5.4.4"/>
+    <schema file="library-nested-extends.sch"/>
+    <instance file="library-nested-extends.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]">
+          <message>Outer.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Inner.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
 </test-set>
