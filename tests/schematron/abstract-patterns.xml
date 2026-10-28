@@ -257,7 +257,7 @@
     <dependency type="query-binding" value="xslt3"/>
     <schema file="abstract-in-phase.sch"/>
     <instance file="abstract-in-phase.xml"/>
-    <phase>tables</phase>
+    <phase>tables-phase</phase>
     <result>
       <findings>
         <finding kind="failed-assert" location="/Q{}doc[1]/Q{}table[1]/Q{}row[2]">

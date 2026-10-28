@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <sch:schema xmlns:sch="http://purl.oclc.org/dsdl/schematron" queryBinding="xslt3">
-  <sch:phase id="tables"><sch:active pattern="tables"/></sch:phase>
+  <sch:phase id="tables-phase"><sch:active pattern="tables"/></sch:phase>
   <sch:pattern abstract="true" id="container">
     <sch:rule context="$parent">
       <sch:assert test="$child">The <sch:name/> has children.</sch:assert>
