@@ -4,6 +4,19 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-26
 
+- perf-14 done (D326): running compiled Schematron. The compiled
+  Schematron cost twice the official stylesheet on the EN 16931
+  invoice because its walk visited text nodes (@* | node(), 1,177
+  nodes per mode against 439), and each visit calls the mode's match
+  functions in rule order: 123,282 match calls against 44,422. A
+  pattern now walks attributes, text, comments and processing
+  instructions only when one of its rule contexts may match them.
+  Validation 1.208 to 0.479 x 10^9 instructions (official 0.548),
+  0.362 to 0.296 s; VEFA 47.1 to 26.3 x 10^9, 7.5 to 4.7 s; findings
+  byte-identical over 1,150 files; suite 463 of 463, VEFA 1,133 of
+  1,133. Proposed: a rule search that skips rules by node kind and
+  name, for XSLT too.
+
 - perf-13 done (D325): compiling XSLT and Schematron. XSLT's component
   graph and bindings find components through indexes made once by
   sorting (they walked every declaration or instance per reference);

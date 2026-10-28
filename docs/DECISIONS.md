@@ -16503,6 +16503,97 @@ same, and compiled Schematron gives the same findings.
   twice what the pre-compiled XSLT's transform (0.55) does on the same
   invoice, an evaluation cost outside this packet.
 
+### D326. Running compiled Schematron: the pattern walk visits only what a rule may match (packet perf-14)
+
+Recorded 2026-10-28, after D315, D323 and D325 ("Left": validating the
+compiled schema costs twice what the pre-compiled XSLT's transform does
+on the same invoice). No public header changed; no shared file changed
+(only `src/schematron_build.c` and `tests/schematron_test.c`). Glossary:
+`pattern_walk`.
+
+- **Whom it serves**: every Schematron validation, first EN 16931's
+  (`sxml validate --schematron`, the host's `Schematron.validate`).
+  **Pays**: one loop over each rule context's pattern AST at compile
+  time; no new mechanism (the walk is still xsl:apply-templates in the
+  current mode).
+- **Profile** (callgrind, release, at a7a8d50ee; the invoice
+  `ubl-tc434-example1.xml`): `sxml_schematron_validate_node` 1.208 x
+  10^9 instructions, the official stylesheet's
+  `sxml_xslt_stylesheet_transform` 0.548. The C profiles have the same
+  shape (`sxml_machine_step_expression` 16 % of each, the rest the
+  machine's tasks and values), so the difference is in how much IR
+  runs. Counted by a scratch-only hook in the evaluator (not
+  committed), by function: steps in match functions 2,503,052 against
+  928,554, in template functions 73,075 against 71,402 (the rule
+  templates, with their finding items and fired-rule checks, cost the
+  same); calls of match functions 123,282 against 44,422, of template
+  functions 3,541 against 1,321. By IR kind the steps scale alike
+  (LET 1.49 M against 0.59 M, ATOM 0.35 M against 0.13 M, CONDITIONAL
+  0.58 M against 0.21 M, STATIC_CALL 0.13 M against 0.05 M). The match
+  functions themselves are the same IR in both (the same patterns
+  lowered alike).
+- **Explanation**: the evaluator chooses a template rule by calling the
+  mode's match functions in rule order until one is true (6.8), so a
+  visit costs about one call per rule of the mode for a node no rule
+  matches. D315's walk applied templates to `@* | node()`, so each of
+  the three modes visited 1,177 nodes of the invoice (369 elements, 70
+  attributes, 738 text nodes, 516 of them whitespace only) and every
+  text node tried every rule in vain; the ISO skeleton walks `@* | *`,
+  439 nodes per mode. 2.7 times the visits gave 2.8 times the match
+  calls and the factor 2.2.
+- **Mechanism** (`src/schematron_build.c`): the *pattern walk* selects
+  the element children always, and attributes, text, comment and
+  processing-instruction children only when a rule context of the
+  pattern may match that node kind; other nodes are unobservable, as no
+  rule of the pattern can match them. The kinds come from the context's
+  pattern AST, read as XSLT 4.0, 6.3 matches: the last step of a path
+  (after "/", "//", a rooted variable), both sides of a union, the left
+  of intersect and except, the value of a filter, the inside of
+  parentheses; an axis step's node test gives its kind, a name test or
+  wildcard the principal node kind of its axis (XPath 4.0, 4.6.4.1);
+  "/" a document node; every other pattern (node(), `$v`, `id()`,
+  `key()`, `.`, simple patterns, an expression rule context wrapped as
+  `.[...]`) may match any kind. A loop over the nodes and their
+  ancestors (D71). The walks are added after the pattern's rules, once
+  every context is known: the traversal templates are now declared
+  after the rules (priority -1 orders them last, as before), and each
+  rule template's walk is appended as its last instruction. D315's
+  semantics are unchanged: a rule that can match a node still sees it,
+  the first matching rule wins in a pattern, every rule of a group
+  fires, phases, `from` and `documents` choose the start as before,
+  `let` once per context node, both locations, `value-of` as
+  `fn:string`. EN 16931's contexts are all elements: its walk is `*`.
+- **Measured** (callgrind, release; base a7a8d50ee and the change built
+  alike from snapshots). Invoice: validation 1.208 to 0.479 x 10^9
+  (the official stylesheet's transform 0.548), the whole `validate
+  --schematron` 2.633 to 1.903, the compile unchanged (1.405 to 1.404);
+  template calls 3,541 to 1,111, match calls 123,282 to 36,612.
+  The 1,131 VEFA instances (`sxml-schematron-test vefa`, compile and
+  all validations): 49.90 to 29.03 x 10^9, validation 47.14 to 26.27.
+  Seconds (processor, a shared 4-CPU machine): invoice fastest of 15,
+  interleaved, 0.362 to 0.296 (the official stylesheet's transform
+  0.258, its compile included); VEFA validation 7.51 to 4.65 s; the
+  1,150 files of D325's comparison in one `sxml validate` run 9.8 to
+  5.3 s.
+- **Same result**: `sxml validate --format=json` over EN 16931's 1,131
+  UBL unit test instances (each `<test>`'s document, extracted as the
+  VEFA harness does) and the 19 UBL examples, all in one run: 14.8 MB,
+  byte-identical. 7.30's suite through `sxml-schematron-test`: 463 of
+  463 applicable, 3 deviations, 43 implementation-defined, 5 not
+  applicable, as before; EN 16931 UBL 1,133 of 1,133 checks. A new
+  unit test, `pattern_walk_reaches_every_kind_a_rule_matches`, has a
+  pattern per kind (elements, `@n`, `text()`, a comment step after a
+  parenthesized step, a processing instruction, `node() except *`, an
+  expression rule context) and checks every report in order. debug-gcc:
+  the whole suite passes (459 tests; kotlin/jvm and swift/linux
+  skipped); clang-tidy clean on both files;
+  `tools/check-call-cycles.py` finds no cycle. QT4 and XT40 were not
+  run: no shared file changed.
+- **Left** (see "## Proposed"): a rule search that skips rules whose
+  pattern cannot match the item's node kind or name would help every
+  stylesheet with many rules, the official EN 16931 one as much as
+  this.
+
 ## Proposed
 
 - **Third-party rule sets that are not correct Schematron** (D323,
@@ -16543,6 +16634,21 @@ same, and compiled Schematron gives the same findings.
   only if the tests' leak checks are redefined (cells 4.3 % plus
   frees); (4) a typed-value memo per evaluation for untyped nodes,
   which needs the dynamic context to reach `src/xdm_node.c`.
+
+- **Template rules chosen without calling every match function**
+  (D326, perf-14; for a packet owning `src/evaluator_template.c`, the
+  lowering of template rules and `src/xslt_pattern.c`). The evaluator
+  calls a mode's match functions in rule order for each item; on the
+  EN 16931 invoice they are about 92 % of the evaluator's steps in both
+  the compiled Schematron (36,612 calls for 1,111 visits) and the
+  official stylesheet (44,422 for 1,321). Proposed default: each
+  template rule records, when lowered, the node kinds and (for a last
+  step with an EQName test) the expanded name its pattern may match,
+  computed as D326's walked kinds are; APPLY_TEMPLATES skips a rule
+  whose kinds or name exclude the item without calling its match
+  function. The order and the result of the search are unchanged; the
+  analysis then moves from `src/schematron_build.c` to
+  `src/xslt_pattern.c`.
 
 - **Compile costs that still grow with the square of a stylesheet**
   (D325, perf-13; for the packets that own the files). With XSLT's

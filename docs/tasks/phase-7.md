@@ -1562,6 +1562,12 @@ lowering treats it.
   applicable; VEFA 1,133 of 1,133; if shared files change, QT4 XP40,
   XQ40 and XT40 whole, base and change in the same setup: no outcome
   changes, case by case.
+**Done** 2026-10-28 (D326): the walk visited text nodes (@* | node())
+and each visit calls every rule's match function; a pattern now walks
+only the node kinds its rule contexts may match. Invoice validation
+1.208 to 0.479 x 10^9 (official 0.548), 0.362 to 0.296 s; VEFA 47.1
+to 26.3 x 10^9, 7.5 to 4.7 s; findings byte-identical (1,150 files);
+suite 463/463, VEFA 1,133/1,133; no shared file changed.
 
 ### 7.21 Fast Invisible XML (book, tests, implementation)
 After D215 (7.18: the Earley parser, right recursion quadratic, every
