@@ -407,7 +407,9 @@ before using it in code. Terms follow the XDM 4.0 and XPath 4.0 specifications.
 | `release_contents` | The cell class operation that releases what a cell holds before the heap frees it |
 | `pending_cell` | A cell whose last reference is gone, waiting on the item heap's list to be freed without recursion |
 | `item_representation` | How an `sxml_item` is stored: which inline value or which kind of cell its payload holds (`SXML_ITEM_REPRESENTATION_*`) |
-| `sequence_cell` | A cell that holds a sequence of two or more items: vector, integer range, concatenation or lazy |
+| `sequence_cell` | A cell that holds a sequence of two or more items: vector, integer range, concatenation, lazy or sequence slice |
+| `sequence_slice` | A sequence cell for consecutive items of a vector, its `slice_base`, that shares the base's items instead of copying them (`src/xdm_sequence.c`); reported as a vector. "Slice" alone names `fn:slice` and the QT4 test lists (`xquery_slice`) |
+| `slice_base` | The vector a sequence slice holds one reference to and reads its items from; a slice of a slice has the same base |
 | `atomic_family` | The atomic items that compare with one another: numbers, strings (with `xs:anyURI`, `xs:untypedAtomic`), binary, or one other primitive type |
 | `exact_text` | The canonical decimal text of the exact value of a double, as compared with decimals |
 | `static_error` | A specification error whose code and description are static text, reported without the heap (`sxml_static_error`) |
