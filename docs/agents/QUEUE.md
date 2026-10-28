@@ -59,9 +59,13 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
   (75.3 x 10^9 instructions; was 14.8 s, and 1 min 39 s before perf-5).
   Left: an error record not cleared after a caught FORX0002, so a later
   LIMIT_EXCEEDED in the same query prints the old description.
-- 7.30: a Schematron conformance suite of sxml's own, written from the
-  standard the owner bought (the text itself stays out of the
-  repository); runs now, beside 7.27's revision; it becomes 7.28's gate.
+- 7.30 done (D317): 514 cases, 2025-only cases checked independently.
+  7.29 done (D318): source locations, AUTOMATIC by default; left: the
+  JavaScript `locations` option is written and tested but was not built
+  (no WASI SDK in the session), and under AUTOMATIC a program that only
+  raises errors naming nodes keeps no locations (D313's list has no
+  fn:error). 7.28 (Schematron) can start: 7.27, 7.29, 7.30 and cli-4 are
+  done.
 - The owner's decisions of 2026-10-28 are D313: Schematron's open points,
   source locations (packet 7.29, after perf-8), no step limit in the sxml
   command (packet cli-4, runs now), SchXslt's fix not offered upstream.

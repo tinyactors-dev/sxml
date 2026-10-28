@@ -15917,6 +15917,23 @@ Recorded 2026-10-28, after D313 and D315 (as revised and accepted).
   6.3, Annexes H and J), 18 implementation-defined, 15 need a binding
   SchXslt lacks. The 78 new 2025-only cases wait for the independent
   check.
+- **Addendum (2026-10-28, the orchestrator): the independent check of the
+  78 new 2025-only cases.** The same separate agent derived each from the
+  standard alone, on copies without results or descriptions, and without
+  this record, D315 or the suite. 39 identical; 39 agree in substance:
+  21 the suite calls implementation-defined and the check flags AMBIGUOUS
+  (dynamic role, flag and severity that are empty, several or not names;
+  errors in `when` and `from`; overlapping or attribute `from` results;
+  `visit-each` with variables and subject; schema parameters; a library
+  as schema), 6 dynamic errors on both sides (the check notes that
+  6.1's result "error" and D.2's svrl:error fit no finding), 1 on the
+  optional `xquery31` binding with the same conditional findings, and
+  notation (fired-rule listings, `@n` against `@Q{}n`, no location for
+  atomic `visit-each` items). One judgement call: `edition-whitespace`
+  stays implementation-defined, because 5.3's stripping is a "should";
+  the check read Annex A's `xsd:token` as deciding it. No case changed.
+  Both rounds together: all 145 2025-only cases checked. Packet 7.30
+  done.
 ### D318. Source locations for parsed input documents (packet 7.29)
 Recorded 2026-10-28, after D313 (7, 8), D87, D88, D99.
 - **Header** (additive after D99, packet 7.29): `include/sxml/processor.h`

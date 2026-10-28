@@ -1891,6 +1891,12 @@ licence before writing; reuse with attribution what a licence allows.
   cross-check agrees on every 3rd-edition case or each difference is
   recorded; the independent check of the 2025-only cases is recorded;
   7.28's gates name the suite (pass rate 100 % of applicable cases).
+**Done** 2026-10-28 (D317): 514 cases in 18 sets (`tests/schematron/`),
+139 requirements in `coverage.xml` (131 with cases, 8 with reasons), an
+edge-case table of construct by dimension, the ambiguities of the
+standard in the README; SchXslt cross-check of the 369 2020 cases (281
+agree, the rest decided by recorded clauses); all 145 2025-only cases
+checked independently in two rounds, none changed.
 
 ## Proposed for the owner
 
