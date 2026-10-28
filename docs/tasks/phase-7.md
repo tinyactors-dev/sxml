@@ -1306,6 +1306,11 @@ string, whatever the character classes.
   seconds) in a D-record and the commit messages; the QT4 XP40 and XQ40
   regex sets and the XT40 regex sets unchanged case by case; D71, the
   memory limits and honest step counts kept.
+**Done** 2026-10-28 (D310): ASCII member sets and an ASCII category
+table, a start filter, idle matchers in the regex cache, character
+repetitions; 200,000 `matches` 0.382 to 0.197 s (366.9 to 200.3 x 10^6
+instructions at 20,000), regex-match.xq 1.069 to 0.652 s, regex-reuse.xq
+0.250 to 0.146 s; QT4 and XT40 regex sets unchanged case by case.
 
 ### 7.21 Fast Invisible XML (book, tests, implementation)
 After D215 (7.18: the Earley parser, right recursion quadratic, every

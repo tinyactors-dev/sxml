@@ -4,6 +4,18 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-26
 
+- perf-7 done (D310): faster regex matching, by four mechanisms of the
+  one engine: ASCII member sets of classes and an ASCII category table
+  (one bit test per ASCII character), a start filter that skips start
+  positions no match can begin at (one step each, as before), an idle
+  matcher kept by each regex cache entry, and character repetitions
+  (greedy `x*`, `x+` of one character: one step per character, two
+  backtrack entries in all). 200,000 `matches(..., "\w+\s\w+\s\d+")`
+  0.382 to 0.197 s (contains: 0.127), 366.9 to 200.3 x 10^6
+  instructions at 20,000; regex-match.xq (new) 1.069 to 0.652 s;
+  regex-reuse.xq 0.250 to 0.146 s. QT4 XP40, XQ40 and XT40 regex sets:
+  0 outcomes differ.
+
 - perf-5 done (D309): a slice of a stored sequence shares its items
   (sequence slices: a cell over a vector, reported as a vector; spans
   of 16 items or under an eighth of the base are copied); `fn:tail`,

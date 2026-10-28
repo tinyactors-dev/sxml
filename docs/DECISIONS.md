@@ -14709,6 +14709,104 @@ for each of 1,042 attributes.
   one base per item type, so two sequences of one type recursed over
   in turn match each time.
 
+### D310. Faster regex matching: ASCII member sets, a start filter, idle matchers, character repetitions (packet perf-7)
+
+Recorded 2026-10-28, after D53, D71, D105, D147, D308. No public header
+changed.
+
+- **Whom it serves**: every caller of the regex functions and of XSD
+  pattern facets on short ASCII text, where after D308 matching was the
+  cost: 200,000 `matches("abc_def ghi " || ., "\w+\s\w+\s\d+")` took
+  0.38 s here against 0.13 s with `contains` (the packet measured 0.80
+  and 0.12 s on another machine).
+- **Profile** (callgrind, release, 20,000 such calls): 18,300
+  instructions a call, 13,300 in fn:matches; 10,700 matching (18
+  binary searches of the category runs by
+  `sxml_regex_is_word_character`, 16 slot saves and pushes of the
+  five-instruction loops of `\w+`, an attempt at every start position),
+  1,850 in `compile_pattern`, 1,050 of them making the matcher.
+- **Mechanisms** (glossary `ascii_member_set`, `start_filter`,
+  `idle_matcher`, `character_repetition`), all in the one engine:
+  1. *ASCII fast paths*: `tools/generate-regex-tables.py` emits the
+     general categories of codepoints 0 to 127 as a table read before
+     the runs (so collation, format and full-text lookups gain too) and
+     `sxml_regex_find_ascii_category_members`; each class gets its
+     ASCII member set when compiled (the union of its items, negation,
+     case variants, less its subtraction, decided as
+     `sxml_regex_class_item_contains` decides), so an ASCII class test
+     is one bit test; an ASCII byte is read without the codepoint
+     iterator. Non-ASCII characters take the items as before.
+  2. *Start filter*: a walk over the instructions before the first
+     read (saves, jumps, splits, progress checks, counted loop
+     bookkeeping; a fixed stack of 32 and at most 256 visits, D71)
+     collects the first characters a match can read and whether a
+     path starts with "^"; any assertion, back-reference or empty match
+     reached first leaves it unused. A search skips the positions it
+     excludes without an attempt, but each still counts one step, as
+     the failing first instruction of an attempt did, so the step limit
+     and charged steps stay as before for them (the step bound test of
+     `tests/xpath_test.c` needs that).
+  3. *Idle matcher*: a regex cache entry keeps the matcher of the last
+     call that used it, reset by the new internal
+     `sxml_regex_matcher_reset` (grown backtrack stack released, last
+     search forgotten), counted in the cache's 8 MiB bound; a call that
+     finds it in use (a replacement function using the same regex)
+     makes its own, and a matcher made while the heap's limit is
+     reached first evicts the unused entries, as D308's compile does.
+     The step limit stays per call.
+  4. *Character repetition*: a greedy `x*`, `x+` or `x{n,}` whose atom
+     is one instruction reading one character (a literal, a class, a
+     case-blind literal, ".") compiles to REPEAT_CHARACTER followed by
+     that instruction, not the loop of split, save, x, progress check
+     and jump. It reads every character x matches, one step each (the
+     failing one too, within the step limit), and pushes two entries,
+     a floor and one that gives the characters back a codepoint at a
+     time (F&O 4.0, section 6.1.4: longest first). Positive assertions
+     drop both, negative ones undo them, like other choices. The
+     counting pass knows the atom from the last instruction emitted, so
+     both passes emit alike. Steps are the instructions run: a
+     repetition counts one per character where the loop counted five,
+     so a long greedy run charges fewer steps than before.
+- **Measured**, cumulatively (valgrind instructions of the whole
+  process, 10^6; release, x86_64): before / +1 / +2 / +3 / +4
+  - 20,000 matches `\w+\s\w+\s\d+`: 366.9 / 285.8 / 284.4 / 259.4 /
+    200.3 (fn:matches 13,300 to about 4,800 instructions a call);
+  - `tests/bench/regex-match.xq` (new) at 1/10: 1,019.5 / 903.0 /
+    826.6 / 742.0 / 610.2;
+  - `tests/bench/regex-reuse.xq`, first four loops at 1/10: 1,400.7 /
+    1,294.1 / 975.4 / 947.7 / 879.0;
+  - 5,000 distinct regexes compiled (`"x" || . || "[a-z]\w\d"`): 180.7
+    / 196.9 / 194.2 / 199.7 / 199.7, about 3,800 instructions more a
+    compile (the member sets; a first version that asked every class
+    of every ASCII codepoint cost 32,000).
+  Processor seconds, fastest of seven: regex-match.xq 1.069 / 0.866 /
+  0.791 / 0.822 / 0.652; regex-reuse.xq 0.250 / 0.203 / 0.169 / 0.155 /
+  0.146; 200,000 matches `\w+\s\w+\s\d+` 0.382 / 0.269 / 0.259 / 0.234
+  / 0.197 (contains: 0.127), so a match costs about 0.35 instead of 1.3
+  microseconds over the loop; with `[a-z_]+ [a-z]+ [0-9]+` 0.241 to
+  0.171. Not done: a search for a literal prefix; the start filter
+  already skips every position whose first character cannot begin a
+  match, and no benchmark here had a long literal prefix, so it was not
+  measured.
+- **Checked**: QT4 XP40 and XQ40 fn-analyze-string, fn-matches,
+  fn-matches.re, fn-matching-segments, fn-regex, fn-replace,
+  fn-tokenize and XT40 analyze-string, regex, regex-syntax,
+  regex-syntax-xslt20 with the release drivers: 4,405 pass, 10 fail, 1
+  wrong error, 1,154 not run, before and after, 0 outcomes differ case
+  by case. 14,400 random regexes (classes, case-blind, assertions,
+  quantifiers, groups) over random inputs of up to 40 characters give
+  the same fn:analyze-string output as before.
+- **Left**: reluctant repetitions (`x*?`) still run as loops; a
+  repetition of a group is a loop. A large query whose regex search
+  ends in LIMIT_EXCEEDED reports the description of an earlier error
+  that a try/catch caught (the error record is not cleared): seen with
+  the random regexes, the same before and after, outside this packet.
+- **Benchmarks**: `tests/bench/regex-reuse.xq` (D308) and
+  `tests/bench/regex-match.xq` are not yet in `tests/bench/run-bench.py`
+  (perf-5 held it); whoever next changes it registers both as
+  `("regex-reuse", ["SXML", "xquery", os.path.join(BENCH,
+  "regex-reuse.xq")])` and likewise for regex-match.
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): tagging and
