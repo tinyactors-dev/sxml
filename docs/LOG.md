@@ -4,6 +4,20 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-26
 
+- perf-16 done (D330): IR passes after perf-12. Nothing grew faster
+  than the unit; the loop passes walked it about ten times (owners in
+  five passes, a census per function in three, the demand members, a
+  walk per function in fusion), at about 130 instructions per
+  expression. Now the child walk writes in place, the demand pass walks
+  each body once (census and stream marks with the members, no owners),
+  the descendant census comes from the owned expressions, fusion finds
+  its functions in one scan. Invoice validate 1.613 to 1.413 x 10^9
+  (passes 0.502 to 0.302, demand 0.200 to 0.100), 0.246 to 0.221 s;
+  transform 1.618 to 1.506, 0.214 to 0.202 s; growth N = 256 17.50 to
+  16.35; xmark-all equal. IR text and item demands identical on EN 16931,
+  the growth series and 414,470 XT40 units; XP40, XQ40, XT40 0 outcomes
+  differ; suite 463 of 463, VEFA 1,133 of 1,133.
+
 - perf-17 done (D329): parsing XPath. A primary expression was reduced
   once per precedence level (22 hidden rules) before it reached an
   operand; grammars/xpath now inlines those choice rules (and the

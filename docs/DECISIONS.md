@@ -16872,6 +16872,93 @@ changed; the ASTs and the IR are the same.
   and deleted per text 0.005 (D12 keeps tree-sitter's memory to the
   parse step).
 
+### D330. IR passes walk each body once, with a cheaper child walk (packet perf-16)
+
+Recorded 2026-10-28, after D224, D259, D324, D325, D327. No header
+changed; the IR after the passes is the same, item demands included.
+
+- **Whom it serves**: every compile, first large ones (EN 16931's
+  Schematron and pre-compiled XSLT). **Pays**: two arrays lent across
+  functions in the demand and fusion passes, two slot arrays per function
+  in the demand pass, a byte per function in the fusion pass.
+- **Profile** (callgrind, release, base ae61af90e): `validate
+  --schematron` of one invoice 1.613 x 10^9 instructions, the IR passes
+  0.502 of it (demand 0.200, descendant 0.074, fusion 0.066, hoist 0.064,
+  filter-index 0.041, verify 0.030, global-read 0.028). No cost grew
+  faster than the unit (the growth series of D324 and D325 doubled x 1.97
+  to 2.02 per doubling before and after); the constants were large. The
+  unit (about 155,000 expressions) was walked about ten times:
+  `make_owners` in five passes (0.135), a slot census per function in the
+  descendant, demand and fusion passes (0.081), the demand members (0.061),
+  a plain walk per function in fusion (0.020). Each step of a walk went
+  through `children_of` into a local array, then `pass_array_append`, a
+  call and a memcpy of a variable size per child: `push_every_child`
+  cost about 130 instructions per expression. The demand pass also
+  allocated its member arrays per function (230 functions, the largest
+  with most of the unit) and, in each settling round, noted every
+  member's reads again, looking up native function names with strlen.
+- **Mechanism**, no new machinery (`src/ir_loop_passes.c`):
+  `push_every_child` switches on the kind and writes the indices in
+  place, room made once per expression (`pass_array_reserve`; catch
+  clauses, sort keys and merge streams in `push_listed_children`). The
+  demand pass makes no owners: a function's body is a tree (the
+  verifier's invariant), so a member is inside a STREAM or MERGE when its
+  parent is one or is inside one, as `make_owners` marked it; the census
+  is counted as the members are collected (one walk of the body), and a
+  FILTER predicate's role, which needs the whole census, is decided after
+  the walk. The descendant pass counts each function's census from the
+  expressions `owners` gives it (grouped once, D324), without a walk. The
+  fusion pass finds the functions that hold a QUANTIFIED in one scan of
+  `owners` (fusion only makes a QUANTIFIED of one). The demand pass notes
+  the reads that do not depend on a member's demand once per function
+  (all but a DOCUMENT_ORDER's), and each round adds the DOCUMENT_ORDER
+  reads to them. The other passes' walks (hoist, filter-index, the
+  owners of fusion and descendant) keep their place and gain from the
+  cheaper step. Golden file: `src/ir_verify.c`.
+- **Measured**, instructions x 10^9 (callgrind, release; base ae61af90e
+  and the change built alike from snapshots): invoice `validate
+  --schematron` 1.613 to 1.413 (-12.4 %), the IR passes 0.502 to 0.302
+  (demand 0.200 to 0.100, descendant 0.074 to 0.042, fusion 0.066 to
+  0.028, hoist 0.064 to 0.047, filter-index 0.041 to 0.027,
+  `make_owners` 0.135 for five to 0.057 for four); invoice transform
+  1.618 to 1.506 (-6.9 %), the passes 0.282 to 0.171; growth N = 8, 16,
+  32, 64, 128, 256: 0.553, 1.089, 2.163, 4.319, 8.681, 17.496 to 0.517,
+  1.018, 2.021, 4.034, 8.111, 16.355 (at N = 256 the passes 2.757 to
+  1.615, demand 0.939 to 0.442); templates of 6, 24, 96, 384 assertions
+  0.266, 0.956, 3.708, 14.719 to 0.249, 0.894, 3.467, 13.757; xmark-all
+  8.638 to 8.637. Processor seconds (interleaved, a shared 4-CPU
+  machine; fastest of 15): validate 0.246 to 0.221, transform 0.214 to
+  0.202; fastest of 5: N = 128 1.190 to 1.137, N = 256 2.461 to 2.293,
+  384 assertions 2.063 to 1.906, xmark-all 1.002 to 1.007 (noise);
+  the XT40 run (its 414,470 compiles and the transforms) 338.6 to
+  333.9. Outputs equal byte for byte on every run above.
+- **Same result**: the IR text form after the passes and a hash of every
+  expression's item demand (which the text form does not show), dumped by
+  a scratch-only hook in `sxml_ir_run_passes`, are identical on the
+  EN 16931 `.sch` compile (286 MB of text), the EN 16931 XSLT (141 MB),
+  the growth stylesheets, and all 414,470 units the XT40 suite compiles
+  (a text hash and a demand hash per unit, in order). **Conformance
+  setup**: base and change built alike (preset `release`, snapshots of
+  ae61af90e and of the change), run side by side on the same machine
+  with TZ, LANG and LC_ALL unset, from each snapshot's root: `sxml-qt4 run
+  --spec=XP40 --format=json`, `sxml-qt4 run --spec=XQ40 --format=json`,
+  `sxml-xslt-test run --format=json` (default catalogs). XP40 32,785,
+  XQ40 46,114, XT40 12,185 passed in both: 0 outcomes differ, case by
+  case (47,313, 47,313 and 13,867 cases). 7.30's suite through
+  `sxml-schematron-test run`: 463 passed, 3 failed, 43
+  implementation-defined, 5 not applicable, as before; VEFA
+  (`run_vefa.py`, the official UBL XSLT over the Invoice and CreditNote
+  unit tests) 1,133 of 1,133. debug-gcc: 459 of 459 tests pass
+  (kotlin/jvm and swift/linux skipped); clang-tidy clean on the file;
+  `tools/check-call-cycles.py` finds no cycle (D71).
+- **Left**: on the invoice the passes are 21 % of `validate
+  --schematron`: the demand pass 0.100 (its member walk with the census
+  0.061, of which growing the members array 0.014: the allocator zeroes
+  each new block), `make_owners` 0.014 in each of four passes (each pass
+  needs the owners of the unit as it starts it; keeping them across
+  passes would need every pass to give owners to what it adds), the
+  hoist pass's `analyse_let` 0.020, verify 0.030, global-read 0.028.
+
 ## Proposed
 
 - **Third-party rule sets that are not correct Schematron** (D323,

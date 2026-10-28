@@ -1659,6 +1659,13 @@ behind them (`src/ir.c`, `src/ir_loop_passes.c`).
   XT40 compile; IR text identical on EN 16931 and the XT40 units; QT4
   XP40, XQ40 and XT40 whole, base and change in the same setup: no
   outcome changes, case by case; Schematron 463 of 463, VEFA 1,133.
+**Done** 2026-10-28 (D330): the passes walked the unit about ten times
+at about 130 instructions per expression; the child walk writes in place,
+the demand pass walks each body once, the descendant census and fusion's
+choice of functions come from owners. Invoice validate 1.613 to 1.413 x
+10^9, transform 1.618 to 1.506; IR text and demands identical (EN 16931,
+growth, 414,470 XT40 units); XP40, XQ40, XT40 0 outcomes differ; suite
+463/463, VEFA 1,133/1,133.
 
 ### perf-17 Parsing XPath: each text once, and a cheaper parse (implementation)
 After D12 (tree-sitter), D232 (perf-3 for XML), D324 and D325. XPath
