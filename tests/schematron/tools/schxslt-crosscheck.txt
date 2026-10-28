@@ -1,0 +1,266 @@
+agree            schema-structure       struct-minimal-valid 
+agree            schema-structure       struct-minimal-invalid 
+agree            schema-structure       struct-other-prefix 
+agree            schema-structure       struct-default-namespace 
+agree            schema-structure       struct-foreign-markup 
+agree            schema-structure       struct-foreign-in-message 
+agree            schema-structure       struct-whitespace 
+agree            schema-structure       struct-documentation 
+agree            schema-structure       struct-rich-attributes 
+agree            schema-structure       struct-xml11 
+agree            schema-structure       struct-empty-instance-element 
+agree            static-errors          error-not-well-formed 
+agree            static-errors          error-old-namespace 
+agree            static-errors          error-no-pattern 
+disagree         static-errors          error-unknown-element -- expected an error, SchXslt ran
+disagree         static-errors          error-unqualified-attribute -- expected an error, SchXslt ran
+disagree         static-errors          error-rule-without-assertion -- expected an error, SchXslt ran
+agree            static-errors          error-rule-without-context 
+agree            static-errors          error-assert-without-test 
+agree            static-errors          error-report-without-test 
+disagree         static-errors          error-ns-after-pattern -- expected an error, SchXslt ran
+disagree         static-errors          error-two-diagnostics-sections -- expected an error, SchXslt ran
+disagree         static-errors          error-duplicate-id -- expected an error, SchXslt ran
+disagree         static-errors          error-id-not-a-name -- expected an error, SchXslt ran
+disagree         static-errors          error-flag-not-a-name -- expected an error, SchXslt ran
+agree            static-errors          error-let-name-not-a-name 
+agree            static-errors          error-ns-prefix-not-a-name 
+agree            static-errors          error-ns-without-uri 
+agree            static-errors          error-context-syntax 
+agree            static-errors          error-test-syntax 
+agree            static-errors          error-context-is-expression 
+agree            static-errors          error-undeclared-prefix 
+agree            static-errors          error-xmlns-not-used-for-queries 
+disagree         static-errors          error-phase-id-missing -- expected an error, SchXslt ran
+disagree         static-errors          error-diagnostics-in-pattern -- expected an error, SchXslt ran
+disagree         static-errors          error-dir-bad-value -- expected an error, SchXslt ran
+disagree         static-errors          error-span-without-class -- expected an error, SchXslt ran
+agree            static-errors          error-value-of-without-select 
+agree            patterns-rules         rules-empty-pattern 
+agree            patterns-rules         rules-never-fires 
+agree            patterns-rules         rules-first-match-wins 
+agree            patterns-rules         rules-specific-then-general 
+agree            patterns-rules         rules-general-then-specific 
+agree            patterns-rules         rules-passing-rule-still-blocks 
+agree            patterns-rules         rules-attribute-not-blocked 
+agree            patterns-rules         rules-predicate-position 
+agree            patterns-rules         rules-same-node-two-patterns 
+agree            patterns-rules         rules-all-assertions-evaluated 
+agree            patterns-rules         rules-many-nodes 
+agree            patterns-rules         rules-context-root 
+agree            patterns-rules         rules-context-document-element 
+agree            patterns-rules         rules-context-attribute 
+agree            patterns-rules         rules-context-comment 
+agree            patterns-rules         rules-context-processing-instruction 
+implementation-defined patterns-rules         rules-context-text -- successful-report /Q{}doc[1]/Q{}a[1]/text()[1] Text x.
+agree            patterns-rules         rules-context-union 
+agree            patterns-rules         rules-context-descendant 
+agree            patterns-rules         rules-nested-matches 
+agree            patterns-rules         rules-subject-on-assert 
+agree            patterns-rules         rules-subject-on-rule 
+agree            patterns-rules         rules-subject-assert-over-rule 
+agree            patterns-rules         rules-abstract-false 
+agree            patterns-rules         rules-dynamic-error 
+implementation-defined patterns-rules         rules-predeclared-xs-prefix -- no findings
+agree            assertions             assert-holds 
+agree            assertions             assert-fails 
+agree            assertions             report-fires 
+agree            assertions             report-silent 
+agree            assertions             assert-ebv-node-present 
+agree            assertions             assert-ebv-node-absent 
+agree            assertions             assert-ebv-empty-string 
+agree            assertions             assert-ebv-string 
+agree            assertions             assert-ebv-zero 
+agree            assertions             assert-ebv-number 
+agree            assertions             assert-ebv-nan 
+agree            assertions             assert-ebv-boolean-attribute 
+agree            assertions             assert-ebv-error 
+agree            assertions             assert-attributes-reported 
+agree            assertions             report-attributes-reported 
+agree            assertions             assert-role-not-inherited 
+agree            assertions             flag-raised-by-failure 
+agree            assertions             flag-not-raised-by-success 
+agree            assertions             flag-raised-by-rule 
+agree            assertions             flag-token-list 
+disagree         assertions             message-markup -- missing [('successful-report', '/Q{}doc[1]/Q{}item[1]', (), 'This is very much item 1.', (), ())]; unexpected [('successful-report', '/Q{}doc[1]/Q{}item[1]', (), 'This is verymuchitem 1.', (), ())]
+agree            assertions             message-empty 
+agree            assertions             message-entities 
+agree            assertions             assert-current-function 
+agree            variables              let-rule-value 
+agree            variables              let-rule-context-node 
+agree            variables              let-pattern-root-context 
+agree            variables              let-schema-root-context 
+agree            variables              let-phase 
+agree            variables              let-in-rule-context 
+agree            variables              let-pattern-in-rule-context 
+agree            variables              let-in-subject 
+disagree         variables              let-in-name-path -- missing [('successful-report', '/Q{}doc[1]/Q{}item[1]', (), 'Attribute n.', (), ())]; unexpected [('successful-report', '/Q{}doc[1]/Q{}item[1]', (), 'Attribute 1.', (), ())]
+agree            variables              let-order-in-rule 
+agree            variables              let-rule-uses-global 
+agree            variables              let-forward-reference 
+agree            variables              let-undefined 
+agree            variables              let-duplicate-in-rule 
+agree            variables              let-duplicate-in-schema 
+agree            variables              let-duplicate-in-pattern 
+disagree         variables              let-rule-shadows-schema -- expected an error, SchXslt ran
+disagree         variables              let-rule-shadows-pattern -- expected an error, SchXslt ran
+agree            variables              let-pattern-shadows-schema 
+agree            variables              let-phase-shadows-schema 
+disagree         variables              let-same-name-two-patterns -- expected findings, SchXslt failed in compile: SCHXSLT/compile/templates.xsl:145:37: error:E0003: Compilation aborted: It is an error for a variable to be multiply defined who
+disagree         variables              let-pattern-not-visible-elsewhere -- expected an error, SchXslt ran
+agree            variables              let-same-name-two-rules 
+agree            variables              let-element-content 
+agree            variables              let-value-is-sequence 
+agree            variables              let-value-is-node 
+agree            abstract-patterns      abstract-basic 
+agree            abstract-patterns      abstract-two-instances 
+agree            abstract-patterns      abstract-instance-first 
+agree            abstract-patterns      abstract-not-instantiated 
+disagree         abstract-patterns      abstract-param-in-value-of-and-name -- missing [('successful-report', '/Q{}doc[1]/Q{}item[1]', (), 'Has code = A7.', (), ())]; unexpected [('successful-report', '/Q{}doc[1]/Q{}item[1]', (), 'Has A7 = A7.', (), ())]
+disagree         abstract-patterns      abstract-param-in-subject -- expected findings, SchXslt failed in validate: abstract-patterns/.crosscheck-abstract-param-in-subject.xsl:124:84: err:XPST0008: the variable is not declared
+disagree         abstract-patterns      abstract-param-in-let -- missing [('failed-assert', '/Q{}doc[1]/Q{}table[1]/Q{}row[2]', (), 'One part, not 0.', (), ())]; unexpected [('failed-assert', '/Q{}doc[1]/Q{}table[1]/Q{}row[1]', (), 'One part, not .', (), ()), ('failed-assert', '/Q{}doc[1]/Q{}table[1]/Q{}row[2]', (), 'One part, not .', (), ())]
+agree            abstract-patterns      abstract-pattern-let 
+agree            abstract-patterns      abstract-param-not-in-text 
+agree            abstract-patterns      abstract-param-in-string-literal 
+agree            abstract-patterns      abstract-param-prefix-both 
+disagree         abstract-patterns      abstract-param-prefix-variable -- missing [('successful-report', '/Q{}doc[1]/Q{}line[1]', (), 'Ten.', (), ())]
+agree            abstract-patterns      abstract-dollar-variable 
+agree            abstract-patterns      abstract-param-value-expression 
+implementation-defined abstract-patterns      abstract-param-value-references-param -- successful-report /Q{}doc[1]/Q{}item[1] One.
+agree            abstract-patterns      abstract-in-phase 
+agree            abstract-patterns      abstract-param-missing 
+disagree         abstract-patterns      abstract-param-duplicate -- expected an error, SchXslt ran
+disagree         abstract-patterns      abstract-without-id -- expected an error, SchXslt ran
+disagree         abstract-patterns      abstract-with-is-a -- expected an error, SchXslt ran
+disagree         abstract-patterns      abstract-instance-with-rule -- expected an error, SchXslt ran
+disagree         abstract-patterns      abstract-instance-with-let -- expected an error, SchXslt ran
+agree            abstract-patterns      abstract-is-a-unknown 
+agree            abstract-patterns      abstract-is-a-concrete 
+agree            abstract-rules         extends-basic 
+agree            abstract-rules         extends-abstract-does-not-fire 
+agree            abstract-rules         extends-with-own-assertions 
+agree            abstract-rules         extends-nested 
+agree            abstract-rules         extends-sees-rule-variables 
+agree            abstract-rules         extends-abstract-variables 
+agree            abstract-rules         extends-subject 
+agree            abstract-rules         extends-two-rules 
+implementation-defined abstract-rules         extends-other-pattern -- failed-assert /Q{}doc[1]/Q{}item[2] Has n.
+agree            abstract-rules         extends-unknown 
+agree            abstract-rules         extends-concrete-rule 
+disagree         abstract-rules         extends-abstract-with-context -- expected an error, SchXslt ran
+disagree         abstract-rules         extends-abstract-without-id -- expected an error, SchXslt ran
+disagree         abstract-rules         extends-rule-and-href -- expected an error, SchXslt ran
+disagree         abstract-rules         extends-neither -- expected an error, SchXslt ran
+agree            abstract-rules         extends-cycle 
+agree            inclusion              include-pattern 
+agree            inclusion              include-fragment 
+agree            inclusion              include-rule 
+agree            inclusion              include-assertion 
+agree            inclusion              include-diagnostic 
+agree            inclusion              include-nested 
+agree            inclusion              include-twice 
+agree            inclusion              include-missing 
+agree            inclusion              include-not-well-formed 
+disagree         inclusion              include-wrong-place -- expected an error, SchXslt ran
+disagree         inclusion              include-missing-fragment -- expected an error, SchXslt ran
+disagree         inclusion              include-base-uri -- missing [('successful-report', '/Q{}doc[1]', (), 'Codes from the included directory.', (), ())]
+agree            inclusion              extends-href-rule 
+agree            inclusion              extends-href-fragment 
+disagree         inclusion              extends-href-wrong-kind -- expected an error, SchXslt ran
+agree            inclusion              extends-href-missing 
+disagree         inclusion              extends-href-base-uri -- missing [('successful-report', '/Q{}doc[1]', (), 'Codes from the extended directory.', (), ())]
+agree            phases                 phase-named 
+agree            phases                 phase-named-two-patterns 
+agree            phases                 phase-pattern-in-two-phases 
+agree            phases                 phase-all 
+agree            phases                 phase-default-attribute 
+agree            phases                 phase-default-explicit 
+agree            phases                 phase-default-without-attribute 
+agree            phases                 phase-none-no-default 
+disagree         phases                 phase-selects-nothing -- expected findings, SchXslt failed in compile: SCHXSLT/pipeline-for-svrl.xsl: err:XTTE0780: the result of a stylesheet function does not match its as type (XSLT 4.0, 10.3.3)
+agree            phases                 phase-unknown-requested 
+agree            phases                 phase-active-unknown 
+agree            phases                 phase-default-unknown 
+disagree         phases                 phase-reserved-name -- expected an error, SchXslt ran
+agree            phases                 phase-variable-per-phase 
+agree            phases                 phase-active-text-ignored 
+agree            diagnostics-properties diagnostic-basic 
+agree            diagnostics-properties diagnostic-several-languages 
+agree            diagnostics-properties diagnostic-dynamic 
+agree            diagnostics-properties diagnostic-rule-variable 
+disagree         diagnostics-properties diagnostic-on-report -- missing [('successful-report', '/Q{}doc[1]/Q{}item[1]', (), 'One.', (('one', 'note', None, 'A note about one.'),), ())]; unexpected [('successful-report', '/Q{}doc[1]/Q{}item[1]', (), 'One.', (('one', None, None, 'A note about one.'),), ())]
+agree            diagnostics-properties diagnostic-not-when-passing 
+agree            diagnostics-properties diagnostic-unreferenced 
+disagree         diagnostics-properties diagnostic-unknown -- expected an error, SchXslt ran
+agree            diagnostics-properties property-basic 
+agree            diagnostics-properties property-dynamic 
+agree            diagnostics-properties property-copy-of 
+agree            diagnostics-properties property-unknown 
+agree            diagnostics-properties diagnostic-and-property 
+agree            name-value-of          name-context 
+disagree         name-value-of          name-path-element -- missing [('successful-report', '/Q{}doc[1]/Q{}order[1]', (), 'First child: customer.', (), ())]; unexpected [('successful-report', '/Q{}doc[1]/Q{}order[1]', (), 'First child: Ann.', (), ())]
+disagree         name-value-of          name-path-attribute -- missing [('successful-report', '/Q{}doc[1]/Q{}item[2]', (), 'Attribute n.', (), ())]; unexpected [('successful-report', '/Q{}doc[1]/Q{}item[2]', (), 'Attribute 2.', (), ())]
+disagree         name-value-of          name-prefixed -- missing [('successful-report', '/Q{}doc[1]/Q{urn:example:vocabulary}entry[1]', (), 'Element x:entry, attribute x:code.', (), ())]; unexpected [('successful-report', '/Q{}doc[1]/Q{urn:example:vocabulary}entry[1]', (), 'Element x:entry, attribute 1.', (), ())]
+agree            name-value-of          name-attribute-context 
+agree            name-value-of          value-of-attribute 
+agree            name-value-of          value-of-element 
+agree            name-value-of          value-of-computed 
+agree            name-value-of          value-of-empty 
+disagree         name-value-of          value-of-several-items -- expected an error, SchXslt ran
+disagree         name-value-of          value-of-subject-context -- missing [('failed-assert', '/Q{}doc[1]/Q{}order[1]/Q{}total[1]', (), 'The total is positive, not 0.', (), ())]; unexpected [('failed-assert', '/Q{}doc[1]/Q{}order[1]/Q{}total[1]', (), 'The order is positive, not 0.', (), ())]
+disagree         name-value-of          value-of-rule-subject-context -- missing [('failed-assert', '/Q{}doc[1]/Q{}order[1]/@ref', (), 'The ref has four characters, not "ABC".', (), ())]; unexpected [('failed-assert', '/Q{}doc[1]/Q{}order[1]/@ref', (), 'The order has four characters, not "".', (), ())]
+agree            name-value-of          value-of-variable 
+agree            name-value-of          value-of-in-emph 
+agree            name-value-of          value-of-select-syntax 
+agree            name-value-of          name-path-syntax 
+agree            group                  group-versus-pattern 
+agree            severity-role-flag     role-literal 
+agree            query-bindings         binding-xslt2 
+agree            query-bindings         binding-xslt3 
+not applicable   query-bindings         binding-xpath2 -- needs xpath2
+not applicable   query-bindings         binding-xpath3 -- needs xpath3
+not applicable   query-bindings         binding-xpath31 -- needs xpath31
+agree            query-bindings         binding-upper-case 
+not applicable   query-bindings         binding-mixed-case -- needs xpath31
+agree            query-bindings         binding-unknown 
+not applicable   query-bindings         binding-default -- needs xslt
+not applicable   query-bindings         binding-xslt -- needs xslt
+not applicable   query-bindings         binding-xslt-version-sensitive -- needs xslt
+agree            query-bindings         binding-xslt3-function 
+agree            query-bindings         binding-xslt2-function 
+agree            query-bindings         binding-xslt3-key 
+agree            query-bindings         binding-xslt3-include 
+agree            query-bindings         binding-xslt3-maps 
+not applicable   query-bindings         binding-xpath2-no-maps -- needs xpath2
+not applicable   query-bindings         binding-xpath31-no-user-functions -- needs xpath31
+not applicable   query-bindings         binding-xpath31-relative-context -- needs xpath31
+not applicable   query-bindings         binding-xpath3-absolute-context -- needs xpath3
+not applicable   query-bindings         binding-xpath31-expression-context -- needs xpath31
+not applicable   query-bindings         binding-xpath31-root-context -- needs xpath31
+agree            query-bindings         binding-xslt2-no-backwards-compatibility 
+implementation-defined query-bindings         binding-xslt3-text-value-template -- successful-report /Q{}doc[1]/Q{}item[2] Value {@n}.
+agree            documents              documents-basic 
+agree            documents              documents-and-instance 
+agree            documents              documents-several 
+agree            documents              documents-from-instance 
+agree            documents              documents-relative-to-instance 
+agree            documents              documents-schema-variable 
+disagree         documents              documents-pattern-variable -- expected an error, SchXslt ran
+agree            documents              documents-missing 
+agree            documents              documents-empty 
+agree            documents              documents-abstract-parameter 
+agree            documents              documents-in-abstract-pattern 
+agree            svrl                   svrl-root 
+agree            svrl                   svrl-active-patterns 
+disagree         svrl                   svrl-fired-rules -- SVRL assertions false: ["every $r in //svrl:fired-rule[@id = 'items'] satisfies ($r/@context = 'item' and $r/@role = 'item-rule' and $r/@flag = 'item-seen' and $r/@name = 'Items')"]
+agree            svrl                   svrl-failed-assert 
+agree            svrl                   svrl-successful-report 
+agree            svrl                   svrl-phase 
+agree            svrl                   svrl-title 
+agree            svrl                   svrl-ns-prefix 
+agree            svrl                   svrl-diagnostic-reference 
+agree            svrl                   svrl-diagnostic-language 
+agree            svrl                   svrl-property-reference 
+disagree         svrl                   svrl-subordinate-document -- SVRL assertions false: ["//svrl:fired-rule[ends-with(@document, 'svrl-subordinate-document/sub.xml')]"]
+agree            svrl                   svrl-language-fixup 
+agree 198, disagree 49, implementation-defined 5, not applicable 13

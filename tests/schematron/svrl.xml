@@ -217,8 +217,8 @@
       <findings>
         <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]">
           <message>Not two.</message>
-          <diagnostic ref="d-en" xml:lang="en">Two is not allowed.</diagnostic>
-          <diagnostic ref="d-de" xml:lang="de">Zwei ist nicht erlaubt.</diagnostic>
+          <diagnostic ref="d-en" lang="en">Two is not allowed.</diagnostic>
+          <diagnostic ref="d-de" lang="de">Zwei ist nicht erlaubt.</diagnostic>
         </finding>
       </findings>
       <assert-svrl>//svrl:diagnostic-reference[@diagnostic = 'd-de']/svrl:text[lang('de')]</assert-svrl>

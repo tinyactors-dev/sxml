@@ -333,6 +333,22 @@
     </result>
   </test-case>
 
+  <test-case name="phase-when-not-subordinate" since="2025">
+    <description>when is evaluated for the instance only, never for a subordinate document of an active pattern.</description>
+    <spec clause="5.5.22"/>
+    <spec clause="5.4.12"/>
+    <schema file="phase-when-not-subordinate.sch"/>
+    <instance file="phase-when-not-subordinate.xml"/>
+    <phase>#ANY</phase>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[3]">
+          <message>Local three.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
   <test-case name="phase-from" since="2025">
     <description>from restricts the phase's patterns to the subset of the document it selects.</description>
     <spec clause="5.5.7"/>

@@ -40,8 +40,8 @@
       <findings>
         <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[3]">
           <message>Below three.</message>
-          <diagnostic ref="d-en" xml:lang="en">The value is too large.</diagnostic>
-          <diagnostic ref="d-de" xml:lang="de">Der Wert ist zu gross.</diagnostic>
+          <diagnostic ref="d-en" lang="en">The value is too large.</diagnostic>
+          <diagnostic ref="d-de" lang="de">Der Wert ist zu gross.</diagnostic>
         </finding>
       </findings>
     </result>

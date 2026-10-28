@@ -319,6 +319,36 @@
     </result>
   </test-case>
 
+  <test-case name="binding-xpath3-absolute-context" since="2020">
+    <description>Under xpath3 an absolute rule context selects the same nodes whatever it is evaluated against.</description>
+    <spec clause="Annex-K"/>
+    <dependency type="query-binding" value="xpath3"/>
+    <schema file="binding-xpath3-absolute-context.sch"/>
+    <instance file="binding-xpath3-absolute-context.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[3]">
+          <message>Three.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="binding-xpath31-expression-context" since="2020">
+    <description>Under xpath31 a rule context may be an expression that is not an XSLT pattern but selects the same nodes from any start: (//item)[1].</description>
+    <spec clause="Annex-L"/>
+    <dependency type="query-binding" value="xpath31"/>
+    <schema file="binding-xpath31-expression-context.sch"/>
+    <instance file="binding-xpath31-expression-context.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]">
+          <message>The first item.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
   <test-case name="binding-xpath31-root-context" since="2020">
     <description>The xpath bindings list elements, attributes, comments and processing instructions as rule contexts, not the document node.</description>
     <spec clause="Annex-L"/>

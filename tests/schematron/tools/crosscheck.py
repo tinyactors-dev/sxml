@@ -68,7 +68,7 @@ def expected_findings(result, compare_lang):
         attributes = {name: finding.get(name) for name in ("id", "role", "flag", "severity", "document")}
         diagnostics = []
         for diagnostic in finding.findall(Q + "diagnostic"):
-            lang = diagnostic.get(XML_LANG) if compare_lang else None
+            lang = diagnostic.get("lang") if compare_lang else None
             diagnostics.append((diagnostic.get("ref"), diagnostic.get("role"), lang,
                                 normalize(diagnostic.text)))
         properties = [(p.get("ref"), p.get("role"), p.get("scheme"), normalize(p.text))
@@ -207,7 +207,7 @@ def main():
             schema = os.path.join(set_directory, case.find(Q + "schema").get("file"))
             instance = os.path.join(set_directory, case.find(Q + "instance").get("file"))
             result = case.find(Q + "result")
-            compare_lang = any(d.get(XML_LANG) for d in result.iter(Q + "diagnostic"))
+            compare_lang = any(d.get("lang") for d in result.iter(Q + "diagnostic"))
             # The compiled stylesheet sits beside the schema, so that relative
             # URIs in its queries resolve as they would against the schema.
             compiled = os.path.join(os.path.dirname(schema), ".crosscheck-" + name + ".xsl")
@@ -224,7 +224,10 @@ def main():
             failed = code != 0
             if os.path.exists(compiled):
                 os.remove(compiled)
-            outcome = ("failed in %s: %s" % (stage, normalize(error.decode(errors="replace"))[:200])
+            message = error.decode(errors="replace")
+            message = message.replace(suite + os.sep, "").replace(
+                os.path.dirname(os.path.abspath(arguments.schxslt)) + os.sep, "SCHXSLT/")
+            outcome = ("failed in %s: %s" % (stage, normalize(message)[:200])
                        if failed else "ran")
             verdict, detail = "agree", ""
             unsupported = [b for b in bindings if b not in SCHXSLT_BINDINGS]

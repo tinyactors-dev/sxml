@@ -1,0 +1,860 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<coverage xmlns="urn:sxml:schematron-test-suite">
+  <description>The normative requirements of ISO/IEC 19757-3:2025, clauses 3 to 7 and the normative annexes (A, B, C, H to N), paraphrased, with the cases that cover each. Annex D is informative; its items are listed because 6.3 refers to it.</description>
+  <requirement id="d-3.2" clause="3.2" kind="definition">
+    <text>An abstract rule does not fire by itself.</text>
+    <test set="abstract-rules" case="extends-abstract-does-not-fire"/>
+    <test set="abstract-rules" case="extends-basic"/>
+  </requirement>
+  <requirement id="d-3.3" clause="3.3" kind="definition">
+    <text>Only the patterns of the active phase are used.</text>
+    <test set="phases" case="phase-named"/>
+    <test set="phases" case="phase-selects-nothing"/>
+  </requirement>
+  <requirement id="d-3.13" clause="3.13" kind="definition">
+    <text>Patterns have no defined order; pattern and group are patterns.</text>
+    <test set="patterns-rules" case="rules-same-node-two-patterns"/>
+    <test set="group" case="group-and-pattern"/>
+    <test set="patterns-rules" case="rules-empty-pattern"/>
+  </requirement>
+  <requirement id="d-3.14" clause="3.14" kind="definition">
+    <text>A pattern may belong to several phases; #ALL, #ANY, #DEFAULT are reserved.</text>
+    <test set="phases" case="phase-pattern-in-two-phases"/>
+    <test set="phases" case="phase-reserved-name"/>
+  </requirement>
+  <requirement id="d-3.20" clause="3.20" kind="definition">
+    <text>A rule context matches a node not matched by a lexically earlier rule of the same pattern.</text>
+    <test set="patterns-rules" case="rules-first-match-wins"/>
+    <test set="patterns-rules" case="rules-specific-then-general"/>
+    <test set="patterns-rules" case="rules-general-then-specific"/>
+    <test set="patterns-rules" case="rules-passing-rule-still-blocks"/>
+    <test set="patterns-rules" case="rules-attribute-not-blocked"/>
+    <test set="patterns-rules" case="rules-predicate-position"/>
+  </requirement>
+  <requirement id="d-3.21" clause="3.21" kind="definition">
+    <text>The subject is the node a finding is about.</text>
+    <test set="patterns-rules" case="rules-subject-on-assert"/>
+    <test set="patterns-rules" case="rules-subject-on-rule"/>
+  </requirement>
+  <requirement id="d-3.22" clause="3.22" kind="definition">
+    <text>Valid means every assertion test of the fired rules of active patterns passes.</text>
+    <test set="schema-structure" case="struct-minimal-valid"/>
+    <test set="schema-structure" case="struct-empty-instance-element"/>
+    <test set="phases" case="phase-selects-nothing"/>
+  </requirement>
+  <requirement id="d-3.23" clause="3.23" kind="definition">
+    <text>A variable is scoped to the schema, phase, pattern or rule that declares it.</text>
+    <test set="variables" case="let-same-name-two-patterns"/>
+    <test set="variables" case="let-pattern-not-visible-elsewhere"/>
+    <test set="variables" case="let-same-name-two-rules"/>
+  </requirement>
+  <requirement id="r-5.1" clause="5.1" kind="shall">
+    <text>A schema is a well-formed XML 1.0 or 1.1 document.</text>
+    <test set="static-errors" case="error-not-well-formed"/>
+    <test set="schema-structure" case="struct-xml11"/>
+  </requirement>
+  <requirement id="r-5.2-ns" clause="5.2" kind="definition">
+    <text>Schematron elements are in the Schematron namespace; the prefix is free.</text>
+    <test set="schema-structure" case="struct-other-prefix"/>
+    <test set="schema-structure" case="struct-default-namespace"/>
+    <test set="static-errors" case="error-old-namespace"/>
+  </requirement>
+  <requirement id="r-5.2-foreign" clause="5.2" kind="definition">
+    <text>Foreign attributes and foreign child elements are allowed anywhere.</text>
+    <test set="schema-structure" case="struct-foreign-markup"/>
+    <test set="schema-structure" case="struct-foreign-in-message"/>
+    <test set="static-errors" case="error-unqualified-attribute"/>
+  </requirement>
+  <requirement id="r-5.3-children" clause="5.3" kind="definition">
+    <text>Whitespace-only text children are allowed anywhere.</text>
+    <test set="schema-structure" case="struct-whitespace"/>
+  </requirement>
+  <requirement id="r-5.3-strip" clause="5.3" kind="should">
+    <text>Strip whitespace around attribute values; collapse whitespace in text.</text>
+    <test set="schema-structure" case="struct-whitespace"/>
+    <test set="assertions" case="message-markup"/>
+  </requirement>
+  <requirement id="r-5.4.1" clause="5.4.1" kind="shall">
+    <text>A schema follows the grammar of Annex A.</text>
+    <test set="static-errors" case="error-no-pattern"/>
+    <test set="static-errors" case="error-unknown-element"/>
+    <test set="static-errors" case="error-rule-without-assertion"/>
+  </requirement>
+  <requirement id="r-5.4.2" clause="5.4.2" kind="definition">
+    <text>active names a pattern active in the phase.</text>
+    <test set="phases" case="phase-named"/>
+    <test set="phases" case="phase-active-text-ignored"/>
+    <test set="phases" case="phase-active-unknown"/>
+    <test set="phases" case="phase-active-group"/>
+  </requirement>
+  <requirement id="r-5.4.3-test" clause="5.4.3" kind="definition">
+    <text>An assert succeeds when its test is true; it needs a test.</text>
+    <test set="assertions" case="assert-holds"/>
+    <test set="assertions" case="assert-fails"/>
+    <test set="static-errors" case="error-assert-without-test"/>
+  </requirement>
+  <requirement id="r-5.4.3-statement" clause="5.4.3" kind="shall">
+    <text>The natural-language assertion is a positive statement.</text>
+    <untested>A matter of the schema's prose; no processor can check it.</untested>
+  </requirement>
+  <requirement id="r-5.4.3-attributes" clause="5.4.3" kind="definition">
+    <text>flag, role, subject, severity, icon, see, fpi on assert.</text>
+    <test set="assertions" case="assert-attributes-reported"/>
+    <test set="schema-structure" case="struct-rich-attributes"/>
+    <test set="patterns-rules" case="rules-subject-on-assert"/>
+    <test set="severity-role-flag" case="severity-static"/>
+  </requirement>
+  <requirement id="r-5.4.4-either" clause="5.4.4" kind="shall">
+    <text>extends has an href or a rule attribute, not both.</text>
+    <test set="abstract-rules" case="extends-rule-and-href"/>
+    <test set="abstract-rules" case="extends-neither"/>
+  </requirement>
+  <requirement id="r-5.4.4-rule" clause="5.4.4" kind="shall">
+    <text>extends rule names an abstract rule, whose assertions the rule uses.</text>
+    <test set="abstract-rules" case="extends-basic"/>
+    <test set="abstract-rules" case="extends-with-own-assertions"/>
+    <test set="abstract-rules" case="extends-nested"/>
+    <test set="abstract-rules" case="extends-unknown"/>
+    <test set="abstract-rules" case="extends-concrete-rule"/>
+    <test set="abstract-rules" case="extends-sees-rule-variables"/>
+    <test set="abstract-rules" case="extends-abstract-variables"/>
+    <test set="abstract-rules" case="extends-in-group"/>
+    <test set="abstract-rules" case="extends-subject"/>
+    <test set="abstract-rules" case="extends-two-rules"/>
+  </requirement>
+  <requirement id="r-5.4.4-href" clause="5.4.4" kind="shall">
+    <text>extends href names an element of the parent's kind (schema, library, rule) whose contents replace it.</text>
+    <test set="inclusion" case="extends-href-rule"/>
+    <test set="inclusion" case="extends-href-fragment"/>
+    <test set="inclusion" case="extends-href-wrong-kind"/>
+    <test set="inclusion" case="extends-href-schema"/>
+    <test set="inclusion" case="library-extends"/>
+  </requirement>
+  <requirement id="r-5.4.4-errors" clause="5.4.4" kind="shall">
+    <text>Errors while processing extends are reported; termination is implementation-defined.</text>
+    <test set="inclusion" case="extends-href-missing"/>
+    <test set="abstract-rules" case="extends-cycle"/>
+  </requirement>
+  <requirement id="r-5.4.5" clause="5.4.5" kind="shall">
+    <text>group is a pattern without if-then-else: every matching rule fires.</text>
+    <test set="group" case="group-all-rules-fire"/>
+    <test set="group" case="group-versus-pattern"/>
+    <test set="group" case="group-and-pattern"/>
+    <test set="group" case="group-attribute-and-element"/>
+    <test set="group" case="group-empty"/>
+    <test set="group" case="group-only"/>
+    <test set="group" case="group-variables"/>
+  </requirement>
+  <requirement id="r-5.4.6-target" clause="5.4.6" kind="shall">
+    <text>include href names a well-formed document or one of its elements.</text>
+    <test set="inclusion" case="include-pattern"/>
+    <test set="inclusion" case="include-fragment"/>
+    <test set="inclusion" case="include-missing"/>
+    <test set="inclusion" case="include-not-well-formed"/>
+    <test set="inclusion" case="include-missing-fragment"/>
+  </requirement>
+  <requirement id="r-5.4.6-place" clause="5.4.6" kind="shall">
+    <text>The included element replaces include and must be allowed there.</text>
+    <test set="inclusion" case="include-rule"/>
+    <test set="inclusion" case="include-assertion"/>
+    <test set="inclusion" case="include-diagnostic"/>
+    <test set="inclusion" case="include-nested"/>
+    <test set="inclusion" case="include-twice"/>
+    <test set="inclusion" case="include-wrong-place"/>
+    <test set="inclusion" case="include-library-element"/>
+  </requirement>
+  <requirement id="r-5.4.6-errors" clause="5.4.6" kind="shall">
+    <text>Errors while processing include are reported; termination is implementation-defined.</text>
+    <test set="inclusion" case="include-missing"/>
+    <test set="inclusion" case="include-not-well-formed"/>
+  </requirement>
+  <requirement id="r-5.4.7-context" clause="5.4.7" kind="definition">
+    <text>A rule variable uses the rule's context; others use the document root.</text>
+    <test set="variables" case="let-rule-context-node"/>
+    <test set="variables" case="let-pattern-root-context"/>
+    <test set="variables" case="let-schema-root-context"/>
+    <test set="variables" case="let-phase"/>
+    <test set="phases" case="phase-variable-per-phase"/>
+  </requirement>
+  <requirement id="r-5.4.7-value" clause="5.4.7" kind="definition">
+    <text>value is an expression; without it the element content is the value.</text>
+    <test set="variables" case="let-rule-value"/>
+    <test set="variables" case="let-element-content"/>
+    <test set="variables" case="let-value-is-sequence"/>
+    <test set="variables" case="let-value-is-node"/>
+  </requirement>
+  <requirement id="r-5.4.7-as" clause="5.4.7" kind="shall">
+    <text>The binding decides whether and how as is processed.</text>
+    <test set="variables" case="let-as-integer"/>
+    <test set="variables" case="let-as-promotion"/>
+    <test set="variables" case="let-as-untyped"/>
+    <test set="variables" case="let-as-sequence"/>
+    <test set="variables" case="let-as-mismatch"/>
+  </requirement>
+  <requirement id="r-5.4.7-undefined" clause="5.4.7" kind="definition">
+    <text>Referencing an undefined variable is an error.</text>
+    <test set="variables" case="let-undefined"/>
+    <test set="variables" case="let-forward-reference"/>
+    <test set="variables" case="let-pattern-not-visible-elsewhere"/>
+  </requirement>
+  <requirement id="r-5.4.7-duplicate" clause="5.4.7" kind="definition">
+    <text>A variable defined more than once over schema, phase, pattern and rule is an error.</text>
+    <test set="variables" case="let-duplicate-in-rule"/>
+    <test set="variables" case="let-duplicate-in-schema"/>
+    <test set="variables" case="let-duplicate-in-pattern"/>
+    <test set="variables" case="let-rule-shadows-schema"/>
+    <test set="variables" case="let-rule-shadows-pattern"/>
+    <test set="variables" case="let-pattern-shadows-schema"/>
+    <test set="variables" case="let-phase-shadows-schema"/>
+  </requirement>
+  <requirement id="r-5.4.7-use" clause="5.4.7" kind="definition">
+    <text>Variables are substituted into tests and other expressions of the rule.</text>
+    <test set="variables" case="let-in-rule-context"/>
+    <test set="variables" case="let-pattern-in-rule-context"/>
+    <test set="variables" case="let-in-subject"/>
+    <test set="variables" case="let-in-name-path"/>
+    <test set="name-value-of" case="value-of-variable"/>
+  </requirement>
+  <requirement id="r-5.4.8" clause="5.4.8" kind="definition">
+    <text>A library holds external declarations brought in by extends.</text>
+    <test set="inclusion" case="library-extends"/>
+    <test set="inclusion" case="library-phase"/>
+    <test set="inclusion" case="include-library-element"/>
+  </requirement>
+  <requirement id="r-5.4.9" clause="5.4.9" kind="definition">
+    <text>name gives the name of the node path selects, else of the context node.</text>
+    <test set="name-value-of" case="name-context"/>
+    <test set="name-value-of" case="name-path-element"/>
+    <test set="name-value-of" case="name-path-attribute"/>
+    <test set="name-value-of" case="name-prefixed"/>
+    <test set="name-value-of" case="name-attribute-context"/>
+  </requirement>
+  <requirement id="r-5.4.10-prefix" clause="5.4.10" kind="definition">
+    <text>ns prefix is a name without a colon; uri is required.</text>
+    <test set="static-errors" case="error-ns-prefix-not-a-name"/>
+    <test set="static-errors" case="error-ns-without-uri"/>
+  </requirement>
+  <requirement id="r-5.4.10-queries" clause="5.4.10" kind="shall">
+    <text>Prefixes in queries are defined by ns, not by XML namespace declarations.</text>
+    <test set="name-value-of" case="name-prefixed"/>
+    <test set="static-errors" case="error-undeclared-prefix"/>
+    <test set="static-errors" case="error-xmlns-not-used-for-queries"/>
+    <test set="patterns-rules" case="rules-predeclared-xs-prefix"/>
+  </requirement>
+  <requirement id="r-5.4.11-schema" clause="5.4.11" kind="definition">
+    <text>A schema param needs a value; its value may be overridden by the user.</text>
+    <test set="variables" case="param-schema"/>
+    <test set="variables" case="param-schema-override"/>
+    <test set="variables" case="param-schema-without-value"/>
+  </requirement>
+  <requirement id="r-5.4.11-instance" clause="5.4.11" kind="definition">
+    <text>An instance's param value, else the abstract param's, is used; no value is an error.</text>
+    <test set="abstract-patterns" case="abstract-param-default"/>
+    <test set="abstract-patterns" case="abstract-param-default-overridden"/>
+    <test set="abstract-patterns" case="abstract-param-without-any-value"/>
+  </requirement>
+  <requirement id="r-5.4.11-correspond" clause="5.4.11" kind="shall">
+    <text>Parameter names and number correspond between abstract and concrete patterns.</text>
+    <test set="abstract-patterns" case="abstract-param-missing"/>
+    <test set="abstract-patterns" case="abstract-param-not-declared"/>
+  </requirement>
+  <requirement id="r-5.4.11-distinct" clause="5.4.11" kind="shall">
+    <text>Parameter names are distinct within a pattern or schema.</text>
+    <test set="abstract-patterns" case="abstract-param-duplicate"/>
+    <test set="variables" case="param-schema-duplicate"/>
+  </requirement>
+  <requirement id="r-5.4.12-documents" clause="5.4.12" kind="definition">
+    <text>documents is evaluated at the instance root; the pattern is sought only in those documents, resolved against the instance's base URI.</text>
+    <test set="documents" case="documents-basic"/>
+    <test set="documents" case="documents-and-instance"/>
+    <test set="documents" case="documents-several"/>
+    <test set="documents" case="documents-from-instance"/>
+    <test set="documents" case="documents-relative-to-instance"/>
+    <test set="documents" case="documents-empty"/>
+    <test set="documents" case="documents-group"/>
+  </requirement>
+  <requirement id="r-5.4.12-scope" clause="5.4.12" kind="definition">
+    <text>Pattern variables are not in scope in documents.</text>
+    <test set="documents" case="documents-pattern-variable"/>
+    <test set="documents" case="documents-schema-variable"/>
+  </requirement>
+  <requirement id="r-5.4.12-retrieval" clause="5.4.12" kind="shall">
+    <text>A document that cannot be retrieved is reported.</text>
+    <test set="documents" case="documents-missing"/>
+  </requirement>
+  <requirement id="r-5.4.12-deterministic" clause="5.4.12" kind="should">
+    <text>Subordinate documents are retrieved deterministically.</text>
+    <untested>Not observable in a single run.</untested>
+  </requirement>
+  <requirement id="r-5.4.12-abstract" clause="5.4.12" kind="shall">
+    <text>An abstract pattern has an id and no is-a.</text>
+    <test set="abstract-patterns" case="abstract-without-id"/>
+    <test set="abstract-patterns" case="abstract-with-is-a"/>
+  </requirement>
+  <requirement id="r-5.4.13-phase" clause="5.4.13" kind="definition">
+    <text>A phase names a set of active patterns; it needs an id.</text>
+    <test set="phases" case="phase-named"/>
+    <test set="phases" case="phase-named-two-patterns"/>
+    <test set="static-errors" case="error-phase-id-missing"/>
+  </requirement>
+  <requirement id="r-5.4.13-reserved" clause="5.4.13" kind="shall">
+    <text>#ALL, #ANY and #DEFAULT are not phase names; their meanings.</text>
+    <test set="phases" case="phase-all"/>
+    <test set="phases" case="phase-default-explicit"/>
+    <test set="phases" case="phase-default-without-attribute"/>
+    <test set="phases" case="phase-any-first-when"/>
+    <test set="phases" case="phase-any-none-true"/>
+    <test set="phases" case="phase-reserved-name"/>
+  </requirement>
+  <requirement id="r-5.4.14" clause="5.4.14" kind="definition">
+    <text>A report succeeds (is a finding) when its test is true.</text>
+    <test set="assertions" case="report-fires"/>
+    <test set="assertions" case="report-silent"/>
+    <test set="static-errors" case="error-report-without-test"/>
+    <test set="assertions" case="report-attributes-reported"/>
+    <test set="assertions" case="message-empty"/>
+    <test set="assertions" case="message-entities"/>
+  </requirement>
+  <requirement id="r-5.4.14-statement" clause="5.4.14" kind="shall">
+    <text>A report's text states a found pattern or a negated constraint.</text>
+    <untested>A matter of the schema's prose; no processor can check it.</untested>
+  </requirement>
+  <requirement id="r-5.4.15-context" clause="5.4.15" kind="definition">
+    <text>A rule needs a context unless it is abstract; an abstract rule has none.</text>
+    <test set="static-errors" case="error-rule-without-context"/>
+    <test set="abstract-rules" case="extends-abstract-with-context"/>
+    <test set="patterns-rules" case="rules-abstract-false"/>
+  </requirement>
+  <requirement id="r-5.4.15-never" clause="5.4.15" kind="definition">
+    <text>A rule that never fires is not an error.</text>
+    <test set="patterns-rules" case="rules-never-fires"/>
+  </requirement>
+  <requirement id="r-5.4.16" clause="5.4.16" kind="definition">
+    <text>rules holds abstract rules for use across patterns, at schema or library level.</text>
+    <test set="abstract-rules" case="extends-rules-container"/>
+    <test set="abstract-rules" case="extends-rules-two-patterns"/>
+    <test set="abstract-rules" case="extends-rules-not-abstract"/>
+    <test set="abstract-rules" case="extends-other-pattern"/>
+  </requirement>
+  <requirement id="r-5.4.17" clause="5.4.17" kind="definition">
+    <text>schema is the top element; defaultPhase names the phase used without user choice.</text>
+    <test set="schema-structure" case="struct-minimal-valid"/>
+    <test set="phases" case="phase-default-attribute"/>
+    <test set="phases" case="phase-default-unknown"/>
+    <test set="schema-structure" case="struct-documentation"/>
+    <test set="phases" case="phase-none-no-default"/>
+  </requirement>
+  <requirement id="r-5.4.18" clause="5.4.18" kind="definition">
+    <text>value-of select is evaluated in the current context and gives a string.</text>
+    <test set="name-value-of" case="value-of-attribute"/>
+    <test set="name-value-of" case="value-of-element"/>
+    <test set="name-value-of" case="value-of-computed"/>
+    <test set="name-value-of" case="value-of-empty"/>
+    <test set="static-errors" case="error-value-of-without-select"/>
+  </requirement>
+  <requirement id="r-5.5.1" clause="5.5.1" kind="shall">
+    <text>The assertion's variables are in scope in its diagnostics.</text>
+    <test set="diagnostics-properties" case="diagnostic-rule-variable"/>
+    <test set="diagnostics-properties" case="diagnostic-dynamic"/>
+  </requirement>
+  <requirement id="r-5.5.2" clause="5.5.2" kind="definition">
+    <text>diagnostics links an assertion to diagnostic elements.</text>
+    <test set="diagnostics-properties" case="diagnostic-basic"/>
+    <test set="diagnostics-properties" case="diagnostic-several-languages"/>
+    <test set="diagnostics-properties" case="diagnostic-on-report"/>
+    <test set="diagnostics-properties" case="diagnostic-unknown"/>
+    <test set="diagnostics-properties" case="diagnostic-not-when-passing"/>
+    <test set="diagnostics-properties" case="diagnostic-unreferenced"/>
+  </requirement>
+  <requirement id="r-5.5.4" clause="5.5.4" kind="definition">
+    <text>dir is text with a direction ltr or rtl.</text>
+    <test set="assertions" case="message-markup"/>
+    <test set="static-errors" case="error-dir-bad-value"/>
+  </requirement>
+  <requirement id="r-5.5.5" clause="5.5.5" kind="definition">
+    <text>emph encloses emphasized text.</text>
+    <test set="assertions" case="message-markup"/>
+    <test set="name-value-of" case="value-of-in-emph"/>
+  </requirement>
+  <requirement id="r-5.5.6" clause="5.5.6" kind="definition">
+    <text>A flag becomes true when an assertion with it fails or a rule with it fires.</text>
+    <test set="assertions" case="flag-raised-by-failure"/>
+    <test set="assertions" case="flag-not-raised-by-success"/>
+    <test set="assertions" case="flag-raised-by-rule"/>
+    <test set="assertions" case="flag-token-list"/>
+  </requirement>
+  <requirement id="r-5.5.6-dynamic" clause="5.5.6" kind="shall">
+    <text>A flag that is a variable reference is evaluated.</text>
+    <test set="severity-role-flag" case="flag-variable"/>
+    <test set="severity-role-flag" case="rule-flag-variable"/>
+    <test set="severity-role-flag" case="flag-avt"/>
+  </requirement>
+  <requirement id="r-5.5.7" clause="5.5.7" kind="shall">
+    <text>from is evaluated at the instance root and restricts rule contexts to what it selects.</text>
+    <test set="phases" case="phase-from"/>
+    <test set="phases" case="phase-from-variables"/>
+  </requirement>
+  <requirement id="r-5.5.7-subordinate" clause="5.5.7" kind="shall">
+    <text>from does not apply to subordinate documents.</text>
+    <test set="phases" case="phase-from-not-subordinate"/>
+  </requirement>
+  <requirement id="r-5.5.10" clause="5.5.10" kind="definition">
+    <text>p is documentation.</text>
+    <test set="schema-structure" case="struct-documentation"/>
+  </requirement>
+  <requirement id="r-5.5.13" clause="5.5.13" kind="shall">
+    <text>The assertion's variables are in scope in its properties.</text>
+    <test set="diagnostics-properties" case="property-dynamic"/>
+    <test set="diagnostics-properties" case="property-basic"/>
+    <test set="diagnostics-properties" case="property-copy-of"/>
+    <test set="diagnostics-properties" case="property-unknown"/>
+    <test set="diagnostics-properties" case="diagnostic-and-property"/>
+  </requirement>
+  <requirement id="r-5.5.14" clause="5.5.14" kind="definition">
+    <text>role names the function of an assertion or rule.</text>
+    <test set="assertions" case="assert-attributes-reported"/>
+    <test set="assertions" case="assert-role-not-inherited"/>
+    <test set="severity-role-flag" case="role-literal"/>
+  </requirement>
+  <requirement id="r-5.5.14-dynamic" clause="5.5.14" kind="shall">
+    <text>A role that is a variable reference is evaluated.</text>
+    <test set="severity-role-flag" case="role-variable"/>
+    <test set="severity-role-flag" case="role-phase-variable"/>
+    <test set="severity-role-flag" case="role-avt"/>
+    <test set="severity-role-flag" case="role-avt-xslt2"/>
+  </requirement>
+  <requirement id="r-5.5.15-value" clause="5.5.15" kind="shall">
+    <text>schematronEdition, where given, is 2025.</text>
+    <test set="schematron-edition" case="edition-2025"/>
+    <test set="schematron-edition" case="edition-other-value"/>
+    <test set="schematron-edition" case="edition-absent"/>
+  </requirement>
+  <requirement id="r-5.5.15-report" clause="5.5.15" kind="shall">
+    <text>The edition or its absence is reported at user option.</text>
+    <test set="schematron-edition" case="edition-reported"/>
+    <test set="svrl" case="svrl-edition"/>
+  </requirement>
+  <requirement id="r-5.5.16" clause="5.5.16" kind="definition">
+    <text>severity names an assertion's importance; fatal, error, warning, info are reserved.</text>
+    <test set="severity-role-flag" case="severity-static"/>
+    <test set="severity-role-flag" case="severity-with-role-and-flag"/>
+    <test set="svrl" case="svrl-severity"/>
+  </requirement>
+  <requirement id="r-5.5.16-dynamic" clause="5.5.16" kind="shall">
+    <text>A severity that is a variable reference is evaluated.</text>
+    <test set="severity-role-flag" case="severity-variable"/>
+    <test set="severity-role-flag" case="severity-avt"/>
+  </requirement>
+  <requirement id="r-5.5.18" clause="5.5.18" kind="definition">
+    <text>span encloses text keyed by a class.</text>
+    <test set="assertions" case="message-markup"/>
+    <test set="static-errors" case="error-span-without-class"/>
+  </requirement>
+  <requirement id="r-5.5.19" clause="5.5.19" kind="should">
+    <text>subject is evaluated in the rule's context; without it the context node is used.</text>
+    <test set="patterns-rules" case="rules-subject-on-assert"/>
+    <test set="patterns-rules" case="rules-subject-on-rule"/>
+    <test set="patterns-rules" case="rules-subject-assert-over-rule"/>
+    <test set="abstract-patterns" case="abstract-param-in-subject"/>
+  </requirement>
+  <requirement id="r-5.5.20" clause="5.5.20" kind="definition">
+    <text>title is documentation.</text>
+    <test set="schema-structure" case="struct-documentation"/>
+  </requirement>
+  <requirement id="r-5.5.21" clause="5.5.21" kind="definition">
+    <text>visit-each selects the contexts of the assertions; if empty the rule still fires.</text>
+    <test set="visit-each" case="visit-each-nodes"/>
+    <test set="visit-each" case="visit-each-empty-fires"/>
+    <test set="visit-each" case="visit-each-atomic"/>
+    <test set="visit-each" case="visit-each-variables"/>
+    <test set="visit-each" case="visit-each-syntax"/>
+    <test set="visit-each" case="visit-each-on-abstract-rule"/>
+  </requirement>
+  <requirement id="r-5.5.22" clause="5.5.22" kind="shall">
+    <text>when is evaluated at the instance root; the first true phase in schema order is active.</text>
+    <test set="phases" case="phase-any-first-when"/>
+    <test set="phases" case="phase-when-with-variable"/>
+  </requirement>
+  <requirement id="r-5.5.22-subordinate" clause="5.5.22" kind="shall">
+    <text>when does not apply to subordinate documents.</text>
+    <test set="phases" case="phase-when-not-subordinate"/>
+  </requirement>
+  <requirement id="r-6.1" clause="6.1" kind="definition">
+    <text>Validation returns valid, invalid or error, given binding, schema, instance, documents, phase and parameters.</text>
+    <test set="schema-structure" case="struct-minimal-valid"/>
+    <test set="schema-structure" case="struct-minimal-invalid"/>
+    <test set="patterns-rules" case="rules-dynamic-error"/>
+    <test set="phases" case="phase-unknown-requested"/>
+    <test set="variables" case="param-schema-override"/>
+  </requirement>
+  <requirement id="r-6.2" clause="6.2" kind="definition">
+    <text>Inclusions, abstract patterns and abstract rules are resolved, reports negated, documentation removed.</text>
+    <test set="inclusion" case="include-pattern"/>
+    <test set="abstract-patterns" case="abstract-basic"/>
+    <test set="abstract-rules" case="extends-basic"/>
+    <test set="assertions" case="report-fires"/>
+    <test set="abstract-patterns" case="abstract-param-not-in-text"/>
+  </requirement>
+  <requirement id="r-6.3-phase" clause="6.3" kind="definition">
+    <text>The phase is established first, then each active pattern is processed.</text>
+    <test set="phases" case="phase-named"/>
+    <test set="svrl" case="svrl-phase"/>
+  </requirement>
+  <requirement id="r-6.3-fire" clause="6.3" kind="definition">
+    <text>A rule of a pattern fires unless an earlier rule matched the node; in a group every rule may fire.</text>
+    <test set="patterns-rules" case="rules-first-match-wins"/>
+    <test set="patterns-rules" case="rules-attribute-not-blocked"/>
+    <test set="group" case="group-all-rules-fire"/>
+  </requirement>
+  <requirement id="r-6.3-assertions" clause="6.3" kind="definition">
+    <text>Each assertion of a fired rule is evaluated for each matched node.</text>
+    <test set="patterns-rules" case="rules-all-assertions-evaluated"/>
+    <test set="patterns-rules" case="rules-many-nodes"/>
+    <test set="patterns-rules" case="rules-nested-matches"/>
+  </requirement>
+  <requirement id="r-6.3-message-context" clause="6.3" kind="definition">
+    <text>name and value-of in a message use the assertion's subject, else the rule's subject, else the rule context.</text>
+    <test set="name-value-of" case="value-of-subject-context"/>
+    <test set="name-value-of" case="value-of-rule-subject-context"/>
+    <test set="diagnostics-properties" case="diagnostic-dynamic"/>
+  </requirement>
+  <requirement id="r-6.4-instance" clause="6.4" kind="shall">
+    <text>An instance has no rules and a param for each parameter used.</text>
+    <test set="abstract-patterns" case="abstract-instance-with-rule"/>
+    <test set="abstract-patterns" case="abstract-param-missing"/>
+    <test set="abstract-patterns" case="abstract-instance-with-let"/>
+  </requirement>
+  <requirement id="r-6.4-replace" clause="6.4" kind="definition">
+    <text>Parameter values replace the references in the abstract pattern.</text>
+    <test set="abstract-patterns" case="abstract-basic"/>
+    <test set="abstract-patterns" case="abstract-two-instances"/>
+    <test set="abstract-patterns" case="abstract-instance-first"/>
+    <test set="abstract-patterns" case="abstract-not-instantiated"/>
+    <test set="abstract-patterns" case="abstract-param-in-value-of-and-name"/>
+    <test set="abstract-patterns" case="abstract-param-in-subject"/>
+    <test set="abstract-patterns" case="abstract-param-in-let"/>
+    <test set="abstract-patterns" case="abstract-pattern-let"/>
+    <test set="abstract-patterns" case="abstract-param-value-expression"/>
+    <test set="abstract-patterns" case="abstract-param-value-references-param"/>
+    <test set="abstract-patterns" case="abstract-in-phase"/>
+    <test set="abstract-patterns" case="abstract-group"/>
+    <test set="documents" case="documents-abstract-parameter"/>
+    <test set="documents" case="documents-in-abstract-pattern"/>
+  </requirement>
+  <requirement id="r-6.5-provide" clause="6.5" kind="shall">
+    <text>A binding provides the query language, its rule-context language and the assertion test.</text>
+    <untested>A requirement on binding specifications, not on processors.</untested>
+  </requirement>
+  <requirement id="r-6.5-whitespace" clause="6.5" kind="shall">
+    <text>A binding specifies whitespace processing of queries and restrictions on names.</text>
+    <untested>A requirement on binding specifications; struct-whitespace exercises the whitespace in queries.</untested>
+  </requirement>
+  <requirement id="r-6.5-unsupported" clause="6.5" kind="shall">
+    <text>An implementation that does not support the schema's binding fails with an error.</text>
+    <test set="query-bindings" case="binding-unknown"/>
+  </requirement>
+  <requirement id="r-6.5-case" clause="6.5" kind="definition">
+    <text>Reserved binding names are matched in any mix of case.</text>
+    <test set="query-bindings" case="binding-upper-case"/>
+    <test set="query-bindings" case="binding-mixed-case"/>
+  </requirement>
+  <requirement id="r-6.5-default" clause="6.5" kind="shall">
+    <text>Without queryBinding the default binding xslt (Annex C) applies.</text>
+    <test set="query-bindings" case="binding-default"/>
+    <test set="query-bindings" case="binding-xslt"/>
+  </requirement>
+  <requirement id="r-6.5-annexes" clause="6.5" kind="shall">
+    <text>xslt2, xpath2, xslt3, xpath3, xpath31, xquery3, xquery31 follow Annexes H to N.</text>
+    <test set="query-bindings" case="binding-xslt2"/>
+    <test set="query-bindings" case="binding-xslt3"/>
+    <test set="query-bindings" case="binding-xpath2"/>
+    <test set="query-bindings" case="binding-xpath3"/>
+    <test set="query-bindings" case="binding-xpath31"/>
+    <test set="query-bindings" case="binding-xquery3"/>
+    <test set="query-bindings" case="binding-xquery31"/>
+  </requirement>
+  <requirement id="r-6.6-order" clause="6.6" kind="definition">
+    <text>Order of elements, patterns and assertions is implementation-dependent; only rules in a pattern and lets are ordered.</text>
+    <test set="patterns-rules" case="rules-same-node-two-patterns"/>
+    <test set="variables" case="let-order-in-rule"/>
+    <test set="patterns-rules" case="rules-specific-then-general"/>
+  </requirement>
+  <requirement id="r-6.6-ifthenelse" clause="6.6" kind="shall">
+    <text>Rules act as if-then-else in a pattern, not in a group.</text>
+    <test set="group" case="group-versus-pattern"/>
+    <test set="group" case="group-all-rules-fire"/>
+  </requirement>
+  <requirement id="r-6.6-let" clause="6.6" kind="definition">
+    <text>A let may use earlier variables of its rule and global variables.</text>
+    <test set="variables" case="let-order-in-rule"/>
+    <test set="variables" case="let-rule-uses-global"/>
+    <test set="variables" case="let-forward-reference"/>
+  </requirement>
+  <requirement id="r-6.6-pure" clause="6.6" kind="shall">
+    <text>Queries act as pure functions and do not change the instance.</text>
+    <untested>The standard XPath and XSLT query languages have no side effects to observe.</untested>
+  </requirement>
+  <requirement id="r-6.7" clause="6.7" kind="shall">
+    <text>Language fixup when incorporating include and extends and instantiating.</text>
+    <test set="svrl" case="svrl-language-fixup"/>
+  </requirement>
+  <requirement id="r-6.8" clause="6.8" kind="shall">
+    <text>Base URI fixup when incorporating include and extends.</text>
+    <test set="inclusion" case="include-base-uri"/>
+    <test set="inclusion" case="extends-href-base-uri"/>
+  </requirement>
+  <requirement id="r-7.1-report" clause="7.1" kind="shall">
+    <text>A simple-conformance implementation reports that a document does not conform.</text>
+    <test set="schema-structure" case="struct-minimal-invalid"/>
+    <test set="assertions" case="assert-fails"/>
+  </requirement>
+  <requirement id="r-7.1-annexes" clause="7.1" kind="shall">
+    <text>A schema conforms to Annexes A and B.</text>
+    <test set="static-errors" case="error-no-pattern"/>
+    <test set="abstract-patterns" case="abstract-is-a-unknown"/>
+    <test set="phases" case="phase-active-unknown"/>
+  </requirement>
+  <requirement id="r-7.1-valid" clause="7.1" kind="shall">
+    <text>Validity is determined for any document and schema.</text>
+    <test set="schema-structure" case="struct-minimal-valid"/>
+    <test set="schema-structure" case="struct-empty-instance-element"/>
+  </requirement>
+  <requirement id="r-7.1-incorrect" clause="7.1" kind="should">
+    <text>Incorrectness the query language establishes is reported.</text>
+    <test set="patterns-rules" case="rules-dynamic-error"/>
+    <test set="assertions" case="assert-ebv-error"/>
+  </requirement>
+  <requirement id="r-7.2-correct" clause="7.2" kind="shall">
+    <text>A full-conformance implementation determines whether a document is a correct schema.</text>
+    <test set="static-errors" case="error-context-syntax"/>
+    <test set="static-errors" case="error-test-syntax"/>
+    <test set="static-errors" case="error-context-is-expression"/>
+    <test set="name-value-of" case="value-of-select-syntax"/>
+    <test set="name-value-of" case="name-path-syntax"/>
+  </requirement>
+  <requirement id="r-7.2-variables" clause="7.2" kind="shall">
+    <text>One definition per variable name in the global and the local context.</text>
+    <test set="variables" case="let-duplicate-in-rule"/>
+    <test set="variables" case="let-duplicate-in-schema"/>
+    <test set="variables" case="let-rule-shadows-schema"/>
+  </requirement>
+  <requirement id="r-7.2-names" clause="7.2" kind="shall">
+    <text>flag, id, name and prefix are well-formed names.</text>
+    <test set="static-errors" case="error-id-not-a-name"/>
+    <test set="static-errors" case="error-flag-not-a-name"/>
+    <test set="static-errors" case="error-let-name-not-a-name"/>
+    <test set="static-errors" case="error-ns-prefix-not-a-name"/>
+  </requirement>
+  <requirement id="r-A-order" clause="Annex-A" kind="shall">
+    <text>The schema's children come in the grammar's order.</text>
+    <test set="static-errors" case="error-ns-after-pattern"/>
+  </requirement>
+  <requirement id="r-A-once" clause="Annex-A" kind="shall">
+    <text>At most one diagnostics and one properties element.</text>
+    <test set="static-errors" case="error-two-diagnostics-sections"/>
+  </requirement>
+  <requirement id="r-A-ids" clause="Annex-A" kind="shall">
+    <text>id is of type ID: unique, and a well-formed name.</text>
+    <test set="static-errors" case="error-duplicate-id"/>
+    <test set="static-errors" case="error-id-not-a-name"/>
+  </requirement>
+  <requirement id="r-A-idrefs" clause="Annex-A" kind="shall">
+    <text>diagnostics, properties, defaultPhase, active pattern and extends rule refer to existing ids.</text>
+    <test set="diagnostics-properties" case="diagnostic-unknown"/>
+    <test set="diagnostics-properties" case="property-unknown"/>
+    <test set="phases" case="phase-default-unknown"/>
+    <test set="phases" case="phase-active-unknown"/>
+  </requirement>
+  <requirement id="r-A-containment" clause="Annex-A" kind="shall">
+    <text>Elements appear only where the grammar allows them.</text>
+    <test set="static-errors" case="error-diagnostics-in-pattern"/>
+    <test set="abstract-patterns" case="abstract-instance-with-let"/>
+    <test set="abstract-rules" case="extends-rules-not-abstract"/>
+    <test set="visit-each" case="visit-each-on-abstract-rule"/>
+  </requirement>
+  <requirement id="r-A-required" clause="Annex-A" kind="shall">
+    <text>Required attributes are present (test, context, select, class, uri, id).</text>
+    <test set="static-errors" case="error-assert-without-test"/>
+    <test set="static-errors" case="error-report-without-test"/>
+    <test set="static-errors" case="error-value-of-without-select"/>
+    <test set="static-errors" case="error-span-without-class"/>
+    <test set="static-errors" case="error-ns-without-uri"/>
+    <test set="abstract-rules" case="extends-abstract-without-id"/>
+  </requirement>
+  <requirement id="r-B-active" clause="Annex-B" kind="shall">
+    <text>active/@pattern matches a pattern id.</text>
+    <test set="phases" case="phase-active-unknown"/>
+  </requirement>
+  <requirement id="r-B-extends" clause="Annex-B" kind="shall">
+    <text>extends/@rule matches an abstract rule.</text>
+    <test set="abstract-rules" case="extends-unknown"/>
+    <test set="abstract-rules" case="extends-concrete-rule"/>
+  </requirement>
+  <requirement id="r-B-clash" clause="Annex-B" kind="shall">
+    <text>A variable and an abstract pattern parameter do not share a name.</text>
+    <test set="abstract-patterns" case="abstract-let-param-clash"/>
+  </requirement>
+  <requirement id="r-B-param-name" clause="Annex-B" kind="shall">
+    <text>Parameter names are unique in their scope.</text>
+    <test set="abstract-patterns" case="abstract-param-duplicate"/>
+    <test set="variables" case="param-schema-duplicate"/>
+  </requirement>
+  <requirement id="r-B-is-a" clause="Annex-B" kind="shall">
+    <text>is-a matches an abstract pattern's id.</text>
+    <test set="abstract-patterns" case="abstract-is-a-unknown"/>
+    <test set="abstract-patterns" case="abstract-is-a-concrete"/>
+  </requirement>
+  <requirement id="r-B-param-names-match" clause="Annex-B" kind="shall">
+    <text>An instance's param names match the abstract pattern's params.</text>
+    <test set="abstract-patterns" case="abstract-param-not-declared"/>
+  </requirement>
+  <requirement id="r-B-param-value" clause="Annex-B" kind="shall">
+    <text>An instance param has a value, its own or the abstract's.</text>
+    <test set="abstract-patterns" case="abstract-param-without-any-value"/>
+    <test set="abstract-patterns" case="abstract-param-default"/>
+  </requirement>
+  <requirement id="r-B-schema-param" clause="Annex-B" kind="shall">
+    <text>A schema param has a value.</text>
+    <test set="variables" case="param-schema-without-value"/>
+  </requirement>
+  <requirement id="r-C-binding" clause="Annex-C" kind="shall">
+    <text>No queryBinding or xslt (any case) uses the XSLT 1.0 binding.</text>
+    <test set="query-bindings" case="binding-default"/>
+    <test set="query-bindings" case="binding-xslt"/>
+    <test set="query-bindings" case="binding-xslt-version-sensitive"/>
+  </requirement>
+  <requirement id="r-C-text" clause="Annex-C" kind="may">
+    <text>Text nodes as context at user option.</text>
+    <test set="patterns-rules" case="rules-context-text"/>
+  </requirement>
+  <requirement id="r-C-dollar" clause="Annex-C" kind="shall">
+    <text>$ followed by a parameter name marks a parameter; otherwise it is not one.</text>
+    <test set="abstract-patterns" case="abstract-dollar-variable"/>
+  </requirement>
+  <requirement id="r-C-xslt" clause="Annex-C" kind="may">
+    <text>XSLT import, include, key before patterns; copy-of in property; AVTs for flag, role, severity.</text>
+    <untested>Covered for the xslt2 and xslt3 bindings; the XSLT 1.0 binding is read as each implementation chooses (binding-xslt-version-sensitive).</untested>
+  </requirement>
+  <requirement id="r-HJ-language" clause="Annex-J" kind="shall">
+    <text>The query language is XPath 2.0 or 3.x as in XSLT, without backwards compatibility.</text>
+    <test set="query-bindings" case="binding-xslt3-maps"/>
+    <test set="query-bindings" case="binding-xslt2-no-backwards-compatibility"/>
+    <test set="assertions" case="assert-current-function"/>
+  </requirement>
+  <requirement id="r-HJ-context" clause="Annex-J" kind="shall">
+    <text>The rule context is an XSLT pattern: root, elements, attributes, comments, PIs; text nodes at user option.</text>
+    <test set="patterns-rules" case="rules-context-root"/>
+    <test set="patterns-rules" case="rules-context-attribute"/>
+    <test set="patterns-rules" case="rules-context-comment"/>
+    <test set="patterns-rules" case="rules-context-processing-instruction"/>
+    <test set="patterns-rules" case="rules-context-text"/>
+    <test set="patterns-rules" case="rules-context-union"/>
+    <test set="patterns-rules" case="rules-context-descendant"/>
+    <test set="static-errors" case="error-context-is-expression"/>
+    <test set="patterns-rules" case="rules-context-document-element"/>
+  </requirement>
+  <requirement id="r-HJ-test" clause="Annex-J" kind="shall">
+    <text>The test is reduced to its effective Boolean value.</text>
+    <test set="assertions" case="assert-ebv-node-present"/>
+    <test set="assertions" case="assert-ebv-node-absent"/>
+    <test set="assertions" case="assert-ebv-empty-string"/>
+    <test set="assertions" case="assert-ebv-string"/>
+    <test set="assertions" case="assert-ebv-zero"/>
+    <test set="assertions" case="assert-ebv-number"/>
+    <test set="assertions" case="assert-ebv-nan"/>
+    <test set="assertions" case="assert-ebv-boolean-attribute"/>
+    <test set="assertions" case="assert-ebv-error"/>
+  </requirement>
+  <requirement id="r-HJ-name" clause="Annex-J" kind="shall">
+    <text>name uses fn:node-name of what path selects.</text>
+    <test set="name-value-of" case="name-path-element"/>
+    <test set="name-value-of" case="name-path-attribute"/>
+    <test set="name-value-of" case="name-prefixed"/>
+  </requirement>
+  <requirement id="r-HJ-value-of" clause="Annex-J" kind="shall">
+    <text>value-of uses fn:string of what select returns.</text>
+    <test set="name-value-of" case="value-of-attribute"/>
+    <test set="name-value-of" case="value-of-several-items"/>
+    <test set="name-value-of" case="value-of-empty"/>
+  </requirement>
+  <requirement id="r-HJ-let" clause="Annex-J" kind="shall">
+    <text>A let is an XSLT variable; as follows XSLT's rules.</text>
+    <test set="variables" case="let-value-is-sequence"/>
+    <test set="variables" case="let-as-promotion"/>
+    <test set="variables" case="let-as-mismatch"/>
+  </requirement>
+  <requirement id="r-HJ-documents" clause="Annex-J" kind="shall">
+    <text>documents returns strings read with document().</text>
+    <test set="documents" case="documents-several"/>
+  </requirement>
+  <requirement id="r-HJ-params" clause="Annex-J" kind="shall">
+    <text>$name marks a parameter only when name is an in-scope parameter.</text>
+    <test set="abstract-patterns" case="abstract-param-prefix-both"/>
+    <test set="abstract-patterns" case="abstract-param-prefix-variable"/>
+    <test set="abstract-patterns" case="abstract-param-in-string-literal"/>
+    <test set="abstract-patterns" case="abstract-dollar-variable"/>
+  </requirement>
+  <requirement id="r-HJ-xslt" clause="Annex-J" kind="may">
+    <text>xsl:function, key, include, import, import-schema, use-package, accumulator before patterns.</text>
+    <test set="query-bindings" case="binding-xslt3-function"/>
+    <test set="query-bindings" case="binding-xslt2-function"/>
+    <test set="query-bindings" case="binding-xslt3-key"/>
+    <test set="query-bindings" case="binding-xslt3-include"/>
+  </requirement>
+  <requirement id="r-HJ-copy-of" clause="Annex-J" kind="may">
+    <text>xsl:copy-of without children inside property.</text>
+    <test set="diagnostics-properties" case="property-copy-of"/>
+  </requirement>
+  <requirement id="r-HJ-avt" clause="Annex-J" kind="may">
+    <text>Attribute value templates for flag, role and severity.</text>
+    <test set="severity-role-flag" case="role-avt"/>
+    <test set="severity-role-flag" case="flag-avt"/>
+    <test set="severity-role-flag" case="severity-avt"/>
+    <test set="severity-role-flag" case="role-avt-xslt2"/>
+  </requirement>
+  <requirement id="r-J-tvt" clause="Annex-J" kind="implementation-defined">
+    <text>Text value templates in messages.</text>
+    <test set="query-bindings" case="binding-xslt3-text-value-template"/>
+  </requirement>
+  <requirement id="r-IKL-language" clause="Annex-L" kind="shall">
+    <text>The query language is XPath of that version, with no user-written functions.</text>
+    <test set="query-bindings" case="binding-xpath2-no-maps"/>
+    <test set="query-bindings" case="binding-xpath31-no-user-functions"/>
+  </requirement>
+  <requirement id="r-IKL-context" clause="Annex-L" kind="shall">
+    <text>The rule context is an XPath expression selecting elements, attributes, comments, PIs.</text>
+    <test set="query-bindings" case="binding-xpath3-absolute-context"/>
+    <test set="query-bindings" case="binding-xpath31-expression-context"/>
+    <test set="query-bindings" case="binding-xpath31-relative-context"/>
+    <test set="query-bindings" case="binding-xpath31-root-context"/>
+  </requirement>
+  <requirement id="r-MN-context" clause="Annex-N" kind="shall">
+    <text>Rule contexts are evaluated from the document node; text nodes are allowed.</text>
+    <test set="query-bindings" case="binding-xquery-context-from-root"/>
+    <test set="query-bindings" case="binding-xquery-text-context"/>
+  </requirement>
+  <requirement id="r-MN-prolog" clause="Annex-N" kind="implementation-defined">
+    <text>How XQuery declarations and imports are included.</text>
+    <untested>Implementation-defined; nothing to compare.</untested>
+  </requirement>
+  <requirement id="r-D-structure" clause="Annex-D" kind="may">
+    <text>SVRL: schematron-output, active-pattern, fired-rule, failed-assert, successful-report.</text>
+    <test set="svrl" case="svrl-root"/>
+    <test set="svrl" case="svrl-active-patterns"/>
+    <test set="svrl" case="svrl-fired-rules"/>
+    <test set="svrl" case="svrl-failed-assert"/>
+    <test set="svrl" case="svrl-successful-report"/>
+  </requirement>
+  <requirement id="r-D-mapping" clause="Annex-D" kind="may">
+    <text>The mapping of Table D.1: phase, title, ns, diagnostics, properties, groups, documents.</text>
+    <test set="svrl" case="svrl-phase"/>
+    <test set="svrl" case="svrl-title"/>
+    <test set="svrl" case="svrl-ns-prefix"/>
+    <test set="svrl" case="svrl-diagnostic-reference"/>
+    <test set="svrl" case="svrl-diagnostic-language"/>
+    <test set="svrl" case="svrl-property-reference"/>
+    <test set="svrl" case="svrl-subordinate-document"/>
+    <test set="svrl" case="svrl-group"/>
+    <test set="svrl" case="svrl-visit-each"/>
+  </requirement>
+</coverage>

@@ -5,5 +5,5 @@
       <sch:assert test="item">Has items.</sch:assert>
     </sch:rule>
   </sch:pattern>
-  <sch:include href="include-not-well-formed/broken.sch"/>
+  <sch:include href="include-not-well-formed/broken.sch.txt"/>
 </sch:schema>
