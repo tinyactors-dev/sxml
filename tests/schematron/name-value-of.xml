@@ -238,4 +238,124 @@
       <schema-error clause="7.2"/>
     </result>
   </test-case>
+  <test-case name="name-default-namespace" since="2020">
+    <description>name of an element in the instance's default namespace: its name has no prefix.</description>
+    <spec clause="5.4.9"/>
+    <spec clause="Annex-J"/>
+    <schema file="name-default-namespace.sch"/>
+    <instance file="name-default-namespace.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{urn:example:d}doc[1]/Q{urn:example:d}item[1]">
+          <message>item two.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="name-path-empty" since="2020">
+    <description>name with a path that selects nothing.</description>
+    <spec clause="5.4.9"/>
+    <spec clause="Annex-J"/>
+    <schema file="name-path-empty.sch"/>
+    <instance file="name-path-empty.xml"/>
+    <result>
+      <implementation-defined clause="Annex-J 5.4.9">fn:node-name of an empty sequence is empty, and the binding asks for a string: the message is Name: . (one successful-report at /Q{}doc[1]/Q{}item[2]) or the processor raises an error.</implementation-defined>
+    </result>
+  </test-case>
+
+  <test-case name="name-path-several" since="2020">
+    <description>name with a path that selects three elements: fn:node-name accepts at most one node.</description>
+    <spec clause="5.4.9"/>
+    <spec clause="Annex-J"/>
+    <schema file="name-path-several.sch"/>
+    <instance file="name-path-several.xml"/>
+    <result>
+      <any-of>
+        <schema-error clause="Annex-J"/>
+        <error clause="Annex-J"/>
+      </any-of>
+    </result>
+  </test-case>
+
+  <test-case name="name-path-processing-instruction" since="2020">
+    <description>name of a processing instruction is its target (fn:node-name).</description>
+    <spec clause="5.4.9"/>
+    <spec clause="Annex-J"/>
+    <schema file="name-path-processing-instruction.sch"/>
+    <instance file="name-path-processing-instruction.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]">
+          <message>Instruction target.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="name-dynamic-error" since="2020">
+    <description>A dynamic error in a name path of a finding's message.</description>
+    <spec clause="5.4.9"/>
+    <spec clause="6.1"/>
+    <schema file="name-dynamic-error.sch"/>
+    <instance file="name-dynamic-error.xml"/>
+    <result>
+      <error clause="6.1"/>
+    </result>
+  </test-case>
+
+  <test-case name="value-of-dynamic-error" since="2020">
+    <description>A dynamic error in a value-of of a finding's message.</description>
+    <spec clause="5.4.18"/>
+    <spec clause="6.1"/>
+    <schema file="value-of-dynamic-error.sch"/>
+    <instance file="value-of-dynamic-error.xml"/>
+    <result>
+      <error clause="6.1"/>
+    </result>
+  </test-case>
+
+  <test-case name="value-of-mixed-content" since="2020">
+    <description>value-of of an element with mixed content is the concatenation of its text.</description>
+    <spec clause="5.4.18"/>
+    <spec clause="Annex-J"/>
+    <schema file="value-of-mixed-content.sch"/>
+    <instance file="value-of-mixed-content.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}p[1]">
+          <message>Text: Hello big world.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="value-of-order" since="2020">
+    <description>value-of keeps the order the query gives (here reversed).</description>
+    <spec clause="5.4.18"/>
+    <schema file="value-of-order.sch"/>
+    <instance file="value-of-order.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]">
+          <message>Order: 3,2,1.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="value-of-namespaced-attribute" since="2020">
+    <description>value-of of an attribute in a namespace, with a prefix that differs from the instance's.</description>
+    <spec clause="5.4.18"/>
+    <spec clause="5.4.10"/>
+    <schema file="value-of-namespaced-attribute.sch"/>
+    <instance file="value-of-namespaced-attribute.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[1]">
+          <message>Code A1.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
 </test-set>
