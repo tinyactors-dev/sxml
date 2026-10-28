@@ -145,7 +145,7 @@ them at once:
 $ sxml validate --schematron=broken.sch invoice.xml
 broken.sch:8:7: schematron:syntax: an element of the Schematron namespace that the grammar does not define (Annex A)
 broken.sch:7:5: schematron:syntax: a rule has no assert, report, extends or p (Annex A)
-broken.sch:4:20: err:XTSE0340: the text is not a pattern (XSLT 4.0, 6.3.1)
+broken.sch:4:30: err:XTSE0340: the pattern is incomplete (XSLT 4.0, 6.3.1)
 broken.sch:5:27: err:XPST0003: The text is not valid XPath 4.0 syntax (XPath 4.0, Appendix A)
 ```
 
