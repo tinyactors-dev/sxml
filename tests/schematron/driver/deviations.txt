@@ -1,0 +1,6 @@
+# Deliberate deviations from the suite (packet 7.28, gate 6): a case named
+# here that fails is counted as a deviation, not a failure. One line each:
+# CASE RECORD REASON.
+edition-other-value D315 any schematronEdition is accepted and reported (8b, best-effort validation of other editions), where 5.5.15 requires 2025
+binding-xpath2-no-maps D315 xpath2 is read by the XPath 4.0 front end (version 2.0 changes nothing a 4.0 processor does, D197), so a map constructor is accepted
+error-context-is-expression D315 a rule context that is no pattern but an expression is wrapped as an expression rule context under every binding (the owner's amendment 3a), so count(item) fails at validation (XTTE0570), not at compile time

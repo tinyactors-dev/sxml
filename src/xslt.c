@@ -710,6 +710,9 @@ sxml_status sxml_xslt_stylesheet_create_from_ast(sxml_allocator allocator,
         sxml_stylesheet_release(&compiled);
         return status;
     }
+    if (request->reads_source_locations) {
+        sxml_ir_unit_set_reads_source_locations(compiled.unit);
+    }
     sxml_xslt_stylesheet *new_stylesheet = sxml_stylesheet_place(
         (sxml_memory_view){.bytes = memory, .byte_count = sizeof(sxml_xslt_stylesheet)},
         &compiled);

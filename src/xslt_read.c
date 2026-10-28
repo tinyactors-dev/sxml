@@ -7371,7 +7371,9 @@ sxml_status sxml_xslt_read_declaration(const sxml_xslt_declaration_request *requ
                                             .next_child = {.index = 0},
                                             .node = request->parent,
                                             .rule = NULL,
-                                            .child_context = SXML_CHILD_CONTEXT_DECLARATIONS,
+                                            .child_context = request->reads_instruction
+                                                                 ? SXML_CHILD_CONTEXT_SEQUENCE_CONSTRUCTOR
+                                                                 : SXML_CHILD_CONTEXT_DECLARATIONS,
                                             .static_context = request->parent_static_context,
                                             .preserves_space = false,
                                             .is_forwards_compatible = false,

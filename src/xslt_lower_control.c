@@ -5298,6 +5298,8 @@ static sxml_status build_dependency_graph(const sxml_xslt_lowering *lowering,
     if (status != SXML_STATUS_OK || graph->edge_count == 0) {
         return status;
     }
+    /* A failed allocation leaves memory as it was: not first_edges. */
+    memory = NULL;
     status = sxml_xpath_lowerer_allocate_scratch(
         lowerer,
         (sxml_xpath_lowering_scratch_request){.element_count = graph->edge_count,

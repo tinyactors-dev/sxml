@@ -160,6 +160,13 @@ if(SXML_BUILD_TESTS AND SXML_BUILD_APPS
     add_subdirectory(tests/xsd/driver)
 endif()
 
+# The Schematron test driver (packet 7.28, D323): the suite of
+# tests/schematron and EN 16931's unit tests.
+if(SXML_BUILD_TESTS
+   AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/schematron/driver/CMakeLists.txt")
+    add_subdirectory(tests/schematron/driver)
+endif()
+
 # The iXML community test suite (packet 7.18, D215): run with the sxml
 # command, so it comes after apps/.
 if(SXML_BUILD_TESTS AND SXML_BUILD_APPS

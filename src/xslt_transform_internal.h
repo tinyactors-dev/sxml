@@ -111,6 +111,9 @@ typedef struct sxml_xslt_ast_stylesheet_request {
        stylesheet function or global variable (D320); the null sink stops
        at the first. Borrowed for the call. */
     sxml_schema_report_sink report_sink;
+    /* The compiled unit reads source locations (D318): documents parsed
+       for it keep theirs, as a Schematron validation's reports need. */
+    bool reads_source_locations;
 } sxml_xslt_ast_stylesheet_request;
 
 /*

@@ -132,11 +132,16 @@ typedef struct sxml_xslt_declaration_request {
     sxml_error_record *error_record;
     /* NULL, or as sxml_xslt_read_request.error_collector. */
     sxml_xslt_error_collector *error_collector;
+    /* The element is read as an instruction of parent's sequence
+       constructor (an xsl:copy-of in a Schematron property, a literal
+       result element in a let's content), not as a declaration. */
+    bool reads_instruction;
 } sxml_xslt_declaration_request;
 
 /*
  * Reads request->element into request->ast as a declaration under
- * request->parent (flag DECLARATION, appended to the declaration list).
+ * request->parent (flag DECLARATION, appended to the declaration list), or
+ * with reads_instruction as an instruction appended to parent's children.
  * An element the reader would not take as a declaration there is read as
  * it would be in a stylesheet (a data element, or XTSE0010). Returns the
  * reader's statuses; SXML_STATUS_INVALID_ARGUMENT for a sealed AST, a
