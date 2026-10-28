@@ -1500,6 +1500,35 @@ QUANTIFIED; AST kinds kept per grammar symbol. Invoice 2.680 to 2.076
 x 10^9 instructions; growth N = 128 57.1 to 6.2; IR text identical;
 XP40, XQ40, XT40 0 outcomes differ.
 
+### perf-13 Compiling XSLT and Schematron: the component graph, value templates, the Schematron front end (implementation)
+After D320, D323 and D324 (perf-12, whose Proposed entry names the first
+two). With perf-12, validating one EN 16931 invoice with the
+pre-compiled stylesheet takes 0.29–0.37 s (2.08 x 10^9 instructions);
+validating it with `sxml validate --schematron` from the `.sch` sources
+takes 0.59–0.73 s, the Schematron compile 0.53–0.59 s (D323).
+- **Known costs**: XSLT's component graph grows with the square of the
+  stylesheet (`add_named_edges` in `src/xslt_lower_control.c`,
+  `sxml_xslt_package_bind`); value templates are parsed even when they
+  contain no "{" (6.3 % of the invoice).
+- **Mechanism**: profile first (callgrind on both invoice runs and on
+  perf-12's growth series); make the component graph linear in the
+  stylesheet with the same result; a value template without "{" or "}"
+  is its text (XSLT 4.0, 5.6.1); then the largest costs the profile of
+  the Schematron compile shows in the files below (reading the `.sch`,
+  expanding abstract patterns, building the AST). The IR text form after
+  the passes stays identical; compiled Schematron gives the same
+  findings.
+- **Owns**: `src/xslt_lower*.c`, `src/xslt_read.c`, `src/xslt_package*`
+  and their internal headers, `src/schematron*`, `tests/xslt_*`,
+  `tests/schematron_test.c`, `tests/bench/`.
+- **Done when**: each change measured before and after (instructions and
+  seconds) in a D-record and the commit messages, on both invoice runs,
+  the growth series, xmark-all and the XT40 stylesheets' compile; IR text
+  identical on EN 16931 and the XT40 units; Schematron: the 7.30 suite as
+  in D323 and EN 16931 UBL 1,133 of 1,133 from the sources; QT4 XP40,
+  XQ40 and XT40 whole, base and change in the same setup: no outcome
+  changes, case by case.
+
 ### 7.21 Fast Invisible XML (book, tests, implementation)
 After D215 (7.18: the Earley parser, right recursion quadratic, every
 item a step). The owner: high performance; book first, then

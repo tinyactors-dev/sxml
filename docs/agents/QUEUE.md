@@ -85,9 +85,19 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 - perf-11 done (D322): about 1 %; the rest of atomization's cost is in
   the atomic cell (allocation 4.3 %, a second UTF-8 check 2.5 %, type
   lookup 1 %), proposed in D322.
-- perf-12 (compiling large stylesheets) runs beside 7.28: validating one
-  EN 16931 invoice from the command line is 79 % stylesheet compile, and
-  two IR passes look quadratic.
+- 7.28 done (D320, D323): Schematron natively, 7.30's suite 463 of 463
+  applicable (3 listed deviations), EN 16931 UBL 1,133 of 1,133 from the
+  `.sch` sources, compile 0.53–0.59 s. Waiting for the owner (Proposed in
+  DECISIONS): EN 16931 CII (a parameter named twice) and XRechnung
+  (pattern variables used schema-wide, `let` after assertions, an
+  undeclared `xs` prefix) are not correct Schematron and are refused.
+  Left: with `--schema`, findings run on the validated copy and lose
+  line numbers; a dynamic error in an expression rule context has no
+  location; the JavaScript API was not built (no WASI SDK).
+- perf-12 done (D324): compile passes linear; invoice 2.68 to 2.08 x 10^9
+  instructions (0.29–0.37 s).
+- perf-13 (XSLT component graph, value templates, the Schematron
+  compile) runs now.
 - Conformance baselines differ by setup: 7.29 (D318) measured XP40
   32,815, XQ40 46,158, XT40 12,283 before and after; perf-8, perf-10 and
   fix-4 measured 32,785, 46,114, 12,185 before and after on the same
