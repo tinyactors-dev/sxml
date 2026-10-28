@@ -15816,6 +15816,53 @@ public header changed.
   item by item). Multi-item values coerced to atomic types still match
   every item before, during and after the engine.
 
+### D317. A Schematron conformance suite of sxml's own (packet 7.30)
+Recorded 2026-10-28, after D313 and D315 (as revised and accepted).
+- **What**: `tests/schematron/`, 332 cases in 18 test sets for
+  ISO/IEC 19757-3:2025, in a catalog format of its own (namespace
+  `urn:sxml:schematron-test-suite`, golden file `third_party/qt4tests`),
+  with `catalog.xsd`, `coverage.xml` (139 requirements of clauses 3 to 7
+  and the normative annexes, 131 with cases, 8 with the reason none can
+  test them) and a README. Every schema, instance and expected result was
+  written for the suite; the standard's text is cited by clause only.
+- **Expected results are neutral**: a multiset of findings (kind, subject
+  as `fn:path`, id, role, flag, severity, subordinate document, message
+  after whitespace normalization, diagnostics and properties), the set of
+  raised flags, optional XPath assertions over SVRL; or `schema-error`,
+  `error` (6.1's third outcome) or `implementation-defined`, each with
+  its clause. No sxml API or error code appears. `since="2025"` marks the
+  67 cases that need fourth-edition constructs; query-binding and feature
+  dependencies mark what a processor may lack.
+- **Readings taken** (the README lists them): whole-token parameter
+  references; Annex B's param-names-match only for abstract patterns that
+  declare parameters (read literally it fails every third-edition
+  instance); one definition per variable name over schema, phase, pattern
+  and rule, pattern variables scoped to the pattern; the subject as
+  message context (6.3); `value-of` through `fn:string()` (several items
+  are an error); relative rule contexts under the xpath bindings
+  implementation-defined (the orchestrator's direction), as is how the
+  default `xslt` binding is read when a result depends on it.
+- **Cross-check**: the 265 cases with `since="2020"` ran through SchXslt
+  1.10.1 on a release build of sxml (`tools/crosscheck.py`, report in
+  `tools/schxslt-crosscheck.txt`): 198 agree, 5 implementation-defined,
+  13 need a binding SchXslt lacks (xslt, xpath*), 49 disagree, each with
+  the clause that decides it (27 unchecked static errors; SchXslt's
+  global pattern variables, shadowing, `name path` as a value, rule
+  context for messages, prefix placeholders, no placeholders in
+  `subject`, no base URI fixup, empty phases, joined `value-of`, and three
+  SVRL omissions). The 67 2025-only cases wait for the independent check.
+- **Against D315**: two points differ from the standard as the suite
+  reads it: `value-of` as `xsl:value-of` joins several items, where
+  Annexes H to N define it with `fn:string()` (`value-of-several-items`);
+  any `schematronEdition` is accepted (D315, 8b), where 5.5.15 requires
+  2025 (`edition-other-value`). Reading no queryBinding and `xslt` as 4.0
+  is D313's choice; the suite keeps those cases dependent on the `xslt`
+  binding or implementation-defined.
+- **Existing suites**: schematron/schematron-conformance (49 cases, 2016
+  edition, no licence: not reused), SchXslt's unit tests (MIT, not
+  reused), XQS's BaseX tests (Apache-2.0, not reused); none covers the
+  2025 edition.
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): tagging and

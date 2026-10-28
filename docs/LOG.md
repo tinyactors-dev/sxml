@@ -4,6 +4,15 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-26
 
+- 7.30 (D317): `tests/schematron/`, a Schematron conformance suite of
+  sxml's own for ISO/IEC 19757-3:2025: 332 cases in 18 test sets,
+  neutral expected results, `catalog.xsd`, `coverage.xml` (139
+  requirements, 131 with cases), README. SchXslt cross-check of the 265
+  third-edition cases: 198 agree, 49 disagree (each explained by its
+  clause), 5 implementation-defined, 13 need a binding SchXslt lacks.
+  The 67 2025-only cases wait for the independent check; then 7.28's
+  gates can name the suite.
+
 - 7.27 revised (D315), for the owner's review: the design brought in
   line with ISO/IEC 19757-3:2025 and the owner's review. Compile errors
   go to a report sink (XSD's, reused); no queryBinding, `xslt` and
