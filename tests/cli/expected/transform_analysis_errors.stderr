@@ -1,0 +1,3 @@
+xslt/analysis-errors.xsl:7:20: err:XPST0008: the variable is not declared
+xslt/analysis-errors.xsl:10:20: err:XPST0017: no function with this name and arity is known
+xslt/analysis-errors.xsl:14:20: err:XPST0008: the variable is not declared

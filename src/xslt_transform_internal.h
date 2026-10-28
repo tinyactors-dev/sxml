@@ -103,8 +103,14 @@ typedef struct sxml_xslt_ast_stylesheet_request {
        the call fails. */
     sxml_xslt_ast *ast;
     /* Receives the first error, located where the AST's nodes and
-       expressions say; may be NULL. */
+       expressions say; may be NULL. A location that names a module URI
+       of the AST, which goes with it, names source_name instead. */
     sxml_error_record *error_record;
+    sxml_byte_view source_name;
+    /* Receives every static and type error, one per template rule,
+       stylesheet function or global variable (D320); the null sink stops
+       at the first. Borrowed for the call. */
+    sxml_schema_report_sink report_sink;
 } sxml_xslt_ast_stylesheet_request;
 
 /*

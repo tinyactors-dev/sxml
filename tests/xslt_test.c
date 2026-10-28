@@ -1081,6 +1081,102 @@ static void test_errors_name_their_module(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
 }
 
+/* ------------------------------------------------------ The report sink */
+
+/* Counts the reports a compilation gives and keeps the first code and
+   line of each (D320). */
+typedef struct compile_reports {
+    size_t report_count;
+    char codes[8][16];
+    uint32_t lines[8];
+} compile_reports;
+
+static sxml_status receive_compile_report(void *state, const sxml_schema_report *report) {
+    compile_reports *reports = state;
+    if (reports->report_count < 8) {
+        const size_t byte_count = report->code.local_name.byte_count < 15
+                                      ? report->code.local_name.byte_count
+                                      : 15;
+        memcpy(reports->codes[reports->report_count], report->code.local_name.bytes, byte_count);
+        reports->codes[reports->report_count][byte_count] = '\0';
+        reports->lines[reports->report_count] = report->location.line_number;
+    }
+    reports->report_count += 1;
+    return SXML_STATUS_OK;
+}
+
+static const sxml_schema_report_sink_operations compile_report_operations = {
+    .receive = receive_compile_report};
+
+/* A stylesheet with errors in several declarations: every one goes to the
+   sink, in the order found (reading first, then static analysis of each
+   template rule, function and global variable); the null sink gives the
+   first as it always did. */
+static void test_report_sink_receives_every_compile_error(sxml_test_state *state) {
+    fixture test_fixture;
+    SXML_TEST_EXPECT(state, fixture_create(0, &test_fixture) == SXML_STATUS_OK);
+    static const char syntax_errors[] =
+        "<xsl:stylesheet version='3.0' xmlns:xsl='http://www.w3.org/1999/XSL/Transform'>\n"
+        "<xsl:template match='a['/>\n"
+        "<xsl:template match='b' bogus='1'><xsl:value-of select='1 +'/></xsl:template>\n"
+        "<xsl:template match='c'><xsl:value-of select='2 *'/></xsl:template>\n"
+        "</xsl:stylesheet>";
+    static const char analysis_errors[] =
+        "<xsl:stylesheet version='3.0' xmlns:xsl='http://www.w3.org/1999/XSL/Transform'>\n"
+        "<xsl:template match='c'><xsl:value-of select='$undefined'/></xsl:template>\n"
+        "<xsl:template match='d'><xsl:value-of select='unknown-function()'/></xsl:template>\n"
+        "<xsl:function name='Q{f}g'><xsl:sequence select='$nope'/></xsl:function>\n"
+        "</xsl:stylesheet>";
+    static const char *const texts[] = {syntax_errors, analysis_errors};
+    static const char *const expected_codes[2][4] = {
+        {"XTSE0340", "XTSE0090", "XPST0003", "XPST0003"},
+        {"XPST0008", "XPST0017", "XPST0008", ""}};
+    static const uint32_t expected_lines[2][4] = {{2, 3, 3, 4}, {2, 3, 4, 0}};
+    static const size_t expected_counts[] = {4, 3};
+    for (size_t text_index = 0; text_index < 2; text_index += 1) {
+        compile_reports reports;
+        memset(&reports, 0, sizeof(reports));
+        sxml_error_record error_record;
+        memset(&error_record, 0, sizeof(error_record));
+        sxml_xslt_stylesheet *stylesheet = NULL;
+        sxml_xslt_stylesheet_configuration configuration = {
+            .processor = test_fixture.processor,
+            .principal_module_text = sxml_byte_view_from_c_string(texts[text_index]),
+            .static_context = {.static_base_uri = TEXT("http://example.com/errors.xsl")},
+            .principal_module_source = SXML_XSLT_PRINCIPAL_MODULE_SOURCE_TEXT,
+            .error_record = &error_record,
+            .report_sink = {.state = &reports, .operations = &compile_report_operations}};
+        sxml_status status = sxml_xslt_stylesheet_create(fixture_allocator(&test_fixture),
+                                                         &configuration, &stylesheet);
+        SXML_TEST_EXPECT(state, status == SXML_STATUS_STATIC_ERROR);
+        SXML_TEST_EXPECT(state, reports.report_count == expected_counts[text_index]);
+        for (size_t report_index = 0;
+             report_index < expected_counts[text_index] && report_index < 8; report_index += 1) {
+            SXML_TEST_EXPECT(state, strcmp(reports.codes[report_index],
+                                           expected_codes[text_index][report_index]) == 0);
+            SXML_TEST_EXPECT(state, reports.lines[report_index] ==
+                                        expected_lines[text_index][report_index]);
+        }
+        /* The record holds the first. */
+        SXML_TEST_EXPECT(state, sxml_byte_view_equals(
+                                    error_record.code.local_name,
+                                    sxml_byte_view_from_c_string(expected_codes[text_index][0])));
+        /* The null sink: the first error only, as before. */
+        configuration.report_sink =
+            (sxml_schema_report_sink){.state = NULL, .operations = NULL};
+        memset(&error_record, 0, sizeof(error_record));
+        status = sxml_xslt_stylesheet_create(fixture_allocator(&test_fixture), &configuration,
+                                             &stylesheet);
+        SXML_TEST_EXPECT(state, status == SXML_STATUS_STATIC_ERROR);
+        SXML_TEST_EXPECT(state, sxml_byte_view_equals(
+                                    error_record.code.local_name,
+                                    sxml_byte_view_from_c_string(expected_codes[text_index][0])));
+        SXML_TEST_EXPECT(state, error_record.diagnostic.location.line_number ==
+                                    expected_lines[text_index][0]);
+    }
+    SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
+}
+
 /* ------------------------------------------------------------- Lifecycle */
 
 static void test_stylesheet_lifecycle_checks_its_arguments(sxml_test_state *state) {
@@ -1215,6 +1311,8 @@ static const sxml_test_case xslt_test_cases[] = {
     {.name = "principal_module_from_the_resolver",
      .function = test_principal_module_from_the_resolver},
     {.name = "errors_name_their_module", .function = test_errors_name_their_module},
+    {.name = "report_sink_receives_every_compile_error",
+     .function = test_report_sink_receives_every_compile_error},
     {.name = "stylesheet_lifecycle_checks_its_arguments",
      .function = test_stylesheet_lifecycle_checks_its_arguments},
     {.name = "transformation_survives_every_allocation_failure",

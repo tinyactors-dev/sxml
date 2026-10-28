@@ -6,6 +6,7 @@
 
 #include "sxml/memory.h"
 #include "sxml/name.h"
+#include "sxml/schema.h"
 #include "sxml/status.h"
 #include "sxml/tree.h"
 #include "sxml/view.h"
@@ -1716,3 +1717,55 @@ static inline sxml_source_location sxml_xslt_ast_get_source_location(
         .column_number = span.column_number,
         .byte_offset = span.byte_offset};
 }
+
+/* ------------------------------------------------- Collecting compile errors */
+
+/*
+ * Every static and type error of one compilation, given to a report sink
+ * as it is found (glossary `compile_report_sink`; D315 "Compile errors",
+ * D320). The stylesheet reader and lowering write each error into
+ * current, the error record they are given, and ask
+ * sxml_xslt_error_collector_go_on whether to go on: with a sink they do,
+ * at the next attribute, element, declaration or template; with the null
+ * sink the first error stops them as it always did. Defined in
+ * src/xslt_ast.c.
+ */
+typedef struct sxml_xslt_error_collector {
+    /* NULL operations: the null sink. */
+    sxml_schema_report_sink report_sink;
+    /* Where the reader and lowering write each error. */
+    sxml_error_record current;
+    /* The first error given to the sink, and its status. */
+    sxml_error_record first;
+    sxml_status first_status;
+    /* The last error given to the sink: a stop status whose error is
+       still this one is not given again. */
+    sxml_error_record last;
+    size_t error_count;
+    /* The sink returned this status (not OK): the compilation stops with
+       it, and the error it was given is not given again. */
+    sxml_status sink_status;
+} sxml_xslt_error_collector;
+
+/*
+ * Decides what an error status means for a compilation that collects
+ * errors. A static or type error, written in collector->current, goes to
+ * the sink, and the result is SXML_STATUS_OK (go on) or the status the
+ * sink returned (stop). Any other status, and every status without a
+ * sink or without a collector (NULL), is returned as it is.
+ */
+SXML_NODISCARD sxml_status sxml_xslt_error_collector_go_on(sxml_xslt_error_collector *collector,
+                                                           sxml_status status);
+
+/*
+ * The end of a compilation that collected errors: when the sink received
+ * any, the first status, with the first error in error_record (may be
+ * NULL); otherwise status. A static, type or dynamic error the sink did
+ * not see yet (a dynamic error of a static expression, an error of a
+ * stage that stops at its first), written in collector->current, is
+ * given to it first. Accepts a NULL
+ * collector (returns status).
+ */
+SXML_NODISCARD sxml_status sxml_xslt_error_collector_finish(sxml_xslt_error_collector *collector,
+                                                            sxml_status status,
+                                                            sxml_error_record *error_record);

@@ -2721,7 +2721,8 @@ static sxml_status lower_into_unit(const unit_lowering *work) {
                                    .components = NULL,
                                    .kept_asts = NULL,
                                    .packages = NULL,
-                                   .stream_plan = NULL};
+                                   .stream_plan = NULL,
+                                   .error_collector = request->error_collector};
     sxml_xslt_kept_asts kept_asts = {
         .allocator = lowerer->allocator, .asts = NULL, .ast_count = 0, .ast_capacity = 0};
     lowering.kept_asts = &kept_asts;
@@ -2898,6 +2899,11 @@ sxml_status sxml_xslt_lower_initial_template(const sxml_xslt_lowering_request *r
                                               .invocation = choice.invocation,
                                               .base_context = &base_context,
                                               .unit = new_unit});
+    if (status == SXML_STATUS_OK && request->error_collector != NULL &&
+        request->error_collector->error_count > 0) {
+        /* Errors went to the report sink: the unit is not complete. */
+        status = request->error_collector->first_status;
+    }
     sxml_diagnostic diagnostic;
     memset(&diagnostic, 0, sizeof(diagnostic));
     if (status == SXML_STATUS_OK) {

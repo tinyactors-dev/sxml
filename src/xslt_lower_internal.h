@@ -139,6 +139,8 @@ typedef struct sxml_xslt_lowering {
     /* The stream points of the streamed bodies planned so far
        (src/xslt_lower_stream.c, D219); NULL without one. */
     struct sxml_xslt_stream_plan *stream_plan;
+    /* NULL, or the errors to collect (sxml_xslt_lowering_request). */
+    sxml_xslt_error_collector *error_collector;
 } sxml_xslt_lowering;
 
 /* ASTs a lowering keeps until it ends (glossary `kept_ast`). */
@@ -1182,6 +1184,12 @@ typedef struct sxml_xslt_lowering_request {
     /* sxml_ir_unit_configuration.maximum_expression_count. */
     uint32_t maximum_expression_count;
     sxml_error_record *error_record;
+    /* NULL, or the collector of a compilation with a report sink (D320):
+       error_record must then be &error_collector->current, and a static
+       or type error of one template rule, stylesheet function or global
+       variable goes to the sink while lowering goes on with the next;
+       nothing is made when one was reported. */
+    sxml_xslt_error_collector *error_collector;
 } sxml_xslt_lowering_request;
 
 /*

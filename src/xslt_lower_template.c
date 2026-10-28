@@ -4523,6 +4523,8 @@ sxml_status sxml_xslt_lower_templates(sxml_xslt_lowering *lowering) {
             status = lower_template_function(
                 lowering, (template_function_request){.entry = entry, .is_focus_absent = true});
         }
+        /* With a report sink, the next template (D320). */
+        status = sxml_xslt_error_collector_go_on(lowering->error_collector, status);
     }
     if (status == SXML_STATUS_OK) {
         status = add_rules_and_modes(lowering);

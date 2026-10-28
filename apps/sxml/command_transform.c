@@ -646,11 +646,45 @@ static sxml_byte_view sxml_transform_module_file(const sxml_cli_invocation *invo
     return sxml_query_file_of_uri(invocation, name);
 }
 
+/* The compile report sink of the command: each error on a line of its
+   own, as the first was always written (D315 "Compile errors", D320). */
+typedef struct sxml_transform_compile_errors {
+    const sxml_query_run *run;
+    const sxml_transform_plan *plan;
+    size_t error_count;
+} sxml_transform_compile_errors;
+
+static sxml_status sxml_transform_receive_compile_error(void *state,
+                                                        const sxml_schema_report *report) {
+    sxml_transform_compile_errors *errors = state;
+    sxml_error_record error_record;
+    memset(&error_record, 0, sizeof(error_record));
+    error_record.code = report->code;
+    error_record.diagnostic.description = report->description;
+    error_record.diagnostic.location = report->location;
+    const sxml_byte_view source_name = sxml_transform_module_file(
+        errors->run->invocation,
+        &(sxml_transform_module){.module_uri = report->location.source_name,
+                                 .plan = errors->plan});
+    error_record.diagnostic.location.source_name = source_name;
+    const sxml_cli_exit_code written = sxml_query_run_fail(
+        errors->run, &(sxml_query_failure){.source_name = source_name,
+                                           .error_record = &error_record,
+                                           .status = SXML_STATUS_STATIC_ERROR});
+    (void)written;
+    errors->error_count += 1;
+    return SXML_STATUS_OK;
+}
+
+static const sxml_schema_report_sink_operations sxml_transform_compile_error_operations = {
+    .receive = sxml_transform_receive_compile_error};
+
 static sxml_cli_exit_code sxml_transform_run(sxml_query_run *run, sxml_transform_plan *plan) {
     const sxml_cli_invocation *invocation = run->invocation;
     sxml_error_record error_record;
     memset(&error_record, 0, sizeof(error_record));
     const sxml_dynamic_context_configuration parameters = sxml_query_run_dynamic_context(run);
+    sxml_transform_compile_errors compile_errors = {.run = run, .plan = plan, .error_count = 0};
     sxml_xslt_stylesheet *stylesheet = NULL;
     sxml_status status = sxml_xslt_stylesheet_create(
         invocation->allocator,
@@ -663,8 +697,14 @@ static sxml_cli_exit_code sxml_transform_run(sxml_query_run *run, sxml_transform
             .static_parameters = parameters.variable_bindings,
             .static_context = {.static_base_uri = plan->stylesheet_uri},
             .principal_module_source = SXML_XSLT_PRINCIPAL_MODULE_SOURCE_TEXT,
-            .error_record = &error_record},
+            .error_record = &error_record,
+            .report_sink = {.state = &compile_errors,
+                            .operations = &sxml_transform_compile_error_operations}},
         &stylesheet);
+    if (status != SXML_STATUS_OK && compile_errors.error_count > 0) {
+        /* Every compile error is on standard error already. */
+        return SXML_CLI_EXIT_OPERATION_FAILED;
+    }
     sxml_xslt_output_definition definition;
     memset(&definition, 0, sizeof(definition));
     if (status == SXML_STATUS_OK) {

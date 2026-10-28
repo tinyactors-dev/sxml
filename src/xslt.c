@@ -155,7 +155,8 @@ static void sxml_principal_module_release(const sxml_processor *processor,
  * is an invalid argument (include/sxml/xslt.h).
  */
 static sxml_status sxml_principal_module_resolve(
-    const sxml_xslt_stylesheet_configuration *configuration, sxml_principal_module *module) {
+    const sxml_xslt_stylesheet_configuration *configuration, sxml_principal_module *module,
+    sxml_error_record *error_record) {
     sxml_processor *processor = configuration->processor;
     const bool is_package = configuration->principal_module_source ==
                             SXML_XSLT_PRINCIPAL_MODULE_SOURCE_RESOLVED_PACKAGE;
@@ -219,13 +220,14 @@ static sxml_status sxml_principal_module_resolve(
                                      "the resolver does not deliver the principal stylesheet "
                                      "module (XSLT 4.0, 3.10.1)"),
             .source_name = reference},
-        configuration->error_record);
+        error_record);
 }
 
 /* The principal module of a configuration: its text, or what the resolver
    delivers. */
 static sxml_status sxml_principal_module_find(
-    const sxml_xslt_stylesheet_configuration *configuration, sxml_principal_module *module) {
+    const sxml_xslt_stylesheet_configuration *configuration, sxml_principal_module *module,
+    sxml_error_record *error_record) {
     if (configuration->principal_module_source == SXML_XSLT_PRINCIPAL_MODULE_SOURCE_TEXT) {
         module->text = configuration->principal_module_text;
         module->module_uri = configuration->static_context.static_base_uri.byte_count > 0
@@ -233,7 +235,7 @@ static sxml_status sxml_principal_module_find(
                                  : configuration->source_name;
         return SXML_STATUS_OK;
     }
-    return sxml_principal_module_resolve(configuration, module);
+    return sxml_principal_module_resolve(configuration, module, error_record);
 }
 
 /* --------------------------------------------------------------- Lowering */
@@ -253,6 +255,8 @@ typedef struct sxml_unit_invocation {
     /* D231: the principal result goes to the principal stream. */
     bool streams_result_document;
     sxml_error_record *error_record;
+    /* NULL, or the errors a compilation collects (D320). */
+    sxml_xslt_error_collector *error_collector;
 } sxml_unit_invocation;
 
 /* xsl:initial-template, interned (2.4.4: the default initial template). */
@@ -290,7 +294,8 @@ static sxml_status sxml_xslt_lower_invocation(const sxml_unit_invocation *invoca
                                       .streams_result_document =
                                           invocation->streams_result_document,
                                       .maximum_expression_count = 0,
-                                      .error_record = invocation->error_record},
+                                      .error_record = invocation->error_record,
+                                      .error_collector = invocation->error_collector},
         unit);
 }
 
@@ -348,7 +353,7 @@ static void sxml_stylesheet_release(sxml_xslt_stylesheet *stylesheet) {
    xsl:package, or an xsl:stylesheet or xsl:transform, which 3.4 makes an
    implicit package (D160); a simplified module is none. */
 static sxml_status sxml_check_package(const sxml_xslt_stylesheet_configuration *configuration,
-                                      const sxml_xslt_ast *ast) {
+                                      const sxml_xslt_ast *ast, sxml_error_record *error_record) {
     if (configuration->principal_module_source !=
         SXML_XSLT_PRINCIPAL_MODULE_SOURCE_RESOLVED_PACKAGE) {
         return SXML_STATUS_OK;
@@ -367,7 +372,7 @@ static sxml_status sxml_check_package(const sxml_xslt_stylesheet_configuration *
                                "the principal package is a simplified stylesheet module, no "
                                "package (XSLT 4.0, 3.4.3)"),
                            .source_name = configuration->principal_module_uri_reference},
-        configuration->error_record);
+        error_record);
 }
 
 /* What the part of compiling after reading takes (sxml_xslt_compile_ast):
@@ -380,6 +385,9 @@ typedef struct sxml_ast_compilation {
     sxml_variable_binding_view static_parameters;
     bool falls_back_to_unstreamed;
     sxml_error_record *error_record;
+    /* NULL, or the errors to collect (D320); error_record is then
+       &error_collector->current. */
+    sxml_xslt_error_collector *error_collector;
 } sxml_ast_compilation;
 
 /* Compiles the sealed AST in compiled->ast: the in-scope schemas,
@@ -403,7 +411,8 @@ static sxml_status sxml_xslt_compile_ast(const sxml_ast_compilation *compilation
                                     .applies_templates = true,
                                     .selects_unnamed_mode = false,
                                     .has_initial_match_selection = false,
-                                    .error_record = compilation->error_record},
+                                    .error_record = compilation->error_record,
+                                    .error_collector = compilation->error_collector},
             &compiled->unit);
     }
     if (status == SXML_STATUS_OK && !compilation->falls_back_to_unstreamed) {
@@ -457,9 +466,17 @@ static sxml_status sxml_xslt_compile_ast(const sxml_ast_compilation *compilation
 static sxml_status sxml_xslt_compile(const sxml_xslt_stylesheet_configuration *configuration,
                                      sxml_xslt_stylesheet *compiled) {
     sxml_processor *processor = configuration->processor;
+    /* With a report sink every error goes there (D320): the reader and
+       lowering write each into the collector's record. */
+    sxml_xslt_error_collector collector;
+    memset(&collector, 0, sizeof(collector));
+    collector.report_sink = configuration->report_sink;
+    const bool collects = configuration->report_sink.operations != NULL;
+    sxml_xslt_error_collector *error_collector = collects ? &collector : NULL;
+    sxml_error_record *error_record = collects ? &collector.current : configuration->error_record;
     sxml_principal_module module;
     memset(&module, 0, sizeof(module));
-    sxml_status status = sxml_principal_module_find(configuration, &module);
+    sxml_status status = sxml_principal_module_find(configuration, &module, error_record);
     if (status == SXML_STATUS_OK) {
         status = sxml_xslt_read_stylesheet(
             &(sxml_xslt_read_request){
@@ -469,22 +486,28 @@ static sxml_status sxml_xslt_compile(const sxml_xslt_stylesheet_configuration *c
                 .static_parameters = configuration->static_parameters,
                 .default_collation_uri = configuration->static_context.default_collation_uri,
                 .resource_resolver = {.state = NULL, .operations = NULL},
-                .error_record = configuration->error_record},
+                .error_record = error_record,
+                .error_collector = error_collector},
             &compiled->ast);
     }
-    if (status == SXML_STATUS_OK) {
-        status = sxml_check_package(configuration, compiled->ast);
+    /* Nothing is lowered once reading reported an error: the collector
+       ends the compilation with it. */
+    if (status == SXML_STATUS_OK && collector.error_count == 0) {
+        status = sxml_check_package(configuration, compiled->ast, error_record);
     }
-    if (status == SXML_STATUS_OK) {
+    if (status == SXML_STATUS_OK && collector.error_count == 0) {
         status = sxml_xslt_compile_ast(
             &(sxml_ast_compilation){
                 .processor = processor,
                 .host_schemas = configuration->static_context.in_scope_schemas,
                 .static_parameters = configuration->static_parameters,
                 .falls_back_to_unstreamed = configuration->falls_back_to_unstreamed,
-                .error_record = configuration->error_record},
+                .error_record = error_record,
+                .error_collector = error_collector},
             compiled);
     }
+    status = sxml_xslt_error_collector_finish(error_collector, status,
+                                              configuration->error_record);
     if (status != SXML_STATUS_OK) {
         sxml_xslt_detach_location(
             configuration->principal_module_source == SXML_XSLT_PRINCIPAL_MODULE_SOURCE_TEXT
@@ -649,14 +672,32 @@ sxml_status sxml_xslt_stylesheet_create_from_ast(sxml_allocator allocator,
     memset(&compiled, 0, sizeof(compiled));
     compiled.processor = request->processor;
     compiled.ast = request->ast;
+    sxml_xslt_error_collector collector;
+    memset(&collector, 0, sizeof(collector));
+    collector.report_sink = request->report_sink;
+    const bool collects = request->report_sink.operations != NULL;
     sxml_status status = sxml_xslt_compile_ast(
         &(sxml_ast_compilation){
             .processor = request->processor,
             .host_schemas = {.schemas = NULL, .schema_count = 0},
             .static_parameters = {.variable_bindings = NULL, .variable_binding_count = 0},
             .falls_back_to_unstreamed = true,
-            .error_record = request->error_record},
+            .error_record = collects ? &collector.current : request->error_record,
+            .error_collector = collects ? &collector : NULL},
         &compiled);
+    status = sxml_xslt_error_collector_finish(collects ? &collector : NULL, status,
+                                              request->error_record);
+    if (status != SXML_STATUS_OK && request->error_record != NULL) {
+        /* The AST and its module URIs go: a location naming one names
+           the caller's source instead. */
+        sxml_source_location *location = &request->error_record->diagnostic.location;
+        for (uint32_t module = 1; module < compiled.ast->module_count; module += 1) {
+            if (location->source_name.bytes == compiled.ast->modules[module].module_uri.bytes &&
+                location->source_name.byte_count > 0) {
+                location->source_name = request->source_name;
+            }
+        }
+    }
     void *memory = NULL;
     if (status == SXML_STATUS_OK) {
         status = sxml_allocator_allocate(

@@ -2196,6 +2196,8 @@ typedef struct open_element {
     /* The kind of the child element read last, for 3.11.1's rule on
        whitespace after xsl:catch. */
     sxml_xslt_ast_kind previous_child_kind;
+    /* An error in one of its attributes went to the report sink (D320). */
+    bool has_reported_error;
 } open_element;
 
 /* An attribute of the element being read, after shadow attributes. */
@@ -2236,6 +2238,8 @@ typedef struct stylesheet_reader {
     sxml_xml_parser *parser;
     sxml_resource_resolver resource_resolver;
     sxml_error_record *error_record;
+    /* NULL, or the errors to collect (D320). */
+    sxml_xslt_error_collector *error_collector;
     sxml_variable_binding_view static_parameters;
     sxml_byte_view default_collation_uri;
 
@@ -4950,13 +4954,13 @@ static sxml_status add_node_attributes(stylesheet_reader *reader, const node_att
                 if (request->is_forwards_compatible) {
                     continue;
                 }
-                return raise_error(reader,
-                                   (reader_error){.error_code = "XTSE0090",
-                                                  .description = "An attribute is not allowed "
-                                                                 "on this XSLT element (XSLT "
-                                                                 "4.0, 3.3)",
-                                                  .module = request->parent->module,
-                                                  .source_span = attribute.source_span});
+                status = raise_error(reader,
+                                     (reader_error){.error_code = "XTSE0090",
+                                                    .description = "An attribute is not allowed "
+                                                                   "on this XSLT element (XSLT "
+                                                                   "4.0, 3.3)",
+                                                    .module = request->parent->module,
+                                                    .source_span = attribute.source_span});
             } else {
                 /* Other namespaces (3.3), and xml:space, xml:base,
                    xml:lang: kept as text. */
@@ -4985,7 +4989,7 @@ static sxml_status add_node_attributes(stylesheet_reader *reader, const node_att
                         if (request->is_forwards_compatible) {
                             continue;
                         }
-                        return raise_error(
+                        status = raise_error(
                             reader, (reader_error){.error_code = "XTSE0805",
                                                    .description = "An attribute in the XSLT "
                                                                   "namespace is not allowed on a "
@@ -4993,8 +4997,9 @@ static sxml_status add_node_attributes(stylesheet_reader *reader, const node_att
                                                                   "4.0, 11.1.2)",
                                                    .module = request->parent->module,
                                                    .source_span = attribute.source_span});
+                    } else {
+                        partial.kind = rule->attribute_kind;
                     }
-                    partial.kind = rule->attribute_kind;
                 }
             } else {
                 /* 11.1.2: an attribute value template. */
@@ -5026,11 +5031,18 @@ static sxml_status add_node_attributes(stylesheet_reader *reader, const node_att
             status = sxml_xslt_ast_add_attribute(reader->ast, &partial, &added);
         }
         if (status != SXML_STATUS_OK) {
+            /* With a report sink, the next attribute (D320). */
+            status = sxml_xslt_error_collector_go_on(reader->error_collector, status);
+        }
+        if (status != SXML_STATUS_OK) {
             return status;
         }
     }
     sxml_status checked = check_type_and_validation(
         reader, (schema_awareness_check){.node = request->node, .module = request->parent->module});
+    if (checked != SXML_STATUS_OK) {
+        checked = sxml_xslt_error_collector_go_on(reader->error_collector, checked);
+    }
     if (checked != SXML_STATUS_OK) {
         return checked;
     }
@@ -5042,13 +5054,18 @@ static sxml_status add_node_attributes(stylesheet_reader *reader, const node_att
                 find_element_attribute(reader, (attribute_query){
                                                    .namespace_uri = {.index = SXML_NAMESPACE_NONE},
                                                    .local_name = rule->attribute_name}) == NULL) {
-                return raise_error(reader,
-                                   (reader_error){.error_code = "XTSE0010",
-                                                  .description = "A required attribute is "
-                                                                 "missing (XSLT 4.0, element "
-                                                                 "syntax)",
-                                                  .module = request->parent->module,
-                                                  .source_span = facts->source_span});
+                const sxml_status missing = sxml_xslt_error_collector_go_on(
+                    reader->error_collector,
+                    raise_error(reader,
+                                (reader_error){.error_code = "XTSE0010",
+                                               .description = "A required attribute is "
+                                                              "missing (XSLT 4.0, element "
+                                                              "syntax)",
+                                               .module = request->parent->module,
+                                               .source_span = facts->source_span}));
+                if (missing != SXML_STATUS_OK) {
+                    return missing;
+                }
             }
         }
     }
@@ -6418,6 +6435,11 @@ static bool has_repeated_parameter(const stylesheet_reader *reader,
 /* A frame whose children are all read: its required child (XTSE0010). */
 static sxml_status end_frame(stylesheet_reader *reader, size_t frame_index) {
     const open_element *frame = frame_at(reader, frame_index);
+    if (frame->has_reported_error) {
+        /* An attribute was left out: checks of the whole element would
+           report what follows from that (D320). */
+        return SXML_STATUS_OK;
+    }
     if (frame->requires_no_children &&
         sxml_xslt_ast_get_node(reader->ast, frame->node)->first_child.value != 0) {
         /* 9.3: content beside a select attribute is XTSE0620. */
@@ -6946,6 +6968,8 @@ static sxml_status read_element(stylesheet_reader *reader, element_input input) 
         content_ast = NULL;
     }
     sxml_ast_destroy(content_ast);
+    const size_t reported_before =
+        reader->error_collector == NULL ? 0 : reader->error_collector->error_count;
     if (status == SXML_STATUS_OK && decision.role != SXML_ELEMENT_ROLE_DATA_ELEMENT) {
         status = add_node_attributes(reader, &(node_attributes_request){
                                                  .parent = &parent,
@@ -6958,6 +6982,10 @@ static sxml_status read_element(stylesheet_reader *reader, element_input input) 
     if (status != SXML_STATUS_OK) {
         return status;
     }
+    /* With a report sink, an element an attribute of which was left out
+       is not checked as a whole (D320). */
+    const bool has_reported_error =
+        reader->error_collector != NULL && reader->error_collector->error_count != reported_before;
     const bool preserves_space = preserves_space_of(reader, (space_inheritance){.preserves_space = parent.preserves_space});
     bool is_static = false;
     child_context children = SXML_CHILD_CONTEXT_SEQUENCE_CONSTRUCTOR;
@@ -6979,8 +7007,10 @@ static sxml_status read_element(stylesheet_reader *reader, element_input input) 
         has_frame = false;
         break;
     case SXML_ELEMENT_ROLE_XSLT:
-        status = check_element(reader, (element_node){.place = {.parent = &parent, .facts = &facts}, .node = node});
-        if (status == SXML_STATUS_OK &&
+        if (!has_reported_error) {
+            status = check_element(reader, (element_node){.place = {.parent = &parent, .facts = &facts}, .node = node});
+        }
+        if (status == SXML_STATUS_OK && !has_reported_error &&
             (kind == SXML_XSLT_AST_KIND_VARIABLE || kind == SXML_XSLT_AST_KIND_PARAM)) {
             status = read_static_declaration(reader, &(declaration_input){
                                                          .parent = &parent,
@@ -7072,7 +7102,8 @@ static sxml_status read_element(stylesheet_reader *reader, element_input input) 
                                       .requires_no_children = is_static,
                                       .seen_child_mask = 0,
                                       .last_child_position = 0,
-                                      .previous_child_kind = SXML_XSLT_AST_KIND_NONE});
+                                      .previous_child_kind = SXML_XSLT_AST_KIND_NONE,
+                                      .has_reported_error = has_reported_error});
 }
 
 /* ------------------------------------------------------------ The walk */
@@ -7108,8 +7139,10 @@ static sxml_status walk(stylesheet_reader *reader) {
         if (!top->has_next_child) {
             status = flush_text(reader, (text_end){.frame_index = top_index,
                                                    .following_kind = SXML_XSLT_AST_KIND_NONE});
+            status = sxml_xslt_error_collector_go_on(reader->error_collector, status);
             if (status == SXML_STATUS_OK) {
                 status = end_frame(reader, top_index);
+                status = sxml_xslt_error_collector_go_on(reader->error_collector, status);
             }
             reader->frames.count -= 1;
             continue;
@@ -7135,10 +7168,14 @@ static sxml_status walk(stylesheet_reader *reader) {
             }
             status = flush_text(reader, (text_end){.frame_index = top_index,
                                                    .following_kind = kind_ahead(reader, &description)});
+            status = sxml_xslt_error_collector_go_on(reader->error_collector, status);
             if (status == SXML_STATUS_OK) {
+                /* With a report sink, an element in error is left out
+                   with its content, and the walk goes on (D320). */
                 status = read_element(reader, (element_input){.parent_index = top_index,
                                                               .element = child,
                                                               .description = &description});
+                status = sxml_xslt_error_collector_go_on(reader->error_collector, status);
             }
             break;
         case SXML_NODE_KIND_DOCUMENT:
@@ -7189,6 +7226,7 @@ sxml_status sxml_xslt_read_stylesheet(const sxml_xslt_read_request *request, sxm
     reader.name_pool = processor->name_pool;
     reader.resource_resolver = request->resource_resolver;
     reader.error_record = request->error_record;
+    reader.error_collector = request->error_collector;
     reader.static_parameters = request->static_parameters;
     reader.default_collation_uri = request->default_collation_uri;
     const uint64_t node_limit = processor->limits.maximum_tree_node_count;
@@ -7248,3 +7286,4 @@ sxml_status sxml_xslt_read_stylesheet(const sxml_xslt_read_request *request, sxm
     *ast = reader.ast;
     return SXML_STATUS_OK;
 }
+

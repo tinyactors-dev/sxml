@@ -1890,3 +1890,69 @@ sxml_status sxml_xslt_ast_write_text(const sxml_xslt_ast *ast, sxml_memory_view 
     *byte_count = writer.form.byte_count;
     return writer.form.byte_count > output.byte_count ? SXML_STATUS_CAPACITY_EXCEEDED : SXML_STATUS_OK;
 }
+
+/* ------------------------------------------------- Collecting compile errors */
+
+static bool collects_errors(const sxml_xslt_error_collector *collector) {
+    return collector != NULL && collector->report_sink.operations != NULL &&
+           collector->report_sink.operations->receive != NULL;
+}
+
+/* Gives collector->current to the sink; remembers it when it is the first. */
+static sxml_status deliver_current(sxml_xslt_error_collector *collector, sxml_status status) {
+    const sxml_schema_report report = {.code = collector->current.code,
+                                       .description = collector->current.diagnostic.description,
+                                       .location = collector->current.diagnostic.location};
+    if (collector->error_count == 0) {
+        collector->first = collector->current;
+        collector->first_status = status;
+    }
+    collector->last = collector->current;
+    collector->error_count += 1;
+    const sxml_status received =
+        collector->report_sink.operations->receive(collector->report_sink.state, &report);
+    if (received != SXML_STATUS_OK) {
+        collector->sink_status = received;
+    }
+    return received;
+}
+
+sxml_status sxml_xslt_error_collector_go_on(sxml_xslt_error_collector *collector,
+                                            sxml_status status) {
+    if (!collects_errors(collector) || collector->sink_status != SXML_STATUS_OK ||
+        (status != SXML_STATUS_STATIC_ERROR && status != SXML_STATUS_TYPE_ERROR)) {
+        return status;
+    }
+    return deliver_current(collector, status);
+}
+
+sxml_status sxml_xslt_error_collector_finish(sxml_xslt_error_collector *collector,
+                                             sxml_status status,
+                                             sxml_error_record *error_record) {
+    if (!collects_errors(collector)) {
+        return status;
+    }
+    if (collector->sink_status != SXML_STATUS_OK) {
+        status = collector->sink_status;
+    } else if ((status == SXML_STATUS_STATIC_ERROR || status == SXML_STATUS_TYPE_ERROR ||
+                status == SXML_STATUS_DYNAMIC_ERROR) &&
+               (collector->error_count == 0 ||
+                memcmp(&collector->last, &collector->current, sizeof(collector->current)) != 0)) {
+        /* An error that stopped a stage: the sink sees it too. */
+        const sxml_status received = deliver_current(collector, status);
+        if (received != SXML_STATUS_OK) {
+            status = received;
+        }
+    }
+    if (collector->error_count == 0) {
+        if (error_record != NULL && status != SXML_STATUS_OK) {
+            *error_record = collector->current;
+        }
+        return status;
+    }
+    if (error_record != NULL) {
+        *error_record = collector->first;
+    }
+    return collector->sink_status != SXML_STATUS_OK ? collector->sink_status
+                                                    : collector->first_status;
+}

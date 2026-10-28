@@ -8,6 +8,7 @@
 #include "sxml/memory.h"
 #include "sxml/name.h"
 #include "sxml/processor.h"
+#include "sxml/schema.h"
 #include "sxml/serialize.h"
 #include "sxml/status.h"
 #include "sxml/view.h"
@@ -454,6 +455,20 @@ typedef struct sxml_xslt_stylesheet_configuration {
        are streamed either way where sxml streams them (D219). Added by
        D219. */
     bool falls_back_to_unstreamed;
+    /*
+     * Receives every static and type error compilation finds, in the
+     * order found (code, description, location in a module), as
+     * sxml_schema_report: reading goes on after an error in an attribute
+     * or element (one error per attribute or expression, each parsed
+     * alone), and static analysis after an error in a template rule,
+     * stylesheet function or global variable, one error each; nothing is
+     * lowered once an error was reported, and the error record then holds
+     * the first. The null sink, the zero value, stops at the first error
+     * as before. Errors that stop compilation (a dynamic error of a
+     * static expression, a limit) go to the sink too. Borrowed for the
+     * call. Added by D320 (packet 7.28).
+     */
+    sxml_schema_report_sink report_sink;
 } sxml_xslt_stylesheet_configuration;
 
 /*
@@ -475,11 +490,13 @@ SXML_NODISCARD SXML_EXPORT sxml_status sxml_xslt_stylesheet_memory_requirements(
  * Every static error of XSLT 4.0 is reported here, including those of
  * output definitions and character maps (XTSE1560 for conflicting
  * xsl:output declarations, SEPM0016 as a static error for a value a
- * serialization parameter does not permit).
+ * serialization parameter does not permit). With a report sink, every
+ * one is reported there (configuration.report_sink).
  *
  * Returns:
  * - SXML_STATUS_STATIC_ERROR or SXML_STATUS_TYPE_ERROR, with the error
- *   record filled (code, description, location);
+ *   record filled (code, description, location; with a report sink, the
+ *   first error it received);
  * - SXML_STATUS_DYNAMIC_ERROR, with the error record filled, for XTDE0050
  *   and for a dynamic error raised by a static expression;
  * - SXML_STATUS_MALFORMED_INPUT, SXML_STATUS_INVALID_UTF8 or

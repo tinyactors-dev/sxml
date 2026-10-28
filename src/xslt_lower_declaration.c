@@ -2227,6 +2227,8 @@ static sxml_status lower_functions(const sxml_xslt_lowering *lowering) {
                                            .byte_count = sizeof(initial)}});
             }
         }
+        /* With a report sink, the next function (D320). */
+        status = sxml_xslt_error_collector_go_on(lowering->error_collector, status);
     }
     return status;
 }

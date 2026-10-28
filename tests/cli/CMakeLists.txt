@@ -304,6 +304,10 @@ sxml_add_cli_test(transform_schema_param_error EXIT_CODE 1 ARGUMENTS transform -
 # fn:trace and fn:message beside xsl:message on standard error (D271).
 sxml_add_cli_test(transform_trace EXIT_CODE 0 ARGUMENTS transform xslt/trace.xsl)
 sxml_add_cli_test(transform_static_error EXIT_CODE 1 ARGUMENTS transform xslt/broken.xsl books.xml)
+# Every compile error on a line of its own (D320): reading, then static
+# analysis of each template rule and function.
+sxml_add_cli_test(transform_compile_errors EXIT_CODE 1 ARGUMENTS transform xslt/errors.xsl books.xml)
+sxml_add_cli_test(transform_analysis_errors EXIT_CODE 1 ARGUMENTS transform xslt/analysis-errors.xsl books.xml)
 sxml_add_cli_test(transform_terminate EXIT_CODE 1 ARGUMENTS transform xslt/terminate.xsl)
 sxml_add_cli_test(transform_parent_document EXIT_CODE 0 ARGUMENTS transform xslt/parent-document.xsl)
 sxml_add_cli_test(transform_dynamic_error EXIT_CODE 1 ARGUMENTS transform xslt/dynamic-error.xsl)

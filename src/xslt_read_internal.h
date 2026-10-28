@@ -76,6 +76,12 @@ typedef struct sxml_xslt_read_request {
        expression), or the dynamic error of a static expression; may be
        NULL. */
     sxml_error_record *error_record;
+    /* NULL, or the collector of a compilation with a report sink (D320):
+       error_record must then be &error_collector->current, and every
+       static error goes to the sink while reading goes on (an attribute
+       or an element in error is left out). The AST is then made also when
+       errors were reported; the caller asks the collector. */
+    sxml_xslt_error_collector *error_collector;
 } sxml_xslt_read_request;
 
 /*
@@ -94,3 +100,4 @@ typedef struct sxml_xslt_read_request {
  */
 SXML_NODISCARD sxml_status sxml_xslt_read_stylesheet(const sxml_xslt_read_request *request,
                                                      sxml_xslt_ast **ast);
+

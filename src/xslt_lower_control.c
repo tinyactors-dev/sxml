@@ -6145,6 +6145,8 @@ sxml_status sxml_xslt_lowering_add_global_variables(const sxml_xslt_lowering *lo
             (initializer_request){.lowering = lowering, .global_index = global_index},
             &initializer);
         initializers[global_index] = initializer.value;
+        /* With a report sink, the next global variable (D320). */
+        status = sxml_xslt_error_collector_go_on(lowering->error_collector, status);
     }
     for (size_t order_index = 0; status == SXML_STATUS_OK && order_index < global_count;
          order_index += 1) {
