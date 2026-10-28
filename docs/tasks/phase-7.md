@@ -1378,6 +1378,32 @@ occur. SchXslt's expand stage 75.3 to 65.8 x 10^9 instructions;
 regex-literal.xq 0.458 to 0.186 s; regex sets and 18,000 random
 regexes unchanged.
 
+### perf-10 Casts that keep the string, and the coercions perf-8 left (implementation)
+After D316 (perf-8). With perf-5 to perf-9, SchXslt's expand stage of
+EN 16931 (sort-once fix, no step bound in the CLI since D314) takes
+7.7–8.5 s; unpatched SchXslt takes 4 min 51 s (8 min 56 s this
+morning). D316 left three costs: a cast of xs:untypedAtomic to
+xs:string costs about 1,600 instructions, though the result is the
+same string (XPath 4.0, 19.1 casting from xs:untypedAtomic; F&O 4.0,
+19.1.1); about 0.7 million single items against unions, choices and
+enumerations still run the coercion engine; about 0.7 million
+multi-item values still run the full matcher, some twice when a slice
+base fails D309's whole-base match and is matched again item by item.
+- **Mechanism**: profile first (callgrind on SchXslt's expand stage
+  and `tests/bench/coercion.xq`); a cast between string-like types
+  whose lexical form does not change (xs:untypedAtomic, xs:string, and
+  the derived types whose facets the value already satisfies) relabels
+  the item instead of rebuilding it; then the next largest of D316's
+  remaining costs, measured. Outcomes, error codes and step counts
+  unchanged.
+- **Owns**: `src/cast.c` and its internal header, `src/evaluator_function.c`
+  (the matcher and the coercion engine), `tests/cast_test.c`,
+  `tests/evaluator_test.c`, `tests/bench/`.
+- **Done when**: each change measured before and after (instructions
+  and seconds) in a D-record and the commit messages, on SchXslt's
+  expand stage, coercion.xq and xmark-all; QT4 XP40, XQ40 and XT40 run
+  whole with no outcome changes, case by case.
+
 ### 7.21 Fast Invisible XML (book, tests, implementation)
 After D215 (7.18: the Earley parser, right recursion quadratic, every
 item a step). The owner: high performance; book first, then

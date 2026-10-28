@@ -69,9 +69,18 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
   front end that builds the XSLT AST (owner, 2026-10-28). Starts after
   perf-8 and perf-9; the e-invoicing work can use the official
   pre-compiled EN 16931 stylesheets until then.
-- perf-8 (coercion of arguments, 33 % of that profile) and perf-9
-  (required literals in regex search, 12.9 %) run together: disjoint
-  files.
+- perf-8 done (D316, coercion 33 % to 18 % of the profile) and perf-9
+  done (D311, regex search 12.9 % to 0.4 %). SchXslt's expand stage of
+  EN 16931: 7.7–8.5 s with its sort-once fix, 4 min 51 s unpatched (8 min
+  56 s this morning); output identical.
+- perf-10 (casts that keep the string, D316's leftovers) and 7.29
+  (source locations, D313) run together.
+- Leftovers without a packet: the error record is not cleared after a
+  caught FORX0002, so a later LIMIT_EXCEEDED prints the old description
+  (perf-7); `c.md`'s memory example prints 197 allocations where the book
+  shows 195 (also before cli-4); an exceeded limit exits 4, the status
+  for internal errors (cli-4; the owner chose exit 1 for unsupported
+  Schematron constructs, D315's revision).
 - Sorting was measured and is not a problem: 780 elements sort in about
   1.3 ms (`xsl:sort`) or 1.8 ms (`fn:sort`). SchXslt's 7 minutes were
   its own 800,000 re-sorts; the fix (sort once in
