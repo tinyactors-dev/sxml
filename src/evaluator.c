@@ -6232,6 +6232,15 @@ static sxml_status sxml_machine_run(sxml_dynamic_context *context, size_t base_c
         /* One step per task run (D89), so no evaluation runs unbounded. */
         sxml_status status = sxml_dynamic_context_charge_steps(context, 1);
         if (status != SXML_STATUS_OK) {
+            /* A caught error its catching task has not read yet goes with
+               the tasks: the limit is reported with its own description
+               alone. */
+            if (context->caught_status != SXML_STATUS_OK && context->error_record != NULL) {
+                const sxml_byte_view description =
+                    context->error_record->diagnostic.description;
+                sxml_evaluator_machine_forget_caught_error(context);
+                context->error_record->diagnostic.description = description;
+            }
             sxml_machine_unwind(context, base_count);
             return status;
         }
@@ -6363,6 +6372,12 @@ sxml_status sxml_evaluator_machine_take_caught_status(
     const sxml_status status = dynamic_context->caught_status;
     dynamic_context->caught_status = SXML_STATUS_OK;
     return status;
+}
+
+void sxml_evaluator_machine_forget_caught_error(sxml_dynamic_context *dynamic_context) {
+    if (dynamic_context->error_record != NULL) {
+        *dynamic_context->error_record = (sxml_error_record){.value = NULL};
+    }
 }
 
 sxml_status sxml_evaluator_machine_read_atom(sxml_dynamic_context *dynamic_context,

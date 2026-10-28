@@ -2532,9 +2532,60 @@ static sxml_status sxml_coercion_step_item(sxml_coercion_engine *engine,
     return sxml_coercion_finish_unchanged(engine);
 }
 
+/*
+ * A CHOICE trying its alternatives got the result of the attempt at
+ * alternative next_index - 1. The item coercion rules end with a type
+ * error when the resulting item does not match the required item type
+ * (XPath 4.0, section 3.4.2, last rule), so an attempt succeeds only when
+ * its result matches the alternative: "until an alternative is found that
+ * does not result in a type error". An unchanged item never does: the
+ * CHOICE tries alternatives only for an item that matches none of them
+ * (as xs:untypedAtomic("v") against element(a) in (element(a) |
+ * xs:string)). *is_accepted is true for a result that matches, which stays
+ * handed down; otherwise the result is released and the attempt fails
+ * with the role's type error in its record, as an error raised above the
+ * CHOICE would. An accepted attempt after a failed first one clears the
+ * first failure from the frame's record: the coercion succeeded.
+ */
+static sxml_status sxml_coercion_accept_attempt(sxml_coercion_engine *engine,
+                                                sxml_coercion_frame *frame,
+                                                sxml_emptiness *is_accepted) {
+    bool *accepted = &is_accepted->is_empty;
+    *accepted = false;
+    const size_t attempt_index = frame->next_index - 1;
+    sxml_type_match match = {.is_match = false};
+    if (!engine->is_unchanged) {
+        const sxml_status status = sxml_evaluator_match_sequence_type(
+            engine->dynamic_context,
+            &(sxml_type_match_request){
+                .value = engine->result,
+                .sequence_type = {.item_type = frame->alternatives.type_identifiers[attempt_index],
+                                  .occurrence = SXML_OCCURRENCE_ZERO_OR_MORE},
+                .error_record = NULL},
+            &match);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+    }
+    if (match.is_match) {
+        if (attempt_index > 0 && frame->error_record != NULL) {
+            *frame->error_record = (sxml_error_record){.value = NULL};
+        }
+        *accepted = true;
+        return SXML_STATUS_OK;
+    }
+    const sxml_coercion_result rejected = sxml_coercion_take_result(engine);
+    sxml_sequence_release(rejected.value);
+    engine->failure_status = sxml_report_coercion_error(
+        engine->role, attempt_index == 0 ? frame->error_record : &engine->scratch_record);
+    engine->has_failure = true;
+    return SXML_STATUS_OK;
+}
+
 /* CHOICE (section 3.4.2): an item that matches an alternative is coerced
    to the first one it matches; otherwise each alternative is tried in
-   order, and the error is the first attempt's. */
+   order until one gives an item that matches it (an attempt that does
+   not is a type error), and the error is the first attempt's. */
 static sxml_status sxml_coercion_step_choice(sxml_coercion_engine *engine,
                                              sxml_coercion_frame *frame) {
     const size_t alternative_count = frame->alternatives.type_identifier_count;
@@ -2575,6 +2626,16 @@ static sxml_status sxml_coercion_step_choice(sxml_coercion_engine *engine,
             engine, sxml_coercion_item_frame(frame->item, frame->alternatives.type_identifiers[0],
                                              frame->error_record));
     case SXML_CHOICE_PHASE_TRYING:
+        if (!engine->has_failure) {
+            sxml_emptiness is_accepted = {.is_empty = false};
+            const sxml_status status = sxml_coercion_accept_attempt(engine, frame, &is_accepted);
+            if (status != SXML_STATUS_OK) {
+                return status;
+            }
+            if (is_accepted.is_empty) {
+                return sxml_coercion_finish(engine, sxml_coercion_take_result(engine));
+            }
+        }
         if (engine->has_failure) {
             engine->has_failure = false;
             if (frame->next_index == 1) {

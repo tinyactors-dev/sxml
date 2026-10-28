@@ -493,6 +493,8 @@ static sxml_status sxml_try_keep_pending_error(sxml_dynamic_context *dynamic_con
     if (status != SXML_STATUS_OK) {
         return status;
     }
+    /* Kept in the state, raised again from there. */
+    sxml_evaluator_machine_forget_caught_error(dynamic_context);
     state->has_pending_error = true;
     return sxml_try_start_finally(dynamic_context);
 }
@@ -527,6 +529,8 @@ static sxml_status sxml_try_handle_error(sxml_dynamic_context *dynamic_context,
     if (status != SXML_STATUS_OK) {
         return status;
     }
+    /* The error is caught: the clause sees it in its variables only. */
+    sxml_evaluator_machine_forget_caught_error(dynamic_context);
     sxml_evaluator_machine_bind_slot(dynamic_context, clause->error_details, map);
     /* An error of the catch clause is caught only to run the finally
        clause before it propagates. */

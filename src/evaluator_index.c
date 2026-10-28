@@ -1124,6 +1124,7 @@ static sxml_status answer_probe(sxml_dynamic_context *dynamic_context, filter_in
         dynamic_context, (operand_value){.key_operator = key_operator, .value = probe}, &values);
     sxml_sequence_release(probe);
     if (is_catchable(status)) {
+        sxml_evaluator_machine_forget_caught_error(dynamic_context);
         return finish_with_input(dynamic_context, state);
     }
     uint64_t value_count = 0;
@@ -1215,6 +1216,8 @@ static sxml_status step_filter_index(sxml_dynamic_context *dynamic_context,
     case SXML_FILTER_INDEX_PHASE_KEY: {
         const sxml_status caught = sxml_evaluator_machine_take_caught_status(dynamic_context);
         if (caught != SXML_STATUS_OK) {
+            /* The filter runs as written and raises it again if it is real. */
+            sxml_evaluator_machine_forget_caught_error(dynamic_context);
             task->catches_errors = false;
             release_entries(state, dynamic_context->allocator);
             return give_up(dynamic_context, state);
@@ -1222,6 +1225,7 @@ static sxml_status step_filter_index(sxml_dynamic_context *dynamic_context,
         const sxml_status status =
             add_key_values(dynamic_context, state, sxml_evaluator_machine_take_value(dynamic_context));
         if (is_catchable(status)) {
+            sxml_evaluator_machine_forget_caught_error(dynamic_context);
             task->catches_errors = false;
             release_entries(state, dynamic_context->allocator);
             return give_up(dynamic_context, state);
@@ -1235,6 +1239,7 @@ static sxml_status step_filter_index(sxml_dynamic_context *dynamic_context,
         task->catches_errors = false;
         const sxml_status caught = sxml_evaluator_machine_take_caught_status(dynamic_context);
         if (caught != SXML_STATUS_OK) {
+            sxml_evaluator_machine_forget_caught_error(dynamic_context);
             return finish_with_input(dynamic_context, state);
         }
         return answer_probe(dynamic_context, state,

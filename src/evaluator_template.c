@@ -502,6 +502,7 @@ static sxml_status sxml_template_take_match(sxml_dynamic_context *dynamic_contex
     sxml_evaluator_machine_top(dynamic_context)->catches_errors = false;
     if (caught != SXML_STATUS_OK) {
         /* 6.5: an error while matching is no match. */
+        sxml_evaluator_machine_forget_caught_error(dynamic_context);
         return sxml_template_try_next_rule(dynamic_context, state);
     }
     const sxml_sequence value = sxml_evaluator_machine_take_value(dynamic_context);

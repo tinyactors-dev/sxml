@@ -1798,6 +1798,54 @@ static void test_single_item_shortcuts(sxml_test_state *state) {
                                               "false true Jane Doe 1 true"));
 }
 
+/* A choice or union whose alternatives the item matches none of: each
+   alternative is tried in order until one gives an item that matches it,
+   since the item coercion rules end with a type error for an item that
+   does not (XPath 4.0, section 3.4.2, the choice rule and the last rule);
+   the error is the first attempt's. */
+static void test_choices_try_every_alternative(sxml_test_state *state) {
+    /* A node alternative first: the untyped item is no element, so it is
+       cast to xs:string. */
+    SXML_TEST_EXPECT(state, evaluates_to("let $f := function($x as (element(a) | xs:string)) "
+                                         "{$x instance of xs:string, $x} return "
+                                         "$f(xs:untypedAtomic('v'))",
+                                         "true v"));
+    SXML_TEST_EXPECT(state, evaluates_to("let $f := function($x as (array(xs:string) | "
+                                         "map(*) | xs:integer)) {$x + 1} return "
+                                         "$f(xs:untypedAtomic('41'))",
+                                         "42"));
+    SXML_TEST_EXPECT(state, path_evaluates_to("let $f := function($x as (element(works) | "
+                                              "xs:string)) {$x instance of xs:string, $x} "
+                                              "return $f(//employee[1]/@name)",
+                                              "true Jane Doe 1"));
+    /* An atomic alternative first: its cast fails, the node alternative
+       gives no match, and the first error stands. */
+    SXML_TEST_EXPECT(state, evaluates_to("let $f := function($x as (xs:integer | element(a))) "
+                                         "{$x + 1} return $f(xs:untypedAtomic('12'))",
+                                         "13"));
+    SXML_TEST_EXPECT(state, fails_with("let $f := function($x as (xs:integer | element(a))) "
+                                       "{$x} return $f(xs:untypedAtomic('v'))",
+                                       "FORG0001"));
+    SXML_TEST_EXPECT(state, fails_with("let $f := function($x as (element(a) | xs:integer)) "
+                                       "{$x} return $f(xs:untypedAtomic('v'))",
+                                       "XPTY0004"));
+    /* A union among the alternatives: xs:numeric casts to xs:double, its
+       first member (XML Schema 1.1 Part 2, 3.4.3). */
+    SXML_TEST_EXPECT(state, evaluates_to("let $f := function($x as (element(a) | xs:numeric)) "
+                                         "{$x instance of xs:double, $x} return "
+                                         "$f(xs:untypedAtomic('5'))",
+                                         "true 5"));
+    /* Several items, each coerced on its own. */
+    SXML_TEST_EXPECT(state, path_evaluates_to("let $f := function($x as (element(works) | "
+                                              "xs:string)*) {$x ! (. instance of xs:string)} "
+                                              "return $f((xs:untypedAtomic('v'), 'w', /works, "
+                                              "//employee[2]/@name))",
+                                              "true true false true"));
+    SXML_TEST_EXPECT(state, fails_with("let $f := function($x as (element(a) | xs:string)*) "
+                                       "{$x} return $f((xs:untypedAtomic('v'), 1))",
+                                       "XPTY0004"));
+}
+
 /* ---------------------------------------------------------------- JNodes */
 
 static void test_json_nodes(sxml_test_state *state) {
@@ -2101,6 +2149,8 @@ static const sxml_test_case evaluator_test_cases[] = {
     {.name = "path_errors", .function = test_path_errors},
     {.name = "path_errors_with_document", .function = test_path_errors_with_document},
     {.name = "single_item_shortcuts", .function = test_single_item_shortcuts},
+    {.name = "choices_try_every_alternative",
+     .function = test_choices_try_every_alternative},
     {.name = "json_nodes", .function = test_json_nodes},
     {.name = "errors_have_code_and_location",
      .function = test_errors_have_code_and_location},

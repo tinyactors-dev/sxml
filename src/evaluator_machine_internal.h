@@ -58,7 +58,9 @@
  * states), clears its catches_errors, stores the status in
  * caught_status and runs it again. The catching task reads the error from
  * the evaluation's error record (which may be NULL when the caller passed
- * none) and takes the status with sxml_evaluator_machine_take_caught_status.
+ * none) and takes the status with sxml_evaluator_machine_take_caught_status;
+ * once it has read the error and handles it, it clears the record with
+ * sxml_evaluator_machine_forget_caught_error.
  * Its own failure is never handed to itself, and no other status is ever
  * caught (limits, memory, unsupported features, invalid arguments: XQuery
  * 4.0, "Try/Catch Expressions", catches dynamic and type
@@ -337,6 +339,12 @@ sxml_sequence sxml_evaluator_machine_take_value(
    it; SXML_STATUS_OK when none waits. */
 sxml_status sxml_evaluator_machine_take_caught_status(
     sxml_dynamic_context *dynamic_context);
+
+/* Clears the evaluation's error record (when there is one) after a
+   catching task has read the error it was handed and dealt with it (see
+   "Catching"), so a later failure that writes no record, such as a limit,
+   is not reported with the caught error's code, description or place. */
+void sxml_evaluator_machine_forget_caught_error(sxml_dynamic_context *dynamic_context);
 
 /* Reads atom in the top task's frame: borrowed, valid until that place
    changes. Raises XPDY0002 for an absent slot. */

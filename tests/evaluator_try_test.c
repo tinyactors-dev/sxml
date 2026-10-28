@@ -1225,6 +1225,30 @@ static sxml_ir_expression_index build_long_body(unit_builder *builder) {
                                 .clause_count = 1});
 }
 
+/* try { raise err:FOAR0001 } catch * { try { call-action(function() { 7 })
+   } catch * { 0 } }: a step limit stops the handler after the caught
+   error. */
+static sxml_ir_expression_index build_limit_after_caught_error(unit_builder *builder) {
+    const sxml_ir_expression_index inner_body = add_action_call(
+        builder, &(action_call_description){.row = &call_action_row,
+                                            .action_body = add_integer_expression(builder, 7)});
+    const sxml_ir_expression_index inner_try =
+        add_try(builder, &(try_description){
+                             .body = inner_body,
+                             .clauses = {{.error_tests = {any_name_test()},
+                                          .error_test_count = 1,
+                                          .error_details_slot = 3,
+                                          .handler = add_integer_expression(builder, 0)}},
+                             .clause_count = 1});
+    return add_try(builder, &(try_description){
+                                .body = add_dynamic_error(builder, "FOAR0001"),
+                                .clauses = {{.error_tests = {any_name_test()},
+                                             .error_test_count = 1,
+                                             .error_details_slot = 1,
+                                             .handler = inner_try}},
+                                .clause_count = 1});
+}
+
 /* try { lazy-failure() } catch err:FOAR0002 { 1 } */
 static sxml_ir_expression_index build_lazy_error(unit_builder *builder) {
     const sxml_ir_expression_index body = add_static_call(
@@ -1415,6 +1439,51 @@ static void test_limits_are_never_caught(sxml_test_state *state) {
     }
 }
 
+/* A caught error leaves the evaluation's error record (XQuery 4.0,
+   "Try/Catch Expressions": the catch clause handles it), so a later
+   failure that writes no record, a limit, does not carry its code,
+   description or place (D310's stale description). */
+static bool record_is_clear(const sxml_error_record *record) {
+    return record->code.local_name.byte_count == 0 && record->value == NULL &&
+           record->diagnostic.location.line_number == 0;
+}
+
+static void test_caught_errors_leave_the_record(sxml_test_state *state) {
+    scenario_run run;
+    SXML_TEST_REQUIRE(state, run_scenario(&(scenario){.build = build_catch_any}, &run) ==
+                                 SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, run.status == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, record_is_clear(&run.error_record) &&
+                                run.error_record.diagnostic.description.byte_count == 0);
+    SXML_TEST_EXPECT(state, finish_run(&run));
+    SXML_TEST_REQUIRE(state, run_scenario(&(scenario){.build = build_finally_after_catch},
+                                          &run) == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, run.status == SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state, record_is_clear(&run.error_record));
+    SXML_TEST_EXPECT(state, finish_run(&run));
+    /* Every bound, from the first step until the evaluation finishes:
+       one that stops it in the handler reports the limit alone. */
+    bool has_finished = false;
+    for (uint64_t step_count = 1; !has_finished && step_count < 200; step_count += 1) {
+        SXML_TEST_REQUIRE(state,
+                          run_scenario(&(scenario){.build = build_limit_after_caught_error,
+                                                   .maximum_evaluation_step_count = step_count},
+                                       &run) == SXML_STATUS_OK);
+        has_finished = run.status == SXML_STATUS_OK;
+        SXML_TEST_EXPECT(state, has_finished ? is_integer(run.value, 7)
+                                             : run.status == SXML_STATUS_LIMIT_EXCEEDED);
+        const sxml_byte_view description = run.error_record.diagnostic.description;
+        SXML_TEST_EXPECT(state, record_is_clear(&run.error_record));
+        /* The step limit's own description, never the caught error's. */
+        SXML_TEST_EXPECT(state, has_finished ? description.byte_count == 0
+                                             : description.byte_count > 16 &&
+                                                   memcmp(description.bytes,
+                                                          "the evaluation t", 16) == 0);
+        SXML_TEST_EXPECT(state, finish_run(&run));
+    }
+    SXML_TEST_EXPECT(state, has_finished);
+}
+
 static void test_without_error_record(sxml_test_state *state) {
     scenario_run run;
     SXML_TEST_REQUIRE(state, run_scenario(&(scenario){.build = build_catch_any,
@@ -1502,6 +1571,8 @@ static const sxml_test_case evaluator_try_test_cases[] = {
      .function = test_errors_in_resumable_native_calls},
     {.name = "lazy_errors_are_caught", .function = test_lazy_errors_are_caught},
     {.name = "limits_are_never_caught", .function = test_limits_are_never_caught},
+    {.name = "caught_errors_leave_the_record",
+     .function = test_caught_errors_leave_the_record},
     {.name = "without_error_record", .function = test_without_error_record},
     {.name = "try_survives_every_allocation_failure",
      .function = test_try_survives_every_allocation_failure},
