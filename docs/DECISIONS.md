@@ -15437,8 +15437,16 @@ sxml's 4.0 processor too.
 
 *Rule contexts* (the owner's amendment of 3a). Under every binding a
 `context` is parsed first as an XSLT 4.0 pattern and, when it is one,
-used as one (Annexes C, H, J name XSLT's pattern production; every
-path expression that is a pattern selects the same nodes either way).
+used as one. Under the xslt bindings that is the standard's reading
+(Annexes C, H, J name XSLT's pattern production). Under the xpath
+bindings it is sxml's choice: Annexes I, K and L say only that the
+context is interpreted as an XPath expression, and 6.3 leaves its
+evaluation context to the binding, which does not define it. The two
+readings differ for relative paths: `context="item"` as a pattern
+matches every `item` element, as an expression evaluated from the
+instance root only the `item` children of the document node. sxml
+reads such a context as a pattern because that is what schema authors
+write and what every implementation does.
 A context that is no pattern but a valid XPath 4.0 expression (Annexes
 I, K, L define xpath-binding contexts as expressions: `(//item)[1]`,
 `../x`, `$doc//x`) is an *expression rule context*: the builder wraps
