@@ -4,6 +4,17 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-26
 
+- perf-11 done (D322): node atomization describes its node once, and
+  string values step over attributes by count. The profile: SchXslt's
+  expand stage atomizes 4,903 distinct untyped nodes 2.71 million
+  times, about 1,010 instructions each, 70 % of it the atomic cell
+  (allocation, UTF-8 validation, type resolution in
+  `src/xdm_atomic.c`). Expand 47.78 to 47.45 x 10^9 instructions
+  (-0.7 %), coercion.xq 2.716 to 2.695, xmark-all 8.747 to 8.643
+  (-1.2 %); seconds within noise. QT4 XP40 (32,785), XQ40 (46,114),
+  XT40 (12,185), base and change built and run alike: 0 outcomes
+  differ. The cell's costs are proposed for a later packet (D322).
+
 - fix-4 done (D321): a choice whose alternatives an item matches none
   of tries each until one gives an item that matches it (XPath 4.0,
   3.4.2), so `(element(a) | xs:string)` takes xs:untypedAtomic("v") as

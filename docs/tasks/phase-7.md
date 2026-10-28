@@ -1457,6 +1457,12 @@ largest coercion cost: 3.19 x 10^9 (6.7 %), in `src/xdm_node.c`.
   (instructions and seconds) on the expand stage, coercion.xq and
   xmark-all; QT4 XP40, XQ40 and XT40 whole: no outcome changes, case by
   case.
+**Done** 2026-10-28 (D322): a typed value describes its node once;
+text walks step over attributes by count. SchXslt's expand stage
+47.78 to 47.45 x 10^9 instructions, coercion.xq 2.716 to 2.695,
+xmark-all 8.747 to 8.643; QT4 XP40, XQ40 and XT40 whole: 0 outcomes
+differ, case by case. The atomic cell's costs (70 % of what is left)
+are outside the packet's files: proposed in D322.
 
 ### 7.21 Fast Invisible XML (book, tests, implementation)
 After D215 (7.18: the Earley parser, right recursion quadratic, every

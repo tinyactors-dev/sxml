@@ -16169,6 +16169,66 @@ changed. Commit 5a47d8a68.
   a place would leave the record filled the same way, visible only
   through a later failure that writes no record.
 
+### D322. Node atomization describes once; the costs left are the atomic cell's (packet perf-11)
+
+Recorded 2026-10-28, after D39, D71, D229, D316, D319. No public header
+changed.
+
+- **Whom it serves**: every atomization of a node (coercion of node
+  arguments to atomic types, comparisons, fn:data, string functions
+  given nodes), first SchXslt's expand stage of EN 16931, where D319
+  left node atomization at 3.19 x 10^9 instructions (6.7 %).
+- **Profile** (callgrind, release, at 47a1d9a33; 47.78 x 10^9): 2.71
+  million atomizations, every one of an untyped node: 2.03 million
+  attributes and 0.68 million text nodes, but only 4,903 distinct
+  nodes, most of them parentless (node 0 of a tree of their own), each
+  atomized about 550 times. One atomization cost about 1,010
+  instructions in `sxml_node_make_typed_value`: two node descriptions
+  (113 each), the content (54) and `sxml_atomic_item_make` (590: the
+  cell from the allocator 283, UTF-8 validation 178, type resolution
+  through the registry about 70), and later the cell's free. The
+  common case the packet names was confirmed: one xs:untypedAtomic from
+  the string value, without a sequence builder (D229 had removed it).
+- **Mechanism** (`src/xdm_node.c`, no new machinery): the string value
+  takes the caller's described node, so a typed value describes its
+  node once (the public `sxml_node_make_string_value` describes it
+  itself); the walk over the text descendants of a document or element
+  steps over each element's attributes by `attribute_count` (they are
+  stored right after it, D39) instead of describing them, never past
+  the last descendant.
+- **Not changed**: outcomes, error codes, steps (atomization charges
+  none), D71 (the walk is the same loop).
+- **Measured** (callgrind instructions x 10^9, release, before at
+  47a1d9a33, after 365e4257b): SchXslt expand 47.780 to 47.463 (one
+  description) to 47.452 (attributes skipped), -0.7 %, output
+  byte-identical to `s2.sch`; `tests/bench/coercion.xq` 2.716 to 2.697
+  to 2.695 (-0.8 %); xmark-all 8.747 to 8.646 to 8.643 (-1.2 %; its
+  0.86 million atomizations are mostly text-only elements). Processor
+  seconds (fastest of seven, interleaved, a shared machine): expand
+  6.28 to 6.40, coercion.xq 0.303 to 0.367, xmark-all 1.205 to 1.043,
+  within the machine's noise. **Conformance setup**: the base commit
+  and the change built alike (`git archive` snapshots, preset
+  `release`), run one after the other on the same machine with TZ,
+  LANG and LC_ALL unset (UTC, the C locale), from the snapshot root:
+  `sxml-qt4 run --spec=XP40 --format=json`, `sxml-qt4 run --spec=XQ40
+  --format=json`, `sxml-xslt-test run --format=json` (default
+  catalogs, no test list). XP40 32,785, XQ40 46,114 and XT40 12,185
+  passed in both: 0 outcomes differ, case by case. debug-gcc: 437 of
+  437 tests pass; clang-tidy clean.
+- **Left**, outside this packet's files (see "## Proposed"): the atomic
+  cell itself, about 70 % of what an atomization still costs. A
+  scratch experiment that resolved xs:string and xs:untypedAtomic
+  without the registry in `sxml_atomic_item_make` (`src/xdm_atomic.c`)
+  took the expand stage from 47.45 to 46.98 (-1.0 %, 6.8 million calls
+  of about 70 instructions); UTF-8 validation of text the tree already
+  holds as well-formed UTF-8 is 1.21 (2.5 %); cell allocation through
+  the allocator 2.04 (4.3 %) plus the frees. A memo of typed values
+  per item heap would remove most of the 3.2, since SchXslt atomizes
+  few nodes many times, but the heap's live-cell counts, which many
+  tests check, would then count the memo; per evaluation it needs the
+  dynamic context, and the public `sxml_node_value_request` cannot
+  carry it (D99).
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): tagging and
@@ -16177,3 +16237,15 @@ changed. Commit 5a47d8a68.
   repository moves to tinyactors-dev. The license (MIT) and the npm name
   (`@tinyactors/sxml`) are settled in D239; everything else takes its
   proposed default (D208).
+
+- **Cheaper atomic string cells** (D322, perf-11; for a later perf
+  packet owning `src/xdm_atomic.c` and `src/xdm.c`): (1) resolve the
+  built-in atomic types in `sxml_atomic_item_make` from a table instead
+  of describing them through the registry (measured: SchXslt expand
+  -1.0 %); (2) let a caller that already holds validated text, such as
+  a tree's content (tree.h: trees hold well-formed UTF-8), pass its
+  codepoint count or skip the second validation (2.5 % of expand);
+  (3) small-cell reuse in the item heap, kept out of the live counts
+  only if the tests' leak checks are redefined (cells 4.3 % plus
+  frees); (4) a typed-value memo per evaluation for untyped nodes,
+  which needs the dynamic context to reach `src/xdm_node.c`.
