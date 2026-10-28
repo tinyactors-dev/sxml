@@ -405,4 +405,274 @@
       </findings>
     </result>
   </test-case>
+  <test-case name="phase-inactive-pattern-dynamic-error" since="2020">
+    <description>A pattern outside the active phase whose test would raise a dynamic error: it is not processed (6.3), so validation does not end in error.</description>
+    <spec clause="6.3"/>
+    <spec clause="3.3"/>
+    <schema file="phase-inactive-pattern-dynamic-error.sch"/>
+    <instance file="phase-inactive-pattern-dynamic-error.xml"/>
+    <phase>p</phase>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Two.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="phase-inactive-pattern-syntax-error" since="2020">
+    <description>A syntax error in a pattern outside the active phase: whether a schema is correct does not depend on the phase.</description>
+    <spec clause="7.2"/>
+    <schema file="phase-inactive-pattern-syntax-error.sch"/>
+    <instance file="phase-inactive-pattern-syntax-error.xml"/>
+    <phase>p</phase>
+    <result>
+      <schema-error clause="7.2"/>
+    </result>
+  </test-case>
+
+  <test-case name="phase-when-dynamic-error" since="2025">
+    <description>A dynamic error in when, evaluated to choose the phase for #ANY: validation ends in error.</description>
+    <spec clause="5.5.22"/>
+    <spec clause="6.1"/>
+    <schema file="phase-when-dynamic-error.sch"/>
+    <instance file="phase-when-dynamic-error.xml"/>
+    <phase>#ANY</phase>
+    <result>
+      <error clause="6.1"/>
+    </result>
+  </test-case>
+
+  <test-case name="phase-when-syntax" since="2025">
+    <description>A when that is not an expression of the query language.</description>
+    <spec clause="5.5.22"/>
+    <spec clause="7.2"/>
+    <schema file="phase-when-syntax.sch"/>
+    <instance file="phase-when-syntax.xml"/>
+    <result>
+      <schema-error clause="7.2"/>
+    </result>
+  </test-case>
+
+  <test-case name="phase-any-later-when-error" since="2025">
+    <description>#ANY where the first phase's when is true and a later phase's when would raise a dynamic error.</description>
+    <spec clause="5.5.22"/>
+    <schema file="phase-any-later-when-error.sch"/>
+    <instance file="phase-any-later-when-error.xml"/>
+    <phase>#ANY</phase>
+    <result>
+      <implementation-defined clause="5.5.22">The first phase in document order whose when is true is active; 5.5.22 does not say whether the when of later phases is evaluated: one successful-report at /Q{}doc[1]/Q{}item[2], or an error.</implementation-defined>
+    </result>
+  </test-case>
+
+  <test-case name="phase-when-ebv" since="2025">
+    <description>A when that returns nodes is reduced to a Boolean (its effective Boolean value): the phase whose node sequence is non-empty is active.</description>
+    <spec clause="5.5.22"/>
+    <spec clause="Annex-J"/>
+    <schema file="phase-when-ebv.sch"/>
+    <instance file="phase-when-ebv.xml"/>
+    <phase>#ANY</phase>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Pattern b.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="phase-when-ebv-error" since="2025">
+    <description>A when whose value has no effective Boolean value (two numbers) is an error.</description>
+    <spec clause="5.5.22"/>
+    <spec clause="Annex-J"/>
+    <schema file="phase-when-ebv-error.sch"/>
+    <instance file="phase-when-ebv-error.xml"/>
+    <phase>#ANY</phase>
+    <result>
+      <any-of>
+        <schema-error clause="5.5.22"/>
+        <error clause="5.5.22"/>
+      </any-of>
+    </result>
+  </test-case>
+
+  <test-case name="phase-from-dynamic-error" since="2025">
+    <description>A dynamic error in from: validation ends in error.</description>
+    <spec clause="5.5.7"/>
+    <spec clause="6.1"/>
+    <schema file="phase-from-dynamic-error.sch"/>
+    <instance file="phase-from-dynamic-error.xml"/>
+    <phase>p</phase>
+    <result>
+      <error clause="6.1"/>
+    </result>
+  </test-case>
+
+  <test-case name="phase-from-syntax" since="2025">
+    <description>A from that is not an expression of the query language.</description>
+    <spec clause="5.5.7"/>
+    <spec clause="7.2"/>
+    <schema file="phase-from-syntax.sch"/>
+    <instance file="phase-from-syntax.xml"/>
+    <phase>p</phase>
+    <result>
+      <schema-error clause="7.2"/>
+    </result>
+  </test-case>
+
+  <test-case name="phase-from-syntax-inactive" since="2025">
+    <description>A from that is not an expression, in a phase that is not selected: the schema is still not correct.</description>
+    <spec clause="5.5.7"/>
+    <spec clause="7.2"/>
+    <schema file="phase-from-syntax-inactive.sch"/>
+    <instance file="phase-from-syntax-inactive.xml"/>
+    <phase>p</phase>
+    <result>
+      <schema-error clause="7.2"/>
+    </result>
+  </test-case>
+
+  <test-case name="phase-from-empty" since="2025">
+    <description>A from that selects nothing: no rule context is evaluated, the instance is valid.</description>
+    <spec clause="5.5.7"/>
+    <schema file="phase-from-empty.sch"/>
+    <instance file="phase-from-empty.xml"/>
+    <phase>p</phase>
+    <result>
+      <findings/>
+    </result>
+  </test-case>
+
+  <test-case name="phase-from-several" since="2025">
+    <description>A from that selects two subtrees in reverse document order: rule contexts are evaluated in both, with the same findings as in document order.</description>
+    <spec clause="5.5.7"/>
+    <spec clause="6.6"/>
+    <schema file="phase-from-several.sch"/>
+    <instance file="phase-from-several.xml"/>
+    <phase>p</phase>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}part[1]/Q{}item[1]">
+          <message>Item 1.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}part[1]/Q{}item[2]">
+          <message>Item 2.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}part[2]/Q{}item[1]">
+          <message>Item 3.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="phase-from-overlapping" since="2025">
+    <description>A from whose results overlap: a part and an item inside it.</description>
+    <spec clause="5.5.7"/>
+    <schema file="phase-from-overlapping.sch"/>
+    <instance file="phase-from-overlapping.xml"/>
+    <phase>p</phase>
+    <result>
+      <implementation-defined clause="5.5.7">The results of from become the context for rule contexts; 5.5.7 does not say whether a node reached from two results is evaluated once (successful-reports for items 1 and 2 of the first part) or once for each (item 1 twice).</implementation-defined>
+    </result>
+  </test-case>
+
+  <test-case name="phase-from-attributes" since="2025">
+    <description>A from that selects attribute nodes: rule contexts that match attributes are evaluated against them.</description>
+    <spec clause="5.5.7"/>
+    <schema file="phase-from-attributes.sch"/>
+    <instance file="phase-from-attributes.xml"/>
+    <phase>p</phase>
+    <result>
+      <implementation-defined clause="5.5.7">5.5.7 does not say how the selected nodes become the context for rule contexts when they are attributes: whether the selected attribute itself is matched (one successful-report at /Q{}doc[1]/Q{}part[2]/@n, Number 2.) or only nodes below it (none).</implementation-defined>
+    </result>
+  </test-case>
+
+  <test-case name="phase-from-group" since="2025">
+    <description>from with a group: every rule of the group fires for the nodes in the subset only.</description>
+    <spec clause="5.5.7"/>
+    <spec clause="5.4.5"/>
+    <schema file="phase-from-group.sch"/>
+    <instance file="phase-from-group.xml"/>
+    <phase>p</phase>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}part[1]/Q{}item[1]">
+          <message>A Item 1.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}part[1]/Q{}item[2]">
+          <message>A Item 2.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}part[1]/Q{}item[2]">
+          <message>B Item 2.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="phase-group-variable" since="2025">
+    <description>A phase variable used in the rules of a group the phase activates.</description>
+    <spec clause="5.4.7"/>
+    <spec clause="5.4.5"/>
+    <spec clause="5.4.13"/>
+    <schema file="phase-group-variable.sch"/>
+    <instance file="phase-group-variable.xml"/>
+    <phase>p</phase>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[3]">
+          <message>Within Item 3.</message>
+        </finding>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>At the limit.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="phase-non-ascii-id" since="2020">
+    <description>A phase and a pattern whose ids have non-ASCII letters.</description>
+    <spec clause="5.4.13"/>
+    <spec clause="7.2"/>
+    <schema file="phase-non-ascii-id.sch"/>
+    <instance file="phase-non-ascii-id.xml"/>
+    <phase>prüfung</phase>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Two.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="phase-duplicate-active" since="2020">
+    <description>A phase that names one pattern twice: the pattern belongs to the phase (3.3) and is processed once.</description>
+    <spec clause="3.3"/>
+    <spec clause="5.4.2"/>
+    <spec clause="5.4.13"/>
+    <schema file="phase-duplicate-active.sch"/>
+    <instance file="phase-duplicate-active.xml"/>
+    <phase>p</phase>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Two.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="phase-active-abstract" since="2020">
+    <description>active names an abstract pattern (which Annex B's check accepts, since it is a pattern with that id), not one of its instances.</description>
+    <spec clause="5.4.2"/>
+    <spec clause="6.2"/>
+    <spec clause="Annex-B"/>
+    <schema file="phase-active-abstract.sch"/>
+    <instance file="phase-active-abstract.xml"/>
+    <phase>p</phase>
+    <result>
+      <implementation-defined clause="5.4.2 6.2 Annex-B">The minimal syntax (6.2) removes abstract patterns, so the phase is left naming no pattern: a processor may reject the schema, treat the phase as empty (no findings), or not decide otherwise.</implementation-defined>
+    </result>
+  </test-case>
 </test-set>
