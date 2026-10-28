@@ -50,4 +50,15 @@
       <implementation-defined clause="5.5.15">On request the implementation reports the edition 2025 (in SVRL, schematron-output/@schematronEdition).</implementation-defined>
     </result>
   </test-case>
+  <test-case name="edition-whitespace" since="2025">
+    <description>schematronEdition with leading and trailing whitespace.</description>
+    <spec clause="5.5.15"/>
+    <spec clause="5.3"/>
+    <spec clause="Annex-A"/>
+    <schema file="edition-whitespace.sch"/>
+    <instance file="edition-whitespace.xml"/>
+    <result>
+      <implementation-defined clause="5.3 5.5.15">Annex A types schematronEdition as xsd:token, whose value is 2025, and 5.3 says such whitespace should be stripped: a processor that strips it reports one failed-assert at /Q{}doc[1]/Q{}item[2]; one that compares the raw value finds an edition other than 2025 (5.5.15).</implementation-defined>
+    </result>
+  </test-case>
 </test-set>
