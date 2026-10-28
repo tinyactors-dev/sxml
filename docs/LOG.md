@@ -4,6 +4,16 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-26
 
+- fix-4 done (D321): a choice whose alternatives an item matches none
+  of tries each until one gives an item that matches it (XPath 4.0,
+  3.4.2), so `(element(a) | xs:string)` takes xs:untypedAtomic("v") as
+  the string "v"; a caught error no longer stays in the error record
+  (try/catch, finally, template patterns, the filter index), so a later
+  limit is reported alone (D310, reproduced with a depth limit). QT4
+  XP40 32,785, XQ40 46,114, XT40 12,185 passed before and after, case
+  by case: 0 outcomes differ. SchXslt expand: same output, same
+  instructions.
+
 - perf-10 done (D319): casts that keep the string relabel the source's
   cell (xs:untypedAtomic to xs:string 1,650 to 240 instructions), one
   item against a choice is kept by the first alternative it matches,

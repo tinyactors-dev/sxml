@@ -16114,6 +16114,61 @@ and D139. The header change D315 announced for 7.28.
   release, case by case against the base commit built the same way: 0
   outcomes differ (12,185 passed).
 
+### D321. Choices try every alternative; a caught error leaves the error record (packet fix-4)
+Recorded 2026-10-28, after D85, D310, D314, D316, D319. No public header
+changed. Commit 5a47d8a68.
+- **Choice coercion** (D319's engine gap): XPath 4.0, 3.4.2 coerces an
+  item that matches no alternative of a choice or union "to each of the
+  alternatives in turn, until an alternative is found that does not
+  result in a type error", and the item coercion rules end with a type
+  error when the resulting item does not match the required item type
+  (3.4.2, last rule). The engine's CHOICE took an attempt that left the
+  item unchanged (no rule applies: xs:untypedAtomic against element(a))
+  as the first alternative's success, so `(element(a) | xs:string)`
+  given `xs:untypedAtomic("v")` ended in XPTY0004 at the final match.
+  Now an attempt succeeds only when its result matches the alternative
+  (`sxml_coercion_accept_attempt`, src/evaluator_function.c); an
+  unchanged item never does, since the CHOICE tries alternatives only
+  for an item that matches none, so it is not matched again. A failed
+  attempt reports the role's type error in its record and counts as an
+  error raised above the CHOICE: the first attempt's error still stands
+  when all fail (`(xs:integer | element(a))` and "v": FORG0001). An
+  accepted later attempt clears the first failure from the request's
+  record, which the coercion succeeded without.
+- **Stale error record** (D310): reproduced with the CLI, a regex error
+  caught and then a depth limit, `declare function local:f($n) { 1 +
+  local:f($n + 1) }; (try { matches("a", "(") } catch * { 0 }),
+  local:f(1)`: exit 4 with the regex error's description and place
+  (since D314 the step limit is not reached, and it writes its own
+  description, so it hid the bug except for the code and place). The
+  catching task read the record and left it filled. New machine call
+  `sxml_evaluator_machine_forget_caught_error`
+  (src/evaluator_machine_internal.h, "Catching") clears it once a
+  catching task has read the error and handles it: a catch clause,
+  after its details map is made; an error kept for a finally clause
+  (raised again from the try state); a template rule's pattern error,
+  which is no match (XSLT 4.0, 6.5); the filter index giving up. A step
+  limit hit between the catch and its handling keeps its own
+  description and drops the rest. Streaming accumulators keep their
+  caught error for the reads (19.5), as before.
+- **Evidence**: `evaluator_test` `choices_try_every_alternative` (a node
+  alternative first, an atomic one first, a union inside a choice,
+  maps and arrays, several items, the first attempt's error);
+  `evaluator_try_test` `caught_errors_leave_the_record` (every step
+  bound across a caught error: the record holds no code, value or
+  place, and the limit's own description). debug-gcc: 437 tests pass;
+  clang-tidy clean; no call cycle.
+- **Conformance**, release, whole, case by case against 47a1d9a33 built
+  the same way: XP40 32,785, XQ40 46,114, XT40 12,185 passed before and
+  after, 0 outcomes differ, no gains. The
+  brief's figures (32,815, 46,158, 12,283) are not what HEAD gives with
+  these drivers here. SchXslt's expand stage: output identical to
+  s2.sch; 47,779,606,081 to 47,779,606,157 instructions (callgrind).
+- **Left**: code that tries something and drops its error without a
+  catching task (outside the machine's catching) was not audited; such
+  a place would leave the record filled the same way, visible only
+  through a later failure that writes no record.
+
 ## Proposed
 
 - **Outward-facing choices** (D208; for the owner): tagging and

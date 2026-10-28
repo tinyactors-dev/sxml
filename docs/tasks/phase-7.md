@@ -1435,6 +1435,11 @@ found the second.
   listed); the SchXslt expand stage of EN 16931 unchanged in output and
   not slower.
 
+**Done** 2026-10-28 (D321): a CHOICE attempt succeeds only when its
+result matches the alternative; a catching task clears the error record
+once it handles the error. QT4 XP40, XQ40, XT40 whole: 0 outcomes
+differ; SchXslt expand unchanged in output and instructions.
+
 ### perf-11 Cheaper node atomization (implementation)
 After D316 and D319. In SchXslt's expand stage of EN 16931 (47.78 x 10^9
 instructions after perf-10), node atomization in coercion is the
