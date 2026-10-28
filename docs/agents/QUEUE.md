@@ -79,8 +79,18 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
   56 s this morning); output identical.
 - perf-10 done (D319): relabelled casts, choices of one item; SchXslt's
   expand stage 52.19 to 47.78 x 10^9 instructions, about 6.7 s.
-- fix-4 (choice coercion bug, stale error description) and perf-11 (node
-  atomization) run beside 7.28: disjoint files.
+- fix-4 done (D321): choices try every alternative (XPath 4.0, 3.4.2);
+  a caught error no longer leaves its description in the record. Left:
+  code that drops an error outside a catching task is not audited.
+- perf-11 (node atomization) runs beside 7.28.
+- Conformance baselines differ by setup: 7.29 (D318) measured XP40
+  32,815, XQ40 46,158, XT40 12,283 before and after; perf-8, perf-10 and
+  fix-4 measured 32,785, 46,114, 12,185 before and after on the same
+  code. Each run is consistent, so no packet changed an outcome, but the
+  setups differ (cause unverified; XP40's 32,815 equals the owner's
+  report). Compare only against a base measured in the same setup and
+  session, and name the setup (environment variables, drivers' options)
+  in the record.
 - Leftovers without a packet: the error record is not cleared after a
   caught FORX0002, so a later LIMIT_EXCEEDED prints the old description
   (perf-7); `c.md`'s memory example prints 197 allocations where the book
