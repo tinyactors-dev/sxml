@@ -1464,6 +1464,37 @@ xmark-all 8.747 to 8.643; QT4 XP40, XQ40 and XT40 whole: 0 outcomes
 differ, case by case. The atomic cell's costs (70 % of what is left)
 are outside the packet's files: proposed in D322.
 
+### perf-12 Compiling large stylesheets (implementation)
+After D224, D259 and D322. Validating one EN 16931 invoice with the
+official pre-compiled stylesheet (900 KB of XSLT, from
+ConnectingEurope/eInvoicing-EN16931) costs 2.68 x 10^9 instructions,
+about 0.5 s, and 79 % of it is compiling the stylesheet: reading 41 %
+(tree-sitter's XML parse 23 %), XPath parsing 25 %, IR passes 32 %;
+the validation itself 20 %. Two passes dominate on their own:
+`sxml_ir_shorten_descendant_paths` 12.5 % (self) and
+`sxml_ir_read_globals_lazily` 8.6 % (self), which suggests work that
+grows with the square of the unit (each template or global revisits the
+whole unit). Every `sxml transform` and, after 7.28, every Schematron
+compile pays this.
+- **Mechanism**: profile first (callgrind on the invoice run above and
+  on a stylesheet of growing size made by repeating templates, to show
+  the growth); make each pass linear (or n log n) in the unit's size
+  with the same result; then the next largest compile cost the profile
+  shows in the files below. The IR after the passes must be the same:
+  compare the IR text form (`src/ir.c`'s printer) before and after on
+  the EN 16931 stylesheet and the XT40 suite's stylesheets.
+- **Owns**: `src/ir_loop_passes.c`, `src/ir_global_read.c`, `src/ir.c`
+  (the pass list and helpers), `src/ir_internal.h` and
+  `src/ir_pass_internal.h` (their pass parts), `src/xpath_parse.c`,
+  `src/xpath_lower.c`, `tests/ir_loop_passes_test.c`, `tests/bench/`.
+  Not `src/xslt*.c` (7.28).
+- **Done when**: each change measured before and after (instructions and
+  seconds) in a D-record and the commit messages, on the invoice run, a
+  growth series showing linear passes, xmark-all and SchXslt's expand
+  stage; the IR text form identical; QT4 XP40, XQ40 and XT40 whole,
+  base and change built and run in the same setup: no outcome changes,
+  case by case.
+
 ### 7.21 Fast Invisible XML (book, tests, implementation)
 After D215 (7.18: the Earley parser, right recursion quadratic, every
 item a step). The owner: high performance; book first, then

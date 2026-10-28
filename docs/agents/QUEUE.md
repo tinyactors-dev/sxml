@@ -82,7 +82,12 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
 - fix-4 done (D321): choices try every alternative (XPath 4.0, 3.4.2);
   a caught error no longer leaves its description in the record. Left:
   code that drops an error outside a catching task is not audited.
-- perf-11 (node atomization) runs beside 7.28.
+- perf-11 done (D322): about 1 %; the rest of atomization's cost is in
+  the atomic cell (allocation 4.3 %, a second UTF-8 check 2.5 %, type
+  lookup 1 %), proposed in D322.
+- perf-12 (compiling large stylesheets) runs beside 7.28: validating one
+  EN 16931 invoice from the command line is 79 % stylesheet compile, and
+  two IR passes look quadratic.
 - Conformance baselines differ by setup: 7.29 (D318) measured XP40
   32,815, XQ40 46,158, XT40 12,283 before and after; perf-8, perf-10 and
   fix-4 measured 32,785, 46,114, 12,185 before and after on the same
