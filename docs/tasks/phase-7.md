@@ -1536,6 +1536,33 @@ text once. Invoice 2.077 to 1.958 x 10^9 instructions, validate
 identical; XP40, XQ40, XT40 0 outcomes differ; Schematron 463 of 463,
 VEFA 1,133 of 1,133.
 
+### perf-14 Running compiled Schematron (implementation)
+After D315, D323 and D325. On one EN 16931 UBL invoice, evaluating the
+Schematron that sxml compiles from the `.sch` sources costs 1.21 x 10^9
+instructions; evaluating the official stylesheet compiled from the same
+rules by the ISO skeleton costs 0.55 x 10^9 (D325). The same rules, the
+same evaluator: the difference is in the stylesheet AST that
+`src/schematron*` builds (how patterns become modes, rules become
+templates and assertions become conditions, D315), or in how the
+lowering treats it.
+- **Mechanism**: profile both runs (callgrind, inclusive, by template
+  and by IR kind) and explain the difference before changing anything;
+  then change what the Schematron front end builds (or, if the cause is
+  in the shared lowering or evaluator, a general mechanism there that
+  helps XSLT too), keeping D315's semantics: first matching rule per
+  pattern, every rule of a group, phases, `let` per rule context,
+  locations of both kinds.
+- **Owns**: `src/schematron*`, `tests/schematron_test.c`, `tests/bench/`;
+  the shared lowering or evaluator files only if the profile shows the
+  cause there (say which in the D-record).
+- **Done when**: the explanation and before and after (instructions and
+  seconds) in a D-record and the commit messages, on the invoice and on
+  the 1,131 VEFA instances; Schematron findings byte-identical (JSON) on
+  the 1,150 EN 16931 files D325 compared; 7.30's suite 463 of 463
+  applicable; VEFA 1,133 of 1,133; if shared files change, QT4 XP40,
+  XQ40 and XT40 whole, base and change in the same setup: no outcome
+  changes, case by case.
+
 ### 7.21 Fast Invisible XML (book, tests, implementation)
 After D215 (7.18: the Earley parser, right recursion quadratic, every
 item a step). The owner: high performance; book first, then
