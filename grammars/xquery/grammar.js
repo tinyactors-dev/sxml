@@ -78,8 +78,11 @@ const xquery = grammar(xpath, {
   },
 
   // The Full Text choice rules (D214) leave no symbol in the parser
-  // tables, which keeps their large-state rows from growing.
-  inline: ($, original) => original.concat(fullText.inline($)),
+  // tables, which keeps their large-state rows from growing. XPath's
+  // inlined choice rules (perf-17) are not taken: here they would grow
+  // the tables by 560 KB (5,647 to 9,518 states), and a query is parsed
+  // once while a stylesheet's expressions are many.
+  inline: ($) => fullText.inline($),
 
   conflicts: ($, original) => original.concat([
     // "element instance {...}" (a computed constructor named "instance")
