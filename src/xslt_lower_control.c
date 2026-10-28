@@ -29,6 +29,7 @@
 
 #include "function_library_core_internal.h"
 #include "processor_internal.h"
+#include "sort_internal.h"
 #include "sxml/name.h"
 #include "sxml/tree.h"
 #include "sxml/types.h"
@@ -4898,24 +4899,155 @@ typedef struct global_reference {
     sxml_name_identifier name;
 } global_reference;
 
-static size_t find_referenced_global(const sxml_xslt_lowering *lowering,
-                                     global_reference reference) {
+/* A name of a declaration view and its first position there. */
+typedef struct declared_name {
+    sxml_name_identifier name;
+    size_t position;
+} declared_name;
+
+/* The names of one declaration view, by name then position. */
+typedef struct name_index {
+    sxml_variable_declaration_view view;
+    declared_name *names;
+} name_index;
+
+/*
+ * Finds the global a reference reads by binary search in the names of its
+ * static context's declaration view (perf-13: a walk over the view for
+ * each reference grew with references times globals). The static
+ * contexts share few views (one, or one per package), so one index is
+ * made per view, and each context points at its own.
+ */
+typedef struct global_finder {
+    const sxml_xslt_lowering *lowering;
+    name_index *indexes;
+    size_t index_count;
+    /* By AST static context: its index in indexes. */
+    uint32_t *context_indexes;
+} global_finder;
+
+static bool is_declared_name_before(const void *state, sxml_sort_pair pair) {
+    (void)state;
+    const declared_name *first = pair.first;
+    const declared_name *second = pair.second;
+    if (first->name.index != second->name.index) {
+        return first->name.index < second->name.index;
+    }
+    return first->position < second->position;
+}
+
+static void release_global_finder(global_finder *finder) {
+    const sxml_xpath_lowerer *lowerer = finder->lowering->lowerer;
+    for (size_t index_number = 0; finder->indexes != NULL && index_number < finder->index_count;
+         index_number += 1) {
+        sxml_xpath_lowerer_release_scratch(lowerer, finder->indexes[index_number].names);
+    }
+    sxml_xpath_lowerer_release_scratch(lowerer, finder->indexes);
+    sxml_xpath_lowerer_release_scratch(lowerer, finder->context_indexes);
+    finder->indexes = NULL;
+    finder->index_count = 0;
+    finder->context_indexes = NULL;
+}
+
+/* An index of view's names (sorted) as indexes[index_count]. */
+static sxml_status add_name_index(global_finder *finder, sxml_variable_declaration_view view) {
+    void *memory = NULL;
+    const sxml_status status = sxml_xpath_lowerer_allocate_scratch(
+        finder->lowering->lowerer,
+        (sxml_xpath_lowering_scratch_request){.element_count = view.variable_declaration_count == 0
+                                                                   ? 1
+                                                                   : view.variable_declaration_count,
+                                              .element_size = sizeof(declared_name),
+                                              .element_alignment = alignof(declared_name)},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    declared_name *names = memory;
+    for (size_t position = 0; position < view.variable_declaration_count; position += 1) {
+        names[position] = (declared_name){
+            .name = view.variable_declarations[position].variable_name, .position = position};
+    }
+    sxml_sort_in_place(&(sxml_sort_request){.elements = names,
+                                            .element_count = view.variable_declaration_count,
+                                            .element_size = sizeof(declared_name),
+                                            .is_before = is_declared_name_before,
+                                            .state = NULL});
+    finder->indexes[finder->index_count] = (name_index){.view = view, .names = names};
+    finder->index_count += 1;
+    return SXML_STATUS_OK;
+}
+
+static sxml_status make_global_finder(global_finder *finder) {
+    const sxml_xslt_lowering *lowering = finder->lowering;
+    const size_t context_count = lowering->static_context_count == 0 ? 1 : lowering->static_context_count;
+    void *indexes = NULL;
+    void *context_indexes = NULL;
+    sxml_status status = sxml_xpath_lowerer_allocate_scratch(
+        lowering->lowerer,
+        (sxml_xpath_lowering_scratch_request){.element_count = context_count,
+                                              .element_size = sizeof(name_index),
+                                              .element_alignment = alignof(name_index)},
+        &indexes);
+    finder->indexes = indexes;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_xpath_lowerer_allocate_scratch(
+            lowering->lowerer,
+            (sxml_xpath_lowering_scratch_request){.element_count = context_count,
+                                                  .element_size = sizeof(uint32_t),
+                                                  .element_alignment = alignof(uint32_t)},
+            &context_indexes);
+    }
+    finder->context_indexes = context_indexes;
+    for (uint32_t context_index = 1;
+         status == SXML_STATUS_OK && context_index < lowering->static_context_count;
+         context_index += 1) {
+        const sxml_variable_declaration_view view =
+            lowering->static_contexts[context_index].variable_declarations;
+        size_t index_number = 0;
+        while (index_number < finder->index_count &&
+               (finder->indexes[index_number].view.variable_declarations != view.variable_declarations ||
+                finder->indexes[index_number].view.variable_declaration_count !=
+                    view.variable_declaration_count)) {
+            index_number += 1;
+        }
+        if (index_number == finder->index_count) {
+            status = add_name_index(finder, view);
+        }
+        finder->context_indexes[context_index] = (uint32_t)index_number;
+    }
+    return status;
+}
+
+/* The first declaration of the name in its context's view, as a walk over
+   the view in order finds it. */
+static size_t find_referenced_global(const global_finder *finder, global_reference reference) {
+    const sxml_xslt_lowering *lowering = finder->lowering;
     if (reference.static_context.value == 0 ||
         reference.static_context.value >= lowering->static_context_count) {
         return lowering->global_count;
     }
     const sxml_xpath_static_context *context =
         &lowering->static_contexts[reference.static_context.value];
-    const sxml_variable_declaration_view declarations = context->variable_declarations;
-    for (size_t index = 0; index < declarations.variable_declaration_count; index += 1) {
-        if (declarations.variable_declarations[index].variable_name.index ==
-            reference.name.index) {
-            const uint32_t number = sxml_xpath_global_number(context, index);
-            return number >= 1U && number <= lowering->global_count ? (size_t)number - 1U
-                                                                    : lowering->global_count;
+    const name_index *index = &finder->indexes[finder->context_indexes[reference.static_context.value]];
+    const size_t name_count = index->view.variable_declaration_count;
+    const declared_name key = {.name = reference.name, .position = 0};
+    size_t low = 0;
+    size_t high = name_count;
+    while (low < high) {
+        const size_t middle = low + (high - low) / 2U;
+        if (is_declared_name_before(NULL, (sxml_sort_pair){.first = &index->names[middle], .second = &key})) {
+            low = middle + 1U;
+        } else {
+            high = middle;
         }
     }
-    return lowering->global_count;
+    if (low == name_count || index->names[low].name.index != reference.name.index) {
+        return lowering->global_count;
+    }
+    const uint32_t number = sxml_xpath_global_number(context, index->names[low].position);
+    return number >= 1U && number <= lowering->global_count ? (size_t)number - 1U
+                                                            : lowering->global_count;
 }
 
 static bool is_global_declaration(const sxml_xslt_lowering *lowering,
@@ -5179,27 +5311,62 @@ typedef struct dependency_graph {
     size_t *first_edges;
     size_t *targets;
     size_t edge_count;
+    /* Finds the global a reference reads; the caller's. */
+    const global_finder *finder;
 } dependency_graph;
 
+/* For each AST node, 1 + the index of the global it declares (0 for a
+   node that declares none): owning_global reads it instead of searching
+   the globals (perf-13). */
+typedef struct global_owners {
+    const sxml_xslt_lowering *lowering;
+    uint32_t *global_numbers;
+} global_owners;
+
+/* Makes owners->global_numbers: the first global of a node wins, as a
+   search in index order would find it. */
+static sxml_status make_global_owners(global_owners *owners) {
+    const sxml_xslt_lowering *lowering = owners->lowering;
+    void *memory = NULL;
+    const sxml_status status = sxml_xpath_lowerer_allocate_scratch(
+        lowering->lowerer,
+        (sxml_xpath_lowering_scratch_request){.element_count = lowering->ast->node_count,
+                                              .element_size = sizeof(uint32_t),
+                                              .element_alignment = alignof(uint32_t)},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    owners->global_numbers = memory;
+    memset(owners->global_numbers, 0, lowering->ast->node_count * sizeof(uint32_t));
+    for (size_t global_index = lowering->global_count; global_index > 0; global_index -= 1) {
+        const uint32_t node = lowering->global_nodes[global_index - 1U].value;
+        if (node != 0 && node < lowering->ast->node_count) {
+            owners->global_numbers[node] = (uint32_t)global_index;
+        }
+    }
+    return SXML_STATUS_OK;
+}
+
 /* The global whose declaration holds node; global_count for none. */
-static size_t owning_global(const sxml_xslt_lowering *lowering, sxml_xslt_ast_node_index node) {
+static size_t owning_global(const global_owners *owners, sxml_xslt_ast_node_index node) {
+    const sxml_xslt_lowering *lowering = owners->lowering;
     sxml_xslt_ast_node_index current = node;
     while (current.value != 0 &&
            (node_of(lowering, current)->flags & SXML_XSLT_AST_NODE_FLAG_DECLARATION) == 0) {
         current = node_of(lowering, current)->parent;
     }
-    for (size_t global_index = 0; global_index < lowering->global_count; global_index += 1) {
-        if (current.value != 0 && lowering->global_nodes[global_index].value == current.value) {
-            return global_index;
-        }
+    if (current.value == 0 || current.value >= lowering->ast->node_count ||
+        owners->global_numbers[current.value] == 0) {
+        return lowering->global_count;
     }
-    return lowering->global_count;
+    return (size_t)owners->global_numbers[current.value] - 1U;
 }
 
 /* Calls visit for each global an expression's variable references name
    (counting when targets is NULL). */
 typedef struct reference_walk {
-    const sxml_xslt_lowering *lowering;
+    const global_finder *finder;
     sxml_xslt_ast_expression_index expression;
 } reference_walk;
 
@@ -5209,7 +5376,7 @@ typedef struct edge_sink {
 } edge_sink;
 
 static sxml_status walk_references(reference_walk walk, edge_sink *sink) {
-    const sxml_xslt_lowering *lowering = walk.lowering;
+    const sxml_xslt_lowering *lowering = walk.finder->lowering;
     const sxml_xslt_ast_expression *expression =
         sxml_xslt_ast_get_expression(lowering->ast, walk.expression);
     const sxml_ast *ast = expression->ast;
@@ -5246,7 +5413,7 @@ static sxml_status walk_references(reference_walk walk, edge_sink *sink) {
             continue;
         }
         const size_t target = find_referenced_global(
-            lowering, (global_reference){.static_context = expression->static_context, .name = name});
+            walk.finder, (global_reference){.static_context = expression->static_context, .name = name});
         if (target == lowering->global_count) {
             continue;
         }
@@ -5276,19 +5443,21 @@ static sxml_status build_dependency_graph(const sxml_xslt_lowering *lowering,
         return status;
     }
     memset(graph->first_edges, 0, (global_count + 1U) * sizeof(size_t));
+    global_owners owners = {.lowering = lowering, .global_numbers = NULL};
+    status = make_global_owners(&owners);
     const uint32_t expression_count = lowering->ast->expression_count;
     /* Pass 1: the edges of each global, counted in first_edges[i + 1]. */
     for (uint32_t expression = 1; status == SXML_STATUS_OK && expression < expression_count;
          expression += 1) {
         const sxml_xslt_ast_expression_index index = {.value = expression};
         const size_t owner =
-            owning_global(lowering, sxml_xslt_ast_get_expression(lowering->ast, index)->node);
+            owning_global(&owners, sxml_xslt_ast_get_expression(lowering->ast, index)->node);
         if (owner == global_count) {
             continue;
         }
         edge_sink counter = {.targets = NULL, .edge_count = 0};
         status =
-            walk_references((reference_walk){.lowering = lowering, .expression = index}, &counter);
+            walk_references((reference_walk){.finder = graph->finder, .expression = index}, &counter);
         graph->first_edges[owner + 1U] += counter.edge_count;
     }
     for (size_t global_index = 0; global_index < global_count; global_index += 1) {
@@ -5296,6 +5465,7 @@ static sxml_status build_dependency_graph(const sxml_xslt_lowering *lowering,
     }
     graph->edge_count = graph->first_edges[global_count];
     if (status != SXML_STATUS_OK || graph->edge_count == 0) {
+        sxml_xpath_lowerer_release_scratch(lowerer, owners.global_numbers);
         return status;
     }
     /* A failed allocation leaves memory as it was: not first_edges. */
@@ -5308,6 +5478,7 @@ static sxml_status build_dependency_graph(const sxml_xslt_lowering *lowering,
         &memory);
     graph->targets = memory;
     if (status != SXML_STATUS_OK) {
+        sxml_xpath_lowerer_release_scratch(lowerer, owners.global_numbers);
         return status;
     }
     /* Pass 2: written at each owner's next free edge (first_edges[i]
@@ -5316,19 +5487,20 @@ static sxml_status build_dependency_graph(const sxml_xslt_lowering *lowering,
          expression += 1) {
         const sxml_xslt_ast_expression_index index = {.value = expression};
         const size_t owner =
-            owning_global(lowering, sxml_xslt_ast_get_expression(lowering->ast, index)->node);
+            owning_global(&owners, sxml_xslt_ast_get_expression(lowering->ast, index)->node);
         if (owner == global_count) {
             continue;
         }
         edge_sink sink = {.targets = graph->targets + graph->first_edges[owner], .edge_count = 0};
         status =
-            walk_references((reference_walk){.lowering = lowering, .expression = index}, &sink);
+            walk_references((reference_walk){.finder = graph->finder, .expression = index}, &sink);
         graph->first_edges[owner] += sink.edge_count;
     }
     for (size_t global_number = global_count; global_number > 0; global_number -= 1) {
         graph->first_edges[global_number] = graph->first_edges[global_number - 1U];
     }
     graph->first_edges[0] = 0;
+    sxml_xpath_lowerer_release_scratch(lowerer, owners.global_numbers);
     return status;
 }
 
@@ -5580,6 +5752,13 @@ static sxml_status add_ordered_initializer(sxml_xpath_lowerer *lowerer,
  * may never happen, so it is left to the evaluator (BEING_COMPUTED).
  */
 
+/* A declaration with a name, as the graph's index keeps it. */
+typedef struct named_declaration {
+    sxml_xslt_ast_kind kind;
+    sxml_name_identifier name;
+    uint32_t order;
+} named_declaration;
+
 /* The graph over declarations: node n is declaration n + 1, node
    declaration_count is every template rule. */
 typedef struct component_graph {
@@ -5595,6 +5774,13 @@ typedef struct component_graph {
     /* For each AST node, the declaration order of the declaration it is
        (0 for a node that is none). */
     uint32_t *declaration_orders;
+    /* The declarations that have a name, by kind, name and declaration
+       order: a reference by name finds its targets by binary search
+       instead of a walk over every declaration (perf-13). */
+    named_declaration *named_declarations;
+    size_t named_declaration_count;
+    /* Finds the global a reference reads; the caller's. */
+    const global_finder *finder;
 } component_graph;
 
 static void release_component_graph(const sxml_xslt_lowering *lowering, component_graph *graph) {
@@ -5604,6 +5790,7 @@ static void release_component_graph(const sxml_xslt_lowering *lowering, componen
     sxml_xpath_lowerer_release_scratch(lowerer, graph->edge_sources);
     sxml_xpath_lowerer_release_scratch(lowerer, graph->edge_targets);
     sxml_xpath_lowerer_release_scratch(lowerer, graph->declaration_orders);
+    sxml_xpath_lowerer_release_scratch(lowerer, graph->named_declarations);
 }
 
 static sxml_status allocate_sizes(const sxml_xslt_lowering *lowering, size_t count, size_t **sizes) {
@@ -5669,6 +5856,58 @@ static size_t holding_declaration(const sxml_xslt_lowering *lowering, const comp
     return graph->declaration_orders[current.value] - 1U;
 }
 
+/* Whether first sorts before second: by kind, name, then declaration
+   order (a strict weak order for sxml_sort_in_place). */
+static bool is_named_declaration_before(const void *state, sxml_sort_pair pair) {
+    (void)state;
+    const named_declaration *first = pair.first;
+    const named_declaration *second = pair.second;
+    if (first->kind != second->kind) {
+        return first->kind < second->kind;
+    }
+    if (first->name.index != second->name.index) {
+        return first->name.index < second->name.index;
+    }
+    return first->order < second->order;
+}
+
+/* Fills graph->named_declarations with every declaration whose name
+   attribute holds a name, sorted. */
+static sxml_status index_named_declarations(const sxml_xslt_lowering *lowering,
+                                            component_graph *graph) {
+    const size_t declaration_count = graph->node_count - 1U;
+    void *memory = NULL;
+    const sxml_status status = sxml_xpath_lowerer_allocate_scratch(
+        lowering->lowerer,
+        (sxml_xpath_lowering_scratch_request){.element_count =
+                                                  declaration_count == 0 ? 1 : declaration_count,
+                                              .element_size = sizeof(named_declaration),
+                                              .element_alignment = alignof(named_declaration)},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    graph->named_declarations = memory;
+    graph->named_declaration_count = 0;
+    for (uint32_t order = 1; order <= declaration_count; order += 1) {
+        const sxml_xslt_ast_node_index declaration =
+            sxml_xslt_ast_get_declaration(lowering->ast, order);
+        const sxml_name_identifier name = binding_name_of(lowering, declaration);
+        if (name.index == 0) {
+            continue;
+        }
+        graph->named_declarations[graph->named_declaration_count] = (named_declaration){
+            .kind = node_of(lowering, declaration)->kind, .name = name, .order = order};
+        graph->named_declaration_count += 1;
+    }
+    sxml_sort_in_place(&(sxml_sort_request){.elements = graph->named_declarations,
+                                            .element_count = graph->named_declaration_count,
+                                            .element_size = sizeof(named_declaration),
+                                            .is_before = is_named_declaration_before,
+                                            .state = NULL});
+    return SXML_STATUS_OK;
+}
+
 /* Edges from source to every declaration of kind named name (every
    template rule when kind is TEMPLATE and the name is 0). */
 typedef struct named_target {
@@ -5677,26 +5916,48 @@ typedef struct named_target {
     sxml_name_identifier name;
 } named_target;
 
+/* Edges in declaration order, as a walk over the declarations would add
+   them: the index's entries of one kind and name are in that order. */
 static sxml_status add_named_edges(const sxml_xslt_lowering *lowering, component_graph *graph,
                                    named_target target) {
     const sxml_xslt_ast *ast = lowering->ast;
     sxml_status status = SXML_STATUS_OK;
-    for (uint32_t order = 1;
-         status == SXML_STATUS_OK && sxml_xslt_ast_get_declaration(ast, order).value != 0;
-         order += 1) {
-        const sxml_xslt_ast_node_index declaration = sxml_xslt_ast_get_declaration(ast, order);
-        if (node_of(lowering, declaration)->kind != target.kind) {
-            continue;
+    if (target.name.index == 0) {
+        for (uint32_t order = 1;
+             status == SXML_STATUS_OK && sxml_xslt_ast_get_declaration(ast, order).value != 0;
+             order += 1) {
+            const sxml_xslt_ast_node_index declaration = sxml_xslt_ast_get_declaration(ast, order);
+            if (node_of(lowering, declaration)->kind == target.kind &&
+                find_attribute(lowering, (attribute_lookup){.node = declaration,
+                                                            .kind = SXML_XSLT_AST_ATTRIBUTE_MATCH})
+                        ->kind != SXML_XSLT_AST_ATTRIBUTE_NONE) {
+                status = add_component_edge(
+                    lowering, graph, (component_edge){.source = target.source, .target = order - 1U});
+            }
         }
-        const bool matches =
-            target.name.index == 0
-                ? find_attribute(lowering, (attribute_lookup){.node = declaration, .kind = SXML_XSLT_AST_ATTRIBUTE_MATCH})->kind !=
-                      SXML_XSLT_AST_ATTRIBUTE_NONE
-                : binding_name_of(lowering, declaration).index == target.name.index;
-        if (matches) {
-            status = add_component_edge(lowering, graph,
-                                        (component_edge){.source = target.source, .target = order - 1U});
+        return status;
+    }
+    /* The first entry not before (kind, name, 0). */
+    const named_declaration key = {.kind = target.kind, .name = target.name, .order = 0};
+    size_t low = 0;
+    size_t high = graph->named_declaration_count;
+    while (low < high) {
+        const size_t middle = low + (high - low) / 2U;
+        if (is_named_declaration_before(
+                NULL, (sxml_sort_pair){.first = &graph->named_declarations[middle], .second = &key})) {
+            low = middle + 1U;
+        } else {
+            high = middle;
         }
+    }
+    for (size_t index = low; status == SXML_STATUS_OK && index < graph->named_declaration_count &&
+                             graph->named_declarations[index].kind == target.kind &&
+                             graph->named_declarations[index].name.index == target.name.index;
+         index += 1) {
+        status = add_component_edge(
+            lowering, graph,
+            (component_edge){.source = target.source,
+                             .target = graph->named_declarations[index].order - 1U});
     }
     return status;
 }
@@ -5771,7 +6032,8 @@ static sxml_status add_expression_edges(const sxml_xslt_lowering *lowering, comp
             continue;
         }
         const size_t global_index = find_referenced_global(
-            lowering, (global_reference){.static_context = expression->static_context, .name = name});
+            graph->finder,
+            (global_reference){.static_context = expression->static_context, .name = name});
         if (global_index < lowering->global_count) {
             const uint32_t order =
                 graph->declaration_orders[lowering->global_nodes[global_index].value];
@@ -5883,6 +6145,7 @@ static sxml_status build_component_graph(const sxml_xslt_lowering *lowering,
     for (uint32_t order = 1; order <= declaration_count; order += 1) {
         graph->declaration_orders[sxml_xslt_ast_get_declaration(ast, order).value] = order;
     }
+    status = index_named_declarations(lowering, graph);
     for (uint32_t expression = 1; status == SXML_STATUS_OK && expression < ast->expression_count;
          expression += 1) {
         status = add_expression_edges(lowering, graph,
@@ -5980,7 +6243,8 @@ static void walk_components(component_walk *walk, size_t root) {
 
 /* Rewrites order (global indices, dependencies first) by the component
    graph. */
-static sxml_status order_through_components(const sxml_xslt_lowering *lowering, size_t *order) {
+static sxml_status order_through_components(const global_finder *finder, size_t *order) {
+    const sxml_xslt_lowering *lowering = finder->lowering;
     component_graph graph = {.node_count = 0,
                              .first_edges = NULL,
                              .targets = NULL,
@@ -5988,7 +6252,10 @@ static sxml_status order_through_components(const sxml_xslt_lowering *lowering, 
                              .edge_targets = NULL,
                              .edge_count = 0,
                              .edge_capacity = 0,
-                             .declaration_orders = NULL};
+                             .declaration_orders = NULL,
+                             .named_declarations = NULL,
+                             .named_declaration_count = 0,
+                             .finder = finder};
     sxml_status status = build_component_graph(lowering, &graph);
     size_t *arrays = NULL;
     if (status == SXML_STATUS_OK) {
@@ -6117,8 +6384,14 @@ sxml_status sxml_xslt_lowering_add_global_variables(const sxml_xslt_lowering *lo
         return SXML_STATUS_OK;
     }
     sxml_xpath_lowerer *lowerer = lowering->lowerer;
-    dependency_graph graph = {.first_edges = NULL, .targets = NULL, .edge_count = 0};
-    sxml_status status = build_dependency_graph(lowering, &graph);
+    global_finder finder = {
+        .lowering = lowering, .indexes = NULL, .index_count = 0, .context_indexes = NULL};
+    dependency_graph graph = {
+        .first_edges = NULL, .targets = NULL, .edge_count = 0, .finder = &finder};
+    sxml_status status = make_global_finder(&finder);
+    if (status == SXML_STATUS_OK) {
+        status = build_dependency_graph(lowering, &graph);
+    }
     void *memory = NULL;
     if (status == SXML_STATUS_OK) {
         status = sxml_xpath_lowerer_allocate_scratch(
@@ -6134,7 +6407,7 @@ sxml_status sxml_xslt_lowering_add_global_variables(const sxml_xslt_lowering *lo
     }
     if (status == SXML_STATUS_OK) {
         /* Also the globals the components they call read (packet 4.12). */
-        status = order_through_components(lowering, order);
+        status = order_through_components(&finder, order);
     }
     /* initializers[i] and ordered[i] after the order (as indices); none
        when the memory could not be had. */
@@ -6210,6 +6483,7 @@ sxml_status sxml_xslt_lowering_add_global_variables(const sxml_xslt_lowering *lo
     sxml_xpath_lowerer_release_scratch(lowerer, memory);
     sxml_xpath_lowerer_release_scratch(lowerer, graph.first_edges);
     sxml_xpath_lowerer_release_scratch(lowerer, graph.targets);
+    release_global_finder(&finder);
     return status;
 }
 

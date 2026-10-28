@@ -23,6 +23,7 @@
  */
 #include "xslt_package_internal.h"
 
+#include "sort_internal.h"
 #include "sxml/name.h"
 #include "sxml/types.h"
 #include "xslt_lower_internal.h"
@@ -73,6 +74,15 @@ typedef struct component_instance {
     uint32_t successor;
 } component_instance;
 
+/* An instance as the binding index keeps it: the package whose range
+   holds it, its kind and name, and its index. */
+typedef struct instance_key {
+    uint32_t package;
+    sxml_xslt_component_kind component_kind;
+    sxml_name_identifier component_name;
+    uint32_t instance;
+} instance_key;
+
 struct sxml_xslt_package_table {
     package_entry *packages;
     uint32_t package_count;
@@ -87,6 +97,11 @@ struct sxml_xslt_package_table {
     component_instance *instances;
     uint32_t instance_count;
     uint32_t instance_capacity;
+    /* Every instance, sorted by package, kind, name and index, made when
+       the table is complete: a reference finds its candidates by binary
+       search instead of a walk over its package's instances (perf-13). */
+    instance_key *keys;
+    uint32_t key_count;
     /* Scratch memory of other modules, released with the table. */
     void **kept_memory;
     uint32_t kept_count;
@@ -1877,7 +1892,15 @@ static sxml_status check_rules_in_accepted_modes(const sxml_xslt_lowering *lower
                                                  uint32_t package) {
     const sxml_xslt_package_table *table = lowering->packages;
     const sxml_xslt_ast *ast = lowering->ast;
-    for (uint32_t order = 1; sxml_xslt_ast_get_declaration(ast, order).value != 0; order += 1) {
+    /* Most packages accept no mode: then no rule needs the search below. */
+    bool accepts_mode = false;
+    for (uint32_t index = 1; index < table->instance_count && !accepts_mode; index += 1) {
+        const component_instance *instance = &table->instances[index];
+        accepts_mode = instance->package == package && instance->is_accepted &&
+                       instance->component_kind == SXML_XSLT_COMPONENT_KIND_MODE;
+    }
+    for (uint32_t order = 1;
+         accepts_mode && sxml_xslt_ast_get_declaration(ast, order).value != 0; order += 1) {
         const sxml_xslt_ast_node_index rule = sxml_xslt_ast_get_declaration(ast, order);
         const sxml_xslt_ast_node_index parent = node_of(lowering, rule)->parent;
         if (node_of(lowering, rule)->kind != SXML_XSLT_AST_KIND_TEMPLATE ||
@@ -1959,37 +1982,141 @@ static sxml_status add_used_instances(const sxml_xslt_lowering *lowering, uint32
     return status;
 }
 
+/* Whether first sorts before second: by package, kind, name, then index
+   (a strict weak order for sxml_sort_in_place). */
+static bool is_key_before(const void *state, sxml_sort_pair pair) {
+    (void)state;
+    const instance_key *first = pair.first;
+    const instance_key *second = pair.second;
+    if (first->package != second->package) {
+        return first->package < second->package;
+    }
+    if (first->component_kind != second->component_kind) {
+        return first->component_kind < second->component_kind;
+    }
+    if (first->component_name.index != second->component_name.index) {
+        return first->component_name.index < second->component_name.index;
+    }
+    return first->instance < second->instance;
+}
+
 /* XTSE3050 (3.4.5.2): homonymous instances of one package other than two
    own declarations (import precedence decides those); XTSE3055 (3.4.5.3):
-   an overriding declaration homonymous with another declaration. */
+   an overriding declaration homonymous with another declaration. Of the
+   pairs, the first in index order is reported: homonymous instances have
+   one kind and name, so only the pairs of one run of the package's
+   instances sorted by kind and name are compared (perf-13). */
 static sxml_status check_conflicts(const sxml_xslt_lowering *lowering, uint32_t package) {
     const sxml_xslt_package_table *table = lowering->packages;
     const package_entry *entry = &table->packages[package];
-    for (uint32_t first = 0; first < entry->instance_count; first += 1) {
-        const component_instance *one = &table->instances[entry->first_instance + first];
-        for (uint32_t second = first + 1U; second < entry->instance_count; second += 1) {
-            const component_instance *other = &table->instances[entry->first_instance + second];
-            if (!is_homonymous(one, component_of_instance(other))) {
-                continue;
+    void *memory = NULL;
+    sxml_status status =
+        allocate_zeroed(lowering,
+                        (array_request){.element_count = entry->instance_count,
+                                        .element_size = sizeof(instance_key),
+                                        .element_alignment = alignof(instance_key)},
+                        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    instance_key *keys = memory;
+    for (uint32_t offset = 0; offset < entry->instance_count; offset += 1) {
+        const uint32_t index = entry->first_instance + offset;
+        keys[offset] = (instance_key){.package = package,
+                                      .component_kind = table->instances[index].component_kind,
+                                      .component_name = table->instances[index].component_name,
+                                      .instance = index};
+    }
+    sxml_sort_in_place(&(sxml_sort_request){.elements = keys,
+                                            .element_count = entry->instance_count,
+                                            .element_size = sizeof(instance_key),
+                                            .is_before = is_key_before,
+                                            .state = NULL});
+    uint32_t first_found = 0;
+    uint32_t second_found = 0;
+    uint32_t run_end = 0;
+    for (uint32_t run_start = 0; run_start < entry->instance_count; run_start = run_end) {
+        run_end = run_start + 1U;
+        while (run_end < entry->instance_count &&
+               keys[run_end].component_kind == keys[run_start].component_kind &&
+               keys[run_end].component_name.index == keys[run_start].component_name.index) {
+            run_end += 1U;
+        }
+        /* The run's first pair: the smallest first, then second. */
+        bool is_found = false;
+        for (uint32_t first = run_start; first < run_end && !is_found; first += 1) {
+            const component_instance *one = &table->instances[keys[first].instance];
+            for (uint32_t second = first + 1U; second < run_end && !is_found; second += 1) {
+                const component_instance *other = &table->instances[keys[second].instance];
+                const bool is_own_pair = !one->is_accepted && !one->is_overriding &&
+                                         !other->is_accepted && !other->is_overriding;
+                if (!is_homonymous(one, component_of_instance(other)) || is_own_pair) {
+                    continue;
+                }
+                is_found = true;
+                if (first_found == 0 || keys[first].instance < first_found ||
+                    (keys[first].instance == first_found && keys[second].instance < second_found)) {
+                    first_found = keys[first].instance;
+                    second_found = keys[second].instance;
+                }
             }
-            const bool is_own_pair = !one->is_accepted && !one->is_overriding &&
-                                     !other->is_accepted && !other->is_overriding;
-            if (is_own_pair) {
-                continue;
-            }
-            if (one->is_overriding || other->is_overriding) {
-                return report(lowering, one->is_overriding ? one->declaration : other->declaration,
-                              SXML_BYTE_VIEW_FROM_LITERAL(
-                                  "XTSE3055 an overriding declaration has the name of another "
-                                  "declaration of the package (XSLT 4.0, 3.4.5.3)"));
-            }
-            return report(lowering, other->is_accepted ? other->origin : one->origin,
-                          SXML_BYTE_VIEW_FROM_LITERAL(
-                              "XTSE3050 two components of one name are accepted from used "
-                              "packages, or one is accepted and one declared (XSLT 4.0, "
-                              "3.4.5.2)"));
         }
     }
+    sxml_xpath_lowerer_release_scratch(lowering->lowerer, keys);
+    if (first_found == 0) {
+        return SXML_STATUS_OK;
+    }
+    const component_instance *one = &table->instances[first_found];
+    const component_instance *other = &table->instances[second_found];
+    if (one->is_overriding || other->is_overriding) {
+        return report(lowering, one->is_overriding ? one->declaration : other->declaration,
+                      SXML_BYTE_VIEW_FROM_LITERAL(
+                          "XTSE3055 an overriding declaration has the name of another "
+                          "declaration of the package (XSLT 4.0, 3.4.5.3)"));
+    }
+    return report(lowering, other->is_accepted ? other->origin : one->origin,
+                  SXML_BYTE_VIEW_FROM_LITERAL(
+                      "XTSE3050 two components of one name are accepted from used "
+                      "packages, or one is accepted and one declared (XSLT 4.0, "
+                      "3.4.5.2)"));
+}
+
+/* ---------------------------------------------------------- The index */
+
+/* Makes table->keys from the instances of every package. */
+static sxml_status index_instances(const sxml_xslt_lowering *lowering) {
+    sxml_xslt_package_table *table = lowering->packages;
+    const uint32_t count = table->instance_count == 0 ? 0 : table->instance_count - 1U;
+    void *memory = NULL;
+    const sxml_status status =
+        allocate_zeroed(lowering,
+                        (array_request){.element_count = count,
+                                        .element_size = sizeof(instance_key),
+                                        .element_alignment = alignof(instance_key)},
+                        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    table->keys = memory;
+    table->key_count = 0;
+    for (uint32_t package = 1; package < table->package_count; package += 1) {
+        const package_entry *entry = &table->packages[package];
+        for (uint32_t offset = 0; offset < entry->instance_count && table->key_count < count;
+             offset += 1) {
+            const uint32_t index = entry->first_instance + offset;
+            table->keys[table->key_count] =
+                (instance_key){.package = package,
+                               .component_kind = table->instances[index].component_kind,
+                               .component_name = table->instances[index].component_name,
+                               .instance = index};
+            table->key_count += 1;
+        }
+    }
+    sxml_sort_in_place(&(sxml_sort_request){.elements = table->keys,
+                                            .element_count = table->key_count,
+                                            .element_size = sizeof(instance_key),
+                                            .is_before = is_key_before,
+                                            .state = NULL});
     return SXML_STATUS_OK;
 }
 
@@ -2047,6 +2174,9 @@ sxml_status sxml_xslt_declare_packages(sxml_xslt_lowering *lowering) {
             status = check_conflicts(lowering, package);
         }
     }
+    if (status == SXML_STATUS_OK) {
+        status = index_instances(lowering);
+    }
     /* XTSE3080 (3.4.5.5): the top-level package is executable. */
     if (status == SXML_STATUS_OK && table->package_count > 1U) {
         const package_entry *top = &table->packages[1];
@@ -2072,6 +2202,7 @@ void sxml_xslt_release_packages(sxml_xslt_lowering *lowering) {
         sxml_xpath_lowerer_release_scratch(lowering->lowerer, table->kept_memory[kept_index]);
     }
     sxml_xpath_lowerer_release_scratch(lowering->lowerer, (void *)table->kept_memory);
+    sxml_xpath_lowerer_release_scratch(lowering->lowerer, table->keys);
     sxml_xpath_lowerer_release_scratch(lowering->lowerer, table->instances);
     sxml_xpath_lowerer_release_scratch(lowering->lowerer, table->context_overrides);
     sxml_xpath_lowerer_release_scratch(lowering->lowerer, table->context_packages);
@@ -2083,22 +2214,41 @@ void sxml_xslt_release_packages(sxml_xslt_lowering *lowering) {
 
 /* ------------------------------------------------------------ Binding */
 
-/* The instance a reference from its package names; 0 for none. */
+/* The instance a reference from its package names; 0 for none: of the
+   candidates of its kind and name, in index order, the first of the
+   highest import precedence whose arity range holds the reference's. */
 static uint32_t find_instance(const sxml_xslt_package_table *table,
                               const sxml_xslt_component_reference *reference) {
-    if (reference->package == 0 || reference->package >= table->package_count) {
+    if (reference->package == 0 || reference->package >= table->package_count ||
+        table->keys == NULL) {
         return 0;
     }
-    const package_entry *package = &table->packages[reference->package];
+    /* The first key not before (package, kind, name, 0). */
+    const instance_key wanted = {.package = reference->package,
+                                 .component_kind = reference->component_kind,
+                                 .component_name = reference->component_name,
+                                 .instance = 0};
+    uint32_t low = 0;
+    uint32_t high = table->key_count;
+    while (low < high) {
+        const uint32_t middle = low + (high - low) / 2U;
+        if (is_key_before(NULL, (sxml_sort_pair){.first = &table->keys[middle], .second = &wanted})) {
+            low = middle + 1U;
+        } else {
+            high = middle;
+        }
+    }
     uint32_t found = 0;
-    for (uint32_t offset = 0; offset < package->instance_count; offset += 1) {
-        const uint32_t index = package->first_instance + offset;
+    for (uint32_t key_index = low;
+         key_index < table->key_count && table->keys[key_index].package == wanted.package &&
+         table->keys[key_index].component_kind == wanted.component_kind &&
+         table->keys[key_index].component_name.index == wanted.component_name.index;
+         key_index += 1) {
+        const uint32_t index = table->keys[key_index].instance;
         const component_instance *instance = &table->instances[index];
-        if (instance->component_kind != reference->component_kind ||
-            instance->component_name.index != reference->component_name.index ||
-            (reference->component_kind == SXML_XSLT_COMPONENT_KIND_FUNCTION &&
-             (reference->arity < instance->minimum_arity ||
-              reference->arity > instance->maximum_arity))) {
+        if (reference->component_kind == SXML_XSLT_COMPONENT_KIND_FUNCTION &&
+            (reference->arity < instance->minimum_arity ||
+             reference->arity > instance->maximum_arity)) {
             continue;
         }
         if (found == 0 || instance->import_precedence > table->instances[found].import_precedence) {

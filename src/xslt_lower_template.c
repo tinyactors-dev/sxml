@@ -200,6 +200,12 @@ static const char *const snippet_texts[SXML_SNIPPET_COUNT] = {
 struct sxml_xslt_template_lowering {
     template_entry *templates;
     size_t template_count;
+    /* By AST node: 1 + the index of its entry in templates, 0 for a node
+       that is none, so an xsl:call-template finds its entry at once
+       (perf-13: a walk over the templates per call grew with calls times
+       templates). entry_number_count is the AST's node count. */
+    uint32_t *entry_numbers;
+    size_t entry_number_count;
     mode_entry *modes;
     size_t mode_count;
     size_t mode_capacity;
@@ -439,12 +445,10 @@ static const template_entry *find_named_template(const sxml_xslt_lowering *lower
 
 static const template_entry *find_template_entry(const sxml_xslt_template_lowering *templates,
                                                  sxml_xslt_ast_node_index node) {
-    for (size_t entry_index = 0; entry_index < templates->template_count; entry_index += 1) {
-        if (templates->templates[entry_index].node.value == node.value) {
-            return &templates->templates[entry_index];
-        }
+    if (node.value >= templates->entry_number_count || templates->entry_numbers[node.value] == 0) {
+        return NULL;
     }
-    return NULL;
+    return &templates->templates[templates->entry_numbers[node.value] - 1U];
 }
 
 /* The mode a mode token names in node's static context: NAME, UNNAMED,
@@ -3227,6 +3231,26 @@ static sxml_status collect_templates(const sxml_xslt_lowering *lowering) {
         }
     }
     sxml_allocator_release(lowering->lowerer->allocator, lowest);
+    /* The entries by node, the first of a node winning as a search in
+       order would find it. */
+    void *entry_numbers = NULL;
+    if (status == SXML_STATUS_OK) {
+        status = allocate_zeroed(lowering->lowerer->allocator,
+                                 (zeroed_request){.element_count = ast->node_count,
+                                                  .element_size = sizeof(uint32_t),
+                                                  .element_alignment = alignof(uint32_t)},
+                                 &entry_numbers);
+    }
+    if (status == SXML_STATUS_OK) {
+        templates->entry_numbers = entry_numbers;
+        templates->entry_number_count = ast->node_count;
+        for (size_t entry_index = templates->template_count; entry_index > 0; entry_index -= 1) {
+            const uint32_t node = templates->templates[entry_index - 1U].node.value;
+            if (node < ast->node_count) {
+                templates->entry_numbers[node] = (uint32_t)entry_index;
+            }
+        }
+    }
     return status;
 }
 
@@ -4578,6 +4602,7 @@ void sxml_xslt_release_templates(sxml_xslt_lowering *lowering) {
         sxml_ast_destroy(templates->snippets[snippet_index]);
     }
     sxml_allocator_release(allocator, templates->templates);
+    sxml_allocator_release(allocator, templates->entry_numbers);
     sxml_allocator_release(allocator, templates->modes);
     sxml_allocator_release(allocator, templates);
     lowering->templates = NULL;
