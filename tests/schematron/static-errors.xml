@@ -33,6 +33,7 @@
   <test-case name="error-no-pattern" since="2020">
     <description>A schema needs at least one pattern or group.</description>
     <spec clause="Annex-A"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="error-no-pattern.sch"/>
     <instance file="error-no-pattern.xml"/>
     <result>
@@ -44,6 +45,7 @@
     <description>An element in the Schematron namespace that the grammar does not define.</description>
     <spec clause="Annex-A"/>
     <spec clause="5.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="error-unknown-element.sch"/>
     <instance file="error-unknown-element.xml"/>
     <result>
@@ -55,6 +57,7 @@
     <description>An attribute in no namespace that the grammar does not define on rule (foreign attributes need a namespace).</description>
     <spec clause="Annex-A"/>
     <spec clause="5.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="error-unqualified-attribute.sch"/>
     <instance file="error-unqualified-attribute.xml"/>
     <result>
@@ -65,6 +68,7 @@
   <test-case name="error-rule-without-assertion" since="2020">
     <description>A rule needs at least one assert, report, extends or p.</description>
     <spec clause="Annex-A"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="error-rule-without-assertion.sch"/>
     <instance file="error-rule-without-assertion.xml"/>
     <result>
@@ -76,6 +80,7 @@
     <description>A rule that is not abstract needs a context attribute.</description>
     <spec clause="5.4.15"/>
     <spec clause="Annex-A"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="error-rule-without-context.sch"/>
     <instance file="error-rule-without-context.xml"/>
     <result>
@@ -87,6 +92,7 @@
     <description>An assert needs a test attribute.</description>
     <spec clause="5.4.3"/>
     <spec clause="Annex-A"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="error-assert-without-test.sch"/>
     <instance file="error-assert-without-test.xml"/>
     <result>
@@ -98,6 +104,7 @@
     <description>A report needs a test attribute.</description>
     <spec clause="5.4.14"/>
     <spec clause="Annex-A"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="error-report-without-test.sch"/>
     <instance file="error-report-without-test.xml"/>
     <result>
@@ -108,6 +115,7 @@
   <test-case name="error-ns-after-pattern" since="2020">
     <description>ns comes before the patterns in the schema element's content.</description>
     <spec clause="Annex-A"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="error-ns-after-pattern.sch"/>
     <instance file="error-ns-after-pattern.xml"/>
     <result>
@@ -118,6 +126,7 @@
   <test-case name="error-two-diagnostics-sections" since="2020">
     <description>A schema has at most one diagnostics element.</description>
     <spec clause="Annex-A"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="error-two-diagnostics-sections.sch"/>
     <instance file="error-two-diagnostics-sections.xml"/>
     <result>
@@ -128,6 +137,7 @@
   <test-case name="error-duplicate-id" since="2020">
     <description>id attributes are of type ID: a pattern and an assert may not share one.</description>
     <spec clause="Annex-A"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="error-duplicate-id.sch"/>
     <instance file="error-duplicate-id.xml"/>
     <result>
@@ -139,6 +149,7 @@
     <description>An id must be a well-formed name.</description>
     <spec clause="7.2"/>
     <spec clause="Annex-A"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="error-id-not-a-name.sch"/>
     <instance file="error-id-not-a-name.xml"/>
     <result>
@@ -149,6 +160,7 @@
   <test-case name="error-flag-not-a-name" since="2020">
     <description>A flag must be a well-formed name.</description>
     <spec clause="7.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="error-flag-not-a-name.sch"/>
     <instance file="error-flag-not-a-name.xml"/>
     <result>
@@ -159,6 +171,7 @@
   <test-case name="error-let-name-not-a-name" since="2020">
     <description>A variable name must be a well-formed name.</description>
     <spec clause="7.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="error-let-name-not-a-name.sch"/>
     <instance file="error-let-name-not-a-name.xml"/>
     <result>
@@ -170,6 +183,7 @@
     <description>An ns prefix must be a name without a colon.</description>
     <spec clause="5.4.10"/>
     <spec clause="7.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="error-ns-prefix-not-a-name.sch"/>
     <instance file="error-ns-prefix-not-a-name.xml"/>
     <result>
@@ -181,6 +195,7 @@
     <description>ns needs a uri attribute.</description>
     <spec clause="5.4.10"/>
     <spec clause="Annex-A"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="error-ns-without-uri.sch"/>
     <instance file="error-ns-without-uri.xml"/>
     <result>
@@ -191,6 +206,7 @@
   <test-case name="error-context-syntax" since="2020">
     <description>A rule context that is not a pattern of the query language.</description>
     <spec clause="7.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="error-context-syntax.sch"/>
     <instance file="error-context-syntax.xml"/>
     <result>
@@ -201,6 +217,7 @@
   <test-case name="error-test-syntax" since="2020">
     <description>An assertion test that is not an expression of the query language.</description>
     <spec clause="7.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="error-test-syntax.sch"/>
     <instance file="error-test-syntax.xml"/>
     <result>
@@ -212,6 +229,7 @@
     <description>Under xslt3 a rule context is an XSLT pattern: an expression that is not a pattern is a syntax error.</description>
     <spec clause="7.2"/>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="error-context-is-expression.sch"/>
     <instance file="error-context-is-expression.xml"/>
     <result>
@@ -223,6 +241,7 @@
     <description>A prefix in a test that no ns element declares.</description>
     <spec clause="5.4.10"/>
     <spec clause="7.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="error-undeclared-prefix.sch"/>
     <instance file="error-undeclared-prefix.xml"/>
     <result>
@@ -233,6 +252,7 @@
   <test-case name="error-xmlns-not-used-for-queries" since="2020">
     <description>A prefix bound only by an XML namespace declaration is not in scope for queries.</description>
     <spec clause="5.4.10"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="error-xmlns-not-used-for-queries.sch"/>
     <instance file="error-xmlns-not-used-for-queries.xml"/>
     <result>
@@ -244,6 +264,7 @@
     <description>A phase needs an id.</description>
     <spec clause="5.4.13"/>
     <spec clause="Annex-A"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="error-phase-id-missing.sch"/>
     <instance file="error-phase-id-missing.xml"/>
     <result>
@@ -254,6 +275,7 @@
   <test-case name="error-diagnostics-in-pattern" since="2020">
     <description>diagnostics is a child of the schema (or a library), not of a pattern.</description>
     <spec clause="Annex-A"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="error-diagnostics-in-pattern.sch"/>
     <instance file="error-diagnostics-in-pattern.xml"/>
     <result>
@@ -265,6 +287,7 @@
     <description>The value of dir is ltr or rtl.</description>
     <spec clause="5.5.4"/>
     <spec clause="Annex-A"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="error-dir-bad-value.sch"/>
     <instance file="error-dir-bad-value.xml"/>
     <result>
@@ -276,6 +299,7 @@
     <description>span needs a class attribute.</description>
     <spec clause="5.5.18"/>
     <spec clause="Annex-A"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="error-span-without-class.sch"/>
     <instance file="error-span-without-class.xml"/>
     <result>
@@ -287,6 +311,7 @@
     <description>value-of needs a select attribute.</description>
     <spec clause="5.4.18"/>
     <spec clause="Annex-A"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="error-value-of-without-select.sch"/>
     <instance file="error-value-of-without-select.xml"/>
     <result>

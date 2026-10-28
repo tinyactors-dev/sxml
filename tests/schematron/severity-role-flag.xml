@@ -12,6 +12,7 @@
     <spec clause="5.5.16"/>
     <spec clause="5.4.3"/>
     <spec clause="5.4.14"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="severity-static.sch"/>
     <instance file="severity-static.xml"/>
     <result>
@@ -34,6 +35,7 @@
     <spec clause="5.5.16"/>
     <spec clause="5.5.14"/>
     <spec clause="5.5.6"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="severity-with-role-and-flag.sch"/>
     <instance file="severity-with-role-and-flag.xml"/>
     <result>
@@ -49,6 +51,7 @@
   <test-case name="role-variable" since="2025">
     <description>A role that is a variable reference is evaluated.</description>
     <spec clause="5.5.14"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="role-variable.sch"/>
     <instance file="role-variable.xml"/>
     <result>
@@ -66,6 +69,7 @@
   <test-case name="flag-variable" since="2025">
     <description>A flag that is a variable reference is evaluated; the evaluated name is raised.</description>
     <spec clause="5.5.6"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="flag-variable.sch"/>
     <instance file="flag-variable.xml"/>
     <result>
@@ -81,6 +85,7 @@
   <test-case name="severity-variable" since="2025">
     <description>A severity that is a variable reference is evaluated.</description>
     <spec clause="5.5.16"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="severity-variable.sch"/>
     <instance file="severity-variable.xml"/>
     <result>
@@ -96,6 +101,7 @@
     <description>A role varying with the selected phase through a phase variable.</description>
     <spec clause="5.5.14"/>
     <spec clause="5.4.13"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="role-phase-variable.sch"/>
     <instance file="role-phase-variable.xml"/>
     <phase>strict</phase>
@@ -112,6 +118,7 @@
     <description>Under xslt3 an attribute value template may compute role.</description>
     <spec clause="Annex-J"/>
     <spec clause="5.5.14"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="role-avt.sch"/>
     <instance file="role-avt.xml"/>
     <result>
@@ -130,6 +137,7 @@
     <description>Under xslt3 an attribute value template may compute flag.</description>
     <spec clause="Annex-J"/>
     <spec clause="5.5.6"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="flag-avt.sch"/>
     <instance file="flag-avt.xml"/>
     <result>
@@ -146,6 +154,7 @@
     <description>Under xslt3 an attribute value template may compute severity.</description>
     <spec clause="Annex-J"/>
     <spec clause="5.5.16"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="severity-avt.sch"/>
     <instance file="severity-avt.xml"/>
     <result>
@@ -179,6 +188,7 @@
   <test-case name="rule-flag-variable" since="2025">
     <description>A rule's flag that is a variable reference is evaluated when the rule fires.</description>
     <spec clause="5.5.6"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="rule-flag-variable.sch"/>
     <instance file="rule-flag-variable.xml"/>
     <result>
@@ -190,6 +200,7 @@
   <test-case name="role-literal" since="2020">
     <description>Only a role that is a variable reference is evaluated: other text is reported as written.</description>
     <spec clause="5.5.14"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="role-literal.sch"/>
     <instance file="role-literal.xml"/>
     <result>
@@ -203,6 +214,7 @@
   <test-case name="role-variable-empty" since="2025">
     <description>A role that is a variable reference whose value is the empty sequence.</description>
     <spec clause="5.5.14"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="role-variable-empty.sch"/>
     <instance file="role-variable-empty.xml"/>
     <result>
@@ -213,6 +225,7 @@
   <test-case name="role-variable-several" since="2025">
     <description>A role that is a variable reference whose value is two strings.</description>
     <spec clause="5.5.14"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="role-variable-several.sch"/>
     <instance file="role-variable-several.xml"/>
     <result>
@@ -223,6 +236,7 @@
   <test-case name="role-variable-not-a-name" since="2025">
     <description>A role that is a variable reference whose value is a string that is not a name.</description>
     <spec clause="5.5.14"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="role-variable-not-a-name.sch"/>
     <instance file="role-variable-not-a-name.xml"/>
     <result>
@@ -233,6 +247,7 @@
   <test-case name="severity-variable-empty" since="2025">
     <description>A severity that is a variable reference whose value is the empty sequence.</description>
     <spec clause="5.5.16"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="severity-variable-empty.sch"/>
     <instance file="severity-variable-empty.xml"/>
     <result>
@@ -243,6 +258,7 @@
   <test-case name="severity-variable-several" since="2025">
     <description>A severity that is a variable reference whose value is two strings.</description>
     <spec clause="5.5.16"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="severity-variable-several.sch"/>
     <instance file="severity-variable-several.xml"/>
     <result>
@@ -253,6 +269,7 @@
   <test-case name="severity-variable-not-a-name" since="2025">
     <description>A severity that is a variable reference whose value is a string that is not a name.</description>
     <spec clause="5.5.16"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="severity-variable-not-a-name.sch"/>
     <instance file="severity-variable-not-a-name.xml"/>
     <result>
@@ -263,6 +280,7 @@
   <test-case name="flag-variable-empty" since="2025">
     <description>A flag that is a variable reference whose value is the empty sequence.</description>
     <spec clause="5.5.6"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="flag-variable-empty.sch"/>
     <instance file="flag-variable-empty.xml"/>
     <result>
@@ -273,6 +291,7 @@
   <test-case name="flag-variable-several" since="2025">
     <description>A flag that is a variable reference whose value is two strings.</description>
     <spec clause="5.5.6"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="flag-variable-several.sch"/>
     <instance file="flag-variable-several.xml"/>
     <result>
@@ -283,6 +302,7 @@
   <test-case name="flag-variable-not-a-name" since="2025">
     <description>A flag that is a variable reference whose value is a string that is not a name.</description>
     <spec clause="5.5.6"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="flag-variable-not-a-name.sch"/>
     <instance file="flag-variable-not-a-name.xml"/>
     <result>
@@ -295,6 +315,7 @@
     <spec clause="5.5.16"/>
     <spec clause="7.2"/>
     <spec clause="Annex-A"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="severity-static-not-a-name.sch"/>
     <instance file="severity-static-not-a-name.xml"/>
     <result>
@@ -307,6 +328,7 @@
     <spec clause="5.5.14"/>
     <spec clause="7.2"/>
     <spec clause="Annex-A"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="role-static-not-a-name.sch"/>
     <instance file="role-static-not-a-name.xml"/>
     <result>
@@ -318,6 +340,7 @@
     <description>A role variable whose value is an attribute node: the role is the node's string value (the reading the suite takes; role is a string in the report).</description>
     <spec clause="5.5.14"/>
     <spec clause="5.4.7"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="role-variable-attribute-node.sch"/>
     <instance file="role-variable-attribute-node.xml"/>
     <result>
@@ -337,6 +360,7 @@
     <spec clause="5.5.14"/>
     <spec clause="5.4.7"/>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="role-variable-undefined.sch"/>
     <instance file="role-variable-undefined.xml"/>
     <result>
@@ -348,6 +372,7 @@
     <description>severity belongs to assert and report; a rule has none.</description>
     <spec clause="5.5.16"/>
     <spec clause="Annex-A"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="severity-on-rule.sch"/>
     <instance file="severity-on-rule.xml"/>
     <result>
@@ -359,6 +384,7 @@
     <description>severity belongs to assert and report; a pattern has none.</description>
     <spec clause="5.5.16"/>
     <spec clause="Annex-A"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="severity-on-pattern.sch"/>
     <instance file="severity-on-pattern.xml"/>
     <result>
@@ -370,6 +396,7 @@
     <description>A pattern's role is not the role of its assertions' findings.</description>
     <spec clause="5.5.14"/>
     <spec clause="Annex-D"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="role-on-pattern-not-inherited.sch"/>
     <instance file="role-on-pattern-not-inherited.xml"/>
     <result>
@@ -385,6 +412,7 @@
     <description>A rule's role that is a reference to the rule's own variable is evaluated for each context node; it is the role of the fired rule, not of the findings.</description>
     <spec clause="5.5.14"/>
     <spec clause="Annex-D"/>
+    <dependency type="query-binding" value="xslt3"/>
     <dependency type="feature" value="svrl"/>
     <schema file="rule-role-variable.sch"/>
     <instance file="rule-role-variable.xml"/>
@@ -402,6 +430,7 @@
     <description>A flag that refers to a phase variable takes the value of the selected phase.</description>
     <spec clause="5.5.6"/>
     <spec clause="5.4.13"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="flag-phase-variable.sch"/>
     <instance file="flag-phase-variable.xml"/>
     <phase>strict</phase>
@@ -420,6 +449,7 @@
     <spec clause="6.2"/>
     <spec clause="5.5.16"/>
     <spec clause="6.4"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="severity-abstract-parameter.sch"/>
     <instance file="severity-abstract-parameter.xml"/>
     <result>
@@ -432,6 +462,7 @@
     <spec clause="6.2"/>
     <spec clause="5.5.14"/>
     <spec clause="6.4"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="role-abstract-parameter.sch"/>
     <instance file="role-abstract-parameter.xml"/>
     <result>
@@ -442,6 +473,7 @@
   <test-case name="rule-flag-rule-variable" since="2025">
     <description>A rule's flag that refers to the rule's own variable: each evaluated name is raised when the rule fires.</description>
     <spec clause="5.5.6"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="rule-flag-rule-variable.sch"/>
     <instance file="rule-flag-rule-variable.xml"/>
     <result>

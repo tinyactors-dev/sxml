@@ -12,6 +12,7 @@
   <test-case name="assert-holds" since="2020">
     <description>An assert whose test is true finds nothing.</description>
     <spec clause="5.4.3"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="assert-holds.sch"/>
     <instance file="assert-holds.xml"/>
     <result>
@@ -22,6 +23,7 @@
   <test-case name="assert-fails" since="2020">
     <description>An assert whose test is false is a finding.</description>
     <spec clause="5.4.3"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="assert-fails.sch"/>
     <instance file="assert-fails.xml"/>
     <result>
@@ -37,6 +39,7 @@
     <description>A report whose test is true is a finding.</description>
     <spec clause="5.4.14"/>
     <spec clause="6.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="report-fires.sch"/>
     <instance file="report-fires.xml"/>
     <result>
@@ -51,6 +54,7 @@
   <test-case name="report-silent" since="2020">
     <description>A report whose test is false finds nothing.</description>
     <spec clause="5.4.14"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="report-silent.sch"/>
     <instance file="report-silent.xml"/>
     <result>
@@ -62,6 +66,7 @@
     <description>The test is reduced to its effective Boolean value: a non-empty node sequence is true.</description>
     <spec clause="Annex-J"/>
     <spec clause="3.6"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="assert-ebv-node-present.sch"/>
     <instance file="assert-ebv-node-present.xml"/>
     <result>
@@ -73,6 +78,7 @@
     <description>The test is reduced to its effective Boolean value: an empty sequence is false.</description>
     <spec clause="Annex-J"/>
     <spec clause="3.6"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="assert-ebv-node-absent.sch"/>
     <instance file="assert-ebv-node-absent.xml"/>
     <result>
@@ -88,6 +94,7 @@
     <description>The test is reduced to its effective Boolean value: the empty string is false.</description>
     <spec clause="Annex-J"/>
     <spec clause="3.6"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="assert-ebv-empty-string.sch"/>
     <instance file="assert-ebv-empty-string.xml"/>
     <result>
@@ -103,6 +110,7 @@
     <description>The test is reduced to its effective Boolean value: a non-empty string is true, whatever it says.</description>
     <spec clause="Annex-J"/>
     <spec clause="3.6"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="assert-ebv-string.sch"/>
     <instance file="assert-ebv-string.xml"/>
     <result>
@@ -114,6 +122,7 @@
     <description>The test is reduced to its effective Boolean value: zero is false.</description>
     <spec clause="Annex-J"/>
     <spec clause="3.6"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="assert-ebv-zero.sch"/>
     <instance file="assert-ebv-zero.xml"/>
     <result>
@@ -129,6 +138,7 @@
     <description>The test is reduced to its effective Boolean value: a non-zero number is true.</description>
     <spec clause="Annex-J"/>
     <spec clause="3.6"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="assert-ebv-number.sch"/>
     <instance file="assert-ebv-number.xml"/>
     <result>
@@ -140,6 +150,7 @@
     <description>The test is reduced to its effective Boolean value: NaN is false.</description>
     <spec clause="Annex-J"/>
     <spec clause="3.6"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="assert-ebv-nan.sch"/>
     <instance file="assert-ebv-nan.xml"/>
     <result>
@@ -155,6 +166,7 @@
     <description>The test is reduced to its effective Boolean value: an attribute node is true even when its value is 'false'.</description>
     <spec clause="Annex-J"/>
     <spec clause="3.6"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="assert-ebv-boolean-attribute.sch"/>
     <instance file="assert-ebv-boolean-attribute.xml"/>
     <result>
@@ -166,6 +178,7 @@
     <description>A test whose value has no effective Boolean value (two numbers) is an error.</description>
     <spec clause="Annex-J"/>
     <spec clause="6.1"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="assert-ebv-error.sch"/>
     <instance file="assert-ebv-error.xml"/>
     <result>
@@ -181,6 +194,7 @@
     <spec clause="5.4.3"/>
     <spec clause="5.5.6"/>
     <spec clause="5.5.14"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="assert-attributes-reported.sch"/>
     <instance file="assert-attributes-reported.xml"/>
     <result>
@@ -198,6 +212,7 @@
     <spec clause="5.4.14"/>
     <spec clause="5.5.6"/>
     <spec clause="5.5.14"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="report-attributes-reported.sch"/>
     <instance file="report-attributes-reported.xml"/>
     <result>
@@ -214,6 +229,7 @@
     <description>A rule's role is not the role of its assertions' findings.</description>
     <spec clause="5.5.14"/>
     <spec clause="Annex-D"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="assert-role-not-inherited.sch"/>
     <instance file="assert-role-not-inherited.xml"/>
     <result>
@@ -228,6 +244,7 @@
   <test-case name="flag-raised-by-failure" since="2020">
     <description>A flag becomes true when an assertion with that flag fails.</description>
     <spec clause="5.5.6"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="flag-raised-by-failure.sch"/>
     <instance file="flag-raised-by-failure.xml"/>
     <result>
@@ -243,6 +260,7 @@
   <test-case name="flag-not-raised-by-success" since="2020">
     <description>A flag stays false when every assertion with it holds.</description>
     <spec clause="5.5.6"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="flag-not-raised-by-success.sch"/>
     <instance file="flag-not-raised-by-success.xml"/>
     <result>
@@ -254,6 +272,7 @@
   <test-case name="flag-raised-by-rule" since="2020">
     <description>A flag becomes true when a rule with that flag fires, with no finding.</description>
     <spec clause="5.5.6"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="flag-raised-by-rule.sch"/>
     <instance file="flag-raised-by-rule.xml"/>
     <result>
@@ -266,6 +285,7 @@
     <description>A flag attribute is a list of names; each becomes true.</description>
     <spec clause="5.5.6"/>
     <spec clause="Annex-A"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="flag-token-list.sch"/>
     <instance file="flag-token-list.xml"/>
     <result>
@@ -284,6 +304,7 @@
     <spec clause="5.5.4"/>
     <spec clause="5.5.5"/>
     <spec clause="5.5.18"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="message-markup.sch"/>
     <instance file="message-markup.xml"/>
     <result>
@@ -299,6 +320,7 @@
     <description>An assertion without text has an empty message.</description>
     <spec clause="5.4.14"/>
     <spec clause="Annex-A"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="message-empty.sch"/>
     <instance file="message-empty.xml"/>
     <result>
@@ -313,6 +335,7 @@
   <test-case name="message-entities" since="2020">
     <description>Characters escaped in the schema appear in the message as themselves.</description>
     <spec clause="5.4.3"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="message-entities.sch"/>
     <instance file="message-entities.xml"/>
     <result>
@@ -327,6 +350,7 @@
   <test-case name="assert-current-function" since="2020">
     <description>Under xslt3 the XSLT function current() is available in a test.</description>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="assert-current-function.sch"/>
     <instance file="assert-current-function.xml"/>
     <result>
@@ -344,6 +368,7 @@
     <description>A dynamic error in a report's test: validation ends in error.</description>
     <spec clause="5.4.14"/>
     <spec clause="6.1"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="report-dynamic-error.sch"/>
     <instance file="report-dynamic-error.xml"/>
     <result>
@@ -355,6 +380,7 @@
     <description>Two identical asserts in one rule: each is evaluated, two identical findings.</description>
     <spec clause="6.3"/>
     <spec clause="6.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="assert-duplicate.sch"/>
     <instance file="assert-duplicate.xml"/>
     <result>
@@ -373,6 +399,7 @@
     <description>A message with characters outside ASCII (Latin, mathematical, CJK).</description>
     <spec clause="5.4.3"/>
     <spec clause="6.3"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="message-non-ascii.sch"/>
     <instance file="message-non-ascii.xml"/>
     <result>
@@ -388,6 +415,7 @@
     <description>A message with characters outside the Basic Multilingual Plane, written literally and as a character reference.</description>
     <spec clause="5.4.14"/>
     <spec clause="6.3"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="message-astral.sch"/>
     <instance file="message-astral.xml"/>
     <result>
@@ -403,6 +431,7 @@
     <description>A message with a combining accent after a base letter and the same letter precomposed: the text is reported as written, with no Unicode normalization (the standard asks for none).</description>
     <spec clause="5.4.3"/>
     <spec clause="5.3"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="message-combining-characters.sch"/>
     <instance file="message-combining-characters.xml"/>
     <result>
@@ -417,6 +446,7 @@
   <test-case name="message-no-break-space" since="2020">
     <description>U+00A0 is not one of the four whitespace characters of 5.3: it is kept, while the spaces around it collapse.</description>
     <spec clause="5.3"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="message-no-break-space.sch"/>
     <instance file="message-no-break-space.xml"/>
     <result>
@@ -431,6 +461,7 @@
   <test-case name="message-whitespace-only" since="2020">
     <description>A message of whitespace only is empty after collapsing.</description>
     <spec clause="5.3"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="message-whitespace-only.sch"/>
     <instance file="message-whitespace-only.xml"/>
     <result>
@@ -446,6 +477,7 @@
     <description>emph contains text, name and value-of, not another emph.</description>
     <spec clause="5.5.5"/>
     <spec clause="Annex-A"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="message-emph-nested.sch"/>
     <instance file="message-emph-nested.xml"/>
     <result>
@@ -457,6 +489,7 @@
     <description>dir with rtl around Arabic text, dir without a value, and span with a non-ASCII class: each contributes its text.</description>
     <spec clause="5.5.4"/>
     <spec clause="5.5.18"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="message-dir-and-span-unicode.sch"/>
     <instance file="message-dir-and-span-unicode.xml"/>
     <result>
@@ -472,6 +505,7 @@
     <description>A test that counts characters: a character outside the Basic Multilingual Plane is one character.</description>
     <spec clause="5.4.3"/>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="assert-test-astral-length.sch"/>
     <instance file="assert-test-astral-length.xml"/>
     <result>
@@ -488,6 +522,7 @@
     <spec clause="5.5.6"/>
     <spec clause="5.5.14"/>
     <spec clause="7.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="assert-attributes-non-ascii.sch"/>
     <instance file="assert-attributes-non-ascii.xml"/>
     <result>

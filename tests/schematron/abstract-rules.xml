@@ -14,6 +14,7 @@
     <spec clause="5.4.4"/>
     <spec clause="5.4.15"/>
     <spec clause="6.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="extends-basic.sch"/>
     <instance file="extends-basic.xml"/>
     <result>
@@ -29,6 +30,7 @@
     <description>An abstract rule never fires by itself.</description>
     <spec clause="3.2"/>
     <spec clause="5.4.15"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="extends-abstract-does-not-fire.sch"/>
     <instance file="extends-abstract-does-not-fire.xml"/>
     <result>
@@ -39,6 +41,7 @@
   <test-case name="extends-with-own-assertions" since="2020">
     <description>The rule's own assertions and the extended ones are all evaluated.</description>
     <spec clause="5.4.4"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="extends-with-own-assertions.sch"/>
     <instance file="extends-with-own-assertions.xml"/>
     <result>
@@ -57,6 +60,7 @@
     <description>An abstract rule may extend another abstract rule.</description>
     <spec clause="5.4.4"/>
     <spec clause="Annex-A"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="extends-nested.sch"/>
     <instance file="extends-nested.xml"/>
     <result>
@@ -75,6 +79,7 @@
     <description>The extended assertions become the rule's: they see its variables.</description>
     <spec clause="5.4.4"/>
     <spec clause="5.4.7"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="extends-sees-rule-variables.sch"/>
     <instance file="extends-sees-rule-variables.xml"/>
     <result>
@@ -90,6 +95,7 @@
     <description>An abstract rule's own variables come with its assertions.</description>
     <spec clause="5.4.4"/>
     <spec clause="5.4.7"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="extends-abstract-variables.sch"/>
     <instance file="extends-abstract-variables.xml"/>
     <result>
@@ -105,6 +111,7 @@
     <description>An extended assertion's subject is evaluated in the extending rule's context.</description>
     <spec clause="5.4.4"/>
     <spec clause="5.5.19"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="extends-subject.sch"/>
     <instance file="extends-subject.xml"/>
     <result>
@@ -119,6 +126,7 @@
   <test-case name="extends-two-rules" since="2020">
     <description>Two rules extend one abstract rule.</description>
     <spec clause="5.4.4"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="extends-two-rules.sch"/>
     <instance file="extends-two-rules.xml"/>
     <result>
@@ -138,6 +146,7 @@
     <spec clause="5.4.15"/>
     <spec clause="5.4.16"/>
     <spec clause="Annex-B"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="extends-other-pattern.sch"/>
     <instance file="extends-other-pattern.xml"/>
     <result>
@@ -149,6 +158,7 @@
     <description>Abstract rules in a rules element at schema level.</description>
     <spec clause="5.4.16"/>
     <spec clause="5.4.4"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="extends-rules-container.sch"/>
     <instance file="extends-rules-container.xml"/>
     <result>
@@ -163,6 +173,7 @@
   <test-case name="extends-rules-two-patterns" since="2025">
     <description>One abstract rule of a rules element used in two patterns.</description>
     <spec clause="5.4.16"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="extends-rules-two-patterns.sch"/>
     <instance file="extends-rules-two-patterns.xml"/>
     <result>
@@ -181,6 +192,7 @@
     <description>A rules element holds only abstract rules.</description>
     <spec clause="5.4.16"/>
     <spec clause="Annex-A"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="extends-rules-not-abstract.sch"/>
     <instance file="extends-rules-not-abstract.xml"/>
     <result>
@@ -192,6 +204,7 @@
     <description>A rule of a group extends an abstract rule.</description>
     <spec clause="5.4.5"/>
     <spec clause="5.4.4"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="extends-in-group.sch"/>
     <instance file="extends-in-group.xml"/>
     <result>
@@ -210,6 +223,7 @@
     <description>extends names no abstract rule.</description>
     <spec clause="Annex-B"/>
     <spec clause="5.4.4"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="extends-unknown.sch"/>
     <instance file="extends-unknown.xml"/>
     <result>
@@ -221,6 +235,7 @@
     <description>extends rule names a rule that is not abstract.</description>
     <spec clause="Annex-B"/>
     <spec clause="5.4.4"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="extends-concrete-rule.sch"/>
     <instance file="extends-concrete-rule.xml"/>
     <result>
@@ -232,6 +247,7 @@
     <description>An abstract rule may not have a context.</description>
     <spec clause="5.4.15"/>
     <spec clause="Annex-A"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="extends-abstract-with-context.sch"/>
     <instance file="extends-abstract-with-context.xml"/>
     <result>
@@ -242,6 +258,7 @@
   <test-case name="extends-abstract-without-id" since="2020">
     <description>An abstract rule needs an id.</description>
     <spec clause="Annex-A"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="extends-abstract-without-id.sch"/>
     <instance file="extends-abstract-without-id.xml"/>
     <result>
@@ -253,6 +270,7 @@
     <description>extends has a rule or an href attribute, not both.</description>
     <spec clause="5.4.4"/>
     <spec clause="Annex-A"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="extends-rule-and-href.sch"/>
     <instance file="extends-rule-and-href.xml"/>
     <result>
@@ -264,6 +282,7 @@
     <description>extends without rule or href.</description>
     <spec clause="5.4.4"/>
     <spec clause="Annex-A"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="extends-neither.sch"/>
     <instance file="extends-neither.xml"/>
     <result>
@@ -274,6 +293,7 @@
   <test-case name="extends-cycle" since="2020">
     <description>Abstract rules that extend each other cannot be resolved.</description>
     <spec clause="5.4.4"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="extends-cycle.sch"/>
     <instance file="extends-cycle.xml"/>
     <result>
@@ -284,6 +304,7 @@
     <description>An abstract rule that extends itself cannot be resolved.</description>
     <spec clause="5.4.4"/>
     <spec clause="6.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="extends-self.sch"/>
     <instance file="extends-self.xml"/>
     <result>
@@ -294,6 +315,7 @@
   <test-case name="extends-unused-syntax" since="2020">
     <description>A syntax error in an abstract rule that no rule extends: the schema is still not correct.</description>
     <spec clause="7.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="extends-unused-syntax.sch"/>
     <instance file="extends-unused-syntax.xml"/>
     <result>
@@ -305,6 +327,7 @@
     <description>A rule that extends one abstract rule twice receives its assertions twice (6.2): two identical findings.</description>
     <spec clause="5.4.4"/>
     <spec clause="6.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="extends-twice.sch"/>
     <instance file="extends-twice.xml"/>
     <result>
@@ -324,6 +347,7 @@
     <spec clause="5.4.7"/>
     <spec clause="6.2"/>
     <spec clause="7.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="extends-variable-clash.sch"/>
     <instance file="extends-variable-clash.xml"/>
     <result>
@@ -336,6 +360,7 @@
     <spec clause="3.2"/>
     <spec clause="5.5.6"/>
     <spec clause="6.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="extends-abstract-rule-flag.sch"/>
     <instance file="extends-abstract-rule-flag.xml"/>
     <result>
@@ -352,6 +377,7 @@
     <description>A rules element needs at least one abstract rule.</description>
     <spec clause="5.4.16"/>
     <spec clause="Annex-A"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="rules-container-empty.sch"/>
     <instance file="rules-container-empty.xml"/>
     <result>
@@ -362,6 +388,7 @@
   <test-case name="rules-container-two" since="2025">
     <description>Two rules elements at schema level; rules of a pattern extend abstract rules of both.</description>
     <spec clause="5.4.16"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="rules-container-two.sch"/>
     <instance file="rules-container-two.xml"/>
     <result>
@@ -380,6 +407,7 @@
     <description>Two abstract rules with one id in two rules elements: ids are of type ID.</description>
     <spec clause="5.4.16"/>
     <spec clause="Annex-A"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="rules-container-duplicate-id.sch"/>
     <instance file="rules-container-duplicate-id.xml"/>
     <result>
@@ -392,6 +420,7 @@
     <spec clause="5.4.16"/>
     <spec clause="5.4.6"/>
     <spec clause="Annex-A"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="rules-container-include.sch"/>
     <instance file="rules-container-include.xml"/>
     <result>

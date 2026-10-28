@@ -7,6 +7,7 @@
   <test-case name="visit-each-nodes" since="2025">
     <description>Each node visit-each selects becomes the context of the assertions.</description>
     <spec clause="5.5.21"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="visit-each-nodes.sch"/>
     <instance file="visit-each-nodes.xml"/>
     <result>
@@ -22,6 +23,7 @@
     <description>When visit-each selects nothing, the rule still fires: no assertion is evaluated, its flag is raised, and a later rule in the pattern does not fire for the node.</description>
     <spec clause="5.5.21"/>
     <spec clause="6.3"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="visit-each-empty-fires.sch"/>
     <instance file="visit-each-empty-fires.xml"/>
     <result>
@@ -43,6 +45,7 @@
   <test-case name="visit-each-atomic" since="2025">
     <description>visit-each may select atomic values; the assertions see each as the context item. (The location of such a finding is not compared.)</description>
     <spec clause="5.5.21"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="visit-each-atomic.sch"/>
     <instance file="visit-each-atomic.xml"/>
     <result>
@@ -61,6 +64,7 @@
     <description>visit-each with a variable of the schema.</description>
     <spec clause="5.5.21"/>
     <spec clause="5.4.7"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="visit-each-variables.sch"/>
     <instance file="visit-each-variables.xml"/>
     <result>
@@ -76,6 +80,7 @@
     <description>A visit-each that is not an expression of the query language.</description>
     <spec clause="5.5.21"/>
     <spec clause="7.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="visit-each-syntax.sch"/>
     <instance file="visit-each-syntax.xml"/>
     <result>
@@ -87,6 +92,7 @@
     <description>visit-each belongs to a rule with a context; an abstract rule has none.</description>
     <spec clause="5.4.15"/>
     <spec clause="Annex-A"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="visit-each-on-abstract-rule.sch"/>
     <instance file="visit-each-on-abstract-rule.xml"/>
     <result>
@@ -97,6 +103,7 @@
     <description>visit-each returning nodes in reverse document order: every item is visited; the findings are the same.</description>
     <spec clause="5.5.21"/>
     <spec clause="6.6"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="visit-each-reverse-order.sch"/>
     <instance file="visit-each-reverse-order.xml"/>
     <result>
@@ -114,6 +121,7 @@
   <test-case name="visit-each-duplicates" since="2025">
     <description>visit-each returning one node twice: the sequence has two items, so the assertions are evaluated twice and there are two findings for the node.</description>
     <spec clause="5.5.21"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="visit-each-duplicates.sch"/>
     <instance file="visit-each-duplicates.xml"/>
     <result>
@@ -132,6 +140,7 @@
     <description>visit-each selecting nodes of another document (doc() resolves against the schema's base URI): they are the assertions' context. The document is not a subordinate document (5.4.12); the location is the node's path in its own document.</description>
     <spec clause="5.5.21"/>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="visit-each-other-document.sch"/>
     <instance file="visit-each-other-document.xml"/>
     <result>
@@ -148,6 +157,7 @@
     <spec clause="5.5.19"/>
     <spec clause="5.5.21"/>
     <spec clause="6.3"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="visit-each-subject.sch"/>
     <instance file="visit-each-subject.xml"/>
     <result>
@@ -159,6 +169,7 @@
     <description>A rule variable in a rule with visit-each.</description>
     <spec clause="5.4.7"/>
     <spec clause="5.5.21"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="visit-each-rule-variable.sch"/>
     <instance file="visit-each-rule-variable.xml"/>
     <result>
@@ -171,6 +182,7 @@
     <spec clause="5.5.21"/>
     <spec clause="3.20"/>
     <spec clause="6.3"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="visit-each-does-not-block.sch"/>
     <instance file="visit-each-does-not-block.xml"/>
     <result>
@@ -200,6 +212,7 @@
   <test-case name="visit-each-attributes" since="2025">
     <description>visit-each selecting attribute nodes: each attribute is the context and the subject.</description>
     <spec clause="5.5.21"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="visit-each-attributes.sch"/>
     <instance file="visit-each-attributes.xml"/>
     <result>
@@ -218,6 +231,7 @@
     <description>visit-each selecting whitespace-only text nodes of the instance: the binding strips none, so each is visited.</description>
     <spec clause="5.5.21"/>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="visit-each-whitespace-text.sch"/>
     <instance file="visit-each-whitespace-text.xml"/>
     <result>
@@ -238,6 +252,7 @@
   <test-case name="visit-each-comments-and-processing-instructions" since="2025">
     <description>visit-each selecting a comment and a processing instruction.</description>
     <spec clause="5.5.21"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="visit-each-comments-and-processing-instructions.sch"/>
     <instance file="visit-each-comments-and-processing-instructions.xml"/>
     <result>
@@ -256,6 +271,7 @@
     <description>Two rules with visit-each in a group: both fire for the same context node.</description>
     <spec clause="5.5.21"/>
     <spec clause="5.4.5"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="visit-each-in-group.sch"/>
     <instance file="visit-each-in-group.xml"/>
     <result>
@@ -283,6 +299,7 @@
     <description>A rule with visit-each that extends an abstract rule: the extended assertions are evaluated for each visited item.</description>
     <spec clause="5.5.21"/>
     <spec clause="5.4.4"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="visit-each-extends.sch"/>
     <instance file="visit-each-extends.xml"/>
     <result>
@@ -302,6 +319,7 @@
     <spec clause="5.5.21"/>
     <spec clause="6.2"/>
     <spec clause="6.4"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="visit-each-abstract-parameter.sch"/>
     <instance file="visit-each-abstract-parameter.xml"/>
     <result>
@@ -320,6 +338,7 @@
     <description>visit-each in a pattern with documents: the visited items are nodes of the subordinate document.</description>
     <spec clause="5.5.21"/>
     <spec clause="5.4.12"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="visit-each-documents.sch"/>
     <instance file="visit-each-documents.xml"/>
     <result>
@@ -335,6 +354,7 @@
     <description>from restricts the rule contexts, not what visit-each selects: the rule fires only for the list inside the subset, and visits every entry of the document.</description>
     <spec clause="5.5.21"/>
     <spec clause="5.5.7"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="visit-each-from.sch"/>
     <instance file="visit-each-from.xml"/>
     <phase>first</phase>
@@ -354,6 +374,7 @@
     <description>A dynamic error in visit-each: validation ends in error.</description>
     <spec clause="5.5.21"/>
     <spec clause="6.1"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="visit-each-dynamic-error.sch"/>
     <instance file="visit-each-dynamic-error.xml"/>
     <result>
@@ -364,6 +385,7 @@
   <test-case name="visit-each-mixed-items" since="2025">
     <description>visit-each returning a node and an atomic value: both are visited. (The second finding's subject is not a node; its location is not compared.)</description>
     <spec clause="5.5.21"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="visit-each-mixed-items.sch"/>
     <instance file="visit-each-mixed-items.xml"/>
     <result>
@@ -382,6 +404,7 @@
     <description>visit-each with a prefix declared by ns that differs from the instance's prefix for the same URI.</description>
     <spec clause="5.5.21"/>
     <spec clause="5.4.10"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="visit-each-namespaced.sch"/>
     <instance file="visit-each-namespaced.xml"/>
     <result>
@@ -397,6 +420,7 @@
     <description>visit-each over the code points of a string with a character outside the Basic Multilingual Plane: a character is one item, not two.</description>
     <spec clause="5.5.21"/>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="visit-each-astral-codepoints.sch"/>
     <instance file="visit-each-astral-codepoints.xml"/>
     <result>

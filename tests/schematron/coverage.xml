@@ -147,6 +147,7 @@
     <test set="inclusion" case="library-extends"/>
     <test set="inclusion" case="extends-href-cycle"/>
     <test set="inclusion" case="library-nested-extends"/>
+    <test set="inclusion" case="extends-href-prefix-from-ns"/>
   </requirement>
   <requirement id="r-5.4.4-errors" clause="5.4.4" kind="shall">
     <text>Errors while processing extends are reported; termination is implementation-defined.</text>
@@ -184,6 +185,7 @@
     <test set="inclusion" case="include-not-well-formed"/>
     <test set="inclusion" case="include-missing-fragment"/>
     <test set="inclusion" case="include-prefix-from-ns"/>
+    <test set="inclusion" case="include-rule-order"/>
   </requirement>
   <requirement id="r-5.4.6-place" clause="5.4.6" kind="shall">
     <text>The included element replaces include and must be allowed there.</text>
@@ -309,6 +311,10 @@
     <test set="documents" case="documents-namespaces"/>
     <test set="group" case="group-namespaces"/>
     <test set="visit-each" case="visit-each-namespaced"/>
+    <test set="phases" case="phase-from-namespaced"/>
+    <test set="phases" case="phase-when-namespaced"/>
+    <test set="inclusion" case="extends-href-prefix-from-ns"/>
+    <test set="diagnostics-properties" case="ancillary-namespaces"/>
   </requirement>
   <requirement id="r-5.4.11-schema" clause="5.4.11" kind="definition">
     <text>A schema param needs a value; its value may be overridden by the user.</text>
@@ -501,6 +507,7 @@
     <test set="phases" case="phase-from-attributes"/>
     <test set="phases" case="phase-from-group"/>
     <test set="visit-each" case="visit-each-from"/>
+    <test set="phases" case="phase-from-namespaced"/>
   </requirement>
   <requirement id="r-5.5.7-subordinate" clause="5.5.7" kind="shall">
     <text>from does not apply to subordinate documents.</text>
@@ -593,6 +600,7 @@
     <test set="patterns-rules" case="rules-subject-ancestor"/>
     <test set="group" case="group-subject"/>
     <test set="visit-each" case="visit-each-subject"/>
+    <test set="diagnostics-properties" case="ancillary-namespaces"/>
   </requirement>
   <requirement id="r-5.5.20" clause="5.5.20" kind="definition">
     <text>title is documentation.</text>
@@ -634,6 +642,7 @@
     <test set="phases" case="phase-any-later-when-error"/>
     <test set="phases" case="phase-when-ebv"/>
     <test set="phases" case="phase-when-ebv-error"/>
+    <test set="phases" case="phase-when-namespaced"/>
   </requirement>
   <requirement id="r-5.5.22-subordinate" clause="5.5.22" kind="shall">
     <text>when does not apply to subordinate documents.</text>
@@ -780,6 +789,7 @@
     <test set="group" case="group-versus-pattern"/>
     <test set="group" case="group-all-rules-fire"/>
     <test set="group" case="group-dynamic-error-not-blocked"/>
+    <test set="inclusion" case="include-rule-order"/>
   </requirement>
   <requirement id="r-6.6-let" clause="6.6" kind="definition">
     <text>A let may use earlier variables of its rule and global variables.</text>

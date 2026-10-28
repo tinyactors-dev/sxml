@@ -13,6 +13,7 @@
     <description>An instance replaces the parameter references in the abstract pattern's queries.</description>
     <spec clause="6.4"/>
     <spec clause="6.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="abstract-basic.sch"/>
     <instance file="abstract-basic.xml"/>
     <result>
@@ -27,6 +28,7 @@
   <test-case name="abstract-two-instances" since="2020">
     <description>Two instances of one abstract pattern are two patterns.</description>
     <spec clause="6.4"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="abstract-two-instances.sch"/>
     <instance file="abstract-two-instances.xml"/>
     <result>
@@ -47,6 +49,7 @@
   <test-case name="abstract-instance-first" since="2020">
     <description>An instance may come before the abstract pattern it instantiates.</description>
     <spec clause="6.4"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="abstract-instance-first.sch"/>
     <instance file="abstract-instance-first.xml"/>
     <result>
@@ -62,6 +65,7 @@
     <description>An abstract pattern without instances checks nothing, even when its rules need no parameters.</description>
     <spec clause="3.1"/>
     <spec clause="6.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="abstract-not-instantiated.sch"/>
     <instance file="abstract-not-instantiated.xml"/>
     <result>
@@ -77,6 +81,7 @@
     <description>Parameters are replaced in the select of value-of and the path of name.</description>
     <spec clause="6.4"/>
     <spec clause="6.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="abstract-param-in-value-of-and-name.sch"/>
     <instance file="abstract-param-in-value-of-and-name.xml"/>
     <result>
@@ -92,6 +97,7 @@
     <description>Parameters are replaced in a subject attribute.</description>
     <spec clause="6.4"/>
     <spec clause="5.5.19"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="abstract-param-in-subject.sch"/>
     <instance file="abstract-param-in-subject.xml"/>
     <result>
@@ -107,6 +113,7 @@
     <description>Parameters are replaced in a let value.</description>
     <spec clause="6.4"/>
     <spec clause="5.4.7"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="abstract-param-in-let.sch"/>
     <instance file="abstract-param-in-let.xml"/>
     <result>
@@ -122,6 +129,7 @@
     <description>An abstract pattern's own variable, with a parameter in its value.</description>
     <spec clause="6.4"/>
     <spec clause="5.4.7"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="abstract-pattern-let.sch"/>
     <instance file="abstract-pattern-let.xml"/>
     <result>
@@ -137,6 +145,7 @@
     <description>Parameters are replaced only in attributes that hold queries, not in message text.</description>
     <spec clause="6.2"/>
     <spec clause="6.4"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="abstract-param-not-in-text.sch"/>
     <instance file="abstract-param-not-in-text.xml"/>
     <result>
@@ -152,6 +161,7 @@
     <description>The $ convention is lexical: a parameter reference inside a string literal of a query is replaced too.</description>
     <spec clause="Annex-J"/>
     <spec clause="6.4"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="abstract-param-in-string-literal.sch"/>
     <instance file="abstract-param-in-string-literal.xml"/>
     <result>
@@ -168,6 +178,7 @@
     <spec clause="Annex-J"/>
     <spec clause="6.4"/>
     <spec clause="3.11"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="abstract-param-prefix-both.sch"/>
     <instance file="abstract-param-prefix-both.xml"/>
     <result>
@@ -184,6 +195,7 @@
     <spec clause="Annex-J"/>
     <spec clause="6.4"/>
     <spec clause="3.11"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="abstract-param-prefix-variable.sch"/>
     <instance file="abstract-param-prefix-variable.xml"/>
     <result>
@@ -199,6 +211,7 @@
     <description>A $ not followed by a parameter name is left alone: a variable of the abstract pattern's rule.</description>
     <spec clause="Annex-J"/>
     <spec clause="6.4"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="abstract-dollar-variable.sch"/>
     <instance file="abstract-dollar-variable.xml"/>
     <result>
@@ -213,6 +226,7 @@
   <test-case name="abstract-param-value-expression" since="2020">
     <description>A parameter value may be any query fragment, with spaces and operators.</description>
     <spec clause="6.4"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="abstract-param-value-expression.sch"/>
     <instance file="abstract-param-value-expression.xml"/>
     <result>
@@ -228,6 +242,7 @@
     <description>A parameter value that contains a reference to another parameter: whether the inserted text is scanned again is not settled by the text.</description>
     <spec clause="6.4"/>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="abstract-param-value-references-param.sch"/>
     <instance file="abstract-param-value-references-param.xml"/>
     <result>
@@ -239,6 +254,7 @@
     <description>A phase activates an instance by its id.</description>
     <spec clause="6.4"/>
     <spec clause="5.4.13"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="abstract-in-phase.sch"/>
     <instance file="abstract-in-phase.xml"/>
     <phase>tables</phase>
@@ -254,6 +270,7 @@
   <test-case name="abstract-param-default" since="2025">
     <description>An instance's param without a value takes the value of the abstract pattern's param of that name.</description>
     <spec clause="5.4.11"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="abstract-param-default.sch"/>
     <instance file="abstract-param-default.xml"/>
     <result>
@@ -268,6 +285,7 @@
   <test-case name="abstract-param-default-overridden" since="2025">
     <description>An instance's param value replaces the abstract pattern's default.</description>
     <spec clause="5.4.11"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="abstract-param-default-overridden.sch"/>
     <instance file="abstract-param-default-overridden.xml"/>
     <result>
@@ -286,6 +304,7 @@
     <description>An instance param without a value, and no default in the abstract pattern.</description>
     <spec clause="5.4.11"/>
     <spec clause="Annex-B"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="abstract-param-without-any-value.sch"/>
     <instance file="abstract-param-without-any-value.xml"/>
     <result>
@@ -297,6 +316,7 @@
     <description>An instance shall give a param for every parameter the abstract pattern uses; here $grandchild has none.</description>
     <spec clause="6.4"/>
     <spec clause="5.4.11"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="abstract-param-missing.sch"/>
     <instance file="abstract-param-missing.xml"/>
     <result>
@@ -308,6 +328,7 @@
     <description>An instance param whose name is not a param of the abstract pattern.</description>
     <spec clause="5.4.11"/>
     <spec clause="Annex-B"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="abstract-param-not-declared.sch"/>
     <instance file="abstract-param-not-declared.xml"/>
     <result>
@@ -319,6 +340,7 @@
     <description>Two params of one name in an instance.</description>
     <spec clause="5.4.11"/>
     <spec clause="Annex-B"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="abstract-param-duplicate.sch"/>
     <instance file="abstract-param-duplicate.xml"/>
     <result>
@@ -330,6 +352,7 @@
     <description>An abstract pattern needs an id.</description>
     <spec clause="5.4.12"/>
     <spec clause="Annex-A"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="abstract-without-id.sch"/>
     <instance file="abstract-without-id.xml"/>
     <result>
@@ -341,6 +364,7 @@
     <description>An abstract pattern may not itself be an instance.</description>
     <spec clause="5.4.12"/>
     <spec clause="Annex-A"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="abstract-with-is-a.sch"/>
     <instance file="abstract-with-is-a.xml"/>
     <result>
@@ -352,6 +376,7 @@
     <description>An instance may not contain rules.</description>
     <spec clause="6.4"/>
     <spec clause="Annex-A"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="abstract-instance-with-rule.sch"/>
     <instance file="abstract-instance-with-rule.xml"/>
     <result>
@@ -362,6 +387,7 @@
   <test-case name="abstract-instance-with-let" since="2020">
     <description>An instance contains only title, p and param.</description>
     <spec clause="Annex-A"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="abstract-instance-with-let.sch"/>
     <instance file="abstract-instance-with-let.xml"/>
     <result>
@@ -372,6 +398,7 @@
   <test-case name="abstract-is-a-unknown" since="2020">
     <description>is-a names no abstract pattern.</description>
     <spec clause="Annex-B"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="abstract-is-a-unknown.sch"/>
     <instance file="abstract-is-a-unknown.xml"/>
     <result>
@@ -382,6 +409,7 @@
   <test-case name="abstract-is-a-concrete" since="2020">
     <description>is-a names a pattern that is not abstract.</description>
     <spec clause="Annex-B"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="abstract-is-a-concrete.sch"/>
     <instance file="abstract-is-a-concrete.xml"/>
     <result>
@@ -392,6 +420,7 @@
   <test-case name="abstract-let-param-clash" since="2025">
     <description>A variable with the name of an abstract pattern's parameter.</description>
     <spec clause="Annex-B"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="abstract-let-param-clash.sch"/>
     <instance file="abstract-let-param-clash.xml"/>
     <result>
@@ -403,6 +432,7 @@
     <description>An abstract group and its instance: the instance is a group, so every matching rule fires.</description>
     <spec clause="5.4.5"/>
     <spec clause="6.4"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="abstract-group.sch"/>
     <instance file="abstract-group.xml"/>
     <result>
@@ -420,6 +450,7 @@
     <description>A parameter whose name has non-ASCII letters.</description>
     <spec clause="6.4"/>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="abstract-param-non-ascii-name.sch"/>
     <instance file="abstract-param-non-ascii-name.xml"/>
     <result>
@@ -435,6 +466,7 @@
     <description>A parameter value that raises a dynamic error once replaced into a test.</description>
     <spec clause="6.4"/>
     <spec clause="6.1"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="abstract-param-value-dynamic-error.sch"/>
     <instance file="abstract-param-value-dynamic-error.xml"/>
     <result>
@@ -446,6 +478,7 @@
     <description>A parameter value that makes the test, once replaced, not an expression of the query language.</description>
     <spec clause="6.4"/>
     <spec clause="7.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="abstract-param-value-syntax.sch"/>
     <instance file="abstract-param-value-syntax.xml"/>
     <result>
@@ -457,6 +490,7 @@
     <description>Two instances of one abstract pattern, each active in its own phase.</description>
     <spec clause="6.4"/>
     <spec clause="5.4.13"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="abstract-instance-in-two-phases.sch"/>
     <instance file="abstract-instance-in-two-phases.xml"/>
     <phase>second</phase>

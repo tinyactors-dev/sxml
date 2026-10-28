@@ -8,6 +8,7 @@
   <test-case name="documents-basic" since="2020">
     <description>A pattern with documents is checked in the subordinate document, not in the instance.</description>
     <spec clause="5.4.12"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="documents-basic.sch"/>
     <instance file="documents-basic.xml"/>
     <result>
@@ -26,6 +27,7 @@
     <description>A pattern without documents in the same schema checks the instance.</description>
     <spec clause="5.4.12"/>
     <spec clause="3.13"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="documents-and-instance.sch"/>
     <instance file="documents-and-instance.xml"/>
     <result>
@@ -47,6 +49,7 @@
     <description>documents returning a sequence of two URIs.</description>
     <spec clause="5.4.12"/>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="documents-several.sch"/>
     <instance file="documents-several.xml"/>
     <result>
@@ -64,6 +67,7 @@
   <test-case name="documents-from-instance" since="2020">
     <description>documents evaluated with the instance's document node as context.</description>
     <spec clause="5.4.12"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="documents-from-instance.sch"/>
     <instance file="documents-from-instance.xml"/>
     <result>
@@ -81,6 +85,7 @@
   <test-case name="documents-relative-to-instance" since="2020">
     <description>Relative URIs resolve against the instance's base URI, not the schema's.</description>
     <spec clause="5.4.12"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="documents-relative-to-instance.sch"/>
     <instance file="documents-relative-to-instance/instance.xml"/>
     <result>
@@ -96,6 +101,7 @@
     <description>A schema variable may be used in documents.</description>
     <spec clause="5.4.12"/>
     <spec clause="5.4.7"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="documents-schema-variable.sch"/>
     <instance file="documents-schema-variable.xml"/>
     <result>
@@ -113,6 +119,7 @@
   <test-case name="documents-pattern-variable" since="2020">
     <description>Variables scoped to the pattern are not in scope in its documents attribute.</description>
     <spec clause="5.4.12"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="documents-pattern-variable.sch"/>
     <instance file="documents-pattern-variable.xml"/>
     <result>
@@ -123,6 +130,7 @@
   <test-case name="documents-missing" since="2020">
     <description>A subordinate document that cannot be retrieved shall be reported; whether validation goes on is implementation-defined.</description>
     <spec clause="5.4.12"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="documents-missing.sch"/>
     <instance file="documents-missing.xml"/>
     <result>
@@ -133,6 +141,7 @@
   <test-case name="documents-empty" since="2020">
     <description>documents returning no URI: the pattern is sought nowhere.</description>
     <spec clause="5.4.12"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="documents-empty.sch"/>
     <instance file="documents-empty.xml"/>
     <result>
@@ -144,6 +153,7 @@
     <description>documents in an abstract pattern with a parameter.</description>
     <spec clause="5.4.12"/>
     <spec clause="6.4"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="documents-abstract-parameter.sch"/>
     <instance file="documents-abstract-parameter.xml"/>
     <result>
@@ -159,6 +169,7 @@
     <description>A parameter replaced inside the documents attribute of an abstract pattern.</description>
     <spec clause="5.4.12"/>
     <spec clause="6.4"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="documents-in-abstract-pattern.sch"/>
     <instance file="documents-in-abstract-pattern.xml"/>
     <result>
@@ -174,6 +185,7 @@
     <description>A group with documents.</description>
     <spec clause="5.4.12"/>
     <spec clause="5.4.5"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="documents-group.sch"/>
     <instance file="documents-group.xml"/>
     <result>
@@ -191,6 +203,7 @@
     <description>A dynamic error in documents: validation ends in error.</description>
     <spec clause="5.4.12"/>
     <spec clause="6.1"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="documents-dynamic-error.sch"/>
     <instance file="documents-dynamic-error.xml"/>
     <result>
@@ -202,6 +215,7 @@
     <description>A documents attribute that is not an expression of the query language.</description>
     <spec clause="5.4.12"/>
     <spec clause="7.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="documents-syntax.sch"/>
     <instance file="documents-syntax.xml"/>
     <result>
@@ -212,6 +226,7 @@
   <test-case name="documents-duplicate-uri" since="2020">
     <description>documents returning one URI twice.</description>
     <spec clause="5.4.12"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="documents-duplicate-uri.sch"/>
     <instance file="documents-duplicate-uri.xml"/>
     <result>
@@ -223,6 +238,7 @@
     <description>documents returning two URIs in reverse order: both documents are sought, with the same findings.</description>
     <spec clause="5.4.12"/>
     <spec clause="6.6"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="documents-reverse-order.sch"/>
     <instance file="documents-reverse-order.xml"/>
     <result>
@@ -241,6 +257,7 @@
     <description>A subordinate document using another prefix for the URI that ns declares.</description>
     <spec clause="5.4.12"/>
     <spec clause="5.4.10"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="documents-namespaces.sch"/>
     <instance file="documents-namespaces.xml"/>
     <result>

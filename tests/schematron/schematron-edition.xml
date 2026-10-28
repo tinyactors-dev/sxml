@@ -6,6 +6,7 @@
   <test-case name="edition-2025" since="2025">
     <description>schematronEdition="2025".</description>
     <spec clause="5.5.15"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="edition-2025.sch"/>
     <instance file="edition-2025.xml"/>
     <result>
@@ -20,6 +21,7 @@
   <test-case name="edition-absent" since="2025">
     <description>Without schematronEdition (which schemas should specify) the schema is still correct.</description>
     <spec clause="5.5.15"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="edition-absent.sch"/>
     <instance file="edition-absent.xml"/>
     <result>
@@ -34,6 +36,7 @@
   <test-case name="edition-other-value" since="2025">
     <description>Where specified, the value shall be 2025.</description>
     <spec clause="5.5.15"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="edition-other-value.sch"/>
     <instance file="edition-other-value.xml"/>
     <result>
@@ -44,6 +47,7 @@
   <test-case name="edition-reported" since="2025">
     <description>Implementations shall report the value or the absence of schematronEdition at user option; how is the implementation's.</description>
     <spec clause="5.5.15"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="edition-reported.sch"/>
     <instance file="edition-reported.xml"/>
     <result>
@@ -55,6 +59,7 @@
     <spec clause="5.5.15"/>
     <spec clause="5.3"/>
     <spec clause="Annex-A"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="edition-whitespace.sch"/>
     <instance file="edition-whitespace.xml"/>
     <result>

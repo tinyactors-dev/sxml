@@ -12,6 +12,7 @@
   <test-case name="let-rule-value" since="2020">
     <description>A rule variable is evaluated for each context node.</description>
     <spec clause="5.4.7"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="let-rule-value.sch"/>
     <instance file="let-rule-value.xml"/>
     <result>
@@ -26,6 +27,7 @@
   <test-case name="let-rule-context-node" since="2020">
     <description>The context of a rule variable is the rule's context node.</description>
     <spec clause="5.4.7"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="let-rule-context-node.sch"/>
     <instance file="let-rule-context-node.xml"/>
     <result>
@@ -40,6 +42,7 @@
   <test-case name="let-pattern-root-context" since="2020">
     <description>A pattern variable is evaluated with the document node as context (count(*) is 1 there).</description>
     <spec clause="5.4.7"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="let-pattern-root-context.sch"/>
     <instance file="let-pattern-root-context.xml"/>
     <result>
@@ -54,6 +57,7 @@
   <test-case name="let-schema-root-context" since="2020">
     <description>A schema variable is evaluated with the document node as context.</description>
     <spec clause="5.4.7"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="let-schema-root-context.sch"/>
     <instance file="let-schema-root-context.xml"/>
     <result>
@@ -69,6 +73,7 @@
     <description>A variable of the active phase is in scope in its active patterns.</description>
     <spec clause="5.4.7"/>
     <spec clause="5.4.13"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="let-phase.sch"/>
     <instance file="let-phase.xml"/>
     <phase>strict</phase>
@@ -85,6 +90,7 @@
     <description>A schema variable used in a rule context.</description>
     <spec clause="5.4.7"/>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="let-in-rule-context.sch"/>
     <instance file="let-in-rule-context.xml"/>
     <result>
@@ -100,6 +106,7 @@
     <description>A pattern variable used in a rule context of that pattern.</description>
     <spec clause="5.4.7"/>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="let-pattern-in-rule-context.sch"/>
     <instance file="let-pattern-in-rule-context.xml"/>
     <result>
@@ -115,6 +122,7 @@
     <description>A rule variable used in a subject attribute.</description>
     <spec clause="5.4.7"/>
     <spec clause="5.5.19"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="let-in-subject.sch"/>
     <instance file="let-in-subject.xml"/>
     <result>
@@ -130,6 +138,7 @@
     <description>A rule variable used in the path of a name element.</description>
     <spec clause="5.4.7"/>
     <spec clause="5.4.9"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="let-in-name-path.sch"/>
     <instance file="let-in-name-path.xml"/>
     <result>
@@ -144,6 +153,7 @@
   <test-case name="let-order-in-rule" since="2020">
     <description>A rule variable may use a lexically previous one.</description>
     <spec clause="6.6"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="let-order-in-rule.sch"/>
     <instance file="let-order-in-rule.xml"/>
     <result>
@@ -158,6 +168,7 @@
   <test-case name="let-rule-uses-global" since="2020">
     <description>A rule variable may use a schema variable.</description>
     <spec clause="6.6"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="let-rule-uses-global.sch"/>
     <instance file="let-rule-uses-global.xml"/>
     <result>
@@ -173,6 +184,7 @@
     <description>A rule variable may not use a variable declared after it in the same rule.</description>
     <spec clause="6.6"/>
     <spec clause="5.4.7"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="let-forward-reference.sch"/>
     <instance file="let-forward-reference.xml"/>
     <result>
@@ -183,6 +195,7 @@
   <test-case name="let-undefined" since="2020">
     <description>A reference to a variable that no let defines.</description>
     <spec clause="5.4.7"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="let-undefined.sch"/>
     <instance file="let-undefined.xml"/>
     <result>
@@ -194,6 +207,7 @@
     <description>Two variables of one name in one rule.</description>
     <spec clause="5.4.7"/>
     <spec clause="7.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="let-duplicate-in-rule.sch"/>
     <instance file="let-duplicate-in-rule.xml"/>
     <result>
@@ -205,6 +219,7 @@
     <description>Two schema variables of one name.</description>
     <spec clause="5.4.7"/>
     <spec clause="7.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="let-duplicate-in-schema.sch"/>
     <instance file="let-duplicate-in-schema.xml"/>
     <result>
@@ -216,6 +231,7 @@
     <description>Two variables of one name in one pattern.</description>
     <spec clause="5.4.7"/>
     <spec clause="7.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="let-duplicate-in-pattern.sch"/>
     <instance file="let-duplicate-in-pattern.xml"/>
     <result>
@@ -227,6 +243,7 @@
     <description>A rule variable with the name of a schema variable: a variable may be defined only once over the current schema, phase, pattern and rule.</description>
     <spec clause="5.4.7"/>
     <spec clause="7.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="let-rule-shadows-schema.sch"/>
     <instance file="let-rule-shadows-schema.xml"/>
     <result>
@@ -238,6 +255,7 @@
     <description>A rule variable with the name of its pattern's variable.</description>
     <spec clause="5.4.7"/>
     <spec clause="7.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="let-rule-shadows-pattern.sch"/>
     <instance file="let-rule-shadows-pattern.xml"/>
     <result>
@@ -249,6 +267,7 @@
     <description>A pattern variable with the name of a schema variable.</description>
     <spec clause="5.4.7"/>
     <spec clause="7.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="let-pattern-shadows-schema.sch"/>
     <instance file="let-pattern-shadows-schema.xml"/>
     <result>
@@ -260,6 +279,7 @@
     <description>A phase variable with the name of a schema variable.</description>
     <spec clause="5.4.7"/>
     <spec clause="7.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="let-phase-shadows-schema.sch"/>
     <instance file="let-phase-shadows-schema.xml"/>
     <phase>ph</phase>
@@ -272,6 +292,7 @@
     <description>A pattern variable is scoped to its pattern: two patterns may each define a variable of the same name, and each sees its own.</description>
     <spec clause="3.23"/>
     <spec clause="5.4.7"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="let-same-name-two-patterns.sch"/>
     <instance file="let-same-name-two-patterns.xml"/>
     <result>
@@ -290,6 +311,7 @@
     <description>A pattern variable is not in scope in another pattern.</description>
     <spec clause="3.23"/>
     <spec clause="5.4.7"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="let-pattern-not-visible-elsewhere.sch"/>
     <instance file="let-pattern-not-visible-elsewhere.xml"/>
     <result>
@@ -301,6 +323,7 @@
     <description>A rule variable is scoped to its rule: two rules may each define one of the same name.</description>
     <spec clause="3.23"/>
     <spec clause="5.4.7"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="let-same-name-two-rules.sch"/>
     <instance file="let-same-name-two-rules.xml"/>
     <result>
@@ -319,6 +342,7 @@
     <description>A let without a value attribute takes its element content as value.</description>
     <spec clause="5.4.7"/>
     <spec clause="Annex-A"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="let-element-content.sch"/>
     <instance file="let-element-content.xml"/>
     <result>
@@ -334,6 +358,7 @@
     <description>A variable's value may be any sequence, not only a string.</description>
     <spec clause="5.4.7"/>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="let-value-is-sequence.sch"/>
     <instance file="let-value-is-sequence.xml"/>
     <result>
@@ -349,6 +374,7 @@
     <description>A schema variable holding a node of the instance.</description>
     <spec clause="5.4.7"/>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="let-value-is-node.sch"/>
     <instance file="let-value-is-node.xml"/>
     <result>
@@ -364,6 +390,7 @@
     <description>A typed variable: as="xs:integer".</description>
     <spec clause="5.4.7"/>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="let-as-integer.sch"/>
     <instance file="let-as-integer.xml"/>
     <result>
@@ -379,6 +406,7 @@
     <description>A typed variable converts its value by the rules of XSLT's as attribute: an integer becomes a double.</description>
     <spec clause="5.4.7"/>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="let-as-promotion.sch"/>
     <instance file="let-as-promotion.xml"/>
     <result>
@@ -394,6 +422,7 @@
     <description>A typed variable casts an untyped attribute value.</description>
     <spec clause="5.4.7"/>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="let-as-untyped.sch"/>
     <instance file="let-as-untyped.xml"/>
     <result>
@@ -409,6 +438,7 @@
     <description>A typed variable with an occurrence indicator.</description>
     <spec clause="5.4.7"/>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="let-as-sequence.sch"/>
     <instance file="let-as-sequence.xml"/>
     <result>
@@ -424,6 +454,7 @@
     <description>A value that does not match the declared type is a type error.</description>
     <spec clause="5.4.7"/>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="let-as-mismatch.sch"/>
     <instance file="let-as-mismatch.xml"/>
     <result>
@@ -438,6 +469,7 @@
     <description>A schema parameter is a variable with its value attribute's value.</description>
     <spec clause="5.4.11"/>
     <spec clause="3.23"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="param-schema.sch"/>
     <instance file="param-schema.xml"/>
     <result>
@@ -453,6 +485,7 @@
     <description>A schema parameter's value may be overridden at user option (the mechanism is implementation-defined); overridden with 3 here.</description>
     <spec clause="5.4.11"/>
     <spec clause="6.1"/>
+    <dependency type="query-binding" value="xslt3"/>
     <dependency type="feature" value="schema-parameter-override"/>
     <schema file="param-schema-override.sch"/>
     <instance file="param-schema-override.xml"/>
@@ -466,6 +499,7 @@
     <description>A schema parameter needs a value.</description>
     <spec clause="5.4.11"/>
     <spec clause="Annex-B"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="param-schema-without-value.sch"/>
     <instance file="param-schema-without-value.xml"/>
     <result>
@@ -477,6 +511,7 @@
     <description>Parameter names are distinct within a schema.</description>
     <spec clause="5.4.11"/>
     <spec clause="Annex-B"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="param-schema-duplicate.sch"/>
     <instance file="param-schema-duplicate.xml"/>
     <result>
@@ -487,6 +522,7 @@
     <description>A dynamic error in a rule variable's value that a test uses: validation ends in error.</description>
     <spec clause="5.4.7"/>
     <spec clause="6.1"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="let-dynamic-error.sch"/>
     <instance file="let-dynamic-error.xml"/>
     <result>
@@ -498,6 +534,7 @@
     <description>A dynamic error in a schema variable's value (evaluated at the document root) that a test uses.</description>
     <spec clause="5.4.7"/>
     <spec clause="6.1"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="let-schema-dynamic-error.sch"/>
     <instance file="let-schema-dynamic-error.xml"/>
     <result>
@@ -510,6 +547,7 @@
     <spec clause="5.4.7"/>
     <spec clause="6.6"/>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="let-unused-dynamic-error.sch"/>
     <instance file="let-unused-dynamic-error.xml"/>
     <result>
@@ -521,6 +559,7 @@
     <description>A let value that is not an expression of the query language.</description>
     <spec clause="5.4.7"/>
     <spec clause="7.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="let-value-syntax.sch"/>
     <instance file="let-value-syntax.xml"/>
     <result>
@@ -532,6 +571,7 @@
     <description>A variable whose name has non-ASCII letters.</description>
     <spec clause="5.4.7"/>
     <spec clause="3.11"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="let-non-ascii-name.sch"/>
     <instance file="let-non-ascii-name.xml"/>
     <result>
@@ -547,6 +587,7 @@
     <description>A variable's value uses a prefix declared by ns that differs from the instance's prefix for the same URI.</description>
     <spec clause="5.4.7"/>
     <spec clause="5.4.10"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="let-namespace-prefix.sch"/>
     <instance file="let-namespace-prefix.xml"/>
     <result>
@@ -562,6 +603,7 @@
     <description>A pattern variable with the name of a variable of a phase that activates the pattern: a variable may be defined once over the current schema, phase, pattern and rule.</description>
     <spec clause="5.4.7"/>
     <spec clause="7.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="let-pattern-shadows-phase.sch"/>
     <instance file="let-pattern-shadows-phase.xml"/>
     <phase>p</phase>
@@ -574,6 +616,7 @@
     <description>param is a child of a schema or a pattern, not of a phase.</description>
     <spec clause="5.4.11"/>
     <spec clause="Annex-A"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="param-in-phase.sch"/>
     <instance file="param-in-phase.xml"/>
     <result>
@@ -585,6 +628,7 @@
     <description>A schema parameter whose value raises a dynamic error when a test uses it.</description>
     <spec clause="5.4.11"/>
     <spec clause="6.1"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="param-schema-dynamic-error.sch"/>
     <instance file="param-schema-dynamic-error.xml"/>
     <result>
@@ -598,6 +642,7 @@
     <spec clause="5.4.11"/>
     <spec clause="3.23"/>
     <spec clause="7.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="param-schema-and-let-same-name.sch"/>
     <instance file="param-schema-and-let-same-name.xml"/>
     <result>
@@ -608,6 +653,7 @@
   <test-case name="param-schema-override-undeclared" since="2025">
     <description>A value given at user option for a schema parameter that the schema does not declare.</description>
     <spec clause="5.4.11"/>
+    <dependency type="query-binding" value="xslt3"/>
     <dependency type="feature" value="schema-parameter-override"/>
     <schema file="param-schema-override-undeclared.sch"/>
     <instance file="param-schema-override-undeclared.xml"/>

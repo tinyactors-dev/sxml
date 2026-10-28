@@ -11,6 +11,7 @@
     <spec clause="5.4.5"/>
     <spec clause="6.3"/>
     <spec clause="6.6"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="group-all-rules-fire.sch"/>
     <instance file="group-all-rules-fire.xml"/>
     <result>
@@ -32,6 +33,7 @@
     <description>The same rules in a pattern: only the first match fires.</description>
     <spec clause="5.4.5"/>
     <spec clause="6.6"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="group-versus-pattern.sch"/>
     <instance file="group-versus-pattern.xml"/>
     <result>
@@ -50,6 +52,7 @@
     <description>A schema with a group and a pattern matching the same node.</description>
     <spec clause="5.4.5"/>
     <spec clause="3.13"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="group-and-pattern.sch"/>
     <instance file="group-and-pattern.xml"/>
     <result>
@@ -77,6 +80,7 @@
     <description>A group without rules.</description>
     <spec clause="5.4.5"/>
     <spec clause="Annex-A"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="group-empty.sch"/>
     <instance file="group-empty.xml"/>
     <result>
@@ -92,6 +96,7 @@
     <description>A schema whose only pattern is a group.</description>
     <spec clause="5.4.5"/>
     <spec clause="Annex-A"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="group-only.sch"/>
     <instance file="group-only.xml"/>
     <result>
@@ -107,6 +112,7 @@
     <description>A group's variables and its rules' variables, as in a pattern.</description>
     <spec clause="5.4.5"/>
     <spec clause="5.4.7"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="group-variables.sch"/>
     <instance file="group-variables.xml"/>
     <result>
@@ -125,6 +131,7 @@
     <description>In a group, rules for an element and for its attribute both fire as usual, and two rules for the attribute both fire.</description>
     <spec clause="5.4.5"/>
     <spec clause="6.3"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="group-attribute-and-element.sch"/>
     <instance file="group-attribute-and-element.xml"/>
     <result>
@@ -146,6 +153,7 @@
     <spec clause="5.4.5"/>
     <spec clause="6.6"/>
     <spec clause="6.1"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="group-dynamic-error-not-blocked.sch"/>
     <instance file="group-dynamic-error-not-blocked.xml"/>
     <result>
@@ -157,6 +165,7 @@
     <description>Two identical rules in a group both fire: two identical findings.</description>
     <spec clause="5.4.5"/>
     <spec clause="6.6"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="group-identical-rules.sch"/>
     <instance file="group-identical-rules.xml"/>
     <result>
@@ -175,6 +184,7 @@
     <description>Two groups and a pattern report on one node; their order is implementation-dependent, the multiset is not.</description>
     <spec clause="5.4.5"/>
     <spec clause="6.6"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="group-order-with-patterns.sch"/>
     <instance file="group-order-with-patterns.xml"/>
     <result>
@@ -199,6 +209,7 @@
     <description>Rules of a group with prefixes declared by ns, the instance using other prefixes and a default namespace.</description>
     <spec clause="5.4.5"/>
     <spec clause="5.4.10"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="group-namespaces.sch"/>
     <instance file="group-namespaces.xml"/>
     <result>
@@ -220,6 +231,7 @@
     <description>Rules of a group with rule and assertion subjects.</description>
     <spec clause="5.4.5"/>
     <spec clause="5.5.19"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="group-subject.sch"/>
     <instance file="group-subject.xml"/>
     <result>
@@ -238,6 +250,7 @@
     <description>Every rule of a group that fires raises its flag, also for a node an earlier rule matched.</description>
     <spec clause="5.4.5"/>
     <spec clause="5.5.6"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="group-flags.sch"/>
     <instance file="group-flags.xml"/>
     <result>
@@ -250,6 +263,7 @@
     <description>Rules of a group for the document node, an element, an attribute, a comment and a processing instruction all fire.</description>
     <spec clause="5.4.5"/>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="group-node-kinds.sch"/>
     <instance file="group-node-kinds.xml"/>
     <result>

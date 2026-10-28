@@ -17,6 +17,7 @@
     <description>A failed assert carries the diagnostic it references.</description>
     <spec clause="5.5.1"/>
     <spec clause="5.5.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="diagnostic-basic.sch"/>
     <instance file="diagnostic-basic.xml"/>
     <result>
@@ -34,6 +35,7 @@
     <spec clause="5.5.1"/>
     <spec clause="5.5.2"/>
     <spec clause="Annex-G"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="diagnostic-several-languages.sch"/>
     <instance file="diagnostic-several-languages.xml"/>
     <result>
@@ -51,6 +53,7 @@
     <description>value-of and name in a diagnostic are evaluated for the finding's context node.</description>
     <spec clause="5.5.1"/>
     <spec clause="6.3"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="diagnostic-dynamic.sch"/>
     <instance file="diagnostic-dynamic.xml"/>
     <result>
@@ -70,6 +73,7 @@
   <test-case name="diagnostic-rule-variable" since="2020">
     <description>The variables in scope for the assertion are in scope in its diagnostic.</description>
     <spec clause="5.5.1"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="diagnostic-rule-variable.sch"/>
     <instance file="diagnostic-rule-variable.xml"/>
     <result>
@@ -86,6 +90,7 @@
     <description>A fired report carries its diagnostic.</description>
     <spec clause="5.4.14"/>
     <spec clause="5.5.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="diagnostic-on-report.sch"/>
     <instance file="diagnostic-on-report.xml"/>
     <result>
@@ -101,6 +106,7 @@
   <test-case name="diagnostic-not-when-passing" since="2020">
     <description>An assertion that holds yields nothing, its diagnostic included.</description>
     <spec clause="5.5.1"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="diagnostic-not-when-passing.sch"/>
     <instance file="diagnostic-not-when-passing.xml"/>
     <result>
@@ -111,6 +117,7 @@
   <test-case name="diagnostic-unreferenced" since="2020">
     <description>A diagnostic that no assertion references is not part of any finding.</description>
     <spec clause="5.5.3"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="diagnostic-unreferenced.sch"/>
     <instance file="diagnostic-unreferenced.xml"/>
     <result>
@@ -127,6 +134,7 @@
     <description>diagnostics names an id that no diagnostic has.</description>
     <spec clause="5.5.2"/>
     <spec clause="Annex-A"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="diagnostic-unknown.sch"/>
     <instance file="diagnostic-unknown.xml"/>
     <result>
@@ -138,6 +146,7 @@
     <description>A finding carries the properties its assertion references, with role and scheme.</description>
     <spec clause="5.5.11"/>
     <spec clause="5.5.13"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="property-basic.sch"/>
     <instance file="property-basic.xml"/>
     <result>
@@ -154,6 +163,7 @@
   <test-case name="property-dynamic" since="2020">
     <description>value-of in a property is evaluated for the context node; the variables in scope for the assertion are in scope.</description>
     <spec clause="5.5.13"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="property-dynamic.sch"/>
     <instance file="property-dynamic.xml"/>
     <result>
@@ -170,6 +180,7 @@
     <description>Under xslt3 an xsl:copy-of without children may be used in a property; its result is part of the property's content.</description>
     <spec clause="5.5.13"/>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="property-copy-of.sch"/>
     <instance file="property-copy-of.xml"/>
     <result>
@@ -186,6 +197,7 @@
     <description>properties names an id that no property has.</description>
     <spec clause="5.5.11"/>
     <spec clause="Annex-A"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="property-unknown.sch"/>
     <instance file="property-unknown.xml"/>
     <result>
@@ -197,6 +209,7 @@
     <description>An assertion with both diagnostics and properties.</description>
     <spec clause="5.5.2"/>
     <spec clause="5.5.11"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="diagnostic-and-property.sch"/>
     <instance file="diagnostic-and-property.xml"/>
     <result>
@@ -213,6 +226,7 @@
     <description>A dynamic error in the diagnostic of a failed assertion: validation ends in error.</description>
     <spec clause="5.5.1"/>
     <spec clause="6.1"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="diagnostic-dynamic-error.sch"/>
     <instance file="diagnostic-dynamic-error.xml"/>
     <result>
@@ -224,6 +238,7 @@
     <description>A dynamic error in a property of a fired report: validation ends in error.</description>
     <spec clause="5.5.13"/>
     <spec clause="6.1"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="property-dynamic-error.sch"/>
     <instance file="property-dynamic-error.xml"/>
     <result>
@@ -235,6 +250,7 @@
     <description>A value-of in a diagnostic whose select is not an expression of the query language.</description>
     <spec clause="5.5.1"/>
     <spec clause="7.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="diagnostic-value-of-syntax.sch"/>
     <instance file="diagnostic-value-of-syntax.xml"/>
     <result>
@@ -246,6 +262,7 @@
     <description>A value-of in a property whose select is not an expression of the query language.</description>
     <spec clause="5.5.13"/>
     <spec clause="7.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="property-value-of-syntax.sch"/>
     <instance file="property-value-of-syntax.xml"/>
     <result>
@@ -257,6 +274,7 @@
     <description>One diagnostic referenced by two assertions; two diagnostics referenced by one, in reverse order of declaration.</description>
     <spec clause="5.5.1"/>
     <spec clause="5.5.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="diagnostic-shared.sch"/>
     <instance file="diagnostic-shared.xml"/>
     <result>
@@ -277,6 +295,7 @@
   <test-case name="property-several" since="2020">
     <description>Several properties on one report, one of them shared with another report, with name and value-of.</description>
     <spec clause="5.5.13"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="property-several.sch"/>
     <instance file="property-several.xml"/>
     <result>
@@ -299,6 +318,7 @@
     <spec clause="5.5.1"/>
     <spec clause="5.5.13"/>
     <spec clause="6.3"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="diagnostic-property-subject-context.sch"/>
     <instance file="diagnostic-property-subject-context.xml"/>
     <result>
@@ -310,6 +330,7 @@
     <description>A variable of the active phase is in scope in a diagnostic, as in the assertion.</description>
     <spec clause="5.5.1"/>
     <spec clause="5.4.7"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="diagnostic-phase-variable.sch"/>
     <instance file="diagnostic-phase-variable.xml"/>
     <phase>p</phase>
@@ -328,6 +349,7 @@
     <spec clause="6.2"/>
     <spec clause="6.4"/>
     <spec clause="5.5.1"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="diagnostic-abstract-parameter.sch"/>
     <instance file="diagnostic-abstract-parameter.xml"/>
     <result>
@@ -339,6 +361,7 @@
     <description>A property's value-of evaluated for each item visit-each selects (here atomic values).</description>
     <spec clause="5.5.13"/>
     <spec clause="5.5.21"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="property-visit-each.sch"/>
     <instance file="property-visit-each.xml"/>
     <result>
@@ -356,6 +379,7 @@
     <spec clause="5.5.1"/>
     <spec clause="5.5.4"/>
     <spec clause="6.7"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="diagnostic-non-ascii.sch"/>
     <instance file="diagnostic-non-ascii.xml"/>
     <result>
@@ -364,6 +388,28 @@
           <message>Not two.</message>
           <diagnostic ref="ar" lang="ar">ليس اثنين.</diagnostic>
           <diagnostic ref="el" lang="el">Όχι δύο.</diagnostic>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+  <test-case name="ancillary-namespaces" since="2020">
+    <description>A subject, a diagnostic and a property that use a prefix declared by ns, differing from the instance's; the property's text is non-ASCII.</description>
+    <spec clause="5.5.19"/>
+    <spec clause="5.5.1"/>
+    <spec clause="5.5.13"/>
+    <spec clause="5.4.10"/>
+    <dependency type="query-binding" value="xslt3"/>
+    <schema file="ancillary-namespaces.sch"/>
+    <instance file="ancillary-namespaces.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]/@Q{urn:example:q}code">
+          <message>Not b2.</message>
+        </finding>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Again.</message>
+          <diagnostic ref="d">Diagnostic b2.</diagnostic>
+          <property ref="p">Eigenschaft ä b2.</property>
         </finding>
       </findings>
     </result>

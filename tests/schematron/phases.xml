@@ -18,6 +18,7 @@
     <spec clause="5.4.13"/>
     <spec clause="5.4.2"/>
     <spec clause="3.3"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="phase-named.sch"/>
     <instance file="phase-named.xml"/>
     <phase>first</phase>
@@ -34,6 +35,7 @@
     <description>A phase with two active patterns.</description>
     <spec clause="5.4.13"/>
     <spec clause="5.4.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="phase-named-two-patterns.sch"/>
     <instance file="phase-named-two-patterns.xml"/>
     <phase>later</phase>
@@ -52,6 +54,7 @@
   <test-case name="phase-pattern-in-two-phases" since="2020">
     <description>A pattern may belong to more than one phase.</description>
     <spec clause="3.14"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="phase-pattern-in-two-phases.sch"/>
     <instance file="phase-pattern-in-two-phases.xml"/>
     <phase>again</phase>
@@ -71,6 +74,7 @@
     <description>#ALL: every pattern is active.</description>
     <spec clause="5.4.13"/>
     <spec clause="6.1"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="phase-all.sch"/>
     <instance file="phase-all.xml"/>
     <phase>#ALL</phase>
@@ -93,6 +97,7 @@
     <description>No phase given: the defaultPhase attribute names the phase.</description>
     <spec clause="5.4.17"/>
     <spec clause="5.4.13"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="phase-default-attribute.sch"/>
     <instance file="phase-default-attribute.xml"/>
     <result>
@@ -111,6 +116,7 @@
     <description>#DEFAULT: the phase named by defaultPhase.</description>
     <spec clause="5.4.13"/>
     <spec clause="6.1"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="phase-default-explicit.sch"/>
     <instance file="phase-default-explicit.xml"/>
     <phase>#DEFAULT</phase>
@@ -126,6 +132,7 @@
   <test-case name="phase-default-without-attribute" since="2020">
     <description>#DEFAULT without a defaultPhase attribute: every pattern is active.</description>
     <spec clause="5.4.13"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="phase-default-without-attribute.sch"/>
     <instance file="phase-default-without-attribute.xml"/>
     <phase>#DEFAULT</phase>
@@ -148,6 +155,7 @@
     <description>No phase given and no defaultPhase: every pattern is active.</description>
     <spec clause="5.4.13"/>
     <spec clause="5.4.17"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="phase-none-no-default.sch"/>
     <instance file="phase-none-no-default.xml"/>
     <result>
@@ -169,6 +177,7 @@
     <description>A phase without active patterns: nothing is checked and the instance is valid.</description>
     <spec clause="5.4.13"/>
     <spec clause="3.22"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="phase-selects-nothing.sch"/>
     <instance file="phase-selects-nothing.xml"/>
     <phase>nothing</phase>
@@ -181,6 +190,7 @@
     <description>A phase name that the schema does not define.</description>
     <spec clause="6.1"/>
     <spec clause="5.4.13"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="phase-unknown-requested.sch"/>
     <instance file="phase-unknown-requested.xml"/>
     <phase>missing</phase>
@@ -196,6 +206,7 @@
     <description>active names no pattern.</description>
     <spec clause="Annex-B"/>
     <spec clause="5.4.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="phase-active-unknown.sch"/>
     <instance file="phase-active-unknown.xml"/>
     <phase>p</phase>
@@ -208,6 +219,7 @@
     <description>defaultPhase names no phase.</description>
     <spec clause="5.4.17"/>
     <spec clause="Annex-A"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="phase-default-unknown.sch"/>
     <instance file="phase-default-unknown.xml"/>
     <result>
@@ -218,6 +230,7 @@
   <test-case name="phase-reserved-name" since="2020">
     <description>#ALL, #ANY and #DEFAULT may not be phase names.</description>
     <spec clause="5.4.13"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="phase-reserved-name.sch"/>
     <instance file="phase-reserved-name.xml"/>
     <result>
@@ -229,6 +242,7 @@
     <description>Each phase gives its own value to a variable its active pattern uses.</description>
     <spec clause="5.4.7"/>
     <spec clause="5.4.13"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="phase-variable-per-phase.sch"/>
     <instance file="phase-variable-per-phase.xml"/>
     <phase>strict</phase>
@@ -248,6 +262,7 @@
     <description>A phase activates a group.</description>
     <spec clause="5.4.2"/>
     <spec clause="5.4.5"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="phase-active-group.sch"/>
     <instance file="phase-active-group.xml"/>
     <phase>g</phase>
@@ -267,6 +282,7 @@
     <description>active may contain text and markup, which is documentation only.</description>
     <spec clause="5.4.2"/>
     <spec clause="Annex-A"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="phase-active-text-ignored.sch"/>
     <instance file="phase-active-text-ignored.xml"/>
     <phase>p</phase>
@@ -284,6 +300,7 @@
     <spec clause="5.5.22"/>
     <spec clause="5.4.13"/>
     <spec clause="6.1"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="phase-any-first-when.sch"/>
     <instance file="phase-any-first-when.xml"/>
     <phase>#ANY</phase>
@@ -300,6 +317,7 @@
     <description>#ANY with no when true: every pattern is active.</description>
     <spec clause="5.4.13"/>
     <spec clause="5.5.22"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="phase-any-none-true.sch"/>
     <instance file="phase-any-none-true.xml"/>
     <phase>#ANY</phase>
@@ -321,6 +339,7 @@
   <test-case name="phase-when-with-variable" since="2025">
     <description>when is evaluated with the document node as context and may use schema variables.</description>
     <spec clause="5.5.22"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="phase-when-with-variable.sch"/>
     <instance file="phase-when-with-variable.xml"/>
     <phase>#ANY</phase>
@@ -337,6 +356,7 @@
     <description>when is evaluated for the instance only, never for a subordinate document of an active pattern.</description>
     <spec clause="5.5.22"/>
     <spec clause="5.4.12"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="phase-when-not-subordinate.sch"/>
     <instance file="phase-when-not-subordinate.xml"/>
     <phase>#ANY</phase>
@@ -353,6 +373,7 @@
     <description>from restricts the phase's patterns to the subset of the document it selects.</description>
     <spec clause="5.5.7"/>
     <spec clause="5.4.13"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="phase-from.sch"/>
     <instance file="phase-from.xml"/>
     <phase>second-part</phase>
@@ -369,6 +390,7 @@
     <description>Variables evaluated at the document root are not affected by from.</description>
     <spec clause="5.5.7"/>
     <spec clause="5.4.7"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="phase-from-variables.sch"/>
     <instance file="phase-from-variables.xml"/>
     <phase>first-part</phase>
@@ -385,6 +407,7 @@
     <description>from does not apply to documents selected by a pattern's documents attribute.</description>
     <spec clause="5.5.7"/>
     <spec clause="5.4.12"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="phase-from-not-subordinate.sch"/>
     <instance file="phase-from-not-subordinate.xml"/>
     <phase>restricted</phase>
@@ -409,6 +432,7 @@
     <description>A pattern outside the active phase whose test would raise a dynamic error: it is not processed (6.3), so validation does not end in error.</description>
     <spec clause="6.3"/>
     <spec clause="3.3"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="phase-inactive-pattern-dynamic-error.sch"/>
     <instance file="phase-inactive-pattern-dynamic-error.xml"/>
     <phase>p</phase>
@@ -424,6 +448,7 @@
   <test-case name="phase-inactive-pattern-syntax-error" since="2020">
     <description>A syntax error in a pattern outside the active phase: whether a schema is correct does not depend on the phase.</description>
     <spec clause="7.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="phase-inactive-pattern-syntax-error.sch"/>
     <instance file="phase-inactive-pattern-syntax-error.xml"/>
     <phase>p</phase>
@@ -436,6 +461,7 @@
     <description>A dynamic error in when, evaluated to choose the phase for #ANY: validation ends in error.</description>
     <spec clause="5.5.22"/>
     <spec clause="6.1"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="phase-when-dynamic-error.sch"/>
     <instance file="phase-when-dynamic-error.xml"/>
     <phase>#ANY</phase>
@@ -448,6 +474,7 @@
     <description>A when that is not an expression of the query language.</description>
     <spec clause="5.5.22"/>
     <spec clause="7.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="phase-when-syntax.sch"/>
     <instance file="phase-when-syntax.xml"/>
     <result>
@@ -458,6 +485,7 @@
   <test-case name="phase-any-later-when-error" since="2025">
     <description>#ANY where the first phase's when is true and a later phase's when would raise a dynamic error.</description>
     <spec clause="5.5.22"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="phase-any-later-when-error.sch"/>
     <instance file="phase-any-later-when-error.xml"/>
     <phase>#ANY</phase>
@@ -470,6 +498,7 @@
     <description>A when that returns nodes is reduced to a Boolean (its effective Boolean value): the phase whose node sequence is non-empty is active.</description>
     <spec clause="5.5.22"/>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="phase-when-ebv.sch"/>
     <instance file="phase-when-ebv.xml"/>
     <phase>#ANY</phase>
@@ -486,6 +515,7 @@
     <description>A when whose value has no effective Boolean value (two numbers) is an error.</description>
     <spec clause="5.5.22"/>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="phase-when-ebv-error.sch"/>
     <instance file="phase-when-ebv-error.xml"/>
     <phase>#ANY</phase>
@@ -501,6 +531,7 @@
     <description>A dynamic error in from: validation ends in error.</description>
     <spec clause="5.5.7"/>
     <spec clause="6.1"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="phase-from-dynamic-error.sch"/>
     <instance file="phase-from-dynamic-error.xml"/>
     <phase>p</phase>
@@ -513,6 +544,7 @@
     <description>A from that is not an expression of the query language.</description>
     <spec clause="5.5.7"/>
     <spec clause="7.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="phase-from-syntax.sch"/>
     <instance file="phase-from-syntax.xml"/>
     <phase>p</phase>
@@ -525,6 +557,7 @@
     <description>A from that is not an expression, in a phase that is not selected: the schema is still not correct.</description>
     <spec clause="5.5.7"/>
     <spec clause="7.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="phase-from-syntax-inactive.sch"/>
     <instance file="phase-from-syntax-inactive.xml"/>
     <phase>p</phase>
@@ -536,6 +569,7 @@
   <test-case name="phase-from-empty" since="2025">
     <description>A from that selects nothing: no rule context is evaluated, the instance is valid.</description>
     <spec clause="5.5.7"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="phase-from-empty.sch"/>
     <instance file="phase-from-empty.xml"/>
     <phase>p</phase>
@@ -548,6 +582,7 @@
     <description>A from that selects two subtrees in reverse document order: rule contexts are evaluated in both, with the same findings as in document order.</description>
     <spec clause="5.5.7"/>
     <spec clause="6.6"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="phase-from-several.sch"/>
     <instance file="phase-from-several.xml"/>
     <phase>p</phase>
@@ -569,6 +604,7 @@
   <test-case name="phase-from-overlapping" since="2025">
     <description>A from whose results overlap: a part and an item inside it.</description>
     <spec clause="5.5.7"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="phase-from-overlapping.sch"/>
     <instance file="phase-from-overlapping.xml"/>
     <phase>p</phase>
@@ -580,6 +616,7 @@
   <test-case name="phase-from-attributes" since="2025">
     <description>A from that selects attribute nodes: rule contexts that match attributes are evaluated against them.</description>
     <spec clause="5.5.7"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="phase-from-attributes.sch"/>
     <instance file="phase-from-attributes.xml"/>
     <phase>p</phase>
@@ -592,6 +629,7 @@
     <description>from with a group: every rule of the group fires for the nodes in the subset only.</description>
     <spec clause="5.5.7"/>
     <spec clause="5.4.5"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="phase-from-group.sch"/>
     <instance file="phase-from-group.xml"/>
     <phase>p</phase>
@@ -615,6 +653,7 @@
     <spec clause="5.4.7"/>
     <spec clause="5.4.5"/>
     <spec clause="5.4.13"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="phase-group-variable.sch"/>
     <instance file="phase-group-variable.xml"/>
     <phase>p</phase>
@@ -634,6 +673,7 @@
     <description>A phase and a pattern whose ids have non-ASCII letters.</description>
     <spec clause="5.4.13"/>
     <spec clause="7.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="phase-non-ascii-id.sch"/>
     <instance file="phase-non-ascii-id.xml"/>
     <phase>prüfung</phase>
@@ -651,6 +691,7 @@
     <spec clause="3.3"/>
     <spec clause="5.4.2"/>
     <spec clause="5.4.13"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="phase-duplicate-active.sch"/>
     <instance file="phase-duplicate-active.xml"/>
     <phase>p</phase>
@@ -668,11 +709,45 @@
     <spec clause="5.4.2"/>
     <spec clause="6.2"/>
     <spec clause="Annex-B"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="phase-active-abstract.sch"/>
     <instance file="phase-active-abstract.xml"/>
     <phase>p</phase>
     <result>
       <implementation-defined clause="5.4.2 6.2 Annex-B">The minimal syntax (6.2) removes abstract patterns, so the phase is left naming no pattern: a processor may reject the schema, treat the phase as empty (no findings), or not decide otherwise.</implementation-defined>
+    </result>
+  </test-case>
+  <test-case name="phase-from-namespaced" since="2025">
+    <description>A from with a prefix declared by ns that differs from the instance's.</description>
+    <spec clause="5.5.7"/>
+    <spec clause="5.4.10"/>
+    <dependency type="query-binding" value="xslt3"/>
+    <schema file="phase-from-namespaced.sch"/>
+    <instance file="phase-from-namespaced.xml"/>
+    <phase>p</phase>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{urn:example:e}part[2]/Q{urn:example:e}item[1]">
+          <message>Item 2.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="phase-when-namespaced" since="2025">
+    <description>A when with a prefix declared by ns that differs from the instance's.</description>
+    <spec clause="5.5.22"/>
+    <spec clause="5.4.10"/>
+    <dependency type="query-binding" value="xslt3"/>
+    <schema file="phase-when-namespaced.sch"/>
+    <instance file="phase-when-namespaced.xml"/>
+    <phase>#ANY</phase>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{urn:example:e}part[2]/Q{urn:example:e}item[1]">
+          <message>Pattern b.</message>
+        </finding>
+      </findings>
     </result>
   </test-case>
 </test-set>

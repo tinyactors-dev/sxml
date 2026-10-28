@@ -10,6 +10,7 @@
     <description>name without path gives the name of the context node.</description>
     <spec clause="5.4.9"/>
     <spec clause="6.3"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="name-context.sch"/>
     <instance file="name-context.xml"/>
     <result>
@@ -28,6 +29,7 @@
     <description>name with a path gives the name of the node the path selects, not its value.</description>
     <spec clause="5.4.9"/>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="name-path-element.sch"/>
     <instance file="name-path-element.xml"/>
     <result>
@@ -43,6 +45,7 @@
     <description>name with a path that selects an attribute.</description>
     <spec clause="5.4.9"/>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="name-path-attribute.sch"/>
     <instance file="name-path-attribute.xml"/>
     <result>
@@ -58,6 +61,7 @@
     <description>The name of a node in a namespace is its prefixed name in the instance.</description>
     <spec clause="5.4.9"/>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="name-prefixed.sch"/>
     <instance file="name-prefixed.xml"/>
     <result>
@@ -73,6 +77,7 @@
     <description>name in a rule whose context is an attribute.</description>
     <spec clause="5.4.9"/>
     <spec clause="6.3"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="name-attribute-context.sch"/>
     <instance file="name-attribute-context.xml"/>
     <result>
@@ -88,6 +93,7 @@
     <description>value-of gives the string value of what select returns.</description>
     <spec clause="5.4.18"/>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="value-of-attribute.sch"/>
     <instance file="value-of-attribute.xml"/>
     <result>
@@ -103,6 +109,7 @@
     <description>The string value of an element is its text content.</description>
     <spec clause="5.4.18"/>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="value-of-element.sch"/>
     <instance file="value-of-element.xml"/>
     <result>
@@ -118,6 +125,7 @@
     <description>value-of of numbers, Booleans and strings computed by the query.</description>
     <spec clause="5.4.18"/>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="value-of-computed.sch"/>
     <instance file="value-of-computed.xml"/>
     <result>
@@ -133,6 +141,7 @@
     <description>value-of of an empty sequence is the empty string.</description>
     <spec clause="5.4.18"/>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="value-of-empty.sch"/>
     <instance file="value-of-empty.xml"/>
     <result>
@@ -148,6 +157,7 @@
     <description>value-of is defined with fn:string(), which accepts at most one item: a select returning three attributes is an error.</description>
     <spec clause="5.4.18"/>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="value-of-several-items.sch"/>
     <instance file="value-of-several-items.xml"/>
     <result>
@@ -162,6 +172,7 @@
     <description>name and value-of in a message are evaluated with the assertion's subject as context.</description>
     <spec clause="6.3"/>
     <spec clause="5.5.19"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="value-of-subject-context.sch"/>
     <instance file="value-of-subject-context.xml"/>
     <result>
@@ -177,6 +188,7 @@
     <description>Without an assertion subject, the rule's subject is the context of name and value-of.</description>
     <spec clause="6.3"/>
     <spec clause="5.5.19"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="value-of-rule-subject-context.sch"/>
     <instance file="value-of-rule-subject-context.xml"/>
     <result>
@@ -191,6 +203,7 @@
   <test-case name="value-of-variable" since="2020">
     <description>value-of of a variable of the rule.</description>
     <spec clause="5.4.18"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="value-of-variable.sch"/>
     <instance file="value-of-variable.xml"/>
     <result>
@@ -206,6 +219,7 @@
     <description>value-of and name inside emph, span and dir.</description>
     <spec clause="5.5.5"/>
     <spec clause="Annex-A"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="value-of-in-emph.sch"/>
     <instance file="value-of-in-emph.xml"/>
     <result>
@@ -221,6 +235,7 @@
     <description>A select that is not an expression of the query language.</description>
     <spec clause="5.4.18"/>
     <spec clause="7.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="value-of-select-syntax.sch"/>
     <instance file="value-of-select-syntax.xml"/>
     <result>
@@ -232,6 +247,7 @@
     <description>A name path that is not an expression of the query language.</description>
     <spec clause="5.4.9"/>
     <spec clause="7.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="name-path-syntax.sch"/>
     <instance file="name-path-syntax.xml"/>
     <result>
@@ -242,6 +258,7 @@
     <description>name of an element in the instance's default namespace: its name has no prefix.</description>
     <spec clause="5.4.9"/>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="name-default-namespace.sch"/>
     <instance file="name-default-namespace.xml"/>
     <result>
@@ -257,6 +274,7 @@
     <description>name with a path that selects nothing.</description>
     <spec clause="5.4.9"/>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="name-path-empty.sch"/>
     <instance file="name-path-empty.xml"/>
     <result>
@@ -268,6 +286,7 @@
     <description>name with a path that selects three elements: fn:node-name accepts at most one node.</description>
     <spec clause="5.4.9"/>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="name-path-several.sch"/>
     <instance file="name-path-several.xml"/>
     <result>
@@ -282,6 +301,7 @@
     <description>name of a processing instruction is its target (fn:node-name).</description>
     <spec clause="5.4.9"/>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="name-path-processing-instruction.sch"/>
     <instance file="name-path-processing-instruction.xml"/>
     <result>
@@ -297,6 +317,7 @@
     <description>A dynamic error in a name path of a finding's message.</description>
     <spec clause="5.4.9"/>
     <spec clause="6.1"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="name-dynamic-error.sch"/>
     <instance file="name-dynamic-error.xml"/>
     <result>
@@ -308,6 +329,7 @@
     <description>A dynamic error in a value-of of a finding's message.</description>
     <spec clause="5.4.18"/>
     <spec clause="6.1"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="value-of-dynamic-error.sch"/>
     <instance file="value-of-dynamic-error.xml"/>
     <result>
@@ -319,6 +341,7 @@
     <description>value-of of an element with mixed content is the concatenation of its text.</description>
     <spec clause="5.4.18"/>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="value-of-mixed-content.sch"/>
     <instance file="value-of-mixed-content.xml"/>
     <result>
@@ -333,6 +356,7 @@
   <test-case name="value-of-order" since="2020">
     <description>value-of keeps the order the query gives (here reversed).</description>
     <spec clause="5.4.18"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="value-of-order.sch"/>
     <instance file="value-of-order.xml"/>
     <result>
@@ -348,6 +372,7 @@
     <description>value-of of an attribute in a namespace, with a prefix that differs from the instance's.</description>
     <spec clause="5.4.18"/>
     <spec clause="5.4.10"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="value-of-namespaced-attribute.sch"/>
     <instance file="value-of-namespaced-attribute.xml"/>
     <result>

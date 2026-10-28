@@ -9,6 +9,16 @@ agree            schema-structure       struct-documentation
 agree            schema-structure       struct-rich-attributes 
 agree            schema-structure       struct-xml11 
 agree            schema-structure       struct-empty-instance-element 
+agree            schema-structure       ns-prefix-differs 
+agree            schema-structure       ns-default-namespace-instance 
+agree            schema-structure       ns-unprefixed-no-namespace 
+agree            schema-structure       ns-same-prefix-other-uri 
+implementation-defined schema-structure       ns-one-prefix-two-uris -- failed in compile: SCHXSLT/compile/compile-2.0.xsl:76:7: err:XTDE0430: the namespace nodes of an element map one prefix to two namespace URIs (XSLT 4.0, 5.7.1)
+agree            schema-structure       ns-duplicate-declaration 
+agree            schema-structure       ns-xmlns-conflict 
+agree            schema-structure       ns-xml-prefix 
+agree            schema-structure       ns-non-ascii-prefix 
+agree            schema-structure       struct-utf16 
 agree            static-errors          error-not-well-formed 
 agree            static-errors          error-old-namespace 
 agree            static-errors          error-no-pattern 
@@ -62,6 +72,22 @@ agree            patterns-rules         rules-subject-assert-over-rule
 agree            patterns-rules         rules-abstract-false 
 agree            patterns-rules         rules-dynamic-error 
 implementation-defined patterns-rules         rules-predeclared-xs-prefix -- no findings
+agree            patterns-rules         rules-identical-findings-two-patterns 
+agree            patterns-rules         rules-order-several-patterns 
+not applicable   patterns-rules         rules-context-reverse-order -- needs xpath31
+not applicable   patterns-rules         rules-context-duplicates -- needs xpath31
+agree            patterns-rules         rules-context-namespaced-attribute 
+implementation-defined patterns-rules         rules-context-whitespace-text-xslt3 -- successful-report /Q{}doc[1]/text()[1] Whitespace.; successful-report /Q{}doc[1]/text()[2] Whitespace.
+agree            patterns-rules         rules-subject-dynamic-error 
+agree            patterns-rules         rules-subject-syntax 
+implementation-defined patterns-rules         rules-subject-empty -- failed-assert  Not two.
+implementation-defined patterns-rules         rules-subject-several -- failed in validate: patterns-rules/.crosscheck-rules-subject-several.xsl:124:79: err:XPTY0004: The value does not match the required type (XPath 4.0, section 3.4, coercion rules)
+agree            patterns-rules         rules-subject-attribute 
+agree            patterns-rules         rules-subject-text 
+disagree         patterns-rules         rules-subject-ancestor -- missing [('failed-assert', '/Q{}doc[1]', (), 'Not two, in doc.', (), ())]; unexpected [('failed-assert', '/Q{}doc[1]', (), 'Not two, in item.', (), ())]
+agree            patterns-rules         rules-dynamic-error-never-fires 
+agree            patterns-rules         rules-dynamic-error-blocked 
+agree            patterns-rules         rules-context-non-ascii-names 
 agree            assertions             assert-holds 
 agree            assertions             assert-fails 
 agree            assertions             report-fires 
@@ -86,6 +112,17 @@ disagree         assertions             message-markup -- missing [('successful-
 agree            assertions             message-empty 
 agree            assertions             message-entities 
 agree            assertions             assert-current-function 
+agree            assertions             report-dynamic-error 
+agree            assertions             assert-duplicate 
+agree            assertions             message-non-ascii 
+agree            assertions             message-astral 
+agree            assertions             message-combining-characters 
+agree            assertions             message-no-break-space 
+agree            assertions             message-whitespace-only 
+disagree         assertions             message-emph-nested -- expected an error, SchXslt ran
+agree            assertions             message-dir-and-span-unicode 
+agree            assertions             assert-test-astral-length 
+agree            assertions             assert-attributes-non-ascii 
 agree            variables              let-rule-value 
 agree            variables              let-rule-context-node 
 agree            variables              let-pattern-root-context 
@@ -112,6 +149,13 @@ agree            variables              let-same-name-two-rules
 agree            variables              let-element-content 
 agree            variables              let-value-is-sequence 
 agree            variables              let-value-is-node 
+agree            variables              let-dynamic-error 
+agree            variables              let-schema-dynamic-error 
+implementation-defined variables              let-unused-dynamic-error -- failed in validate: variables/.crosscheck-let-unused-dynamic-error.xsl:99:34: err:FORG0001: the value is not in the lexical space or value space of the target type
+agree            variables              let-value-syntax 
+agree            variables              let-non-ascii-name 
+agree            variables              let-namespace-prefix 
+agree            variables              let-pattern-shadows-phase 
 agree            abstract-patterns      abstract-basic 
 agree            abstract-patterns      abstract-two-instances 
 agree            abstract-patterns      abstract-instance-first 
@@ -136,6 +180,10 @@ disagree         abstract-patterns      abstract-instance-with-rule -- expected 
 disagree         abstract-patterns      abstract-instance-with-let -- expected an error, SchXslt ran
 agree            abstract-patterns      abstract-is-a-unknown 
 agree            abstract-patterns      abstract-is-a-concrete 
+agree            abstract-patterns      abstract-param-non-ascii-name 
+agree            abstract-patterns      abstract-param-value-dynamic-error 
+agree            abstract-patterns      abstract-param-value-syntax 
+agree            abstract-patterns      abstract-instance-in-two-phases 
 agree            abstract-rules         extends-basic 
 agree            abstract-rules         extends-abstract-does-not-fire 
 agree            abstract-rules         extends-with-own-assertions 
@@ -152,6 +200,11 @@ disagree         abstract-rules         extends-abstract-without-id -- expected 
 disagree         abstract-rules         extends-rule-and-href -- expected an error, SchXslt ran
 disagree         abstract-rules         extends-neither -- expected an error, SchXslt ran
 agree            abstract-rules         extends-cycle 
+agree            abstract-rules         extends-self 
+disagree         abstract-rules         extends-unused-syntax -- expected an error, SchXslt ran
+agree            abstract-rules         extends-twice 
+agree            abstract-rules         extends-variable-clash 
+agree            abstract-rules         extends-abstract-rule-flag 
 agree            inclusion              include-pattern 
 agree            inclusion              include-fragment 
 agree            inclusion              include-rule 
@@ -169,6 +222,14 @@ agree            inclusion              extends-href-fragment
 disagree         inclusion              extends-href-wrong-kind -- expected an error, SchXslt ran
 agree            inclusion              extends-href-missing 
 disagree         inclusion              extends-href-base-uri -- missing [('successful-report', '/Q{}doc[1]', (), 'Codes from the extended directory.', (), ())]
+agree            inclusion              include-cycle 
+agree            inclusion              include-self 
+agree            inclusion              extends-href-cycle 
+agree            inclusion              extends-href-self 
+agree            inclusion              include-prefix-from-ns 
+agree            inclusion              include-in-phase 
+agree            inclusion              include-rule-order 
+agree            inclusion              extends-href-prefix-from-ns 
 agree            phases                 phase-named 
 agree            phases                 phase-named-two-patterns 
 agree            phases                 phase-pattern-in-two-phases 
@@ -184,6 +245,11 @@ agree            phases                 phase-default-unknown
 disagree         phases                 phase-reserved-name -- expected an error, SchXslt ran
 agree            phases                 phase-variable-per-phase 
 agree            phases                 phase-active-text-ignored 
+agree            phases                 phase-inactive-pattern-dynamic-error 
+disagree         phases                 phase-inactive-pattern-syntax-error -- expected an error, SchXslt ran
+agree            phases                 phase-non-ascii-id 
+agree            phases                 phase-duplicate-active 
+implementation-defined phases                 phase-active-abstract -- failed in compile: SCHXSLT/pipeline-for-svrl.xsl: err:XTTE0780: the result of a stylesheet function does not match its as type (XSLT 4.0, 10.3.3)
 agree            diagnostics-properties diagnostic-basic 
 agree            diagnostics-properties diagnostic-several-languages 
 agree            diagnostics-properties diagnostic-dynamic 
@@ -197,6 +263,17 @@ agree            diagnostics-properties property-dynamic
 agree            diagnostics-properties property-copy-of 
 agree            diagnostics-properties property-unknown 
 agree            diagnostics-properties diagnostic-and-property 
+agree            diagnostics-properties diagnostic-dynamic-error 
+agree            diagnostics-properties property-dynamic-error 
+agree            diagnostics-properties diagnostic-value-of-syntax 
+agree            diagnostics-properties property-value-of-syntax 
+agree            diagnostics-properties diagnostic-shared 
+agree            diagnostics-properties property-several 
+implementation-defined diagnostics-properties diagnostic-property-subject-context -- failed-assert /Q{}doc[1] Not two: item.
+agree            diagnostics-properties diagnostic-phase-variable 
+implementation-defined diagnostics-properties diagnostic-abstract-parameter -- failed-assert /Q{}doc[1]/Q{}item[2] Not two.
+agree            diagnostics-properties diagnostic-non-ascii 
+agree            diagnostics-properties ancillary-namespaces 
 agree            name-value-of          name-context 
 disagree         name-value-of          name-path-element -- missing [('successful-report', '/Q{}doc[1]/Q{}order[1]', (), 'First child: customer.', (), ())]; unexpected [('successful-report', '/Q{}doc[1]/Q{}order[1]', (), 'First child: Ann.', (), ())]
 disagree         name-value-of          name-path-attribute -- missing [('successful-report', '/Q{}doc[1]/Q{}item[2]', (), 'Attribute n.', (), ())]; unexpected [('successful-report', '/Q{}doc[1]/Q{}item[2]', (), 'Attribute 2.', (), ())]
@@ -213,8 +290,20 @@ agree            name-value-of          value-of-variable
 agree            name-value-of          value-of-in-emph 
 agree            name-value-of          value-of-select-syntax 
 agree            name-value-of          name-path-syntax 
+agree            name-value-of          name-default-namespace 
+implementation-defined name-value-of          name-path-empty -- successful-report /Q{}doc[1]/Q{}item[2] Name: .
+disagree         name-value-of          name-path-several -- expected an error, SchXslt ran
+disagree         name-value-of          name-path-processing-instruction -- missing [('successful-report', '/Q{}doc[1]', (), 'Instruction target.', (), ())]; unexpected [('successful-report', '/Q{}doc[1]', (), 'Instruction data.', (), ())]
+agree            name-value-of          name-dynamic-error 
+agree            name-value-of          value-of-dynamic-error 
+agree            name-value-of          value-of-mixed-content 
+agree            name-value-of          value-of-order 
+agree            name-value-of          value-of-namespaced-attribute 
 agree            group                  group-versus-pattern 
 agree            severity-role-flag     role-literal 
+implementation-defined severity-role-flag     role-static-not-a-name -- successful-report /Q{}doc[1]/Q{}item[1] One.
+agree            severity-role-flag     role-on-pattern-not-inherited 
+implementation-defined severity-role-flag     role-abstract-parameter -- failed-assert /Q{}doc[1]/Q{}item[2] Not two.
 agree            query-bindings         binding-xslt2 
 agree            query-bindings         binding-xslt3 
 not applicable   query-bindings         binding-xpath2 -- needs xpath2
@@ -239,6 +328,13 @@ not applicable   query-bindings         binding-xpath31-expression-context -- ne
 not applicable   query-bindings         binding-xpath31-root-context -- needs xpath31
 agree            query-bindings         binding-xslt2-no-backwards-compatibility 
 implementation-defined query-bindings         binding-xslt3-text-value-template -- successful-report /Q{}doc[1]/Q{}item[2] Value {@n}.
+agree            query-bindings         instance-dtd-default-attribute 
+agree            query-bindings         instance-entities 
+agree            query-bindings         instance-xml-id 
+agree            query-bindings         instance-dtd-id 
+agree            query-bindings         instance-cdata 
+agree            query-bindings         instance-utf16 
+implementation-defined query-bindings         binding-whitespace -- failed in compile: SCHXSLT/compile/functions.xsl:72:37: error:E0002: The query language ' xslt3 ' is not supported.
 agree            documents              documents-basic 
 agree            documents              documents-and-instance 
 agree            documents              documents-several 
@@ -250,6 +346,11 @@ agree            documents              documents-missing
 agree            documents              documents-empty 
 agree            documents              documents-abstract-parameter 
 agree            documents              documents-in-abstract-pattern 
+agree            documents              documents-dynamic-error 
+agree            documents              documents-syntax 
+implementation-defined documents              documents-duplicate-uri -- successful-report /Q{}doc[1]/Q{}item[1] Item 1.; successful-report /Q{}doc[1]/Q{}item[1] Item 1.
+agree            documents              documents-reverse-order 
+agree            documents              documents-namespaces 
 agree            svrl                   svrl-root 
 agree            svrl                   svrl-active-patterns 
 disagree         svrl                   svrl-fired-rules -- SVRL assertions false: ["every $r in //svrl:fired-rule[@id = 'items'] satisfies ($r/@context = 'item' and $r/@role = 'item-rule' and $r/@flag = 'item-seen' and $r/@name = 'Items')"]
@@ -263,4 +364,7 @@ agree            svrl                   svrl-diagnostic-language
 agree            svrl                   svrl-property-reference 
 disagree         svrl                   svrl-subordinate-document -- SVRL assertions false: ["//svrl:fired-rule[ends-with(@document, 'svrl-subordinate-document/sub.xml')]"]
 agree            svrl                   svrl-language-fixup 
-agree 198, disagree 49, implementation-defined 5, not applicable 13
+agree            svrl                   svrl-non-ascii 
+agree            svrl                   svrl-several-patterns 
+agree            svrl                   svrl-namespaced-location 
+agree 281, disagree 55, implementation-defined 18, not applicable 15

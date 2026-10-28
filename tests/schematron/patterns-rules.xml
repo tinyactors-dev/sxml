@@ -16,6 +16,7 @@
     <description>A pattern without rules is allowed and finds nothing.</description>
     <spec clause="5.4.12"/>
     <spec clause="Annex-A"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="rules-empty-pattern.sch"/>
     <instance file="rules-empty-pattern.xml"/>
     <result>
@@ -30,6 +31,7 @@
   <test-case name="rules-never-fires" since="2020">
     <description>A rule whose context matches nothing is not an error.</description>
     <spec clause="5.4.15"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="rules-never-fires.sch"/>
     <instance file="rules-never-fires.xml"/>
     <result>
@@ -42,6 +44,7 @@
     <spec clause="3.20"/>
     <spec clause="6.3"/>
     <spec clause="6.6"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="rules-first-match-wins.sch"/>
     <instance file="rules-first-match-wins.xml"/>
     <result>
@@ -57,6 +60,7 @@
     <description>A specific rule before a general one: each node fires only the first rule that matches it.</description>
     <spec clause="3.20"/>
     <spec clause="6.6"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="rules-specific-then-general.sch"/>
     <instance file="rules-specific-then-general.xml"/>
     <result>
@@ -78,6 +82,7 @@
     <description>A general rule before a specific one: the specific rule never fires.</description>
     <spec clause="3.20"/>
     <spec clause="6.6"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="rules-general-then-specific.sch"/>
     <instance file="rules-general-then-specific.xml"/>
     <result>
@@ -93,6 +98,7 @@
     <description>A node matched by an earlier rule whose assertions all hold is not offered to a later rule.</description>
     <spec clause="3.20"/>
     <spec clause="6.3"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="rules-passing-rule-still-blocks.sch"/>
     <instance file="rules-passing-rule-still-blocks.xml"/>
     <result>
@@ -104,6 +110,7 @@
     <description>A rule for an element does not block a later rule for one of its attributes: they are different nodes.</description>
     <spec clause="3.20"/>
     <spec clause="6.3"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="rules-attribute-not-blocked.sch"/>
     <instance file="rules-attribute-not-blocked.xml"/>
     <result>
@@ -122,6 +129,7 @@
     <description>A rule for the first item before a rule for every item.</description>
     <spec clause="3.9"/>
     <spec clause="3.20"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="rules-predicate-position.sch"/>
     <instance file="rules-predicate-position.xml"/>
     <result>
@@ -143,6 +151,7 @@
     <description>Each pattern is evaluated on its own: a node matched in two patterns fires a rule in each.</description>
     <spec clause="3.13"/>
     <spec clause="6.3"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="rules-same-node-two-patterns.sch"/>
     <instance file="rules-same-node-two-patterns.xml"/>
     <result>
@@ -161,6 +170,7 @@
     <description>Every assertion of a fired rule is evaluated: three failures on one node.</description>
     <spec clause="6.3"/>
     <spec clause="6.6"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="rules-all-assertions-evaluated.sch"/>
     <instance file="rules-all-assertions-evaluated.xml"/>
     <result>
@@ -181,6 +191,7 @@
   <test-case name="rules-many-nodes" since="2020">
     <description>A rule fires for every node it matches; the failures are reported per node.</description>
     <spec clause="6.3"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="rules-many-nodes.sch"/>
     <instance file="rules-many-nodes.xml"/>
     <result>
@@ -199,6 +210,7 @@
     <description>A rule context that matches the document node.</description>
     <spec clause="Annex-J"/>
     <spec clause="6.3"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="rules-context-root.sch"/>
     <instance file="rules-context-root.xml"/>
     <result>
@@ -213,6 +225,7 @@
   <test-case name="rules-context-document-element" since="2020">
     <description>A rule context with an absolute path.</description>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="rules-context-document-element.sch"/>
     <instance file="rules-context-document-element.xml"/>
     <result>
@@ -227,6 +240,7 @@
   <test-case name="rules-context-attribute" since="2020">
     <description>A rule context that matches attributes.</description>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="rules-context-attribute.sch"/>
     <instance file="rules-context-attribute.xml"/>
     <result>
@@ -241,6 +255,7 @@
   <test-case name="rules-context-comment" since="2020">
     <description>A rule context that matches comments.</description>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="rules-context-comment.sch"/>
     <instance file="rules-context-comment.xml"/>
     <result>
@@ -255,6 +270,7 @@
   <test-case name="rules-context-processing-instruction" since="2020">
     <description>A rule context that matches processing instructions.</description>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="rules-context-processing-instruction.sch"/>
     <instance file="rules-context-processing-instruction.xml"/>
     <result>
@@ -269,6 +285,7 @@
   <test-case name="rules-context-text" since="2020">
     <description>Text nodes as rule context: an implementation may allow them at user option or reject the schema.</description>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="rules-context-text.sch"/>
     <instance file="rules-context-text.xml"/>
     <result>
@@ -279,6 +296,7 @@
   <test-case name="rules-context-union" since="2020">
     <description>A rule context that is a union of patterns.</description>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="rules-context-union.sch"/>
     <instance file="rules-context-union.xml"/>
     <result>
@@ -296,6 +314,7 @@
   <test-case name="rules-context-descendant" since="2020">
     <description>A rule context with a descendant step matches at any depth.</description>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="rules-context-descendant.sch"/>
     <instance file="rules-context-descendant.xml"/>
     <result>
@@ -316,6 +335,7 @@
   <test-case name="rules-nested-matches" since="2020">
     <description>A rule fires for nested nodes that it matches at every level.</description>
     <spec clause="6.3"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="rules-nested-matches.sch"/>
     <instance file="rules-nested-matches.xml"/>
     <result>
@@ -331,6 +351,7 @@
     <description>The subject attribute of an assert gives the location of its finding.</description>
     <spec clause="5.5.19"/>
     <spec clause="6.3"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="rules-subject-on-assert.sch"/>
     <instance file="rules-subject-on-assert.xml"/>
     <result>
@@ -346,6 +367,7 @@
     <description>The subject attribute of a rule gives the location of its assertions' findings.</description>
     <spec clause="5.5.19"/>
     <spec clause="6.3"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="rules-subject-on-rule.sch"/>
     <instance file="rules-subject-on-rule.xml"/>
     <result>
@@ -361,6 +383,7 @@
     <description>An assert's subject takes precedence over its rule's.</description>
     <spec clause="5.5.19"/>
     <spec clause="6.3"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="rules-subject-assert-over-rule.sch"/>
     <instance file="rules-subject-assert-over-rule.xml"/>
     <result>
@@ -380,6 +403,7 @@
     <spec clause="5.4.12"/>
     <spec clause="5.4.15"/>
     <spec clause="Annex-A"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="rules-abstract-false.sch"/>
     <instance file="rules-abstract-false.xml"/>
     <result>
@@ -395,6 +419,7 @@
     <description>A dynamic error in an assertion test: validation ends in error.</description>
     <spec clause="6.1"/>
     <spec clause="7.1"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="rules-dynamic-error.sch"/>
     <instance file="rules-dynamic-error.xml"/>
     <result>
@@ -406,6 +431,7 @@
     <description>The xs prefix is not declared by ns: whether the binding predeclares it is the query language's matter.</description>
     <spec clause="5.4.10"/>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="rules-predeclared-xs-prefix.sch"/>
     <instance file="rules-predeclared-xs-prefix.xml"/>
     <result>
@@ -416,6 +442,7 @@
     <description>Two patterns with the same rule: each is evaluated, so the instance has two identical findings (findings are a multiset).</description>
     <spec clause="6.3"/>
     <spec clause="3.13"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="rules-identical-findings-two-patterns.sch"/>
     <instance file="rules-identical-findings-two-patterns.xml"/>
     <result>
@@ -434,6 +461,7 @@
     <description>Three patterns report on one node; the order of the findings is implementation-dependent (6.6), their multiset is not.</description>
     <spec clause="6.6"/>
     <spec clause="6.3"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="rules-order-several-patterns.sch"/>
     <instance file="rules-order-several-patterns.xml"/>
     <result>
@@ -484,6 +512,7 @@
     <description>A rule context that matches attributes in a namespace, with a prefix that differs from the instance's; an attribute of the same local name in no namespace is not matched.</description>
     <spec clause="5.4.10"/>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="rules-context-namespaced-attribute.sch"/>
     <instance file="rules-context-namespaced-attribute.xml"/>
     <result>
@@ -516,6 +545,7 @@
   <test-case name="rules-context-whitespace-text-xslt3" since="2020">
     <description>Whitespace-only text nodes as rule context under xslt3.</description>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="rules-context-whitespace-text-xslt3.sch"/>
     <instance file="rules-context-whitespace-text-xslt3.xml"/>
     <result>
@@ -527,6 +557,7 @@
     <description>A dynamic error in the subject of a failed assertion: validation ends in error.</description>
     <spec clause="5.5.19"/>
     <spec clause="6.1"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="rules-subject-dynamic-error.sch"/>
     <instance file="rules-subject-dynamic-error.xml"/>
     <result>
@@ -538,6 +569,7 @@
     <description>A subject that is not an expression of the query language.</description>
     <spec clause="5.5.19"/>
     <spec clause="7.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="rules-subject-syntax.sch"/>
     <instance file="rules-subject-syntax.xml"/>
     <result>
@@ -550,6 +582,7 @@
     <spec clause="5.5.19"/>
     <spec clause="6.3"/>
     <spec clause="Annex-D"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="rules-subject-empty.sch"/>
     <instance file="rules-subject-empty.xml"/>
     <result>
@@ -562,6 +595,7 @@
     <spec clause="5.5.19"/>
     <spec clause="6.3"/>
     <spec clause="Annex-D"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="rules-subject-several.sch"/>
     <instance file="rules-subject-several.xml"/>
     <result>
@@ -572,6 +606,7 @@
   <test-case name="rules-subject-attribute" since="2020">
     <description>A subject that selects an attribute of the context node.</description>
     <spec clause="5.5.19"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="rules-subject-attribute.sch"/>
     <instance file="rules-subject-attribute.xml"/>
     <result>
@@ -586,6 +621,7 @@
   <test-case name="rules-subject-text" since="2020">
     <description>A subject that selects a text node.</description>
     <spec clause="5.5.19"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="rules-subject-text.sch"/>
     <instance file="rules-subject-text.xml"/>
     <result>
@@ -601,6 +637,7 @@
     <description>A subject that selects the parent: it is the location and the context of name in the message.</description>
     <spec clause="5.5.19"/>
     <spec clause="6.3"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="rules-subject-ancestor.sch"/>
     <instance file="rules-subject-ancestor.xml"/>
     <result>
@@ -616,6 +653,7 @@
     <description>An assertion whose test would raise a dynamic error, in a rule that never fires: it is never evaluated.</description>
     <spec clause="6.3"/>
     <spec clause="5.4.15"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="rules-dynamic-error-never-fires.sch"/>
     <instance file="rules-dynamic-error-never-fires.xml"/>
     <result>
@@ -627,6 +665,7 @@
     <description>An assertion whose test would raise a dynamic error, in a rule whose nodes an earlier rule of the pattern matched: it is never evaluated.</description>
     <spec clause="6.3"/>
     <spec clause="3.20"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="rules-dynamic-error-blocked.sch"/>
     <instance file="rules-dynamic-error-blocked.xml"/>
     <result>
@@ -643,6 +682,7 @@
     <spec clause="3.11"/>
     <spec clause="Annex-J"/>
     <spec clause="6.3"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="rules-context-non-ascii-names.sch"/>
     <instance file="rules-context-non-ascii-names.xml"/>
     <result>

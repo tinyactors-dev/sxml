@@ -418,6 +418,7 @@
     <description>An attribute defaulted by the instance's internal DTD subset is an attribute of the data model (XDM from the infoset): tests and contexts see it.</description>
     <spec clause="Annex-J"/>
     <spec clause="6.5"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="instance-dtd-default-attribute.sch"/>
     <instance file="instance-dtd-default-attribute.xml"/>
     <result>
@@ -438,6 +439,7 @@
   <test-case name="instance-entities" since="2020">
     <description>Entity references in the instance are expanded: value-of sees the replacement text and the referenced character.</description>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="instance-entities.sch"/>
     <instance file="instance-entities.xml"/>
     <result>
@@ -452,6 +454,7 @@
   <test-case name="instance-xml-id" since="2020">
     <description>xml:id attributes of the instance are IDs: fn:id finds them.</description>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="instance-xml-id.sch"/>
     <instance file="instance-xml-id.xml"/>
     <result>
@@ -466,6 +469,7 @@
   <test-case name="instance-dtd-id" since="2020">
     <description>Attributes declared as ID in the instance's internal DTD subset are IDs: fn:id finds them.</description>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="instance-dtd-id.sch"/>
     <instance file="instance-dtd-id.xml"/>
     <result>
@@ -480,6 +484,7 @@
   <test-case name="instance-cdata" since="2020">
     <description>A CDATA section in the instance is text: value-of gives its characters.</description>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="instance-cdata.sch"/>
     <instance file="instance-cdata.xml"/>
     <result>
@@ -494,6 +499,7 @@
   <test-case name="instance-utf16" since="2020">
     <description>An instance encoded in UTF-16.</description>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="instance-utf16.sch"/>
     <instance file="instance-utf16.xml"/>
     <result>

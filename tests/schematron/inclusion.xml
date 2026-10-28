@@ -12,6 +12,7 @@
     <description>include of a document whose element is a pattern.</description>
     <spec clause="5.4.6"/>
     <spec clause="6.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="include-pattern.sch"/>
     <instance file="include-pattern.xml"/>
     <result>
@@ -26,6 +27,7 @@
   <test-case name="include-fragment" since="2020">
     <description>include of one element of a document, named by a fragment identifier (the element's id).</description>
     <spec clause="5.4.6"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="include-fragment.sch"/>
     <instance file="include-fragment.xml"/>
     <result>
@@ -40,6 +42,7 @@
   <test-case name="include-rule" since="2020">
     <description>include of a rule inside a pattern.</description>
     <spec clause="5.4.6"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="include-rule.sch"/>
     <instance file="include-rule.xml"/>
     <result>
@@ -54,6 +57,7 @@
   <test-case name="include-assertion" since="2020">
     <description>include of an assert inside a rule.</description>
     <spec clause="5.4.6"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="include-assertion.sch"/>
     <instance file="include-assertion.xml"/>
     <result>
@@ -69,6 +73,7 @@
     <description>include of a diagnostic inside diagnostics.</description>
     <spec clause="5.4.6"/>
     <spec clause="5.5.3"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="include-diagnostic.sch"/>
     <instance file="include-diagnostic.xml"/>
     <result>
@@ -84,6 +89,7 @@
   <test-case name="include-nested" since="2020">
     <description>An included document that itself includes another.</description>
     <spec clause="5.4.6"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="include-nested.sch"/>
     <instance file="include-nested.xml"/>
     <result>
@@ -99,6 +105,7 @@
     <description>One document included twice gives two patterns, each with its finding.</description>
     <spec clause="5.4.6"/>
     <spec clause="6.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="include-twice.sch"/>
     <instance file="include-twice.xml"/>
     <result>
@@ -116,6 +123,7 @@
   <test-case name="include-missing" since="2020">
     <description>include of a document that does not exist.</description>
     <spec clause="5.4.6"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="include-missing.sch"/>
     <instance file="include-missing.xml"/>
     <result>
@@ -126,6 +134,7 @@
   <test-case name="include-not-well-formed" since="2020">
     <description>include of a document that is not well-formed.</description>
     <spec clause="5.4.6"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="include-not-well-formed.sch"/>
     <instance file="include-not-well-formed.xml"/>
     <result>
@@ -136,6 +145,7 @@
   <test-case name="include-wrong-place" since="2020">
     <description>The included element must be allowed where the include is: an assert directly in the schema is not.</description>
     <spec clause="5.4.6"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="include-wrong-place.sch"/>
     <instance file="include-wrong-place.xml"/>
     <result>
@@ -146,6 +156,7 @@
   <test-case name="include-missing-fragment" since="2020">
     <description>include with a fragment identifier that names no element.</description>
     <spec clause="5.4.6"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="include-missing-fragment.sch"/>
     <instance file="include-missing-fragment.xml"/>
     <result>
@@ -157,6 +168,7 @@
     <description>Base URI fixup: a relative URI in an included query resolves against the included document, not the including one.</description>
     <spec clause="6.8"/>
     <spec clause="5.4.6"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="include-base-uri.sch"/>
     <instance file="include-base-uri.xml"/>
     <result>
@@ -172,6 +184,7 @@
     <description>A library is not allowed as a child of a schema, so it cannot be included there (its contents come in by extends).</description>
     <spec clause="5.4.6"/>
     <spec clause="5.4.8"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="include-library-element.sch"/>
     <instance file="include-library-element.xml"/>
     <result>
@@ -182,6 +195,7 @@
   <test-case name="extends-href-rule" since="2020">
     <description>extends href in a rule inserts the children of the external rule (which need not be abstract); its context is not used.</description>
     <spec clause="5.4.4"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="extends-href-rule.sch"/>
     <instance file="extends-href-rule.xml"/>
     <result>
@@ -196,6 +210,7 @@
   <test-case name="extends-href-fragment" since="2020">
     <description>extends href with a fragment identifier naming an abstract rule.</description>
     <spec clause="5.4.4"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="extends-href-fragment.sch"/>
     <instance file="extends-href-fragment.xml"/>
     <result>
@@ -210,6 +225,7 @@
   <test-case name="extends-href-wrong-kind" since="2020">
     <description>extends href in a rule must name a rule, not a pattern.</description>
     <spec clause="5.4.4"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="extends-href-wrong-kind.sch"/>
     <instance file="extends-href-wrong-kind.xml"/>
     <result>
@@ -220,6 +236,7 @@
   <test-case name="extends-href-missing" since="2020">
     <description>extends href to a document that does not exist.</description>
     <spec clause="5.4.4"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="extends-href-missing.sch"/>
     <instance file="extends-href-missing.xml"/>
     <result>
@@ -231,6 +248,7 @@
     <description>Base URI fixup for extends: a relative URI in the inserted query resolves against the external document.</description>
     <spec clause="6.8"/>
     <spec clause="5.4.4"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="extends-href-base-uri.sch"/>
     <instance file="extends-href-base-uri.xml"/>
     <result>
@@ -246,6 +264,7 @@
     <description>extends href at schema level to a library: its patterns, abstract rules and diagnostics become the schema's.</description>
     <spec clause="5.4.8"/>
     <spec clause="5.4.4"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="library-extends.sch"/>
     <instance file="library-extends.xml"/>
     <result>
@@ -265,6 +284,7 @@
     <description>A pattern from a library made active by a phase of the schema.</description>
     <spec clause="5.4.8"/>
     <spec clause="5.4.13"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="library-phase.sch"/>
     <instance file="library-phase.xml"/>
     <phase>only-library</phase>
@@ -280,6 +300,7 @@
   <test-case name="extends-href-schema" since="2025">
     <description>extends href at schema level to another schema document inserts its children (here an ns and a pattern).</description>
     <spec clause="5.4.4"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="extends-href-schema.sch"/>
     <instance file="extends-href-schema.xml"/>
     <result>
@@ -294,6 +315,7 @@
     <description>Two documents that include each other: the inclusions cannot be resolved (and the second puts a pattern inside a rule).</description>
     <spec clause="5.4.6"/>
     <spec clause="6.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="include-cycle.sch"/>
     <instance file="include-cycle.xml"/>
     <result>
@@ -305,6 +327,7 @@
     <description>A document that includes itself.</description>
     <spec clause="5.4.6"/>
     <spec clause="6.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="include-self.sch"/>
     <instance file="include-self.xml"/>
     <result>
@@ -316,6 +339,7 @@
     <description>Two external rules that extend each other by href: each is a rule in a rule, as 5.4.4 allows, but the insertion never ends.</description>
     <spec clause="5.4.4"/>
     <spec clause="6.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="extends-href-cycle.sch"/>
     <instance file="extends-href-cycle.xml"/>
     <result>
@@ -327,6 +351,7 @@
     <description>An external rule that extends itself by href.</description>
     <spec clause="5.4.4"/>
     <spec clause="6.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="extends-href-self.sch"/>
     <instance file="extends-href-self.xml"/>
     <result>
@@ -338,6 +363,7 @@
     <description>An included pattern uses a prefix: the schema's ns declares it, not the xmlns declaration in the included document (which names another URI).</description>
     <spec clause="5.4.6"/>
     <spec clause="5.4.10"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="include-prefix-from-ns.sch"/>
     <instance file="include-prefix-from-ns.xml"/>
     <result>
@@ -353,6 +379,7 @@
     <description>include inside a phase brings in an active element.</description>
     <spec clause="5.4.6"/>
     <spec clause="5.4.13"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="include-in-phase.sch"/>
     <instance file="include-in-phase.xml"/>
     <phase>second</phase>
@@ -369,6 +396,7 @@
     <description>include of a rule inside a group.</description>
     <spec clause="5.4.6"/>
     <spec clause="5.4.5"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="include-rule-into-group.sch"/>
     <instance file="include-rule-into-group.xml"/>
     <result>
@@ -399,6 +427,7 @@
     <description>A library has no ns element in its grammar.</description>
     <spec clause="5.4.8"/>
     <spec clause="Annex-A"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="library-with-ns.sch"/>
     <instance file="library-with-ns.xml"/>
     <result>
@@ -411,6 +440,7 @@
     <spec clause="5.4.8"/>
     <spec clause="5.4.4"/>
     <spec clause="5.4.7"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="library-let.sch"/>
     <instance file="library-let.xml"/>
     <result>
@@ -426,6 +456,7 @@
     <description>A library with no declarations: extending it adds nothing.</description>
     <spec clause="5.4.8"/>
     <spec clause="Annex-A"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="library-empty.sch"/>
     <instance file="library-empty.xml"/>
     <result>
@@ -441,6 +472,7 @@
     <description>A library that extends another library: both libraries' patterns reach the schema.</description>
     <spec clause="5.4.8"/>
     <spec clause="5.4.4"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="library-nested-extends.sch"/>
     <instance file="library-nested-extends.xml"/>
     <result>
@@ -450,6 +482,38 @@
         </finding>
         <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
           <message>Inner.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+  <test-case name="include-rule-order" since="2020">
+    <description>An included rule takes the place of its include: placed before a rule with the same context, it is the one that fires.</description>
+    <spec clause="5.4.6"/>
+    <spec clause="6.2"/>
+    <spec clause="3.20"/>
+    <dependency type="query-binding" value="xslt3"/>
+    <schema file="include-rule-order.sch"/>
+    <instance file="include-rule-order.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Included rule.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="extends-href-prefix-from-ns" since="2020">
+    <description>A rule inserted by extends href uses a prefix: the schema's ns declares it, not the external document's xmlns (which names another URI).</description>
+    <spec clause="5.4.4"/>
+    <spec clause="5.4.10"/>
+    <dependency type="query-binding" value="xslt3"/>
+    <schema file="extends-href-prefix-from-ns.sch"/>
+    <instance file="extends-href-prefix-from-ns.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{urn:example:e}item[1]">
+          <message>Has a part.</message>
         </finding>
       </findings>
     </result>

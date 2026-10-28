@@ -15,6 +15,7 @@
     <description>One pattern, one rule, one assert that holds everywhere: no findings.</description>
     <spec clause="5.4.17"/>
     <spec clause="7.1"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="struct-minimal-valid.sch"/>
     <instance file="struct-minimal-valid.xml"/>
     <result>
@@ -26,6 +27,7 @@
     <description>One assert that fails for one item.</description>
     <spec clause="5.4.17"/>
     <spec clause="7.1"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="struct-minimal-invalid.sch"/>
     <instance file="struct-minimal-invalid.xml"/>
     <result>
@@ -40,6 +42,7 @@
   <test-case name="struct-other-prefix" since="2020">
     <description>The Schematron namespace bound to a prefix other than sch.</description>
     <spec clause="5.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="struct-other-prefix.sch"/>
     <instance file="struct-other-prefix.xml"/>
     <result>
@@ -55,6 +58,7 @@
     <description>The Schematron namespace as the default namespace of the schema; unprefixed names in a rule context still name elements in no namespace.</description>
     <spec clause="5.2"/>
     <spec clause="5.4.10"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="struct-default-namespace.sch"/>
     <instance file="struct-default-namespace.xml"/>
     <result>
@@ -69,6 +73,7 @@
   <test-case name="struct-foreign-markup" since="2020">
     <description>Foreign elements and attributes anywhere in the schema are allowed and do not change validation.</description>
     <spec clause="5.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="struct-foreign-markup.sch"/>
     <instance file="struct-foreign-markup.xml"/>
     <result>
@@ -84,6 +89,7 @@
     <description>A foreign element inside a message: the message text includes its text.</description>
     <spec clause="5.2"/>
     <spec clause="6.3"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="struct-foreign-in-message.sch"/>
     <instance file="struct-foreign-in-message.xml"/>
     <result>
@@ -98,6 +104,7 @@
   <test-case name="struct-whitespace" since="2020">
     <description>Whitespace children anywhere and leading or trailing whitespace in attributes; message whitespace is collapsed.</description>
     <spec clause="5.3"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="struct-whitespace.sch"/>
     <instance file="struct-whitespace.xml"/>
     <result>
@@ -114,6 +121,7 @@
     <spec clause="5.5.10"/>
     <spec clause="5.5.20"/>
     <spec clause="6.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="struct-documentation.sch"/>
     <instance file="struct-documentation.xml"/>
     <result>
@@ -131,6 +139,7 @@
     <spec clause="5.5.8"/>
     <spec clause="5.5.9"/>
     <spec clause="5.5.17"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="struct-rich-attributes.sch"/>
     <instance file="struct-rich-attributes.xml"/>
     <result>
@@ -145,6 +154,7 @@
   <test-case name="struct-xml11" since="2020">
     <description>A schema that is an XML 1.1 document.</description>
     <spec clause="5.1"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="struct-xml11.sch"/>
     <instance file="struct-xml11.xml"/>
     <result>
@@ -160,6 +170,7 @@
     <description>An instance whose only element no rule matches is valid.</description>
     <spec clause="6.1"/>
     <spec clause="3.22"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="struct-empty-instance-element.sch"/>
     <instance file="struct-empty-instance-element.xml"/>
     <result>
@@ -169,6 +180,7 @@
   <test-case name="ns-prefix-differs" since="2020">
     <description>The prefix ns declares differs from the instance's prefix for the same URI: names match by URI.</description>
     <spec clause="5.4.10"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="ns-prefix-differs.sch"/>
     <instance file="ns-prefix-differs.xml"/>
     <result>
@@ -183,6 +195,7 @@
   <test-case name="ns-default-namespace-instance" since="2020">
     <description>The instance uses a default namespace; the schema names it with a prefix.</description>
     <spec clause="5.4.10"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="ns-default-namespace-instance.sch"/>
     <instance file="ns-default-namespace-instance.xml"/>
     <result>
@@ -198,6 +211,7 @@
     <description>An unprefixed name in a query names an element in no namespace: it does not match elements in the instance's default namespace.</description>
     <spec clause="5.4.10"/>
     <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="ns-unprefixed-no-namespace.sch"/>
     <instance file="ns-unprefixed-no-namespace.xml"/>
     <result>
@@ -212,6 +226,7 @@
   <test-case name="ns-same-prefix-other-uri" since="2020">
     <description>The schema and the instance bind one prefix to different URIs: the schema's binding decides, and nothing matches.</description>
     <spec clause="5.4.10"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="ns-same-prefix-other-uri.sch"/>
     <instance file="ns-same-prefix-other-uri.xml"/>
     <result>
@@ -226,6 +241,7 @@
   <test-case name="ns-one-prefix-two-uris" since="2020">
     <description>Two ns elements bind one prefix to two URIs.</description>
     <spec clause="5.4.10"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="ns-one-prefix-two-uris.sch"/>
     <instance file="ns-one-prefix-two-uris.xml"/>
     <result>
@@ -236,6 +252,7 @@
   <test-case name="ns-duplicate-declaration" since="2020">
     <description>Two identical ns elements: the binding is the same, and nothing in the standard forbids repeating it.</description>
     <spec clause="5.4.10"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="ns-duplicate-declaration.sch"/>
     <instance file="ns-duplicate-declaration.xml"/>
     <result>
@@ -250,6 +267,7 @@
   <test-case name="ns-xmlns-conflict" since="2020">
     <description>The schema's root binds a prefix with xmlns to one URI and ns binds it to another: queries use the ns binding only.</description>
     <spec clause="5.4.10"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="ns-xmlns-conflict.sch"/>
     <instance file="ns-xmlns-conflict.xml"/>
     <result>
@@ -264,6 +282,7 @@
   <test-case name="ns-xml-prefix" since="2020">
     <description>ns may declare the xml prefix with its fixed URI; xml:lang is then usable in tests.</description>
     <spec clause="5.4.10"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="ns-xml-prefix.sch"/>
     <instance file="ns-xml-prefix.xml"/>
     <result>
@@ -279,6 +298,7 @@
     <description>A prefix with a non-ASCII letter.</description>
     <spec clause="5.4.10"/>
     <spec clause="7.2"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="ns-non-ascii-prefix.sch"/>
     <instance file="ns-non-ascii-prefix.xml"/>
     <result>
@@ -293,6 +313,7 @@
   <test-case name="struct-utf16" since="2020">
     <description>A schema encoded in UTF-16, with non-ASCII text in a message.</description>
     <spec clause="5.1"/>
+    <dependency type="query-binding" value="xslt3"/>
     <schema file="struct-utf16.sch"/>
     <instance file="struct-utf16.xml"/>
     <result>
