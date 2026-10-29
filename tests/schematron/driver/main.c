@@ -141,7 +141,9 @@ static bool read_file(const char *path, text_buffer *contents) {
         return false;
     }
     text_clear(contents);
-    char block[65536];
+    /* Small: WASI's default stack is 64 KB, and the wasm build runs this
+       driver too. */
+    char block[4096];
     size_t count = 0;
     while ((count = fread(block, 1, sizeof block, file)) > 0) {
         text_append(contents, (sxml_byte_view){.bytes = (const uint8_t *)block, .byte_count = count});
