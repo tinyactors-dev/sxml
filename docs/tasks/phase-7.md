@@ -1723,6 +1723,61 @@ release and debug-gcc, any TZ, LANG and directory); it drifted with
 perf-5 (197), perf-12 (196) and perf-16 (194). The book shows 194; its
 prose no longer repeats the number.
 
+### fix-7 Schematron: predeclared prefixes, findings in other documents, real schemas read with warnings (implementation, book)
+After D315, D323, D326 and book-30. Three changes the owner asked for
+on 2026-10-29, in this order, in the same files.
+1. **Prefixes** (the orchestrator's research of ISO/IEC 19757-3:2025):
+   5.4.10 says prefixes in query expressions are defined by `ns`, but
+   every binding annex adds that "all namespaces, prefixes, functions
+   and operators defined by" the function library (XPath2Functions,
+   XPath3Functions; F&O) "shall be available" (Annexes C, H to L for
+   the XPath and XSLT bindings). sxml requires `ns` even for `fn`, `xs`,
+   `math`, `map`, `array` and `err`. Make those prefixes available
+   without `ns` in every query expression of the schema, the foreign
+   XSLT elements' expressions included (`xml` always bound); an `ns`
+   element may bind any prefix, these included, and then wins; other
+   prefixes still need `ns`. Record the reading with its clauses in a
+   D-record, adjust D315's wording, add cases to the 7.30 suite (neutral:
+   these prefixes resolve without `ns`), and fix the book's sentence
+   that says otherwise.
+2. **Findings in other documents** (found by book-30): a pattern with
+   `documents` reports its findings with the validated file's name and
+   the other document's lines, and the JSON report does not say which
+   document a finding is in. Every finding names its document (the
+   resolved URI, shown relative to the working directory as the command
+   shows files) in text, JSON and SVRL (D.2's subordinate document), in
+   the C report (`sxml_schematron_report`: if a field is needed, it is
+   an additive header change, recorded) and in the JavaScript API;
+   lines and columns are that document's. Tests, and the book's example
+   in `schematron-documents.md` shows it.
+3. **Real schemas read with warnings** (the owner's decision on D323's
+   Proposed entry: option a): the known deviations of real rule sets are
+   accepted by default and each occurrence is reported as a warning
+   through the compile report sink, naming its clause: a parameter named
+   twice in one instance (the first wins; 5.4.11, Annex B); a pattern's
+   `let` read by other patterns (pattern lets visible schema-wide; 3.23);
+   `let` after assertions in a rule (Annex A's order). The undeclared `xs`
+   in a foreign `xsl:function` is no deviation after change 1. Warnings
+   do not change the exit status; `--format=json` lists them. The
+   compatibility does not hide real errors: anything else stays an
+   error. The 7.30 suite's cases for those three become deviations on
+   7.28's list (they are errors by the standard), with this record's
+   reason. Then EN 16931 CII and XRechnung UBL and CII compile from
+   their sources: gate 1 (CII 9 of 9) and gate 3 (the differential
+   against SchXslt on the unpatched sources) of 7.28 run in ctest. The
+   book's reports chapter shows a warning from a small schema written
+   for the book (no third-party rule sets in the book).
+- **Owns**: `src/schematron*`, `include/sxml/schematron.h` (additive),
+  `apps/sxml/command_validate.c`, the JavaScript binding's Schematron
+  API, `tests/schematron*`, `tests/cli/`, the Schematron chapters of
+  `docs/book/`.
+- **Done when**: each change tested; the 7.30 suite passes every
+  applicable case except the deviation list; EN 16931 UBL 1,133 of
+  1,133 and CII 9 of 9 from the sources; the differential identical on
+  unpatched EN 16931 and XRechnung; the book's examples match and the
+  book builds; a D-record with the three decisions; XT40 whole, base and
+  change in the same setup, if shared XSLT files change.
+
 ### 7.21 Fast Invisible XML (book, tests, implementation)
 After D215 (7.18: the Earley parser, right recursion quadratic, every
 item a step). The owner: high performance; book first, then

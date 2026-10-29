@@ -16961,25 +16961,6 @@ changed; the IR after the passes is the same, item demands included.
 
 ## Proposed
 
-- **Third-party rule sets that are not correct Schematron** (D323,
-  7.28; for the owner). Gates 1 and 3 assumed these compile from their
-  sources; read strictly, they do not:
-  (1) EN 16931 `cii/schematron/CII/EN16931-CII-syntax.sch` names the
-  parameter `CII-SR-282` twice in one pattern instance (lines 426 and
-  428); 5.4.11 and Annex B make that `schematron:parameter`, D315 too.
-  With the second removed (SchXslt keeps the first), the CII unit tests
-  pass 9 of 9. (2) XRechnung's `common.sch` declares global variables
-  as lets of a pattern (`variable-pattern`) that other patterns read,
-  which 3.23 does not allow; (3) its rules put `let` after assertions
-  (Annex A: `let*` comes first); (4) its CII schema uses `xs:` in a
-  foreign `xsl:function` without binding the prefix. With those
-  patched (lets moved first, the variable pattern's lets made schema
-  lets, `xmlns:xs` added), the differential agrees on every instance.
-  Options: report upstream and test patched copies kept beside the
-  vendored ones; or read such schemas leniently (first parameter wins
-  with a warning; pattern lets visible schema-wide; any child order;
-  `xs` predeclared in foreign XSLT), each a deviation from the
-  standard. Until decided, ctest runs the UBL unit tests only.
 
 - **Outward-facing choices** (D208; for the owner): tagging and
   publishing releases (0.2.0 and after, `docs/RELEASE.md`, the archives of

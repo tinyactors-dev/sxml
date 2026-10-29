@@ -120,6 +120,10 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
   the book shows 194). book-30 done: the Schematron part (seven
   chapters on the Vane story), published to sxml.tinyactors.dev from
   efd5d4ddc on 2026-10-29.
+- fix-7 (2026-10-29, the owner): F&O's prefixes predeclared in Schematron
+  (the binding annexes), findings name their document, and real rule
+  sets' known deviations read with warnings (the owner chose option a of
+  D323's Proposed entry, which fix-7's record replaces). Runs now.
 - Found by book-30, without a packet: findings in a subordinate document
   (`documents=`) are printed with the validated FILE's name and the
   other document's lines, and the JSON report does not say which
