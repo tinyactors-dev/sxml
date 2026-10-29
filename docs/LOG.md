@@ -4,6 +4,24 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-26
 
+- book-30 done: the book's Schematron part, "Checking Rules with
+  Schematron", replaces the invoice chapter. Seven chapters on the
+  Vane projects: where Schematron fits (draft.sch on the draft), the
+  language (review.sch: rule order, visit-each, group, subject,
+  diagnostics, levels), the state machine's checks of check.xq as
+  flag.sch (with phases, #ANY and when, and the typed-value check
+  through xsl:import-schema and an xsl:function with xsl:try), the
+  codegen API's type names checked against vane-api.xsd with --schema
+  and --schematron, abstract patterns, abstract rules, include and a
+  library, reports (text, JSON, SVRL, exit statuses, schema errors,
+  query bindings), and C (schematron.c). No invoice or e-invoicing
+  standard is named in docs/book. All 928 examples match (release
+  build of HEAD, no SXML_JAVASCRIPT); mdbook builds. Found: a finding
+  of a pattern with `documents` is printed with the FILE's name and
+  the other document's line (text and JSON give no document for it),
+  so the book shows no `documents` example; and no prefix, not even
+  `fn` or `map`, is in scope in Schematron expressions without `ns`.
+
 - fix-6 done: the book's memory example (`docs/book/src/c.md`) counts
   194 allocations at HEAD, the same in 30 runs each of the release
   build and a GCC build with ASan and UBSan, with and without TZ and

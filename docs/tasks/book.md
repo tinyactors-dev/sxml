@@ -1455,6 +1455,26 @@ call-chains and traces diagrams use them; a change goes under
 | book-28 Codegen | codegen.md, codegen-typescript.md, codegen-printer.md, codegen-running.md (with SXML_JAVASCRIPT), codegen-pipeline.md | codegen/* but the seeds: typescript.xqm and print.xsl write one client module per name in `clients` (and server.ts validates every function), check.xq checks each client, openapi.xsl, runtime.ts, demo.ts, vane.ts (new), generate.sh, generated/, typo.xml, twice.xml, edited/, next/; deletes library.ts, library.xsd, library-2.xsd | in scope: Vane's SDKs and the service's request validation generated from vane-api.xsd; the chapter joins the Vane story (its opening, a sentence that the call-chain and trace routes are these remote functions); proposes a chapter title for SUMMARY (e.g. "Project: Generating Vane's SDKs from a Schema") |
 | book-29 Integration (after all), done | introduction.md (the story of section 1; codegen is now the sixth Vane project: "The book ends with one more project, outside the Vane story" goes), appendix-glossary.md (the Vane entry; terms the packets report: update stream, frontend SDK, backend SDK, remote function if missing), SUMMARY.md (book-28's title), foreword.md if needed | — | the whole book with SXML_JAVASCRIPT and SXML: every example matches; `mdbook build docs/book`; the search words over docs/book find nothing |
 
+## 10. The Schematron part (book-30)
+
+The owner (2026-10-28): "Add a chapter to the book about Schematron and
+where/how to use it. Don't mention enterprise-y things like eInvoice."
+The single chapter `schematron.md`, built on an invoice, becomes the
+part "Checking Rules with Schematron" after the state-machine project,
+on the Vane story: where Schematron fits beside XSD and XQuery, and how
+to write, run and embed it. The book never names invoices or their
+standards.
+
+| Packet | Chapter files | Example files | Notes |
+| --- | --- | --- | --- |
+| book-30 Schematron, done | schematron.md (`spec`), schematron-rules.md (`spec`), schematron-machine.md (`scxml`), schematron-documents.md (`codegen`), schematron-reuse.md (`scxml`), schematron-reports.md (`scxml`), schematron-c.md (`c`); SUMMARY.md, introduction.md, appendix-glossary.md, appendix-cli.md; links from scxml-checks.md, xquery-project.md, codegen.md, codegen-typescript.md, xsd-11.md | spec/draft.sch, spec/review.sch; scxml/flag.sch, names.sch, vane-rules.sch, reachable.sch, broken.sch, vane-00.xml (link); codegen/api.sch; c/schematron.c, c/review.sch (link), c/CMakeLists.txt; deletes examples/schematron | flag.sch is check.xq's checks, the value check through xsl:import-schema and an xsl:function with xsl:try; api.sch is the generator's type check as a cross-document rule; no `documents` example (see the LOG: its findings carry the FILE's name) |
+
+**book-30 done** (2026-10-29): the seven chapters' 54 examples and the
+whole book, 928 examples, match on a release build of HEAD (2c9e82ec9)
+with SXML set, javascript.md and codegen-running.md skipped (no
+SXML_JAVASCRIPT); `mdbook build docs/book` (0.4.52) succeeds with no
+missing include, and the part's links resolve.
+
 ## Proposed data changes
 
 (Packets add requests here, one line each, for book-13 to decide. This
