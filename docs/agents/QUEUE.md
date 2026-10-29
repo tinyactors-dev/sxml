@@ -126,9 +126,12 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
   known deviations are warnings (`schematron:compatibility`), so EN 16931
   CII and XRechnung compile from their sources and run in ctest. Left: a
   pattern let defined only in a pattern the phase leaves out is not
-  shared (XPST0008); the differential against SchXslt runs in ctest only
+  shared (XPST0008; not against the standard, which scopes pattern
+  variables to their pattern, 3.23, and SchXslt does the same); the differential against SchXslt runs in ctest only
   with SXML_SCHEMATRON_DIFFERENTIAL=ON (minutes per rule set); the
-  JavaScript API typechecked only (no WASI SDK here).
+  JavaScript API typechecked only.
+- wasm-1 (build and test the JavaScript package; wasi-sdk-34 now at
+  /opt/wasi-sdk) runs now.
 - Conformance baselines differ by setup: 7.29 (D318) measured XP40
   32,815, XQ40 46,158, XT40 12,283 before and after; perf-8, perf-10 and
   fix-4 measured 32,785, 46,114, 12,185 before and after on the same

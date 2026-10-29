@@ -1791,6 +1791,28 @@ on the unpatched EN 16931 and XRechnung (ctest with
 `SXML_SCHEMATRON_DIFFERENTIAL`). No shared XSLT file changed (no XT40
 run). sxml.wasm not built here (no WASI SDK); the package typechecks.
 
+### wasm-1 Build and test the JavaScript package after this round (tests)
+The owner (2026-10-29): sxml.wasm can be built in this environment.
+wasi-sdk-34, the version `mise.toml` pins, is installed at
+`/opt/wasi-sdk` (the toolchain file's default); the `wasm` preset
+configures. Since 7.29, 7.28, fix-7 and perf-17, the JavaScript package
+was written and typechecked but never built or run here: the
+`locations` option (D318), the Schematron API and its warnings and
+documents (D323, D331), and the size budget after perf-17's parser
+tables (about +206 KB, D329).
+- **Mechanism**: build the `wasm` preset; run the package's tests and
+  `javascript/size_budget` the way the repository does (ctest and the
+  package's own scripts); fix what fails in the files of the packets
+  that introduced it, each fix with its cause; if the size budget is
+  exceeded, report the module's growth by the linker map (D225) and
+  raise the budget only in the same change that says why (D208, D272).
+  The book's JavaScript examples (`SXML_JAVASCRIPT`) run and match.
+- **Owns**: `bindings/javascript/`, `bindings/host/` (fixes), the size
+  baseline, the JavaScript pages of the book.
+- **Done when**: the wasm build, every JavaScript test, the size budget
+  and the book's JavaScript examples pass; the setup (wasi-sdk-34 at
+  /opt/wasi-sdk, node version) recorded in the LOG.
+
 ### 7.21 Fast Invisible XML (book, tests, implementation)
 After D215 (7.18: the Earley parser, right recursion quadratic, every
 item a step). The owner: high performance; book first, then
