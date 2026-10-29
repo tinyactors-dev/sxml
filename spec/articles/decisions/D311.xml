@@ -1,5 +1,6 @@
 <decision id="D311" status="accepted">
   <title>Required literals in regex search (packet <ref kind="packet" to="perf-9"/>)</title>
+  <summary>A compiled regex records a <term name="required_literal"/> that every match contains, and a search finds its next occurrence with memchr and memcmp and skips the start positions no match can begin at.</summary>
   <body>
     <p><recorded date="2026-10-28"/>, after <ref kind="decision" to="D53"/>, <ref kind="decision" to="D71"/>, <ref kind="decision" to="D105"/>, <ref kind="decision" to="D308"/>, <ref kind="decision" to="D310"/>. No public header changed.</p>
     <list>

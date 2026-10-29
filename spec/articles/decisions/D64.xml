@@ -1,5 +1,6 @@
 <decision id="D64" status="accepted">
   <title>Arrays and function items (packet <ref kind="packet" to="1.10"/>)</title>
+  <summary>Arrays are AVL trees of <term name="array_node"/> cells updated by split and join in O(log n); function items need a registered function type; maps and arrays act as functions through stateless bodies.</summary>
   <body>
     <p><recorded date="2026-10-16"/>. <code>src/xdm_array.c</code>, <code>src/xdm_function.c</code>.</p>
     <list>

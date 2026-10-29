@@ -1,5 +1,6 @@
 <decision id="D167" status="accepted">
   <title>Schema components and compile stages (packet <ref kind="packet" to="5.2"/>)</title>
+  <summary>Schema components live in one index-addressed store, one table per XSD 1.1 component kind with fixed built-in entries, compiled in six ordered stages from READ to ASSERTIONS, with content models as deterministic automata.</summary>
   <body>
     <p><recorded date="2026-10-18"/>. The internal design of Phase 5 (<ref kind="decision" to="D165"/>), in <code>src/schema_internal.h</code>; golden <code>src/xslt_ast_internal.h</code>.</p>
     <list>

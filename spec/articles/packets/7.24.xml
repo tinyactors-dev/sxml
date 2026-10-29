@@ -1,5 +1,6 @@
 <packet id="7.24">
   <title>Invisible XML for large inputs (book, tests, implementation)</title>
+  <summary>Makes Invisible XML usable on inputs of hundreds of MB: regular tokens compiled into automata, sparse item sets over UTF-8 byte positions, and a parse tree without hidden nodes.</summary>
   <body>
     <p><status value="done" date="2026-10-20"/> After <ref kind="decision" to="D283"/> (7.21: about 3 to 6 MB/s and linear, but 80 to 200 bytes of memory for each input character). The owner: usable on tens to hundreds of MB; the book, the tests, then the implementation; one parser (<ref kind="decision" to="D215"/>).</p>
     <list>

@@ -1,5 +1,6 @@
 <decision id="D77" status="accepted">
   <title>Namespace node tests with a name (P4)</title>
+  <summary>A namespace node test accepts a name: <code>namespace::x</code> resolves like an unprefixed attribute name and matches the namespace node whose prefix is x; a prefixed name matches nothing.</summary>
   <body>
     <p><recorded date="2026-10-16"/> by packet <ref kind="packet" to="1.18"/>, on the orchestrator's acceptance of P4 (design edit to the comment of <code>sxml_node_test</code> in <code>include/sxml/types.h</code>). The registry's normal form accepts any name test for <code>SXML_NODE_KIND_NAMESPACE</code> (no type, no document element); lowering resolves <code>namespace::x</code> like an attribute name (no namespace), so it matches the namespace node whose prefix is x; a prefixed name matches nothing. The node-test matcher compares the namespace node's name, which the tree interns as the prefix in no namespace (<ref kind="decision" to="D67"/>).</p>
   </body>

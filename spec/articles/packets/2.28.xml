@@ -1,5 +1,6 @@
 <packet id="2.28">
   <title>XPath and XQuery leftovers (implementation)</title>
+  <summary>Fixes syntax error places, run-time closures with their module and focus, fresh global tables after evaluation and the item type round for import cycles.</summary>
   <body>
     <p><status value="done" date="2026-10-20"/> After <ref kind="packet" to="2.27"/>. <ref kind="decision" to="D282"/>'s string-constructor error place; <ref kind="decision" to="D154"/>'s and <ref kind="decision" to="D286"/>'s run-time closures with their module and focus (xqhof18/19), function items after their evaluation; modules-43, function-decl-40-060; a fresh whole run. Verification as <ref kind="decision" to="D181"/> says. <strong>Done</strong> 2026-10-20 (<ref kind="decision" to="D287"/>): syntax error places, run-time closures, fresh global tables after the evaluation, fixed defaults as hidden globals, the item type round for import cycles, is_empty_without_focus for 4.30; XQ40 46,154 to 46,158 passed, XP40 and XT40 unchanged, none lost. Open: <ref kind="decision" to="D286"/>'s record and fn-string-length cases (the draft decides), the kept groups.</p>
   </body>

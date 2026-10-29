@@ -1,5 +1,6 @@
 <decision id="D299" status="accepted">
   <title>The book teaches with five projects of one story (packet book-5)</title>
+  <summary>The book is rebuilt around five projects of one made-up system, with project directories as example directories, an xml2rfc v3 spec, annotated SCXML and 18 chapters.</summary>
   <body>
     <p><recorded date="2026-10-21"/>, after <ref kind="decision" to="D257"/>, <ref kind="decision" to="D270"/>, <ref kind="decision" to="D282"/>, <ref kind="decision" to="D292"/>. The owner: restructure the book around useful examples (structured specifications kept in XML, creating and transforming SVG, SCXML annotated with data schemas and XHTML, a diff of call chains through the tree-sitter bridge, a diff of OTel traces before and after a change) instead of the library/loans data. The plan is <code>docs/tasks/book.md</code>; this record keeps the choices later packets must not reopen.</p>
     <list>

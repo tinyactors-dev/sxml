@@ -1,5 +1,6 @@
 <packet id="fix-4">
   <title>Choice coercion and a stale error description (implementation)</title>
+  <summary>Fixes choice coercion, so an untyped value given to <code>(element(a) | xs:string)</code> is cast to xs:string, and clears the error record after a caught error so later errors keep their own description.</summary>
   <body>
     <p><status value="done" date="2026-10-28"/> After <ref kind="decision" to="D316"/> and <ref kind="decision" to="D319"/>, which found the first, and <ref kind="decision" to="D310"/> (perf-7), which found the second.</p>
     <list>

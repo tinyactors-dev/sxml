@@ -1,5 +1,6 @@
 <decision id="D46" status="accepted">
   <title>The shared IR is internal, tree-walking and ANF-like</title>
+  <summary>The shared IR is internal to <code>src/ir_internal.h</code>, ANF-like after Xee with the focus bound as ordinary variables, evaluated by tree walking with bounded depth, and rewritten by IR-to-IR passes.</summary>
   <body>
     <p><recorded date="2026-10-16"/> (Phase 1 planning; designed in packet <ref kind="packet" to="1.5"/>).</p>
     <list>

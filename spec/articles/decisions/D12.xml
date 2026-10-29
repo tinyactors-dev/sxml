@@ -1,5 +1,6 @@
 <decision id="D12" status="accepted">
   <title>Parsing with tree-sitter</title>
+  <summary>All parsing, XML included, uses a vendored tree-sitter runtime and committed generated grammars; sxml builds its own structures from the syntax tree, and any <code>ERROR</code> or <code>MISSING</code> node is a static error.</summary>
   <body>
     <p><recorded date="2026-10-16"/>, at the owner's request ("use tree-sitter wherever you need parsing"), confirmed for XML as well as the query languages.</p>
     <list>

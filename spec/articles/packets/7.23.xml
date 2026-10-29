@@ -1,5 +1,6 @@
 <packet id="7.23">
   <title>More source code languages, a registration API, run-time languages (design and implementation)</title>
+  <summary>Adds TypeScript, TSX and Markdown and other built-in source code languages, a public API to register tree-sitter languages, and languages loaded by the host at run time from library files.</summary>
   <body>
     <p><status value="done" date="2026-10-20"/></p>
     <list>

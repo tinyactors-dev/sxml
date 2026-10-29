@@ -1,5 +1,6 @@
 <decision id="D252" status="accepted">
   <title>XSLT on the newest draft: nothing moved; typed="~T" (packet 4.22)</title>
+  <summary>The newest XSLT, XPath, XQuery and F&amp;O drafts are the 13 October 2026 drafts already targeted, so nothing moves, and 57 XT40 cases where the newest draft wins over the suite are recorded.</summary>
   <body>
     <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D13"/>, <ref kind="decision" to="D29"/>, <ref kind="decision" to="D179"/>, <ref kind="decision" to="D185"/>, <ref kind="decision" to="D245"/>. Verified as <ref kind="decision" to="D181"/> asks: the debug preset, the touched unit and CLI tests (xslt, the cli/transform tests), clang-tidy and the call-cycle check, the <code>grammars/xslt_pattern</code> corpus (101 of 101), and the whole XT40 suite with the release driver before and after, case by case.</p>
     <list>

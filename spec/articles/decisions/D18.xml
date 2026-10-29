@@ -1,5 +1,6 @@
 <decision id="D18" status="accepted">
   <title>Continuous integration</title>
+  <summary>Continuous integration in <code>.github/workflows/ci.yml</code> builds on Linux with Clang and GCC, macOS Clang, Windows MSVC (build only) and WASI under Node.js 22, with lints on Linux Clang only.</summary>
   <body>
     <p><recorded date="2026-10-16"/> (task 0.4). <code>.github/workflows/ci.yml</code>: Linux Clang (<code>debug</code>, plus lints) and GCC (<code>debug-gcc</code>), macOS Clang (<code>debug</code>), Windows MSVC (<code>msvc</code>, build only), WASI (<code>wasm</code>, tests under Node.js 22). Lints run on Linux Clang only.</p>
   </body>

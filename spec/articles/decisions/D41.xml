@@ -1,5 +1,6 @@
 <decision id="D41" status="accepted">
   <title>Raised errors are kept by the item heap</title>
+  <summary><code>sxml_item_heap_raise_error</code> copies a raised error's code, description and source name into the item heap and retains its value, keeping one raised error per heap.</summary>
   <body>
     <p><recorded date="2026-10-16"/> (task 0.8, header review). An error record holds borrowed views (<ref kind="decision" to="D21"/>), but fn:error and other native function bodies have no object of their own that outlives the call to keep a computed description or <code>$err:value</code> in. <code>sxml_item_heap_raise_error</code> copies the code, description and source name into the heap and retains the value; the record points there until the next error raised on that heap, <code>sxml_item_heap_clear_raised_error</code>, or finalization. One raised error per heap is enough: a catch clause retains <code>$err:value</code> (and makes its description an item) before evaluating anything else, and an error that propagates is the latest one. The function returns the error status itself so bodies can <code>return</code> it. A lazy sequence that must report its error again keeps its own copy and raises it again.</p>
   </body>

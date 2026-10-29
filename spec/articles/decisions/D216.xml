@@ -1,5 +1,6 @@
 <decision id="D216" status="accepted">
   <title>JavaScript bindings for XQuery, XSLT and XSD validation (packet <ref kind="packet" to="js-1"/>)</title>
+  <summary>The JavaScript package's full module links shim files for XQuery, XSLT and XSD validation, with compile-once APIs <code>compileQuery</code>, <code>compileStylesheet</code> and <code>compileSchema</code>, while <code>sxml.wasm</code> stays unchanged.</summary>
   <body>
     <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D10"/>, <ref kind="decision" to="D138"/>, <ref kind="decision" to="D187"/>, <ref kind="decision" to="D189"/>, <ref kind="decision" to="D205"/>, <ref kind="decision" to="D207"/>, <ref kind="decision" to="D208"/>. The package (<code>bindings/javascript</code>) covered XPath only.</p>
     <list>

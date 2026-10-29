@@ -1,5 +1,6 @@
 <decision id="D209" status="accepted">
   <title>The timezone database (packet <ref kind="packet" to="7.16"/>)</title>
+  <summary>The optional feature "timezone-database" reads one TZif file per zone from the host's resolver at first use, serving fn:civil-timezone and the formatting functions' $place, with tzdata vendored for tests.</summary>
   <body>
     <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D97"/>, <ref kind="decision" to="D162"/>, <ref kind="decision" to="D183"/>, <ref kind="decision" to="D184"/>, <ref kind="decision" to="D189"/>, <ref kind="decision" to="D191"/>, <ref kind="decision" to="D208"/>. Replaces <ref kind="decision" to="D97"/>'s "no tz database" and the FODT0004 place of <ref kind="decision" to="D162"/> in fn:civil-timezone.</p>
     <list>

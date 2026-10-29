@@ -1,5 +1,6 @@
 <packet id="7.27">
   <title>Schematron as a front end to the XSLT AST (design)</title>
+  <summary>Designs Schematron as a front end that reads a <code>.sch</code> document into the XSLT AST, which the existing XSLT lowering compiles, with findings as a public <code>sxml_schematron_report</code> and errors located in the <code>.sch</code>.</summary>
   <body>
     <p><status value="done" date="2026-10-28"/> The owner accepted Schematron on 2026-10-28, as a front end beside XSLT and XQuery, not by generating XSLT text. The owner settled the open points in <ref kind="decision" to="D313"/> (edition 2025, bindings, outputs, exit status, order with XSD, SchXslt as a test reference only): the design follows them. No phase covered it (PLAN.md names XSD only): the packet's decision record brings it into Phase 7. Evidence from 2026-10-28 (see <ref kind="decision" to="D309"/>, <ref kind="decision" to="D310"/> and the queue):</p>
     <list>

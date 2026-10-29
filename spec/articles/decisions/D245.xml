@@ -1,5 +1,6 @@
 <decision id="D245" status="accepted">
   <title>XSLT targets the newest draft (owner)</title>
+  <summary>sxml's XSLT 4.0 follows the newest QT4 Community Group editor's draft with the xslt40-test suite at its newest commit, and where they disagree the newest draft wins.</summary>
   <body>
     <p><recorded date="2026-10-20"/> on the owner's word: "We want to target the newest draft for the XSLT tests." Amends <ref kind="decision" to="D29"/>, which pinned the grammars to the drafts of 13 October 2026 and let those drafts win over the test suite.</p>
     <list>

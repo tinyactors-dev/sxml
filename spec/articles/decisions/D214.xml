@@ -1,5 +1,6 @@
 <decision id="D214" status="accepted">
   <title>XQuery and XPath Full Text 3.0 (packet 7.12a)</title>
+  <summary>XQuery and XPath Full Text 3.0 is the optional feature full-text, XQuery only: the grammar's contextual keywords, a match program lowered as an XDM array, and XPST0003 for Full Text without the feature.</summary>
   <body>
     <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D12"/>, <ref kind="decision" to="D53"/>, <ref kind="decision" to="D71"/>, <ref kind="decision" to="D162"/>, <ref kind="decision" to="D183"/>, <ref kind="decision" to="D187"/>, <ref kind="decision" to="D189"/>, <ref kind="decision" to="D208"/>. Amended as the packet goes on.</p>
     <list loose="true">

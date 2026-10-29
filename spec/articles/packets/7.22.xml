@@ -1,5 +1,6 @@
 <packet id="7.22">
   <title>Source code as XML: tree-sitter trees with highlights (design and implementation)</title>
+  <summary>Adds sxml:parse-code and sxml:code-languages, an optional feature that turns vendored tree-sitter grammars' trees, with their highlights query, into XML through tree builder events.</summary>
   <body>
     <p><status value="done" date="2026-10-20"/></p>
     <list>

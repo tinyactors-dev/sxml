@@ -1,5 +1,6 @@
 <decision id="D290" status="accepted">
   <title>Invisible XML for large inputs: regular tokens, sparse item sets, text runs (packet <ref kind="packet" to="7.24"/>)</title>
+  <summary>Invisible XML handles inputs of hundreds of MB by matching each <term name="regular_token"/> with a <term name="token_automaton"/>, keeping item sets only where items are, using byte offsets and storing kept characters as one <term name="text_run"/>.</summary>
   <body>
     <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D71"/>, <ref kind="decision" to="D99"/>, <ref kind="decision" to="D215"/>, <ref kind="decision" to="D283"/>. The owner: sxml's iXML usable on tens to hundreds of MB; the book first (f560fdf), then the tests (ef46866), then the implementation (fdff1ee); one parser (<ref kind="decision" to="D215"/>). Done; the chapter is no longer a draft (d46f559).</p>
     <list>

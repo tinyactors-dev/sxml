@@ -1,5 +1,6 @@
 <decision id="D145" status="accepted">
   <title>Control flow and variables (packet <ref kind="packet" to="4.7"/>)</title>
+  <summary>XSLT control flow lowers to existing IR kinds: xsl:if, choose and switch as CONDITIONAL chains, for-each as MAP, try as TRY_CATCH, iterate as fn:scan, with one procedure for all variable bindings.</summary>
   <body>
     <p><recorded date="2026-10-17"/>, after <ref kind="decision" to="D71"/>, <ref kind="decision" to="D103"/>, <ref kind="decision" to="D109"/>, <ref kind="decision" to="D124"/>, <ref kind="decision" to="D126"/>, <ref kind="decision" to="D135"/>, <ref kind="decision" to="D142"/>. <code>src/xslt_lower_control.c</code> (rule view <code>sxml_xslt_instruction_rules_control</code>, one line in <code>src/xslt_lower.c</code>'s list), <code>tests/xslt_lower_control_test.c</code>; no IR kind, no evaluator change, no public header.</p>
     <list>

@@ -1,5 +1,6 @@
-<decision id="D84" status="accepted">
+<decision id="D84" status="unused">
   <title>(not used)</title>
+  <summary>This number is not used: no record ever took it, and it stays empty so later references keep their numbers.</summary>
   <body>
     <p><recorded date="2026-10-17"/> at the Phase 1 gate review. No record ever took this number (packets 1.18b and 1.26 recorded <ref kind="decision" to="D85"/> and <ref kind="decision" to="D86"/> out of order, now sorted); it stays empty so later references keep their numbers.</p>
   </body>

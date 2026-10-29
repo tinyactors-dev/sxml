@@ -1,5 +1,6 @@
 <decision id="D81" status="accepted">
   <title>The XML parser (packet <ref kind="packet" to="1.14"/>)</title>
+  <summary>The XML parser detects and transcodes encodings, walks the internal subset and content over explicit stacks of entity frames, bounds depth and entity expansion, and passes the whole W3C XML suite selection.</summary>
   <body>
     <p><recorded date="2026-10-16"/>. <code>src/xml.c</code> (walk and checks), <code>src/xml_encoding.c</code> (encodings, character classes, positions), <code>src/xml_entity.c</code> (buffers, DTD tables with hash indices).</p>
     <list>

@@ -1,5 +1,6 @@
 <decision id="D163" status="accepted">
   <title>XSLT conformance sweep 2 (packet <ref kind="packet" to="4.17"/>)</title>
+  <summary>Parentless text nodes may be empty, text events carry CDATA requests, arena trees start small, IR modules carry each expression's static context at run time, and named declarations are local to their package.</summary>
   <body>
     <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D99"/>, <ref kind="decision" to="D148"/>, <ref kind="decision" to="D159"/>, <ref kind="decision" to="D160"/>, <ref kind="decision" to="D161"/>, <ref kind="decision" to="D162"/>.</p>
     <list>
@@ -25,7 +26,7 @@
         <p><strong><ref kind="decision" to="D162"/> one-place rules</strong> (from <ref kind="decision" to="D161"/>): XTDE0160 for an instruction whose effective version is below 2.0 (3.8, 27.4: XSLT 2.0 and 3.0 modes run as 4.0) in <code>lower_child</code>; XTSE1650 (xsl:import-schema) and XTSE1660 ([xsl:]type, validation="strict", typed modes) in the reader's <code>reject_schema_awareness</code>; lax and preserve are taken as strip (27.2). One system property table (<code>src/system_property.c</code>, glossary <term name="system_property"/>) serves fn:system-properties and the XSLT fn:system-property.</p>
       </item>
       <item>
-        <p><strong>Merges</strong>: <code>sxml_ir_slot_atom</code> (10 copies), <code>sxml_xml_text_trim_ whitespace</code> (16), <code>sxml_xslt_lowering_resolve_declared_type</code> and <code>_expression_context</code> (3 and 2), the two remaining heapsorts onto <code>sxml_sort_in_place</code>, one boolean-attribute helper (yes, true, 1).</p>
+        <p><strong>Merges</strong>: <code>sxml_ir_slot_atom</code> (10 copies), <code>sxml_xml_text_trim_whitespace</code> (16), <code>sxml_xslt_lowering_resolve_declared_type</code> and <code>_expression_context</code> (3 and 2), the two remaining heapsorts onto <code>sxml_sort_in_place</code>, one boolean-attribute helper (yes, true, 1).</p>
       </item>
       <item>
         <p>Lint at HEAD fixed: invocation global names are byte views (<code>src/xslt.c</code>), the driver's serialization comparison returns its verdict, <code>decide_role</code> reads a RULE frame's rule once.</p>

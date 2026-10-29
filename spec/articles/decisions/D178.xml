@@ -1,5 +1,6 @@
 <decision id="D178" status="accepted">
   <title>XSD and schema-aware conformance sweep 1 (packet <ref kind="packet" to="5.13"/>)</title>
+  <summary>The QT4 driver stops reclassifying schema-aware outcomes, fixing the two cases at their causes; validation descriptions use message templates, and one XPath record compiler serves assertions, alternatives and identity constraints.</summary>
   <body>
     <p><recorded date="2026-10-18"/>. Amends <ref kind="decision" to="D174"/> (its QT4 outcome rules); resolves three Proposed items (validation descriptions, locations of configured schema documents, a simple base for a complex type).</p>
     <list>

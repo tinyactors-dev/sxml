@@ -1,5 +1,6 @@
 <packet id="2.1">
   <title>Lowering seam (design)</title>
+  <summary>Splits XPath lowering into a core and lowering parts found by glob, so XQuery and XSLT add files, and adds an entry to lower one XPath AST in a caller's scope.</summary>
   <body>
     <p><status value="done" date="2026-10-17"/> After the Phase 1 gate. Owns <code>src/xpath_lower.c</code>, new <code>src/xpath_lower_internal.h</code>, <code>tests/ir_test.c</code>. Split the lowering machine (<ref kind="decision" to="D71"/> frames) into a core and <strong>lowering parts</strong>: a part is a table of AST kinds and handlers in its own file, found by glob like library parts, so XQuery (3.7 to 3.10) and XSLT (4.5 to 4.11) add files, not lines. Also an embedding entry: lower one XPath AST inside a caller's scope (variables already bound to slots, a focus or none, XSLT's in-scope functions), which XSLT instruction lowering needs. Done when the 28 slice IR dumps of <ref kind="decision" to="D63"/> are unchanged and a probe part lowers a probe kind. <strong>Done</strong> 2026-10-17 (<ref kind="decision" to="D103"/>): <code>src/xpath_lower_internal.h</code>; lowering part registry in <code>cmake/SxmlParts.cmake</code> (added after <ref kind="packet" to="2.0"/>); probe parts, the embedding entry and outside-run procedures tested in <code>tests/ir_test.c</code>.</p>
   </body>

@@ -1,5 +1,6 @@
 <decision id="D298" status="accepted">
   <title>Collections in the sxml command: directories, their parameters, --collection (packet cli-3)</title>
+  <summary>The CLI resolves a collection URI as a <term name="directory_collection"/> of a local directory with select, recurse and on-error parameters, fn:collection parses its XML files, and <code>--collection</code> sets the default.</summary>
   <body>
     <p><recorded date="2026-10-21"/>, after <ref kind="decision" to="D44"/>, <ref kind="decision" to="D200"/>, <ref kind="decision" to="D271"/>, <ref kind="decision" to="D278"/>, <ref kind="decision" to="D286"/>. F&amp;O 4.0, 17.1.3 and 17.1.4 leave what a collection URI names to the implementation; the CLI's resolver (apps/sxml/query_collection.c, public API only) makes it a local directory. Rules in docs/CLI.md, "Collections"; glossary directory_collection.</p>
     <list>

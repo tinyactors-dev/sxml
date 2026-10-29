@@ -11,15 +11,26 @@ with `tools/spec/spec add decision`, and put a question to the owner with
 
 ### D1. Name and prefix
 
+**Summary**: The project is named sxml (small XML implementation), with the
+public symbol prefix `sxml_` and the macro prefix `SXML_`.
+
 sxml (small XML implementation). Public prefix `sxml_`, macro prefix `SXML_`.
 
 ### D2. Core language
+
+**Summary**: sxml is written in portable C17 with C23 features behind macros,
+chosen for linking reach, with memory-safety risk mitigated by sanitizers,
+fuzzing and checked arithmetic.
 
 Portable C17 with C23 features behind macros, following `docs/C_GUIDELINES.md`.
 Chosen for the widest linking reach (every platform and language can call C).
 Memory-safety risk is mitigated by sanitizers, fuzzing and checked arithmetic.
 
 ### D3. Phase 0 time box
+
+**Summary**: Phase 0 is time-boxed to two weeks (2026-10-16 to 2026-10-30);
+when the box ends, open design questions become decision records or proposals
+instead of extending the phase.
 
 Recorded 2026-10-16 at the Phase 0 gate review. The original file skipped D3
 (no commit ever used the number); the plan's risk table names a "Time-boxed
@@ -31,11 +42,19 @@ first day, well inside the box.
 
 ### D4. License: MIT
 
+**Summary**: sxml is licensed under MIT, and its vendored code is compatible:
+tree-sitter (MIT), the W3C test suites (test data only) and mpdecimal
+(BSD-2-Clause).
+
 Confirmed at the Phase 0 gate (2026-10-16). Vendored code is compatible:
 tree-sitter (MIT, D12, D15), the W3C test suites (test data only, D13),
 mpdecimal (BSD-2-Clause, D8, D42).
 
 ### D5. Build on an existing engine?
+
+**Summary**: sxml is written from scratch in C rather than built on an existing
+engine, studying Xee's shared IR architecture while keeping the IR out of the
+value model and parsing with tree-sitter.
 
 Start from scratch in C. Study Xee (Rust, MIT, https://github.com/Paligo/xee)
 closely: it implements most of XPath 3.1 with one IR and bytecode interpreter
@@ -46,12 +65,20 @@ hand-written parser.
 
 ### D6. String representation
 
+**Summary**: Strings are UTF-8 with a per-string ASCII-only flag for O(1)
+codepoint indexing, and the codepoint count and flag are computed at validation
+(refined by D25).
+
 UTF-8, with a per-string flag for ASCII-only content so codepoint indexing is
 O(1) in the common case. Codepoint count cached on first use. Confirmed at the
 Phase 0 gate, refined by D25: count and flag are computed when the string is
 validated, not cached later.
 
 ### D7. Ordered maps (XDM 4.0)
+
+**Summary**: XDM 4.0 maps keep insertion order, designed after Saxon 13: a
+built-once pair list with a lazy key index, a persistent layer for updates,
+shared record shapes and positional entries.
 
 XDM 4.0 maps keep insertion order. Design after Saxon 13 (Michael Kay,
 "Implementing Maps for XPath 4.0", XML Prague 2026):
@@ -68,12 +95,20 @@ XDM 4.0 maps keep insertion order. Design after Saxon 13 (Michael Kay,
 
 ### D8. Decimal arithmetic
 
+**Summary**: Decimal arithmetic uses libmpdec (mpdecimal), whose process-global
+allocator hooks are wrapped (D42) to keep the no-global-state rule, and it also
+backs integers beyond `int64_t`.
+
 libmpdec (mpdecimal, BSD-2-Clause). Check whether its allocator hooks are
 process-global; if so, wrap it so the no-global-state rule holds. Checked at
 the Phase 0 gate: they are process-global, so the wrapping is decided in D42.
 D36 uses libmpdec for integers beyond `int64_t` too.
 
 ### D9. Regular expressions
+
+**Summary**: sxml has its own engine for the XSD and XPath regular expression
+dialect, designed after Saxon HE's engine, built as a Phase 2 packet on
+`sxml_string` alone.
 
 Own engine for the XSD/XPath regex dialect, designed after Saxon HE's engine
 (regexml is a Rust port that shows the approach). Check the license of any
@@ -83,6 +118,10 @@ Phase 2 packet (PLAN.md, risks) and needs no substrate support beyond
 
 ### D10. WebAssembly toolchain
 
+**Summary**: The WebAssembly build uses WASI SDK to produce a standalone module
+wrapped by a small hand-written TypeScript package, without Emscripten's
+JavaScript system emulation.
+
 WASI SDK producing a standalone module, wrapped by a small hand-written
 TypeScript package. The core does no I/O of its own, so Emscripten's JavaScript
 system emulation is not needed. Confirmed at the Phase 0 gate: the `wasm`
@@ -90,6 +129,10 @@ preset builds with WASI SDK 34 and runs the tests under Node.js (D14, D18). The
 TypeScript package arrives with the first public API (Phase 1 onwards).
 
 ### D11. Phase gates closed by agent review
+
+**Summary**: Work proceeds through the phases until XQuery 4.0 and XSLT 4.0
+work, with each gate closed by a separate review agent and its boxes marked
+"(agent review)".
 
 Recorded 2026-10-16. The project owner chose, when asked, that work proceeds
 through the phases until XQuery 4.0 and XSLT 4.0 work, with each gate closed by
@@ -100,6 +143,10 @@ review)" so a later human review can find them. The substrate freeze at the
 Phase 1 gate still applies: later substrate changes need a record here.
 
 ### D12. Parsing with tree-sitter
+
+**Summary**: All parsing, XML included, uses a vendored tree-sitter runtime and
+committed generated grammars; sxml builds its own structures from the syntax
+tree, and any `ERROR` or `MISSING` node is a static error.
 
 Recorded 2026-10-16, at the owner's request ("use tree-sitter wherever you need
 parsing"), confirmed for XML as well as the query languages.
@@ -124,6 +171,9 @@ parsing"), confirmed for XML as well as the query languages.
 
 ### D13. Conformance test suites are vendored
 
+**Summary**: The QT4, XSLT 4.0 and W3C XML conformance test suites are vendored
+under `third_party/` at pinned commits, moved by `tools/update-test-suites.sh`.
+
 The W3C QT4 test suite (`qt4cg/qt4tests`) and the XSLT 4.0 test suite
 (`qt4cg/xslt40-test`) are committed under `third_party/qt4tests/` and
 `third_party/xslt40-test/` at a pinned commit, recorded in
@@ -142,6 +192,10 @@ applicability: a test-case `spec` dependency replaces the test-set one; no
 `spec` means all versions (see `docs/QT4_CATALOG.md`).
 
 ### D14. Build layout and presets
+
+**Summary**: The build uses CMake 3.24+ and Ninja with `debug`, `debug-gcc`,
+`release`, `msvc` and `wasm` presets, one `sxml` library target, hidden
+visibility with `SXML_EXPORT`, and a per-header self-containment check.
 
 Recorded 2026-10-16 (task 0.1). CMake 3.24+, Ninja. Presets: `debug` (Clang,
 ASan + UBSan), `debug-gcc`, `release` (default compiler), `msvc` (Visual Studio
@@ -165,6 +219,10 @@ in CI). Build trees go to `build/<preset>`.
 
 ### D15. tree-sitter pin
 
+**Summary**: The tree-sitter runtime is pinned at `v0.27.1`, copied unmodified
+to `third_party/tree-sitter/`, with `tree-sitter-cli` `0.27.1` pinned in
+`tools/package.json`; runtime and CLI versions move together.
+
 Recorded 2026-10-16. Runtime `v0.27.1` (commit `10eb5ac1`), copied unmodified
 to `third_party/tree-sitter/` (`LICENSE`, `lib/include`, `lib/src`; details in
 `third_party/tree-sitter/VERSION`). Built as `sxml_tree_sitter` from the single
@@ -176,6 +234,10 @@ and `sxml_add_grammar(<language>)` (`cmake/SxmlGrammar.cmake`) builds it as
 
 ### D16. Unit test harness
 
+**Summary**: Unit tests use a dependency-free harness in `tests/test_runner.h`,
+one executable per module holding a `sxml_test_case` array, registered with
+ctest by `sxml_add_test`.
+
 Recorded 2026-10-16 (task 0.2). `tests/test_runner.h` and `.c`, no
 dependencies. One executable per module, `tests/<module>_test.c`, holding a
 static `sxml_test_case` array passed to `sxml_test_run_suite` from `main`;
@@ -185,6 +247,10 @@ registered as one ctest test named `<module>` by `sxml_add_test(<module>)` in
 line run only those cases. Tests may include `src/*_internal.h`.
 
 ### D17. Lint gates
+
+**Summary**: `tools/lint.sh` runs clang-tidy and pinned ast-grep rules that ban
+abbreviations, single-letter names, stray allocation, abort, exit and printing,
+more than three parameters and bare `bool` parameters.
 
 Recorded 2026-10-16 (task 0.3). `tools/lint.sh` runs the ast-grep rule
 self-tests and the `lint` CMake target (`lint-clang-tidy` + `lint-ast-grep`) in
@@ -200,12 +266,20 @@ types from task 0.5 first.
 
 ### D18. Continuous integration
 
+**Summary**: Continuous integration in `.github/workflows/ci.yml` builds on
+Linux with Clang and GCC, macOS Clang, Windows MSVC (build only) and WASI under
+Node.js 22, with lints on Linux Clang only.
+
 Recorded 2026-10-16 (task 0.4). `.github/workflows/ci.yml`: Linux Clang
 (`debug`, plus lints) and GCC (`debug-gcc`), macOS Clang (`debug`), Windows
 MSVC (`msvc`, build only), WASI (`wasm`, tests under Node.js 22). Lints run on
 Linux Clang only.
 
 ### D19. View types in their own header
+
+**Summary**: `sxml_byte_view` and `sxml_memory_view` live in their own header
+`include/sxml/view.h` to avoid an include cycle between `status.h` and
+`memory.h`, while the view functions stay in `memory.h`.
 
 Recorded 2026-10-16 (task 0.5). `sxml_byte_view` and `sxml_memory_view` live in
 `include/sxml/view.h`, with `SXML_BYTE_VIEW_INITIALIZER` (brace form, for
@@ -219,6 +293,10 @@ shares its file name with `<string.h>`; it is only ever included as
 
 ### D20. Outputs on failure are left untouched
 
+**Summary**: A function that fails does not write its outputs, as the
+project-wide default; a declaration that deviates says so, as
+`sxml_utf8_validate` does.
+
 Recorded 2026-10-16 (task 0.5). Project-wide default, chosen from the two
 options in `docs/C_GUIDELINES.md` ("Ownership and lifetimes"): a function that
 fails does not write its outputs. A declaration that deviates says so (the only
@@ -227,6 +305,10 @@ where the input stops being valid). Lifecycle functions check the configuration
 and memory before writing anything.
 
 ### D21. Error records and diagnostics hold borrowed views
+
+**Summary**: `sxml_diagnostic` and `sxml_error_record` carry an error's code,
+description, value and source location as borrowed views, static for sxml's own
+errors, so the common case allocates nothing.
 
 Recorded 2026-10-16 (task 0.5). `sxml_diagnostic` (description +
 `sxml_source_location`: source name, line, column in codepoints, byte offset)
@@ -251,6 +333,10 @@ catch clause binds: `$err:code`, `$err:description`, `$err:value`,
 
 ### D22. The allocator interface has no reallocate
 
+**Summary**: `sxml_allocator_operations` has only `allocate` and `release`,
+with no reallocate; `allocate` rejects a zero byte count, and an allocator with
+no operations is the null allocator.
+
 Recorded 2026-10-16 (task 0.5). `sxml_allocator_operations` has `allocate` and
 `release` only, as in `docs/C_GUIDELINES.md`. A reallocate would need the old
 size and alignment in its request, every host allocator (JavaScript, Swift,
@@ -270,6 +356,10 @@ memory.
 
 ### D23. The counting allocator is public
 
+**Summary**: The allocator test double `sxml_counting_allocator` is public in
+`memory.h`, counting allocations and failing exactly the numbered one, so
+embedders can test every allocation failure path.
+
 Recorded 2026-10-16 (task 0.6). The allocator test double,
 `sxml_counting_allocator`, is in `memory.h` and the library, not in `tests/`,
 so embedders can drive the failure paths of their own code. It wraps a backing
@@ -281,6 +371,10 @@ the operation with failing number 1, 2, 3, ... until it succeeds; after each
 run `live_allocation_count` must be 0.
 
 ### D24. The arena is part of the memory substrate
+
+**Summary**: `sxml_arena` bump-allocates from caller memory and then from
+blocks of a block allocator, returns memory only on reset, finalize or destroy,
+and can bound its growth for untrusted input.
 
 Recorded 2026-10-16 (task 0.5). `sxml_arena` in `memory.h`: bump allocation
 from caller `initial_memory`, then from blocks of `block_byte_count` taken from
@@ -296,6 +390,10 @@ than replacing it.
 
 ### D25. Strings validate eagerly
 
+**Summary**: `sxml_string` is a UTF-8 byte view whose `is_ascii` flag and
+codepoint count are computed in the same strict validation pass that constructs
+it, and it compares by bytes.
+
 Recorded 2026-10-16 (task 0.5). D6 holds: `sxml_string` is a UTF-8 byte view
 with an `is_ascii` flag and a codepoint count. Both are computed in the same
 pass that validates the bytes (`sxml_string_from_utf8`), so "cached on first
@@ -310,6 +408,10 @@ not implemented in Phase 0.
 
 ### D26. Lint for byte pointers without a length
 
+**Summary**: The ast-grep rule `pointer-parameter-without-length` flags single
+byte-pointer parameters in `include/` and `src/`, and an external boundary
+taking a NUL-terminated string marks itself with an ignore comment.
+
 Recorded 2026-10-16 (task 0.6), completing D17. The ast-grep rule
 `pointer-parameter-without-length` flags parameters in `include/` and `src/`
 that are a single pointer to `char`, `signed char`, `unsigned char`, `uint8_t`
@@ -321,6 +423,10 @@ the test runner takes `argv`. `SXML_TEST_REQUIRE` now branches on the condition
 itself, so clang-analyzer knows what holds after it.
 
 ### D27. string.h implemented in Phase 0
+
+**Summary**: `src/string.c` implements `include/sxml/string.h` unchanged in
+Phase 0, fixing how decoding treats bytes that are not well-formed and when
+`sxml_string_codepoint_at` reports an index out of range.
 
 Recorded 2026-10-16, amending the last sentence of D25: `src/string.c`
 implements `include/sxml/string.h` unchanged, with 29 cases in
@@ -335,6 +441,10 @@ takes the ASCII fast path only when the index is also below `byte_count`.
 word-at-a-time ASCII scan can come later without an interface change.
 
 ### D28. XML 1.0 grammar
+
+**Summary**: sxml has its own tree-sitter grammar for XML 1.0 in
+`grammars/xml`, with an external scanner holding element names on an interned
+tag stack, and leaves the remaining well-formedness checks to the tree builder.
 
 Recorded 2026-10-16. `grammars/xml` is written for sxml, not vendored:
 tree-sitter-grammars/tree-sitter-xml (MIT) was studied but is too lenient and
@@ -366,6 +476,10 @@ its tag-stack scanner is unsafe for deep or non-ASCII documents (reasons in
   of the QT4 and XSLT 4.0 suites parse cleanly.
 
 ### D29. Query grammars: XPath, XQuery and XSLT patterns
+
+**Summary**: The XPath, XQuery and XSLT pattern grammars are written from the
+QT4 CG drafts, with XQuery and patterns inheriting from XPath and one shared
+stateless external scanner.
 
 Recorded 2026-10-16. Grammars `grammars/xpath`, `grammars/xquery` and
 `grammars/xslt_pattern`, written from the QT4 CG drafts (XPath/XQuery 4.0
@@ -420,6 +534,10 @@ patterns `~T`), the drafts win. (This record was first committed as a second
 
 ### D30. Substrate headers and their order
 
+**Summary**: The substrate is the headers `name.h`, `types.h`, `tree.h` and
+`xdm.h`, each including only those before it, with the name pool, type registry
+and item heap as separate objects and no processor object.
+
 Recorded 2026-10-16 (task 0.7). The substrate is five headers, each including
 only those before it: `name.h` (name pool) < `types.h` (type registry, sequence
 types, node kinds) < `tree.h` (tree interface, node references, axes, tree
@@ -438,6 +556,10 @@ already covered here.
 
 ### D31. Name pool
 
+**Summary**: `sxml_name_pool` interns namespace URIs, prefixes and expanded
+names into dense 32-bit identifiers per processor, with constant identifiers
+for well-known namespaces and prefixes kept outside a name's identity.
+
 Recorded 2026-10-16 (task 0.7). Namespace URIs, prefixes and expanded names are
 interned into dense 32-bit identifiers in a per-processor `sxml_name_pool`;
 comparing names is comparing integers, and nodes and QName items hold no text.
@@ -449,6 +571,10 @@ constant identifiers in every pool. Names are never removed;
 names, never part of their identity (XDM 4.0, section 5.6).
 
 ### D32. Type registry and sequence types
+
+**Summary**: `sxml_type_identifier` names schema and item types in one space,
+with built-ins as constants below 70, interned item types from 512, and
+sequence types as the plain value `sxml_sequence_type`.
 
 Recorded 2026-10-16 (task 0.7). `sxml_type_identifier` (32-bit index) names
 every type: schema types and item types share one space, since atomic types are
@@ -469,6 +595,10 @@ unknown identifiers as false.
 
 ### D33. XDM values are immutable and reference counted
 
+**Summary**: XDM values are immutable with reference counts on heap cells in an
+`sxml_item_heap` and small values inline; owned outputs are released exactly
+once, and node items retain their tree.
+
 Recorded 2026-10-16 (task 0.7). Considered: an arena per evaluation (simple,
 but garbage grows without bound in long loops and folds, and values that escape
 the evaluation, such as results, global variables, XSLT keys and cached
@@ -488,6 +618,10 @@ tree.
 
 ### D34. Item and sequence representation
 
+**Summary**: `sxml_item` and `sxml_sequence` are 16-byte plain values with
+private fields, small values inline and others in cells, and a sequence is
+empty, one inline item, or a vector, range, concatenation or lazy cell.
+
 Recorded 2026-10-16 (task 0.7). `sxml_item` and `sxml_sequence` are 16-byte
 plain values with private fields; the size is frozen as ABI (static assert).
 Inline: booleans, doubles, floats, integers that fit `int64_t` (any integer
@@ -504,6 +638,10 @@ indices in sequences are `uint64_t`, since `1 to 10000000000` is valid on
 
 ### D35. Thread confinement
 
+**Summary**: An item heap and everything tied to it are used by one thread at a
+time, separate heaps are independent, and sharing one parsed document between
+threads is not supported in year one.
+
 Recorded 2026-10-16 (task 0.7). Reference counts are not atomic and the name
 pool, registry and lazy indexes mutate on read. Rule: an item heap and
 everything tied to it (its name pool, type registry, trees and values) are used
@@ -514,6 +652,10 @@ it becomes a new decision (an immortal, frozen tree with a read-only name pool
 is the likely shape).
 
 ### D36. Numbers, dates and durations
+
+**Summary**: `xs:integer` is inline up to `int64_t` and moves to a libmpdec
+cell on overflow, `xs:decimal` is always a libmpdec cell, and dates and
+durations keep nanosecond precision with `int64_t` years.
 
 Recorded 2026-10-16 (task 0.7). `xs:integer` is unbounded: values that fit
 `int64_t` are inline; arithmetic that overflows moves to a cell holding a
@@ -527,6 +669,10 @@ required three; more digits are truncated by casting. The public
 canonical text, cached in the cell on first read.
 
 ### D37. Maps, records, arrays and JNodes
+
+**Summary**: Maps keep entry order with a lazy hash index and persistent
+updates, records share field names in the type registry, arrays are persistent
+vectors, and JNode children are made on demand.
 
 Recorded 2026-10-16 (task 0.7). Maps follow D7: entry order kept, entries
 addressable by position (`sxml_map_get_entry`), hash index built on first
@@ -545,6 +691,10 @@ are (XDM 4.0, section 8.5).
 
 ### D38. Function items
 
+**Summary**: A function item cell holds a name, signature, annotations,
+captured values and a body behind the `sxml_function_body` interface, shared by
+native C and IR functions so the substrate never sees the IR.
+
 Recorded 2026-10-16 (task 0.7). A function item cell holds name (optional),
 signature (a registered function type; arity is its parameter count),
 annotations (borrowed from the body's owner), captured values (retained) and a
@@ -558,6 +708,10 @@ arrays answer `sxml_function_item_call` as `map:get`/`array:get`. Function
 identity is not modelled (withdrawn from XDM 4.0, section 8.1).
 
 ### D39. Trees: interface, node numbering, document order
+
+**Summary**: `sxml_tree` wraps an implementation whose node indices are in
+document order, so order is an integer comparison and descendants an index
+range, with order across trees by tree identifier.
 
 Recorded 2026-10-16 (task 0.7). `sxml_tree` wraps an implementation (state +
 `sxml_tree_operations`) with a tree identifier and a reference count; the
@@ -578,6 +732,10 @@ destroy themselves; host trees are destroyed by the host). Axes, XPath 4.0's
 
 ### D40. Tree builder and arena tree
 
+**Summary**: One event interface, `sxml_tree_builder`, is fed by the XML
+parser, XQuery constructors and XSLT instructions and implemented by the arena
+tree and later serializers, with text merging and namespace fixup.
+
 Recorded 2026-10-16 (task 0.7). One event interface, `sxml_tree_builder`
 (start/end document and element, namespace binding, attribute, text, comment,
 processing instruction, unparsed entity), is fed by the XML parser, XQuery
@@ -592,6 +750,10 @@ and enforces node-count, depth and text-size limits for untrusted input.
 
 ### D41. Raised errors are kept by the item heap
 
+**Summary**: `sxml_item_heap_raise_error` copies a raised error's code,
+description and source name into the item heap and retains its value, keeping
+one raised error per heap.
+
 Recorded 2026-10-16 (task 0.8, header review). An error record holds borrowed
 views (D21), but fn:error and other native function bodies have no object of
 their own that outlives the call to keep a computed description or `$err:value`
@@ -605,6 +767,10 @@ error status itself so bodies can `return` it. A lazy sequence that must report
 its error again keeps its own copy and raises it again.
 
 ### D42. libmpdec allocation through a scoped allocator
+
+**Summary**: libmpdec is vendored with only `mpalloc.c` patched so its hooks
+allocate through the allocator of a thread-local decimal scope, the only
+thread-local in sxml, keeping the no-global-state rule in effect.
 
 Recorded 2026-10-16 (task 0.8), completing D8. Checked in mpdecimal 2.5.1
 (`mpalloc.c`, as bundled by CPython 3.12): `mpd_mallocfunc`, `mpd_callocfunc`,
@@ -636,6 +802,11 @@ Phase 2:
 
 ### D43. Header review findings (task 0.8)
 
+**Summary**: The Phase 0 header review adds `sxml_name_test` wildcards,
+`sxml_name_pool_find_namespace_uri`, `sxml_sequence_test_emptiness` and an
+arena tree duplicate attribute policy, and moves argument coercion to the
+evaluator.
+
 Recorded 2026-10-16. Changes made by the Phase 0 review agent (D11):
 
 - `types.h`: node tests carry an `sxml_name_test` (any name, expanded name,
@@ -657,6 +828,10 @@ Recorded 2026-10-16. Changes made by the Phase 0 review agent (D11):
 - `status.h` and `xdm.h`: D41.
 
 ### D44. The sxml command-line program and its CLI framework
+
+**Summary**: The `sxml` command-line program is built on a declarative CLI
+framework in `apps/`, with stdio confined to one platform file, no option
+abbreviations or aliases, and fixed exit codes 0 to 4.
 
 Recorded 2026-10-16. Rules and planned commands in `docs/CLI.md`.
 
@@ -693,6 +868,10 @@ Recorded 2026-10-16. Rules and planned commands in `docs/CLI.md`.
 
 ### D45. Phase 1 work packets and conflict-free registration
 
+**Summary**: Phase 1 is split into packets of one agent session that own
+disjoint files in one working tree, and the build uses globs over `src/*.c` and
+`tests/<name>_test.c` so additions never conflict.
+
 Recorded 2026-10-16 (Phase 1 planning; D44 is left to the CLI work, which cites
 it). Phase 1 is split into packets of one agent session
 (`docs/tasks/phase-1.md`) that run in parallel in one working tree. Each packet
@@ -709,6 +888,10 @@ module/header pairing of `docs/C_GUIDELINES.md` for little gain) and per-packet
 branches (the brief forbids branches).
 
 ### D46. The shared IR is internal, tree-walking and ANF-like
+
+**Summary**: The shared IR is internal to `src/ir_internal.h`, ANF-like after
+Xee with the focus bound as ordinary variables, evaluated by tree walking with
+bounded depth, and rewritten by IR-to-IR passes.
 
 Recorded 2026-10-16 (Phase 1 planning; designed in packet 1.5).
 
@@ -738,6 +921,10 @@ Recorded 2026-10-16 (Phase 1 planning; designed in packet 1.5).
 
 ### D47. Phase 1 public API headers
 
+**Summary**: Phase 1 adds four public headers outside the substrate, `xml.h`,
+`processor.h`, `xpath.h` and `serialize.h`, which become stable with the first
+public release in Phase 2.
+
 Recorded 2026-10-16 (Phase 1 planning; designed in packet 1.3). Four new public
 headers, outside the substrate: `xml.h` (XML parser into any
 `sxml_tree_builder`), `processor.h` (the processor of D30, owning name pool,
@@ -752,6 +939,10 @@ under Node.js WASI only.
 
 ### D48. A regular expression seed in Phase 1
 
+**Summary**: Phase 1 has a small backtracking regular expression matcher for a
+subset of the XPath dialect behind `src/regex_internal.h`, raising FORX0002 for
+syntax outside the subset.
+
 Recorded 2026-10-16. Three slice tests need `fn:tokenize`, but the D9 engine is
 a Phase 2 packet. Phase 1 has a small backtracking matcher for a subset of the
 XPath dialect behind `src/regex_internal.h` (compile, match at a position, step
@@ -760,6 +951,10 @@ subset raises FORX0002 rather than matching wrongly.
 
 ### D49. libmpdec arrives in Phase 1
 
+**Summary**: mpdecimal is vendored and wrapped as D42 describes in Phase 1
+rather than Phase 2, because the slice needs decimal arithmetic and integer
+ranges beyond `int64_t`.
+
 Recorded 2026-10-16, amending D42 ("for the decimal packet of Phase 2"). The
 slice divides and multiplies decimals and builds integer ranges beyond
 `int64_t` (D36), so mpdecimal is vendored and wrapped as D42 describes in Phase
@@ -767,6 +962,10 @@ slice divides and multiplies decimals and builds integer ranges beyond
 stay in Phase 2.
 
 ### D50. A status for failed input and output
+
+**Summary**: `SXML_STATUS_INPUT_OUTPUT_FAILED` means the platform refused to
+read or write bytes for a host interface while the sxml object and arguments
+were fine, and it carries no error record.
 
 Recorded 2026-10-16 (was P1, from D44; accepted by the orchestrator, added in
 packet 1.0). `SXML_STATUS_INPUT_OUTPUT_FAILED` in `include/sxml/status.h` means
@@ -780,6 +979,10 @@ Rejected: reusing `SXML_STATUS_INVALID_ARGUMENT`, which blames the caller for a
 platform failure.
 
 ### D51. The Phase 1 public API (packet 1.3)
+
+**Summary**: The Phase 1 public API defines the XML parser, the processor with
+its resource resolver and clock, plain static and dynamic context structs,
+compiled XPath expressions with complete results, and adaptive serialization.
 
 Recorded 2026-10-16, completing D47. Headers: `xml.h` (needs `tree.h`) <
 `processor.h` (`xdm.h`, `xml.h`) < `xpath.h`; `serialize.h` needs only `xdm.h`
@@ -840,6 +1043,11 @@ Recorded 2026-10-16, completing D47. Headers: `xml.h` (needs `tree.h`) <
 
 ### D52. The abstract syntax tree (packet 1.4)
 
+**Summary**: The internal XPath abstract syntax tree in
+`src/xpath_ast_internal.h` has one node kind per visible grammar production,
+children tagged by grammar field, and fixed-capacity arrays sized from the
+concrete syntax tree.
+
 Recorded 2026-10-16. `src/xpath_ast_internal.h`, internal. One node kind per
 visible production of `grammars/xpath` (D29), except `comment`, and `axis` and
 `occurrence_indicator`, which only hold a token and become their parent's
@@ -862,6 +1070,10 @@ module's only producer in Phase 1). Identifiers use the module prefix
 `sxml_ast_`, since XQuery and patterns share the tree.
 
 ### D53. Regular expressions: hand-written parser, compiled regex and matcher (packet 1.17)
+
+**Summary**: Regular expressions are parsed by a hand-written parser in
+`src/regex.c` without recursion, compiled into an immutable shareable
+`sxml_regex`, and run by a per-thread `sxml_regex_matcher`.
 
 Recorded 2026-10-16. The regex text is parsed by a hand-written
 recursive-descent parser in `src/regex.c`, not by a tree-sitter grammar: an
@@ -919,6 +1131,10 @@ compile, fail and match exactly as before.
 
 ### D54. Name pool internals (packet 1.1)
 
+**Summary**: The name pool keeps URIs, prefixes and names in entry arrays with
+unseeded FNV-1a open-addressing indexes and text in an arena of 1 KiB blocks,
+all counted against `maximum_byte_count`.
+
 Recorded 2026-10-16. Three tables (URIs, prefixes, names), each an entry array
 in issue order plus an open-addressing index (linear probing, at most 3/4 full,
 slots keep the hash so growth never reads entries); FNV-1a, not seeded: hash
@@ -932,6 +1148,10 @@ intern leaves the pool's names as they were. Interned URI identifiers start at
 tables indexed by identifier can be sized.
 
 ### D55. IR, passes, evaluator and function table (packet 1.5)
+
+**Summary**: Four internal headers define the reference-counted IR unit with
+its expression kinds, the pass list holding only the verifier, the evaluator's
+dynamic context, and native function rows typed by F&O-spelled text.
 
 Recorded 2026-10-16, completing D46. Four internal headers.
 
@@ -972,6 +1192,10 @@ Recorded 2026-10-16, completing D46. Four internal headers.
 
 ### D56. `memcpy` and `memset` are allowed
 
+**Summary**: `memcpy`, `memmove` and `memset` are allowed when the byte count
+comes from checked size arithmetic, and the clang-tidy check that demands Annex
+K functions is switched off.
+
 Recorded 2026-10-16 by the orchestrator. clang-tidy's
 `clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling` rejects
 `memcpy`, `memset` and `snprintf` in favour of the C11 Annex K `_s` functions,
@@ -982,6 +1206,10 @@ functions stay banned outside the CLI platform layer (D17, D44). Existing byte
 loops may stay; new code uses `memcpy`.
 
 ### D57. Decimal arithmetic over libmpdec (packet 1.2)
+
+**Summary**: Decimal arithmetic wraps vendored mpdecimal 4.0.1 in
+`sxml_decimal`, with the allocator scope in the patched `mpalloc.c`, a per-heap
+digit limit, exact sums and products, and 34-digit quotients.
 
 Recorded 2026-10-16, completing D42 and D49.
 
@@ -1017,6 +1245,10 @@ Recorded 2026-10-16, completing D42 and D49.
   one using only the allocator.
 
 ### D58. Type registry internals and the subtype search (packet 1.6)
+
+**Summary**: The type registry interns normalized type descriptions in
+open-addressing indexes and answers subtype questions by the XPath 4.0 rules on
+a fixed, non-allocating stack of frames with a work budget.
 
 Recorded 2026-10-16.
 
@@ -1067,6 +1299,10 @@ Recorded 2026-10-16.
 
 ### D59. The XPath front end (packet 1.16)
 
+**Summary**: `src/xpath_parse.c` builds the XPath AST in one iterative
+tree-sitter cursor walk, applies the delimitation and lookup-key checks, and
+parses sequence types as `() instance of T`.
+
 Recorded 2026-10-16. `src/xpath_parse.c` builds the AST of D52 in one iterative
 walk of a tree-sitter cursor in source order; the current AST parent is kept
 through the AST's own parent links, so nesting depth costs no C stack (20,000
@@ -1095,6 +1331,10 @@ map to kinds and fields through sorted static tables; the AST capacity is
   D45), front-end tests in `tests/xpath_parse_test.c`.
 
 ### D60. Item heap, cells and atomic items (packet 1.7)
+
+**Summary**: `src/xdm_internal.h` defines the item heap's cell header and cell
+classes, frees released cells in a loop, counts every byte against the heap
+limit, and stores decimals with their canonical text.
 
 Recorded 2026-10-16. `src/xdm_internal.h` is the shared interface of the value
 model; later XDM packets add files, not edits.
@@ -1145,6 +1385,10 @@ model; later XDM packets add files, not edits.
 
 ### D61. Maps and records (packet 1.9)
 
+**Summary**: Maps are entry blocks with a hash index above 8 entries,
+persistent AVL entry and key trees for put and remove, or records whose field
+keys are made on first need.
+
 Recorded 2026-10-16. `src/xdm_map.c`; three cell classes behind
 `SXML_ITEM_REPRESENTATION_MAP_CELL`, told apart by cell class.
 
@@ -1173,6 +1417,10 @@ Recorded 2026-10-16. `src/xdm_map.c`; three cell classes behind
   failures on its first call (P3).
 
 ### D62. Ranges, concatenations and lazy sequences (packet 1.8)
+
+**Summary**: `src/xdm_sequence.c` adds integer range, concatenation and lazy
+sequence cells, where lazy sequences keep produced items and a generator
+failure is final and raised again on later reads.
 
 Recorded 2026-10-16. `src/xdm_sequence.c` adds three sequence cell classes and
 `sxml_sequence_test_emptiness`; xdm.h and src/xdm.c are unchanged.
@@ -1204,6 +1452,10 @@ Recorded 2026-10-16. `src/xdm_sequence.c` adds three sequence cell classes and
   produced, and its error is reported (D43).
 
 ### D63. Static analysis and lowering (packet 1.12)
+
+**Summary**: `sxml_xpath_lower` lowers the XPath AST to ANF IR without C
+recursion, resolving names, focus slots, paths, calls and literals; listed
+constructs are UNSUPPORTED_FEATURE in Phase 1.
 
 Recorded 2026-10-16. `src/xpath_static_internal.h` (module `xpath_static`):
 `sxml_xpath_static_context` (heap, allocator, namespace bindings, variable
@@ -1270,6 +1522,10 @@ function library rows, D55); `sxml_xpath_lower` (AST to an unsealed unit) and
 
 ### D64. Arrays and function items (packet 1.10)
 
+**Summary**: Arrays are AVL trees of `array_node` cells updated by split and
+join in O(log n); function items need a registered function type; maps and
+arrays act as functions through stateless bodies.
+
 Recorded 2026-10-16. `src/xdm_array.c`, `src/xdm_function.c`.
 
 - **Arrays** are AVL trees of `array_node` cells (one cell class): a flat node
@@ -1292,6 +1548,10 @@ Recorded 2026-10-16. `src/xdm_array.c`, `src/xdm_function.c`.
 
 ### D65. WASI test runner disables V8 fast API calls
 
+**Summary**: `tools/run-wasi.mjs` sets `--no-turbo-fast-api-calls` before
+compiling the module, so Node.js calls WASI imports the ordinary way and no
+longer crashes in garbage collection during fast calls.
+
 - **Problem**: the `xpath_parse` test crashed Node.js (SIGSEGV, exit 139) about
   one run in eight on the `wasm` preset; `deep_nesting_needs_no_recursion`
   alone, after it had passed. Not a memory error in sxml: the same test is
@@ -1313,6 +1573,10 @@ Recorded 2026-10-16. `src/xdm_array.c`, `src/xdm_function.c`.
   version no longer uses fast calls for WASI.
 
 ### D66. Casting and lexical forms (packet 1.15)
+
+**Summary**: Casting takes the atomized operand and any atomic, list, union,
+enumeration or choice target, follows XSD 1.1 lexical spaces, and casts nested
+targets on an explicit stack of cast frames.
 
 Recorded 2026-10-16. `src/cast_internal.h`; `src/cast.c` (casting table,
 targets), `src/cast_lexical.c` (lexical forms, canonical text).
@@ -1354,6 +1618,10 @@ targets), `src/cast_lexical.c` (lexical forms, canonical text).
 
 ### D67. Tree, axes and arena tree (packet 1.11)
 
+**Summary**: Axes derive each step from node numbering, `copy_node` walks index
+order with a constant C stack, and the arena tree keeps nodes in segments that
+never move and fixes namespaces at header close.
+
 Recorded 2026-10-16. `src/tree_internal.h` holds `struct sxml_tree` (the arena
 tree embeds it) and node-reference helpers.
 
@@ -1386,6 +1654,10 @@ tree embeds it) and node-reference helpers.
 
 ### D68. Name pool in comparisons; record entries may fail (P2, P3)
 
+**Summary**: `sxml_atomic_comparison` gains an optional name pool so QNames
+order by namespace URI then local name, and `sxml_map_get_entry` documents that
+the first call on a record may fail.
+
 Recorded 2026-10-16 by packet 1.19, on the orchestrator's acceptance of P2 and
 P3 (design edits to `include/sxml/xdm.h`).
 
@@ -1405,6 +1677,10 @@ P3 (design edits to `include/sxml/xdm.h`).
 
 ### D69. No-inherit for the top element of a copy (P6)
 
+**Summary**: `sxml_element_start_event` gains `ignores_parent_namespaces`,
+which `sxml_tree_builder_copy_node` sets on a copy's top element for
+copy-namespaces no-inherit, so that element starts from the xml binding alone.
+
 Recorded 2026-10-16 by packet 1.14, on the orchestrator's acceptance of P6
 (design edit to `include/sxml/tree.h`). `sxml_element_start_event` gains `bool
 ignores_parent_namespaces`: true makes the element start from the xml binding
@@ -1417,6 +1693,10 @@ copy-namespaces no-inherit); descendants inherit from the top element as usual.
 The arena tree honours it when it computes the header element's inherited list.
 
 ### D70. Node items, accessors and JNodes (packet 1.13)
+
+**Summary**: Node items are inline and retain their tree; string value, typed
+value and base URI follow the listed rules; a JNode cell holds parent, key,
+value and child position, compared by position paths.
 
 Recorded 2026-10-16. `src/xdm_node.c`, `src/xdm_json_node.c`.
 
@@ -1445,6 +1725,11 @@ Recorded 2026-10-16. `src/xdm_node.c`, `src/xdm_json_node.c`.
   node functions live in `src/xdm_json_node.c`.
 
 ### D71. No C recursion
+
+**Summary**: Project code never recurses, directly, across files or through
+function pointers; every walk over nested structure is a loop over an explicit
+stack in allocator memory, checked by clang-tidy and
+`tools/check-call-cycles.py`.
 
 Recorded 2026-10-16 at the owner's request ("make sure we don't use C
 recursion"). Project code never recurses: not directly, not through a chain of
@@ -1488,6 +1773,10 @@ specification's error). Consequences:
 
 ### D72. Arithmetic and comparison operators (packet 1.19)
 
+**Summary**: Arithmetic and comparison operators have their own enums, take
+atomized operands, use int64 fast paths with libmpdec beyond, and follow the
+listed rules for durations, dates and value, general and node comparisons.
+
 Recorded 2026-10-16. `src/operator_internal.h`; `src/operator.c` (operands,
 promotion, numbers, unary), `src/operator_temporal.c` (durations, dates,
 times), `src/operator_compare.c` (value, general and GNode comparisons).
@@ -1520,6 +1809,10 @@ times), `src/operator_compare.c` (value, general and GNode comparisons).
 
 ### D73. JNode making may fail with a lazy value's error (P7)
 
+**Summary**: The contracts of `sxml_json_node_make_root` and
+`sxml_json_node_make_child` list a lazy value's generator failures, returned
+without an error record, since both count their value's items.
+
 Recorded 2026-10-16 by packet 1.18, on the orchestrator's acceptance of P7
 (option "amend contract"; design edit to `include/sxml/xdm.h`, comments only).
 `sxml_json_node_make_root` and `sxml_json_node_make_child` count their value's
@@ -1530,6 +1823,10 @@ makes lazy sequences whose generator evaluates IR (D75), and it reads values
 completely before fn:jtree sees them.
 
 ### D74. libmpdec keeps no large buffers on the stack
+
+**Summary**: A patch to libmpdec's `transpose.c` moves its large transform
+buffers to one heap block from `mpd_alloc`, so large products no longer trap
+the 64 KiB WebAssembly stack and report OUT_OF_MEMORY instead.
 
 Recorded 2026-10-16, amending D57. Upstream `transpose.c` holds two
 `SIDE*SIDE`-word buffers in `squaretrans_pow2` (128 KiB with 32-bit words) and
@@ -1564,6 +1861,10 @@ untrusted query could do it within the default digit limit.
   every allocation failure of a long product reported and clean.
 
 ### D75. The evaluator: an explicit-stack machine (packet 1.18)
+
+**Summary**: The evaluator runs every nested expression, call and native step
+as a task on a stack in allocator memory, with tail calls, a depth limit,
+resumable native bodies, coercion and type matching without C recursion.
 
 Recorded 2026-10-16. `src/evaluator.c` (dynamic context, machine, expressions),
 `src/evaluator_function.c` (atomization, effective boolean value, type
@@ -1621,6 +1922,10 @@ headers changed as D71 requires.
 
 ### D76. XPTY0019 for the path operator (P5)
 
+**Summary**: Lowering sets `SXML_IR_MAP_REQUIRES_NODES` on the MAP of `E1/E2`
+and `//`, and the evaluator raises XPTY0019 for an input item that is not a
+generic node.
+
 Recorded 2026-10-16 by packet 1.18, on the orchestrator's acceptance of P5.
 `SXML_IR_MAP_REQUIRES_NODES` in `sxml_ir_map_flag`: lowering sets it on the MAP
 of `E1/E2` and of `//`; the evaluator raises XPTY0019 (XPath 4.0, section
@@ -1629,6 +1934,10 @@ print the flag, so the golden dumps of D63 are unchanged; the verifier accepts
 it.
 
 ### D77. Namespace node tests with a name (P4)
+
+**Summary**: A namespace node test accepts a name: `namespace::x` resolves like
+an unprefixed attribute name and matches the namespace node whose prefix is x;
+a prefixed name matches nothing.
 
 Recorded 2026-10-16 by packet 1.18, on the orchestrator's acceptance of P4
 (design edit to the comment of `sxml_node_test` in `include/sxml/types.h`). The
@@ -1639,6 +1948,10 @@ prefixed name matches nothing. The node-test matcher compares the namespace
 node's name, which the tree interns as the prefix in no namespace (D67).
 
 ### D78. Function library: core (packet 1.20)
+
+**Summary**: The core function library indexes the parts its configuration
+names, sorted by interned name, assigns fn:sort and other rows to packet 1.20's
+files, and follows the listed 4.0 semantics and unsupported options.
 
 Recorded 2026-10-16; written first so packet 1.21 can rely on it.
 
@@ -1685,6 +1998,10 @@ Recorded 2026-10-16; written first so packet 1.21 can rely on it.
 
 ### D79. Function library: higher-order, maps, arrays (packet 1.21)
 
+**Summary**: Packet 1.21 owns the higher-order functions except fn:sort, the
+function-item functions, fn:op, map:* and array:* (array:sort included) in
+three files, each calling row through a resumable body.
+
 Recorded 2026-10-16; written first so packet 1.20 can rely on it.
 
 - **Ownership**: `src/function_library_higher_order.c` holds F&O 4.0 section
@@ -1699,6 +2016,10 @@ Recorded 2026-10-16; written first so packet 1.20 can rely on it.
 - Every row that calls a function item has a resumable body (D71, D75).
 
 ### D80. Higher-order, map and array functions (packet 1.21)
+
+**Summary**: Three resumable engines (traversal, folds, sorts) serve the
+higher-order, map and array functions; partial application and fn:op make
+function items over hidden rows, and `$f(?)` lowers to fn:partial-apply.
 
 Recorded 2026-10-16, completing D79.
 
@@ -1732,6 +2053,10 @@ Recorded 2026-10-16, completing D79.
   sequence of functions (DynamicFunctionCall-146) is the evaluator's.
 
 ### D81. The XML parser (packet 1.14)
+
+**Summary**: The XML parser detects and transcodes encodings, walks the
+internal subset and content over explicit stacks of entity frames, bounds depth
+and entity expansion, and passes the whole W3C XML suite selection.
 
 Recorded 2026-10-16. `src/xml.c` (walk and checks), `src/xml_encoding.c`
 (encodings, character classes, positions), `src/xml_entity.c` (buffers, DTD
@@ -1783,6 +2108,10 @@ tables with hash indices).
 
 ### D82. JSON texts are parsed with tree-sitter (packet 1.22)
 
+**Summary**: JSON texts are parsed with the strict RFC 8259 tree-sitter grammar
+`grammars/json` and one loop over a tree cursor, serving fn:parse-json,
+json-to-xml, xml-to-json, jtree and parse-xml, plus adaptive output.
+
 Recorded 2026-10-16. fn:parse-json and fn:json-to-xml parse with a tree-sitter
 grammar, `grammars/json` (strict RFC 8259, original work), not with a
 hand-written parser; D12 applies without exception. Weighed against D53's
@@ -1828,6 +2157,10 @@ items on explicit stacks, the other sends tree builder events.
 
 ### D83. The QT4 driver: catalog and environments (packet 1.24)
 
+**Summary**: The QT4 driver `sxml-qt4` reads the catalog and test sets through
+the public API into arena trees, resolves environments, decides applicability
+by dependency tables, and lists test cases.
+
 Recorded 2026-10-16. `tests/qt4/driver/`, the developer tool `sxml-qt4` on the
 CLI framework (D44), public API only.
 
@@ -1866,13 +2199,11 @@ CLI framework (D44), public API only.
   `tests/qt4/driver/input/` and the slice (`qt4/list_slice`: 198/198 resolve
   and apply to XP40).
 
-### D84. (not used)
-
-Recorded 2026-10-17 at the Phase 1 gate review. No record ever took this number
-(packets 1.18b and 1.26 recorded D85 and D86 out of order, now sorted); it
-stays empty so later references keep their numbers.
-
 ### D85. Evaluator follow-ups: calls, paths, coercion, namespaces (packet 1.18b)
+
+**Summary**: The evaluator gains dynamic calls on sequences of functions, maps
+and arrays as path origins, coercion on an explicit stack of coercion frames,
+omitted defaults before keyword arguments, and static namespaces for casts.
 
 Recorded 2026-10-16. Gaps reported by 1.20 and 1.21; sections are those of the
 XPath 4.0 editor's draft of 13 October 2026 (vendored with QT4).
@@ -1921,6 +2252,10 @@ XPath 4.0 editor's draft of 13 October 2026 (vendored with QT4).
 
 ### D86. Fuzz targets (packet 1.26)
 
+**Summary**: Five libFuzzer targets under `tests/fuzz/` check crashes, leaks,
+invalid-argument returns, invariants and timeouts, built by the `fuzz` preset
+and run by `tools/fuzz.sh` with seeds from `tools/fuzz-seeds.py`.
+
 - **Targets.** Every `tests/fuzz/<name>_fuzz.c` is a libFuzzer executable
   (glob, D45) linked with `tests/fuzz/fuzz_fixture.c`: `xml_parse_fuzz` (parse
   into an arena tree and read every node back; `check` must give the same
@@ -1956,6 +2291,10 @@ XPath 4.0 editor's draft of 13 October 2026 (vendored with QT4).
 
 ### D87. XML positions move back in place (P8)
 
+**Summary**: The XML position tracker walks back from where it is when asked
+for an earlier offset, instead of restarting from byte 0, so position cost is
+linear in the document.
+
 Recorded 2026-10-16. The position tracker of `src/xml_encoding.c` no longer
 restarts from byte 0 when asked for an earlier offset: it walks back from where
 it is, undoing line, column and input offset, and when a line end lies between
@@ -1971,6 +2310,10 @@ tree-sitter bounds parse speed at about 3.5 MB/s here). Tests:
 `xml/large_documents_parse_in_linear_time` (10000 elements, 400 KB).
 
 ### D88. The processor and the XPath API (packet 1.23)
+
+**Summary**: The processor holds name pool, type registry, item heap and the
+full function library in one block; each XPath evaluation allocates its own
+dynamic context and document loader; `sxml xpath` is the CLI.
 
 Recorded 2026-10-16. `src/processor.c`, `src/processor_internal.h`,
 `src/xpath.c`, `src/function_library_uri.c`; tests `processor`, `xpath`.
@@ -2016,6 +2359,10 @@ Recorded 2026-10-16. `src/processor.c`, `src/processor_internal.h`,
 
 ### D89. A bound on evaluation steps (P9 accepted)
 
+**Summary**: `maximum_evaluation_step_count` in `sxml_processor_limits` bounds
+evaluation steps (0 means 10^9); the machine charges one step per task and leaf
+work charges through `sxml_dynamic_context_charge_steps`.
+
 Recorded 2026-10-16 (orchestrator accepted P9, with "0 means sxml's default").
 `uint64_t maximum_evaluation_step_count` in `sxml_processor_limits`; 0 means
 `SXML_EVALUATOR_DEFAULT_MAXIMUM_EVALUATION_STEP_COUNT`, 10^9 steps (about a
@@ -2032,15 +2379,19 @@ when needed. `xpath_evaluate_fuzz` sets 10^7 steps.
 
 ### D90. map:merge merges into its largest map (fuzzing follow-up of 1.26)
 
+**Summary**: map:merge starts from its first largest map and puts earlier maps'
+entries first through `sxml_map_put_first`, so folds that merge small maps into
+an accumulator cost O(N log N), not O(N^2).
+
 Recorded 2026-10-16. A fold that merges a small map into its accumulator was
 O(n^2): map:merge inserted every entry of every map into a new map.
 
-- map:merge starts from its first largest map L (`src/function_library_ map.c`)
+- map:merge starts from its first largest map L (`src/function_library_map.c`)
   instead of the empty map. With L first, it is taken as it is (no map has
   duplicate keys, so inserting it into the empty map meets none, under every
   policy). With L later, and without a duplicates function, the entries of the
   earlier maps are put first, last map and last entry first, through
-  `sxml_map_put_first` (`src/xdm_map_ internal.h`): an entry of an equal key is
+  `sxml_map_put_first` (`src/xdm_map_internal.h`): an entry of an equal key is
   dropped and the earlier entry takes the front with its key and the combined
   value (use-first/any: the earlier value; use-last: the later; combine:
   earlier then later; reject: FOJS0003). These combinations are associative, so
@@ -2059,6 +2410,10 @@ O(n^2): map:merge inserted every entry of every map into a new map.
   n) per step.
 
 ### D91. Packet 1.23b: more library functions, lexical base URI, charged steps
+
+**Summary**: Packet 1.23b adds 62 library functions (math, QName and namespace,
+node, string, URI, sequence, context), writes annotation types in adaptive
+output, makes the static base URI lexical, and charges leaf steps.
 
 Recorded 2026-10-17.
 
@@ -2109,6 +2464,10 @@ Recorded 2026-10-17.
 
 ### D92. The QT4 driver: running tests, assertions, reports (packet 1.25)
 
+**Summary**: `sxml-qt4 run` gives each test case its own processor under a 512
+MiB budget allocator, evaluates assertions as XPath over `$result`, and reports
+pass, wrong-error, fail, error or not-run as text or JSON.
+
 Recorded 2026-10-17. `sxml-qt4 run [--catalog] [--spec] [--test-set=NAME |
 TEST-LIST] [--format=text|json]`; `tests/qt4/driver/test_run.c`, `assertion.c`,
 `report.c`, `reason.c`, `command_run.c`.
@@ -2152,6 +2511,10 @@ TEST-LIST] [--format=text|json]`; `tests/qt4/driver/test_run.c`, `assertion.c`,
 
 ### D93. WebAssembly slice: preopens and the first size budget (packet 1.28)
 
+**Summary**: `tools/run-wasi.mjs` preopens the source tree so conformance tests
+run under WASI, and the stripped `sxml` CLI module stays under 1.5 MB and 450
+KB gzipped until a decision raises it.
+
 Recorded 2026-10-17. Node 22.22, WASI SDK 34, `wasm` preset (MinSizeRel).
 
 - **Preopens**: `tools/run-wasi.mjs` preopens the working directory as "." (as
@@ -2180,6 +2543,10 @@ Recorded 2026-10-17. Node 22.22, WASI SDK 34, `wasm` preset (MinSizeRel).
 
 ### D94. Conformance dashboard and CI jobs (packet 1.27)
 
+**Summary**: `tools/run-qt4.sh` runs one `sxml-qt4` process per test set and
+`tools/conformance-report.py` writes `docs/CONFORMANCE.md`; CI gains
+`conformance` and `fuzz` jobs, blocking only on the slice.
+
 Recorded 2026-10-17. `tools/run-qt4.sh --program SXML-QT4` runs one `sxml-qt4
 run --spec=XP40 --test-set=NAME --format=json` process per test set of
 catalog.xml (in parallel, `timeout` 600 s each) plus the slice, into
@@ -2198,6 +2565,10 @@ except on main. The committed dashboard is refreshed by hand (or by an agent),
 not by CI.
 
 ### D95. Pass-rate targets for Phases 2, 3 and 4
+
+**Summary**: Pass-rate targets: Phase 2 XP40 at least 90% with each core area
+at 80%, Phase 3 XQ40 at least 85%, Phase 4 in-scope XSLT at least 70%, over
+denominators that exclude non-goal features.
 
 Recorded 2026-10-17 (Phases 2 to 4 planning; PLAN.md leaves the targets to the
 end of Phase 1). Measured by `sxml-qt4 run` (release, one process per test set)
@@ -2233,6 +2604,10 @@ as the QT4 guide allows.
 
 ### D96. Phases 2 to 4 overlap
 
+**Summary**: Packets marked Early in the Phase 3 and 4 task files may start
+once the Phase 1 gate has closed and their prerequisites are committed, while
+gates stay sequential and file ownership rules hold.
+
 Recorded 2026-10-17. To reach working XQuery and XSLT sooner (D11), packets
 marked **Early** in `docs/tasks/phase-3.md` and `phase-4.md` may start once the
 Phase 1 gate has closed (the substrate freeze) and the packets in their "After"
@@ -2253,6 +2628,10 @@ phase wait for the previous phase's gate.
   phase file and the Early packets that may run with it.
 
 ### D97. Scope of Phases 2 to 4
+
+**Summary**: Phases 2 to 4 support codepoint, HTML ASCII and UCA-fallback
+collations, leave out HTML parsing, schema awareness, streaming, Update, Full
+Text and EXPath, and scan regex, picture strings and CSV by hand.
 
 Recorded 2026-10-17 (non-goals per PLAN.md, made concrete).
 
@@ -2282,6 +2661,10 @@ Recorded 2026-10-17 (non-goals per PLAN.md, made concrete).
   templates (`grammars/value_template`).
 
 ### D98. Substrate review at the Phase 1 gate (packet 1.29)
+
+**Summary**: The Phase 1 substrate review keeps all earlier records and adds a
+base URI for parentless roots, stored parentless namespace nodes, and contract
+comments on named item types and host re-entry.
 
 Recorded 2026-10-17 by the Phase 1 review agent (D11). Before the freeze (D99)
 every record that touched the substrate headers (D19-D43, D68, D69, D73, D77,
@@ -2322,6 +2705,11 @@ earlier records stand. Found and changed:
 
 ### D99. Substrate frozen
 
+**Summary**: The substrate headers (`status.h`, `view.h`, `memory.h`,
+`string.h`, `name.h`, `types.h`, `tree.h`, `xdm.h`) are frozen: any contract
+change needs a decision record first, and only additions that keep old
+behaviour are allowed.
+
 Recorded 2026-10-17 at the Phase 1 gate (PLAN.md: "substrate frozen at the
 Phase 1 gate"). Frozen: `include/sxml/status.h`, `view.h`, `memory.h`,
 `string.h`, `name.h`, `types.h`, `tree.h`, `xdm.h` (with `export.h`), as of the
@@ -2347,6 +2735,10 @@ them stable). Rule for a frozen header:
   about the design, so fields are still added at the end only.
 
 ### D100. Phase 1 gate review (packet 1.29)
+
+**Summary**: The Phase 1 gate review found the rubric met, followed every
+indirect call for recursion, and ran all gate checks locally because GitHub
+Actions is refused; the CI boxes stay open.
 
 Recorded 2026-10-17 by the review agent (D11), who did not write Phase 1.
 
@@ -2379,6 +2771,10 @@ Recorded 2026-10-17 by the review agent (D11), who did not write Phase 1.
   gate stay open until the owner restores billing and a run is green.
 
 ### D101. Part registries and the evaluator seams (packet 2.0)
+
+**Summary**: CMake registers function library parts and evaluator parts by glob
+over their source files, a part serves the languages it names, and the
+evaluator machine API lets parts push tasks and catch errors.
 
 Recorded 2026-10-17, completing D45 and D55 for Phases 2 to 4.
 
@@ -2434,6 +2830,10 @@ Recorded 2026-10-17, completing D45 and D55 for Phases 2 to 4.
 
 ### D102. The stylesheet AST (packet 4.2)
 
+**Summary**: One stylesheet AST holds modules, one node kind per XSLT 4.0
+element, attributes read into typed forms, and a resolved static context per
+element, built by the reader of packet 4.5.
+
 Recorded 2026-10-17. `src/xslt_ast_internal.h`, internal, after D52 and the IR
 unit (D55).
 
@@ -2483,6 +2883,11 @@ unit (D55).
 
 ### D103. Lowering parts and the embedding entry (packet 2.1)
 
+**Summary**: The `sxml_xpath_lowerer` opens the lowering machine: procedures
+are descriptors, lowering parts register by glob and may replace core kinds per
+language, and an embedding entry lowers one XPath AST into the current
+function.
+
 Recorded 2026-10-17, completing D63 and D71 for Phases 3 and 4.
 `src/xpath_lower_internal.h` (module `xpath_lower`) opens the lowering machine
 to other files.
@@ -2530,6 +2935,10 @@ to other files.
   recursion through a step).
 
 ### D104. The public API for Phase 2 (packet 2.2)
+
+**Summary**: Phase 2 adds decimal formats and collations to the static context,
+default language, environment variables and a trace sink to the dynamic
+context, new resource kinds, and version macros for 0.2.0.
 
 Recorded 2026-10-17, completing D51's "left out until needed" for Phase 2.
 `processor.h`, `xpath.h`, `version.h`; only new fields at the end of structs
@@ -2584,6 +2993,10 @@ unchanged (zero keeps the old behaviour).
 
 ### D105. The regex engine: the whole F&O 4.0 dialect (packet 2.3)
 
+**Summary**: The regex engine grows the seed in place to the whole F&O 4.0
+dialect: category and block escapes, lookaround without recursion, case-blind
+matching, named groups and generated Unicode 16.0 tables.
+
 Recorded 2026-10-17. D9 is met by growing the D53 seed in place, behind the
 same `src/regex_internal.h` (compile, match at, find, find next), not by a
 rewrite: its parser, emitted program and backtracking machine already follow
@@ -2623,6 +3036,10 @@ Saxon HE's design.
   LIMIT_EXCEEDED (QT4 cbcl-matches-004, -038).
 
 ### D106. The XQuery and serialization API (packet 3.0)
+
+**Summary**: `include/sxml/xquery.h` adds `sxml_xquery_query`, and
+`serialize.h` gains every Serialization 4.0 method and parameter, tri-state
+flags whose zero means the default, and a reader for fn:serialize options.
 
 Recorded 2026-10-17. `include/sxml/xquery.h` is new; `serialize.h` grows by new
 constants at the end of `sxml_serialization_method` and new fields in
@@ -2688,6 +3105,10 @@ before 0.2.0 (D99).
 
 ### D107. Unicode tables and functions (packet 2.4)
 
+**Summary**: Generated Unicode 16.0 tables in `src/unicode_tables.c` serve
+normalization (UAX #15), grapheme iteration (UAX #29), fn:char with HTML names,
+fn:characters and fn:normalize-unicode.
+
 Recorded 2026-10-17. `src/unicode_internal.h` (defined in `src/unicode.c` over
 the data of `src/unicode_tables.c`, generated by
 `tools/generate-unicode-tables.py` from Unicode 16.0 and the WHATWG
@@ -2719,6 +3140,10 @@ normalization-form (3.3) and to collations (2.13).
   are \\n \\r \\t \\b \\f.
 
 ### D108. The QT4 driver for Phase 2: environments, scope, areas (packet 2.16)
+
+**Summary**: The QT4 driver applies decimal-format, collation, resource and
+collection environments, satisfies more dependencies, marks whether each case
+is in the pass-rate denominator, and reports in-scope counts per area.
 
 Recorded 2026-10-17. Extends D83 and D92 in `tests/qt4/driver/`.
 
@@ -2759,6 +3184,10 @@ Recorded 2026-10-17. Extends D83 and D92 in `tests/qt4/driver/`.
 
 ### D109. try/catch in the evaluator (packet 3.6)
 
+**Summary**: TRY_CATCH is one catching task with start, body, handler and
+finally phases; catch clauses match by name test, bind error details as a map,
+and finally re-raises a pending error.
+
 Recorded 2026-10-17, completing D101 for TRY_CATCH (`src/evaluator_try.c`;
 XQuery 4.0, section 4.20).
 
@@ -2795,6 +3224,10 @@ XQuery 4.0, section 4.20).
   TRY_CATCH (list `evaluated_kinds`, where 3.5 adds the constructors).
 
 ### D110. Node constructors in the evaluator (packet 3.5)
+
+**Summary**: Each node constructor makes its own self-destroying arena tree and
+copies nested constructed nodes into it, with the listed content convention,
+name checks, fixed construction modes and base URIs.
 
 Recorded 2026-10-17. `src/evaluator_construct.c` evaluates the seven
 constructor kinds and SHALLOW_COPY (D55, D101).
@@ -2845,6 +3278,10 @@ constructor kinds and SHALLOW_COPY (D55, D101).
 
 ### D111. The query AST for XQuery and the parser part seam (packet 3.1)
 
+**Summary**: The query AST gains 66 XQuery kinds and 24 fields, and
+`sxml_ast_build_with_parser_part` runs the one XPath walker with a part's
+grammar tables and three hooks.
+
 Recorded 2026-10-17, extending D52 and D59. `src/xpath_ast_internal.h`.
 
 - **Kinds**: 66 XQuery kinds appended to `sxml_ast_kind`, one per new visible
@@ -2891,6 +3328,11 @@ Recorded 2026-10-17, extending D52 and D59. `src/xpath_ast_internal.h`.
   (everything a hook needs is in the AST).
 
 ### D112. The XSLT API (packet 4.0)
+
+**Summary**: `include/sxml/xslt.h` adds `sxml_xslt_stylesheet`, compiled from
+the principal module or through the resolver, with output definitions, one
+transform call per invocation, result delivery kinds and a result document
+handler.
 
 Recorded 2026-10-17. `include/sxml/xslt.h` is new, header only, after
 `xquery.h` (D106); 4.15 implements it in `src/xslt.c`.
@@ -2946,6 +3388,11 @@ Recorded 2026-10-17. `include/sxml/xslt.h` is new, header only, after
   functions and instructions, schema awareness and streaming (D97).
 
 ### D113. Lowering completions (packet 2.5)
+
+**Summary**: Lowering completes for member, for key/value, destructuring let,
+dynamic node tests, the item axis, constructor functions with keywords, method
+calls, but with and more jnode() selectors, all over existing IR and library
+calls.
 
 Recorded 2026-10-17, completing D63's "Not lowered in Phase 1" (only the
 computed node constructors are left, for Phase 3). `src/xpath_lower.c`,
@@ -3008,6 +3455,10 @@ UNSUPPORTED_FEATURE naming the gap.
 
 ### D114. The regex library part (packet 2.3)
 
+**Summary**: `src/function_library_regex.c` holds every regex function of F&O
+4.0, section 6.3, adds fn:analyze-string, fn:matching-segments and fn:regex,
+and makes named groups reach their results.
+
 Recorded 2026-10-17, after D101 made parts files of their own.
 
 - `src/function_library_regex.c` holds every function of F&O 4.0, section 6.3:
@@ -3033,6 +3484,10 @@ Recorded 2026-10-17, after D101 made parts files of their own.
   an allocation-failure loop over the new functions.
 
 ### D115. Evaluator: JNode selectors, jkey and jvalue, fold fixpoints (packet 2.6)
+
+**Summary**: fn:jkey and fn:jvalue get their own part, and the evaluator adds
+selector interpretation on JNodes, JNode name tests and lookups, numeric
+predicates, maps and arrays as typed functions, and fold fixpoints.
 
 Recorded 2026-10-17. Sections are those of the XPath 4.0 editor's draft
 vendored with QT4 (PR 2734 for selectors).
@@ -3088,6 +3543,10 @@ vendored with QT4 (PR 2734 for selectors).
   other 85 failures are functions other packets add.
 
 ### D116. Collations and comparison options (packet 2.13)
+
+**Summary**: `src/collation.c` implements the codepoint, HTML ASCII, Unicode
+case-insensitive and UCA-fallback collations with byte-comparable keys behind
+one resolver, and fn:deep-equal supports every 4.0 option.
 
 Recorded 2026-10-17. Completes D97's collations in `src/collation.c`
 (`src/collation_internal.h`), used through one resolver.
@@ -3148,6 +3607,10 @@ Recorded 2026-10-17. Completes D97's collations in `src/collation.c`
 
 ### D117. The XSLT 4.0 test driver (packet 4.1)
 
+**Summary**: `sxml-xslt-test` is a sibling of `sxml-qt4` that reads the XSLT
+4.0 test catalog, decides applicability and scope, plans each case's
+invocation, and runs a 154-case slice against a baseline.
+
 Recorded 2026-10-17. `tests/xslt/driver/`, the developer tool `sxml-xslt-test`,
 public API only.
 
@@ -3207,6 +3670,10 @@ public API only.
 
 ### D118. Patterns: front end, match expressions, priorities (packet 4.4)
 
+**Summary**: An XSLT pattern parses to its own AST kinds and becomes an XPath
+boolean match expression lowered through the embedding entry; a match function
+serves template rules, and default priorities follow section 6.4.
+
 Recorded 2026-10-17. `src/xslt_pattern.c`, `src/xslt_pattern_internal.h` (new
 module header), after D29, D52, D103, D111.
 
@@ -3259,6 +3726,10 @@ module header), after D29, D52, D103, D111.
 
 ### D119. Number formatting: one picture engine, decimal formats as settings (packet 2.9)
 
+**Summary**: One hand-scanned picture engine in `src/format.c` serves
+fn:format-integer and fn:format-number, formats numbers as exact decimal text,
+and applies decimal formats as checked settings.
+
 Recorded 2026-10-17. `src/format.c`, `src/format_internal.h`,
 `src/function_library_format.c` (part `format`).
 
@@ -3294,6 +3765,10 @@ Recorded 2026-10-17. `src/format.c`, `src/format_internal.h`,
   decimal-format environments.
 
 ### D120. Value templates (packet 4.3)
+
+**Summary**: The `grammars/value_template` grammar inherits the XPath grammar,
+and `sxml_xslt_build_value_template_ast` builds a value template as a string
+template AST, finding XTSE0370 and XTSE0350 after a syntax error.
 
 Recorded 2026-10-17, after D97, D102 and D111.
 
@@ -3335,6 +3810,11 @@ Recorded 2026-10-17, after D97, D102 and D111.
   draft. Every valid one also builds through the C entry.
 
 ### D120b. The XML and XHTML output methods (packet 3.3)
+
+**Summary**: The serializer splits into parts, and `src/serialize_xml.c`
+implements the XML and XHTML methods: character pipeline, pull-based sequence
+normalization, namespace declarations, indentation, XHTML and Canonical XML
+rules.
 
 Recorded 2026-10-17 as a second D120 (4.3 has D120); renamed at the Phase 2
 gate (D151). `src/serialize_internal.h` splits the serializer into parts:
@@ -3409,6 +3889,10 @@ build on the same internal interface.
 
 ### D121. The XQuery front end (packet 3.2)
 
+**Summary**: `sxml_xquery_build_ast` is the XQuery parser part on the XPath
+walker, with the XQuery tables, decoding of literals and direct constructor
+text, and static checks in its finish hook.
+
 Recorded 2026-10-17, extending D29, D59 and D111. `src/xquery_parse.c` defines
 `sxml_xquery_build_ast`: the XQuery parser part on the XPath walker;
 `sxml_grammar_xquery` joins the `sxml` link line.
@@ -3452,8 +3936,12 @@ Recorded 2026-10-17, extending D29, D59 and D111. `src/xquery_parse.c` defines
 
 ### D122. Date and time functions (packet 2.8)
 
+**Summary**: `src/function_library_temporal.c` adds timezone adjustment,
+parts-of-dateTime, build-dateTime, seconds, unix-dateTime, civil-timezone
+without a database, and a hand-written parse-ietf-date scanner.
+
 Recorded 2026-10-17. New part `src/function_library_temporal.c` (test
-`function_library_temporal`): adjust-dateTime/date/time-to- timezone,
+`function_library_temporal`): adjust-dateTime/date/time-to-timezone,
 civil-timezone, days-in-month, parts-of-dateTime, build-dateTime, seconds,
 duration-to-seconds, unix-dateTime and parse-ietf-date.
 `src/operator_temporal.c` is unchanged.
@@ -3494,12 +3982,20 @@ duration-to-seconds, unix-dateTime and parse-ietf-date.
 
 ### D123. CI is disabled for now; gates are checked locally
 
+**Summary**: CI is disabled for now: gate boxes that name CI are satisfied by
+the same checks run locally, and macOS, Windows and MSVC stay unverified as a
+known risk.
+
 Recorded 2026-10-17 at the owner's word ("CI is disabled, we don't need it at
 this point"). Gate boxes that name CI are satisfied by the same checks run
 locally (all presets, lint, slice, conformance runs, fuzzing). macOS, Windows
 and MSVC stay unverified until CI returns; that remains a known risk.
 
 ### D124. IR extensions for try/catch and constructors (packet 3.6b)
+
+**Summary**: The IR gains adders and accessors for name tests, catch clauses
+and namespace bindings, and node constructions gain `name_namespaces` and
+`construction_flags`, which the evaluator, verifier and text form honour.
 
 Recorded 2026-10-17; accepts the IR proposals of D109 and D110
 (`src/ir_internal.h`, `src/ir.c`, `src/ir_verify.c`).
@@ -3547,6 +4043,11 @@ Recorded 2026-10-17; accepts the IR proposals of D109 and D110
 
 ### D125. fn:divide-decimals and the precision it supports (packet 2.7)
 
+**Summary**: `sxml_decimal_divide_to_precision` computes `divide-decimals`
+exactly with libmpdec's truncating division, adjusting the precision to fit
+`maximum_digit_count`, and returns a map with xs:decimal "quotient" and
+"remainder".
+
 Recorded 2026-10-17. `sxml_decimal_divide_to_precision` (`src/decimal.c`), part
 `numeric` row `divide-decimals`.
 
@@ -3569,6 +4070,10 @@ Recorded 2026-10-17. `sxml_decimal_divide_to_precision` (`src/decimal.c`), part
   and fn-random-number-generator-35a to -37a wait for it).
 
 ### D126. Lowering XQuery expressions: FLWOR, typeswitch, switch, try/catch (packet 3.7)
+
+**Summary**: Lowering part `xquery` lowers FLWOR as clause segments joined by
+tuple arrays, typeswitch and switch as CONDITIONAL chains, and try/catch as
+TRY_CATCH, with no new IR kind.
 
 Recorded 2026-10-17, completing D55 for these kinds. `src/xquery_lower.c` is
 lowering part `xquery` (SXML_LANGUAGE_XQUERY only, D103); no IR kind added.
@@ -3623,6 +4128,11 @@ Contract in `src/xquery_lower_internal.h`.
 
 ### D127. Lowering node constructors (packet 3.9)
 
+**Summary**: Lowering part `construct` lowers XQuery direct and computed
+constructors to the IR constructor kinds, extending the static context with
+namespace declaration attributes and turning prolog setters into construction
+flags.
+
 Recorded 2026-10-17, completing D110 and D124 for XQuery.
 `src/xquery_lower_construct.c` is lowering part `construct`
 (SXML_LANGUAGE_XQUERY, D103) for the DIRECT_\* and COMPUTED_\* kinds; no IR
@@ -3665,6 +4175,10 @@ kind or header change.
   deviation) and a missing function (3).
 
 ### D128. The HTML, text, JSON and CSV methods; fn:serialize (packet 3.4)
+
+**Summary**: The HTML, text, JSON and CSV serialization methods and
+fn:serialize run on the one existing serializer pipeline, each method choosing
+an escape style, with HTML as a mode of the XML node writer.
 
 Recorded 2026-10-17. Every method runs on the 3.3 pipeline (D120b); no second
 writer or escaper was added.
@@ -3723,6 +4237,10 @@ writer or escaper was added.
 
 ### D129. Date formatting: the picture engine over format-integer (packet 2.14)
 
+**Summary**: Date and time formatting reuses the format-integer picture engine
+for each variable marker, scans the picture in three passes, supports the AD
+and ISO calendars and English names only.
+
 Recorded 2026-10-17, after D97, D119 and D122. `src/format_date.c` with the
 module header `src/format_date_internal.h`, part
 `src/function_library_format_date.c` (part `format_date`), test `format_date`.
@@ -3758,6 +4276,10 @@ module header `src/format_date_internal.h`, part
   fn-format-time 19 to 94 of 94, fn-format-dateTime 5 to 80 of 80.
 
 ### D130. Elements to maps and back (packet 2.10)
+
+**Summary**: fn:element-to-map, fn:element-to-map-plan and fn:map-to-element
+work without recursion over node indices, frame stacks and XDM maps, on untyped
+input only, following QT4 where the text leaves choices open.
 
 Recorded 2026-10-17. `src/function_library_element_map.c` (part `element_map`)
 implements fn:element-to-map-plan, fn:element-to-map and fn:map-to-element (F&O
@@ -3796,6 +4318,11 @@ implements fn:element-to-map-plan, fn:element-to-map and fn:map-to-element (F&O
   literals under XP40; -120 and -121 need fn:serialize.
 
 ### D131. Resources, the evaluation environment, lexical decimal formats and collations (packet 2.12)
+
+**Summary**: The processor's document loader carries the evaluation environment
+(resolver, trace sink, default language, environment variables) for resource
+functions, and units carry lexical decimal formats, collation bindings and the
+default collation.
 
 Recorded 2026-10-17. Implements D104 in `src/processor.c`,
 `src/processor_internal.h`, `src/xpath.c`, new part
@@ -3856,6 +4383,10 @@ fast path, 2.9's decimal formats, 2.13's default collation).
 
 ### D132. Packets start when their dependencies are committed (amends D96)
 
+**Summary**: A packet of a later phase may start once every packet in its
+"After" list is committed, while phase gates still close each phase and
+re-check early work.
+
 Recorded 2026-10-17 by the orchestrator, toward the owner's goal of working
 XQuery and XSLT. A packet of a later phase may start as soon as every packet in
 its "After" list is committed, whether or not it is marked "Early". The phase
@@ -3864,6 +4395,10 @@ and gate reviews re-check the work of later-phase packets that started early.
 First applied to 3.8, 3.10 and 3.13.
 
 ### D133. The built-in record types of F&O 4.0 (packet 2.6b)
+
+**Summary**: Each function library declares the 16 nominative record types of
+F&O 4.0 once in its item heap's type registry, functions return records
+annotated with them, and maps coerce to them.
 
 Recorded 2026-10-17. Accepts the Proposed items of D122 and D125.
 
@@ -3901,6 +4436,10 @@ Recorded 2026-10-17. Accepts the Proposed items of D122 and D125.
   op-numeric-integer-divide 132 to 132 of 143 (wrong errors 2 to 0).
 
 ### D134. The QT4 driver for XQ40 (packet 3.13)
+
+**Summary**: The QT4 driver runs XQ40 through a temporary XQuery adapter over
+`sxml_xquery_compile`, answers module and collection queries, checks
+serialization assertions, and gains an XQuery slice and per-spec gate rates.
 
 Recorded 2026-10-17. Extends D92, D94 and D108 in `tests/qt4/driver/`.
 
@@ -3952,6 +4491,10 @@ Recorded 2026-10-17. Extends D92, D94 and D108 in `tests/qt4/driver/`.
   unparsed-text, json-doc, parse-uri, path, hash, collection, ...).
 
 ### D135. Prologs: the static context, declared functions and variables (packet 3.10)
+
+**Summary**: The XQuery prolog is read into one `sxml_xpath_static_context`;
+declared functions become one IR function per arity, and variables become
+initializer functions computed in dependency order, only when reached.
 
 Recorded 2026-10-17, completing D55 and D101 for XQuery main modules.
 `src/xquery_static.c` (`src/xquery_static_internal.h`) reads the prolog into
@@ -4030,6 +4573,11 @@ kind, no header change, no machinery beside the core's.
 
 ### D136. Node, sequence, string and type functions (packet 2.17)
 
+**Summary**: One options reader serves every option map, and new node,
+sequence, string and type functions, fn:parse-xml-fragment and
+fn:system-properties are added, with collations resolved by the ordering
+functions.
+
 Recorded 2026-10-17. F&O 4.0 sections are those of the current editor's draft.
 
 - **One options reader** (glossary `option_definition`):
@@ -4092,6 +4640,10 @@ Recorded 2026-10-17. F&O 4.0 sections are those of the current editor's draft.
 
 ### D137. Group by and window clauses (packet 3.8)
 
+**Summary**: XQuery group by stays a tuple stream clause and windows are
+segment clauses like for, both lowered to calls of two internal native rows,
+sharing one condition closure procedure with while.
+
 Recorded 2026-10-17, completing D55 and D126 for these clauses. No IR kind
 added; contract in `src/xquery_flwor_internal.h`: lowering in
 `src/xquery_lower_window.c`, two internal native rows in `src/xquery_flwor.c`
@@ -4133,6 +4685,10 @@ in no function table (a STATIC_CALL targets the row: `Q{}group-by#3`,
   prologs). The FLWOR sets are as D126 measured.
 
 ### D138. The JavaScript package and release 0.2.0 (packet 2.18)
+
+**Summary**: The JavaScript package is hand-written TypeScript over a C shim
+linked into `sxml.wasm`, supplying its own WASI imports, with disposable
+handles, a 2,000,000-byte size budget and release 0.2.0.
 
 Recorded 2026-10-17, completing D10 and D47. Node 22.22, WASI SDK 34.
 
@@ -4194,6 +4750,11 @@ Recorded 2026-10-17, completing D10 and D47. Node 22.22, WASI SDK 34.
 
 ### D139. The stylesheet reader and static expressions (packet 4.5)
 
+**Summary**: `sxml_xslt_read_stylesheet` reads every module with one explicit
+stack, checks elements against tables generated from the XSLT 4.0 schema, and
+evaluates static expressions through the ordinary front end with a static
+scope.
+
 Recorded 2026-10-17, after D81, D102, D118, D120. `src/xslt_ast.c` (the builder
 of D102), `src/xslt_read.c` with `src/xslt_read_internal.h`
 (`sxml_xslt_read_stylesheet`), `src/xslt_static.c` with
@@ -4249,6 +4810,10 @@ so each module has its own.
 
 ### D140. URIs, QNames and hashes (packet 2.11)
 
+**Summary**: fn:hash computes MD5, SHA-1, SHA-256, BLAKE3 and CRC-32 without
+allocation, and fn:parse-uri, fn:build-uri, fn:decode-from-uri, fn:parse-QName
+and fn:resolve-QName share one percent-decoding octet reader.
+
 Recorded 2026-10-17, after D88, D91, D101. New part
 `src/function_library_hash.c` (fn:hash) over `src/hash.c` /
 `src/hash_internal.h`; rows added to the uri part (decode-from-uri, parse-uri,
@@ -4295,6 +4860,10 @@ build-uri) and the qname part (parse-QName, resolve-QName).
 
 ### D141. CSV parsing: fn:parse-csv, fn:csv-to-xml, fn:csv-doc (packet 2.15)
 
+**Summary**: A hand-written CSV scanner yields one token per call without
+allocation; fn:parse-csv parses once, fn:csv-to-xml walks its result and
+fn:csv-doc reads through fn:unparsed-text.
+
 Recorded 2026-10-17, after D97, D128, D131, D133. New module `src/csv.c` /
 `src/csv_internal.h` and part `src/function_library_csv.c`.
 
@@ -4325,6 +4894,10 @@ Recorded 2026-10-17, after D97, D128, D131, D133. New module `src/csv.c` /
   bind (Proposed below); with it, 124/124.
 
 ### D142. Sequence constructors and node construction (packet 4.6)
+
+**Summary**: XSLT instructions are lowering procedures on the XPath lowerer: a
+sequence constructor is one atom per child, and literal result elements, value
+templates and xsl: constructors lower to the existing IR constructor kinds.
 
 Recorded 2026-10-17, after D102, D103, D110, D120, D124, D127, D139.
 `src/xslt_lower.c`, `src/xslt_lower_construct.c`, `src/xslt_simple_content.c`
@@ -4392,6 +4965,10 @@ header.
 
 ### D143. Conformance sweep 1: computed constructors in XPath, the JSON fallback, descending ranges, function equivalence (packet 2.19)
 
+**Summary**: Computed constructors are available in XPath, the JSON functions
+call their fallback, sequences gain a descending integer range, and deep-equal
+treats function items with the same static form as equal.
+
 Recorded 2026-10-17, after D95, D110, D127, D133, D136, D141. Accepts the
 Proposed items "QT4 assertions see the result as the context value", "Decimal
 zero against doubles", "A descending integer range" and "Equivalence of
@@ -4403,7 +4980,7 @@ function items" (orchestrator, packet 2.19).
 - **The fallback option** of fn:parse-json, fn:json-to-xml and fn:json-doc (F&O
   4.0, 17.4.4 to 17.4.6): the three rows are resumable bodies (D75) of the json
   part; before the parse, the fallback is called once per codepoint that has an
-  `unpermitted_escape` (`sxml_json_find_unpermitted_ escape`, a lexical scan
+  `unpermitted_escape` (`sxml_json_find_unpermitted_escape`, a lexical scan
   that pairs surrogates as parsing does), with the escape as written; its
   result is coerced to xs:anyAtomicType and its string value becomes the
   `json_replacement` the parse inserts for every escape of that codepoint
@@ -4450,6 +5027,10 @@ function items" (orchestrator, packet 2.19).
   wrong arity (xqhof8, xqhof9).
 
 ### D144. Templates and modes (packet 4.8)
+
+**Summary**: Each xsl:template becomes an IR function of five parameters, modes
+sort their rules by precedence and priority, and APPLY_TEMPLATES runs as a part
+task calling match and template functions on the machine.
 
 Recorded 2026-10-17, after D55, D101, D118, D124, D139, D142.
 `src/xslt_lower_template.c`, `src/evaluator_template.c`,
@@ -4529,6 +5110,10 @@ public header.
 
 ### D145. Control flow and variables (packet 4.7)
 
+**Summary**: XSLT control flow lowers to existing IR kinds: xsl:if, choose and
+switch as CONDITIONAL chains, for-each as MAP, try as TRY_CATCH, iterate as
+fn:scan, with one procedure for all variable bindings.
+
 Recorded 2026-10-17, after D71, D103, D109, D124, D126, D135, D142.
 `src/xslt_lower_control.c` (rule view `sxml_xslt_instruction_rules_control`,
 one line in `src/xslt_lower.c`'s list), `tests/xslt_lower_control_test.c`; no
@@ -4605,6 +5190,10 @@ IR kind, no evaluator change, no public header.
 
 ### D146. The XQuery API and the sxml xquery command (packet 3.12)
 
+**Summary**: `include/sxml/xquery.h` is implemented over the XPath API's one
+evaluation path, output declarations are read as serialization parameter texts,
+and the CLI gains `sxml xquery` and `sxml serialize`.
+
 Recorded 2026-10-17, after D106, D134, D135. `include/sxml/xquery.h` is
 implemented in `src/xquery.c`; no header changed.
 
@@ -4655,6 +5244,10 @@ implemented in `src/xquery.c`; no header changed.
 
 ### D147. Counted repetition with counters (packet 2.19b)
 
+**Summary**: A regular expression quantifier whose copies would exceed 256
+instructions compiles to a counted loop whose counter and progress are register
+slots, so large counts compile and nothing recurses.
+
 Recorded 2026-10-17, after D53, D71, D105. Closes D105's "Not done". (Completed
 by the Phase 3 review, D161, from the text 2.19b left uncommitted.)
 
@@ -4689,6 +5282,10 @@ by the Phase 3 review, D161, from the text 2.19b left uncommitted.)
   `a{99999999999999999999999999}` is false, which the test allows).
 
 ### D148. Library modules and module import (packet 3.11)
+
+**Summary**: XQuery library modules are loaded into a module set through the
+resolver, one per module URI, each with its own static context, and the whole
+set lowers into the main module's unit.
 
 Recorded 2026-10-17, after D106, D134, D135, D146. No header changed; no IR
 kind added.
@@ -4753,6 +5350,10 @@ kind added.
   (159) stay "not run".
 
 ### D149. Keys and XSLT functions (packet 4.10)
+
+**Summary**: An XSLT function table puts stylesheet functions and the XSLT-only
+library part before the processor's; xsl:key indexes are built lazily with
+map:build once per evaluation and tree through an evaluation memo.
 
 Recorded 2026-10-17, after D101, D103, D118, D139, D142, D144. `src/xslt_key.c`
 with `src/xslt_key_internal.h`, `src/function_library_xslt.c`,
@@ -4825,6 +5426,10 @@ with `src/xslt_key_internal.h`, `src/function_library_xslt.c`,
   host's: Proposed).
 
 ### D150. Functions and declarations (packet 4.12)
+
+**Summary**: Stylesheet functions, attribute sets, decimal formats, the global
+context item, whitespace stripping and host parameters are lowered, with
+globals ordered by a component dependency graph.
 
 Recorded 2026-10-17, after D101, D135, D139, D142, D144, D145.
 `src/xslt_lower_declaration.c`, `src/xslt_whitespace.c` with
@@ -4908,6 +5513,10 @@ no public header.
 
 ### D151. Phase 2 gate review (packet 2.20)
 
+**Summary**: The Phase 2 gate review passes: XP40 at 97.0 % in scope, fuzzing
+clean, every F&O 4.0 function present but the non-goals, with option readers
+and calendar rules merged and `xquery.h` and `xslt.h` provisional.
+
 Recorded 2026-10-17 by the review agent (D11), after D95, D97, D123, D132.
 Checked locally (D123): `tools/check-main.sh` on a clean HEAD (c7c0c35) builds
 and tests `release`, `debug` (ASan, UBSan), `debug-gcc` and `wasm` (Node.js
@@ -4975,6 +5584,10 @@ package tests and size budget included) and lints clean, with no call cycle.
   `sxml_size_multiply` for the others).
 
 ### D152. Sorting and grouping (packet 4.9)
+
+**Summary**: The evaluator's SORT gains per-key collations, an order atom and
+composite keys; xsl:sort becomes SORT keys, and xsl:for-each-group and
+xsl:merge reuse SORT and the XQuery group-by row through one grouping row.
 
 Recorded 2026-10-17, after D79, D116, D118, D136, D137, D142, D144, D145.
 `src/xslt_lower_group.c`, `src/xslt_group.c` (`src/xslt_group_internal.h`),
@@ -5053,6 +5666,11 @@ Recorded 2026-10-17, after D79, D116, D118, D136, D137, D142, D144, D145.
 
 ### D153. Numbering and analyze-string (packet 4.11)
 
+**Summary**: xsl:number is lowered as the specification's formal definition in
+XPath texts with one format-place-marker row over the format-integer engine,
+and xsl:analyze-string as fn:matching-segments with captured groups in a
+context variable.
+
 Recorded 2026-10-18, after D105, D114, D118, D119, D142, D145, D149, D152.
 `src/xslt_lower_number.c` (rule view `sxml_xslt_instruction_rules_number`, one
 line in `src/xslt_lower.c`), `tests/xslt_number_test.c`; additive edits to
@@ -5122,6 +5740,10 @@ evaluator change, no public header.
 
 ### D154. XQuery conformance sweep 1 (packet 3.14)
 
+**Summary**: The dynamic context keeps one global table per unit, a native step
+kind evaluates another sealed unit on the machine, and fn:load-xquery-module is
+built on it as XQuery's own function table.
+
 Recorded 2026-10-18, after D71, D75, D95, D135, D148. No public header changed;
 no IR kind added.
 
@@ -5188,6 +5810,10 @@ no IR kind added.
 
 ### D155. Accumulators (packet 4.14)
 
+**Summary**: Each XSLT accumulator lowers to match and rule functions and a
+fold-left traversal without recursion, its values built lazily once per
+evaluation and tree in the evaluation memo, with copies linked to originals.
+
 Recorded 2026-10-18, after D118, D144, D149, D150. `src/xslt_accumulator.c`
 with `src/xslt_accumulator_internal.h`, five internal rows in
 `src/function_library_xslt.c`, `tests/xslt_accumulator_test.c`; hooks in
@@ -5244,6 +5870,10 @@ fn:snapshot). No IR kind, no evaluator change, no public header.
   copies make lookups linear).
 
 ### D156. Output and result documents (packet 4.13)
+
+**Summary**: Stylesheet outputs compile output definitions, character maps and
+result document instructions from the sealed AST, and xsl:result-document is
+two internal rows that a result writer delivers to the handler.
 
 Recorded 2026-10-18, after D106, D112, D120b, D128, D144, D145, D146, D150.
 `src/xslt_output.c` with `src/xslt_output_internal.h`, the library part
@@ -5326,6 +5956,10 @@ IR kind, no evaluator change, no public header.
   xsl:output was not read.
 
 ### D157. The XSLT API, the XSLT driver's runs and sxml transform (packet 4.15)
+
+**Summary**: `src/xslt.c` implements `include/sxml/xslt.h`, passing invocation
+values as invocation globals bound by name; the XSLT driver runs the suite and
+the CLI gains `sxml transform`.
 
 Recorded 2026-10-18, after D112, D117, D139, D144, D145, D149, D150, D156.
 `src/xslt.c` implements `include/sxml/xslt.h` (unchanged), imitating
@@ -5421,6 +6055,10 @@ Recorded 2026-10-18, after D112, D117, D139, D144, D145, D149, D150, D156.
 
 ### D158. XQuery conformance sweep 2 (packet 3.14)
 
+**Summary**: XQuery parameter defaults become default functions called with the
+caller's focus, XQuery closures read globals at call time, units keep IR
+modules, and fn:load-xquery-module honours `trusted`.
+
 Recorded 2026-10-18, after D135, D148, D154. Closes D135 (b) to (g) and D154's
 "Not done" but where said. No public header changed; no IR kind.
 
@@ -5492,6 +6130,11 @@ Recorded 2026-10-18, after D135, D148, D154. Closes D135 (b) to (g) and D154's
 
 ### D159. XSLT conformance sweep 1 (packet 4.17)
 
+**Summary**: The shared picture engine gains alphabets and symbol sequences
+such as circled digits, key and accumulator builds share one kept-build step,
+guarded matches are one helper, and focus-independent filters evaluate their
+predicate once.
+
 Recorded 2026-10-19, after D119, D149, D153, D155, D157.
 
 - **Numbering sequences** in the shared picture engine (`src/format.c`, so
@@ -5548,6 +6191,10 @@ Recorded 2026-10-19, after D119, D149, D153, D155, D157.
   attributes as expressions; host collation bindings.
 
 ### D160. Packages (packet 4.16)
+
+**Summary**: XSLT packages are read into one AST, one copy per xsl:use-package,
+and a package table of component instances with visibilities binds each
+reference through overrides before one lowering into one unit.
 
 Recorded 2026-10-19, after D112, D117, D139, D148, D157. `src/xslt_package.c`
 with `src/xslt_package_internal.h` (the package table, glossary); no IR kind,
@@ -5627,6 +6274,10 @@ D151).
   lost a case.
 
 ### D161. Phase 3 gate review (packet 3.15)
+
+**Summary**: The Phase 3 gate review passes with XQ40 at 97.2 % in scope, XP40
+unregressed and fuzzing clean, merges heapsorts and parameter document readers,
+and declares `xquery.h` stable.
 
 Recorded 2026-10-19 by the review agent (D11), after D95, D123, D132, D151.
 Checked locally (D123): `tools/check-main.sh` on a clean HEAD (84f3178) builds
@@ -5743,6 +6394,10 @@ length in `src/xslt.c` (4.15) and a null dereference the analyzer finds in
 
 ### D162. D97's exclusions are delays, not non-goals (owner)
 
+**Summary**: The features D97 leaves out are delayed, not dropped: schema
+awareness stays Phase 5, the rest becomes Phase 7, and until then each is
+rejected or ignored in one place with the specification's error.
+
 Recorded 2026-10-18 on the owner's word: "D97 is accepted only as a delay --
 these features need to be supported ultimately." Amends D97 and the "Not in
 year one" list of PLAN.md.
@@ -5769,6 +6424,10 @@ year one" list of PLAN.md.
   then; a feature may be a build option.
 
 ### D163. XSLT conformance sweep 2 (packet 4.17)
+
+**Summary**: Parentless text nodes may be empty, text events carry CDATA
+requests, arena trees start small, IR modules carry each expression's static
+context at run time, and named declarations are local to their package.
 
 Recorded 2026-10-19, after D99, D148, D159, D160, D161, D162.
 
@@ -5839,7 +6498,7 @@ Recorded 2026-10-19, after D99, D148, D159, D160, D161, D162.
   lax and preserve are taken as strip (27.2). One system property table
   (`src/system_property.c`, glossary `system_property`) serves
   fn:system-properties and the XSLT fn:system-property.
-- **Merges**: `sxml_ir_slot_atom` (10 copies), `sxml_xml_text_trim_ whitespace`
+- **Merges**: `sxml_ir_slot_atom` (10 copies), `sxml_xml_text_trim_whitespace`
   (16), `sxml_xslt_lowering_resolve_declared_type` and `_expression_context` (3
   and 2), the two remaining heapsorts onto `sxml_sort_in_place`, one
   boolean-attribute helper (yes, true, 1).
@@ -5865,6 +6524,10 @@ Recorded 2026-10-19, after D99, D148, D159, D160, D161, D162.
 
 ### D164. Phase 5 starts now, alongside the end of Phase 4 (owner)
 
+**Summary**: Phase 5, XSD 1.1 validation and schema-aware typing, starts before
+the Phase 4 gate, planned by design packet 5.1, and must not regress Phase 4's
+counts.
+
 Recorded 2026-10-18 on the owner's choice ("Start Phase 5 now"), after they
 asked for a way to work with XSD schemas in the `sxml` command. Amends D132 and
 PLAN.md's order: Phase 5 (XSD 1.1 validation and schema-aware typing) no longer
@@ -5875,6 +6538,10 @@ must not regress its counts. A `sxml validate` command enters the CLI only once
 it works (D44).
 
 ### D165. Phase 5 design: schema.h, the substrate additions, the XSD suite (packet 5.1)
+
+**Summary**: Phase 5 adds `schema.h`, with validation as a tree builder filter,
+additive facet and complex type fields in `types.h`, internal schema type
+registration, and the W3C XSD suite with proposed gate numbers.
 
 Recorded 2026-10-18. Plans Phase 5 (D164) in `docs/tasks/phase-5.md`; completes
 D98's deferred "registering schema-derived atomic types" and the Phase 5 notes
@@ -5983,6 +6650,10 @@ of D32, D53, D58, D97 and D162.
 
 ### D166. Content that streams into a constructor; XSLT sweep 3 (packet 4.17)
 
+**Summary**: Element and document constructors become receiving tasks into
+which delivering content tasks stream their values, so constructed content
+builds directly in the receiver's tree instead of as separate trees.
+
 Recorded 2026-10-18, after D71, D101, D110, D163. Accepts D163's Proposed item
 "content that streams into a constructor", as one mechanism of the shared
 evaluator and IR, used by XSLT and XQuery alike.
@@ -6051,6 +6722,10 @@ evaluator and IR, used by XSLT and XQuery alike.
 
 ### D167. Schema components and compile stages (packet 5.2)
 
+**Summary**: Schema components live in one index-addressed store, one table per
+XSD 1.1 component kind with fixed built-in entries, compiled in six ordered
+stages from READ to ASSERTIONS, with content models as deterministic automata.
+
 Recorded 2026-10-18. The internal design of Phase 5 (D165), in
 `src/schema_internal.h`; golden `src/xslt_ast_internal.h`.
 
@@ -6109,6 +6784,10 @@ Recorded 2026-10-18. The internal design of Phase 5 (D165), in
 
 ### D168. The XSD 1.1 test driver (packet 5.3)
 
+**Summary**: The XSD 1.1 test driver `sxml-xsd-test` shares the budget,
+selection, slice and report mechanisms with the QT4 driver, names test sets by
+directory and file, and applies version tokens per level.
+
 Recorded 2026-10-18. `tests/xsd/driver/`, the developer tool `sxml-xsd-test`
 (list, run), public API only, a sibling of sxml-qt4 and sxml-xslt-test that
 links `sxml_qt4_driver_library`.
@@ -6155,6 +6834,10 @@ links `sxml_qt4_driver_library`.
   process per test set; NIST, 23,170 tests in one file, is the longest).
 
 ### D169. Phase 4 gate review (packet 4.18)
+
+**Summary**: The Phase 4 gate review passes with XT40 at 91.5 % in scope and
+XP40 and XQ40 unregressed, adds `xslt_fuzz`, fixes XSLT error locations, and
+declares `xslt.h` stable.
 
 Recorded 2026-10-19 by the review agent (D11), after D95, D123, D151, D161,
 D166. Checked locally (D123): `tools/check-main.sh` on clean HEAD (77bc5d5
@@ -6271,6 +6954,10 @@ before and 8d2aa06 after this review's changes) builds `release`, `debug`
 
 ### D170. The schema document reader and assembly (packet 5.4)
 
+**Summary**: One table of schema element roles drives a loop reading schema
+documents into components, assembly reads each document once with redefine and
+override applied last, and RESOLVE turns references into indexes.
+
 Recorded 2026-10-18. READ and RESOLVE (D167) and `sxml_schema`'s quintet;
 golden `src/xslt_read.c`, `src/xquery_module.c`.
 
@@ -6340,6 +7027,10 @@ golden `src/xslt_read.c`, `src/xquery_module.c`.
 
 ### D171. Simple types and facets (packet 5.5)
 
+**Summary**: Casting to a registered schema simple type applies its whiteSpace
+facet, its built-in ancestor's lexical mapping and every facet of its chain,
+and SIMPLE_TYPES makes facet values canonical before registering types.
+
 Recorded 2026-10-18. Fills SIMPLE_TYPES (D167) and registration (D165).
 
 - **One lexical engine.** Casting to a registered type is its whiteSpace facet
@@ -6390,6 +7081,10 @@ Recorded 2026-10-18. Fills SIMPLE_TYPES (D167) and registration (D165).
   XP40 30,647 and XQ40 40,034 unchanged, slice 198.
 
 ### D172. Complex types and content models (packet 5.6)
+
+**Summary**: Content models compile to one automaton format with counters,
+expanding small repetitions; UPA is a determinism check, and restriction of
+content is a walk over pairs of configurations of both models.
 
 Recorded 2026-10-18. Fills COMPLEX_TYPES and the content model plan of D167
 (`src/schema_complex_type.c`, `src/schema_content_model.c`).
@@ -6468,6 +7163,10 @@ Recorded 2026-10-18. Fills COMPLEX_TYPES and the content model plan of D167
   (particlesK006).
 
 ### D173. Validation and the typed tree (packet 5.7)
+
+**Summary**: The schema validator is a filtering tree builder that holds each
+element start until its governing type is chosen, steps content model cursors,
+sends schema normalized values, and records subtrees for deferred checks.
 
 Recorded 2026-10-18. The schema validator of D165 and the seams of D167
 (`src/schema_validate.c`, `src/schema_validate_value.c`,
@@ -6558,6 +7257,10 @@ Recorded 2026-10-18. The schema validator of D165 and the seams of D167
 
 ### D174. Schema-aware XPath and XQuery (packet 5.11)
 
+**Summary**: XPath and XQuery become schema-aware through `in_scope_schemas` in
+the static context, one schema scope module for lookups and errors, import
+schema, validate as an internal row, and fn:xsd-validator.
+
 Recorded 2026-10-18. Replaces the rejection places of D97 and D162 for XPath
 and XQuery (XPST0008 of schema-element, XQST0009, XQST0075, FODC0009 of
 fn:parse-xml, the driver's non-goal features); golden `src/xquery_flwor.c` (an
@@ -6646,6 +7349,10 @@ internal native row), `src/function_library_csv.c`.
 
 ### D175. Assertions and type alternatives (packet 5.9)
 
+**Summary**: XSD 1.1 assertions and type alternatives compile with `xpath.h` in
+XPath Valid's static context and run on the one evaluator over assertion copies
+and parentless element copies with inherited attributes.
+
 Recorded 2026-10-18. Fills ASSERTIONS and the seams of D167 for XSD 1.1
 assertions and conditional type assignment (`src/schema_assertion.c`); golden
 `src/schema_simple_type.c`.
@@ -6709,6 +7416,11 @@ assertions and conditional type assignment (`src/schema_assertion.c`); golden
 
 ### D176. sxml validate (packet 5.10)
 
+**Summary**: `sxml validate` validates each FILE in one pass through a
+validator over the null builder, uses only the schemas named by required
+`--schema` options, never following location hints, and reports in text or
+JSON.
+
 Recorded 2026-10-18. The command of the 5.10 design (`docs/tasks/phase-5.md`),
 in `apps/sxml/command_validate.c`; golden `apps/sxml/command_check.c`. Public
 API only (`schema.h`, `xml.h`).
@@ -6751,6 +7463,10 @@ API only (`schema.h`, `xml.h`).
   passed as `--schema`.
 
 ### D177. Identity constraints (packet 5.8)
+
+**Summary**: Identity constraint selectors and fields are checked against XSD's
+XPath subsets on the AST, compiled with `xpath.h`, and evaluated on the
+recorded subtree, with XSD equality and hash-indexed node tables.
 
 Recorded 2026-10-18. IDENTITY_CONSTRAINTS and the identity seam of D167
 (`src/schema_identity.c`, `tests/schema_identity_test.c`); golden
@@ -6801,6 +7517,11 @@ Recorded 2026-10-18. IDENTITY_CONSTRAINTS and the identity seam of D167
   98.9 %; slice 147 of 147. No shared code changed: XP40, XQ40 and XT40 hold.
 
 ### D178. XSD and schema-aware conformance sweep 1 (packet 5.13)
+
+**Summary**: The QT4 driver stops reclassifying schema-aware outcomes, fixing
+the two cases at their causes; validation descriptions use message templates,
+and one XPath record compiler serves assertions, alternatives and identity
+constraints.
 
 Recorded 2026-10-18. Amends D174 (its QT4 outcome rules); resolves three
 Proposed items (validation descriptions, locations of configured schema
@@ -6887,6 +7608,10 @@ documents, a simple base for a complex type).
   errors, schema-aware XQ40 1,236 of 1,516; XT40 7,992 (was 7,990); QT4 slice 198.
 
 ### D179. Schema-aware XSLT (packet 5.12)
+
+**Summary**: XSLT becomes schema-aware: xsl:import-schema compiles one schema
+beside the host's in-scope schemas, validation attributes wrap constructed
+nodes in XQuery's validate row with XSLT's rules, and typed modes are checked.
 
 Recorded 2026-10-18. Replaces D162's two XSLT rejection places
 (`reject_schema_awareness`'s XTSE1660 and XTSE1650 in `src/xslt_read.c`, D163,
@@ -6987,6 +7712,10 @@ D169) with D174's mechanisms; golden `src/xquery_static.c` (import schema),
 
 ### D180. Conformance sweep 2 (packet 5.13)
 
+**Summary**: A schema document's global type named like a built-in type is that
+built-in component, a source that does not validate is judged by the
+assertions, and validate-items becomes a row of its own.
+
 Recorded 2026-10-18. Clears D179's six XT40 errors at their causes; resolves
 the Proposed item "xslt.h reads the host's in-scope schemas".
 
@@ -7053,6 +7782,10 @@ the Proposed item "xslt.h reads the host's in-scope schemas".
 
 ### D181. Verification in proportion; agent prompts in the repository (owner)
 
+**Summary**: A packet verifies in proportion (the `debug` preset, the tests and
+conformance sets it affects, clean lint for its files), full runs and fuzzing
+move to the owner's machine, and agent prompts live in `docs/agents/`.
+
 Recorded 2026-10-19 on the owner's word: re-running all builds and fuzzing
 everything takes too long here; the owner will provision a machine for that.
 Amends the done-when of the packet procedure (D123's local checks).
@@ -7072,6 +7805,10 @@ Amends the done-when of the packet procedure (D123's local checks).
   the design rules (D44).
 
 ### D182. Phase 5 gate review (packet 5.14)
+
+**Summary**: The Phase 5 gate review passes with XSD in scope at 99.9 % and
+schema-aware XQ40 and XT40 above their gates, adds `schema_fuzz`, merges XML
+text helpers, and declares `schema.h` stable.
 
 Recorded 2026-10-19 by the review agent (D11), after D151, D161, D169 and D181.
 **The owner moved the confirming runs to a machine of their own** (D181): the
@@ -7208,6 +7945,10 @@ ast-grep, no call cycle in 176 files). The dashboard is regenerated at 3b0812a.
 
 ### D183. Phase 7 plan: one packet per deferred feature, optional features for size (packet 7.1)
 
+**Summary**: Phase 7 is planned as one packet per deferred feature, from
+optional features and the size budget through streaming, Update, HTML5, Full
+Text and UCA to a review, each reusing existing mechanisms with its own gate.
+
 Recorded 2026-10-19, after D95, D97, D154, D157, D162, D165, D166, D181. Plans
 Phase 7 (D162) in `docs/tasks/phase-7.md`, as D165 planned Phase 5.
 
@@ -7288,6 +8029,10 @@ Phase 7 (D162) in `docs/tasks/phase-7.md`, as D165 planned Phase 5.
 
 ### D184. Phase 7 scope, size and access choices (owner)
 
+**Summary**: The owner adds xsl:evaluate, disable-output-escaping, XML 1.1
+input and DTD processing to Phase 7, with link-time optional features, wasm
+budgets of 2,100,000 and 3,000,000 bytes, and Update 3.0 first.
+
 Recorded 2026-10-19 on the owner's answers to D183's questions.
 
 - **Scope:** xsl:evaluate (7.3), disable-output-escaping (7.5), XML 1.1 input
@@ -7305,6 +8050,10 @@ Recorded 2026-10-19 on the owner's answers to D183's questions.
   proposes en, de, fr, it, es, nl; ISO, AD, BE, JE, OS, AH).
 
 ### D185. XSLT conformance sweep after the Phase 4 gate (packet 4.19)
+
+**Summary**: The XSLT sweep after the Phase 4 gate leaves "~T" type patterns
+unimplemented, makes extension instructions call named templates, adds
+xsl:item-type and xsl:record-type, and strips available documents as sources.
 
 Recorded 2026-10-19, after D29, D98, D152, D160, D169, D181. Verified as D181
 asks: the debug preset, the unit and CLI tests touched, clang-tidy and the
@@ -7363,6 +8112,10 @@ minute here). **XT40 8,650 to 8,759 passed, 0 errors, no case lost.**
   packet's file at the time.
 
 ### D187. The XQuery Update Facility 3.0 (packet 7.7a)
+
+**Summary**: XQuery Update Facility 3.0 is parsed, checked statically and
+applied: a `pending_update_list` is a sequence of function items, each changed
+tree is rebuilt in one pass and handed to the host's `update_sink`.
 
 Recorded 2026-10-19, after D99, D137, D162, D183, D184. The owner chose XQUF
 3.0 first (D184): packet 7.7a designs it and does the 3.0 expressions and their
@@ -7439,6 +8192,11 @@ additions and 7.7c fn:put and revalidation.
 
 ### D188. disable-output-escaping: a text node mark (packet 7.5)
 
+**Summary**: disable-output-escaping is a mark on text nodes
+(`disables_output_escaping` in `tree.h`), set by xsl:value-of and xsl:text
+outside temporary output state and honoured by the XML, XHTML and HTML output
+methods.
+
 Recorded 2026-10-19, after D99, D163, D183, D184. The owner's prompt for 7.5
 asked for a mark on text nodes as D163 added the CDATA request, in place of
 D183's processing-instruction pair (glossary `disable_output_escaping` replaces
@@ -7479,6 +8237,10 @@ D183's processing-instruction pair (glossary `disable_output_escaping` replaces
   need it unsatisfied are not run any more.
 
 ### D189. Optional features and the size budgets (packet 7.2)
+
+**Summary**: An `optional_feature` is linked only into programs that name it in
+`sxml_processor_configuration`, with large `feature_data` read through the
+resolver; the JavaScript core and full modules get their size budgets.
 
 Recorded 2026-10-19, after D71, D138, D162, D183, D184. Carries out the owner's
 size choice (D184): link-time optional features through one additive
@@ -7556,6 +8318,10 @@ resolver.
 
 ### D190. XPath and XQuery conformance sweep (packet 2.21)
 
+**Summary**: The sweep adds composite casts to arrays, maps and records, the
+`caller_focus` for fn:function-lookup, paths over JNodes and implicit-timezone
+equality in fn:distinct-values, with no public header changed.
+
 Recorded 2026-10-19, after D143, D158, D174, D113. Takes the "XPath and XQuery"
 leftovers of `docs/agents/QUEUE.md`. No public header changed; no IR expression
 kind added.
@@ -7614,6 +8380,10 @@ kind added.
 
 ### D191. Optional features add library functions (packet 7.10a)
 
+**Summary**: An optional feature's definition can carry `library_functions`,
+which the processor's function library serves after the registered parts, so
+the functions are absent (XPST0017) from programs that do not name the feature.
+
 Recorded 2026-10-19, after D45, D101, D162, D189. A feature whose D162 place is
 "the functions are absent" (XPST0017: fn:parse-html and fn:html-doc, the EXPath
 Binary and File functions) must not link its rows into a program that does not
@@ -7636,6 +8406,10 @@ name it, so its rows cannot be a library part of `src/function_library_*.c`
   does not take it as a part.
 
 ### D195. XML 1.1 input (packet 7.13)
+
+**Summary**: A document whose XML declaration says version 1.1 is parsed by XML
+1.1's rules: a pre-pass refuses restricted characters and translates NEL and
+LINE SEPARATOR line ends, while query texts stay XML 1.0.
 
 Recorded 2026-10-19, after D12, D81, D183, D184. Supersedes D81's "version 1.1
 documents are parsed by the 1.0 rules".
@@ -7695,6 +8469,10 @@ documents are parsed by the 1.0 rules".
 
 ### D196. xsl:evaluate (packet 7.3)
 
+**Summary**: xsl:evaluate is a static call whose resumable body compiles the
+target with `sxml_xpath_compile` and runs it as a `unit_evaluation` on the same
+machine, with stylesheet functions passed as function items.
+
 Recorded 2026-10-19, after D71, D154, D162, D163, D183, D184. Replaces D162's
 one place for dynamic evaluation (the XTDE3175 raise in
 `src/xslt_lower_control.c`): xsl:evaluate is available, so XTDE3175 is never
@@ -7748,6 +8526,10 @@ raised and the xsl:fallback children are not evaluated.
   parse-html wait for 7.10.
 
 ### D197. XSLT backwards compatible behaviour and XPath 1.0 compatibility mode (packet 7.4)
+
+**Summary**: `xpath_1_compatibility_mode` is one static context flag that makes
+the lowering insert XPath 1.0 conversions, set for XSLT elements whose
+effective version is below 2.0, with no second evaluator.
 
 Recorded 2026-10-19, after D97, D162, D183, D184. Replaces D162's place for
 XSLT 1.0 behaviour (`asks_xslt_1_behaviour` and its XTDE0160 in
@@ -7817,6 +8599,10 @@ XSLT 1.0 behaviour (`asks_xslt_1_behaviour` and its XTDE0160 in
 
 ### D198. EXPath Binary (packet 7.8)
 
+**Summary**: The EXPath Binary Module 4.0 is the optional feature
+"expath-binary": 33 functions as its `library_functions`, a new well-known bin
+namespace, and fn:unparsed-text's decoder moved to `src/text_decoding.c`.
+
 Recorded 2026-10-19, after D51, D99, D162, D163, D189, D191. The EXPath Binary
 Module 4.0 is the optional feature `sxml_expath_binary_feature()`
 ("expath-binary").
@@ -7861,6 +8647,10 @@ Module 4.0 is the optional feature `sxml_expath_binary_feature()`
   passes).
 
 ### D199. DTD processing: external subset, external entities, validation (packets 7.14a, 7.14b)
+
+**Summary**: The XML parser reads the external subset, external parameter
+entities and external parsed entities through a per-parse entity resolver in
+`xml.h`, expanding parameter-entity references in a loop with explicit stacks.
 
 Recorded 2026-10-19, after D12, D28, D44, D71, D81, D165, D183, D184, D195.
 Replaces D81's "the external subset is not read" and "external parsed entities
@@ -7974,6 +8764,11 @@ are skipped in content".
 
 ### D200. EXPath File (packet 7.9)
 
+**Summary**: The EXPath File Module 4.0 is the optional feature "expath-file"
+over a host `sxml_file_system` interface, opted into twice: hosts name the
+feature and give a file system, and `sxml_all_optional_features()` leaves it
+out.
+
 Recorded 2026-10-19, after D71, D99, D162, D184, D189, D191, D198. The EXPath
 File Module 4.0 is the optional feature `sxml_expath_file_feature()`
 ("expath-file") over a host interface, the file system.
@@ -8028,6 +8823,10 @@ File Module 4.0 is the optional feature `sxml_expath_file_feature()`
   fn:transform's (D203).
 
 ### D201. HTML5 parsing: a hand-written tokenizer, tree construction on a working tree (packet 7.10a)
+
+**Summary**: fn:parse-html and fn:html-doc are the optional feature "html": a
+hand-written HTML tokenizer and tree construction on an `html_working_tree`,
+not tree-sitter, then mapped to XDM.
 
 Recorded 2026-10-19, after D12, D53, D71, D162, D183, D184, D189, D191.
 fn:parse-html and fn:html-doc (F&O 4.0, 17.3) as the optional feature
@@ -8121,6 +8920,9 @@ fn:parse-html and fn:html-doc (F&O 4.0, 17.3) as the optional feature
 
 ### D202. The CLI's WebAssembly budget is 7,000,000 / 1,500,000 bytes (owner)
 
+**Summary**: The CLI's WebAssembly budget rises to 7,000,000 bytes stripped and
+1,500,000 gzipped, while the `sxml.wasm` budgets stay.
+
 Recorded 2026-10-19 on the owner's choice. The CLI module grew to 5,927,297
 bytes stripped and 1,267,818 gzipped (the XQuery Update grammar, D187, and the
 HTML parser, D201), over D176's 5,500,000 / 1,250,000. The CLI's WebAssembly
@@ -8129,6 +8931,10 @@ budget rises to 7,000,000 / 1,500,000 with room for the rest of Phase 7. The
 `sxml.wasm` budgets of D184 and D189 stay.
 
 ### D203. fn:transform (packet 7.11)
+
+**Summary**: fn:transform is the optional feature "xslt-transform", whose
+resumable body compiles the stylesheet, primes the transformation and asks the
+machine for a `unit_evaluation`, with no evaluator nested in C.
 
 Recorded 2026-10-19, after D71, D154, D157, D183, D189, D191, D196, D207.
 Replaces D162's place for fn:transform (the function was absent, XPST0017;
@@ -8205,6 +9011,10 @@ supports-dynamic-xslt false).
 
 ### D205. fn:put, revalidation, untyped copies and the 4.0 return clause (packets 7.7b, 7.7c)
 
+**Summary**: The XQuery Update Facility is completed with fn:put through the
+host's update sink, lax and strict revalidation, untyped copies that drop is-id
+and is-idrefs, and the 4.0 draft's updating return clause.
+
 Recorded 2026-10-19, after D99, D165, D173, D184, D187. The rest of the XQuery
 Update Facility after 7.7a: fn:put and revalidation (7.7c), the 4.0 draft's
 updating return clause (7.7b), and copies that drop schema identity.
@@ -8263,6 +9073,10 @@ updating return clause (7.7b), and copies that drop schema identity.
 
 ### D206. XSLT 1.0 follow-ups: EXSLT common, text value templates, result documents (packet 7.4b)
 
+**Summary**: XSLT 1.0 follow-ups add exsl:node-set and exsl:object-type, read
+exsl:document as xsl:result-document, and lower text value templates in 1.0
+elements without XPath 1.0 compatibility mode.
+
 Recorded 2026-10-19, after D197 and D99. Follows up D197's "Not done".
 
 - **name.h (frozen, additive, D99)**: `SXML_NAMESPACE_EXSLT_COMMON = 15` for
@@ -8309,6 +9123,10 @@ Recorded 2026-10-19, after D197 and D99. Follows up D197's "Not done".
 
 ### D207. JavaScript module budgets raised: core 2,200,000, full 4,000,000 (owner)
 
+**Summary**: The core `sxml.wasm` budget rises to 2,200,000 bytes stripped and
+770,000 gzipped, and the full module's to 4,000,000 and 1,400,000, so
+fn:transform keeps the XSLT processor in `sxml-full.wasm`.
+
 Recorded 2026-10-19 on the owner's choices. Amends D184 and D189.
 
 - The core `sxml.wasm` crept to 2,120,223 bytes stripped over D184's 2,100,000
@@ -8321,6 +9139,10 @@ Recorded 2026-10-19 on the owner's choices. Amends D184 and D189.
 - The gzipped limits keep D138's ratio of 0.35.
 
 ### D208. Budgets follow features; do not block on the owner (owner)
+
+**Summary**: The full and CLI module budgets rise as features land, the core
+stays lean, reversible open questions take the proposed default, and only the
+license, releases and npm name wait for the owner.
 
 Recorded 2026-10-19 on the owner's word: "don't block on me, you can keep
 raising the budget -- this is for people who want a full blown sxml processor
@@ -8342,6 +9164,10 @@ but not hundreds of megabytes to get java".
   license, tagging and publishing releases, and the npm package name.
 
 ### D209. The timezone database (packet 7.16)
+
+**Summary**: The optional feature "timezone-database" reads one TZif file per
+zone from the host's resolver at first use, serving fn:civil-timezone and the
+formatting functions' $place, with tzdata vendored for tests.
 
 Recorded 2026-10-19, after D97, D162, D183, D184, D189, D191, D208. Replaces
 D97's "no tz database" and the FODT0004 place of D162 in fn:civil-timezone.
@@ -8406,6 +9232,10 @@ D97's "no tz database" and the FODT0004 place of D162 in fn:civil-timezone.
   timezone and [ZN] the fallback format.
 
 ### D210. DTD follow-ups: unparsed entities on copies, entity base URIs, sxml check with the DTD, the drivers (packet 7.14c)
+
+**Summary**: Copies keep a document's unparsed entities, elements from external
+parsed entities carry an `entity_base_uri` for dm:base-uri, and `sxml check`
+gains `--external-entities` and `--validate-dtd`.
 
 Recorded 2026-10-19, after D44, D99, D178, D199. Resolves the three Proposed
 items of 7.14: the base URI of an element from an external entity, unparsed
@@ -8477,6 +9307,10 @@ entities kept by copies, and `sxml check` with the DTD.
 
 ### D211. DTD validation is an optional feature; the core size audit (packet 7.2b)
 
+**Summary**: DTD validation becomes the optional feature "dtd-validation",
+which removes the XSD schema compiler from the core `sxml.wasm`; without it the
+dtd-validation option raises FODC0013.
+
 Recorded 2026-10-19, after D162, D189, D199, D207, D208. The core `sxml.wasm`
 was 2,294,051 bytes stripped (801,273 gzipped) at 7fac033, over D207's
 2,200,000 / 770,000, so `javascript/size_budget` failed.
@@ -8537,6 +9371,11 @@ was 2,294,051 bytes stripped (801,273 gzipped) at 7fac033, over D207's
   failures, not reclassified (D178).
 
 ### D212. XSLT streamability analysis (packet 7.6a)
+
+**Summary**: `src/xslt_streamability.c` runs XSLT 4.0 chapter 19's
+streamability analysis over the stylesheet AST after lowering, raising XTSE3430
+only for constructs proven not guaranteed-streamable, while evaluation stays
+unstreamed.
 
 Recorded 2026-10-19, after D97, D162, D166, D183, D184. Replaces D97's
 "streamable="yes" runs unstreamed" by the analysis of XSLT 4.0, chapter 19
@@ -8601,10 +9440,14 @@ Recorded 2026-10-19, after D97, D162, D166, D183, D184. Replaces D97's
   fed by the parser, D166); the two XTSE3430 cases the analysis misses
   (sf-filter-001, marked _WRONG in the suite; si-fork-953, sorted groups in
   xsl:fork, which 19.8.4.19 allows); supports-streaming; the fallback option.
-  7.6b can read the verdicts: a guaranteed- streamable mode or source document
+  7.6b can read the verdicts: a guaranteed-streamable mode or source document
   is what it may stream, and the postures name what each construct selects.
 
 ### D213. Full UCA collations over the host's DUCET (packet 7.15a)
+
+**Summary**: The optional feature "uca-collation" reads the host's DUCET
+`allkeys.txt` once per processor for full UCA collations, and comparisons and
+sort keys without a collation now use the default collation.
 
 Recorded 2026-10-19, after D97, D116, D162, D183, D184, D189, D191, D208.
 Replaces D97's UCA fallback as the behaviour of a UCA collation URI when the
@@ -8685,6 +9528,10 @@ host serves the DUCET; the fallback stays for hosts that do not.
   root order where it differs from the DUCET.
 
 ### D214. XQuery and XPath Full Text 3.0 (packet 7.12a)
+
+**Summary**: XQuery and XPath Full Text 3.0 is the optional feature full-text,
+XQuery only: the grammar's contextual keywords, a match program lowered as an
+XDM array, and XPST0003 for Full Text without the feature.
 
 Recorded 2026-10-19, after D12, D53, D71, D162, D183, D187, D189, D208. Amended
 as the packet goes on.
@@ -8894,6 +9741,10 @@ as the packet goes on.
 
 ### D215. Invisible XML: fn:invisible-xml over an Earley parser (packet 7.18)
 
+**Summary**: fn:invisible-xml is the optional feature "invisible-xml": one
+Earley parser reads both iXML grammars, compiled in as a constant table of
+their XML form, and the inputs they describe.
+
 Recorded 2026-10-19, after D12, D13, D53, D71, D162, D183, D189, D191, D208.
 Replaces D162's place for fn:invisible-xml (the function was absent, XPST0017;
 supports-invisible-xml false).
@@ -8968,6 +9819,10 @@ supports-invisible-xml false).
 
 ### D216. JavaScript bindings for XQuery, XSLT and XSD validation (packet js-1)
 
+**Summary**: The JavaScript package's full module links shim files for XQuery,
+XSLT and XSD validation, with compile-once APIs `compileQuery`,
+`compileStylesheet` and `compileSchema`, while `sxml.wasm` stays unchanged.
+
 Recorded 2026-10-19, after D10, D138, D187, D189, D205, D207, D208. The package
 (`bindings/javascript`) covered XPath only.
 
@@ -9022,6 +9877,10 @@ Recorded 2026-10-19, after D10, D138, D187, D189, D205, D207, D208. The package
 
 ### D217. The sxml command writes files: --output, --result-directory, --allow-put (packet cli-2)
 
+**Summary**: The sxml command writes files through one file writer that commits
+on success and abandons on failure, with `--output` and `--force`,
+`--result-directory` for transform and `--allow-put` for fn:put.
+
 Recorded 2026-10-19, after D44, D200, D205. Closes the CLI gaps D44 left
 planned ("no files written without --output") and the queue's cli items.
 
@@ -9073,6 +9932,10 @@ planned ("no files written without --output") and the queue's cli items.
   default mode); fn:put does not make missing directories.
 
 ### D218. HTML follow-ups: encoding sniffing, every legacy decoder, the html5lib tests, XHTML (packet 7.10b)
+
+**Summary**: fn:parse-html gains HTML encoding sniffing with a reparse on a
+meta charset, every legacy decoder of the Encoding Standard, XHTML input parsed
+as XML, and the vendored html5lib tests.
 
 Recorded 2026-10-19, after D13, D71, D189, D201, D208. Closes D201's list for
 7.10b.
@@ -9136,6 +9999,10 @@ Recorded 2026-10-19, after D13, D71, D189, D201, D208. Closes D201's list for
 
 ### D219. Streamed evaluation in XSLT (packet 7.6b)
 
+**Summary**: xsl:source-document streams bodies with at most one `stream_point`
+through an `incremental_parse` and a new IR kind STREAM, and the streamability
+option of XSLT 4.0, 19.10 is in `xslt.h`.
+
 Recorded 2026-10-19, after D71, D99, D166, D208, D212. Replaces the rest of
 D97's "streamable="yes" runs unstreamed": xsl:source-document streams the
 bodies it can, and the stylesheet option of 19.10 is in `xslt.h`. Accepts
@@ -9195,6 +10062,10 @@ bodies it can, and the stylesheet option of 19.10 is in `xslt.h`. Accepts
   with ?select=.
 
 ### D220. CLDR tailorings and the CLDR root for UCA collations (packet 7.15b)
+
+**Summary**: UCA collations take CLDR's root table and per-language tailorings,
+read from the host as CLDR files under `urn:sxml:collation-data:`, with the
+DUCET as the fallback root.
 
 Recorded 2026-10-19, after D13, D71, D162, D184, D189, D208, D209, D213.
 Replaces D213's "lang other than the root languages and reorder are not
@@ -9316,6 +10187,10 @@ honoured" and its root order.
 
 ### D221. Calendars and languages in the formatting functions (packet 7.17)
 
+**Summary**: The optional feature "localization" reads CLDR files from the host
+to give the formatting functions month, day and era names in other languages
+and the BE, JE and other calendars.
+
 Recorded 2026-10-19, after D71, D97, D119, D162, D189, D208, D209, D220.
 Replaces D97's "calendars other than AD and ISO and languages other than
 English" and their D162 places: the fallback markers of
@@ -9385,18 +10260,18 @@ English" and their D162 places: the fallback markers of
   xsl:number and the date pictures ([Dwo]) share it.
 - **Languages asked for**: $language of the date functions and of
   fn:format-integer, xsl:number's lang; the empty sequence or "" is the dynamic
-  context's default language (`sxml_dynamic_context_
-  configuration.default_language`, "en" when empty).
+  context's default language
+  (`sxml_dynamic_context_configuration.default_language`, "en" when empty).
 - **Vendored** (D13, D208): `third_party/cldr/common` gains main/ (root, en,
   de, de_AT, es, fr, it, nl), rbnf/ (en, de, es, fr, it, nl) and
   supplemental/supplementalData.xml and ordinals.xml, CLDR 47, hashes in the
   README (4.1 MB). The QT4 driver serves them (and the XSLT driver through it)
   and sets the default language a test asks for (default-language fr-CA). The
   sxml command embeds them (`apps/sxml/embed-cldr-data.cmake`, which replaces
-  embed-collation- data): main/ reduced to the months, days, dayPeriods and
-  eras of the gregorian, buddhist, japanese and islamic calendars,
-  supplementalData to calendarData, with CLDR's paths and values. JavaScript
-  hosts answer the kind 'locale-data'.
+  embed-collation-data): main/ reduced to the months, days, dayPeriods and eras
+  of the gregorian, buddhist, japanese and islamic calendars, supplementalData
+  to calendarData, with CLDR's paths and values. JavaScript hosts answer the
+  kind 'locale-data'.
 - **Measured** (release drivers, against 4d78eba): QT4 fn-format-date XQ40 125
   to 137 of 138, XP40 124 to 136 (the 12 de cases); fn-format-integer 87 to 94
   (032, 032-fr, 032-it, 065, 066, 076, 077); fn-default-language 5 to 6 (006,
@@ -9406,9 +10281,9 @@ English" and their D162 places: the fallback markers of
   (languages_for_numbering de, it, fr, ICU_spellout, ordinal_scheme_name);
   format-date, format-date-en, format-number, avt, date, sort unchanged. The
   gate's 38 named cases: QT4 20 of 20, XT40 9 of 9, every named case run
-  passes; no format-date or format-integer case lost. The 8 cases of fn-format-
-  integer still not run are numbering sequences (Arabic-Indic digits, circled
-  digits, Greek, CJK), not languages.
+  passes; no format-date or format-integer case lost. The 8 cases of
+  fn-format-integer still not run are numbering sequences (Arabic-Indic digits,
+  circled digits, Greek, CJK), not languages.
 - **Sizes** (wasm preset, stripped / gzip -9, before and after at 4d78eba):
   `sxml.wasm` 2,342,948 / 820,110 to 2,347,868 / 821,993 (+4,920: the calendar
   conversions, the number-words hook, Unicode case in names; the core was over
@@ -9423,6 +10298,10 @@ English" and their D162 places: the fallback markers of
   language's digits other than ASCII in names.
 
 ### D222. Bounded memory for XML parsing: document segments (packet xml-mem)
+
+**Summary**: The XML parser holds the tree-sitter tree of one
+`document_segment` of about 16 KB at a time, cut by a byte scan between content
+items and parsed with the same grammar.
 
 Recorded 2026-10-19, after D12, D45, D71, D195, D199, D219. Amends D12's "the
 concrete syntax tree is freed before the parse function returns" and D219's
@@ -9524,6 +10403,10 @@ the grammar stays the one source of the lexical rules.
 
 ### D223. More streamed shapes: streamed paths and aggregates (packet 7.6c)
 
+**Summary**: Streamed bodies of xsl:source-document also accept a
+`streamed_path` in a consuming instruction's select, aggregates folded node by
+node, and xsl:apply-templates into a streamable mode as stream points.
+
 Recorded 2026-10-19, after D71, D212, D219, D222. Extends D219's streamed
 bodies of xsl:source-document streamable="yes"; the rest of D219 stands.
 
@@ -9586,6 +10469,10 @@ bodies of xsl:source-document streamable="yes"; the rest of D219 stands.
 
 ### D224. Evaluator performance: benchmarks, axis walks, filter indexes (packet perf-1)
 
+**Summary**: The evaluator gains benchmarks, an `axis_walk` that describes each
+node once per step, and a `filter_index` built for a FILTER that sees the same
+input twice and answers only where exact.
+
 Recorded 2026-10-19, after D46, D71, D89, D149, D178, D182, D185. In progress;
 completed when the packet ends.
 
@@ -9599,7 +10486,7 @@ completed when the packet ends.
 - **Axis walks** (glossary `axis_walk`): a step described every node three
   times (the iterator's successor, the node test, the origin per step). An
   internal walk in `src/tree_axis.c` hands out each node with its description
-  for the child, following-sibling, descendant(-or- self), attribute, self and
+  for the child, following-sibling, descendant(-or-self), attribute, self and
   parent axes, the others through the iterator; the step tests the description
   it has and makes an item only for a node that matches. Two XNodes of one tree
   are ordered and compared from their items. Steps are unchanged.
@@ -9660,6 +10547,10 @@ completed when the packet ends.
   tree's describe_node 15 %), the machine loop (12 %) and atomization.
 
 ### D225. The built-in schemas are an optional feature; the core size guard (packet health-3)
+
+**Summary**: The processor's built-in schemas become the optional feature
+"builtin-schemas", taking the XSD schema compiler out of the core `sxml.wasm`
+again, with FODC0014 or FOJS0004 where validation would need them.
 
 Recorded 2026-10-19, after D162, D189, D208, D211. The core `sxml.wasm` was
 2,352,234 bytes stripped (823,283 gzipped) at 6130546, over D207's 2,200,000 /
@@ -9726,6 +10617,10 @@ Recorded 2026-10-19, after D162, D189, D208, D211. The core `sxml.wasm` was
 
 ### D226. XPath and XQuery conformance sweep (packet 2.22)
 
+**Summary**: The sweep adds the fn: namespace's schema documents, lax
+validation against built-in components, schema-based fn:element-to-map, the
+record model of the current draft and other XPath and XQuery fixes.
+
 Recorded 2026-10-19, after D190, D174, D205. Takes the "XPath and XQuery"
 leftovers of `docs/agents/QUEUE.md`. No public header changed; no IR expression
 kind added.
@@ -9789,6 +10684,10 @@ kind added.
   the suite's `RecordTypeDecl/`).
 
 ### D227. Per-language part lists (packet size-2)
+
+**Summary**: Each part registry gets one generated `language_part_list` per
+language, named by that language's entry point, so a module links only the
+function library, lowering and evaluator parts of the languages it offers.
 
 Recorded 2026-10-19, after D101, D103, D189, D211, D225. D189 and D225 found
 XQuery's lowering parts (about 75 KB) and evaluator_stream (14.5 KB) in the
@@ -9866,6 +10765,10 @@ not leave out the parts of a language it does not offer.
   table still links every part); CMake options per module (two builds, D189).
 
 ### D228. A streamed principal source; template rules on open nodes (packet 7.6d)
+
+**Summary**: `sxml_xslt_transformation_request.streamed_source_uri` streams the
+principal source when the initial mode and all its template rules are
+guaranteed-streamable, with every rule prepared for an open node.
 
 Recorded 2026-10-19, after D71, D99, D166, D212, D219, D222, D223. Extends D219
 and D223 to the principal source and to template rules; replaces D219's and
@@ -9948,6 +10851,11 @@ source would be an additive `xslt.h` field)".
   proportional to the output.
 
 ### D229. Evaluator performance, second round (packet perf-2)
+
+**Summary**: The second performance round converts short decimal forms to
+doubles with one IEEE 754 multiplication or division, computes leaf operands in
+place, keeps small item lists and frames inline, and atomizes single nodes
+directly.
 
 Recorded 2026-10-19, after D46, D71, D89, D149, D223, D224. The benchmarks of
 D224 (`tests/bench/run-bench.py`) and a new one, numeric-join (a self-join of
@@ -10038,6 +10946,10 @@ run, exact), the measure each change is judged by.
 
 ### D230. XSLT conformance sweep after the leftovers (packet 4.20)
 
+**Summary**: The XSLT sweep adds xsl:merge order checks, [before 1] tailorings,
+record constructors, schema-awareness leftovers and error codes the
+specification gives, raising XT40 from 11,826 to 11,912 passed.
+
 Recorded 2026-10-19, after D29, D71, D84, D162, D169, D179, D185, D195, D203,
 D206, D208. Verified as D181 asks: the debug preset, the unit tests touched
 (collation, xslt, schema, xpath, xquery), clang-tidy on the files changed, and
@@ -10116,6 +11028,10 @@ function's module or a QName cast touch unchanged.
 
 ### D231. The last streamed shapes: accumulators, xsl:fork and the principal result while streaming (packet 7.6e)
 
+**Summary**: Accumulators are computed while streaming through four unit
+functions called at each event a STREAM takes, xsl:fork streams, and the
+principal result is written while streaming.
+
 Recorded 2026-10-19, after D71, D155, D166, D212, D219, D223, D228. Replaces
 D223's and D228's "accumulators computed while streaming are not done" and
 their rule that a stylesheet reading an accumulator streams nothing.
@@ -10140,7 +11056,7 @@ their rule that a stylesheet reading an accumulator streams nothing.
 - **Reading them**: fn:accumulator-before and -after ask the new row
   accumulator-streamed($number, $node, $id, $after) first when some accumulator
   is declared streamable; it finds the node among the values the running
-  streamed documents keep (`sxml_evaluator_stream_find_ accumulator_values`,
+  streamed documents keep (`sxml_evaluator_stream_find_accumulator_values`,
   `src/evaluator_internal.h`) and otherwise leaves the node to
   accumulator-values (trees, unchanged). XTDE3362 for an accumulator the
   document does not apply; XTSE3430 (dynamic) for fn:accumulator-after of a
@@ -10226,6 +11142,10 @@ their rule that a stylesheet reading an accumulator streams nothing.
 
 ### D232. XML parsing speed: fewer tokens and nodes (packet perf-3)
 
+**Summary**: The XML grammar makes whole tags and reference-free attributes
+single tokens and content items a left-recursive rule, and the builder reads
+fields by number, cutting tree-sitter's per-token and per-node work.
+
 Recorded 2026-10-19, after D12, D222, D224, D229. tree-sitter stays the parser
 (D12, the owner's choice); the grammar and its external scanner stay the one
 source of the lexical rules; D222's segments are kept.
@@ -10292,6 +11212,10 @@ source of the lexical rules; D222's segments are kept.
   attribute token still passes the lexer a character at a time.
 
 ### D233. Incremental bytes: the byte reader and the text window (packet 7.6f)
+
+**Summary**: A streamed document can be read through an `sxml_byte_reader` in
+`processor.h`, and the parser decodes its input into a `text_window` a part at
+a time, giving up text already parsed.
 
 Recorded 2026-10-20, after D12, D99, D219, D222, D228, D231, D232. Replaces
 D222's "not bounded yet: the decoded text" for documents read through a byte
@@ -10388,6 +11312,10 @@ unchanged.
 
 ### D234. Globals computed on first read, the hoist guard, typed modes (packet 4.21)
 
+**Summary**: Globals with an initializer are computed on first read through a
+new IR kind GLOBAL_READ, the hoist pass leaves indexed FILTERs alone, and typed
+modes match element name tests as schema-element().
+
 Recorded 2026-10-20, after D71, D101, D135, D148, D154, D179, D223, D224, D229,
 D230. Replaces D101's and D148's computation of declared variables before the
 body ("computation order", the evaluator's global part) and D230's design of
@@ -10460,6 +11388,10 @@ case.
   JNodes, XTDE0430/0440).
 
 ### D235. XPath Full Text: a grammar of the feature; parser part extensions; the package's EXPath prefixes (packet 7.12d)
+
+**Summary**: XPath Full Text is a grammar of its own,
+`grammars/xpath_full_text`, named only by the full-text feature through a
+`parser_part_extension`, so the core `sxml.wasm` gains nothing.
 
 Recorded 2026-10-20, after D12, D111, D162, D189, D208, D214, D227. Amends D214
 ("XPath's Full Text is not implemented"). Verified as D181 asks: the debug
@@ -10540,6 +11472,10 @@ case.
 
 ### D236. Streamed xsl:merge (MERGE) and capture="yes" end rules while streaming (packet 7.6g)
 
+**Summary**: An xsl:merge with streamed sources becomes a new IR kind MERGE
+whose cursors pull one selected node at a time from the stream builder, and
+capture="yes" end rules work while streaming.
+
 Recorded 2026-10-20, after D71, D166, D219, D223, D228, D231, D233, D234. Makes
 D233's two designs; replaces D231's "merge sources are grounded" and
 "capture="yes" end rules while streaming" not done. Verified as D181 asks: the
@@ -10607,6 +11543,10 @@ the release driver, compared case by case.
   merge-097's collection URI (D234).
 
 ### D237. Phase 7 gate review (packet 7.19)
+
+**Summary**: The Phase 7 gate review finds every packet's gate met but 7.11's
+fn:transform cases, with XP40 and XQ40 at 99.5 %, XT40 at 94.8 % and no suite
+lower than at Phase 5.
 
 Recorded 2026-10-20 by the review agent (D11), after D161, D169, D181, D182 and
 the Phase 7 records D183 to D236. The four suites were run whole in release
@@ -10723,6 +11663,10 @@ the full lint of every preset are left to the owner's machine (D181).
   length and the full lint on the owner's machine.
 
 ### D238. Phase 6 plan: one host shim under JavaScript, Kotlin and Swift (packet 6.1)
+
+**Summary**: Phase 6 moves the JavaScript shim to `bindings/host/` as one
+`host_shim` that JavaScript, Kotlin (through JNI glue) and Swift (through a
+module map) all link, with no public header change.
 
 Recorded 2026-10-20, after D35, D71, D123, D138, D181, D189, D208, D216. Plans
 Phase 6 (PLAN.md) in `docs/tasks/phase-6.md`, as D165 and D183 planned Phases 5
@@ -10842,6 +11786,10 @@ and 7.
 
 ### D239. MIT license; the tinyactors-dev organization and its names (owner)
 
+**Summary**: sxml is MIT licensed, the npm package is `@tinyactors/sxml`, the
+repository moves to the tinyactors-dev organization when the owner says so, and
+Kotlin uses the package `dev.tinyactors.sxml`.
+
 Recorded 2026-10-20 on the owner's word: "MIT, we'll move this under the
 tinyactors-dev organization once done, so the npm package will be
 @tinyactors/sxml". Settles the open items of D138, D208 and D238.
@@ -10858,6 +11806,10 @@ tinyactors-dev organization once done, so the npm package will be
   `dev.tinyactors:sxml-jvm`; the Swift module stays `Sxml`. Amends D238.
 
 ### D240. The host shim's resolver, request and export files (packet 6.2)
+
+**Summary**: The host shim's resolver is a state and a function in
+`sxml_host_processor_configuration`, each resource request names its processor,
+and the JavaScript exports are split over three files.
 
 Recorded 2026-10-20, after D138, D189, D216, D225, D238. Packet 6.2 moved the
 JavaScript shim to `bindings/host/` as the host shim (`sxml_host_*`, header
@@ -10910,6 +11862,10 @@ JavaScript shim to `bindings/host/` as the host shim (`sxml_host_*`, header
   Both are within the packet's 1 KB, and no budget changes.
 
 ### D241. The Swift core: module Sxml, the merged archive, ARC and the test hooks (packet 6.7)
+
+**Summary**: The Swift module `Sxml` links the host shim through a system
+module whose module map is `sxml_host.h`, merged on Linux into one static
+archive, with ARC ownership and a `swift test` ctest.
 
 Recorded 2026-10-20, after D23, D35, D71, D138, D213, D238, D240. Packet 6.7
 added `Package.swift` at the root and `bindings/swift/` (module `Sxml`; the API
@@ -10975,6 +11931,10 @@ of `docs/tasks/phase-6.md`, XPath half).
 
 ### D245. XSLT targets the newest draft (owner)
 
+**Summary**: sxml's XSLT 4.0 follows the newest QT4 Community Group editor's
+draft with the xslt40-test suite at its newest commit, and where they disagree
+the newest draft wins.
+
 Recorded 2026-10-20 on the owner's word: "We want to target the newest draft
 for the XSLT tests." Amends D29, which pinned the grammars to the drafts of 13
 October 2026 and let those drafts win over the test suite.
@@ -10992,6 +11952,10 @@ October 2026 and let those drafts win over the test suite.
   same rule when its suite is next refreshed.
 
 ### D247. The Kotlin core: the JNI glue, the cleaner and the JVM test (packet 6.4)
+
+**Summary**: The Kotlin binding's only C is one JNI glue file of
+three-parameter entry points, objects are closed by a `PhantomReference`
+cleaner instead of `java.lang.ref.Cleaner`, and a JVM test runs it.
 
 Recorded 2026-10-20, after D23, D35, D71, D138, D213, D238, D239, D240. Packet
 6.4 added `bindings/kotlin/` (package `dev.tinyactors.sxml`; the API of
@@ -11073,6 +12037,10 @@ D244 were left free: other running packets may have claimed them.)
 
 ### D248. The Swift full surface: XQuery, XSLT, XSD and the DUCET resource (packet 6.8)
 
+**Summary**: The Swift module `Sxml` gains XQuery, XSLT and XSD over the host
+shim's full-module entry points, and `CollationData.bundled` serves a copied
+DUCET as a SwiftPM resource.
+
 Recorded 2026-10-20, after D213, D216, D238, D241. Packet 6.8 added the rest of
 the task file's Swift API to module `Sxml`, over the host shim's full-module
 entry points. No C changed.
@@ -11139,6 +12107,10 @@ entry points. No C changed.
   links the XCFramework, and the resource still comes from the Sxml target.
 
 ### D249. 7.11's open cases; one decoder, one feature data path, one array helper, one text form writer (packet 7.20)
+
+**Summary**: Packet 7.20 makes 10 of 7.11's 12 XT40 cases pass and merges
+duplicates into one decoder, one feature data path for Full Text, one growable
+array helper and one bounded text form writer.
 
 Recorded 2026-10-20, after D29, D71, D169, D182, D185, D189, D203, D225, D237,
 D245. Verified as D181 asks: debug and debug-gcc build with `-Werror`, the
@@ -11238,6 +12210,10 @@ case by case.
 
 ### D250. The Kotlin full surface: XQuery, XSLT, XSD, the DUCET resource, U+0000 (packet 6.5)
 
+**Summary**: The Kotlin package gains XQuery, XSLT and XSD over the host shim's
+full-module entry points and a DUCET class path resource, and the host shim
+refuses U+0000, U+FFFE and U+FFFF in strings.
+
 Recorded 2026-10-20, after D23, D213, D216, D238, D240, D247, D248. Packet 6.5
 added the rest of the task file's Kotlin API to `dev.tinyactors.sxml`, over the
 host shim's full-module entry points.
@@ -11324,6 +12300,11 @@ host shim's full-module entry points.
 
 ### D251. The Android build: two API 24 fallbacks, NDK presets, build and fetch scripts (packet 6.3, paused)
 
+**Summary**: The Android build adds API 24 fallbacks for `aligned_alloc` and
+`timespec_get`, four NDK presets, `tools/build-android.sh` and
+`tools/fetch-binding-toolchains.sh`, with device runs left to the owner's
+machine.
+
 Recorded 2026-10-20, after D208, D238, D247, D250. The work stopped at D255,
 after the code was committed (fb76abe). `bindings/kotlin/DESIGN.md` has the
 resume plan.
@@ -11376,6 +12357,10 @@ resume plan.
     built whenever `ANDROID` is set.
 
 ### D252. XSLT on the newest draft: nothing moved; typed="~T" (packet 4.22)
+
+**Summary**: The newest XSLT, XPath, XQuery and F&O drafts are the 13 October
+2026 drafts already targeted, so nothing moves, and 57 XT40 cases where the
+newest draft wins over the suite are recorded.
 
 Recorded 2026-10-20, after D13, D29, D179, D185, D245. Verified as D181 asks:
 the debug preset, the touched unit and CLI tests (xslt, the cli/transform
@@ -11438,6 +12423,10 @@ after, case by case.
 
 ### D255. Bindings paused; priorities are conformance, CLI builds, the book (owner)
 
+**Summary**: The Swift and Kotlin bindings are paused with their designs in
+`bindings/kotlin/DESIGN.md` and `bindings/swift/DESIGN.md`, and work goes to
+conformance, CLI builds for every platform, then the book in `docs/book/`.
+
 Recorded 2026-10-20 on the owner's word: "Pause the swift and kotlin work by
 documenting the next steps/full intended design in the respective
 subdirectories. Priorities now are: 1. conformance, 2. a mise task to get the
@@ -11453,6 +12442,10 @@ documentation in book form (think: Rust book in style)."
   `docs/book/`.
 
 ### D256. Distribution archives: mise, zig cc, seven targets (packet dist-1)
+
+**Summary**: `mise run dist` builds the `sxml` command with `zig cc` as
+reproducible archives for seven targets: Linux, macOS and Windows on x86_64 and
+aarch64, and wasm32-wasi.
 
 Recorded 2026-10-20, after D10, D44, D209, D255. `mise run dist` builds the
 `sxml` command for every supported platform as installable archives
@@ -11503,6 +12496,10 @@ Recorded 2026-10-20, after D10, D44, D209, D255. `mise run dist` builds the
 
 ### D257. The sxml book: an mdBook whose examples are checked (packet book-1)
 
+**Summary**: The user-facing book is an mdBook in `docs/book/` in the style of
+The Rust Programming Language, and `tools/check-book-examples.sh` re-runs its
+examples, so a change that alters their output updates the book.
+
 Recorded 2026-10-20, after D255. The user-facing book is `docs/book/`, an
 mdBook (`book.toml`, `src/SUMMARY.md`) in the style of The Rust Programming
 Language: it teaches by running small examples, and has no internal process in
@@ -11527,6 +12524,10 @@ it (no phases, packets or decision numbers).
   not a pinned mise tool; any 0.4 release works (0.4.40 here).
 
 ### D258. XPath and XQuery conformance sweep (packet 2.23)
+
+**Summary**: The sweep fixes map constructors over JNodes, the item axis's
+JNode parent, "||" as fn:concat, partial-application names and arities and
+deep-equal of function items, among other XPath and XQuery clusters.
 
 Recorded 2026-10-20, after D113, D143, D174, D190, D226. Takes the "XPath and
 XQuery" leftovers of `docs/agents/QUEUE.md` and the largest clusters of fresh
@@ -11609,12 +12610,16 @@ whole runs. No public header changed; no IR expression kind added.
   K2-NamespaceURIFromQNameFunc-1/3/4, K2-SeqExprCast-479) and `$e:code` with
   xmlns:e on the same element (try-catch-err-code-variable-13); is-id of list
   and union ID types (fn-element-with-id-4/5); use-xsi-schema-location; NCName
-  vs `Q{}N` name tests (frozen sxml_name_test); xpath-1.0-compatibility format-
-  number (D208); the deep-equal of partial-apply against static partial
+  vs `Q{}N` name tests (frozen sxml_name_test); xpath-1.0-compatibility
+  format-number (D208); the deep-equal of partial-apply against static partial
   applications and of closures with folded constants
   (deep-equal-40-function-items-092/106/119/120).
 
 ### D259. Laziness, joins and the step limit (packet perf-4)
+
+**Summary**: IR passes rewrite `E//T[P]` as a `descendant_path`, give each
+expression an `item_demand` so loops stop early, and add a `number_view` and
+`quantified_fusion`; the default step bound becomes 10^8.
 
 Recorded 2026-10-20, after D71, D89, D166, D178, D224, D229, D232, D257.
 Measured with the benchmarks of D224 (`tests/bench/run-bench.py`, processor
@@ -11747,6 +12752,11 @@ milestone against its base commit built the same way.
 
 ### D260. XSLT conformance sweep by root-cause clusters (packet 4.23)
 
+**Summary**: The XSLT sweep fixes failures by root-cause clusters, among them
+enclosing modes, xsl:copy of array and map JNodes, constructor error codes,
+static variable consistency and fn:current-output-uri scoping, raising XT40
+from 12,081 to 12,156 passes.
+
 Recorded 2026-10-20, after D153, D156, D185, D230, D234, D252, D255, D257,
 D258. Verified as D181 asks: the debug and debug-gcc presets, the touched unit
 tests (xslt, construct, xdm, jnode, the drivers, cli), clang-tidy, the
@@ -11823,6 +12833,10 @@ XQ40.
 
 ### D261. XSLT without XPath's predeclared prefixes (packet 4.24)
 
+**Summary**: XSLT expressions see only the applicable static namespaces and
+xml, as the 4.0 draft gives them, so undeclared xs, map or math prefixes now
+raise XPST0081 or XTSE0280 unless fixed-namespaces declares them.
+
 Recorded 2026-10-20, after D208, D245, D260. **A behaviour change for users.**
 D260 found that stylesheets saw XPath's predeclared prefixes (xs, xsi, fn, map,
 array, math, err) through sxml's XPath static context. The newest XSLT 4.0
@@ -11866,6 +12880,11 @@ predeclared. As D208 and D245 direct, the draft is the default:
   0 errors**, namespace-6202 from failure to pass, no case lost.
 
 ### D262. XSLT conformance sweep: dynamic captured groups and D260's leftovers (packet 4.25)
+
+**Summary**: Template calls carry captured regex groups and a cleared current
+output URI as tunnel context variables, fn:apply-templates becomes a
+per-package stylesheet function, and run-time QName casts in XSLT ignore
+undeclared predeclared prefixes.
 
 Recorded 2026-10-20, after D84, D153, D252, D260, D261. Verified as D181 asks:
 the debug and debug-gcc presets, the touched unit tests (xslt, xslt_key,
@@ -11954,6 +12973,11 @@ lost.\*\* Commits 205e937, 03cf112, f611f74, aaa0dbe, 7b9dd14, b4a4769,
   another packet's uncommitted changes.
 
 ### D263. XPath and XQuery conformance sweep: D258's leftovers and fresh clusters (packet 2.24)
+
+**Summary**: The XPath and XQuery sweep adds library context value types,
+fn:string(.) parameter defaults, cast namespaces of a place, a
+`set_element_identity` tree builder operation for is-id, and declines static
+typing by default.
 
 Recorded 2026-10-20, after D84, D99, D180, D190, D226, D234, D258. No IR
 expression kind added; one public header changed additively (tree.h, below).
@@ -12046,6 +13070,10 @@ expression kind added; one public header changed additively (tree.h, below).
 
 ### D270. The book's XQuery and XSD parts (packet book-2)
 
+**Summary**: The book gives XQuery eleven sections and XSD nine, shows only
+features run against a release build, and records the CLI bugs it found for
+later packets.
+
 Recorded 2026-10-20, after D257. The owner asked the book to cover XQuery and
 XSD as deeply as XPath and XSLT, so that a reader who knows neither can learn
 them and work with sxml from the book alone.
@@ -12080,6 +13108,10 @@ them and work with sxml from the book alone.
   snapshot, for every chapter file the packet touched.
 
 ### D271. The CLI bugs the book found (packet cli-2)
+
+**Summary**: The CLI raises FODC0002 for every collection, names the library
+module an error comes from, undeclares predeclared prefixes for QNames in
+instances, and sends fn:trace and fn:message to standard error.
 
 Recorded 2026-10-20, after D44, D148, D257, D262, D270. The four findings of
 D270, each fixed at its root with an end-to-end CLI test, and the book's text
@@ -12123,6 +13155,10 @@ and outputs in the same commits.
   the after build); XT40 12,191 passed, 327 failed (D262: 12,187, 331).
 
 ### D272. One build with everything (owner, 2026-10-20)
+
+**Summary**: Every shipped build, the sxml command, the native libraries and
+the one WebAssembly module, has every language and optional feature, size
+budgets rise to fit, and XSLT and XPath get fn:load-xquery-module.
 
 Recorded 2026-10-20, after D189, D208, D227, D262. The owner, on 4.25 leaving
 fn:load-xquery-module out of XSLT to keep XQuery out of XSLT builds: "We don't
@@ -12175,6 +13211,10 @@ budgets as necessary), because halfway solutions already exist."
     XQuery's (XQUF 3.0).
 
 ### D273. XSLT conformance sweep: streamed availability, fn:document's options, the driver's tree delivery (packet 4.26)
+
+**Summary**: fn:stream-available reads only a document head, fn:document takes
+fn:doc's options map, globals may refer to themselves, and the XSLT driver
+delivers the principal result as a tree.
 
 Recorded 2026-10-20, after D234, D245, D252, D260, D262. Verified as D181 asks:
 the debug preset (the xslt*, xslt_driver, function_library*, json, xpath,
@@ -12243,6 +13283,10 @@ before them). Commits 4e0ffdb, 3d97421, 564d293, e1188ef, 9024849, 2ff5431,
   another packet's uncommitted changes.
 
 ### D274. XSLT conformance sweep: CDATA requests, key details, strip-space "none", XTTE0950 (packet 4.27)
+
+**Summary**: Text that asks for CDATA sections becomes its own text node in
+final result trees, and the sweep adds static XTSE0020 checks, keys over
+namespace nodes, strip-space "none" and XTTE0950.
 
 Recorded 2026-10-20, after D188, D245, D260, D262, D273. Verified as D181 asks:
 the debug preset (arena_tree, serialize*, xslt*, xslt_key, xslt_number,
@@ -12317,6 +13361,11 @@ e0dadcc, a7086d6, c427878, 150a638, 0c0f1e9, c1436f8, 92a8a8c.
   regenerates it from whole runs of all suites).
 
 ### D275. XPath and XQuery conformance sweep: "//" paths, place static contexts, XML 1.1 query text (packet 2.25)
+
+**Summary**: Absolute "//" paths map only their first step over the
+descendants, comparisons use the default collation of their module, library
+modules keep their static context, and `reads_query_text_as_xml_1_1` adds XML
+1.1 query text.
 
 Recorded 2026-10-20, after D163, D195, D237, D259, D263, D272. One public
 header changed additively (processor.h, below); one IR field
@@ -12394,6 +13443,10 @@ header changed additively (processor.h, below); one IR field
 
 ### D276. XSLT conformance sweep: instruction locations, next-match in attribute sets, parameter and static error codes (packet 4.28)
 
+**Summary**: Expressions an XSLT instruction adds take the span of its start
+tag so its errors have a line, xsl:next-match and xsl:apply-imports work in
+attribute sets, and defaults raise XTTE0600.
+
 Recorded 2026-10-20, after D245, D271, D273, D274. Verified as D181 asks: the
 debug preset (the xslt*, xslt_declaration, xslt_key, xslt_read,
 xslt_lower_control and cli tests), clang-tidy on the changed files, the
@@ -12460,6 +13513,10 @@ lost\*\*, from a whole run at c238bc6 (with 2.25's commits up to it). Commits
 - The XT40 section of `docs/CONFORMANCE.md` was not regenerated.
 
 ### D277. XSD conformance sweep 3: XSD 1.1 component rules, content recovery (packet 5.13)
+
+**Summary**: The XSD sweep fixes 21 cases by XSD 1.1 component rules and adds
+`content_recovery`, so after a rejected child the validator goes on matching
+the rest of the content.
 
 Recorded 2026-10-20, after D178, D180, D263, D270, D271, D275. No public header
 changed; internal additions only (schema_internal.h:
@@ -12541,6 +13598,10 @@ is_after_rejection).
   case changed outcome. CONFORMANCE.md is not regenerated.
 
 ### D278. Schema location hints (packet 5.16)
+
+**Summary**: A schema follows the `schema_location_hint` attributes of a node
+named in `sxml_schema_configuration`, through the resolver, adding only
+namespaces it does not yet have; `sxml validate` gets `--use-schema-location`.
 
 Recorded 2026-10-20, after D13, D99, D165, D174, D179, D270, D271, D277. sxml
 follows xsi:schemaLocation and xsi:noNamespaceSchemaLocation when the host asks
@@ -12634,6 +13695,10 @@ control whether they do so").
 
 ### D280. XPath and XQuery conformance sweep: JNode Q{}N tests, listed modules, run-time type constructors (packet 2.26)
 
+**Summary**: JNode name tests select string keys for an NCName and QName keys
+otherwise, resolvers may list several modules for an import, and named atomic
+item types get run-time constructor functions.
+
 Recorded 2026-10-20, after D99, D148, D190, D197, D258, D263, D275, D276. One
 public contract extended additively (processor.h and xquery.h, below); one
 internal IR field (sxml_ir_step.has_qualified_name_test). Verified as D181
@@ -12719,6 +13784,10 @@ the release drivers, case by case.
 
 ### D281. XSLT conformance sweep: XSLT coercion casts, globals in xsl:iterate, deep-copy types, fixed-namespaces documents (packet 4.29)
 
+**Summary**: A failed cast in an XSLT binding's coercion is a type error
+through a new XSLT_BINDING coercion role, and closures in xsl:iterate read
+globals where they read them instead of capturing them.
+
 Recorded 2026-10-20, after D245, D252, D262, D273, D274, D275, D276. Verified
 as D181 asks: the debug preset (the xslt*, ir*, evaluator*, json,
 function_library*, serialize*, cli/transform* tests touched), clang-tidy on the
@@ -12795,6 +13864,10 @@ at b97d939 (with 2.26's and 5.16's commits as they landed). Commits 86ad244,
 
 ### D282. The book's code-generation project (packet book-3)
 
+**Summary**: The book gains Chapter 12, a project that generates a TypeScript
+client, Node.js handler and OpenAPI document from an XSD schema and an API
+description, with the generated files checked in sync.
+
 Recorded 2026-10-20, after D257 and D270. The owner asked for a chapter on
 using XQuery, XSD and XSLT for code generation, such as RPC between the browser
 and the backend in the manner of SvelteKit's remote functions.
@@ -12834,6 +13907,10 @@ and the backend in the manner of SvelteKit's remote functions.
   --strict`.
 
 ### D283. Fast Invisible XML: Earley with lookahead sets and Leo items (packet 7.21)
+
+**Summary**: Invisible XML keeps its one Earley parser and makes it fast with
+16-byte items, FIRST and FOLLOW lookahead, Leo items for right recursion,
+codepoint classes and grammar simplification.
 
 Recorded 2026-10-20, after D12, D53, D71, D189, D215, D224, D272. The owner: a
 high-performance Invisible XML, book first, then the tests, then the
@@ -12906,6 +13983,10 @@ implementation. Done (commits ec3fd42, 4818dd3, 7a93dc7).
   character further. Both are left for a later packet.
 
 ### D285. Source code as XML: tree-sitter trees with highlights captures (packet 7.22)
+
+**Summary**: `sxml:parse-code` parses source code with vendored tree-sitter
+grammars into a document whose elements are named `syntax_node` kinds and whose
+text is the source exactly, with highlight captures as attributes.
 
 Recorded 2026-10-20, after D12, D13, D44, D71, D99, D162, D189, D191, D208,
 D215, D272. The owner's order: the book first (Chapter "Source Code as XML"),
@@ -13008,6 +14089,10 @@ then the grammars' own tests, then the implementation.
 
 ### D286. XPath and XQuery sweep: XInclude, ideographic numerals, place static contexts (packet 2.27)
 
+**Summary**: fn:doc, fn:doc-available and fn:parse-xml gain `xinclude`
+processing, fn:format-integer gains `ideographic_numerals`, and element()
+selects no JNode, with namespaces recorded at static calls of a place.
+
 Recorded 2026-10-20, after D97, D162, D199, D263, D273, D275, D280, D281. No
 public header changed; IR fields sxml_ir_step.is_xnode_type_test and
 sxml_ir_static_call.namespace_bindings; a name role
@@ -13090,6 +14175,11 @@ case by case.
 
 ### D287. XPath and XQuery sweep: syntax error places, run-time closures, globals after the evaluation, fixed defaults, cyclic item types (packet 2.28)
 
+**Summary**: Syntax errors are reported at the innermost ERROR node,
+context-dependent functions made at run time become a `run_time_closure`,
+focus-free defaults become a `default_global`, and import cycles run an
+`item_type_round`.
+
 Recorded 2026-10-20, after D55, D71, D154, D234, D263, D275, D280, D282, D286.
 No public header changed; internal: sxml_function_parameter.
 is_empty_without_focus, two fields of sxml_xquery_static_request, the evaluator
@@ -13164,6 +14254,11 @@ XQ40 and XT40 runs with the release drivers, case by case against HEAD.
   (the draft decides against the tests); the kept groups of D280 and D286.
 
 ### D288. More source code languages, a registration API and run-time languages (packet 7.23)
+
+**Summary**: TypeScript, TSX and Markdown become built-in source code
+languages, locals and injections queries run, a public API registers a
+`registered_language`, and the CLI loads each `language_library` with
+`--code-language`.
 
 Recorded 2026-10-20, after D12, D44, D71, D99, D189, D191, D208, D272, D285.
 The owner's answer to D285's proposal (2026-10-20): TypeScript, TSX and
@@ -13275,6 +14370,10 @@ order: the book (commit 0cad9a1), the tests (a40851e), the implementation
 
 ### D289. XSLT real gaps: split-when, deterministic functions, atomic-equal keys, adaptive character maps, schema roles, override signatures (packet 4.30)
 
+**Summary**: xsl:iterate and split-when share one `sxml_xslt_closure`,
+new-each-time="no" functions are cached, keys compare by fn:atomic-equal, and
+the adaptive method applies character maps.
+
 Recorded 2026-10-20, after D245, D252, D262, D272 to D281, D286. Verified as
 D181 asks: the debug preset (xslt*, serialize*, cli, function_library\* tests),
 clang-tidy on the changed files, the call-cycle check, the book examples (no
@@ -13347,6 +14446,10 @@ from a whole run at 384040b. Commits 89aa625, 46ba9b9, dad90fb.
 
 ### D290. Invisible XML for large inputs: regular tokens, sparse item sets, text runs (packet 7.24)
 
+**Summary**: Invisible XML handles inputs of hundreds of MB by matching each
+`regular_token` with a `token_automaton`, keeping item sets only where items
+are, using byte offsets and storing kept characters as one `text_run`.
+
 Recorded 2026-10-20, after D71, D99, D215, D283. The owner: sxml's iXML usable
 on tens to hundreds of MB; the book first (f560fdf), then the tests (ef46866),
 then the implementation (fdff1ee); one parser (D215). Done; the chapter is no
@@ -13415,6 +14518,10 @@ longer a draft (d46f559).
   it.
 
 ### D291. XSLT per-package items, an absent global focus through call-template, namespace undeclarations (packet 4.31)
+
+**Summary**: An element that does not inherit namespaces needs no tree change,
+call-template from a global passes an absent focus, and accumulators,
+strip-space and fn:function-lookup visibility work per package.
 
 Recorded 2026-10-20, after D69, D99, D163, D245, D287, D289. Verified as D181
 asks: the debug preset (xslt*, cli, function_library*, processor, xquery*,
@@ -13491,6 +14598,10 @@ fdff1ee. No public header changed. Commits 4df51df, bb89091.
 
 ### D292. The codegen chapter builds a tree of the TypeScript program and prints it with XSLT (packet book-4)
 
+**Summary**: The codegen chapter builds an abstract tree of the TypeScript
+program with XQuery, prints it with one XSLT template rule per element, and
+checks the printed files by parsing them with `sxml:parse-code`.
+
 Recorded 2026-10-20, after D257, D282, D285, D288. The owner: for the codegen
 examples, a tree of the TypeScript code translated with XSLT is easier to
 follow in the book than endless string concatenation.
@@ -13546,6 +14657,10 @@ follow in the book than endless string concatenation.
   library bug found.
 
 ### D293. tree-sitter's WebAssembly language files in the JavaScript package (packet 7.25)
+
+**Summary**: The JavaScript package loads tree-sitter's WebAssembly language
+files with `Sxml.loadCodeLanguage`: a `module_linker` links each `side_module`
+into the exported memory and table of `sxml.wasm`.
 
 Recorded 2026-10-20, after D138, D189, D225, D272, D285, D288. Carries out what
 D288 delayed as (a); the owner's order: the book (a24417c), the tests
@@ -13644,6 +14759,10 @@ waits for 6.12 (the host shim now passes languages, below).
 
 ### D294. Streamed output and input in the JavaScript API (packet js-2)
 
+**Summary**: The host shim and JavaScript API stream serialized output to a
+sink in chunks and read input from byte readers or chunk sources, so large
+outputs are not buffered whole.
+
 Recorded 2026-10-20, after D99, D138, D216, D228, D231, D233, D238, D272. The
 owner: "the JavaScript API will burn a lot of memory with large outputs because
 everything is buffered." Every serializing call wrote into the processor's
@@ -13740,6 +14859,10 @@ memory grows to fit the buffer and never shrinks.
 
 ### D295. Long streams: the text method streams, long text runs grow linearly, streamed elements grant steps (packet stream-1)
 
+**Summary**: Long text runs in the arena tree grow linearly, the
+`streamed_serialization` takes the text method, and each element a streamed
+parse reads gives the evaluation a `step_grant` of 500 steps.
+
 Recorded 2026-10-20, after D71, D89, D99, D224, D229, D231, D233, D259, D294.
 The two problems js-2 found (D294, "Found").
 
@@ -13822,6 +14945,10 @@ The two problems js-2 found (D294, "Found").
 
 ### D296. XSLT streaming conformance: the draft's XSLT Streaming 4.0, snapshot documents, document-node types (packet 4.32)
 
+**Summary**: Streaming analysis follows the new XSLT Streaming 4.0
+specification, fn:snapshot copies the document ancestor with its base URI and
+unparsed entities, and document-node(element(N, T)) tests the annotation.
+
 Recorded 2026-10-20, after D212, D219, D223, D228, D231, D236, D273, D289,
 D291, D295. Verified as D181 asks: the debug preset (xslt*,
 xquery_lower_construct, function_library*, evaluator_stream tests), clang-tidy
@@ -13882,6 +15009,10 @@ outcome); XQ40 46,158 and XP40 32,815 as before. Commits d67e37f, 0378bf4,
 
 ### D297. A streamed writer for the html and xhtml methods (packet stream-2)
 
+**Summary**: The streamed serialization takes the html method without indent
+and the xhtml method on the xml method's conditions, reusing the xml writer,
+while indent=yes still builds the tree.
+
 Recorded 2026-10-21, after D71, D99, D231, D295.
 
 - **Decided**: the streamed serialization (`src/serialize_xml.c`, glossary
@@ -13936,6 +15067,10 @@ Recorded 2026-10-21, after D71, D99, D231, D295.
   250 lines of internal C, no new tables).
 
 ### D298. Collections in the sxml command: directories, their parameters, --collection (packet cli-3)
+
+**Summary**: The CLI resolves a collection URI as a `directory_collection` of a
+local directory with select, recurse and on-error parameters, fn:collection
+parses its XML files, and `--collection` sets the default.
 
 Recorded 2026-10-21, after D44, D200, D271, D278, D286. F&O 4.0, 17.1.3 and
 17.1.4 leave what a collection URI names to the implementation; the CLI's
@@ -13994,6 +15129,10 @@ directory. Rules in docs/CLI.md, "Collections"; glossary directory_collection.
 
 ### D299. The book teaches with five projects of one story (packet book-5)
 
+**Summary**: The book is rebuilt around five projects of one made-up system,
+with project directories as example directories, an xml2rfc v3 spec, annotated
+SCXML and 18 chapters.
+
 Recorded 2026-10-21, after D257, D270, D282, D292. The owner: restructure the
 book around useful examples (structured specifications kept in XML, creating
 and transforming SVG, SCXML annotated with data schemas and XHTML, a diff of
@@ -14046,6 +15185,10 @@ reopen.
 
 ### D300. Record matching, optional fields and map:keys-where follow the 2026-10-20 drafts (packet fix-1)
 
+**Summary**: The library keeps the 2026-10-20 drafts: a plain map matches no
+record type until coerced, records have no optional or extensible fields, and
+map:keys-where does not exist.
+
 Recorded 2026-10-21, after D7, D226. The book packets reported three bugs: `{ }
 instance of record(*)` and `{"a": 1} instance of record(a)` are false (treat as
 raises XPDY0050), `record(a, b?)` and `b? as xs:boolean` are XPST0003, and
@@ -14080,6 +15223,10 @@ packets do not reopen them.
 
 ### D301. The book's story is Vane, a feature-flag service (packet book-14)
 
+**Summary**: The book's story becomes Vane, a feature-flag service, replacing
+Latch; the five projects, their counts, flaws and diffs stay and only the names
+and files change.
+
 Recorded 2026-10-21, after D299. The owner rejected the Latch story (door
 locks, a controller and its services: "nobody thinks of doors") and chose a
 feature-flag service, something developers know. The five projects of D299
@@ -14111,6 +15258,10 @@ stay; only the story and its names change.
   integrates last. The book never mentions Latch.
 
 ### D302. Streaming fixes from the book: text value templates, streamed xsl:iterate and xsl:for-each-group, //x from elements, child-path indexes (packet fix-3)
+
+**Summary**: Text value templates in xsl:text stream as paths, xsl:iterate and
+grouping xsl:for-each-group over a path of steps become a `streamed_iteration`,
+and the descendant pass hoists child-path filters so they are indexed.
 
 Recorded 2026-10-21, after D166, D223, D224, D228, D229, D231, D259, D295,
 D296. Book-12 found four problems on the 82 MB trace archive (100,000 traces,
@@ -14174,6 +15325,10 @@ before and after, no outcome differs.
 
 ### D303. Vane is one service with modules and two SDKs (packet book-22)
 
+**Summary**: Vane becomes one TypeScript service of modules backed by
+PostgreSQL and Redis, with browser and Node.js SDKs whose clients the codegen
+project generates; the counts, flaws and diff shapes stay.
+
 Recorded 2026-10-21, after D299 and D301. The owner found Vane as a set of
 services nonsensical: "make it a monolithic service that's fully featured, and
 we want to offer client libraries/SDKs for frontend and backend, so it's a
@@ -14211,6 +15366,10 @@ D301 stay; docs/tasks/book.md section 9 has the change table and the packets.
 
 ### D304. The website: sxml.tinyactors.dev on GitHub Pages
 
+**Summary**: The website at sxml.tinyactors.dev is a VitePress landing page
+with the book at /book/, built and force-pushed to the gh-pages branch by hand
+with `mise run site:publish`.
+
 Recorded 2026-10-21, at the owner's request, after the repository moved to
 tinyactors-dev/sxml.
 
@@ -14235,6 +15394,10 @@ tinyactors-dev/sxml.
   book publishes by hand.
 
 ### D305. The book's diagrams use a layered layout with model order
+
+**Summary**: The book's `draw.xqm` lays out diagrams in the five phases of ELK
+Layered with model order breaking ties, and routes edges orthogonally on tracks
+between layers.
 
 Recorded 2026-10-22, at the owner's request: the state machine diagrams
 (states, flag, changes) were busy and unreadable, and the owner asked for the
@@ -14270,6 +15433,10 @@ layered algorithm of the KIELER group (ELK Layered) in XQuery.
 
 ### D306. sxml:parse-code compiles each language's queries once; iXML compared with tree-sitter
 
+**Summary**: `sxml:parse-code` compiles each language's queries once per
+document instead of once per injection, and the book compares Invisible XML
+with tree-sitter and fn:json-to-xml on 1 MB inputs.
+
 Recorded 2026-10-22, at the owner's request for a comparison of iXML with
 tree-sitter in the book's "Invisible XML Performance".
 
@@ -14292,6 +15459,11 @@ tree-sitter in the book's "Invisible XML Performance".
   suite).
 
 ### D307. The tree-sitter functions are tree-sitter:parse and tree-sitter:languages (packet 7.26)
+
+**Summary**: The tree-sitter functions are `tree-sitter:parse` and
+`tree-sitter:languages` in `urn:sxml:tree-sitter`, replacing `sxml:parse-code`
+and `sxml:code-languages`, while the `sxml:token` and `sxml:node` elements stay
+in `urn:sxml`.
 
 Recorded 2026-10-22, after D99, D206, D208, D261, D285, D288, D293, D306. The
 owner (2026-10-22): "expose tree-sitter as tree-sitter: not sxml:code-*".
@@ -14349,6 +15521,10 @@ Amends D285's \**API\*\* paragraph; the shape of the documents (D285's
   match.
 
 ### D308. Each regex is compiled once per evaluation: the regex cache (packet perf-6)
+
+**Summary**: Each evaluation keeps a `regex_cache` in its memo, keyed by regex
+text and flags and bounded to 4,096 entries and 8 MiB, so every regex function
+compiles a regex once per evaluation.
 
 Recorded 2026-10-28, after D53, D71, D105, D114, D148, D259. No header changed.
 
@@ -14411,6 +15587,10 @@ Recorded 2026-10-28, after D53, D71, D105, D114, D148, D259. No header changed.
   but holds a grown backtrack stack, so it is not done.
 
 ### D309. Slices without copies: sequence slices, positional filters, matched bases (packet perf-5)
+
+**Summary**: A `sequence_slice` shares its base vector, a `positional_filter`
+slices a stored input, and the memo remembers matched bases, so recursion over
+the rest of a sequence is linear.
 
 Recorded 2026-10-28, after D34, D71, D89, D99, D143, D149, D224, D229, D259.
 Running SchXslt 1.10.1 to compile the EN 16931 Schematron rules found recursion
@@ -14491,6 +15671,10 @@ way for each of 1,042 attributes.
   sequences of one type recursed over in turn match each time.
 
 ### D310. Faster regex matching: ASCII member sets, a start filter, idle matchers, character repetitions (packet perf-7)
+
+**Summary**: Regex matching gains an `ascii_member_set` per class, a
+`start_filter` that skips impossible start positions, an `idle_matcher` kept in
+the cache entry, and `character_repetition` instructions.
 
 Recorded 2026-10-28, after D53, D71, D105, D147, D308. No public header
 changed.
@@ -14583,6 +15767,10 @@ changed.
 
 ### D311. Required literals in regex search (packet perf-9)
 
+**Summary**: A compiled regex records a `required_literal` that every match
+contains, and a search finds its next occurrence with memchr and memcmp and
+skips the start positions no match can begin at.
+
 Recorded 2026-10-28, after D53, D71, D105, D308, D310. No public header
 changed.
 
@@ -14652,6 +15840,10 @@ changed.
 
 ### D313. The owner's decisions of 2026-10-28: Schematron, source locations, the CLI's step limit
 
+**Summary**: The owner fixes Schematron's edition, query bindings, outputs and
+exit status, makes source locations of parsed documents a processor setting
+AUTOMATIC, ALWAYS or NEVER, and removes the CLI's step limit.
+
 Recorded 2026-10-28 by the orchestrator, from the owner's answers to the open
 points of packet 7.27 and of the "Source locations for parsed input documents"
 item that was under "## Proposed" (moved here).
@@ -14708,6 +15900,10 @@ not offered upstream.
 
 ### D314. The sxml command asks for no step bound (packet cli-4)
 
+**Summary**: The sxml command sets `maximum_evaluation_step_count` to
+`UINT64_MAX`, so its runs have no step bound in practice, while embedders and
+the JavaScript package keep the library default.
+
 Recorded 2026-10-28, after D313 (9), D89, D259.
 
 - **Mechanism**: the command's one processor configuration
@@ -14735,6 +15931,10 @@ Recorded 2026-10-28, after D313 (9), D89, D259.
   for a C program. `docs/CLI.md` has a "Limits" rule.
 
 ### D315. Schematron as a front end to the XSLT AST: the design (packet 7.27)
+
+**Summary**: Schematron compiles as a front end to the XSLT AST: a reader
+resolves inclusions, a builder emits one mode per pattern with template rules
+for rules, and XSLT's compiler collects every error.
 
 Recorded 2026-10-28, after D24, D44, D52, D99, D102, D162, D165, D183 and the
 owner's answers in D313, which this record follows. Brings Schematron into
@@ -15477,6 +16677,10 @@ above:
 
 ### D316. Cheap coercion of one item: single-item shortcuts (packet perf-8)
 
+**Summary**: A `single_item_shortcut` matches and coerces one item against a
+plain atomic item type without the coercion engine, and the matcher's frames
+move out of its struct, cutting coercion costs.
+
 Recorded 2026-10-28, after D71, D85, D224, D229, D259, D281, D309. No public
 header changed.
 
@@ -15540,6 +16744,11 @@ header changed.
   before, during and after the engine.
 
 ### D317. A Schematron conformance suite of sxml's own (packet 7.30)
+
+**Summary**: sxml has its own Schematron conformance suite,
+`tests/schematron/`, for ISO/IEC 19757-3:2025, with neutral expected results,
+recorded readings, a SchXslt cross-check and an independent check of the 2025
+cases.
 
 Recorded 2026-10-28, after D313 and D315 (as revised and accepted).
 
@@ -15638,6 +16847,10 @@ Recorded 2026-10-28, after D313 and D315 (as revised and accepted).
 
 ### D318. Source locations for parsed input documents (packet 7.29)
 
+**Summary**: A processor's `source_location_policy` decides whether parsed
+documents keep locations; under AUTOMATIC a compiled program that
+`reads_source_locations` asks for them, and copies keep what they copy.
+
 Recorded 2026-10-28, after D313 (7, 8), D87, D88, D99.
 
 - **Header** (additive after D99, packet 7.29): `include/sxml/processor.h`
@@ -15698,6 +16911,10 @@ Recorded 2026-10-28, after D313 (7, 8), D87, D88, D99.
   change every case was 171-175 MB.
 
 ### D319. Casts that keep the string, choices of one item, untyped items cast at once (packet perf-10)
+
+**Summary**: A `relabelled_cast` keeps the source's string cell under the
+target type, one item against a choice takes the first alternative it matches,
+and untyped items are cast without a prior match.
 
 Recorded 2026-10-28, after D71, D85, D281, D309, D316. No public header
 changed.
@@ -15770,6 +16987,11 @@ changed.
 
 ### D320. A compile report sink for XSLT (packet 7.28)
 
+**Summary**: `sxml_xslt_stylesheet_configuration` gains a `report_sink`, a
+`compile_report_sink` that receives every static and type error of a stylesheet
+compile while reading and lowering go on; the null sink keeps first-error
+behaviour.
+
 Recorded 2026-10-28, after D315 ("Compile errors", the owner's 7b), D99 and
 D139. The header change D315 announced for 7.28.
 
@@ -15807,6 +17029,10 @@ D139. The header change D315 announced for 7.28.
   passed).
 
 ### D321. Choices try every alternative; a caught error leaves the error record (packet fix-4)
+
+**Summary**: A choice coercion accepts an attempt only when its result matches
+the alternative, so every alternative is tried, and a caught error is cleared
+from the error record once handled.
 
 Recorded 2026-10-28, after D85, D310, D314, D316, D319. No public header
 changed. Commit 5a47d8a68.
@@ -15859,6 +17085,10 @@ changed. Commit 5a47d8a68.
   that writes no record.
 
 ### D322. Node atomization describes once; the costs left are the atomic cell's (packet perf-11)
+
+**Summary**: Node atomization describes its node once and skips attributes by
+count when walking text descendants; the cost left is the atomic cell's
+allocation, validation and type resolution.
 
 Recorded 2026-10-28, after D39, D71, D229, D316, D319. No public header
 changed.
@@ -16505,6 +17735,10 @@ the ASTs and the IR are the same.
 
 ### D330. IR passes walk each body once, with a cheaper child walk (packet perf-16)
 
+**Summary**: The IR passes walk each function body once: `push_every_child`
+writes child indices in place, the demand pass makes no owners and counts its
+census while collecting members, cutting compile instructions by up to 12 %.
+
 Recorded 2026-10-28, after D224, D259, D324, D325, D327. No header changed; the
 IR after the passes is the same, item demands included.
 
@@ -16585,6 +17819,11 @@ IR after the passes is the same, item demands included.
   global-read 0.028.
 
 ### D331. Schematron: the function library's prefixes, the document of each finding, real rule sets read with warnings (packet fix-7)
+
+**Summary**: Schematron resolves `xs`, `fn`, `math`, `map`, `array` and `err`
+without `sch:ns`, reports name each finding's document in `document_uri`, and
+three deviations of real rule sets compile with `schematron:compatibility`
+warnings.
 
 Recorded 2026-10-29, after D315, D323, D326, D327 and the owner's three
 requests of 2026-10-29 (the third his choice of option a on D323's Proposed

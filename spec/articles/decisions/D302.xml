@@ -1,5 +1,6 @@
 <decision id="D302" status="accepted">
   <title>Streaming fixes from the book: text value templates, streamed xsl:iterate and xsl:for-each-group, //x from elements, child-path indexes (packet fix-3)</title>
+  <summary>Text value templates in xsl:text stream as paths, xsl:iterate and grouping xsl:for-each-group over a path of steps become a <term name="streamed_iteration"/>, and the descendant pass hoists child-path filters so they are indexed.</summary>
   <body>
     <p><recorded date="2026-10-21"/>, after <ref kind="decision" to="D166"/>, <ref kind="decision" to="D223"/>, <ref kind="decision" to="D224"/>, <ref kind="decision" to="D228"/>, <ref kind="decision" to="D229"/>, <ref kind="decision" to="D231"/>, <ref kind="decision" to="D259"/>, <ref kind="decision" to="D295"/>, <ref kind="decision" to="D296"/>. Book-12 found four problems on the 82 MB trace archive (100,000 traces, 633,333 spans); the newest drafts decide each. Measured with the release CLI (peak resident set, wall seconds); QT4 whole with the release drivers, case by case, after each change: XT40 12,283 (98 wrong error), XQ40 46,158, XP40 32,815 before and after, no outcome differs.</p>
     <list>

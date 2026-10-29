@@ -1,5 +1,6 @@
 <decision id="D141" status="accepted">
   <title>CSV parsing: fn:parse-csv, fn:csv-to-xml, fn:csv-doc (packet <ref kind="packet" to="2.15"/>)</title>
+  <summary>A hand-written CSV scanner yields one token per call without allocation; fn:parse-csv parses once, fn:csv-to-xml walks its result and fn:csv-doc reads through fn:unparsed-text.</summary>
   <body>
     <p><recorded date="2026-10-17"/>, after <ref kind="decision" to="D97"/>, <ref kind="decision" to="D128"/>, <ref kind="decision" to="D131"/>, <ref kind="decision" to="D133"/>. New module <code>src/csv.c</code> / <code>src/csv_internal.h</code> and part <code>src/function_library_csv.c</code>.</p>
     <list>

@@ -1,5 +1,6 @@
 <packet id="7.10">
   <title>HTML5 parsing: fn:parse-html and fn:html-doc (implementation, two packets)</title>
+  <summary>Implements fn:parse-html and fn:html-doc with a hand-written HTML5 tokenizer and tree construction on an <term name="html_working_tree"/>, giving an arena tree in the XHTML namespace, plus encoding sniffing and legacy decoders.</summary>
   <body>
     <p><status value="done" date="2026-10-19"/></p>
     <list>

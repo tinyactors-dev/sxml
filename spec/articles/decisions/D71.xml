@@ -1,5 +1,6 @@
 <decision id="D71" status="accepted">
   <title>No C recursion</title>
+  <summary>Project code never recurses, directly, across files or through function pointers; every walk over nested structure is a loop over an explicit stack in allocator memory, checked by clang-tidy and <code>tools/check-call-cycles.py</code>.</summary>
   <body>
     <p><recorded date="2026-10-16"/> at the owner's request ("make sure we don't use C recursion"). Project code never recurses: not directly, not through a chain of functions, not through function pointers or operations tables. Every walk over nested structure (CST, AST, IR, types, regex patterns, maps, arrays, trees, JNodes, sequences) is a loop over an explicit stack or work list in allocator memory, bounded by a configured limit that reports <code>LIMIT_EXCEEDED</code> (or the specification's error). Consequences:</p>
     <list>

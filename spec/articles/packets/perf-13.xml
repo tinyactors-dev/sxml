@@ -1,5 +1,6 @@
 <packet id="perf-13">
   <title>Compiling XSLT and Schematron: the component graph, value templates, the Schematron front end (implementation)</title>
+  <summary>Makes XSLT and Schematron compiles cheaper: components, instances, globals and templates found through indexes made once, a value template without braces taken as its text, and synthesized Schematron text parsed once.</summary>
   <body>
     <p><status value="done" date="2026-10-28"/> After <ref kind="decision" to="D320"/>, <ref kind="decision" to="D323"/> and <ref kind="decision" to="D324"/> (perf-12, whose Proposed entry names the first two). With perf-12, validating one EN 16931 invoice with the pre-compiled stylesheet takes 0.29–0.37 s (2.08 x 10^9 instructions); validating it with <code>sxml validate --schematron</code> from the <code>.sch</code> sources takes 0.59–0.73 s, the Schematron compile 0.53–0.59 s (<ref kind="decision" to="D323"/>).</p>
     <list>

@@ -1,5 +1,6 @@
 <decision id="D153" status="accepted">
   <title>Numbering and analyze-string (packet <ref kind="packet" to="4.11"/>)</title>
+  <summary>xsl:number is lowered as the specification's formal definition in XPath texts with one format-place-marker row over the format-integer engine, and xsl:analyze-string as fn:matching-segments with captured groups in a context variable.</summary>
   <body>
     <p><recorded date="2026-10-18"/>, after <ref kind="decision" to="D105"/>, <ref kind="decision" to="D114"/>, <ref kind="decision" to="D118"/>, <ref kind="decision" to="D119"/>, <ref kind="decision" to="D142"/>, <ref kind="decision" to="D145"/>, <ref kind="decision" to="D149"/>, <ref kind="decision" to="D152"/>. <code>src/xslt_lower_number.c</code> (rule view <code>sxml_xslt_instruction_rules_number</code>, one line in <code>src/xslt_lower.c</code>), <code>tests/xslt_number_test.c</code>; additive edits to <code>src/format.c</code>, <code>src/function_library_format.c</code>, <code>src/function_library_xslt.c</code>, <code>src/xpath_lower.c</code> and <code>src/function_library_internal.h</code>; no IR kind, no evaluator change, no public header.</p>
     <list>

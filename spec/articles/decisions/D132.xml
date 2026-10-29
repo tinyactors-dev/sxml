@@ -1,5 +1,6 @@
 <decision id="D132" status="accepted">
   <title>Packets start when their dependencies are committed (amends <ref kind="decision" to="D96"/>)</title>
+  <summary>A packet of a later phase may start once every packet in its "After" list is committed, while phase gates still close each phase and re-check early work.</summary>
   <body>
     <p><recorded date="2026-10-17"/> by the orchestrator, toward the owner's goal of working XQuery and XSLT. A packet of a later phase may start as soon as every packet in its "After" list is committed, whether or not it is marked "Early". The phase gates still close each phase: a phase is done only when its gate review passes, and gate reviews re-check the work of later-phase packets that started early. First applied to 3.8, 3.10 and 3.13.</p>
   </body>

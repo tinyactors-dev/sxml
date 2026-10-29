@@ -1,5 +1,6 @@
 <packet id="xml-mem">
   <title>Bounded memory for XML parsing (design and implementation)</title>
+  <summary>Bounds the memory of XML parsing by parsing a document in segments cut at markup boundaries, with each segment's tree-sitter tree walked and freed before the next.</summary>
   <body>
     <p><status value="done" date="2026-10-19"/> After <ref kind="decision" to="D12"/> (tree-sitter parses XML, the owner's choice), <ref kind="decision" to="D199"/> (DTD and entities) and <ref kind="decision" to="D219"/> (parsing 106 MB took 3.98 GB resident, nearly all tree-sitter's syntax tree of the whole input).</p>
     <list>

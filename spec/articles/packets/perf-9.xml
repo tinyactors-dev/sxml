@@ -1,5 +1,6 @@
 <packet id="perf-9">
   <title>Required literals in regex search (implementation)</title>
+  <summary>Gives each compiled regex a required literal that every match contains; the search finds it first and skips start positions that cannot reach it, or all of them when it does not occur.</summary>
   <body>
     <p><status value="done" date="2026-10-28"/> After <ref kind="decision" to="D310"/> (perf-7). The same profile puts 12.9 % in <code>sxml_regex_matcher_scan</code> under <code>fn:replace</code>. SchXslt's patterns have the shape <code>(\W*)\$name(\W*)</code>: they can match the empty string before a <code>$</code>, so perf-7's start filter skips nothing and every position is attempted, though no match exists unless the literal <code>$name</code> occurs.</p>
     <list>

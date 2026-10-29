@@ -1,5 +1,6 @@
 <decision id="D59" status="accepted">
   <title>The XPath front end (packet <ref kind="packet" to="1.16"/>)</title>
+  <summary><code>src/xpath_parse.c</code> builds the XPath AST in one iterative tree-sitter cursor walk, applies the delimitation and lookup-key checks, and parses sequence types as <code>() instance of T</code>.</summary>
   <body>
     <p><recorded date="2026-10-16"/>. <code>src/xpath_parse.c</code> builds the AST of <ref kind="decision" to="D52"/> in one iterative walk of a tree-sitter cursor in source order; the current AST parent is kept through the AST's own parent links, so nesting depth costs no C stack (20,000 nested parentheses pass under the <code>wasm</code> preset). Node types and field names map to kinds and fields through sorted static tables; the AST capacity is <code>ts_node_descendant_count</code> of the top node.</p>
     <list>

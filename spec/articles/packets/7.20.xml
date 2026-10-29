@@ -1,5 +1,6 @@
 <packet id="7.20">
   <title>Sweep: 7.11's open cases and the larger duplicates (implementation)</title>
+  <summary>Closes or explains 7.11's three open XT40 transform cases and merges the larger duplicates: one UTF decoder, Full Text reading through the feature, shared growable arrays, compile reports, text form writers and sorts.</summary>
   <body>
     <p><status value="done" date="2026-10-20"/></p>
     <list>

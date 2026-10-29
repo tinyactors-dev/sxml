@@ -1,5 +1,6 @@
 <decision id="D88" status="accepted">
   <title>The processor and the XPath API (packet <ref kind="packet" to="1.23"/>)</title>
+  <summary>The processor holds name pool, type registry, item heap and the full function library in one block; each XPath evaluation allocates its own dynamic context and document loader; <code>sxml xpath</code> is the CLI.</summary>
   <body>
     <p><recorded date="2026-10-16"/>. <code>src/processor.c</code>, <code>src/processor_internal.h</code>, <code>src/xpath.c</code>, <code>src/function_library_uri.c</code>; tests <term name="processor"/>, <code>xpath</code>.</p>
     <list>

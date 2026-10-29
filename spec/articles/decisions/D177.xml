@@ -1,5 +1,6 @@
 <decision id="D177" status="accepted">
   <title>Identity constraints (packet <ref kind="packet" to="5.8"/>)</title>
+  <summary>Identity constraint selectors and fields are checked against XSD's XPath subsets on the AST, compiled with <code>xpath.h</code>, and evaluated on the recorded subtree, with XSD equality and hash-indexed node tables.</summary>
   <body>
     <p><recorded date="2026-10-18"/>. IDENTITY_CONSTRAINTS and the identity seam of <ref kind="decision" to="D167"/> (<code>src/schema_identity.c</code>, <code>tests/schema_identity_test.c</code>); golden <code>src/schema_resolve.c</code>, <code>src/schema_validate_record.c</code>.</p>
     <list>

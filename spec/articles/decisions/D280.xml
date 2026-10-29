@@ -1,5 +1,6 @@
 <decision id="D280" status="accepted">
   <title>XPath and XQuery conformance sweep: JNode Q{}N tests, listed modules, run-time type constructors (packet <ref kind="packet" to="2.26"/>)</title>
+  <summary>JNode name tests select string keys for an NCName and QName keys otherwise, resolvers may list several modules for an import, and named atomic item types get run-time constructor functions.</summary>
   <body>
     <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D99"/>, <ref kind="decision" to="D148"/>, <ref kind="decision" to="D190"/>, <ref kind="decision" to="D197"/>, <ref kind="decision" to="D258"/>, <ref kind="decision" to="D263"/>, <ref kind="decision" to="D275"/>, <ref kind="decision" to="D276"/>. One public contract extended additively (processor.h and xquery.h, below); one internal IR field (sxml_ir_step.has_qualified_name_test). Verified as <ref kind="decision" to="D181"/> asks: the debug preset (every unit and CLI test but evaluator_stream, 387 tests, under ASan and UBSan), clang-tidy on the changed files, the call-cycle check, the book examples (399 match), and whole XP40, XQ40 and XT40 runs with the release drivers, case by case.</p>
     <list>

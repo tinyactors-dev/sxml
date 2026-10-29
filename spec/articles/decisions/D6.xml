@@ -1,5 +1,6 @@
 <decision id="D6" status="accepted">
   <title>String representation</title>
+  <summary>Strings are UTF-8 with a per-string ASCII-only flag for O(1) codepoint indexing, and the codepoint count and flag are computed at validation (refined by <ref kind="decision" to="D25"/>).</summary>
   <body>
     <p>UTF-8, with a per-string flag for ASCII-only content so codepoint indexing is O(1) in the common case. Codepoint count cached on first use. Confirmed at the Phase 0 gate, refined by <ref kind="decision" to="D25"/>: count and flag are computed when the string is validated, not cached later.</p>
   </body>

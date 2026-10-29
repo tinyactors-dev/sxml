@@ -1,5 +1,6 @@
 <decision id="D1" status="accepted">
   <title>Name and prefix</title>
+  <summary>The project is named sxml (small XML implementation), with the public symbol prefix <code>sxml_</code> and the macro prefix <code>SXML_</code>.</summary>
   <body>
     <p>sxml (small XML implementation). Public prefix <code>sxml_</code>, macro prefix <code>SXML_</code>.</p>
   </body>

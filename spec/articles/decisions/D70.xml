@@ -1,5 +1,6 @@
 <decision id="D70" status="accepted">
   <title>Node items, accessors and JNodes (packet <ref kind="packet" to="1.13"/>)</title>
+  <summary>Node items are inline and retain their tree; string value, typed value and base URI follow the listed rules; a JNode cell holds parent, key, value and child position, compared by position paths.</summary>
   <body>
     <p><recorded date="2026-10-16"/>. <code>src/xdm_node.c</code>, <code>src/xdm_json_node.c</code>.</p>
     <list>

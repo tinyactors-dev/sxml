@@ -1,5 +1,6 @@
 <decision id="D173" status="accepted">
   <title>Validation and the typed tree (packet <ref kind="packet" to="5.7"/>)</title>
+  <summary>The schema validator is a filtering tree builder that holds each element start until its governing type is chosen, steps content model cursors, sends schema normalized values, and records subtrees for deferred checks.</summary>
   <body>
     <p><recorded date="2026-10-18"/>. The schema validator of <ref kind="decision" to="D165"/> and the seams of <ref kind="decision" to="D167"/> (<code>src/schema_validate.c</code>, <code>src/schema_validate_value.c</code>, <code>src/schema_validate_record.c</code>, <code>src/schema_validate_internal.h</code>); golden <code>src/xslt_whitespace.c</code>, <code>src/arena_tree.c</code>.</p>
     <list>

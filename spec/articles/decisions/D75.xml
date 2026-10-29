@@ -1,5 +1,6 @@
 <decision id="D75" status="accepted">
   <title>The evaluator: an explicit-stack machine (packet <ref kind="packet" to="1.18"/>)</title>
+  <summary>The evaluator runs every nested expression, call and native step as a task on a stack in allocator memory, with tail calls, a depth limit, resumable native bodies, coercion and type matching without C recursion.</summary>
   <body>
     <p><recorded date="2026-10-16"/>. <code>src/evaluator.c</code> (dynamic context, machine, expressions), <code>src/evaluator_function.c</code> (atomization, effective boolean value, type matching, coercion, function items and bodies), <code>src/evaluator_path.c</code> (steps over XNodes and JNodes, document order, node sets, merge sort). Internal headers changed as <ref kind="decision" to="D71"/> requires.</p>
     <list>

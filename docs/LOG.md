@@ -2080,7 +2080,7 @@ blocked. Add an item to this week's entry with `tools/spec/spec log TEXT`.
   declared function's default is an IR function over the caller's focus, called
   by static calls at the full arity (keyword arguments after omitted ones,
   modules-40) and by focus-capturing closures for F#N; XQuery closures read
-  globals at call time (self- referencing variables); fn:function-lookup finds
+  globals at call time (self-referencing variables); fn:function-lookup finds
   the unit's functions; "##any"; IR modules (glossary) give library functions
   their base URI and source name; trusted=false gives FODC0016; function
   annotations on IR functions; keyword placeholders in written order; untyped
@@ -2501,7 +2501,7 @@ blocked. Add an item to this week's entry with `tools/spec/spec log TEXT`.
   maxVariable, caseFirst, caseLevel, backwards), keys and substring matching by
   collation units; `sxml_collation_is_supported` (the QT4 driver uses it;
   FULLY-NORMALIZED accepted). One resolver for every collation argument;
-  fn:collation, -available, -key; collation- aware compare, index-of,
+  fn:collation, -available, -key; collation-aware compare, index-of,
   distinct/duplicate-values, all-equal/-different, sort, contains-token,
   substring functions. fn:deep-equal: every 4.0 option, items-equal as a
   resumable body, unordered comparisons by backtracking trials. XP40 passed

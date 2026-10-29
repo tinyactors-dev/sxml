@@ -55,6 +55,10 @@ A packet starts once those after "After" are committed. Critical path: 1.0 1.1
 ## Packets
 
 ### 1.0 Scaffolding (design, build only)
+**Summary**: Sets up the CMake scaffolding that globs `src/*.c` and
+`tests/*_test.c`, links the grammars and libmpdec, and guards optional
+directories, so a new source and test need no build edit.
+
 **Done** 2026-10-16 After the Phase 0 gate. Owns root `CMakeLists.txt`,
 `tests/CMakeLists.txt`, `third_party/CMakeLists.txt`. Globs for `src/*.c` and
 `tests/*_test.c`; `sxml` links `sxml_grammar_xml`, `sxml_grammar_xpath` and,
@@ -65,6 +69,10 @@ edit. **Done** 2026-10-16: globs in place, probe verified under `debug`; also
 added `SXML_STATUS_INPUT_OUTPUT_FAILED` (D50, was P1).
 
 ### 1.1 Name pool (implementation)
+**Summary**: Implements the name pool of `name.h`: interning with a hash index,
+well-known namespaces, find without interning and a byte limit, in
+`src/name.c`.
+
 **Done** 2026-10-16 After 1.0. Owns `src/name.c`, `src/name_internal.h`,
 `tests/name_test.c`. All of `name.h` (D31): interning with a hash index,
 well-known namespaces, find without interning, byte limit. Done when every
@@ -72,6 +80,10 @@ function is tested with limit and allocation-failure loops. Spec: XDM 4.0 §5.6
 (QNames). **Done** 2026-10-16 (D54).
 
 ### 1.2 Decimal arithmetic with libmpdec (implementation)
+**Summary**: Vendors mpdecimal 4.0 with the scoped allocator patch and
+implements internal decimal arithmetic: parse, canonical text, arithmetic,
+compare, round and conversions to and from `int64_t` and `double`.
+
 **Done** 2026-10-16 After 1.0. Owns `third_party/mpdecimal/`,
 `third_party/mpdecimal.version`, `src/decimal.c`, `src/decimal_internal.h`,
 `tests/decimal_test.c`. Vendor mpdecimal 4.0.x, patched as D42, in Phase 1
@@ -83,6 +95,10 @@ operators on numeric values" (decimal precision), D36. **Done** 2026-10-16
 gzip), logged.
 
 ### 1.3 Public API: XML parser, processor, XPath, adaptive output (design)
+**Summary**: Designs the Phase 1 public headers `xml.h`, `processor.h`,
+`xpath.h` and `serialize.h`: XML parsing into a tree builder, the processor,
+XPath compile and evaluate, and adaptive output.
+
 **Done** 2026-10-16 After 1.0. Owns `include/sxml/xml.h`, `processor.h`,
 `xpath.h`, `serialize.h` (D47). `xml.h`: bytes (encoding detected, source name,
 limits) into any `sxml_tree_builder`, errors with line and column (D21).
@@ -95,6 +111,10 @@ driver (1.24) and CLI can be written against these alone. **Done** 2026-10-16
 (D51).
 
 ### 1.4 XPath abstract syntax tree (design)
+**Summary**: Designs the XPath abstract syntax tree in
+`src/xpath_ast_internal.h`: index-addressed nodes in an arena, one kind per
+visible grammar production, names as written and a source location per node.
+
 **Done** After 1.0. Owns `src/xpath_ast_internal.h`. Index-addressed nodes in
 an arena (D24), one kind per visible production of `grammars/xpath` (D29),
 names as written (1.12 resolves them), a source location per node. Covers every
@@ -105,6 +125,10 @@ and curly arrays, `?*`, `?(expr)`, unary lookup, and sequence types such as
 Appendix A. **Done** 2026-10-16 (D52).
 
 ### 1.5 Shared IR, optimizer seam, evaluator interfaces (design)
+**Summary**: Designs the shared IR, the pass interface, the evaluator entry
+points and the native function table, so XPath, XQuery and XSLT lower into one
+IR without new node kinds.
+
 **Done** 2026-10-16 After 1.0. Owns `src/ir_internal.h`,
 `src/ir_pass_internal.h`, `src/evaluator_internal.h`,
 `src/function_library_internal.h` (D46). IR as in D46: atoms, explicit focus
@@ -120,6 +144,10 @@ lower into it with no new node kind (or a named extension point). Spec: XPath
 4.0 §2.2, §3.4 (coercion rules). **Done** 2026-10-16 (D55).
 
 ### 1.6 Type registry and built-in types (implementation)
+**Summary**: Implements the type registry and built-in types of `types.h`,
+including subtype relationships such as a map type being a subtype of a
+function type.
+
 **Done** 2026-10-16 After 1.1. Owns `src/types.c`, `src/types_builtin.c`,
 `src/types_internal.h`, `tests/types_test.c`. All of `types.h` (D32, D43). Done
 when `map(xs:string, xs:integer+)` is a subtype of `function(xs:string) as
@@ -127,6 +155,10 @@ item()*` (map-put-002-hof). Spec: XPath 4.0 "Subtype Relationships"; XDM 4.0
 §4. **Done** 2026-10-16 (D58).
 
 ### 1.7 Item heap and atomic core (implementation)
+**Summary**: Implements the item heap and the atomic core: cells, raised
+errors, tree identifiers, every atomic item, `atomic_equal`, compare and hash,
+and vector sequences with builder and iterator.
+
 **Done** 2026-10-16 After 1.2, 1.6. Owns `src/xdm.c`, `src/xdm_internal.h`,
 `src/xdm_atomic.c`, `tests/xdm_test.c`, `tests/xdm_atomic_test.c`. Heap and
 cells (D33), raised errors (D41), tree identifiers, all atomic items and datums
@@ -137,6 +169,10 @@ iterative release, heap byte accounting); node-item tree retention is a
 two-line hand-off to 1.11; QName order in `fn:compare` needs the heap (P2).
 
 ### 1.8 Range, concatenation and lazy sequences (implementation)
+**Summary**: Implements integer ranges with 64-bit bounds and counts, flattened
+concatenation, memoized lazy sequences that raise their error on every read,
+and `test_emptiness`.
+
 **Done** 2026-10-16 After 1.7. Owns `src/xdm_sequence.c`,
 `tests/xdm_sequence_test.c`. Ranges with `int64_t` bounds and `uint64_t` counts
 (D34), flattened concatenation, memoized lazy sequences that raise their error
@@ -147,6 +183,10 @@ right on `wasm`. **Done** 2026-10-16 (D62): all of
 raised again per read.
 
 ### 1.9 Maps and records (implementation)
+**Summary**: Implements XDM maps in `src/xdm_map.c`: insertion order, a lazy
+hash index, persistent put and remove of two AVL trees, duplicate policies and
+records sharing registry shapes.
+
 **Done** 2026-10-16 After 1.7. Owns `src/xdm_map.c`, `tests/xdm_map_test.c`.
 D37: entry order, lazy hash index, persistent put/remove, duplicate policies,
 records sharing registry shapes. Done when map-merge-401 order and map-get-014
@@ -156,6 +196,10 @@ duplicates), persistent maps of two AVL trees, records with lazily made field
 keys; P3 (`sxml_map_get_entry` on a record may fail for memory).
 
 ### 1.10 Arrays and function items (implementation)
+**Summary**: Implements persistent arrays as AVL trees with O(log n) put,
+insert, remove and slice, and function items with retained captures, with maps
+and arrays callable as functions.
+
 **Done** 2026-10-16 After 1.7. Owns `src/xdm_array.c`, `src/xdm_function.c`,
 `tests/xdm_array_test.c`, `tests/xdm_function_test.c`. Persistent arrays with
 O(log n) put, insert, remove and slice; function items (D38); maps and arrays
@@ -166,6 +210,10 @@ captures are released with the item. Spec: XDM 4.0 §8.1, §8.4. **Done**
 retained captures and body state, maps and arrays as map:get and array:get.
 
 ### 1.11 Tree: interface, axes, arena tree, builder (implementation)
+**Summary**: Implements all of `tree.h`: the arena tree, every axis including
+the `-or-self` ones, namespace fixup, limits and `copy_node`, checked against a
+64-row axis table.
+
 **Done** 2026-10-16 After 1.7. Owns `src/tree.c`, `src/tree_axis.c`,
 `src/arena_tree.c`, `src/tree_internal.h`, `tests/tree_test.c`,
 `tests/arena_tree_test.c`. All of `tree.h` (D39, D40, D43), every axis
@@ -175,6 +223,10 @@ results on a fixed document match a table. Spec: XDM 4.0 §6; XPath 4.0 "Axes".
 tree (1.7 hand-off); no-inherit copies wait on P6.
 
 ### 1.12 Static analysis and lowering (implementation)
+**Summary**: Implements XPath static analysis and lowering to IR: namespace,
+variable and function resolution with their static errors, placeholders,
+arrows, lookups, capture lists and the IR verifier.
+
 **Done** 2026-10-16 After 1.3, 1.5, 1.6, 1.16. Owns `src/xpath_static.c`,
 `src/xpath_lower.c`, `src/ir.c`, `src/ir_verify.c`,
 `tests/xpath_static_test.c`, `tests/ir_test.c`. Static context; names
@@ -188,6 +240,9 @@ and 46 construct dumps match golden text; all valid XP40 queries lower without
 a verifier failure (P4, P5 proposed).
 
 ### 1.13 Node items, JNodes, node accessors (implementation)
+**Summary**: Implements node items with string value, typed value and base URI,
+and JNodes made on demand, identical for an equal parent and key.
+
 **Done** 2026-10-16 After 1.9, 1.10, 1.11. Owns `src/xdm_node.c`,
 `src/xdm_json_node.c`, `tests/xdm_node_test.c`. Node items; string value, typed
 value, base URI; JNodes made on demand, identical for equal parent and key.
@@ -197,6 +252,10 @@ Done when op-union-406 and fn-root-29 hold as unit cases. Spec: XDM 4.0 §8.5.
 in JNode making).
 
 ### 1.14 XML parser (implementation)
+**Summary**: Implements the XML parser from the `grammars/xml` CST to tree
+builder events with four encodings, passing all of the W3C XML conformance
+suite, and adds `sxml check`.
+
 **Done** 2026-10-16 After 1.3, 1.11. Owns `src/xml.c`, `src/xml_encoding.c`,
 `src/xml_entity.c`, `src/xml_internal.h`, `tests/xml_test.c`,
 `tests/xml_conformance_test.c`. CST of `grammars/xml` to builder events with
@@ -210,6 +269,10 @@ Edition; Namespaces in XML 1.0 Third Edition. **Done** 2026-10-16 (D81):
 done as D69.
 
 ### 1.15 Casting and lexical forms (implementation)
+**Summary**: Implements casting: lexical and canonical forms of the primitive
+types, integer subtypes with facets, `xs:NMTOKENS`, and cast and castable with
+their errors.
+
 **Done** 2026-10-16 After 1.7. Owns `src/cast.c`, `src/cast_lexical.c`,
 `src/cast_internal.h`, `tests/cast_test.c`. Lexical and canonical forms of
 every primitive type the slice uses, integer subtypes with facets,
@@ -219,6 +282,10 @@ cast slice lines pass as unit cases. Spec: F&O 4.0 "Casting"; XSD 1.1 Part 2.
 `tests/cast_test.c` (17 cases, allocation-failure loop included).
 
 ### 1.16 XPath front end: CST to AST (implementation)
+**Summary**: Implements the XPath parser that builds the AST from the CST,
+reporting any error or missing node as XPST0003 with a location, and builds
+every valid XP40 query.
+
 **Done** 2026-10-16 After 1.4. Owns `src/xpath_parse.c`,
 `tests/xpath_parse_test.c`. Any `ERROR` or `MISSING` is XPST0003 with a
 location; the checks D29 leaves to the builder (A.3.2 delimitation, prefixed
@@ -229,6 +296,10 @@ every XP40 query that `tools/qt4-parse-check.py` accepts also builds one.
 queries build, the two D29 false accepts now fail with XPST0003.
 
 ### 1.17 Regular expression seed (implementation)
+**Summary**: Implements a hand-written backtracking regular expression matcher
+for a subset of the F&O dialect with a step limit, raising FORX0002 for
+unsupported syntax.
+
 **Done** 2026-10-16 After 1.0. Owns `src/regex.c`, `src/regex_internal.h`,
 `tests/regex_test.c`. D48: a backtracking matcher for a subset of the dialect
 (classes, `\s \d \w`, quantifiers, groups, alternation; flags `s i x m`) with a
@@ -239,22 +310,31 @@ expression syntax". **Done** 2026-10-16: hand-written parser, not tree-sitter
 `tools/generate-regex-tables.py`.
 
 ### 1.18 Evaluator core (implementation)
-**Done** 2026-10-16 After 1.8, 1.12, 1.13, 1.15, 1.19. Owns `src/evaluator.c`,
+**Summary**: Implements the evaluator as an explicit-stack machine: focus,
+frames, closures, coercion, paths in document order, predicates, quantifiers,
+comparisons and map and array constructors, with a limit status instead of
+stack overflow.
+
+**Done** 2026-10-16 (D75): explicit-stack machine (D71), resumable native
+bodies for 1.21; P4 (D77), P5 (D76), P7 (D73) accepted; slice lines without
+library calls pass as unit cases in `tests/evaluator_test.c`. **1.18b
+follow-ups** 2026-10-16 (D85): dynamic calls on function sequences, maps/arrays
+in paths, coercion engine, keyword defaults, array:index-of, static namespaces
+for QName casts. After 1.8, 1.12, 1.13, 1.15, 1.19. Owns `src/evaluator.c`,
 `src/evaluator_path.c`, `src/evaluator_function.c`, `tests/evaluator_test.c`.
 Focus (XPDY0002), frames, IR function bodies and closures (D38), coercion
 (XPTY0004), paths in document order, predicates, `!`, quantifiers, `treat`
 (XPDY0050), `instance of`, node comparisons, map and array constructors and
 lookups, errors with code, description and value (D41). Done when the slice
-queries without library calls pass (filterexpressionhc2, bang-1, inline-fn-*,
+queries without library calls pass (filterexpressionhc2, bang-1, inline-fn-\*,
 Lookup-225, ...) and deep recursion gives a limit status, not a stack overflow.
-Spec: XPath 4.0 §3, §4. \**Done\*\* 2026-10-16 (D75): explicit-stack machine
-(D71), resumable native bodies for 1.21; P4 (D77), P5 (D76), P7 (D73) accepted;
-slice lines without library calls pass as unit cases in
-`tests/evaluator_test.c`. **1.18b follow-ups** 2026-10-16 (D85): dynamic calls
-on function sequences, maps/arrays in paths, coercion engine, keyword defaults,
-array:index-of, static namespaces for QName casts.
+Spec: XPath 4.0 §3, §4.
 
 ### 1.19 Comparisons and arithmetic (implementation)
+**Summary**: Implements operators: numeric promotion, arithmetic overflowing
+into libmpdec, temporal arithmetic, and value and general comparisons with the
+untypedAtomic rules.
+
 **Done** 2026-10-16 After 1.8, 1.15. Owns `src/operator.c`,
 `src/operator_compare.c`, `src/operator_internal.h`, `tests/operator_test.c`.
 Numeric promotion, arithmetic with integer overflow into libmpdec, value and
@@ -264,6 +344,10 @@ Expressions". **Done** 2026-10-16 (D68, D72): also `src/operator_temporal.c`,
 GNode comparisons; P2 and P3 accepted.
 
 ### 1.20 Function library: core (implementation)
+**Summary**: Implements the first function library parts: the numeric, string,
+sequence, node, context and error functions the slice and driver use, and the
+`xs:` constructors.
+
 **Done** 2026-10-16 After 1.17, 1.18. Owns `src/function_library.c`,
 `src/function_library_{numeric,string,sequence,node,context,error}.c`,
 `tests/function_library_test.c`. Used by the slice: `abs avg boolean ceiling
@@ -279,6 +363,9 @@ normalize-space tail`; `xs:` constructors. Done when each has a unit case
 resumable; partial deep-equal options documented in D78.
 
 ### 1.21 Function library: higher-order, maps, arrays (implementation)
+**Summary**: Implements the higher-order, map and array function libraries with
+resumable engines, so `fold-right` over a million items uses constant C stack.
+
 **Done** 2026-10-16 After 1.18. Owns
 `src/function_library_{higher_order,map,array}.c`,
 `tests/function_library_higher_order_test.c`. `apply filter fold-left
@@ -292,6 +379,10 @@ also the rest of F&O 4.0 sections 2.5 (but fn:sort, D78), 13, 14.4 and 15.2
 (shared resumable engines).
 
 ### 1.22 JSON, parse-xml and adaptive output (implementation)
+**Summary**: Implements JSON parsing and conversion (`parse-json`,
+`json-to-xml`, `xml-to-json`), `parse-xml` and the adaptive serializer of
+`serialize.h`.
+
 **Done** 2026-10-16 After 1.5, 1.13, 1.14. Owns `src/json.c`,
 `src/function_library_json.c`, `src/serialize.c`, `tests/json_test.c`,
 `tests/serialize_test.c`. `parse-json` (options `duplicates`, `null`,
@@ -303,6 +394,10 @@ output method". **Done** 2026-10-16 (D82): tree-sitter grammar `grammars/json`;
 yet.
 
 ### 1.23 Processor and XPath API (implementation)
+**Summary**: Implements `processor.h` and `xpath.h`, with `fn:doc` through the
+resolver giving one tree per URI, the `sxml xpath` command, and later 62 more
+library functions.
+
 **Done** 2026-10-16 After 1.14, 1.18, 1.20, 1.21, 1.22. Owns `src/processor.c`,
 `src/xpath.c`, `tests/processor_test.c`, `tests/xpath_test.c`. `processor.h`
 and `xpath.h`; `fn:doc` through the resolver with one tree per URI (fn-doc-6),
@@ -342,6 +437,10 @@ default-language 5, atomic-type-annotation 2, node-type-annotation 2, transform
 2 (all fn:).
 
 ### 1.24 QT4 driver: catalog and environments (implementation)
+**Summary**: Implements the QT4 test driver's catalog reading and environments
+through the public headers, with XP40 filtering and `sxml-qt4 list`, resolving
+the 198 slice cases.
+
 **Done** 2026-10-16 After 1.3, 1.14, the CLI framework (D44). Owns
 `tests/qt4/driver/`. Golden: `apps/sxml`. Reads catalogs with sxml's parser
 through public headers; XP40 spec and dependency filtering
@@ -352,6 +451,10 @@ resolve under `debug`, `debug-gcc` and `wasm`; P8 (quadratic XML positions)
 proposed.
 
 ### 1.25 QT4 driver: assertions and reports (implementation)
+**Summary**: Implements the QT4 driver's assertions and reports with `sxml-qt4
+run`, counts per test set in text and JSON, and a ctest that fails below the
+slice baseline.
+
 **Done** 2026-10-17 After 1.23, 1.24. Owns `tests/qt4/driver/assertion.c`,
 `report.c` and, from now, the driver's `CMakeLists.txt`. Every assertion except
 the serialization ones (reported "unsupported", failing); `assert` binds
@@ -364,6 +467,9 @@ Serialization assertions are not-run rather than failing; no `--output` (no
 file writer in the CLI).
 
 ### 1.26 Fuzz targets (implementation)
+**Summary**: Adds libFuzzer targets for XML parsing and XPath compilation,
+seeded from the XML conformance suite and the slice, and a `fuzz` preset.
+
 **Done** After 1.12, 1.14. Owns `tests/fuzz/`, a `fuzz` preset in
 `CMakePresets.json`. libFuzzer targets (Clang) for XML parsing and XPath
 compilation, seeded from `third_party/xmlconf` and the slice, with memory
@@ -373,6 +479,10 @@ but for two evaluator timeouts (P9); CI's 60 s per target is a `ci.yml` change
 for 1.27.
 
 ### 1.27 Conformance dashboard (implementation)
+**Summary**: Generates `docs/CONFORMANCE.md` from the driver's JSON with
+`tools/run-qt4.sh` and `tools/conformance-report.py`, and adds the CI
+conformance and fuzz jobs.
+
 **Done** 2026-10-17 After 1.25. Owns `tools/conformance-report.py`,
 `docs/CONFORMANCE.md`, `.github/workflows/ci.yml`. Driver JSON to
 `docs/CONFORMANCE.md` (slice, each XP40 test set, total; run, pass, fail, skip;
@@ -383,6 +493,10 @@ passed, slice 198/198; CI jobs `conformance` and `fuzz`. Regenerating from the
 same run gives no diff.
 
 ### 1.28 WebAssembly slice (implementation)
+**Summary**: Runs the QT4 slice and XML conformance under WASI with
+`tools/run-wasi.mjs` and records the sizes of the `wasm` library and driver as
+the first size budget.
+
 **Done** 2026-10-17 After 1.25. Owns `tools/run-wasi.mjs`. `ctest --preset
 wasm` runs `qt4_slice` with the suite directory preopened (the CI `wasm` job
 needs no edit); sizes of `libsxml.a` and the driver module become the first
@@ -391,6 +505,10 @@ Done when 198/198 pass under `wasm`. **Done** 2026-10-17 (D93): 198/198 under
 `wasm`; `xml_conformance` runs under WASI; sizes and the first budget recorded.
 
 ### 1.29 Phase 1 review (review)
+**Summary**: Reviews Phase 1 against its gate with a separate agent, fixes base
+URIs of parentless roots and parentless namespace nodes, and freezes the
+substrate headers.
+
 **Done** 2026-10-17 After everything. Owns the gate boxes. A separate agent
 (D11) runs the rubric and re-checks each "done when"; open items go under
 "Proposed". **Done** 2026-10-17 (D98, D99, D100): rubric pass, substrate fixes

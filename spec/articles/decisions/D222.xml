@@ -1,5 +1,6 @@
 <decision id="D222" status="accepted">
   <title>Bounded memory for XML parsing: document segments (packet <ref kind="packet" to="xml-mem"/>)</title>
+  <summary>The XML parser holds the tree-sitter tree of one <term name="document_segment"/> of about 16 KB at a time, cut by a byte scan between content items and parsed with the same grammar.</summary>
   <body>
     <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D12"/>, <ref kind="decision" to="D45"/>, <ref kind="decision" to="D71"/>, <ref kind="decision" to="D195"/>, <ref kind="decision" to="D199"/>, <ref kind="decision" to="D219"/>. Amends <ref kind="decision" to="D12"/>'s "the concrete syntax tree is freed before the parse function returns" and <ref kind="decision" to="D219"/>'s "the concrete syntax tree is still made for the whole document first": the parser holds the tree of one document segment at a time (glossary <term name="document_segment"/>). tree-sitter stays the parser (<ref kind="decision" to="D12"/>, the owner's choice) and the grammar stays the one source of the lexical rules.</p>
     <list>

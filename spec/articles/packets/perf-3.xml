@@ -1,5 +1,6 @@
 <packet id="perf-3">
   <title>XML parsing speed (implementation)</title>
+  <summary>Speeds up XML parsing by making tags and attributes without references single tokens and childless nodes, with content items not rebalanced and fields and node types looked up by number.</summary>
   <body>
     <p><status value="done" date="2026-10-19"/> After <ref kind="decision" to="D12"/> (tree-sitter parses XML, the owner's choice), <ref kind="decision" to="D222"/> (segmented parsing) and <ref kind="decision" to="D224"/>, <ref kind="decision" to="D229"/> (the benchmarks; parsing a quarter of XMark-All).</p>
     <list>

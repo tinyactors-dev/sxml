@@ -1,5 +1,6 @@
 <decision id="D65" status="accepted">
   <title>WASI test runner disables V8 fast API calls</title>
+  <summary><code>tools/run-wasi.mjs</code> sets <code>--no-turbo-fast-api-calls</code> before compiling the module, so Node.js calls WASI imports the ordinary way and no longer crashes in garbage collection during fast calls.</summary>
   <body>
     <list>
       <item>

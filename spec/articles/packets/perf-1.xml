@@ -1,5 +1,6 @@
 <packet id="perf-1">
   <title>Evaluator performance (implementation)</title>
+  <summary>Speeds up the evaluator with general mechanisms: a benchmark set in <code>tests/bench/</code>, axis walks that describe each node once, filter indexes from an IR pass, and a hoist pass.</summary>
   <body>
     <p><status value="done" date="2026-10-19"/> After <ref kind="decision" to="D182"/> (the evaluator runs about 4 million steps a second and has no index for joins), <ref kind="decision" to="D178"/> (QT4 app-Demos itunes is quadratic by its own text, 72 s) and <ref kind="decision" to="D185"/> (<code>match="$var"</code> membership is a linear scan).</p>
     <list>

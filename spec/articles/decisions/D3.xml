@@ -1,5 +1,6 @@
 <decision id="D3" status="accepted">
   <title>Phase 0 time box</title>
+  <summary>Phase 0 is time-boxed to two weeks (2026-10-16 to 2026-10-30); when the box ends, open design questions become decision records or proposals instead of extending the phase.</summary>
   <body>
     <p><recorded date="2026-10-16"/> at the Phase 0 gate review. The original file skipped <ref kind="decision" to="D3"/> (no commit ever used the number); the plan's risk table names a "Time-boxed Phase 0" without a length, so this record fills it. Phase 0 is time-boxed to two weeks from its start (2026-10-16 to 2026-10-30). When the box ends, open design questions are written down as decision records or "Proposed" items and design stops; they are not a reason to extend Phase 0. Phase 0 closed on its first day, well inside the box.</p>
   </body>

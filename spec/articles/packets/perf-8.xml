@@ -1,5 +1,6 @@
 <packet id="perf-8">
   <title>Cheap coercion of function arguments (implementation)</title>
+  <summary>Adds single-item fast paths to the one matcher and the one coercion, so an argument that already matches, or one atomic item, is coerced without a sequence builder or a second match.</summary>
   <body>
     <p><status value="done" date="2026-10-28"/> After <ref kind="decision" to="D85"/> (coercion), <ref kind="decision" to="D281"/> (XSLT coercion casts), <ref kind="decision" to="D309"/> and <ref kind="decision" to="D310"/>. A callgrind profile of SchXslt's expand stage of EN 16931 (with SchXslt's sort-once fix, the step bound raised in a scratch build; 75.3 x 10^9 instructions, 10.5 s) puts 33 % in <code>sxml_evaluator_coerce</code>, called 8.1 million times from <code>sxml_make_leaf_value</code>: about 3,000 instructions a coercion. Each one creates and finishes a sequence builder (4.1 million), atomizes (2.7 million), casts (1.4 million, mostly xs:untypedAtomic attribute values to xs:string) and matches the sequence type (3.4 million), even when the argument is one item that already has the required type.</p>
     <list>

@@ -1,5 +1,6 @@
 <packet id="6.10">
   <title>Device CI (write here; the owner enables it)</title>
+  <summary>Writes <code>.github/workflows/bindings.yml</code>, disabled to manual dispatch until the owner turns CI back on, with Linux, Android emulator, macOS and device farm jobs for the bindings.</summary>
   <body>
     <p><status value="paused" date="2026-10-20"/> After <ref kind="packet" to="6.6"/> and <ref kind="packet" to="6.9"/>'s scripts. Owns new <code>.github/workflows/bindings.yml</code>, disabled as <ref kind="decision" to="D123"/> asks (<code>workflow_dispatch</code> only) until the owner turns CI back on. The jobs:</p>
     <list>

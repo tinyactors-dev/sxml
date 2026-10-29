@@ -1,5 +1,6 @@
 <decision id="D110" status="accepted">
   <title>Node constructors in the evaluator (packet <ref kind="packet" to="3.5"/>)</title>
+  <summary>Each node constructor makes its own self-destroying arena tree and copies nested constructed nodes into it, with the listed content convention, name checks, fixed construction modes and base URIs.</summary>
   <body>
     <p><recorded date="2026-10-17"/>. <code>src/evaluator_construct.c</code> evaluates the seven constructor kinds and SHALLOW_COPY (<ref kind="decision" to="D55"/>, <ref kind="decision" to="D101"/>).</p>
     <list>

@@ -1,5 +1,6 @@
 <packet id="7.26">
   <title>tree-sitter functions in a tree-sitter namespace (design and implementation)</title>
+  <summary>Moves the source code functions to <code>urn:sxml:tree-sitter</code> as <code>tree-sitter:parse</code> and <code>tree-sitter:languages</code>, bound to the prefix <code>tree-sitter</code>, and removes <code>sxml:parse-code</code> and <code>sxml:code-languages</code>.</summary>
   <body>
     <p><status value="done" date="2026-10-22"/> After <ref kind="decision" to="D285"/>, <ref kind="decision" to="D288"/>, <ref kind="decision" to="D293"/> and <ref kind="decision" to="D306"/>. The owner (2026-10-22): expose tree-sitter as <code>tree-sitter:</code>, not as <code>sxml:code-*</code>. Today <code>sxml:parse-code</code> and <code>sxml:code-languages</code> live in <code>urn:sxml</code> (<ref kind="decision" to="D285"/>).</p>
     <list>

@@ -1,5 +1,6 @@
 <decision id="D128" status="accepted">
   <title>The HTML, text, JSON and CSV methods; fn:serialize (packet <ref kind="packet" to="3.4"/>)</title>
+  <summary>The HTML, text, JSON and CSV serialization methods and fn:serialize run on the one existing serializer pipeline, each method choosing an escape style, with HTML as a mode of the XML node writer.</summary>
   <body>
     <p><recorded date="2026-10-17"/>. Every method runs on the 3.3 pipeline (<ref kind="decision" to="D120b"/>); no second writer or escaper was added.</p>
     <list>

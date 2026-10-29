@@ -1,5 +1,6 @@
 <packet id="7.25">
   <title>tree-sitter WebAssembly language files in the JavaScript package (book, tests, implementation)</title>
+  <summary>Lets the JavaScript package load tree-sitter WebAssembly language files through a module linker, with <code>loadCodeLanguage</code> and <code>codeLanguages</code>.</summary>
   <body>
     <p><status value="done" date="2026-10-20"/> After <ref kind="decision" to="D288"/>'s delayed (a). The owner (2026-10-20): an easy fix; the book, the tests, then the implementation.</p>
     <list>

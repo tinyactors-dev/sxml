@@ -1,5 +1,6 @@
 <decision id="D200" status="accepted">
   <title>EXPath File (packet <ref kind="packet" to="7.9"/>)</title>
+  <summary>The EXPath File Module 4.0 is the optional feature "expath-file" over a host <code>sxml_file_system</code> interface, opted into twice: hosts name the feature and give a file system, and <code>sxml_all_optional_features()</code> leaves it out.</summary>
   <body>
     <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D71"/>, <ref kind="decision" to="D99"/>, <ref kind="decision" to="D162"/>, <ref kind="decision" to="D184"/>, <ref kind="decision" to="D189"/>, <ref kind="decision" to="D191"/>, <ref kind="decision" to="D198"/>. The EXPath File Module 4.0 is the optional feature <code>sxml_expath_file_feature()</code> ("expath-file") over a host interface, the file system.</p>
     <list>

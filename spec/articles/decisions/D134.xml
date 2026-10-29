@@ -1,5 +1,6 @@
 <decision id="D134" status="accepted">
   <title>The QT4 driver for XQ40 (packet <ref kind="packet" to="3.13"/>)</title>
+  <summary>The QT4 driver runs XQ40 through a temporary XQuery adapter over <code>sxml_xquery_compile</code>, answers module and collection queries, checks serialization assertions, and gains an XQuery slice and per-spec gate rates.</summary>
   <body>
     <p><recorded date="2026-10-17"/>. Extends <ref kind="decision" to="D92"/>, <ref kind="decision" to="D94"/> and <ref kind="decision" to="D108"/> in <code>tests/qt4/driver/</code>.</p>
     <list>

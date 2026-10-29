@@ -1,5 +1,6 @@
 <decision id="D168" status="accepted">
   <title>The XSD 1.1 test driver (packet <ref kind="packet" to="5.3"/>)</title>
+  <summary>The XSD 1.1 test driver <code>sxml-xsd-test</code> shares the budget, selection, slice and report mechanisms with the QT4 driver, names test sets by directory and file, and applies version tokens per level.</summary>
   <body>
     <p><recorded date="2026-10-18"/>. <code>tests/xsd/driver/</code>, the developer tool <code>sxml-xsd-test</code> (list, run), public API only, a sibling of sxml-qt4 and sxml-xslt-test that links <code>sxml_qt4_driver_library</code>.</p>
     <list>

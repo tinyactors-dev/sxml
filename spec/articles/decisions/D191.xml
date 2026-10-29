@@ -1,5 +1,6 @@
 <decision id="D191" status="accepted">
   <title>Optional features add library functions (packet 7.10a)</title>
+  <summary>An optional feature's definition can carry <code>library_functions</code>, which the processor's function library serves after the registered parts, so the functions are absent (XPST0017) from programs that do not name the feature.</summary>
   <body>
     <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D45"/>, <ref kind="decision" to="D101"/>, <ref kind="decision" to="D162"/>, <ref kind="decision" to="D189"/>. A feature whose <ref kind="decision" to="D162"/> place is "the functions are absent" (XPST0017: fn:parse-html and fn:html-doc, the EXPath Binary and File functions) must not link its rows into a program that does not name it, so its rows cannot be a library part of <code>src/function_library_*.c</code> (the registry links every part).</p>
     <list>

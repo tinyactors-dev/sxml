@@ -1,5 +1,6 @@
 <decision id="D255" status="accepted">
   <title>Bindings paused; priorities are conformance, CLI builds, the book (owner)</title>
+  <summary>The Swift and Kotlin bindings are paused with their designs in <code>bindings/kotlin/DESIGN.md</code> and <code>bindings/swift/DESIGN.md</code>, and work goes to conformance, CLI builds for every platform, then the book in <code>docs/book/</code>.</summary>
   <body>
     <p><recorded date="2026-10-20"/> on the owner's word: "Pause the swift and kotlin work by documenting the next steps/full intended design in the respective subdirectories. Priorities now are: 1. conformance, 2. a mise task to get the CLI compiled for all supported platforms for installation, 3. user-facing documentation in book form (think: Rust book in style)."</p>
     <list>

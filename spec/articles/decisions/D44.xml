@@ -1,5 +1,6 @@
 <decision id="D44" status="accepted">
   <title>The sxml command-line program and its CLI framework</title>
+  <summary>The <code>sxml</code> command-line program is built on a declarative CLI framework in <code>apps/</code>, with stdio confined to one platform file, no option abbreviations or aliases, and fixed exit codes 0 to 4.</summary>
   <body>
     <p><recorded date="2026-10-16"/>. Rules and planned commands in <code>docs/CLI.md</code>.</p>
     <list>

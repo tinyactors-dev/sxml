@@ -1,5 +1,6 @@
 <decision id="D305" status="accepted">
   <title>The book's diagrams use a layered layout with model order</title>
+  <summary>The book's <code>draw.xqm</code> lays out diagrams in the five phases of ELK Layered with model order breaking ties, and routes edges orthogonally on tracks between layers.</summary>
   <body>
     <p><recorded date="2026-10-22"/>, at the owner's request: the state machine diagrams (states, flag, changes) were busy and unreadable, and the owner asked for the layered algorithm of the KIELER group (ELK Layered) in XQuery.</p>
     <list>

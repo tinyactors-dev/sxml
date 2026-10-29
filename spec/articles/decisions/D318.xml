@@ -1,5 +1,6 @@
 <decision id="D318" status="accepted">
   <title>Source locations for parsed input documents (packet <ref kind="packet" to="7.29"/>)</title>
+  <summary>A processor's <term name="source_location_policy"/> decides whether parsed documents keep locations; under AUTOMATIC a compiled program that <term name="reads_source_locations"/> asks for them, and copies keep what they copy.</summary>
   <body>
     <p><recorded date="2026-10-28"/>, after <ref kind="decision" to="D313"/> (7, 8), <ref kind="decision" to="D87"/>, <ref kind="decision" to="D88"/>, <ref kind="decision" to="D99"/>.</p>
     <list>

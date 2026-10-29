@@ -1,5 +1,6 @@
 <decision id="D130" status="accepted">
   <title>Elements to maps and back (packet <ref kind="packet" to="2.10"/>)</title>
+  <summary>fn:element-to-map, fn:element-to-map-plan and fn:map-to-element work without recursion over node indices, frame stacks and XDM maps, on untyped input only, following QT4 where the text leaves choices open.</summary>
   <body>
     <p><recorded date="2026-10-17"/>. <code>src/function_library_element_map.c</code> (part <code>element_map</code>) implements fn:element-to-map-plan, fn:element-to-map and fn:map-to-element (F&amp;O 4.0, section 14.6).</p>
     <list>

@@ -1,5 +1,6 @@
 <packet id="perf-12">
   <title>Compiling large stylesheets (implementation)</title>
+  <summary>Makes compiling large stylesheets linear in the unit's size: the descendant-path and global-read passes and the lowerer's declaration check, with the IR text form unchanged.</summary>
   <body>
     <p><status value="done" date="2026-10-28"/> After <ref kind="decision" to="D224"/>, <ref kind="decision" to="D259"/> and <ref kind="decision" to="D322"/>. Validating one EN 16931 invoice with the official pre-compiled stylesheet (900 KB of XSLT, from ConnectingEurope/eInvoicing-EN16931) costs 2.68 x 10^9 instructions, about 0.5 s, and 79 % of it is compiling the stylesheet: reading 41 % (tree-sitter's XML parse 23 %), XPath parsing 25 %, IR passes 32 %; the validation itself 20 %. Two passes dominate on their own: <code>sxml_ir_shorten_descendant_paths</code> 12.5 % (self) and <code>sxml_ir_read_globals_lazily</code> 8.6 % (self), which suggests work that grows with the square of the unit (each template or global revisits the whole unit). Every <code>sxml transform</code> and, after <ref kind="packet" to="7.28"/>, every Schematron compile pays this.</p>
     <list>

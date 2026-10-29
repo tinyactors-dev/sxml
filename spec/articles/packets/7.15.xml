@@ -1,5 +1,6 @@
 <packet id="7.15">
   <title>Full UCA collations (implementation, two packets)</title>
+  <summary>Implements the full Unicode Collation Algorithm over a <term name="collation_element_table"/> read at first use from data the host serves, with every UCA parameter and CLDR tailorings for <code>lang</code> and <code>reorder</code>.</summary>
   <body>
     <p><status value="done" date="2026-10-19"/></p>
     <list>

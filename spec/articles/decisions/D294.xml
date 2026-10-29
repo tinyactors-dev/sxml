@@ -1,5 +1,6 @@
 <decision id="D294" status="accepted">
   <title>Streamed output and input in the JavaScript API (packet js-2)</title>
+  <summary>The host shim and JavaScript API stream serialized output to a sink in chunks and read input from byte readers or chunk sources, so large outputs are not buffered whole.</summary>
   <body>
     <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D99"/>, <ref kind="decision" to="D138"/>, <ref kind="decision" to="D216"/>, <ref kind="decision" to="D228"/>, <ref kind="decision" to="D231"/>, <ref kind="decision" to="D233"/>, <ref kind="decision" to="D238"/>, <ref kind="decision" to="D272"/>. The owner: "the JavaScript API will burn a lot of memory with large outputs because everything is buffered." Every serializing call wrote into the processor's output buffer, which the package then decoded into one string; the module's memory grows to fit the buffer and never shrinks.</p>
     <list>

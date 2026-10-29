@@ -1,5 +1,6 @@
 <decision id="D174" status="accepted">
   <title>Schema-aware XPath and XQuery (packet <ref kind="packet" to="5.11"/>)</title>
+  <summary>XPath and XQuery become schema-aware through <term name="in_scope_schemas"/> in the static context, one schema scope module for lookups and errors, import schema, validate as an internal row, and fn:xsd-validator.</summary>
   <body>
     <p><recorded date="2026-10-18"/>. Replaces the rejection places of <ref kind="decision" to="D97"/> and <ref kind="decision" to="D162"/> for XPath and XQuery (XPST0008 of schema-element, XQST0009, XQST0075, FODC0009 of fn:parse-xml, the driver's non-goal features); golden <code>src/xquery_flwor.c</code> (an internal native row), <code>src/function_library_csv.c</code>.</p>
     <list>

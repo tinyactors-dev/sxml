@@ -1,5 +1,6 @@
 <packet id="7.6">
   <title>XSLT streaming (design and implementation, two packets)</title>
+  <summary>Implements XSLT streaming: a streamability analysis that gives each construct its <term name="posture"/> and <term name="sweep"/>, then streamed evaluation from builder events with memory bounded by depth and grounded parts, including streamed merges.</summary>
   <body>
     <p><status value="done" date="2026-10-20"/></p>
     <list>
@@ -79,7 +80,7 @@
             <p>Owns: <code>src/xslt_lower_stream.c</code>, <code>src/evaluator_stream.c</code>, <code>tests/evaluator_stream_test.c</code>, <code>include/sxml/xslt.h</code> (the field), <code>apps/sxml/command_transform.c</code>; single hunks in <code>src/xslt.c</code>, <code>src/xslt_lower.c</code>, <code>src/xslt_lower_template.c</code>, <code>src/xslt_streamability.c</code>, the IR and the XSLT driver.</p>
           </item>
           <item>
-            <p><strong>Done</strong> 2026-10-19 (<ref kind="decision" to="D228"/>): (a) <code>streamed_source_uri</code> and <code>sxml_xslt_stylesheet_streams_source</code>; <code>sxml transform</code> streams an INPUT file when the initial mode streams: "/" with a for-each over a 100 MB document 673.2 MB to 267.3 MB resident, template rules 658.8 MB (tree) to 267.3 MB; the driver streams the suite's streaming="true" sources. (d) template rules of streamed modes run on open nodes, streamed or grounded (STREAM axis self); built-in rules, apply- templates without select and child-step apply points stream. (e) avg folds as sum and count. (f) done. XT40 none lost. Left: (b) accumulators while streaming, (c) xsl:fork and xsl:merge, and a principal result held whole until it is serialized (the identity keeps memory proportional to its output).</p>
+            <p><strong>Done</strong> 2026-10-19 (<ref kind="decision" to="D228"/>): (a) <code>streamed_source_uri</code> and <code>sxml_xslt_stylesheet_streams_source</code>; <code>sxml transform</code> streams an INPUT file when the initial mode streams: "/" with a for-each over a 100 MB document 673.2 MB to 267.3 MB resident, template rules 658.8 MB (tree) to 267.3 MB; the driver streams the suite's streaming="true" sources. (d) template rules of streamed modes run on open nodes, streamed or grounded (STREAM axis self); built-in rules, apply-templates without select and child-step apply points stream. (e) avg folds as sum and count. (f) done. XT40 none lost. Left: (b) accumulators while streaming, (c) xsl:fork and xsl:merge, and a principal result held whole until it is serialized (the identity keeps memory proportional to its output).</p>
           </item>
         </list>
       </item>

@@ -1,5 +1,6 @@
 <packet id="7.17">
   <title>Calendars and languages in the formatting functions (implementation)</title>
+  <summary>Adds calendars and languages to the formatting functions: a <term name="language_table"/> per language from host CLDR files, spell-out rules, and conversion for the BE, JE, OS and AH calendars.</summary>
   <body>
     <p><status value="done" date="2026-10-19"/></p>
     <list>

@@ -183,7 +183,7 @@
         <p>Casts to xs:QName with an enclosing direct constructor's namespaces (CAST uses the unit's static namespaces, <ref kind="decision" to="D84"/>; 4 cases); <code>$e:code</code> with xmlns:e on the same element (try-catch-err-code-variable-13).</p>
       </item>
       <item>
-        <p>is-id of list and union ID types (fn-element-with-id-4/5); fn:xsd- validator's use-xsi-schema-location (FODC0009).</p>
+        <p>is-id of list and union ID types (fn-element-with-id-4/5); fn:xsd-validator's use-xsi-schema-location (FODC0009).</p>
       </item>
       <item>
         <p>The suite's <code>recordTypeDecl/</code> module paths (the directory is <code>RecordTypeDecl/</code>; 11 cases, a suite error; the owner reports it upstream).</p>

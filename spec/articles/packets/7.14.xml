@@ -1,5 +1,6 @@
 <packet id="7.14">
-  <title>DTD processing: entities, defaults, validation (design and implementation, two packets; proposed, <ref kind="decision" to="D183"/>)</title>
+  <title>DTD processing: entities, defaults, validation (design and implementation, three packets; proposed, <ref kind="decision" to="D183"/>)</title>
+  <summary>Adds DTD processing: the external subset and external entities through the resolver, attribute defaults and normalization, and DTD validation by the schema validator with the DTD's declarations as schema components.</summary>
   <body>
     <p><status value="done" date="2026-10-19"/></p>
     <list>

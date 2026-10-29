@@ -1,5 +1,6 @@
 <decision id="D95" status="accepted">
   <title>Pass-rate targets for Phases 2, 3 and 4</title>
+  <summary>Pass-rate targets: Phase 2 XP40 at least 90% with each core area at 80%, Phase 3 XQ40 at least 85%, Phase 4 in-scope XSLT at least 70%, over denominators that exclude non-goal features.</summary>
   <body>
     <p><recorded date="2026-10-17"/> (Phases 2 to 4 planning; PLAN.md leaves the targets to the end of Phase 1). Measured by <code>sxml-qt4 run</code> (release, one process per test set) and, for XSLT, the driver of packet <ref kind="packet" to="4.1"/>; "wrong error" counts as passed (<ref kind="decision" to="D92"/>), as the QT4 guide allows.</p>
     <list>

@@ -1,5 +1,6 @@
 <decision id="D220" status="accepted">
   <title>CLDR tailorings and the CLDR root for UCA collations (packet 7.15b)</title>
+  <summary>UCA collations take CLDR's root table and per-language tailorings, read from the host as CLDR files under <code>urn:sxml:collation-data:</code>, with the DUCET as the fallback root.</summary>
   <body>
     <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D13"/>, <ref kind="decision" to="D71"/>, <ref kind="decision" to="D162"/>, <ref kind="decision" to="D184"/>, <ref kind="decision" to="D189"/>, <ref kind="decision" to="D208"/>, <ref kind="decision" to="D209"/>, <ref kind="decision" to="D213"/>. Replaces <ref kind="decision" to="D213"/>'s "lang other than the root languages and reorder are not honoured" and its root order.</p>
     <list>

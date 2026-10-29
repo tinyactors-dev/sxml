@@ -1,5 +1,6 @@
 <decision id="D319" status="accepted">
   <title>Casts that keep the string, choices of one item, untyped items cast at once (packet <ref kind="packet" to="perf-10"/>)</title>
+  <summary>A <term name="relabelled_cast"/> keeps the source's string cell under the target type, one item against a choice takes the first alternative it matches, and untyped items are cast without a prior match.</summary>
   <body>
     <p><recorded date="2026-10-28"/>, after <ref kind="decision" to="D71"/>, <ref kind="decision" to="D85"/>, <ref kind="decision" to="D281"/>, <ref kind="decision" to="D309"/>, <ref kind="decision" to="D316"/>. No public header changed.</p>
     <list>

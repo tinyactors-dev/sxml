@@ -9,6 +9,10 @@ Rules for parallel packets are those of `docs/tasks/phase-2.md` (D45).
 ## Distribution
 
 ### dist-1 A mise task that builds the sxml command for every platform (build)
+**Summary**: Adds the mise tasks behind `tools/dist.sh` that cross-compile the
+sxml command with `zig cc` for Linux, macOS, Windows and wasm32-wasi, with
+archives, SHA256SUMS and smoke tests.
+
 **Done** 2026-10-20 After D255.
 
 - **Mechanism**: `mise.toml` pins cmake, ninja, zig, node and the WASI SDK;

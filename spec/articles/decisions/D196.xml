@@ -1,5 +1,6 @@
 <decision id="D196" status="accepted">
   <title>xsl:evaluate (packet <ref kind="packet" to="7.3"/>)</title>
+  <summary>xsl:evaluate is a static call whose resumable body compiles the target with <code>sxml_xpath_compile</code> and runs it as a <term name="unit_evaluation"/> on the same machine, with stylesheet functions passed as function items.</summary>
   <body>
     <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D71"/>, <ref kind="decision" to="D154"/>, <ref kind="decision" to="D162"/>, <ref kind="decision" to="D163"/>, <ref kind="decision" to="D183"/>, <ref kind="decision" to="D184"/>. Replaces <ref kind="decision" to="D162"/>'s one place for dynamic evaluation (the XTDE3175 raise in <code>src/xslt_lower_control.c</code>): xsl:evaluate is available, so XTDE3175 is never raised and the xsl:fallback children are not evaluated.</p>
     <list>

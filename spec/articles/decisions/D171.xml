@@ -1,5 +1,6 @@
 <decision id="D171" status="accepted">
   <title>Simple types and facets (packet <ref kind="packet" to="5.5"/>)</title>
+  <summary>Casting to a registered schema simple type applies its whiteSpace facet, its built-in ancestor's lexical mapping and every facet of its chain, and SIMPLE_TYPES makes facet values canonical before registering types.</summary>
   <body>
     <p><recorded date="2026-10-18"/>. Fills SIMPLE_TYPES (<ref kind="decision" to="D167"/>) and registration (<ref kind="decision" to="D165"/>).</p>
     <list>

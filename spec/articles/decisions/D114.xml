@@ -1,5 +1,6 @@
 <decision id="D114" status="accepted">
   <title>The regex library part (packet <ref kind="packet" to="2.3"/>)</title>
+  <summary><code>src/function_library_regex.c</code> holds every regex function of F&amp;O 4.0, section 6.3, adds fn:analyze-string, fn:matching-segments and fn:regex, and makes named groups reach their results.</summary>
   <body>
     <p><recorded date="2026-10-17"/>, after <ref kind="decision" to="D101"/> made parts files of their own.</p>
     <list>

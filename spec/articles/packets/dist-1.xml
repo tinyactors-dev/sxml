@@ -1,5 +1,6 @@
 <packet id="dist-1">
   <title>A mise task that builds the sxml command for every platform (build)</title>
+  <summary>Adds the mise tasks behind <code>tools/dist.sh</code> that cross-compile the sxml command with <code>zig cc</code> for Linux, macOS, Windows and wasm32-wasi, with archives, SHA256SUMS and smoke tests.</summary>
   <body>
     <p><status value="done" date="2026-10-20"/> After <ref kind="decision" to="D255"/>.</p>
     <list>

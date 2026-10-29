@@ -1,5 +1,6 @@
 <packet id="7.7">
   <title>XQuery Update Facility 3.0 and 4.0 (design and implementation, three packets)</title>
+  <summary>Implements the XQuery Update Facility 3.0 and the 4.0 draft's additions: the updating expressions, a <term name="pending_update_list"/> applied by rebuilding trees, an <term name="update_sink"/> for the host, fn:put and revalidation.</summary>
   <body>
     <p><status value="done" date="2026-10-19"/></p>
     <list>

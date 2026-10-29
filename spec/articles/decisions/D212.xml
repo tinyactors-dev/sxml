@@ -1,5 +1,6 @@
 <decision id="D212" status="accepted">
   <title>XSLT streamability analysis (packet 7.6a)</title>
+  <summary><code>src/xslt_streamability.c</code> runs XSLT 4.0 chapter 19's streamability analysis over the stylesheet AST after lowering, raising XTSE3430 only for constructs proven not guaranteed-streamable, while evaluation stays unstreamed.</summary>
   <body>
     <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D97"/>, <ref kind="decision" to="D162"/>, <ref kind="decision" to="D166"/>, <ref kind="decision" to="D183"/>, <ref kind="decision" to="D184"/>. Replaces <ref kind="decision" to="D97"/>'s "streamable="yes" runs unstreamed" by the analysis of XSLT 4.0, chapter 19 (whose rules are XSLT 3.0's chapter 19); evaluation stays unstreamed until 7.6b.</p>
     <list>
@@ -22,7 +23,7 @@
         <p><strong>Measured</strong> (release driver, whole XT40, ed905be and 8a8fd58): passed 8,952 to 11,792. The 2,936 cases that need the feature streaming, not run before, 2,841 passed (2,681 with the feature claimed and no analysis, at f12ac89); 154 of the 156 that expect XTSE3430 pass; the strm group 2,503 of 2,564 (97.6 %). Every other case as before (system-property-013 now not applicable: 8,952 to 8,951).</p>
       </item>
       <item>
-        <p><strong>Not done, left to 7.6b</strong>: streamed evaluation itself (the receiving task fed by the parser, <ref kind="decision" to="D166"/>); the two XTSE3430 cases the analysis misses (sf-filter-001, marked _WRONG in the suite; si-fork-953, sorted groups in xsl:fork, which 19.8.4.19 allows); supports-streaming; the fallback option. 7.6b can read the verdicts: a guaranteed- streamable mode or source document is what it may stream, and the postures name what each construct selects.</p>
+        <p><strong>Not done, left to 7.6b</strong>: streamed evaluation itself (the receiving task fed by the parser, <ref kind="decision" to="D166"/>); the two XTSE3430 cases the analysis misses (sf-filter-001, marked _WRONG in the suite; si-fork-953, sorted groups in xsl:fork, which 19.8.4.19 allows); supports-streaming; the fallback option. 7.6b can read the verdicts: a guaranteed-streamable mode or source document is what it may stream, and the postures name what each construct selects.</p>
       </item>
     </list>
   </body>

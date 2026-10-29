@@ -1,5 +1,6 @@
 <decision id="D181" status="accepted">
   <title>Verification in proportion; agent prompts in the repository (owner)</title>
+  <summary>A packet verifies in proportion (the <code>debug</code> preset, the tests and conformance sets it affects, clean lint for its files), full runs and fuzzing move to the owner's machine, and agent prompts live in <code>docs/agents/</code>.</summary>
   <body>
     <p><recorded date="2026-10-19"/> on the owner's word: re-running all builds and fuzzing everything takes too long here; the owner will provision a machine for that. Amends the done-when of the packet procedure (<ref kind="decision" to="D123"/>'s local checks).</p>
     <list>

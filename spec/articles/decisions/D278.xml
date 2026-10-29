@@ -1,5 +1,6 @@
 <decision id="D278" status="accepted">
   <title>Schema location hints (packet <ref kind="packet" to="5.16"/>)</title>
+  <summary>A schema follows the <term name="schema_location_hint"/> attributes of a node named in <code>sxml_schema_configuration</code>, through the resolver, adding only namespaces it does not yet have; <code>sxml validate</code> gets <code>--use-schema-location</code>.</summary>
   <body>
     <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D13"/>, <ref kind="decision" to="D99"/>, <ref kind="decision" to="D165"/>, <ref kind="decision" to="D174"/>, <ref kind="decision" to="D179"/>, <ref kind="decision" to="D270"/>, <ref kind="decision" to="D271"/>, <ref kind="decision" to="D277"/>. sxml follows xsi:schemaLocation and xsi:noNamespaceSchemaLocation when the host asks for it (XSD 1.1 Part 1, 4.3.2: "Schema processors should provide an option to control whether they do so").</p>
     <list>

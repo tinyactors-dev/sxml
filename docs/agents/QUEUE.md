@@ -265,8 +265,8 @@ Older (after 2.23, D258; XP40 32,716, XQ40 46,017 passed):
 - Casts to xs:QName with an enclosing direct constructor's namespaces (CAST
   uses the unit's static namespaces, D84; 4 cases); `$e:code` with xmlns:e on
   the same element (try-catch-err-code-variable-13).
-- is-id of list and union ID types (fn-element-with-id-4/5); fn:xsd-
-  validator's use-xsi-schema-location (FODC0009).
+- is-id of list and union ID types (fn-element-with-id-4/5); fn:xsd-validator's
+  use-xsi-schema-location (FODC0009).
 - The suite's `recordTypeDecl/` module paths (the directory is
   `RecordTypeDecl/`; 11 cases, a suite error; the owner reports it upstream).
 - fn:serialize canonical-JSON cases (27) need `bin:unpack-double` (7.8).

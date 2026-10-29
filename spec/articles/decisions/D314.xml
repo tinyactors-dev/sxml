@@ -1,5 +1,6 @@
 <decision id="D314" status="accepted">
   <title>The sxml command asks for no step bound (packet <ref kind="packet" to="cli-4"/>)</title>
+  <summary>The sxml command sets <code>maximum_evaluation_step_count</code> to <code>UINT64_MAX</code>, so its runs have no step bound in practice, while embedders and the JavaScript package keep the library default.</summary>
   <body>
     <p><recorded date="2026-10-28"/>, after <ref kind="decision" to="D313"/> (9), <ref kind="decision" to="D89"/>, <ref kind="decision" to="D259"/>.</p>
     <list>

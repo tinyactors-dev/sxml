@@ -1,5 +1,6 @@
 <packet id="perf-2">
   <title>Evaluator performance, second round (implementation)</title>
+  <summary>A second round of general evaluator speed-ups from profiling: a fast path for number conversion, inline item lists and matcher frames, single-node atomization, numeric index keys and quantified hoisting.</summary>
   <body>
     <p><status value="done" date="2026-10-19"/> After <ref kind="decision" to="D224"/> (perf-1: its benchmarks, and what it left: describe_node 15 % and the machine loop 12 % of XMark-All, atomization, reference counts and small sequences, numeric index keys, hoisting of path MAPs, quantified expressions and sorts, the <code>$V[. instance of gnode()]</code> check per <code>match="$var"</code> test).</p>
     <list>

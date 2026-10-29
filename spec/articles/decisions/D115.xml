@@ -1,5 +1,6 @@
 <decision id="D115" status="accepted">
   <title>Evaluator: JNode selectors, jkey and jvalue, fold fixpoints (packet <ref kind="packet" to="2.6"/>)</title>
+  <summary>fn:jkey and fn:jvalue get their own part, and the evaluator adds selector interpretation on JNodes, JNode name tests and lookups, numeric predicates, maps and arrays as typed functions, and fold fixpoints.</summary>
   <body>
     <p><recorded date="2026-10-17"/>. Sections are those of the XPath 4.0 editor's draft vendored with QT4 (PR 2734 for selectors).</p>
     <list>

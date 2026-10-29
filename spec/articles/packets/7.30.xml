@@ -1,5 +1,6 @@
 <packet id="7.30">
   <title>A Schematron conformance suite (tests)</title>
+  <summary>Writes sxml's own Schematron conformance suite from ISO/IEC 19757-3:2025 in <code>tests/schematron/</code>: a catalog of test sets, neutral expected results, and <code>coverage.xml</code> mapping each normative requirement to cases.</summary>
   <body>
     <p><status value="done" date="2026-10-28"/> The owner (2026-10-28): the standard (ISO/IEC 19757-3:2025, bought by the owner) cannot be committed, so sxml writes a comprehensive conformance suite of its own from it. No public Schematron conformance suite of that scope is known; check (SchXslt's own tests, schematron.com, the Schematron community's repositories) and record what exists and its licence before writing; reuse with attribution what a licence allows.</p>
     <list>

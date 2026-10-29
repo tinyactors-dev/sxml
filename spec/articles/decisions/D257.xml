@@ -1,5 +1,6 @@
 <decision id="D257" status="accepted">
   <title>The sxml book: an mdBook whose examples are checked (packet book-1)</title>
+  <summary>The user-facing book is an mdBook in <code>docs/book/</code> in the style of The Rust Programming Language, and <code>tools/check-book-examples.sh</code> re-runs its examples, so a change that alters their output updates the book.</summary>
   <body>
     <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D255"/>. The user-facing book is <code>docs/book/</code>, an mdBook (<code>book.toml</code>, <code>src/SUMMARY.md</code>) in the style of The Rust Programming Language: it teaches by running small examples, and has no internal process in it (no phases, packets or decision numbers).</p>
     <list>

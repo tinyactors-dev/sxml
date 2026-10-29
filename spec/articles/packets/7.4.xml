@@ -1,5 +1,6 @@
 <packet id="7.4">
   <title>XSLT backwards-compatible behaviour and XPath 1.0 compatibility mode (implementation)</title>
+  <summary>Implements XSLT backwards-compatible behaviour and XPath 1.0 compatibility mode as a static context flag whose lowering inserts the 1.0 conversions as ordinary IR, plus EXSLT common follow-ups.</summary>
   <body>
     <p><status value="done" date="2026-10-19"/></p>
     <list>

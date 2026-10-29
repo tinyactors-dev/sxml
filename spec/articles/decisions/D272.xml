@@ -1,5 +1,6 @@
 <decision id="D272" status="accepted">
   <title>One build with everything (owner, 2026-10-20)</title>
+  <summary>Every shipped build, the sxml command, the native libraries and the one WebAssembly module, has every language and optional feature, size budgets rise to fit, and XSLT and XPath get fn:load-xquery-module.</summary>
   <body>
     <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D189"/>, <ref kind="decision" to="D208"/>, <ref kind="decision" to="D227"/>, <ref kind="decision" to="D262"/>. The owner, on 4.25 leaving fn:load-xquery-module out of XSLT to keep XQuery out of XSLT builds: "We don't need to separate builds like this: with sxml you get everything (adjust size budgets as necessary), because halfway solutions already exist."</p>
     <list>

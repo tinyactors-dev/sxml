@@ -1,5 +1,6 @@
 <packet id="7.11">
   <title>fn:transform (implementation)</title>
+  <summary>Implements fn:transform in the XSLT layer: it compiles the stylesheet with <code>xslt.h</code>'s compiler, runs it as a unit evaluation, and collects principal and secondary results into the result map.</summary>
   <body>
     <p><status value="done" date="2026-10-19"/></p>
     <list>

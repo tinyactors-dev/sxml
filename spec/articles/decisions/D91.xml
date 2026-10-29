@@ -1,5 +1,6 @@
 <decision id="D91" status="accepted">
   <title>Packet 1.23b: more library functions, lexical base URI, charged steps</title>
+  <summary>Packet 1.23b adds 62 library functions (math, QName and namespace, node, string, URI, sequence, context), writes annotation types in adaptive output, makes the static base URI lexical, and charges leaf steps.</summary>
   <body>
     <p><recorded date="2026-10-17"/>.</p>
     <list>

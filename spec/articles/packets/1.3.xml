@@ -1,5 +1,6 @@
 <packet id="1.3">
   <title>Public API: XML parser, processor, XPath, adaptive output (design)</title>
+  <summary>Designs the Phase 1 public headers <code>xml.h</code>, <code>processor.h</code>, <code>xpath.h</code> and <code>serialize.h</code>: XML parsing into a tree builder, the processor, XPath compile and evaluate, and adaptive output.</summary>
   <body>
     <p><status value="done" date="2026-10-16"/> After <ref kind="packet" to="1.0"/>. Owns <code>include/sxml/xml.h</code>, <code>processor.h</code>, <code>xpath.h</code>, <code>serialize.h</code> (<ref kind="decision" to="D47"/>). <code>xml.h</code>: bytes (encoding detected, source name, limits) into any <code>sxml_tree_builder</code>, errors with line and column (<ref kind="decision" to="D21"/>). <code>processor.h</code>: owns pool, registry and heap (<ref kind="decision" to="D30"/>); host resolver for <code>fn:doc</code> (<ref kind="decision" to="D30"/>); implicit timezone, current dateTime. <code>xpath.h</code>: static context configuration (namespaces, external variables and types, static base URI), compile, evaluate with context item, variables and resolver. <code>serialize.h</code>: adaptive method only. Done when header check, lints and rubric pass and the driver (1.24) and CLI can be written against these alone. <strong>Done</strong> 2026-10-16 (<ref kind="decision" to="D51"/>).</p>
   </body>

@@ -1,5 +1,6 @@
 <decision id="D283" status="accepted">
   <title>Fast Invisible XML: Earley with lookahead sets and Leo items (packet <ref kind="packet" to="7.21"/>)</title>
+  <summary>Invisible XML keeps its one Earley parser and makes it fast with 16-byte items, FIRST and FOLLOW lookahead, Leo items for right recursion, codepoint classes and grammar simplification.</summary>
   <body>
     <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D12"/>, <ref kind="decision" to="D53"/>, <ref kind="decision" to="D71"/>, <ref kind="decision" to="D189"/>, <ref kind="decision" to="D215"/>, <ref kind="decision" to="D224"/>, <ref kind="decision" to="D272"/>. The owner: a high-performance Invisible XML, book first, then the tests, then the implementation. Done (commits ec3fd42, 4818dd3, 7a93dc7).</p>
     <list>

@@ -1,5 +1,6 @@
 <decision id="D151" status="accepted">
   <title>Phase 2 gate review (packet <ref kind="packet" to="2.20"/>)</title>
+  <summary>The Phase 2 gate review passes: XP40 at 97.0 % in scope, fuzzing clean, every F&amp;O 4.0 function present but the non-goals, with option readers and calendar rules merged and <code>xquery.h</code> and <code>xslt.h</code> provisional.</summary>
   <body>
     <p><recorded date="2026-10-17"/> by the review agent (<ref kind="decision" to="D11"/>), after <ref kind="decision" to="D95"/>, <ref kind="decision" to="D97"/>, <ref kind="decision" to="D123"/>, <ref kind="decision" to="D132"/>. Checked locally (<ref kind="decision" to="D123"/>): <code>tools/check-main.sh</code> on a clean HEAD (c7c0c35) builds and tests <term name="release"/>, <code>debug</code> (ASan, UBSan), <code>debug-gcc</code> and <code>wasm</code> (Node.js package tests and size budget included) and lints clean, with no call cycle.</p>
     <list>

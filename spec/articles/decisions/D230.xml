@@ -1,5 +1,6 @@
 <decision id="D230" status="accepted">
   <title>XSLT conformance sweep after the leftovers (packet 4.20)</title>
+  <summary>The XSLT sweep adds xsl:merge order checks, [before 1] tailorings, record constructors, schema-awareness leftovers and error codes the specification gives, raising XT40 from 11,826 to 11,912 passed.</summary>
   <body>
     <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D29"/>, <ref kind="decision" to="D71"/>, <ref kind="decision" to="D84"/>, <ref kind="decision" to="D162"/>, <ref kind="decision" to="D169"/>, <ref kind="decision" to="D179"/>, <ref kind="decision" to="D185"/>, <ref kind="decision" to="D195"/>, <ref kind="decision" to="D203"/>, <ref kind="decision" to="D206"/>, <ref kind="decision" to="D208"/>. Verified as <ref kind="decision" to="D181"/> asks: the debug preset, the unit tests touched (collation, xslt, schema, xpath, xquery), clang-tidy on the files changed, and the whole XT40 suite with the release driver after each change, compared case by case. <strong>XT40 11,826 to 11,912 passed, 0 errors, no case lost.</strong> QT4: fn-transform XQ40 129 to 130 of 137; the XQ40 and XP40 sets an inline function's module or a QName cast touch unchanged.</p>
     <list>

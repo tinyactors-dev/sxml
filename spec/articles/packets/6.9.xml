@@ -1,5 +1,6 @@
 <packet id="6.9">
   <title>Apple builds and iOS tests (owner's machine)</title>
+  <summary>Adds Apple builds of the host shim: <code>cmake/apple.cmake</code>, <code>tools/build-xcframework.sh</code> for iOS, the iOS simulator and macOS, and the Swift manifest’s binary target, with iOS and macOS tests run on the owner’s machine.</summary>
   <body>
     <p><status value="paused" date="2026-10-20"/> (<ref kind="decision" to="D255"/>): not started. The steps, in order, are in <code>bindings/swift/DESIGN.md</code>, section 3.1. After <ref kind="packet" to="6.8"/>. Owns:</p>
     <list>

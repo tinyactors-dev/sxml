@@ -278,11 +278,19 @@ beside it.
 ## Packets
 
 ### 6.1 Phase 6 plan (design)
+**Summary**: Writes the Phase 6 plan, its probe, the glossary terms of the
+bindings (`host_shim`, `jni_glue`, `native_request`, `kotlin_package`,
+`swift_package`, `device_test`) and its PLAN.md row.
+
 **Done** 2026-10-20 (D238): this file, the probe above, glossary terms
 `host_shim`, `jni_glue`, `native_request`, `kotlin_package`, `swift_package`,
 `device_test`, and the PLAN.md row.
 
 ### 6.2 The host shim (implementation, here)
+**Summary**: Moves the JavaScript shim to `bindings/host/` as the `host_shim`,
+with the resolver as a state and a function, leaving the JavaScript export
+names in `bindings/javascript/`.
+
 **Done** 2026-10-20 (D240): `bindings/host/` and target `sxml_host`, the
 resolver as a state and a function, three JavaScript export files,
 `tests/host_shim_test.c`; `sxml.wasm` +388 bytes, `sxml-full.wasm` +561. After
@@ -318,6 +326,10 @@ that adds `bindings/host`.
 Golden: `bindings/javascript/sxml_javascript.c`.
 
 ### 6.3 Android build and the two fallbacks (implementation, here)
+**Summary**: Adds Android builds for four ABIs at android-24 with 16 KB page
+alignment, the allocator and clock fallbacks for Android,
+`tools/build-android.sh` and `tools/fetch-binding-toolchains.sh`.
+
 **Paused** 2026-10-20 (D251, D255): the fallbacks, the presets,
 `tools/build-android.sh` and `tools/fetch-binding-toolchains.sh` are committed.
 All four ABIs build with `-Werror` at android-24, and LOAD is 0x4000 on
@@ -347,6 +359,10 @@ Done when:
 Golden: the `_WIN32` branch of `src/allocator.c`.
 
 ### 6.4 Kotlin core (implementation, here)
+**Summary**: Adds the JVM half of the Kotlin binding in `bindings/kotlin/`: JNI
+glue whose natives each take one `native_request` object, the XPath classes and
+their tests under ctest `kotlin/jvm`.
+
 **Done** 2026-10-20 (D247): `bindings/kotlin/` (glue, `sxml_kotlin.map`, the
 binding, 36 tests), `tools/run-kotlin-tests.sh`, ctest `kotlin/jvm`; Kotlin
 2.2.20 on JDK 21, 0 leaks. The JVM half only; Android is 6.6's. After 6.2 and
@@ -384,6 +400,10 @@ Golden: `bindings/javascript/src/index.ts` for the shape and the host shim for
 the C.
 
 ### 6.5 Kotlin: XQuery, XSLT, XSD and resource data (implementation, here)
+**Summary**: Adds `compileQuery`, `compileStylesheet` and `compileSchema` to
+the Kotlin binding over side results, and ships the DUCET as a Java class path
+resource.
+
 **Done** 2026-10-20 (D250): `compileQuery`, `compileStylesheet`,
 `compileSchema` over the side results, seven JNI entry points, the DUCET class
 path resource, `bindings/kotlin/README.md`; `kotlin/jvm` 65 tests (25 of
@@ -399,6 +419,10 @@ with 0 leaks. Golden: `sxml_javascript_xquery.c` and its TypeScript
 counterpart.
 
 ### 6.6 Android library (implementation; assemble here, devices: owner)
+**Summary**: Builds the Kotlin binding as an Android library: a Gradle project
+that runs the top-level CMake for four ABIs, consumer ProGuard rules,
+instrumentation tests and a size budget.
+
 **Paused** 2026-10-20 After 6.3 and 6.5. Owns:
 
 - `bindings/kotlin/android/`: a Gradle project, AGP with `externalNativeBuild`
@@ -422,6 +446,10 @@ Owner: `connectedAndroidTest` on an x86_64 emulator at API 24 and 35 and on one
 arm64 device.
 
 ### 6.7 Swift core (implementation, here)
+**Summary**: Adds the Swift binding’s core: a root `Package.swift`, a module
+map over `sxml_host.h` imported internally, the XPath API in Swift 6 and ctest
+`swift/linux`.
+
 **Paused** 2026-10-20 (D255): done as below; the Swift line (6.7 to 6.9)
 resumes from `bindings/swift/DESIGN.md`. **Done** 2026-10-20 (D241):
 `Package.swift`, `bindings/swift/` (module map, `Sources/Sxml`, 27 tests),
@@ -443,6 +471,9 @@ The Swift code uses Swift 6 language mode. `CSxmlHost` is imported with
 leaks. Golden: `src/index.ts`; the probe's module map.
 
 ### 6.8 Swift: XQuery, XSLT, XSD and resource data (implementation, here)
+**Summary**: Adds `compileQuery`, `compileStylesheet` and `compileSchema` to
+the Swift binding and ships the DUCET as a SwiftPM resource.
+
 **Paused** 2026-10-20 (D255): done as below; resume from
 `bindings/swift/DESIGN.md`. **Done** 2026-10-20 (D248): `compileQuery`,
 `compileStylesheet`, `compileSchema`, the DUCET as a SwiftPM resource;
@@ -451,6 +482,11 @@ As 6.5 for Swift. The DUCET is a SwiftPM resource. Done when `swift/linux`
 passes the whole parity list with 0 leaks.
 
 ### 6.9 Apple builds and iOS tests (owner's machine)
+**Summary**: Adds Apple builds of the host shim: `cmake/apple.cmake`,
+`tools/build-xcframework.sh` for iOS, the iOS simulator and macOS, and the
+Swift manifest’s binary target, with iOS and macOS tests run on the owner’s
+machine.
+
 **Paused** 2026-10-20 (D255): not started. The steps, in order, are in
 `bindings/swift/DESIGN.md`, section 3.1. After 6.8. Owns:
 
@@ -468,6 +504,10 @@ passes on macOS, with 0 leaks. This is also the first macOS build of the
 library (D123's known risk).
 
 ### 6.10 Device CI (write here; the owner enables it)
+**Summary**: Writes `.github/workflows/bindings.yml`, disabled to manual
+dispatch until the owner turns CI back on, with Linux, Android emulator, macOS
+and device farm jobs for the bindings.
+
 **Paused** 2026-10-20 After 6.6 and 6.9's scripts. Owns new
 `.github/workflows/bindings.yml`, disabled as D123 asks (`workflow_dispatch`
 only) until the owner turns CI back on. The jobs:
@@ -483,6 +523,10 @@ The workflow is checked here with `actionlint`, if that can be fetched, and not
 run.
 
 ### 6.11 Documentation and release steps (here; publishing: owner)
+**Summary**: Writes the Kotlin and Swift binding READMEs and their release
+steps in `docs/RELEASE.md` (Maven Central coordinates, signing, the Swift
+package tag and XCFramework checksum); the owner publishes.
+
 **Paused** 2026-10-20 After 6.6 and 6.8. Owns:
 
 - `bindings/kotlin/README.md` and `bindings/swift/README.md`, written after the
@@ -495,6 +539,10 @@ run.
 The owner publishes.
 
 ### 6.12 Phase 6 review (gate)
+**Summary**: Reviews Phase 6: checks the parity lists, ownership, the JNI
+rules, licence notes of shipped data and sizes, and records a decision, with
+the device boxes deferred to the owner’s machine.
+
 **Paused** 2026-10-20 After everything. Checks the parity lists, ownership, the
 JNI rules, the licence notes of shipped data, sizes and the gate below. Records
 a D-record. The device boxes are deferred to the owner's machine (D181).

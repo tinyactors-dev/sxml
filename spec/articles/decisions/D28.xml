@@ -1,5 +1,6 @@
 <decision id="D28" status="accepted">
   <title>XML 1.0 grammar</title>
+  <summary>sxml has its own tree-sitter grammar for XML 1.0 in <code>grammars/xml</code>, with an external scanner holding element names on an interned tag stack, and leaves the remaining well-formedness checks to the tree builder.</summary>
   <body>
     <p><recorded date="2026-10-16"/>. <code>grammars/xml</code> is written for sxml, not vendored: tree-sitter-grammars/tree-sitter-xml (MIT) was studied but is too lenient and its tag-stack scanner is unsafe for deep or non-ASCII documents (reasons in <code>grammars/xml/README.md</code>; credit in <code>grammars/xml/NOTICE</code>).</p>
     <list>

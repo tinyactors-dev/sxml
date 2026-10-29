@@ -1,5 +1,6 @@
 <decision id="D166" status="accepted">
   <title>Content that streams into a constructor; XSLT sweep 3 (packet <ref kind="packet" to="4.17"/>)</title>
+  <summary>Element and document constructors become receiving tasks into which delivering content tasks stream their values, so constructed content builds directly in the receiver's tree instead of as separate trees.</summary>
   <body>
     <p><recorded date="2026-10-18"/>, after <ref kind="decision" to="D71"/>, <ref kind="decision" to="D101"/>, <ref kind="decision" to="D110"/>, <ref kind="decision" to="D163"/>. Accepts <ref kind="decision" to="D163"/>'s Proposed item "content that streams into a constructor", as one mechanism of the shared evaluator and IR, used by XSLT and XQuery alike.</p>
     <list>

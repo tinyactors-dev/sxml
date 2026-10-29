@@ -1,5 +1,6 @@
 <decision id="D304" status="accepted">
   <title>The website: sxml.tinyactors.dev on GitHub Pages</title>
+  <summary>The website at sxml.tinyactors.dev is a VitePress landing page with the book at /book/, built and force-pushed to the gh-pages branch by hand with <code>mise run site:publish</code>.</summary>
   <body>
     <p><recorded date="2026-10-21"/>, at the owner's request, after the repository moved to tinyactors-dev/sxml.</p>
     <list>

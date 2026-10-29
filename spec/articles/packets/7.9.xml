@@ -1,5 +1,6 @@
 <packet id="7.9">
   <title>EXPath File (design and implementation)</title>
+  <summary>Implements the EXPath File Module 4.0 through <code>sxml_file_system</code>, a host interface in the processor configuration that is off by default; the CLI implements it over POSIX behind <code>--allow-file-access</code>.</summary>
   <body>
     <p><status value="done" date="2026-10-19"/></p>
     <list>

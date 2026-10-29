@@ -1,5 +1,6 @@
 <decision id="D58" status="accepted">
   <title>Type registry internals and the subtype search (packet <ref kind="packet" to="1.6"/>)</title>
+  <summary>The type registry interns normalized type descriptions in open-addressing indexes and answers subtype questions by the XPath 4.0 rules on a fixed, non-allocating stack of frames with a work budget.</summary>
   <body>
     <p><recorded date="2026-10-16"/>.</p>
     <list>

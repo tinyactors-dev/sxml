@@ -1,5 +1,6 @@
 <decision id="D195" status="accepted">
   <title>XML 1.1 input (packet <ref kind="packet" to="7.13"/>)</title>
+  <summary>A document whose XML declaration says version 1.1 is parsed by XML 1.1's rules: a pre-pass refuses restricted characters and translates NEL and LINE SEPARATOR line ends, while query texts stay XML 1.0.</summary>
   <body>
     <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D12"/>, <ref kind="decision" to="D81"/>, <ref kind="decision" to="D183"/>, <ref kind="decision" to="D184"/>. Supersedes <ref kind="decision" to="D81"/>'s "version 1.1 documents are parsed by the 1.0 rules".</p>
     <list>

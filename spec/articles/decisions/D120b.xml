@@ -1,5 +1,6 @@
 <decision id="D120b" status="accepted">
   <title>The XML and XHTML output methods (packet <ref kind="packet" to="3.3"/>)</title>
+  <summary>The serializer splits into parts, and <code>src/serialize_xml.c</code> implements the XML and XHTML methods: character pipeline, pull-based sequence normalization, namespace declarations, indentation, XHTML and Canonical XML rules.</summary>
   <body>
     <p><recorded date="2026-10-17"/> as a second <ref kind="decision" to="D120"/> (4.3 has <ref kind="decision" to="D120"/>); renamed at the Phase 2 gate (<ref kind="decision" to="D151"/>). <code>src/serialize_internal.h</code> splits the serializer into parts: <code>src/serialize.c</code> keeps the output stream and buffer, the parameter checks, the character pipeline, sequence normalization, the adaptive method and the dispatch; <code>src/serialize_xml.c</code> has the XML and XHTML methods and the node writer the adaptive method uses. Packet <ref kind="packet" to="3.4"/>'s HTML, text, JSON and CSV parts build on the same internal interface.</p>
     <list>

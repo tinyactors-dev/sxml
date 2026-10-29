@@ -1,5 +1,6 @@
 <packet id="5.8">
   <title>Identity constraints (implementation)</title>
+  <summary>Implements xs:unique, xs:key and xs:keyref: selector and field XPath subsets checked on the AST and evaluated over the recorded subtree, with key sequences compared by typed value equality.</summary>
   <body>
     <p><status value="done" date="2026-10-18"/> After <ref kind="packet" to="5.7"/>. Owns <code>src/schema_identity.c</code>, <code>tests/schema_identity_test.c</code>. xs:unique, xs:key, xs:keyref and XSD 1.1's <code>ref</code> (Part 1, 3.11): the selector and field XPath subsets checked on the XPath front end's AST (c-selector-xpath, c-fields-xpath; xpathDefaultNamespace), evaluated by the evaluator over the subtree the 5.7 recorder keeps for the declaring element; key sequences compared by typed value equality (Part 1, 3.11.4, with XSD 1.1's identity of values), node tables carried up to ancestors for keyref (cvc-identity-constraint). Done when MS-IdentityConstraint, Sun IdConstrDefs and IBM identityConstraint and xpathDefaultNSonKeyKeyRefUnique ≥ 80%. <strong>Done</strong> 2026-10-18 (<ref kind="decision" to="D177"/>): subsets on the AST, compilation with <code>xpath.h</code>, unique, key and keyref on the recorded subtree with node tables from descendants; the four groups 100 % (MS 1,058, Sun 48, IBM 18 and 26).</p>
   </body>

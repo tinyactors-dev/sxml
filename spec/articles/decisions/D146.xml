@@ -1,5 +1,6 @@
 <decision id="D146" status="accepted">
   <title>The XQuery API and the sxml xquery command (packet <ref kind="packet" to="3.12"/>)</title>
+  <summary><code>include/sxml/xquery.h</code> is implemented over the XPath API's one evaluation path, output declarations are read as serialization parameter texts, and the CLI gains <code>sxml xquery</code> and <code>sxml serialize</code>.</summary>
   <body>
     <p><recorded date="2026-10-17"/>, after <ref kind="decision" to="D106"/>, <ref kind="decision" to="D134"/>, <ref kind="decision" to="D135"/>. <code>include/sxml/xquery.h</code> is implemented in <code>src/xquery.c</code>; no header changed.</p>
     <list>

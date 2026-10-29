@@ -1,5 +1,6 @@
 <packet id="7.21">
   <title>Fast Invisible XML (book, tests, implementation)</title>
+  <summary>Makes Invisible XML fast: a book part and benchmark suite first, then lookahead sets, Leo items, codepoint classes and grammar simplification, so right recursion is linear.</summary>
   <body>
     <p><status value="done" date="2026-10-20"/> After <ref kind="decision" to="D215"/> (7.18: the Earley parser, right recursion quadratic, every item a step). The owner: high performance; book first, then conformance and benchmarks, then the implementation.</p>
     <list>

@@ -1,5 +1,6 @@
 <packet id="js-1">
   <title>JavaScript bindings for XQuery, XSLT and XSD validation (implementation)</title>
+  <summary>Adds XQuery, XSLT and XSD validation to the JavaScript package through <code>compileQuery</code>, <code>compileStylesheet</code> and <code>compileSchema</code>, with shims linked only into <code>sxml-full.wasm</code>.</summary>
   <body>
     <p><status value="done" date="2026-10-19"/> After <ref kind="packet" to="7.2"/> (<ref kind="decision" to="D189"/>), <ref kind="decision" to="D207"/> and <ref kind="decision" to="D208"/>. The package covered XPath only.</p>
     <list>

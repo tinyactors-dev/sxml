@@ -1,5 +1,6 @@
 <decision id="D285" status="accepted">
   <title>Source code as XML: tree-sitter trees with highlights captures (packet <ref kind="packet" to="7.22"/>)</title>
+  <summary><code>sxml:parse-code</code> parses source code with vendored tree-sitter grammars into a document whose elements are named <term name="syntax_node"/> kinds and whose text is the source exactly, with highlight captures as attributes.</summary>
   <body>
     <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D12"/>, <ref kind="decision" to="D13"/>, <ref kind="decision" to="D44"/>, <ref kind="decision" to="D71"/>, <ref kind="decision" to="D99"/>, <ref kind="decision" to="D162"/>, <ref kind="decision" to="D189"/>, <ref kind="decision" to="D191"/>, <ref kind="decision" to="D208"/>, <ref kind="decision" to="D215"/>, <ref kind="decision" to="D272"/>. The owner's order: the book first (Chapter "Source Code as XML"), then the grammars' own tests, then the implementation.</p>
     <list>

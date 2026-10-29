@@ -1,5 +1,6 @@
 <decision id="D270" status="accepted">
   <title>The book's XQuery and XSD parts (packet book-2)</title>
+  <summary>The book gives XQuery eleven sections and XSD nine, shows only features run against a release build, and records the CLI bugs it found for later packets.</summary>
   <body>
     <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D257"/>. The owner asked the book to cover XQuery and XSD as deeply as XPath and XSLT, so that a reader who knows neither can learn them and work with sxml from the book alone.</p>
     <list>

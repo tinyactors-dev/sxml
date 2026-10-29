@@ -1,5 +1,6 @@
 <packet id="1.27">
   <title>Conformance dashboard (implementation)</title>
+  <summary>Generates <code>docs/CONFORMANCE.md</code> from the driver's JSON with <code>tools/run-qt4.sh</code> and <code>tools/conformance-report.py</code>, and adds the CI conformance and fuzz jobs.</summary>
   <body>
     <p><status value="done" date="2026-10-17"/> After <ref kind="packet" to="1.25"/>. Owns <code>tools/conformance-report.py</code>, <code>docs/CONFORMANCE.md</code>, <code>.github/workflows/ci.yml</code>. Driver JSON to <code>docs/CONFORMANCE.md</code> (slice, each XP40 test set, total; run, pass, fail, skip; commit, date). CI runs the slice (blocking) and all XP40 sets (informational). Done when regeneration on a clean tree gives no diff. <strong>Done</strong> 2026-10-17 (<ref kind="decision" to="D94"/>): <code>tools/run-qt4.sh</code> + <code>tools/conformance-report.py</code>; XP40 21,443/47,313 passed, slice 198/198; CI jobs <code>conformance</code> and <code>fuzz</code>. Regenerating from the same run gives no diff.</p>
   </body>

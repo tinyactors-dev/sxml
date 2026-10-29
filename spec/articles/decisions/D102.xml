@@ -1,5 +1,6 @@
 <decision id="D102" status="accepted">
   <title>The stylesheet AST (packet <ref kind="packet" to="4.2"/>)</title>
+  <summary>One stylesheet AST holds modules, one node kind per XSLT 4.0 element, attributes read into typed forms, and a resolved static context per element, built by the reader of packet 4.5.</summary>
   <body>
     <p><recorded date="2026-10-17"/>. <code>src/xslt_ast_internal.h</code>, internal, after <ref kind="decision" to="D52"/> and the IR unit (<ref kind="decision" to="D55"/>).</p>
     <list>

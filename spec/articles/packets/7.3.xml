@@ -1,5 +1,6 @@
 <packet id="7.3">
   <title>xsl:evaluate (implementation; proposed, <ref kind="decision" to="D183"/>)</title>
+  <summary>Implements xsl:evaluate by compiling the XPath text at run time with a static context from the instruction's attributes and parameters, then running it as a unit evaluation.</summary>
   <body>
     <p><status value="done" date="2026-10-19"/></p>
     <list>

@@ -1,5 +1,6 @@
 <decision id="D54" status="accepted">
   <title>Name pool internals (packet <ref kind="packet" to="1.1"/>)</title>
+  <summary>The name pool keeps URIs, prefixes and names in entry arrays with unseeded FNV-1a open-addressing indexes and text in an arena of 1 KiB blocks, all counted against <code>maximum_byte_count</code>.</summary>
   <body>
     <p><recorded date="2026-10-16"/>. Three tables (URIs, prefixes, names), each an entry array in issue order plus an open-addressing index (linear probing, at most 3/4 full, slots keep the hash so growth never reads entries); FNV-1a, not seeded: hash flooding is bounded by <code>maximum_byte_count</code>. Interned text lives in an arena placed in the pool's own memory, in 1 KiB blocks. <code>maximum_byte_count</code> counts every allocation the pool holds (tables and whole text blocks, so a pool may stop up to one block early); a replaced table gives its bytes back. A failed intern leaves the pool's names as they were. Interned URI identifiers start at <code>SXML_NAMESPACE_WELL_KNOWN_COUNT</code>; prefix and name identifiers at 1. <code>src/name_internal.h</code> gives <code>sxml_name_pool_name_limit</code> (and URI, prefix) so tables indexed by identifier can be sized.</p>
   </body>

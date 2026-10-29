@@ -1,5 +1,6 @@
 <decision id="D331" status="accepted">
   <title>Schematron: the function library's prefixes, the document of each finding, real rule sets read with warnings (packet <ref kind="packet" to="fix-7"/>)</title>
+  <summary>Schematron resolves <code>xs</code>, <code>fn</code>, <code>math</code>, <term name="map"/>, <term name="array"/> and <code>err</code> without <code>sch:ns</code>, reports name each finding's document in <term name="document_uri"/>, and three deviations of real rule sets compile with <code>schematron:compatibility</code> warnings.</summary>
   <body>
     <p><recorded date="2026-10-29"/>, after <ref kind="decision" to="D315"/>, <ref kind="decision" to="D323"/>, <ref kind="decision" to="D326"/>, <ref kind="decision" to="D327"/> and the owner's three requests of 2026-10-29 (the third his choice of option a on <ref kind="decision" to="D323"/>'s Proposed entry, which this record replaces). Sources: ISO/IEC 19757-3:2025 by clause; nothing of its text copied.</p>
     <list>

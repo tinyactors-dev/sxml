@@ -1,5 +1,6 @@
 <packet id="1.1">
   <title>Name pool (implementation)</title>
+  <summary>Implements the name pool of <code>name.h</code>: interning with a hash index, well-known namespaces, find without interning and a byte limit, in <code>src/name.c</code>.</summary>
   <body>
     <p><status value="done" date="2026-10-16"/> After <ref kind="packet" to="1.0"/>. Owns <code>src/name.c</code>, <code>src/name_internal.h</code>, <code>tests/name_test.c</code>. All of <code>name.h</code> (<ref kind="decision" to="D31"/>): interning with a hash index, well-known namespaces, find without interning, byte limit. Done when every function is tested with limit and allocation-failure loops. Spec: XDM 4.0 §5.6 (QNames). <strong>Done</strong> 2026-10-16 (<ref kind="decision" to="D54"/>).</p>
   </body>

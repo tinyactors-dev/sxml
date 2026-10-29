@@ -1,5 +1,6 @@
 <packet id="4.4">
   <title>Patterns (implementation) — Early</title>
+  <summary>Turns XSLT patterns into match functions: path, predicate, type, set operator, rooted and JNode patterns, with default priorities and XTSE0340.</summary>
   <body>
     <p><status value="done" date="2026-10-17"/> After <ref kind="packet" to="2.1"/>. Owns <code>src/xslt_pattern.c</code>, <code>tests/xslt_pattern_test.c</code>. CST of <code>grammars/xslt_pattern</code> to AST to match functions (the IR example of <code>src/ir_internal.h</code>): path patterns, predicate patterns <code>.[…]</code>, type patterns, union/intersect/except, rooted patterns (<code>$v</code>, doc, id, key, element-with-id), JNode patterns; default priorities; XTSE0340. Done when the 19,168 parsable patterns of the suite lower and 40 hand-picked patterns match a fixed document as a table says. Spec: XSLT 4.0 "Patterns", "Default Priority for Template Rules". <strong>Done</strong> 2026-10-17 (<ref kind="decision" to="D118"/>): <code>src/xslt_pattern.c</code>, <code>src/xslt_pattern_internal.h</code>, <code>tests/xslt_pattern_test.c</code>; pattern kinds appended to <code>src/xpath_ast_internal.h</code>. 19,288 suite patterns parse and build match expressions, 18,916 lower without stylesheet context; 51 patterns match the fixed document as the table says.</p>
   </body>

@@ -1,5 +1,6 @@
 <proposal id="cheaper-atomic-string-cells">
   <title>Cheaper atomic string cells</title>
+  <summary>Proposes, for a later perf packet, cheaper atomic string cells: built-in types from a table, skipping a second validation of already validated text, small-cell reuse, and a typed-value memo for untyped nodes.</summary>
   <body>
     <p>(<ref kind="decision" to="D322"/>, perf-11; for a later perf packet owning <code>src/xdm_atomic.c</code> and <code>src/xdm.c</code>): (1) resolve the built-in atomic types in <code>sxml_atomic_item_make</code> from a table instead of describing them through the registry (measured: SchXslt expand -1.0 %); (2) let a caller that already holds validated text, such as a tree's content (tree.h: trees hold well-formed UTF-8), pass its codepoint count or skip the second validation (2.5 % of expand); (3) small-cell reuse in the item heap, kept out of the live counts only if the tests' leak checks are redefined (cells 4.3 % plus frees); (4) a typed-value memo per evaluation for untyped nodes, which needs the dynamic context to reach <code>src/xdm_node.c</code>.</p>
   </body>

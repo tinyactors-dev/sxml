@@ -1,5 +1,6 @@
 <decision id="D149" status="accepted">
   <title>Keys and XSLT functions (packet <ref kind="packet" to="4.10"/>)</title>
+  <summary>An XSLT function table puts stylesheet functions and the XSLT-only library part before the processor's; xsl:key indexes are built lazily with map:build once per evaluation and tree through an evaluation memo.</summary>
   <body>
     <p><recorded date="2026-10-17"/>, after <ref kind="decision" to="D101"/>, <ref kind="decision" to="D103"/>, <ref kind="decision" to="D118"/>, <ref kind="decision" to="D139"/>, <ref kind="decision" to="D142"/>, <ref kind="decision" to="D144"/>. <code>src/xslt_key.c</code> with <code>src/xslt_key_internal.h</code>, <code>src/function_library_xslt.c</code>, <code>tests/xslt_key_test.c</code>; no IR kind, no public header.</p>
     <list>

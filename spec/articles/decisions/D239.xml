@@ -1,5 +1,6 @@
 <decision id="D239" status="accepted">
   <title>MIT license; the tinyactors-dev organization and its names (owner)</title>
+  <summary>sxml is MIT licensed, the npm package is <code>@tinyactors/sxml</code>, the repository moves to the tinyactors-dev organization when the owner says so, and Kotlin uses the package <code>dev.tinyactors.sxml</code>.</summary>
   <body>
     <p><recorded date="2026-10-20"/> on the owner's word: "MIT, we'll move this under the tinyactors-dev organization once done, so the npm package will be @tinyactors/sxml". Settles the open items of <ref kind="decision" to="D138"/>, <ref kind="decision" to="D208"/> and <ref kind="decision" to="D238"/>.</p>
     <list>

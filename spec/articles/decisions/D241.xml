@@ -1,5 +1,6 @@
 <decision id="D241" status="accepted">
   <title>The Swift core: module Sxml, the merged archive, ARC and the test hooks (packet <ref kind="packet" to="6.7"/>)</title>
+  <summary>The Swift module <code>Sxml</code> links the host shim through a system module whose module map is <code>sxml_host.h</code>, merged on Linux into one static archive, with ARC ownership and a <code>swift test</code> ctest.</summary>
   <body>
     <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D23"/>, <ref kind="decision" to="D35"/>, <ref kind="decision" to="D71"/>, <ref kind="decision" to="D138"/>, <ref kind="decision" to="D213"/>, <ref kind="decision" to="D238"/>, <ref kind="decision" to="D240"/>. Packet <ref kind="packet" to="6.7"/> added <code>Package.swift</code> at the root and <code>bindings/swift/</code> (module <code>Sxml</code>; the API of <code>docs/tasks/phase-6.md</code>, XPath half).</p>
     <list>

@@ -1,5 +1,6 @@
 <decision id="D55" status="accepted">
   <title>IR, passes, evaluator and function table (packet <ref kind="packet" to="1.5"/>)</title>
+  <summary>Four internal headers define the reference-counted IR unit with its expression kinds, the pass list holding only the verifier, the evaluator's dynamic context, and native function rows typed by F&amp;O-spelled text.</summary>
   <body>
     <p><recorded date="2026-10-16"/>, completing <ref kind="decision" to="D46"/>. Four internal headers.</p>
     <list>

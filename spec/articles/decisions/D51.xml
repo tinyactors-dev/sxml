@@ -1,5 +1,6 @@
 <decision id="D51" status="accepted">
   <title>The Phase 1 public API (packet <ref kind="packet" to="1.3"/>)</title>
+  <summary>The Phase 1 public API defines the XML parser, the processor with its resource resolver and clock, plain static and dynamic context structs, compiled XPath expressions with complete results, and adaptive serialization.</summary>
   <body>
     <p><recorded date="2026-10-16"/>, completing <ref kind="decision" to="D47"/>. Headers: <code>xml.h</code> (needs <code>tree.h</code>) &lt; <code>processor.h</code> (<code>xdm.h</code>, <code>xml.h</code>) &lt; <code>xpath.h</code>; <code>serialize.h</code> needs only <code>xdm.h</code> (it serializes from an item heap).</p>
     <list>

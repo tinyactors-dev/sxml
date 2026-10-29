@@ -1,7 +1,8 @@
 <decision id="D122" status="accepted">
   <title>Date and time functions (packet <ref kind="packet" to="2.8"/>)</title>
+  <summary><code>src/function_library_temporal.c</code> adds timezone adjustment, parts-of-dateTime, build-dateTime, seconds, unix-dateTime, civil-timezone without a database, and a hand-written parse-ietf-date scanner.</summary>
   <body>
-    <p><recorded date="2026-10-17"/>. New part <code>src/function_library_temporal.c</code> (test <code>function_library_temporal</code>): adjust-dateTime/date/time-to- timezone, civil-timezone, days-in-month, parts-of-dateTime, build-dateTime, seconds, duration-to-seconds, unix-dateTime and parse-ietf-date. <code>src/operator_temporal.c</code> is unchanged.</p>
+    <p><recorded date="2026-10-17"/>. New part <code>src/function_library_temporal.c</code> (test <code>function_library_temporal</code>): adjust-dateTime/date/time-to-timezone, civil-timezone, days-in-month, parts-of-dateTime, build-dateTime, seconds, duration-to-seconds, unix-dateTime and parse-ietf-date. <code>src/operator_temporal.c</code> is unchanged.</p>
     <list>
       <item>
         <p><strong>Gregorian components</strong> (PR 1481): the seven <code>*-from-dateTime</code> rows of <code>src/function_library_context.c</code> (2.12's file, edited because no other packet runs on it; two hunks) take the union of the eight Gregorian types and give the empty sequence for a component the type lacks (absent components are zero in the datum).</p>

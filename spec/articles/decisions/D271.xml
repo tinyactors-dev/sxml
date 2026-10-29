@@ -1,5 +1,6 @@
 <decision id="D271" status="accepted">
   <title>The CLI bugs the book found (packet <ref kind="packet" to="cli-2"/>)</title>
+  <summary>The CLI raises FODC0002 for every collection, names the library module an error comes from, undeclares predeclared prefixes for QNames in instances, and sends fn:trace and fn:message to standard error.</summary>
   <body>
     <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D44"/>, <ref kind="decision" to="D148"/>, <ref kind="decision" to="D257"/>, <ref kind="decision" to="D262"/>, <ref kind="decision" to="D270"/>. The four findings of <ref kind="decision" to="D270"/>, each fixed at its root with an end-to-end CLI test, and the book's text and outputs in the same commits.</p>
     <list>

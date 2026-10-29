@@ -54,6 +54,10 @@ for-each-group, sort, key and number tests.
 ## Packets
 
 ### 4.0 XSLT API (design) — Early
+**Summary**: Designs `include/sxml/xslt.h`: a compiled stylesheet with static
+parameters, `sxml_xslt_stylesheet_transform` with three invocation kinds,
+result delivery and a result document handler.
+
 **Done** 2026-10-17 After 3.0. Owns `include/sxml/xslt.h`. A compiled
 stylesheet (lifecycle quintet, D51) from bytes or from the resolver
 (XSLT_MODULE, XSLT_PACKAGE of 2.2) with static parameters; a transformation
@@ -70,6 +74,10 @@ invocation kinds, `sxml_xslt_result_delivery`, the result document handler and
 its default, `sxml_xslt_result_document_collector` (for 4.15 to implement).
 
 ### 4.1 XSLT 4.0 test driver (implementation) — Early
+**Summary**: Adds the `sxml-xslt-test` driver, which reads the xslt40-test
+catalog with its dependencies, environments and assertions, and a ctest slice
+list `tests/xslt/slice.txt` with a baseline.
+
 **Done** 2026-10-17 After 4.0, 2.16. Owns new `tests/xslt/driver/`,
 `docs/QT4_CATALOG.md` (its xslt40-test section). Program `sxml-xslt-test` on
 the CLI framework, linking `sxml_qt4_driver_library` for assertions, reports
@@ -90,6 +98,11 @@ sibling of sxml-qt4), `tests/xslt/slice.txt` (154 cases),
 `run` says "XSLT not implemented" until 4.15.
 
 ### 4.2 Stylesheet AST (design) — Early
+**Summary**: Designs the index-addressed stylesheet AST in
+`src/xslt_ast_internal.h`: declarations and instructions with compiled
+attributes, each element’s static context, import precedence and source
+locations.
+
 **Done** 2026-10-17 After the Phase 1 gate. Owns `src/xslt_ast_internal.h`.
 Declarations and instructions over the parsed arena tree, index-addressed (D24,
 D52 style): element kind, attributes as AST indexes of compiled XPath, patterns
@@ -102,6 +115,10 @@ header only; the builder and lifecycle functions go to 4.5 in a new
 `src/xslt_ast.c`.
 
 ### 4.3 Value templates (implementation) — Early
+**Summary**: Parses and lowers attribute and text value templates with a
+tree-sitter grammar inheriting the XPath grammar, `{{ }}` escapes and enclosed
+expressions, raising XTSE0350 and XTSE0370.
+
 **Done** 2026-10-17 After 2.1, 4.2. Owns new `grammars/value_template/`,
 `grammars/CMakeLists.txt`, `tools/qt4-parse-check.py`,
 `src/xslt_value_template.c`, `tests/xslt_value_template_test.c`. Attribute and
@@ -115,6 +132,9 @@ in-scope stylesheets parses (a value-template mode of `tools/qt4-parse-check.py
 stylesheets.
 
 ### 4.4 Patterns (implementation) — Early
+**Summary**: Turns XSLT patterns into match functions: path, predicate, type,
+set operator, rooted and JNode patterns, with default priorities and XTSE0340.
+
 **Done** 2026-10-17 After 2.1. Owns `src/xslt_pattern.c`,
 `tests/xslt_pattern_test.c`. CST of `grammars/xslt_pattern` to AST to match
 functions (the IR example of `src/ir_internal.h`): path patterns, predicate
@@ -130,6 +150,10 @@ expressions, 18,916 lower without stylesheet context; 51 patterns match the
 fixed document as the table says.
 
 ### 4.5 Stylesheet reader (implementation) — Early
+**Summary**: Reads an arena tree into the stylesheet AST: XSLT element and
+attribute rules, standard and shadow attributes, use-when, xsl:include and
+xsl:import with precedence, and simplified stylesheets.
+
 **Done** 2026-10-17 After 4.2, 4.3, 4.4, 3.2. Owns `src/xslt_read.c`,
 `src/xslt_static.c`, `tests/xslt_read_test.c`, `src/xslt_ast.c` and
 `tests/xslt_ast_test.c` (the functions `src/xslt_ast_internal.h` declares,
@@ -147,6 +171,10 @@ in-scope cases 7,281 read as expected (or fail with the expected code), 1,323
 expect a later error, 108 do not (55 `~T` patterns, 17 xsl:record).
 
 ### 4.6 Sequence constructors and node construction (implementation)
+**Summary**: Adds the XSLT lowering part for sequence constructors, literal
+result elements, the node, map, array and record instructions, value-of, copy,
+copy-of and text value templates.
+
 **Done** 2026-10-17 After 4.5, 3.5. Owns `src/xslt_lower.c`,
 `src/xslt_lower_internal.h`, `tests/xslt_lower_test.c`. Lowering part: sequence
 constructors, literal result elements (namespace fixup,
@@ -164,6 +192,10 @@ applicable): 78 pass, 356 need 4.7/4.8/4.10/4.12 (variables, for-each,
 templates, functions), 2 fail (DTD entities).
 
 ### 4.7 Control flow and variables (implementation)
+**Summary**: Lowers XSLT variables and parameters (with cycle and required
+checks) and the control instructions: if, choose, switch, for-each, iterate,
+try/catch, where-populated, on-empty, message, assert and fallback.
+
 **Done** 2026-10-17 After 4.6, 3.6. Owns `src/xslt_lower_control.c`,
 `tests/xslt_lower_control_test.c`. Local and global xsl:variable and xsl:param
 (XTDE0640 cycles, XTDE0050 required), xsl:if, choose, switch, for-each, iterate
@@ -177,6 +209,10 @@ pass; evaluate is not applicable (no dynamic evaluation, D117); xsl:sort in
 for-each waits for 4.9.
 
 ### 4.8 Templates and modes (implementation)
+**Summary**: Implements APPLY_TEMPLATES in the evaluator with rule order by
+precedence, priority and position, built-in rules, modes, named templates,
+tunnel parameters, next-match and apply-imports.
+
 **Done** 2026-10-17 After 4.4, 4.6. Owns `src/evaluator_template.c`,
 `src/xslt_lower_template.c`, `tests/evaluator_template_test.c`. APPLY_TEMPLATES
 in the evaluator: rule order by precedence, priority and position;
@@ -197,6 +233,10 @@ stylesheet parameters (4.7), 73 other instructions, 18 XSLT functions
 for 4.9.
 
 ### 4.9 Sorting and grouping (implementation)
+**Summary**: Implements xsl:sort and xsl:perform-sort, xsl:for-each-group with
+its four grouping kinds and current-group, and xsl:merge over internal native
+rows.
+
 **Done** 2026-10-17 After 4.7. Owns `src/xslt_lower_group.c`,
 `src/xslt_group.c`, `tests/xslt_group_test.c`. xsl:sort (select, order,
 collation (2.13), data-type, case-order, stable), xsl:perform-sort;
@@ -212,6 +252,10 @@ collections, schemas and xsl:function in the rest); split-when and merge-when
 not done.
 
 ### 4.10 Keys and XSLT functions (implementation)
+**Summary**: Implements xsl:key and fn:key with a per-document index built on
+first use, and the XSLT functions document, current, system-property, the
+availability functions and snapshot in the `xslt` part.
+
 **Done** 2026-10-17 After 4.8. Owns `src/xslt_key.c`,
 `src/function_library_xslt.c` (a part named only by XSLT compilation),
 `tests/xslt_key_test.c`. xsl:key and fn:key (index per document and key, built
@@ -229,6 +273,10 @@ most of the rest need xsl:function (4.12), xsl:sort (4.9) or stylesheet
 parameters. fn:apply-templates and current-output-uri are left.
 
 ### 4.11 Numbering and analyze-string (implementation)
+**Summary**: Implements xsl:number with its levels, count and from patterns and
+format options on the numbering engine, and xsl:analyze-string with
+fn:regex-group.
+
 **Done** 2026-10-18 After 4.8, 2.9. Owns `src/xslt_lower_number.c`,
 `tests/xslt_number_test.c`. xsl:number: level single, multiple, any; count and
 from patterns; value; format, lang, letter-value, ordinal, grouping, start-at
@@ -243,6 +291,11 @@ harness, in-scope cases: insn/number 152/161 (94%), analyze-string 56/62 (90%),
 misc/regex 64/65, format-number 67/70.
 
 ### 4.12 Functions and declarations (implementation)
+**Summary**: Lowers xsl:function, attribute sets, xsl:decimal-format, source
+whitespace stripping, xsl:global-context-item, xsl:context-item and
+xsl:initial-template, with global initializers ordered through called
+components.
+
 **Done** 2026-10-17 After 4.8. Owns `src/xslt_lower_declaration.c`,
 `tests/xslt_declaration_test.c`. xsl:function (visibility, new-each-time,
 cache), attribute sets (use-attribute-sets, XTSE0720), xsl:decimal-format
@@ -260,6 +313,11 @@ parameters), param 31/31, variable 90/108. Character maps are 4.13's;
 memoization (cache) not done.
 
 ### 4.13 Output and result documents (implementation)
+**Summary**: Implements xsl:output and named output definitions,
+xsl:character-map, xsl:result-document against the base output URI,
+xsl:document and disable-output-escaping, with the result writer and result
+document collector.
+
 **Done** 2026-10-18 After 4.12, 3.4. Owns `src/xslt_output.c`,
 `tests/xslt_output_test.c`. xsl:output and named output definitions,
 xsl:character-map, xsl:result-document (href against the base output URI,
@@ -275,6 +333,9 @@ Stylesheet outputs, the result writer and the result document collector for
 result-document 129/149, xsl-document 23/25, current-output-uri 6/16.
 
 ### 4.14 Accumulators (implementation)
+**Summary**: Implements xsl:accumulator without streaming, accumulator-before
+and accumulator-after, and use-accumulators on modes and sources.
+
 **Done** 2026-10-18 After 4.12. Owns `src/xslt_accumulator.c`,
 `tests/xslt_accumulator_test.c`. xsl:accumulator without streaming,
 accumulator-before and -after, use-accumulators on modes and sources. Done when
@@ -286,6 +347,9 @@ harness: decl-accumulator 68/69 (4 before), misc-error 370/499 (355), attr-mode
 121/147 (109), insn-copy 126/146 (124).
 
 ### 4.15 XSLT API and CLI (implementation)
+**Summary**: Implements `xslt.h` in `src/xslt.c` and the `sxml transform`
+command with golden tests, and lets the XSLT test driver run transformations.
+
 **Done** 2026-10-18 After 4.13. Owns `src/xslt.c`, `tests/xslt_test.c`,
 `apps/sxml/command_transform.c`, `apps/sxml/program.c`, `docs/CLI.md`,
 `tests/cli/`. Implements `xslt.h`; `sxml transform` exactly as docs/CLI.md
@@ -301,6 +365,10 @@ Release, whole suite: in scope 7,585 of 8,728 (86.9 %); number (57.5 %) and
 value-of (53.3 %) are the core sets below 80 %.
 
 ### 4.16 Packages, minimal (implementation)
+**Summary**: Implements minimal XSLT packages: xsl:package, use-package through
+the resolver with version ranges, visibility, and accept, expose and override
+for each component kind.
+
 **Done** 2026-10-19 After 4.15. Owns `src/xslt_package.c`,
 `tests/xslt_package_test.c`. xsl:package, use-package through the resolver
 (package-version ranges), visibility (public, private, final, abstract,
@@ -314,6 +382,9 @@ package-version 97 %, use-package 64 % (76 % of the cases run: 8 need another
 package_version_resolution, 1 streaming).
 
 ### 4.17 Conformance sweeps (implementation, repeatable)
+**Summary**: Repeatable conformance sweeps over the in-scope XSLT 4.0 test
+sets, each claiming its files in `docs/LOG.md`.
+
 **Done** 2026-10-18 After 4.15. As 2.19, over in-scope XSLT sets
 (misc-regex-syntax 987 and misc-error 500 first: they measure the regex engine
 and error codes cheaply). Each sweep claims its files in `docs/LOG.md`. **Sweep
@@ -336,6 +407,10 @@ tree), 56-byte arena nodes; json-to-xml-013 passes, XT40 in scope 7,987 of
 computed on first read, Proposed), call-template-ext, host collations.
 
 ### 4.18 Phase 4 review (review)
+**Summary**: A separate agent reviews Phase 4 against its rubric, re-checks
+each packet’s done-when condition and closes the gate boxes, with open items
+under Proposed.
+
 **Done** 2026-10-19 After everything. Owns the gate boxes. A separate agent
 (D11) runs the rubric and re-checks each "done when"; open items go under
 "Proposed". **Done** 2026-10-19 (D169): numbers at 77bc5d5 and 8d2aa06, fuzzing
@@ -536,9 +611,9 @@ driver).
       D294). Owns src/xslt_streamability.c, the streamed evaluation and the
       XSLT, function library and driver parts a cause is in, their unit tests,
       and single insertions in the ledgers. From a fresh XT40 run at HEAD:
-      every failing streaming case (si-*, sf-*, sx-*, su-*, stream-*,
+      every failing streaming case (si-*, sf-*, sx-*, su-*, stream-\*,
       accumulators, merge, source-document) clustered by cause, the largest
-      first; the newest draft wins over the suite. \**Done\*\* 2026-10-20
-      (D296): XT40 12,273 to 12,283 passed (98 wrong error), 245 to 235 failed,
-      0 errors, no case lost; of 54 failing streaming cases 9 are fixed, 37 the
+      first; the newest draft wins over the suite. **Done** 2026-10-20 (D296):
+      XT40 12,273 to 12,283 passed (98 wrong error), 245 to 235 failed, 0
+      errors, no case lost; of 54 failing streaming cases 9 are fixed, 37 the
       draft's or the suite's (D296). Left: accumulator-061, capture-206.

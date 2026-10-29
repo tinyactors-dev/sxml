@@ -1,5 +1,6 @@
 <decision id="D21" status="accepted">
   <title>Error records and diagnostics hold borrowed views</title>
+  <summary><code>sxml_diagnostic</code> and <code>sxml_error_record</code> carry an error's code, description, value and source location as borrowed views, static for sxml's own errors, so the common case allocates nothing.</summary>
   <body>
     <p><recorded date="2026-10-16"/> (task 0.5). <code>sxml_diagnostic</code> (description + <code>sxml_source_location</code>: source name, line, column in codepoints, byte offset) receives details of any failure. <code>sxml_error_record</code> adds the error code (<code>sxml_error_code</code>: namespace URI, local name, display prefix) and the error value (<code>const sxml_sequence *</code>, forward-declared in <code>status.h</code>; <code>xdm.h</code> in task 0.7 must define <code>struct sxml_sequence</code>). Together they carry what an XQuery catch clause binds: <code>$err:code</code>, <code>$err:description</code>, <code>$err:value</code>, <code>$err:module</code>, <code>$err:line-number</code>, <code>$err:column-number</code>.</p>
     <list>

@@ -1,5 +1,6 @@
 <decision id="D150" status="accepted">
   <title>Functions and declarations (packet <ref kind="packet" to="4.12"/>)</title>
+  <summary>Stylesheet functions, attribute sets, decimal formats, the global context item, whitespace stripping and host parameters are lowered, with globals ordered by a component dependency graph.</summary>
   <body>
     <p><recorded date="2026-10-17"/>, after <ref kind="decision" to="D101"/>, <ref kind="decision" to="D135"/>, <ref kind="decision" to="D139"/>, <ref kind="decision" to="D142"/>, <ref kind="decision" to="D144"/>, <ref kind="decision" to="D145"/>. <code>src/xslt_lower_declaration.c</code>, <code>src/xslt_whitespace.c</code> with <code>src/xslt_whitespace_internal.h</code>, <code>tests/xslt_declaration_test.c</code>; hooks in <code>src/xslt_lower.c</code>, <code>src/xslt_lower_construct.c</code>, <code>src/xslt_lower_template.c</code>, <code>src/xslt_lower_control.c</code>, <code>src/processor.c</code>. No IR kind, no evaluator change, no public header.</p>
     <list>

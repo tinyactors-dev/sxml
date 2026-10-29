@@ -1,5 +1,6 @@
 <decision id="D43" status="accepted">
   <title>Header review findings (task 0.8)</title>
+  <summary>The Phase 0 header review adds <code>sxml_name_test</code> wildcards, <code>sxml_name_pool_find_namespace_uri</code>, <code>sxml_sequence_test_emptiness</code> and an arena tree duplicate attribute policy, and moves argument coercion to the evaluator.</summary>
   <body>
     <p><recorded date="2026-10-16"/>. Changes made by the Phase 0 review agent (<ref kind="decision" to="D11"/>):</p>
     <list>

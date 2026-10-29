@@ -1,5 +1,6 @@
 <decision id="D148" status="accepted">
   <title>Library modules and module import (packet <ref kind="packet" to="3.11"/>)</title>
+  <summary>XQuery library modules are loaded into a module set through the resolver, one per module URI, each with its own static context, and the whole set lowers into the main module's unit.</summary>
   <body>
     <p><recorded date="2026-10-17"/>, after <ref kind="decision" to="D106"/>, <ref kind="decision" to="D134"/>, <ref kind="decision" to="D135"/>, <ref kind="decision" to="D146"/>. No header changed; no IR kind added.</p>
     <list>

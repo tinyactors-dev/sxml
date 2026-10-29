@@ -1,5 +1,6 @@
 <packet id="6.12">
   <title>Phase 6 review (gate)</title>
+  <summary>Reviews Phase 6: checks the parity lists, ownership, the JNI rules, licence notes of shipped data and sizes, and records a decision, with the device boxes deferred to the owner’s machine.</summary>
   <body>
     <p><status value="paused" date="2026-10-20"/> After everything. Checks the parity lists, ownership, the JNI rules, the licence notes of shipped data, sizes and the gate below. Records a D-record. The device boxes are deferred to the owner's machine (<ref kind="decision" to="D181"/>).</p>
   </body>

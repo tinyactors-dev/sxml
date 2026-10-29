@@ -1,5 +1,6 @@
 <packet id="7.2">
   <title>Optional features and the size budget (design, build)</title>
+  <summary>Adds the <term name="optional_feature"/> mechanism: a feature's <code>static const</code> operations table, named in the processor configuration and found by kind, so <code>sxml.wasm</code> does not grow, with size budgets for both modules.</summary>
   <body>
     <p><status value="done" date="2026-10-19"/> After the owner's size decision (<ref kind="decision" to="D183"/> Proposed).</p>
     <list>

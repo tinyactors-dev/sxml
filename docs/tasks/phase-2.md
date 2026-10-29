@@ -58,6 +58,10 @@ first, as PLAN.md's risk table asks (2.3, 2.7, 2.8 in waves 0 and 1).
 ## Packets
 
 ### 2.0 Registration and evaluator seams (design, build)
+**Summary**: Adds registration and evaluator seams: CMake generates function
+library part lists from a glob, and the reserved IR kinds dispatch through the
+machine's task API to stub files.
+
 **Done** 2026-10-17 After the Phase 1 gate. Owns root `CMakeLists.txt`,
 `src/processor.c` (parts list only), `tests/fuzz/fuzz_fixture.c`,
 `src/function_library.c` (part lookup only), `src/evaluator.c`,
@@ -78,6 +82,10 @@ XSLT-only part, a catching TRY_CATCH part) verified in a private snapshot, not
 committed.
 
 ### 2.1 Lowering seam (design)
+**Summary**: Splits XPath lowering into a core and lowering parts found by
+glob, so XQuery and XSLT add files, and adds an entry to lower one XPath AST in
+a caller's scope.
+
 **Done** 2026-10-17 After the Phase 1 gate. Owns `src/xpath_lower.c`, new
 `src/xpath_lower_internal.h`, `tests/ir_test.c`. Split the lowering machine
 (D71 frames) into a core and **lowering parts**: a part is a table of AST kinds
@@ -92,6 +100,10 @@ parts, the embedding entry and outside-run procedures tested in
 `tests/ir_test.c`.
 
 ### 2.2 Public API for Phase 2 (design)
+**Summary**: Extends `processor.h` and `xpath.h` with decimal formats,
+collations, default language, resource kinds, environment variables, a trace
+and message sink, and the API version macro.
+
 **Done** 2026-10-17 After the Phase 1 gate. Owns `include/sxml/processor.h`,
 `include/sxml/xpath.h`, `include/sxml/version.h`. Adds, as fields that
 designated initializers keep compatible (D51): decimal formats (named and
@@ -107,6 +119,10 @@ against the headers alone. **Done** 2026-10-17 (D104): header check, lint and
 2.12 defines `sxml_collation_is_supported` and `sxml_stream_trace_sink`.
 
 ### 2.3 Regular expression engine (implementation)
+**Summary**: Replaces the regular expression subset with the whole F&O 4.0
+dialect, Unicode case-blind matching and a step limit, and adds analyze-string,
+matching-segments and regex.
+
 **Done** 2026-10-17 After the Phase 1 gate. Owns `src/regex.c`,
 `src/regex_internal.h`, `src/regex_unicode.c`,
 `tools/generate-regex-tables.py`, new `src/function_library_regex.c`,
@@ -127,6 +143,9 @@ types and fn:format-integer. Also moved fn:matches, fn:replace and fn:tokenize
 to the new part.
 
 ### 2.4 Unicode tables and functions (implementation)
+**Summary**: Implements Unicode 16.0 normalization, grapheme cluster breaks and
+HTML5 character names, with normalize-unicode, graphemes, characters and char.
+
 **Done** 2026-10-17 After 2.0. Owns `src/unicode.c`, `src/unicode_internal.h`,
 `src/unicode_tables.c`, `tools/generate-unicode-tables.py`,
 `src/function_library_unicode.c`, `tests/unicode_test.c`. Unicode 16.0:
@@ -142,6 +161,10 @@ fn-characters 8/8; all of Unicode 16.0 NormalizationTest.txt and
 GraphemeBreakTest.txt pass; `wasm` grows by about 143 KB (136 KB of tables).
 
 ### 2.5 Lowering completions (implementation)
+**Summary**: Lowers every XPath construct Phase 1 left unlowered: `for member`,
+`for key/value`, destructuring `let`, dynamic node tests, the item axis,
+constructor keywords, focus functions and named function references.
+
 **Done** 2026-10-17 After 2.1. Owns `src/xpath_lower.c`,
 `src/xpath_lower_internal.h`, `src/xpath_static.c`,
 `src/xpath_static_internal.h`, `tests/xpath_static_test.c`, `tests/ir_test.c`.
@@ -159,6 +182,10 @@ cases; dynamic node tests and the item axis need fn:jkey/fn:jvalue (2.17);
 NamedFunctionRef's failures are missing functions. XP40 23,698 to 24,206.
 
 ### 2.6 Evaluator, paths and function references (implementation)
+**Summary**: Extends the evaluator with `fn:function-lookup` over every kind of
+function, JNode paths, `fn:jkey` and `fn:jvalue`, maps and arrays as typed
+functions and lazy folds over ranges.
+
 **Done** 2026-10-17 After 2.0. Owns `src/evaluator.c`,
 `src/evaluator_function.c`, `src/evaluator_path.c`,
 `src/function_library_higher_order.c`, `tests/evaluator_test.c`,
@@ -178,6 +205,9 @@ path waits for `tests/xpath_test.c`, Proposed), -408g/i/j and -410g/i/j
 (reverse of a range, 2.17).
 
 ### 2.7 Numeric, math and decimal functions (implementation)
+**Summary**: Implements `fn:divide-decimals`, round with precision and rounding
+modes and the math functions, so every math case and the round sets pass.
+
 **Done** 2026-10-17 After 2.0. Owns `src/function_library_numeric.c`,
 `src/function_library_math.c`, `src/decimal.c`, `src/decimal_internal.h`,
 `tests/decimal_test.c`. Triage of math-\* (181 cases, all failing after 1.23b),
@@ -195,6 +225,10 @@ HEAD; canonical double and float text already passed. take(-1) of the random
 generator waits for `tests/function_library_test.c` (Proposed).
 
 ### 2.8 Date and time functions (implementation)
+**Summary**: Adds a temporal function part with timezone adjustment,
+build-dateTime, parts-of-dateTime, days-in-month, seconds, duration-to-seconds,
+unix-dateTime, parse-ietf-date and civil-timezone.
+
 **Done** 2026-10-17 After 2.0. Owns `src/operator_temporal.c`, new
 `src/function_library_temporal.c`, `tests/function_library_temporal_test.c`.
 adjust-dateTime/date/time-to-timezone, build-dateTime, parts-of-dateTime,
@@ -203,13 +237,16 @@ civil-timezone (FODT0004-style failure without tz data, D97). Done when those
 fn- sets reach ≥ 95% (civil-timezone excepted). Spec: F&O 4.0 "Functions and
 operators on durations", "... on dates and times". **Done** 2026-10-17 (D122):
 new part `src/function_library_temporal.c`; the `*-from-dateTime` rows take
-every Gregorian type. fn-adjust-\*-to- timezone 133/133, fn-build-dateTime
-90/90 run, fn-parse-ietf-date 105/105, fn-seconds 24/24, fn-duration-to-seconds
+every Gregorian type. fn-adjust-\*-to-timezone 133/133, fn-build-dateTime 90/90
+run, fn-parse-ietf-date 105/105, fn-seconds 24/24, fn-duration-to-seconds
 18/18, fn-unix-dateTime 22/22, fn-days-in-month 16/18 (two need
 format-integer); fn-parts-of-dateTime 8/20 until F&O named record types exist
 (Proposed); civil-timezone 4/9 (excepted, D97).
 
 ### 2.9 Number formatting (implementation)
+**Summary**: Implements one hand-scanned picture engine in `src/format.c` for
+`format-integer` and `format-number`, which XSLT's number formatting reuses.
+
 **Done** 2026-10-17 After 2.0, 2.2. Owns new `src/format.c`,
 `src/format_internal.h`, `src/function_library_format.c`,
 `tests/format_test.c`. One picture engine for numbers that XSLT's xsl:number
@@ -224,6 +261,9 @@ context's decimal formats in the evaluator (Proposed), the other expects Java's
 digits of 4.9e-324.
 
 ### 2.10 Elements to maps and back (implementation)
+**Summary**: Implements element-to-map, element-to-map-plan and map-to-element
+in the `element_map` part.
+
 **Done** 2026-10-17 After 2.0. Owns `src/function_library_element_map.c`,
 `tests/function_library_element_map_test.c`. element-to-map,
 element-to-map-plan, map-to-element (D40 tree builder for new trees). Done when
@@ -234,6 +274,9 @@ the driver leaves absent), fn-element-to-map-plan 20/20, fn-map-to-element
 224/228 (two expect XQuery entity decoding, two need fn:serialize).
 
 ### 2.11 URIs, QNames and hashes (implementation)
+**Summary**: Implements parse-uri, build-uri, decode-from-uri, parse-QName,
+resolve-QName and hash with MD5, SHA-1, SHA-256, BLAKE3 and CRC-32.
+
 **Done** 2026-10-17 After 2.0. Owns `src/function_library_uri.c`,
 `src/function_library_qname.c`, new `src/hash.c`, `src/hash_internal.h`,
 `src/function_library_hash.c`, `tests/function_library_uri_test.c`,
@@ -245,6 +288,10 @@ URIs", RFC 3986. **Done** 2026-10-17 (D140): `src/hash.c` and the hash part
 parse-QName, resolve-QName. All six sets at 100% of what runs.
 
 ### 2.12 Resources, processor and XPath API (implementation)
+**Summary**: Implements the Phase 2 processor and XPath API: decimal formats,
+collations, the sink, environment variables, and the resource functions such as
+unparsed-text, json-doc and collection.
+
 **Done** 2026-10-17 After 2.0, 2.2. Owns `src/processor.c`,
 `src/processor_internal.h`, `src/xpath.c`, `src/function_library_context.c`,
 new `src/function_library_resource.c`, `tests/processor_test.c`,
@@ -260,6 +307,9 @@ Every set ≥ 95% of run cases except fn-json-doc 73/77 (fallback functions in
 fn:parse-json); fn-format-number 285/286.
 
 ### 2.13 Collations and comparison options (implementation)
+**Summary**: Implements collations (codepoint, case-insensitive, UCA fallback)
+behind one resolver, the collation functions and the deep-equal 4.0 options.
+
 **Done** 2026-10-17 After 2.4. Owns `src/collation.c`,
 `src/collation_internal.h`, `src/function_library.c`,
 `src/function_library_string.c`, `src/function_library_sequence.c`,
@@ -279,6 +329,10 @@ FOCH0002 failures 280 to 12, all in bodies of other parts (Proposed). XP40
 26,170 to 26,510 passed.
 
 ### 2.14 Date formatting (implementation)
+**Summary**: Implements format-date, format-time and format-dateTime on the
+picture engine, with every component and modifier, English names and fallback
+markers for other languages and calendars.
+
 **Done** 2026-10-17 After 2.8, 2.9. Owns new `src/format_date.c`,
 `src/function_library_format_date.c`, `tests/format_date_test.c`. format-date,
 format-time, format-dateTime on the 2.9 engine: every component and modifier,
@@ -289,6 +343,9 @@ module header `src/format_date_internal.h`; all run cases pass (fn-format-date
 124/124, fn-format-time 94/94, fn-format-dateTime 80/80, from 20, 19 and 5).
 
 ### 2.15 CSV (implementation)
+**Summary**: Implements parse-csv, csv-to-xml and csv-doc with every option,
+scanned by hand because delimiters are run-time options.
+
 **Done** 2026-10-17 After 2.12. Owns new `src/csv.c`, `src/csv_internal.h`,
 `src/function_library_csv.c`, `tests/csv_test.c`. parse-csv, csv-to-xml,
 csv-doc with every option (delimiters, quotes, header, trim, select columns);
@@ -300,19 +357,26 @@ what runs; fn-parse-csv 107/124, 124/124 once the driver binds the result as
 the assertions' context value (Proposed).
 
 ### 2.16 QT4 driver for Phase 2 (implementation)
-**Done** 2026-10-17 After 2.2. Owns `tests/qt4/driver/`. Environments:
-`decimal-format`, `collation`, `resource`, `collection` (sources and resources;
-`query` waits for 3.13); `--spec=XQ40` listing; a JSON per-area summary for the
-dashboard (`tools/conformance-report.py` reads it; 1.27 owns that file, so
-coordinate by format only). Done when the fn-unparsed-text*, fn-format-number
-and fn-collection cases resolve, golden tests cover each environment kind and
-`--spec=XP40` lists the D95 denominator. \**Done\*\* 2026-10-17 (D108): those
-sets have no environment skips left (only spec and feature dependencies); `list
---spec=XP40` 31,543 in scope (XQ40 41,174); goldens `run_environments`,
-`run_environments_json`, `list_environments`; XP40 23,146 to 24,451 passed,
-slice 198/198.
+**Summary**: Extends the QT4 driver with decimal-format, collation, resource
+and collection environments, XQ40 listing and a JSON per-area summary.
+
+**Done** 2026-10-17 (D108): those sets have no environment skips left (only
+spec and feature dependencies); `list --spec=XP40` 31,543 in scope (XQ40
+41,174); goldens `run_environments`, `run_environments_json`,
+`list_environments`; XP40 23,146 to 24,451 passed, slice 198/198. After 2.2.
+Owns `tests/qt4/driver/`. Environments: `decimal-format`, `collation`,
+`resource`, `collection` (sources and resources; `query` waits for 3.13);
+`--spec=XQ40` listing; a JSON per-area summary for the dashboard
+(`tools/conformance-report.py` reads it; 1.27 owns that file, so coordinate by
+format only). Done when the fn-unparsed-text\*, fn-format-number and
+fn-collection cases resolve, golden tests cover each environment kind and
+`--spec=XP40` lists the D95 denominator.
 
 ### 2.17 Node, sequence and string functions (implementation)
+**Summary**: Implements the remaining node, sequence and string functions, and
+the 16 built-in record types of F&O 4.0 that functions such as
+parts-of-dateTime return.
+
 **Done** 2026-10-17 After 2.13. Owns `src/function_library_node.c`,
 `src/function_library_string.c`, `src/function_library_sequence.c`,
 `src/function_library_json.c`, `tests/function_library_test.c`. path,
@@ -341,6 +405,10 @@ fn-random-number-generator 54/54 run, fn-regex 29/30, fn-matching-segments
 38/38 run, op-numeric-integer-divide 132/132 run (no wrong errors).
 
 ### 2.18 JavaScript package and first public release (implementation)
+**Summary**: Ships the hand-written TypeScript package over the `wasm` module
+with Node.js tests, and prepares release 0.2.0 with version macros, changelog
+and stable headers.
+
 **Done** 2026-10-17 After 2.12, 2.16. Owns new `bindings/javascript/`,
 `tools/run-wasi.mjs`, `docs/RELEASE.md`. The hand-written TypeScript package of
 D10 over the `wasm` module: parse, compile and evaluate XPath, adaptive output,
@@ -352,6 +420,10 @@ growth (Proposed); version 0.2.0, `CHANGELOG.md`, `docs/RELEASE.md`. Tag and
 npm publication left to the owner.
 
 ### 2.19 Conformance sweeps (implementation, repeatable)
+**Summary**: Runs repeatable conformance sweeps over the five worst XP40 test
+sets, and adds counted repetition with counters to the regular expression
+matcher.
+
 **Done** 2026-10-17 After 2.17. Each sweep takes the five worst XP40 sets of
 `docs/CONFORMANCE.md`, claims their files in `docs/LOG.md` before starting
 (never a file a running packet owns) and stops after one session. Run as many
@@ -367,6 +439,9 @@ expands nor ends in LIMIT_EXCEEDED (cbcl-matches-004, -038). Files:
 to 200, the other regex sets unchanged.
 
 ### 2.20 Phase 2 review (review)
+**Summary**: Reviews Phase 2 against its gate with a separate agent: every
+preset and lint on a clean tree, XP40 at 97.0 % in scope, fuzzing clean.
+
 **Done** 2026-10-17 After everything. Owns the gate boxes. A separate agent
 (D11) runs the rubric and re-checks each "done when"; open items go under
 "Proposed". **Done** 2026-10-17 (D151): clean-HEAD check of every preset and

@@ -1,5 +1,6 @@
 <decision id="D232" status="accepted">
   <title>XML parsing speed: fewer tokens and nodes (packet <ref kind="packet" to="perf-3"/>)</title>
+  <summary>The XML grammar makes whole tags and reference-free attributes single tokens and content items a left-recursive rule, and the builder reads fields by number, cutting tree-sitter's per-token and per-node work.</summary>
   <body>
     <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D12"/>, <ref kind="decision" to="D222"/>, <ref kind="decision" to="D224"/>, <ref kind="decision" to="D229"/>. tree-sitter stays the parser (<ref kind="decision" to="D12"/>, the owner's choice); the grammar and its external scanner stay the one source of the lexical rules; <ref kind="decision" to="D222"/>'s segments are kept.</p>
     <list>

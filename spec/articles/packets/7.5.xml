@@ -1,5 +1,6 @@
 <packet id="7.5">
   <title>disable-output-escaping (implementation; proposed, <ref kind="decision" to="D183"/>)</title>
+  <summary>Implements disable-output-escaping as a text node mark, <code>disables_output_escaping</code> in <code>tree.h</code>, that the XML, XHTML and HTML output methods write unescaped.</summary>
   <body>
     <p><status value="done" date="2026-10-19"/></p>
     <list>

@@ -1,5 +1,6 @@
 <packet id="6.6">
   <title>Android library (implementation; assemble here, devices: owner)</title>
+  <summary>Builds the Kotlin binding as an Android library: a Gradle project that runs the top-level CMake for four ABIs, consumer ProGuard rules, instrumentation tests and a size budget.</summary>
   <body>
     <p><status value="paused" date="2026-10-20"/> After <ref kind="packet" to="6.3"/> and <ref kind="packet" to="6.5"/>. Owns:</p>
     <list>

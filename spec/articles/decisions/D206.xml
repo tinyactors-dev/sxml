@@ -1,5 +1,6 @@
 <decision id="D206" status="accepted">
   <title>XSLT 1.0 follow-ups: EXSLT common, text value templates, result documents (packet 7.4b)</title>
+  <summary>XSLT 1.0 follow-ups add exsl:node-set and exsl:object-type, read exsl:document as xsl:result-document, and lower text value templates in 1.0 elements without XPath 1.0 compatibility mode.</summary>
   <body>
     <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D197"/> and <ref kind="decision" to="D99"/>. Follows up <ref kind="decision" to="D197"/>'s "Not done".</p>
     <list>

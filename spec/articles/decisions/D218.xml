@@ -1,5 +1,6 @@
 <decision id="D218" status="accepted">
   <title>HTML follow-ups: encoding sniffing, every legacy decoder, the html5lib tests, XHTML (packet 7.10b)</title>
+  <summary>fn:parse-html gains HTML encoding sniffing with a reparse on a meta charset, every legacy decoder of the Encoding Standard, XHTML input parsed as XML, and the vendored html5lib tests.</summary>
   <body>
     <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D13"/>, <ref kind="decision" to="D71"/>, <ref kind="decision" to="D189"/>, <ref kind="decision" to="D201"/>, <ref kind="decision" to="D208"/>. Closes <ref kind="decision" to="D201"/>'s list for 7.10b.</p>
     <list>

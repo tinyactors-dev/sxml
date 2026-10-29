@@ -1,5 +1,6 @@
 <packet id="7.16">
   <title>A timezone database (implementation)</title>
+  <summary>Adds a <term name="timezone_database"/> that gives the offset and abbreviation for a zone name and an instant, read from host TZif files, for fn:civil-timezone and the $place of the date formatting functions.</summary>
   <body>
     <p><status value="done" date="2026-10-19"/></p>
     <list>

@@ -1,5 +1,6 @@
 <packet id="6.11">
   <title>Documentation and release steps (here; publishing: owner)</title>
+  <summary>Writes the Kotlin and Swift binding READMEs and their release steps in <code>docs/RELEASE.md</code> (Maven Central coordinates, signing, the Swift package tag and XCFramework checksum); the owner publishes.</summary>
   <body>
     <p><status value="paused" date="2026-10-20"/> After <ref kind="packet" to="6.6"/> and <ref kind="packet" to="6.8"/>. Owns:</p>
     <list>

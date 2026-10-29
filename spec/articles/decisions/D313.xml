@@ -1,5 +1,6 @@
 <decision id="D313" status="accepted">
   <title>The owner's decisions of 2026-10-28: Schematron, source locations, the CLI's step limit</title>
+  <summary>The owner fixes Schematron's edition, query bindings, outputs and exit status, makes source locations of parsed documents a processor setting AUTOMATIC, ALWAYS or NEVER, and removes the CLI's step limit.</summary>
   <body>
     <p><recorded date="2026-10-28"/> by the orchestrator, from the owner's answers to the open points of packet <ref kind="packet" to="7.27"/> and of the "Source locations for parsed input documents" item that was under "## Proposed" (moved here).</p>
     <p><strong>Schematron (packet <ref kind="packet" to="7.27"/>, its design follows these):</strong></p>

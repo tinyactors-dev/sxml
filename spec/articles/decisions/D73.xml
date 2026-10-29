@@ -1,5 +1,6 @@
 <decision id="D73" status="accepted">
   <title>JNode making may fail with a lazy value's error (P7)</title>
+  <summary>The contracts of <code>sxml_json_node_make_root</code> and <code>sxml_json_node_make_child</code> list a lazy value's generator failures, returned without an error record, since both count their value's items.</summary>
   <body>
     <p><recorded date="2026-10-16"/> by packet <ref kind="packet" to="1.18"/>, on the orchestrator's acceptance of P7 (option "amend contract"; design edit to <code>include/sxml/xdm.h</code>, comments only). <code>sxml_json_node_make_root</code> and <code>sxml_json_node_make_child</code> count their value's items, so a lazy value's generator may fail inside them; both contracts now list those failures. They take no error record, so the status comes without one: callers that need the error read the value first. The evaluator never makes lazy sequences whose generator evaluates IR (<ref kind="decision" to="D75"/>), and it reads values completely before fn:jtree sees them.</p>
   </body>

@@ -1,5 +1,6 @@
 <decision id="D74" status="accepted">
   <title>libmpdec keeps no large buffers on the stack</title>
+  <summary>A patch to libmpdec's <code>transpose.c</code> moves its large transform buffers to one heap block from <code>mpd_alloc</code>, so large products no longer trap the 64 KiB WebAssembly stack and report OUT_OF_MEMORY instead.</summary>
   <body>
     <p><recorded date="2026-10-16"/>, amending <ref kind="decision" to="D57"/>. Upstream <code>transpose.c</code> holds two <code>SIDE*SIDE</code>-word buffers in <code>squaretrans_pow2</code> (128 KiB with 32-bit words) and two <code>BUFSIZE</code>-word buffers in <code>swap_halfrows_pow2</code> (32 KiB). Every product of more than 1024 words (on WebAssembly 9216 digits, smaller operand above 2304) whose transform is not a power of two up to 4096 words takes the four- or six-step path through them and trapped on the 64 KiB WebAssembly stack; an untrusted query could do it within the default digit limit.</p>
     <list>

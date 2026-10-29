@@ -1,5 +1,6 @@
 <packet id="2.14">
   <title>Date formatting (implementation)</title>
+  <summary>Implements format-date, format-time and format-dateTime on the picture engine, with every component and modifier, English names and fallback markers for other languages and calendars.</summary>
   <body>
     <p><status value="done" date="2026-10-17"/> After <ref kind="packet" to="2.8"/>, <ref kind="packet" to="2.9"/>. Owns new <code>src/format_date.c</code>, <code>src/function_library_format_date.c</code>, <code>tests/format_date_test.c</code>. format-date, format-time, format-dateTime on the 2.9 engine: every component and modifier, English names, <code>[Calendar: AD]</code>-style fallback markers for other languages and calendars (<ref kind="decision" to="D97"/>). Done when fn-format-date, fn-format-time, fn-format-dateTime ≥ 90%. Spec: F&amp;O 4.0 "Formatting dates and times". <strong>Done</strong> 2026-10-17 (<ref kind="decision" to="D129"/>): module header <code>src/format_date_internal.h</code>; all run cases pass (fn-format-date 124/124, fn-format-time 94/94, fn-format-dateTime 80/80, from 20, 19 and 5).</p>
   </body>

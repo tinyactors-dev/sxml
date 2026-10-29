@@ -1,5 +1,6 @@
 <decision id="D162" status="accepted">
   <title><ref kind="decision" to="D97"/>'s exclusions are delays, not non-goals (owner)</title>
+  <summary>The features <ref kind="decision" to="D97"/> leaves out are delayed, not dropped: schema awareness stays Phase 5, the rest becomes Phase 7, and until then each is rejected or ignored in one place with the specification's error.</summary>
   <body>
     <p><recorded date="2026-10-18"/> on the owner's word: "<ref kind="decision" to="D97"/> is accepted only as a delay -- these features need to be supported ultimately." Amends <ref kind="decision" to="D97"/> and the "Not in year one" list of PLAN.md.</p>
     <list>

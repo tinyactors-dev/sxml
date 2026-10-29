@@ -1,5 +1,6 @@
 <decision id="D226" status="accepted">
   <title>XPath and XQuery conformance sweep (packet <ref kind="packet" to="2.22"/>)</title>
+  <summary>The sweep adds the fn: namespace's schema documents, lax validation against built-in components, schema-based fn:element-to-map, the record model of the current draft and other XPath and XQuery fixes.</summary>
   <body>
     <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D190"/>, <ref kind="decision" to="D174"/>, <ref kind="decision" to="D205"/>. Takes the "XPath and XQuery" leftovers of <code>docs/agents/QUEUE.md</code>. No public header changed; no IR expression kind added.</p>
     <list>

@@ -1,5 +1,6 @@
 <decision id="D104" status="accepted">
   <title>The public API for Phase 2 (packet <ref kind="packet" to="2.2"/>)</title>
+  <summary>Phase 2 adds decimal formats and collations to the static context, default language, environment variables and a trace sink to the dynamic context, new resource kinds, and version macros for 0.2.0.</summary>
   <body>
     <p><recorded date="2026-10-17"/>, completing <ref kind="decision" to="D51"/>'s "left out until needed" for Phase 2. <code>processor.h</code>, <code>xpath.h</code>, <code>version.h</code>; only new fields at the end of structs and new constants at the end of enumerations, so Phase 1 code compiles unchanged (zero keeps the old behaviour).</p>
     <list>

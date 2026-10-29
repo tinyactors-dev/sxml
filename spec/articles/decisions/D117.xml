@@ -1,5 +1,6 @@
 <decision id="D117" status="accepted">
   <title>The XSLT 4.0 test driver (packet <ref kind="packet" to="4.1"/>)</title>
+  <summary><code>sxml-xslt-test</code> is a sibling of <code>sxml-qt4</code> that reads the XSLT 4.0 test catalog, decides applicability and scope, plans each case's invocation, and runs a 154-case slice against a baseline.</summary>
   <body>
     <p><recorded date="2026-10-17"/>. <code>tests/xslt/driver/</code>, the developer tool <code>sxml-xslt-test</code>, public API only.</p>
     <list>

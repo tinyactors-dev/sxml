@@ -1,5 +1,6 @@
 <decision id="D11" status="accepted">
   <title>Phase gates closed by agent review</title>
+  <summary>Work proceeds through the phases until XQuery 4.0 and XSLT 4.0 work, with each gate closed by a separate review agent and its boxes marked "(agent review)".</summary>
   <body>
     <p><recorded date="2026-10-16"/>. The project owner chose, when asked, that work proceeds through the phases until XQuery 4.0 and XSLT 4.0 work, with each gate closed by a separate review agent instead of a human. The review agent checks the work against <code>docs/C_GUIDELINES.md</code> and the gate criteria; its findings are fixed before the next phase starts. Gate boxes ticked this way are marked "(agent review)" so a later human review can find them. The substrate freeze at the Phase 1 gate still applies: later substrate changes need a record here.</p>
   </body>

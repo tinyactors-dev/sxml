@@ -1,5 +1,6 @@
 <packet id="7.2b">
   <title>Core size audit (build)</title>
+  <summary>Brings the core <code>sxml.wasm</code> back under its size budget without a raise by making DTD validation the optional feature "dtd-validation".</summary>
   <body>
     <p><status value="done" date="2026-10-19"/> After 7.14b and <ref kind="decision" to="D208"/>. The core <code>sxml.wasm</code> was 2,294,051 bytes stripped, over <ref kind="decision" to="D207"/>'s 2,200,000 / 770,000.</p>
     <list>

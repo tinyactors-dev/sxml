@@ -1,5 +1,6 @@
 <packet id="4.11">
   <title>Numbering and analyze-string (implementation)</title>
+  <summary>Implements xsl:number with its levels, count and from patterns and format options on the numbering engine, and xsl:analyze-string with fn:regex-group.</summary>
   <body>
     <p><status value="done" date="2026-10-18"/> After <ref kind="packet" to="4.8"/>, <ref kind="packet" to="2.9"/>. Owns <code>src/xslt_lower_number.c</code>, <code>tests/xslt_number_test.c</code>. xsl:number: level single, multiple, any; count and from patterns; value; format, lang, letter-value, ordinal, grouping, start-at (4.0) on the 2.9 engine. xsl:analyze-string with matching-substring, non-matching-substring and regex-group. Done when insn-number (268) and analyze-string ≥ 85%. Spec: XSLT 4.0 "Numbering", "Regular Expressions". <strong>Done</strong> 2026-10-18 (<ref kind="decision" to="D153"/>): <code>src/xslt_lower_number.c</code>, <code>tests/xslt_number_test.c</code>; format-place-marker beside fn:format-integer, format strings and grouping in <code>src/format.c</code>, fn:regex-group(s) in the <code>xslt</code> part, the context-variable parameter default in <code>src/xpath_lower.c</code>. Scratch harness, in-scope cases: insn/number 152/161 (94%), analyze-string 56/62 (90%), misc/regex 64/65, format-number 67/70.</p>
   </body>

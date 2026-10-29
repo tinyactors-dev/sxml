@@ -1,5 +1,6 @@
 <decision id="D16" status="accepted">
   <title>Unit test harness</title>
+  <summary>Unit tests use a dependency-free harness in <code>tests/test_runner.h</code>, one executable per module holding a <code>sxml_test_case</code> array, registered with ctest by <code>sxml_add_test</code>.</summary>
   <body>
     <p><recorded date="2026-10-16"/> (task 0.2). <code>tests/test_runner.h</code> and <code>.c</code>, no dependencies. One executable per module, <code>tests/&lt;module&gt;_test.c</code>, holding a static <code>sxml_test_case</code> array passed to <code>sxml_test_run_suite</code> from <code>main</code>; registered as one ctest test named <code>&lt;module&gt;</code> by <code>sxml_add_test(&lt;module&gt;)</code> in <code>tests/CMakeLists.txt</code>. Checks: <code>SXML_TEST_EXPECT</code> (continue) and <code>SXML_TEST_REQUIRE</code> (return from the case). Case names given on the command line run only those cases. Tests may include <code>src/*_internal.h</code>.</p>
   </body>

@@ -1,5 +1,6 @@
 <decision id="D263" status="accepted">
   <title>XPath and XQuery conformance sweep: <ref kind="decision" to="D258"/>'s leftovers and fresh clusters (packet <ref kind="packet" to="2.24"/>)</title>
+  <summary>The XPath and XQuery sweep adds library context value types, fn:string(.) parameter defaults, cast namespaces of a place, a <code>set_element_identity</code> tree builder operation for is-id, and declines static typing by default.</summary>
   <body>
     <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D84"/>, <ref kind="decision" to="D99"/>, <ref kind="decision" to="D180"/>, <ref kind="decision" to="D190"/>, <ref kind="decision" to="D226"/>, <ref kind="decision" to="D234"/>, <ref kind="decision" to="D258"/>. No IR expression kind added; one public header changed additively (tree.h, below).</p>
     <list>

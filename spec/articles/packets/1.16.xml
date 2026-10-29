@@ -1,5 +1,6 @@
 <packet id="1.16">
   <title>XPath front end: CST to AST (implementation)</title>
+  <summary>Implements the XPath parser that builds the AST from the CST, reporting any error or missing node as XPST0003 with a location, and builds every valid XP40 query.</summary>
   <body>
     <p><status value="done" date="2026-10-16"/> After <ref kind="packet" to="1.4"/>. Owns <code>src/xpath_parse.c</code>, <code>tests/xpath_parse_test.c</code>. Any <code>ERROR</code> or <code>MISSING</code> is XPST0003 with a location; the checks <ref kind="decision" to="D29"/> leaves to the builder (A.3.2 delimitation, prefixed lookup key); literals decoded. Done when all 198 slice queries build an AST and every XP40 query that <code>tools/qt4-parse-check.py</code> accepts also builds one. <strong>Done</strong> 2026-10-16 (<ref kind="decision" to="D59"/>): also <code>src/xpath_ast.c</code> (<ref kind="decision" to="D52"/>) and <code>tests/xpath_ast_test.c</code>; 198/198 slice queries and 32,542/32,542 valid XP40 queries build, the two <ref kind="decision" to="D29"/> false accepts now fail with XPST0003.</p>
   </body>

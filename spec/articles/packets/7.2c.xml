@@ -1,5 +1,6 @@
 <packet id="7.2c">
   <title>Per-language part lists (build; packet size-2)</title>
+  <summary>Gives each language its own part lists, so a module links only the lowering, library and evaluator parts of the languages it offers and the core drops the XQuery-only and XSLT-only parts.</summary>
   <body>
     <p><status value="done" date="2026-10-19"/> After <ref kind="packet" to="7.2b"/> and <ref kind="decision" to="D225"/>. The part registries were global, so the core <code>sxml.wasm</code> linked XQuery's lowering parts (about 75 KB, <ref kind="decision" to="D189"/>) and the XSLT-only library and evaluator parts (<ref kind="decision" to="D225"/>).</p>
     <list>

@@ -1,5 +1,6 @@
 <decision id="D259" status="accepted">
   <title>Laziness, joins and the step limit (packet <ref kind="packet" to="perf-4"/>)</title>
+  <summary>IR passes rewrite <code>E//T[P]</code> as a <term name="descendant_path"/>, give each expression an <term name="item_demand"/> so loops stop early, and add a <term name="number_view"/> and <term name="quantified_fusion"/>; the default step bound becomes 10^8.</summary>
   <body>
     <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D71"/>, <ref kind="decision" to="D89"/>, <ref kind="decision" to="D166"/>, <ref kind="decision" to="D178"/>, <ref kind="decision" to="D224"/>, <ref kind="decision" to="D229"/>, <ref kind="decision" to="D232"/>, <ref kind="decision" to="D257"/>. Measured with the benchmarks of <ref kind="decision" to="D224"/> (<code>tests/bench/run-bench.py</code>, processor seconds, release, fastest of three) and instructions under callgrind; each milestone against its base commit built the same way.</p>
     <list>

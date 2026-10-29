@@ -1,5 +1,6 @@
 <packet id="2.20">
   <title>Phase 2 review (review)</title>
+  <summary>Reviews Phase 2 against its gate with a separate agent: every preset and lint on a clean tree, XP40 at 97.0 % in scope, fuzzing clean.</summary>
   <body>
     <p><status value="done" date="2026-10-17"/> After everything. Owns the gate boxes. A separate agent (<ref kind="decision" to="D11"/>) runs the rubric and re-checks each "done when"; open items go under "Proposed". <strong>Done</strong> 2026-10-17 (<ref kind="decision" to="D151"/>): clean-HEAD check of every preset and lint (<ref kind="decision" to="D123"/>); XP40 in scope 97.0 %, every area ≥ 95.5 %, 0 errors; fuzzing clean; one options reader, one calendar rule; <code>xquery.h</code> and <code>xslt.h</code> provisional; follow-ups and owner questions in <ref kind="decision" to="D151"/> and <code>docs/LOG.md</code>.</p>
   </body>

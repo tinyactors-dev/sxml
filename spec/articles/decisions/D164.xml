@@ -1,5 +1,6 @@
 <decision id="D164" status="accepted">
   <title>Phase 5 starts now, alongside the end of Phase 4 (owner)</title>
+  <summary>Phase 5, XSD 1.1 validation and schema-aware typing, starts before the Phase 4 gate, planned by design packet 5.1, and must not regress Phase 4's counts.</summary>
   <body>
     <p><recorded date="2026-10-18"/> on the owner's choice ("Start Phase 5 now"), after they asked for a way to work with XSD schemas in the <code>sxml</code> command. Amends <ref kind="decision" to="D132"/> and PLAN.md's order: Phase 5 (XSD 1.1 validation and schema-aware typing) no longer waits for the Phase 4 gate. Its packets are planned in <code>docs/tasks/phase-5.md</code> by a design packet (5.1), which also vendors the W3C XSD test suite (<ref kind="decision" to="D13"/>) and proposes the gate numbers. The Phase 4 gate still closes Phase 4; Phase 5 work must not regress its counts. A <code>sxml validate</code> command enters the CLI only once it works (<ref kind="decision" to="D44"/>).</p>
   </body>

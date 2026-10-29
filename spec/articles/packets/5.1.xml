@@ -1,5 +1,6 @@
 <packet id="5.1">
   <title>Schema API, substrate additions and plan (design)</title>
+  <summary>Designs <code>include/sxml/schema.h</code> and the substrate additions schema validation needs (facets and complex content types in type descriptions, derived typed values, the SCHEMA_DOCUMENT resource kind), vendors the XSD test suite and plans Phase 5.</summary>
   <body>
     <p><status value="done" date="2026-10-18"/> After the Phase 3 gate (<ref kind="decision" to="D164"/>). Owns <code>include/sxml/schema.h</code>, the <ref kind="decision" to="D165"/> additions to <code>types.h</code>, <code>tree.h</code>, <code>xdm.h</code> and <code>processor.h</code>, the declaration in <code>src/types_internal.h</code>, <code>third_party/xsdtests</code>, this file. <strong>Done</strong> 2026-10-18 (<ref kind="decision" to="D165"/>): the header, the substrate additions (facets and complex content types in type descriptions, the derived typed value contract, the SCHEMA_DOCUMENT resource kind), the suite vendored, this plan.</p>
   </body>

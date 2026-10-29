@@ -1,5 +1,6 @@
 <decision id="D309" status="accepted">
   <title>Slices without copies: sequence slices, positional filters, matched bases (packet <ref kind="packet" to="perf-5"/>)</title>
+  <summary>A <term name="sequence_slice"/> shares its base vector, a <term name="positional_filter"/> slices a stored input, and the memo remembers matched bases, so recursion over the rest of a sequence is linear.</summary>
   <body>
     <p><recorded date="2026-10-28"/>, after <ref kind="decision" to="D34"/>, <ref kind="decision" to="D71"/>, <ref kind="decision" to="D89"/>, <ref kind="decision" to="D99"/>, <ref kind="decision" to="D143"/>, <ref kind="decision" to="D149"/>, <ref kind="decision" to="D224"/>, <ref kind="decision" to="D229"/>, <ref kind="decision" to="D259"/>. Running SchXslt 1.10.1 to compile the EN 16931 Schematron rules found recursion over the rest of a sequence quadratic: <code>make_span</code> copied the rest into a new vector unless the input was an integer range, <code>$s[position() &gt; 1]</code> tested every position, and a typed parameter (<code>as element()*</code>) matched every item of the rest on each call. SchXslt's <code>schxslt:replace-params</code> walks 780 parameters this way for each of 1,042 attributes.</p>
     <list>

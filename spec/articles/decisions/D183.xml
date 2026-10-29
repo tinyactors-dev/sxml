@@ -1,5 +1,6 @@
 <decision id="D183" status="accepted">
   <title>Phase 7 plan: one packet per deferred feature, optional features for size (packet <ref kind="packet" to="7.1"/>)</title>
+  <summary>Phase 7 is planned as one packet per deferred feature, from optional features and the size budget through streaming, Update, HTML5, Full Text and UCA to a review, each reusing existing mechanisms with its own gate.</summary>
   <body>
     <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D95"/>, <ref kind="decision" to="D97"/>, <ref kind="decision" to="D154"/>, <ref kind="decision" to="D157"/>, <ref kind="decision" to="D162"/>, <ref kind="decision" to="D165"/>, <ref kind="decision" to="D166"/>, <ref kind="decision" to="D181"/>. Plans Phase 7 (<ref kind="decision" to="D162"/>) in <code>docs/tasks/phase-7.md</code>, as <ref kind="decision" to="D165"/> planned Phase 5.</p>
     <list>

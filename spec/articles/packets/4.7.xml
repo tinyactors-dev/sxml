@@ -1,5 +1,6 @@
 <packet id="4.7">
   <title>Control flow and variables (implementation)</title>
+  <summary>Lowers XSLT variables and parameters (with cycle and required checks) and the control instructions: if, choose, switch, for-each, iterate, try/catch, where-populated, on-empty, message, assert and fallback.</summary>
   <body>
     <p><status value="done" date="2026-10-17"/> After <ref kind="packet" to="4.6"/>, <ref kind="packet" to="3.6"/>. Owns <code>src/xslt_lower_control.c</code>, <code>tests/xslt_lower_control_test.c</code>. Local and global xsl:variable and xsl:param (XTDE0640 cycles, XTDE0050 required), xsl:if, choose, switch, for-each, iterate (break, next-iteration, on-completion), try/catch, where-populated, on-empty, on-non-empty, message, assert, fallback, evaluate (the XPath API inside). Done when insn-choose, for-each, iterate, try, switch, where-populated, on-empty, message, evaluate, decl-variable ≥ 85%. <strong>Done</strong> 2026-10-19 (<ref kind="decision" to="D145"/>): <code>src/xslt_lower_control.c</code>, <code>tests/xslt_lower_control_test.c</code>, hooks in <code>src/xslt_lower.c</code>. Scratch harness: 105 of 181 runnable cases of the sets pass; evaluate is not applicable (no dynamic evaluation, <ref kind="decision" to="D117"/>); xsl:sort in for-each waits for 4.9.</p>
   </body>

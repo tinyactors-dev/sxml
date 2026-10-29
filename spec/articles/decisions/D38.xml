@@ -1,5 +1,6 @@
 <decision id="D38" status="accepted">
   <title>Function items</title>
+  <summary>A function item cell holds a name, signature, annotations, captured values and a body behind the <code>sxml_function_body</code> interface, shared by native C and IR functions so the substrate never sees the IR.</summary>
   <body>
     <p><recorded date="2026-10-16"/> (task 0.7). A function item cell holds name (optional), signature (a registered function type; arity is its parameter count), annotations (borrowed from the body's owner), captured values (retained) and a body. The body is an interface (<code>sxml_function_body</code>: state, <code>call</code>, optional <term name="retain"/>/<term name="release"/>) shared by native C functions and IR functions: the evaluator supplies the operations of IR bodies, so the substrate never sees the IR. Bodies receive arguments already coerced, the item (for captures), the dynamic context (opaque), the heap and an error record. Partial application and function coercion are native bodies capturing the wrapped function. Maps and arrays answer <code>sxml_function_item_call</code> as <code>map:get</code>/<code>array:get</code>. Function identity is not modelled (withdrawn from XDM 4.0, section 8.1).</p>
   </body>

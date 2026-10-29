@@ -1,5 +1,6 @@
 <decision id="D9" status="accepted">
   <title>Regular expressions</title>
+  <summary>sxml has its own engine for the XSD and XPath regular expression dialect, designed after Saxon HE's engine, built as a Phase 2 packet on <code>sxml_string</code> alone.</summary>
   <body>
     <p>Own engine for the XSD/XPath regex dialect, designed after Saxon HE's engine (regexml is a Rust port that shows the approach). Check the license of any source before porting code. Confirmed at the Phase 0 gate, unchanged; it is a Phase 2 packet (PLAN.md, risks) and needs no substrate support beyond <code>sxml_string</code>.</p>
   </body>

@@ -1,5 +1,6 @@
 <packet id="7.18">
   <title>Invisible XML (implementation)</title>
+  <summary>Implements fn:invisible-xml with one Earley parser over a compiled <term name="ixml_grammar"/>, the iXML grammar of iXML built in, and the first parse tree sent as builder events with marks applied.</summary>
   <body>
     <p><status value="done" date="2026-10-19"/></p>
     <list>

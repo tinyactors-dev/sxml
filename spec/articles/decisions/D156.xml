@@ -1,5 +1,6 @@
 <decision id="D156" status="accepted">
   <title>Output and result documents (packet <ref kind="packet" to="4.13"/>)</title>
+  <summary>Stylesheet outputs compile output definitions, character maps and result document instructions from the sealed AST, and xsl:result-document is two internal rows that a result writer delivers to the handler.</summary>
   <body>
     <p><recorded date="2026-10-18"/>, after <ref kind="decision" to="D106"/>, <ref kind="decision" to="D112"/>, <ref kind="decision" to="D120b"/>, <ref kind="decision" to="D128"/>, <ref kind="decision" to="D144"/>, <ref kind="decision" to="D145"/>, <ref kind="decision" to="D146"/>, <ref kind="decision" to="D150"/>. <code>src/xslt_output.c</code> with <code>src/xslt_output_internal.h</code>, the library part <code>src/function_library_output.c</code> (XSLT only), <code>tests/xslt_output_test.c</code>; hooks: one rule view in <code>src/xslt_lower.c</code>, declarations in <code>src/xslt_lower_internal.h</code>, the tunnel mark in <code>src/xslt_lower_template.c</code>, <term name="result_writer"/> in the evaluation environment (<code>src/processor_internal.h</code>). No IR kind, no evaluator change, no public header.</p>
     <list>

@@ -1,5 +1,6 @@
 <packet id="perf-4">
   <title>Laziness, joins and the step limit (implementation)</title>
+  <summary>Adds one general mechanism for stopping early (item demands and quantified fusion), extends the filter index to joins, and sets the default step bound to 10^8.</summary>
   <body>
     <p><status value="done" date="2026-10-20"/> After <ref kind="decision" to="D224"/>, <ref kind="decision" to="D229"/>, <ref kind="decision" to="D232"/> and <ref kind="decision" to="D257"/> (writing the book's performance chapter found three things): <code>head(filter(1 to 1e9, ...))</code> and <code>exists((1 to 1e9)[. = 999])</code> read the whole range; the chapter's join of 2,000 orders takes 12 s although <ref kind="decision" to="D224"/>'s filter index exists for it; the default step limit takes about 75 s to trigger.</p>
     <list>

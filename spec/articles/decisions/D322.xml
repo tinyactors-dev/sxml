@@ -1,5 +1,6 @@
 <decision id="D322" status="accepted">
   <title>Node atomization describes once; the costs left are the atomic cell's (packet <ref kind="packet" to="perf-11"/>)</title>
+  <summary>Node atomization describes its node once and skips attributes by count when walking text descendants; the cost left is the atomic cell's allocation, validation and type resolution.</summary>
   <body>
     <p><recorded date="2026-10-28"/>, after <ref kind="decision" to="D39"/>, <ref kind="decision" to="D71"/>, <ref kind="decision" to="D229"/>, <ref kind="decision" to="D316"/>, <ref kind="decision" to="D319"/>. No public header changed.</p>
     <list>

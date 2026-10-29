@@ -1,5 +1,6 @@
 <decision id="D57" status="accepted">
   <title>Decimal arithmetic over libmpdec (packet <ref kind="packet" to="1.2"/>)</title>
+  <summary>Decimal arithmetic wraps vendored mpdecimal 4.0.1 in <code>sxml_decimal</code>, with the allocator scope in the patched <code>mpalloc.c</code>, a per-heap digit limit, exact sums and products, and 34-digit quotients.</summary>
   <body>
     <p><recorded date="2026-10-16"/>, completing <ref kind="decision" to="D42"/> and <ref kind="decision" to="D49"/>.</p>
     <list>

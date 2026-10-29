@@ -47,6 +47,10 @@ queries with XML output.
 ## Packets
 
 ### 3.0 XQuery and serialization API (design) — Early
+**Summary**: Designs `xquery.h` (a compiled main module, library modules
+through the resolver, prolog serialization parameters) and `serialize.h` with
+every method and Serialization 4.0 parameter.
+
 **Done** 2026-10-17 After 2.2. Owns `include/sxml/xquery.h`,
 `include/sxml/serialize.h`. `xquery.h`: a compiled main module (lifecycle
 quintet, D51) from text with the shared static context configuration; library
@@ -55,7 +59,7 @@ the shared dynamic context; the serialization parameters the prolog declares,
 readable by the caller. `serialize.h`: methods xml, xhtml, html, text, json,
 csv, adaptive; one parameters struct with every Serialization 4.0 parameter
 (indent, omit-xml-declaration, standalone, doctype-system/public,
-cdata-section- elements, suppress-indentation, undeclare-prefixes, encoding
+cdata-section-elements, suppress-indentation, undeclare-prefixes, encoding
 (UTF-8, UTF-16, US-ASCII, ISO-8859-1), byte-order-mark, normalization-form,
 html-version, include-content-type, escape-uri-attributes, item-separator,
 json-node-output-method, allow-duplicate-names, escape-solidus, canonical,
@@ -69,6 +73,10 @@ parameter, `sxml_serialization_flag`, encodings, character maps and
 should return UNSUPPORTED_FEATURE until implemented.
 
 ### 3.1 Query AST and parser seam (design) — Early
+**Summary**: Adds one AST kind per visible production of the XQuery grammar and
+a parser part seam, `sxml_ast_build_with_parser_part`, through which the CST
+walker hands XQuery nodes to a parser part.
+
 **Done** 2026-10-17 After 2.1. Owns `src/xpath_ast_internal.h`,
 `src/xpath_ast.c`, `src/xpath_parse.c`, `tests/xpath_ast_test.c`. One kind per
 visible production of `grammars/xquery` (D29) added to the AST (D52
@@ -83,6 +91,10 @@ XQuery kinds, fields, details and flags and five examples in
 `sxml_grammar_xquery` to the `sxml` link line of `CMakeLists.txt`.
 
 ### 3.2 XQuery front end (implementation) — Early
+**Summary**: Builds the AST from the XQuery CST in `src/xquery_parse.c`: direct
+constructors with their static errors, CDATA, pragmas and string constructors,
+so every valid XQ40 query and library module parses.
+
 **Done** 2026-10-17 After 3.1. Owns `src/xquery_parse.c`,
 `tests/xquery_parse_test.c`. CST of `grammars/xquery` to the AST: direct
 constructors (XQST0118 end tags, XQST0040 duplicate attributes, namespace
@@ -97,6 +109,10 @@ XQuery parser part in `src/xquery_parse.c`; all 43,663 valid XQ40 queries and
 3.10 and lowering.
 
 ### 3.3 Serializer: XML and XHTML methods (implementation) — Early
+**Summary**: Writes the serializer pipeline and its XML and XHTML output
+methods (sequence normalization, escaping, namespace fixup, indentation,
+encodings, character maps) through `sxml_output_stream`.
+
 **Done** 2026-10-17 After 3.0, 2.4. Owns `src/serialize.c`, new
 `src/serialize_internal.h`, `src/serialize_xml.c`, `tests/serialize_test.c`,
 `tests/serialize_xml_test.c`. Sequence normalization (Serialization 4.0
@@ -113,6 +129,10 @@ JSON, CSV return UNSUPPORTED_FEATURE. Unit cases only until the 3.13 driver;
 XP40 unchanged (26,951). The parameter reader is still undefined (3.4).
 
 ### 3.4 Serializer: HTML, text, JSON, CSV; fn:serialize — Early
+**Summary**: Adds the HTML, text, JSON and CSV output methods on the serializer
+pipeline, the parameter reader in `src/serialize_parameters.c`, and
+fn:serialize with element and map parameters.
+
 **Done** 2026-10-17 After 3.3. Owns `src/serialize_html.c`,
 `src/serialize_json.c`, `src/serialize_text.c`,
 `src/function_library_serialize.c`, `tests/serialize_html_test.c`,
@@ -130,6 +150,10 @@ the parser, or XQuery character references. method-\* are XQuery-only: unit
 cases until 3.10 and 3.13.
 
 ### 3.5 Node constructors in the evaluator (implementation) — Early
+**Summary**: Implements the seven node constructor kinds and shallow copy in
+the evaluator, each building a new arena tree, with the XQuery content,
+namespace, base URI and naming rules and their errors.
+
 **Done** 2026-10-17 After 2.0. Owns `src/evaluator_construct.c`,
 `tests/evaluator_construct_test.c`. The seven constructor kinds and
 SHALLOW_COPY over hand-built IR (as `tests/evaluator_test.c` does): a new arena
@@ -146,6 +170,10 @@ each also under an allocation-failure loop; IR modes and adders proposed for
 3.9 (D110, "Proposed").
 
 ### 3.6 try/catch in the evaluator (implementation) — Early
+**Summary**: Implements try/catch in the evaluator with name tests, the `$err`
+variables and `$err:map`, and finally; only dynamic and type errors with an
+error record are caught.
+
 **Done** 2026-10-17 After 2.0. Owns `src/evaluator_try.c`,
 `tests/evaluator_try_test.c`. TRY_CATCH with name tests and wildcards,
 `$err:code`, description, value, module, line-number, column-number,
@@ -162,6 +190,10 @@ catch clauses and namespace bindings; `construction_flags` and
 form for TRY_CATCH and the constructor kinds.
 
 ### 3.7 FLWOR and other expressions (implementation) — Early
+**Summary**: Adds the `xquery` lowering part for FLWOR clauses, quantified,
+typeswitch, switch, ordered, unordered and extension expressions, with
+`validate` raising XQST0075.
+
 **Done** 2026-10-17 After 3.2. Owns `src/xquery_lower.c`,
 `src/xquery_lower_internal.h`, `tests/xquery_lower_test.c`. Lowering part: for
 (at, allowing empty, member, key/value), let, where, order by (stable, empty
@@ -180,6 +212,10 @@ While 69/83, Typeswitch 80/88, Switch 34/58, TryCatch 190/212; every other run
 case needs a prolog (3.10) or group by (3.8) but 8.
 
 ### 3.8 group by and window clauses (implementation) — Early
+**Summary**: Lowers group by as a tuple stream clause and tumbling and sliding
+windows as segment clauses over internal native rows, with one
+condition-closure procedure shared with while.
+
 **Done** 2026-10-17 After 3.7. Owns `src/xquery_lower_window.c`,
 `src/xquery_flwor.c`, `tests/xquery_flwor_test.c`. The internal native rows of
 D55 over tuple arrays: group by (grouping keys, collations, deep-equal-style
@@ -195,22 +231,30 @@ prod-WindowClause 125/158 (139 run; every error a prolog, 3.10). Tests
 `xquery_flwor`.
 
 ### 3.9 Constructor lowering (implementation) — Early
-**Done** 2026-10-17 After 3.2, 3.5. Owns `src/xquery_lower_construct.c`,
+**Summary**: Adds the `construct` lowering part for direct and computed
+constructors, enclosed expressions, boundary-space, name expressions and the
+in-scope namespaces of constructed elements.
+
+**Done** 2026-10-17 (D127): part `construct`,
+`tests/xquery_lower_construct_test.c` (golden IR, values, static errors,
+allocation-failure loops). The 13 sets pass 932 of 1,165 (scratch harness, 59
+not run); all but 7 of the run queries without a prolog pass (none of the 7 is
+lowering's), so the 90% bar waits for 3.10 to let prologs through (167
+queries). After 3.2, 3.5. Owns `src/xquery_lower_construct.c`,
 `tests/xquery_lower_construct_test.c`. Direct and computed element, attribute,
 namespace, text, comment, PI and document constructors; enclosed expressions;
 boundary-space; in-scope namespaces of constructed elements (XQST0085); name
 expressions. Done when prod-DirElemConstructor, prod-DirElemContent,
 prod-DirElemContent.namespace, prod-DirElemContent.whitespace,
 prod-DirAttributeList, prod-CompElemConstructor, prod-CompAttrConstructor and
-the other prod-Comp*Constructor sets ≥ 90%. Spec: XQuery 4.0 "Direct Element
-Constructors", "Computed Constructors". \**Done\*\* 2026-10-17 (D127): part
-`construct`, `tests/xquery_lower_construct_test.c` (golden IR, values, static
-errors, allocation-failure loops). The 13 sets pass 932 of 1,165 (scratch
-harness, 59 not run); all but 7 of the run queries without a prolog pass (none
-of the 7 is lowering's), so the 90% bar waits for 3.10 to let prologs through
-(167 queries).
+the other prod-Comp\*Constructor sets ≥ 90%. Spec: XQuery 4.0 "Direct Element
+Constructors", "Computed Constructors".
 
 ### 3.10 Prolog and static context (implementation)
+**Summary**: Implements the XQuery prolog and static context: setter, option,
+variable, function, item type and named record type declarations, with global
+initializers evaluated on first read.
+
 **Done** 2026-10-17 After 3.7, 2.9, 2.13. Owns `src/xquery_static.c`,
 `src/xquery_prolog.c`, `src/evaluator_global.c`, `tests/xquery_prolog_test.c`.
 Version, namespace, default namespace, boundary-space, default collation, base
@@ -232,6 +276,10 @@ item types, function namespace rule). See docs/LOG.md for the counts; open
 items under "Proposed" (D135).
 
 ### 3.11 Modules (implementation)
+**Summary**: Implements XQuery library modules and `import module` through the
+resolver, with location hints, several modules per namespace, cycles and
+per-module static contexts linked into one unit.
+
 **Done** 2026-10-17 After 3.10, 3.12. Owns `src/xquery_module.c`,
 `src/function_library_module.c`, `tests/xquery_module_test.c`. Library modules,
 `import module` through the resolver (location hints, several modules per
@@ -248,16 +296,20 @@ cross-unit globals in the evaluator (Proposed, D148); fn-load-xquery-module
 stays 0.
 
 ### 3.12 XQuery API and CLI (implementation)
+**Summary**: Implements `xquery.h` in `src/xquery.c` over the shared unit
+evaluation of `src/xpath.c`, and the `sxml xquery` and `sxml serialize`
+commands with golden tests.
+
 **Done** 2026-10-17 After 3.3, 3.10. Owns `src/xquery.c`,
 `tests/xquery_test.c`, `apps/sxml/command_xquery.c`,
 `apps/sxml/command_serialize.c`, `apps/sxml/program.c`, `docs/CLI.md`,
 `tests/cli/`. Implements `xquery.h`; `sxml xquery` and `sxml serialize` exactly
 as docs/CLI.md lists them, with golden tests (XML, HTML, JSON, text output;
 static and dynamic errors). Golden: `apps/sxml/command_xpath.c`. Done when 20
-XQ40 queries round-trip through the public headers alone, with allocation-
-failure loops on compile. **Done** 2026-10-17 (D146): `src/xquery.c` over the
-shared unit evaluation of `src/xpath.c` (`src/xpath_api_internal.h`) and
-`sxml_xquery_compile_module`; output declarations through the parameter
+XQ40 queries round-trip through the public headers alone, with
+allocation-failure loops on compile. **Done** 2026-10-17 (D146): `src/xquery.c`
+over the shared unit evaluation of `src/xpath.c` (`src/xpath_api_internal.h`)
+and `sxml_xquery_compile_module`; output declarations through the parameter
 reader's text form over the parameter document; the QT4 adapter deleted; `sxml
 xquery`, `sxml serialize`, `sxml xpath --method` (shared
 `apps/sxml/query_command.c`); `tests/xquery_test.c` (22 queries,
@@ -266,6 +318,10 @@ run. `--output` and the JavaScript `compileQuery()` wait (Proposed: the
 WebAssembly budget).
 
 ### 3.13 QT4 driver for XQ40 (implementation)
+**Summary**: Extends the QT4 driver to run XQ40: modules through the resolver,
+declared parameters, collection queries, serialization assertions, and a second
+ctest slice `qt4/xquery-slice`.
+
 **Done** 2026-10-17 After 3.0, 2.16. Owns `tests/qt4/driver/`. `--spec=XQ40`
 runs; `<module>` files through the resolver; `declared="true"` params;
 collections with a `query`; serialization assertions (`serialization-matches`,
@@ -283,6 +339,9 @@ debug, debug-gcc, wasm. XQ40 (release): 33,374/47,313 passed, gate rate 81.0 %,
 XQ-only 40.2 %.
 
 ### 3.14 Conformance sweeps (implementation, repeatable)
+**Summary**: Repeatable conformance sweeps over the XQ40 test sets, each
+claiming its files in `docs/LOG.md` and stopping after one session.
+
 **Done** 2026-10-18 After 3.11, 3.13. As 2.19, over XQ40 sets
 (misc-CombinedErrorCodes, app-Walmsley, app-FunctxFunctx, app-spec-examples
 first). Each sweep claims its files in `docs/LOG.md` and stops after one
@@ -299,6 +358,10 @@ source names at run time, trust, function annotations; XQ40 in scope 96.9 % to
 done".
 
 ### 3.15 Phase 3 review (review)
+**Summary**: A separate agent reviews Phase 3 against its rubric, re-checks
+each packet’s done-when condition and closes the gate boxes, with open items
+under Proposed.
+
 **Done** 2026-10-19 After everything. Owns the gate boxes. A separate agent
 (D11) runs the rubric and re-checks each "done when"; open items go under
 "Proposed". **Done** 2026-10-19 (D161): numbers at 50a3651, fuzzing with a new
@@ -325,6 +388,10 @@ table, `xquery.h` stable, the D162 check of delayed features.
 ## Later sweeps
 
 ### 2.21 XPath and XQuery conformance sweep (implementation)
+**Summary**: Fixes XPath and XQuery leftovers: casts to array, map and record
+types, `fn:function-lookup` with the caller's focus, JNode paths and `fn:doc`
+with XSD validation.
+
 **Done** 2026-10-19 After 5.14. Takes the "XPath and XQuery" leftovers of
 `docs/agents/QUEUE.md` in order of value: (a) casts and castable to array, map
 and record types (prod-CastExpr.composite, prod-CastableExpr.composite; XPath
@@ -344,6 +411,10 @@ with the implicit timezone (op-same-key XQ 19 to 27), fn:doc's xsd-validation
 D190's "Not done".
 
 ### 2.22 XPath and XQuery conformance sweep (implementation)
+**Summary**: Adds a built-in schema for the fn namespace, the current draft's
+record model and lax validation without a schema, among other XPath and XQuery
+fixes.
+
 **Done** 2026-10-19 After 2.21. Takes the "XPath and XQuery" leftovers of
 `docs/agents/QUEUE.md` (from D190) in order of value: (a) a built-in schema for
 the fn namespace, compiled once per processor (json-to-xml validation, typed
@@ -361,6 +432,10 @@ declarations, decimal array keys; XP40 +56, XQ40 +98 cases. Open: D226's "Not
 done".
 
 ### 2.23 XPath and XQuery conformance sweep (implementation)
+**Summary**: Fixes the largest XPath and XQuery failure clusters of fresh whole
+runs, including map constructors over JNodes, the item axis's JNode parent and
+`fn:xsd-validator`'s schema options.
+
 **Done** 2026-10-20 After 2.22. From fresh whole runs (XP40 82 failed, 34
 wrong-error passes; XQ40 239 and 55), cluster the failures and the wrong-error
 passes by root cause and fix the largest clusters with general mechanisms, with
@@ -378,6 +453,10 @@ passed (82 to 55 failed), XQ40 45,969 to 46,017 (239 to 191), none lost. Open:
 D258's "Not done".
 
 ### 2.24 XPath and XQuery conformance sweep (implementation)
+**Summary**: Fixes D258's leftovers and the largest XPath and XQuery failure
+clusters, and estimates the optional static typing feature without implementing
+it.
+
 **Done** 2026-10-20 After 2.23 (owner priority 1). Starts with D258's "Not
 done": a library module's context value type, fn:string-length and
 fn:normalize-space atomizing an explicit argument, casts to xs:QName with the
@@ -398,6 +477,10 @@ static typing estimated, not implemented. CONFORMANCE.md not regenerated
 (another packet's uncommitted changes). Open: D263's "Not done".
 
 ### 2.25 XPath and XQuery conformance sweep (implementation)
+**Summary**: Fixes "//" paths, XSLT globals in inline functions, default
+collations, library static contexts, `fn:load-xquery-module` variables, lax
+`xml:id` and XML 1.1 query text.
+
 **Done** 2026-10-20 After 2.24. From fresh whole runs (XP40 40 failed and 30
 wrong-error passes, XQ40 138 and 49), with D263's open list: XSLT's per-element
 default collation, fn:load-xquery-module singletons, xml:id under lax
@@ -411,6 +494,10 @@ query text; XP40 32,793 to 32,797 passed, XQ40 46,070 to 46,101, XT40 +13, none
 lost. Open: D275's "Not done".
 
 ### 2.26 XPath and XQuery conformance sweep (implementation)
+**Summary**: Fixes XPath and XQuery leftovers: Q{}N name tests on JNodes,
+modules found without location hints, run-time type constructors and several
+option and collation cases.
+
 **Done** 2026-10-20 After 2.25. From fresh whole runs (XP40 36 failed and 30
 wrong-error passes, XQ40 107 and 44), with D275's open list: Q{}N name tests on
 JNodes (sxml_name_test frozen), named item type constructors and function items
@@ -425,6 +512,10 @@ format-integer sequences; XP40 32,797 to 32,809 passed, XQ40 46,101 to 46,138,
 none lost. Open: D280's "Not done" (xqhof18, eqname-007, modules-43).
 
 ### 2.27 XPath and XQuery conformance sweep (implementation)
+**Summary**: Adds XInclude for `fn:doc` and `fn:document` and ideographic
+numerals in `fn:format-integer`, and fixes element() on JNodes and call-site
+namespaces.
+
 **Done** 2026-10-20 After 2.26. The cheap not-run features of D280 (XInclude
 for fn:doc, with fn:document's option of D273 on the same mechanism; the CJK
 numerals of fn:format-integer), then fresh whole runs (XP40 31 failed, XQ40 90)
@@ -438,6 +529,10 @@ from nodes, collection documents, xml-to-json's escaped-key; XP40 32,809 to
 "Not done" (xqhof18/19, modules-43, function-decl-40-060, D281's record cases).
 
 ### 2.28 XPath and XQuery leftovers (implementation)
+**Summary**: Fixes syntax error places, run-time closures with their module and
+focus, fresh global tables after evaluation and the item type round for import
+cycles.
+
 **Done** 2026-10-20 After 2.27. D282's string-constructor error place; D154's
 and D286's run-time closures with their module and focus (xqhof18/19), function
 items after their evaluation; modules-43, function-decl-40-060; a fresh whole

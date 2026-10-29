@@ -1,5 +1,6 @@
 <decision id="D101" status="accepted">
   <title>Part registries and the evaluator seams (packet <ref kind="packet" to="2.0"/>)</title>
+  <summary>CMake registers function library parts and evaluator parts by glob over their source files, a part serves the languages it names, and the evaluator machine API lets parts push tasks and catch errors.</summary>
   <body>
     <p><recorded date="2026-10-17"/>, completing <ref kind="decision" to="D45"/> and <ref kind="decision" to="D55"/> for Phases 2 to 4.</p>
     <list>

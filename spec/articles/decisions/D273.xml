@@ -1,5 +1,6 @@
 <decision id="D273" status="accepted">
   <title>XSLT conformance sweep: streamed availability, fn:document's options, the driver's tree delivery (packet 4.26)</title>
+  <summary>fn:stream-available reads only a document head, fn:document takes fn:doc's options map, globals may refer to themselves, and the XSLT driver delivers the principal result as a tree.</summary>
   <body>
     <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D234"/>, <ref kind="decision" to="D245"/>, <ref kind="decision" to="D252"/>, <ref kind="decision" to="D260"/>, <ref kind="decision" to="D262"/>. Verified as <ref kind="decision" to="D181"/> asks: the debug preset (the xslt<em>, xslt_driver, function_library</em>, json, xpath, evaluator_stream and cli tests), clang-tidy on the changed files, the call-cycle check, the book examples (<ref kind="decision" to="D257"/>), QT4 XP40/XQ40 sets of the changed functions, and the whole XT40 suite with the release driver after each change, case by case. <strong>XT40 12,191 to 12,209 passed (118 wrong error), 327 to 309 failed, 0 errors</strong>, run at 5a855ca plus 2.24's commits (<ref kind="decision" to="D262"/>'s 12,187 was before them). Commits 4e0ffdb, 3d97421, 564d293, e1188ef, 9024849, 2ff5431, 67f7ad2.</p>
     <list>

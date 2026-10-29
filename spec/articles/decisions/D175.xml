@@ -1,5 +1,6 @@
 <decision id="D175" status="accepted">
   <title>Assertions and type alternatives (packet <ref kind="packet" to="5.9"/>)</title>
+  <summary>XSD 1.1 assertions and type alternatives compile with <code>xpath.h</code> in XPath Valid's static context and run on the one evaluator over assertion copies and parentless element copies with inherited attributes.</summary>
   <body>
     <p><recorded date="2026-10-18"/>. Fills ASSERTIONS and the seams of <ref kind="decision" to="D167"/> for XSD 1.1 assertions and conditional type assignment (<code>src/schema_assertion.c</code>); golden <code>src/schema_simple_type.c</code>.</p>
     <list>

@@ -1,5 +1,6 @@
 <decision id="D63" status="accepted">
   <title>Static analysis and lowering (packet <ref kind="packet" to="1.12"/>)</title>
+  <summary><code>sxml_xpath_lower</code> lowers the XPath AST to ANF IR without C recursion, resolving names, focus slots, paths, calls and literals; listed constructs are UNSUPPORTED_FEATURE in Phase 1.</summary>
   <body>
     <p><recorded date="2026-10-16"/>. <code>src/xpath_static_internal.h</code> (module <code>xpath_static</code>): <code>sxml_xpath_static_context</code> (heap, allocator, namespace bindings, variable declarations, function table); <code>sxml_xpath_resolve_name</code>, <code>_resolve_sequence_type</code> and <code>_resolve_item_type</code> (also for the type text of function library rows, <ref kind="decision" to="D55"/>); <code>sxml_xpath_lower</code> (AST to an unsealed unit) and <code>sxml_xpath_compile</code> (parse, lower, <code>sxml_ir_standard_passes</code>, seal), which 1.23 calls.</p>
     <list>

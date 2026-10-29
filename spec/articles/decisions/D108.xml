@@ -1,5 +1,6 @@
 <decision id="D108" status="accepted">
   <title>The QT4 driver for Phase 2: environments, scope, areas (packet <ref kind="packet" to="2.16"/>)</title>
+  <summary>The QT4 driver applies decimal-format, collation, resource and collection environments, satisfies more dependencies, marks whether each case is in the pass-rate denominator, and reports in-scope counts per area.</summary>
   <body>
     <p><recorded date="2026-10-17"/>. Extends <ref kind="decision" to="D83"/> and <ref kind="decision" to="D92"/> in <code>tests/qt4/driver/</code>.</p>
     <list>

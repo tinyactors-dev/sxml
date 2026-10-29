@@ -1,5 +1,6 @@
 <decision id="D306" status="accepted">
   <title>sxml:parse-code compiles each language's queries once; iXML compared with tree-sitter</title>
+  <summary><code>sxml:parse-code</code> compiles each language's queries once per document instead of once per injection, and the book compares Invisible XML with tree-sitter and fn:json-to-xml on 1 MB inputs.</summary>
   <body>
     <p><recorded date="2026-10-22"/>, at the owner's request for a comparison of iXML with tree-sitter in the book's "Invisible XML Performance".</p>
     <list>

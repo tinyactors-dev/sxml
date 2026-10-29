@@ -1,5 +1,6 @@
 <decision id="D93" status="accepted">
   <title>WebAssembly slice: preopens and the first size budget (packet <ref kind="packet" to="1.28"/>)</title>
+  <summary><code>tools/run-wasi.mjs</code> preopens the source tree so conformance tests run under WASI, and the stripped <code>sxml</code> CLI module stays under 1.5 MB and 450 KB gzipped until a decision raises it.</summary>
   <body>
     <p><recorded date="2026-10-17"/>. Node 22.22, WASI SDK 34, <code>wasm</code> preset (MinSizeRel).</p>
     <list>

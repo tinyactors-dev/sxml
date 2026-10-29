@@ -1,5 +1,6 @@
 <decision id="D136" status="accepted">
   <title>Node, sequence, string and type functions (packet <ref kind="packet" to="2.17"/>)</title>
+  <summary>One options reader serves every option map, and new node, sequence, string and type functions, fn:parse-xml-fragment and fn:system-properties are added, with collations resolved by the ordering functions.</summary>
   <body>
     <p><recorded date="2026-10-17"/>. F&amp;O 4.0 sections are those of the current editor's draft.</p>
     <list>

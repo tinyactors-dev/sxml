@@ -1,5 +1,6 @@
 <packet id="1.26">
   <title>Fuzz targets (implementation)</title>
+  <summary>Adds libFuzzer targets for XML parsing and XPath compilation, seeded from the XML conformance suite and the slice, and a <code>fuzz</code> preset.</summary>
   <body>
     <p><status value="done"/> After <ref kind="packet" to="1.12"/>, <ref kind="packet" to="1.14"/>. Owns <code>tests/fuzz/</code>, a <code>fuzz</code> preset in <code>CMakePresets.json</code>. libFuzzer targets (Clang) for XML parsing and XPath compilation, seeded from <code>third_party/xmlconf</code> and the slice, with memory limits. Done when each runs 10 minutes clean (LOG) and CI runs each for 60 seconds. <strong>Done</strong> 2026-10-16 (<ref kind="decision" to="D86"/>): five targets, each 10 minutes clean (LOG) but for two evaluator timeouts (P9); CI's 60 s per target is a <code>ci.yml</code> change for 1.27.</p>
   </body>

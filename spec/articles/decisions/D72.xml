@@ -1,5 +1,6 @@
 <decision id="D72" status="accepted">
   <title>Arithmetic and comparison operators (packet <ref kind="packet" to="1.19"/>)</title>
+  <summary>Arithmetic and comparison operators have their own enums, take atomized operands, use int64 fast paths with libmpdec beyond, and follow the listed rules for durations, dates and value, general and node comparisons.</summary>
   <body>
     <p><recorded date="2026-10-16"/>. <code>src/operator_internal.h</code>; <code>src/operator.c</code> (operands, promotion, numbers, unary), <code>src/operator_temporal.c</code> (durations, dates, times), <code>src/operator_compare.c</code> (value, general and GNode comparisons).</p>
     <list>

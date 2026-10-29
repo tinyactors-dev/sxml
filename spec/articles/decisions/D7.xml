@@ -1,5 +1,6 @@
 <decision id="D7" status="accepted">
   <title>Ordered maps (XDM 4.0)</title>
+  <summary>XDM 4.0 maps keep insertion order, designed after Saxon 13: a built-once pair list with a lazy key index, a persistent layer for updates, shared record shapes and positional entries.</summary>
   <body>
     <p>XDM 4.0 maps keep insertion order. Design after Saxon 13 (Michael Kay, "Implementing Maps for XPath 4.0", XML Prague 2026):</p>
     <list>

@@ -1,5 +1,6 @@
 <decision id="D86" status="accepted">
   <title>Fuzz targets (packet <ref kind="packet" to="1.26"/>)</title>
+  <summary>Five libFuzzer targets under <code>tests/fuzz/</code> check crashes, leaks, invalid-argument returns, invariants and timeouts, built by the <code>fuzz</code> preset and run by <code>tools/fuzz.sh</code> with seeds from <code>tools/fuzz-seeds.py</code>.</summary>
   <body>
     <list>
       <item>

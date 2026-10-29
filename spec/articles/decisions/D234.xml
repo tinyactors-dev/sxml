@@ -1,5 +1,6 @@
 <decision id="D234" status="accepted">
   <title>Globals computed on first read, the hoist guard, typed modes (packet 4.21)</title>
+  <summary>Globals with an initializer are computed on first read through a new IR kind GLOBAL_READ, the hoist pass leaves indexed FILTERs alone, and typed modes match element name tests as schema-element().</summary>
   <body>
     <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D71"/>, <ref kind="decision" to="D101"/>, <ref kind="decision" to="D135"/>, <ref kind="decision" to="D148"/>, <ref kind="decision" to="D154"/>, <ref kind="decision" to="D179"/>, <ref kind="decision" to="D223"/>, <ref kind="decision" to="D224"/>, <ref kind="decision" to="D229"/>, <ref kind="decision" to="D230"/>. Replaces <ref kind="decision" to="D101"/>'s and <ref kind="decision" to="D148"/>'s computation of declared variables before the body ("computation order", the evaluator's global part) and <ref kind="decision" to="D230"/>'s design of lazy globals, as built here. Verified as <ref kind="decision" to="D181"/> asks: the debug preset, every unit test, clang-tidy on the files changed, <code>tools/check-call-cycles.py</code>, and the whole XT40 and QT4 XQ40 suites with the release driver, compared case by case.</p>
     <list>

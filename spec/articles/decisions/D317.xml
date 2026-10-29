@@ -1,5 +1,6 @@
 <decision id="D317" status="accepted">
   <title>A Schematron conformance suite of sxml's own (packet <ref kind="packet" to="7.30"/>)</title>
+  <summary>sxml has its own Schematron conformance suite, <code>tests/schematron/</code>, for ISO/IEC 19757-3:2025, with neutral expected results, recorded readings, a SchXslt cross-check and an independent check of the 2025 cases.</summary>
   <body>
     <p><recorded date="2026-10-28"/>, after <ref kind="decision" to="D313"/> and <ref kind="decision" to="D315"/> (as revised and accepted).</p>
     <list>

@@ -1,5 +1,6 @@
 <decision id="D184" status="accepted">
   <title>Phase 7 scope, size and access choices (owner)</title>
+  <summary>The owner adds xsl:evaluate, disable-output-escaping, XML 1.1 input and DTD processing to Phase 7, with link-time optional features, wasm budgets of 2,100,000 and 3,000,000 bytes, and Update 3.0 first.</summary>
   <body>
     <p><recorded date="2026-10-19"/> on the owner's answers to <ref kind="decision" to="D183"/>'s questions.</p>
     <list>

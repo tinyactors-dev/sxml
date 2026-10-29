@@ -1,5 +1,6 @@
 <decision id="D229" status="accepted">
   <title>Evaluator performance, second round (packet <ref kind="packet" to="perf-2"/>)</title>
+  <summary>The second performance round converts short decimal forms to doubles with one IEEE 754 multiplication or division, computes leaf operands in place, keeps small item lists and frames inline, and atomizes single nodes directly.</summary>
   <body>
     <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D46"/>, <ref kind="decision" to="D71"/>, <ref kind="decision" to="D89"/>, <ref kind="decision" to="D149"/>, <ref kind="decision" to="D223"/>, <ref kind="decision" to="D224"/>. The benchmarks of <ref kind="decision" to="D224"/> (<code>tests/bench/run-bench.py</code>) and a new one, numeric-join (a self-join of the persons on xs:decimal incomes); processor seconds, release, fastest of three, on a machine other builds share; and instructions under callgrind (one run, exact), the measure each change is judged by.</p>
     <list>

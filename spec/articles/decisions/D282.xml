@@ -1,5 +1,6 @@
 <decision id="D282" status="accepted">
   <title>The book's code-generation project (packet book-3)</title>
+  <summary>The book gains Chapter 12, a project that generates a TypeScript client, Node.js handler and OpenAPI document from an XSD schema and an API description, with the generated files checked in sync.</summary>
   <body>
     <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D257"/> and <ref kind="decision" to="D270"/>. The owner asked for a chapter on using XQuery, XSD and XSLT for code generation, such as RPC between the browser and the backend in the manner of SvelteKit's remote functions.</p>
     <list>

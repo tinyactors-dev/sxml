@@ -1,5 +1,6 @@
 <decision id="D97" status="accepted">
   <title>Scope of Phases 2 to 4</title>
+  <summary>Phases 2 to 4 support codepoint, HTML ASCII and UCA-fallback collations, leave out HTML parsing, schema awareness, streaming, Update, Full Text and EXPath, and scan regex, picture strings and CSV by hand.</summary>
   <body>
     <p><recorded date="2026-10-17"/> (non-goals per PLAN.md, made concrete).</p>
     <list>

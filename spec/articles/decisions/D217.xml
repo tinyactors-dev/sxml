@@ -1,5 +1,6 @@
 <decision id="D217" status="accepted">
   <title>The sxml command writes files: --output, --result-directory, --allow-put (packet <ref kind="packet" to="cli-2"/>)</title>
+  <summary>The sxml command writes files through one file writer that commits on success and abandons on failure, with <code>--output</code> and <code>--force</code>, <code>--result-directory</code> for transform and <code>--allow-put</code> for fn:put.</summary>
   <body>
     <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D44"/>, <ref kind="decision" to="D200"/>, <ref kind="decision" to="D205"/>. Closes the CLI gaps <ref kind="decision" to="D44"/> left planned ("no files written without --output") and the queue's cli items.</p>
     <list>

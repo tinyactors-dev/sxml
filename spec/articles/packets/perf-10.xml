@@ -1,5 +1,6 @@
 <packet id="perf-10">
   <title>Casts that keep the string, and the coercions perf-8 left (implementation)</title>
+  <summary>Makes a cast that keeps the text relabel the source's cell under the target type, keeps one item against a choice by its first matching alternative, and casts untyped items without a match.</summary>
   <body>
     <p><status value="done" date="2026-10-28"/> After <ref kind="decision" to="D316"/> (perf-8). With perf-5 to perf-9, SchXslt's expand stage of EN 16931 (sort-once fix, no step bound in the CLI since <ref kind="decision" to="D314"/>) takes 7.7–8.5 s; unpatched SchXslt takes 4 min 51 s (8 min 56 s this morning). <ref kind="decision" to="D316"/> left three costs: a cast of xs:untypedAtomic to xs:string costs about 1,600 instructions, though the result is the same string (XPath 4.0, 19.1 casting from xs:untypedAtomic; F&amp;O 4.0, 19.1.1); about 0.7 million single items against unions, choices and enumerations still run the coercion engine; about 0.7 million multi-item values still run the full matcher, some twice when a slice base fails <ref kind="decision" to="D309"/>'s whole-base match and is matched again item by item.</p>
     <list>

@@ -1,5 +1,6 @@
 <decision id="D135" status="accepted">
   <title>Prologs: the static context, declared functions and variables (packet <ref kind="packet" to="3.10"/>)</title>
+  <summary>The XQuery prolog is read into one <code>sxml_xpath_static_context</code>; declared functions become one IR function per arity, and variables become initializer functions computed in dependency order, only when reached.</summary>
   <body>
     <p><recorded date="2026-10-17"/>, completing <ref kind="decision" to="D55"/> and <ref kind="decision" to="D101"/> for XQuery main modules. <code>src/xquery_static.c</code> (<code>src/xquery_static_internal.h</code>) reads the prolog into one <code>sxml_xpath_static_context</code>; <code>src/xquery_prolog.c</code> lowers the module and now holds <code>sxml_xquery_lower</code> / <code>sxml_xquery_compile</code> (moved from <code>src/xquery_lower.c</code>); <code>src/evaluator_global.c</code> computes globals. No new IR kind, no header change, no machinery beside the core's.</p>
     <list>

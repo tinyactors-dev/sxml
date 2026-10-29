@@ -1,5 +1,6 @@
 <decision id="D170" status="accepted">
   <title>The schema document reader and assembly (packet <ref kind="packet" to="5.4"/>)</title>
+  <summary>One table of schema element roles drives a loop reading schema documents into components, assembly reads each document once with redefine and override applied last, and RESOLVE turns references into indexes.</summary>
   <body>
     <p><recorded date="2026-10-18"/>. READ and RESOLVE (<ref kind="decision" to="D167"/>) and <code>sxml_schema</code>'s quintet; golden <code>src/xslt_read.c</code>, <code>src/xquery_module.c</code>.</p>
     <list>

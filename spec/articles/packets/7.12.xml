@@ -1,5 +1,6 @@
 <packet id="7.12">
-  <title>XQuery and XPath Full Text 3.0 (design and implementation, three packets)</title>
+  <title>XQuery and XPath Full Text 3.0 (design and implementation, four packets)</title>
+  <summary>Implements XQuery and XPath Full Text 3.0: the grammar, a <term name="full_text_selection"/> compiled into a match program over AllMatches, match options, Snowball stemmers, stop words and thesauri through the resolver, and scores.</summary>
   <body>
     <p><status value="done" date="2026-10-20"/></p>
     <list>

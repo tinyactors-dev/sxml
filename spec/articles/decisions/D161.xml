@@ -1,5 +1,6 @@
 <decision id="D161" status="accepted">
   <title>Phase 3 gate review (packet <ref kind="packet" to="3.15"/>)</title>
+  <summary>The Phase 3 gate review passes with XQ40 at 97.2 % in scope, XP40 unregressed and fuzzing clean, merges heapsorts and parameter document readers, and declares <code>xquery.h</code> stable.</summary>
   <body>
     <p><recorded date="2026-10-19"/> by the review agent (<ref kind="decision" to="D11"/>), after <ref kind="decision" to="D95"/>, <ref kind="decision" to="D123"/>, <ref kind="decision" to="D132"/>, <ref kind="decision" to="D151"/>. Checked locally (<ref kind="decision" to="D123"/>): <code>tools/check-main.sh</code> on a clean HEAD (84f3178) builds <term name="release"/>, <code>debug</code> (ASan, UBSan), <code>debug-gcc</code> and <code>wasm</code>; every test passes but two of the XSLT driver (<code>xslt/list_dependencies</code>, <code>xslt/run_json</code>): 4.17's numbering commit 50a3651 made "CIRCLED DIGIT ONE" a supported combination and the goldens still skip it (Phase 4, 4.17's files; told to the orchestrator). The full lint reports three findings, none in Phase 3 code: a bare bool parameter in <code>tests/xslt/driver/xslt_assertion.c</code>, a byte pointer without length in <code>src/xslt.c</code> (4.15) and a null dereference the analyzer finds in <code>src/xslt_read.c</code> (4.16); no call cycle.</p>
     <list>

@@ -1,5 +1,6 @@
 <decision id="D140" status="accepted">
   <title>URIs, QNames and hashes (packet <ref kind="packet" to="2.11"/>)</title>
+  <summary>fn:hash computes MD5, SHA-1, SHA-256, BLAKE3 and CRC-32 without allocation, and fn:parse-uri, fn:build-uri, fn:decode-from-uri, fn:parse-QName and fn:resolve-QName share one percent-decoding octet reader.</summary>
   <body>
     <p><recorded date="2026-10-17"/>, after <ref kind="decision" to="D88"/>, <ref kind="decision" to="D91"/>, <ref kind="decision" to="D101"/>. New part <code>src/function_library_hash.c</code> (fn:hash) over <code>src/hash.c</code> / <code>src/hash_internal.h</code>; rows added to the uri part (decode-from-uri, parse-uri, build-uri) and the qname part (parse-QName, resolve-QName).</p>
     <list>

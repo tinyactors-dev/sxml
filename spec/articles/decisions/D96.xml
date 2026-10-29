@@ -1,5 +1,6 @@
 <decision id="D96" status="accepted">
   <title>Phases 2 to 4 overlap</title>
+  <summary>Packets marked Early in the Phase 3 and 4 task files may start once the Phase 1 gate has closed and their prerequisites are committed, while gates stay sequential and file ownership rules hold.</summary>
   <body>
     <p><recorded date="2026-10-17"/>. To reach working XQuery and XSLT sooner (<ref kind="decision" to="D11"/>), packets marked <strong>Early</strong> in <code>docs/tasks/phase-3.md</code> and <code>phase-4.md</code> may start once the Phase 1 gate has closed (the substrate freeze) and the packets in their "After" lists are committed, while earlier phases still run. All other packets of a phase wait for the previous phase's gate.</p>
     <list>

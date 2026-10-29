@@ -1,5 +1,6 @@
 <decision id="D238" status="accepted">
   <title>Phase 6 plan: one host shim under JavaScript, Kotlin and Swift (packet <ref kind="packet" to="6.1"/>)</title>
+  <summary>Phase 6 moves the JavaScript shim to <code>bindings/host/</code> as one <term name="host_shim"/> that JavaScript, Kotlin (through JNI glue) and Swift (through a module map) all link, with no public header change.</summary>
   <body>
     <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D35"/>, <ref kind="decision" to="D71"/>, <ref kind="decision" to="D123"/>, <ref kind="decision" to="D138"/>, <ref kind="decision" to="D181"/>, <ref kind="decision" to="D189"/>, <ref kind="decision" to="D208"/>, <ref kind="decision" to="D216"/>. Plans Phase 6 (PLAN.md) in <code>docs/tasks/phase-6.md</code>, as <ref kind="decision" to="D165"/> and <ref kind="decision" to="D183"/> planned Phases 5 and 7.</p>
     <list>

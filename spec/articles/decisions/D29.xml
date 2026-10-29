@@ -1,5 +1,6 @@
 <decision id="D29" status="accepted">
   <title>Query grammars: XPath, XQuery and XSLT patterns</title>
+  <summary>The XPath, XQuery and XSLT pattern grammars are written from the QT4 CG drafts, with XQuery and patterns inheriting from XPath and one shared stateless external scanner.</summary>
   <body>
     <p><recorded date="2026-10-16"/>. Grammars <code>grammars/xpath</code>, <code>grammars/xquery</code> and <code>grammars/xslt_pattern</code>, written from the QT4 CG drafts (XPath/XQuery 4.0 Appendix A, XSLT 4.0 section 6.3 and Appendix E; drafts of 13 October 2026). Where the test suites still use syntax the drafts have dropped (XSLT type patterns <code>~T</code>), the drafts win. (This record was first committed as a second "<ref kind="decision" to="D27"/>"; renumbered.)</p>
     <list>

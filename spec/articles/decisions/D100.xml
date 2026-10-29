@@ -1,5 +1,6 @@
 <decision id="D100" status="accepted">
   <title>Phase 1 gate review (packet <ref kind="packet" to="1.29"/>)</title>
+  <summary>The Phase 1 gate review found the rubric met, followed every indirect call for recursion, and ran all gate checks locally because GitHub Actions is refused; the CI boxes stay open.</summary>
   <body>
     <p><recorded date="2026-10-17"/> by the review agent (<ref kind="decision" to="D11"/>), who did not write Phase 1.</p>
     <list>

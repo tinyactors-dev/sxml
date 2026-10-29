@@ -1,5 +1,6 @@
 <decision id="D31" status="accepted">
   <title>Name pool</title>
+  <summary><code>sxml_name_pool</code> interns namespace URIs, prefixes and expanded names into dense 32-bit identifiers per processor, with constant identifiers for well-known namespaces and prefixes kept outside a name's identity.</summary>
   <body>
     <p><recorded date="2026-10-16"/> (task 0.7). Namespace URIs, prefixes and expanded names are interned into dense 32-bit identifiers in a per-processor <code>sxml_name_pool</code>; comparing names is comparing integers, and nodes and QName items hold no text. URI and prefix identifier 0 mean "none"; name identifier 0 means "no name". A fixed set of well-known namespaces (<code>xml</code>, <code>xs</code>, <code>fn</code>, <code>err</code>, ...) have constant identifiers in every pool. Names are never removed; <code>maximum_byte_count</code> bounds growth on untrusted input, and <code>sxml_name_pool_find_name</code> looks up without interning. Prefixes are kept beside names, never part of their identity (XDM 4.0, section 5.6).</p>
   </body>

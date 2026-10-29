@@ -1,5 +1,6 @@
 <decision id="D139" status="accepted">
   <title>The stylesheet reader and static expressions (packet <ref kind="packet" to="4.5"/>)</title>
+  <summary><code>sxml_xslt_read_stylesheet</code> reads every module with one explicit stack, checks elements against tables generated from the XSLT 4.0 schema, and evaluates static expressions through the ordinary front end with a static scope.</summary>
   <body>
     <p><recorded date="2026-10-17"/>, after <ref kind="decision" to="D81"/>, <ref kind="decision" to="D102"/>, <ref kind="decision" to="D118"/>, <ref kind="decision" to="D120"/>. <code>src/xslt_ast.c</code> (the builder of <ref kind="decision" to="D102"/>), <code>src/xslt_read.c</code> with <code>src/xslt_read_internal.h</code> (<code>sxml_xslt_read_stylesheet</code>), <code>src/xslt_static.c</code> with <code>src/xslt_static_internal.h</code> (the static scope); the packet named no headers, so each module has its own.</p>
     <list>

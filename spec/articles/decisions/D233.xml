@@ -1,5 +1,6 @@
 <decision id="D233" status="accepted">
   <title>Incremental bytes: the byte reader and the text window (packet 7.6f)</title>
+  <summary>A streamed document can be read through an <code>sxml_byte_reader</code> in <code>processor.h</code>, and the parser decodes its input into a <term name="text_window"/> a part at a time, giving up text already parsed.</summary>
   <body>
     <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D12"/>, <ref kind="decision" to="D99"/>, <ref kind="decision" to="D219"/>, <ref kind="decision" to="D222"/>, <ref kind="decision" to="D228"/>, <ref kind="decision" to="D231"/>, <ref kind="decision" to="D232"/>. Replaces <ref kind="decision" to="D222"/>'s "not bounded yet: the decoded text" for documents read through a byte reader, and <ref kind="decision" to="D231"/>'s "bytes delivered incrementally to the parser" (its planned interface, made as planned). perf-3's grammar and token shape (<ref kind="decision" to="D232"/>) are unchanged.</p>
     <list>

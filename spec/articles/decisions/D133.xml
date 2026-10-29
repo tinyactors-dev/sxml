@@ -1,5 +1,6 @@
 <decision id="D133" status="accepted">
   <title>The built-in record types of F&amp;O 4.0 (packet 2.6b)</title>
+  <summary>Each function library declares the 16 nominative record types of F&amp;O 4.0 once in its item heap's type registry, functions return records annotated with them, and maps coerce to them.</summary>
   <body>
     <p><recorded date="2026-10-17"/>. Accepts the Proposed items of <ref kind="decision" to="D122"/> and <ref kind="decision" to="D125"/>.</p>
     <list>
