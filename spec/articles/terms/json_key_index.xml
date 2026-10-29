@@ -1,0 +1,4 @@
+<term id="json_key_index">
+  <name>json_key_index</name>
+  <definition>The hash index of the keys of the JSON objects (or map elements) open at once, to find duplicate keys in O(1)</definition>
+</term>

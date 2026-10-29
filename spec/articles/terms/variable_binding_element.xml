@@ -1,0 +1,4 @@
+<term id="variable_binding_element">
+  <name>variable_binding_element</name>
+  <definition>An <code>xsl:variable</code>, <code>xsl:param</code> or <code>xsl:with-param</code> element, whose value comes from its select, its content or neither (XSLT 4.0, 9.3, "variable-binding elements"); its binding role says which type error its declared type raises (XTTE0570 or XTTE0590)</definition>
+</term>

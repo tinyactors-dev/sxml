@@ -1,0 +1,4 @@
+<term id="syntax_node_kind">
+  <name>syntax_node_kind</name>
+  <definition>The grammar's name for the type of a syntax node (tree-sitter's "type"), such as <code>function_declaration</code>; the local name of its element</definition>
+</term>

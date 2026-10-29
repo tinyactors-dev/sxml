@@ -1,0 +1,4 @@
+<term id="xml_open_content">
+  <name>xml_open_content</name>
+  <definition>What the declaration of an open element says of its content, kept by a validating parse for the validity constraints on content</definition>
+</term>

@@ -1,0 +1,4 @@
+<term id="cli_invocation">
+  <name>cli_invocation</name>
+  <definition>What a command function receives: program, command, parsed arguments, writers</definition>
+</term>
