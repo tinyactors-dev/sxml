@@ -120,16 +120,15 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
   the book shows 194). book-30 done: the Schematron part (seven
   chapters on the Vane story), published to sxml.tinyactors.dev from
   efd5d4ddc on 2026-10-29.
-- fix-7 (2026-10-29, the owner): F&O's prefixes predeclared in Schematron
-  (the binding annexes), findings name their document, and real rule
-  sets' known deviations read with warnings (the owner chose option a of
-  D323's Proposed entry, which fix-7's record replaces). Runs now.
-- Found by book-30, without a packet: findings in a subordinate document
-  (`documents=`) are printed with the validated FILE's name and the
-  other document's lines, and the JSON report does not say which
-  document they are in; no namespace prefix (not even `fn`, `map`,
-  `xs`) works in Schematron expressions without an `ns` element, which may
-  disagree with D315's wording.
+- fix-7 done (D331): F&O's prefixes (`xs`, `fn`, `math`, `map`, `array`,
+  `err`) resolve without `ns` (binding Annexes H to L); every finding
+  names its document (text, JSON, C, JavaScript); real rule sets'
+  known deviations are warnings (`schematron:compatibility`), so EN 16931
+  CII and XRechnung compile from their sources and run in ctest. Left: a
+  pattern let defined only in a pattern the phase leaves out is not
+  shared (XPST0008); the differential against SchXslt runs in ctest only
+  with SXML_SCHEMATRON_DIFFERENTIAL=ON (minutes per rule set); the
+  JavaScript API typechecked only (no WASI SDK here).
 - Conformance baselines differ by setup: 7.29 (D318) measured XP40
   32,815, XQ40 46,158, XT40 12,283 before and after; perf-8, perf-10 and
   fix-4 measured 32,785, 46,114, 12,185 before and after on the same
