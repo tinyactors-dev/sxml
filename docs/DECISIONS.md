@@ -1092,7 +1092,8 @@ reason, and tree-sitter `ERROR` nodes give none. (5) Saxon HE and regexml, the
 models of D9, parse by hand too. The XSD dialect (Phase 5) is a flag of the
 same parser. Interface (`src/regex_internal.h`), which the D9 engine keeps:
 `sxml_regex_parse_flags` (FORX0001); `sxml_regex`, compiled from `regex_text`
-and flags, immutable, shareable between threads, with the lifecycle of D23
+and flags, immutable, shareable between threads, with the object lifecycle of
+every type (C_GUIDELINES, "Object lifecycle and caller-provided memory")
 (memory requirements found by a counting pass of the parser, so they are exact
 and need no scratch memory); `sxml_regex_matcher`, the per-thread working state
 (backtrack stack through an allocator, captured groups, step count), with
@@ -3897,11 +3898,12 @@ Recorded 2026-10-17, extending D29, D59 and D111. `src/xquery_parse.c` defines
 `sxml_xquery_build_ast`: the XQuery parser part on the XPath walker;
 `sxml_grammar_xquery` joins the `sxml` link line.
 
-- **Tables and tokens**: the 66 node types and 23 fields XQuery adds; the
-  module's child takes field MODULE. `mode` and `kind` tokens become the
-  keyword detail, a decimal-format property name its detail, the other token
-  fields flags. The `empty` token of order_specification is claimed before the
-  XPath rules, which read `empty` as the empty-sequence occurrence.
+- **Tables and tokens**: the 66 node types and 23 grammar fields XQuery adds
+  (24 with MODULE, D111); the module's child takes field MODULE. `mode` and
+  `kind` tokens become the keyword detail, a decimal-format property name its
+  detail, the other token fields flags. The `empty` token of
+  order_specification is claimed before the XPath rules, which read `empty` as
+  the empty-sequence occurrence.
 - **Decoding** (describe_payload): XQuery string literals and BracedURILiterals
   replace references; direct element text also "{{" and "}}"; attribute value
   text also the doubled delimiter, read from the DIRECT_ATTRIBUTE_VALUE node
@@ -6558,7 +6560,9 @@ of D32, D53, D58, D97 and D162.
   comments-and-PIs-excluded), not queried or disputed, expecting valid or
   invalid: 41,538 (15,330 schema tests, 26,208 instance tests; NIST 23,170,
   Microsoft 14,363, Sun 1,606, Saxonica 1,376, IBM 919, others 104). The other
-  token choices move the count by at most 47.
+  token choices move the count by at most 47. (D168, the driver, measures
+  41,518: it applies the version tokens per element where this count or-ed
+  them.)
 - **schema.h** (new, after `xslt.h`'s pattern): `sxml_schema` (quintet)
   compiled from `sxml_schema_document`s given as TEXT, NODE (a parsed document
   or an inline xs:schema element) or RESOLVED through the resolver;
@@ -6710,8 +6714,9 @@ evaluator and IR, used by XSLT and XQuery alike.
 - **Measured** (release, whole suites, before at 53bd400): json-to-xml-013
   peaks at about 410 MB (2.1 GB before) and passes; XT40 in scope 7,986 to
   7,987 of 8,728 (91.5 %), errors 1 to 0, no test set lost a case; XP40 30,647
-  and XQ40 40,034 passed, 0 errors; slices 198 and 147. The driver change was
-  committed with 457f530 (packet 5.3), which took the working tree's file.
+  and XQ40 40,034 passed, 0 errors; slices 198 (qt4/slice) and 147 (xslt/slice,
+  of 154). The driver change was committed with 457f530 (packet 5.3), which
+  took the working tree's file.
 - **Not done**: XTDE3052 when an abstract variable is read (accept-042, -043a):
   v1-proxy is a global that reads the abstract v1, and globals are computed
   before the evaluation (XQuery's too, D148: only unreferenced ones are
@@ -9527,7 +9532,7 @@ host serves the DUCET; the fallback stays for hosts that do not.
   from CLDR rules, the XSLT driver serving the DUCET (with lang sorts), CLDR's
   root order where it differs from the DUCET.
 
-### D214. XQuery and XPath Full Text 3.0 (packet 7.12a)
+### D214. XQuery and XPath Full Text 3.0 in XQuery (packet 7.12a)
 
 **Summary**: XQuery and XPath Full Text 3.0 is the optional feature full-text,
 XQuery only: the grammar's contextual keywords, a match program lowered as an
@@ -11567,11 +11572,11 @@ the full lint of every preset are left to the owner's machine (D181).
   entities 127 / 54 / 66, XML 1.1 84 / 13 / 169, all pass, DTD validation of
   the invalid cases 173 + 54. html5lib 1,749 of 1,753 / 7,045 / 82. Sizes:
   `sxml.wasm` 2,090,746 / 730,902, `sxml-full.wasm` 7,637,162 / 1,690,683, the
-  CLI module 9,231,791 / 1,973,839, all under D235's budgets; the D225 guard
-  reports +1,978 bytes over its baseline (ir_verify, ir, ir_global_read: 4.21's
-  GLOBAL_READ), a lean core. A streamed sum over 1,000,000 orders (74.7 MB)
-  peaks at 11.0 MB resident (7.6's 64 MB). Benchmarks: xmark-all 1.10 s, itunes
-  2.29 s.
+  CLI module 9,231,791 / 1,973,839, all under the budgets D235 raised (D208);
+  the D225 guard reports +1,978 bytes over its baseline (ir_verify, ir,
+  ir_global_read: 4.21's GLOBAL_READ), a lean core. A streamed sum over
+  1,000,000 orders (74.7 MB) peaks at 11.0 MB resident (7.6's 64 MB).
+  Benchmarks: xmark-all 1.10 s, itunes 2.29 s.
 - **Per-packet gates**: met by every packet but two. 7.11's "all 12 XT40
   transform cases" is not met (9 pass; transform-004, a static fn:transform,
   transform-401, a ~record pattern; transform-009 not run, an assertion the
@@ -15853,12 +15858,13 @@ item that was under "## Proposed" (moved here).
 1. The edition is ISO/IEC 19757-3:2025 (4th edition, with `group`, `library`
    and `rules`, and the XSLT 3.1 and XQuery 3.1 binding); older schemas are
    read as the 4th edition reads them.
-2. Query bindings: `xslt2`, `xslt3` and `xpath2`, `xpath3`, `xpath31` are
-   accepted; a schema without `queryBinding` is read as `xslt3` (not XSLT 1.0,
-   whose stylesheets sxml refuses with XTDE0160 until backwards compatibility
-   lands); `xquery3` is rejected in one place with the error the standard
-   gives. *Amended by the owner on 2026-10-28 (D315, point B): a missing
-   attribute, `xslt` and `xpath` are read as XSLT 4.0 and XPath 4.0.*
+2. Query bindings: `xslt`, `xslt2`, `xslt3`, `xslt4` and `xpath`, `xpath2`,
+   `xpath3`, `xpath31`, `xpath4` are accepted. A schema without `queryBinding`,
+   and `xslt`, `xpath` and the reserved `xslt4` and `xpath4`, are read as XSLT
+   4.0 and XPath 4.0, the versions sxml implements (D315, points B and 2a; as
+   first recorded on 2026-10-28, a missing attribute was read as `xslt3`, never
+   as XSLT 1.0, whose stylesheets sxml refuses with XTDE0160). `xquery3` is
+   rejected in one place with the error the standard gives.
 3. Outputs: text and `--format=json` as for XSD, and `--format=svrl`.
 4. Exit status 1 for a failed `assert` or a fired `report` whose role or flag
    is `fatal` or `error`, or that has neither; findings with other roles
@@ -17939,6 +17945,12 @@ nothing of its text copied.
   frees); (4) a typed-value memo per evaluation for untyped nodes, which needs
   the dynamic context to reach `src/xdm_node.c`.
 
+  Proposed default: the perf packet does (1) and (2), which stay inside those
+  two files and save about 3.5 % of expand together. (3) and (4) wait: (3)
+  changes what the tests' leak checks count, and (4) needs node atomization to
+  reach the dynamic context, which the public `sxml_node_value_request` cannot
+  carry (D99, D322).
+
 - **Compile costs that still grow with the square of a stylesheet** (D325,
   perf-13; for the packets that own the files). With XSLT's component graph
   linear, at 2,048 template rules and 2,048 globals (D325's N = 256) about 0.29
@@ -17956,4 +17968,13 @@ nothing of its text copied.
   releases (0.2.0 and after, `docs/RELEASE.md`, the archives of `mise run
   dist`, D256), macOS and Windows code signing, and when the repository moves
   to tinyactors-dev. The license (MIT) and the npm name (`@tinyactors/sxml`)
-  are settled in D239; everything else takes its proposed default (D208).
+  are settled in D239. The proposed defaults, which hold until the owner
+  decides:
+
+  - Releases: agents prepare everything up to the tag (`docs/RELEASE.md`,
+    D138); nothing is tagged or published until the owner does it.
+  - Signing: the archives ship unsigned, the arm64 macOS program signed ad hoc
+    by zig, and README.md says how to lift macOS's quarantine (D256); Developer
+    ID signing, notarization and Authenticode wait for the owner's
+    certificates.
+  - The repository stays where it is until the owner says it moves (D239).

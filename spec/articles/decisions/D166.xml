@@ -23,7 +23,7 @@
         <p><strong>XSLT driver</strong>: result documents are collected only for assert-result-document (else the null handler, which still checks them); the evaluation step budget is 4 x the QT4 driver's (<ref kind="decision" to="D89"/>), as json-to-xml-013 takes about 190 million steps.</p>
       </item>
       <item>
-        <p><strong>Measured</strong> (release, whole suites, before at 53bd400): json-to-xml-013 peaks at about 410 MB (2.1 GB before) and passes; XT40 in scope 7,986 to 7,987 of 8,728 (91.5 %), errors 1 to 0, no test set lost a case; XP40 30,647 and XQ40 40,034 passed, 0 errors; slices 198 and 147. The driver change was committed with 457f530 (packet <ref kind="packet" to="5.3"/>), which took the working tree's file.</p>
+        <p><strong>Measured</strong> (release, whole suites, before at 53bd400): json-to-xml-013 peaks at about 410 MB (2.1 GB before) and passes; XT40 in scope 7,986 to 7,987 of 8,728 (91.5 %), errors 1 to 0, no test set lost a case; XP40 30,647 and XQ40 40,034 passed, 0 errors; slices 198 (qt4/slice) and 147 (xslt/slice, of 154). The driver change was committed with 457f530 (packet <ref kind="packet" to="5.3"/>), which took the working tree's file.</p>
       </item>
       <item>
         <p><strong>Not done</strong>: XTDE3052 when an abstract variable is read (accept-042, -043a): v1-proxy is a global that reads the abstract v1, and globals are computed before the evaluation (XQuery's too, <ref kind="decision" to="D148"/>: only unreferenced ones are skipped), so a lazy error needs globals computed on first read, which a step function's synchronous atom reads cannot do today (Proposed). A RAISE read in place of the abstract variable alone was tried and dropped: v1-proxy still raises when it is computed.</p>

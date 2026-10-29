@@ -385,7 +385,7 @@ package_version_resolution, 1 streaming).
 **Summary**: Repeatable conformance sweeps over the in-scope XSLT 4.0 test
 sets, each claiming its files in `docs/LOG.md`.
 
-**Done** 2026-10-18 After 4.15. As 2.19, over in-scope XSLT sets
+**Done** 2026-10-19 After 4.15. As 2.19, over in-scope XSLT sets
 (misc-regex-syntax 987 and misc-error 500 first: they measure the regex engine
 and error codes cheaply). Each sweep claims its files in `docs/LOG.md`. **Sweep
 1 done** 2026-10-19 (D159): XT40 in scope 7,585 to 7,737 of 8,728 by this sweep
@@ -405,6 +405,11 @@ XTDE3052 when an abstract variable is read, call-template-ext, host collations.
 tree), 56-byte arena nodes; json-to-xml-013 passes, XT40 in scope 7,987 of
 8,728, errors 1 to 0. Open: XTDE3052 when an abstract variable is read (globals
 computed on first read, Proposed), call-template-ext, host collations.
+
+The sweeps ran in the order of their numbers: sweep 3 starts from sweep 2's
+counts. Their records' dates do not show it (D159 and D163 2026-10-19, D166
+2026-10-18): the records D159 to D172 were dated by clocks a day apart, and
+their numbers give the order.
 
 ### 4.18 Phase 4 review (review)
 **Summary**: A separate agent reviews Phase 4 against its rubric, re-checks

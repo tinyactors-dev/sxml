@@ -9,7 +9,7 @@
         <p>The edition is ISO/IEC 19757-3:2025 (4th edition, with <code>group</code>, <code>library</code> and <code>rules</code>, and the XSLT 3.1 and XQuery 3.1 binding); older schemas are read as the 4th edition reads them.</p>
       </item>
       <item>
-        <p>Query bindings: <code>xslt2</code>, <code>xslt3</code> and <code>xpath2</code>, <code>xpath3</code>, <code>xpath31</code> are accepted; a schema without <code>queryBinding</code> is read as <code>xslt3</code> (not XSLT 1.0, whose stylesheets sxml refuses with XTDE0160 until backwards compatibility lands); <code>xquery3</code> is rejected in one place with the error the standard gives. <em>Amended by the owner on 2026-10-28 (<ref kind="decision" to="D315"/>, point B): a missing attribute, <code>xslt</code> and <code>xpath</code> are read as XSLT 4.0 and XPath 4.0.</em></p>
+        <p>Query bindings: <code>xslt</code>, <code>xslt2</code>, <code>xslt3</code>, <code>xslt4</code> and <code>xpath</code>, <code>xpath2</code>, <code>xpath3</code>, <code>xpath31</code>, <code>xpath4</code> are accepted. A schema without <code>queryBinding</code>, and <code>xslt</code>, <code>xpath</code> and the reserved <code>xslt4</code> and <code>xpath4</code>, are read as XSLT 4.0 and XPath 4.0, the versions sxml implements (<ref kind="decision" to="D315"/>, points B and 2a; as first recorded on 2026-10-28, a missing attribute was read as <code>xslt3</code>, never as XSLT 1.0, whose stylesheets sxml refuses with XTDE0160). <code>xquery3</code> is rejected in one place with the error the standard gives.</p>
       </item>
       <item>
         <p>Outputs: text and <code>--format=json</code> as for XSD, and <code>--format=svrl</code>.</p>
