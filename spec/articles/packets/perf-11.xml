@@ -1,7 +1,7 @@
 <packet id="perf-11">
   <title>Cheaper node atomization (implementation)</title>
   <body>
-    <p>After <ref kind="decision" to="D316"/> and <ref kind="decision" to="D319"/>. In SchXslt's expand stage of EN 16931 (47.78 x 10^9 instructions after <ref kind="packet" to="perf-10"/>), node atomization in coercion is the largest coercion cost: 3.19 x 10^9 (6.7 %), in <code>src/xdm_node.c</code>.</p>
+    <p><status value="done" date="2026-10-28"/> After <ref kind="decision" to="D316"/> and <ref kind="decision" to="D319"/>. In SchXslt's expand stage of EN 16931 (47.78 x 10^9 instructions after <ref kind="packet" to="perf-10"/>), node atomization in coercion is the largest coercion cost: 3.19 x 10^9 (6.7 %), in <code>src/xdm_node.c</code>.</p>
     <list>
       <item>
         <p><strong>Mechanism</strong>: profile first (callgrind on the expand stage, <code>tests/bench/coercion.xq</code> and xmark-all); a general fast path for the common case (an attribute or a text-only element of an untyped tree: one xs:untypedAtomic from the string value, without building a sequence), and whatever else the profile shows in atomization (XPath 4.0, 2.4.2 atomization; XDM 4.0, typed-value).</p>

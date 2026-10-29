@@ -1,7 +1,7 @@
 <packet id="7.2">
   <title>Optional features and the size budget (design, build)</title>
   <body>
-    <p>After the owner's size decision (<ref kind="decision" to="D183"/> Proposed).</p>
+    <p><status value="done" date="2026-10-19"/> After the owner's size decision (<ref kind="decision" to="D183"/> Proposed).</p>
     <list>
       <item>
         <p><strong>Specifications</strong>: none. This is an engineering mechanism.</p>

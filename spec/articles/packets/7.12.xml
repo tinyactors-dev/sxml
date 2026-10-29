@@ -1,6 +1,7 @@
 <packet id="7.12">
   <title>XQuery and XPath Full Text 3.0 (design and implementation, three packets)</title>
   <body>
+    <p><status value="done" date="2026-10-20"/></p>
     <list>
       <item>
         <p><strong>Specifications</strong>: XQuery and XPath Full Text 3.0 (W3C Recommendation, 2015):</p>

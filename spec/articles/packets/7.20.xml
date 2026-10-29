@@ -1,6 +1,7 @@
 <packet id="7.20">
   <title>Sweep: 7.11's open cases and the larger duplicates (implementation)</title>
   <body>
+    <p><status value="done" date="2026-10-20"/></p>
     <list>
       <item>
         <p><strong>Cases</strong>: XT40 transform-004 (a static fn:transform, FOXT0004), transform-401 (a <code>~record</code> pattern), transform-009 (an assertion the XT40 driver did not check). Close 7.11's gate, or record exactly why a case cannot pass under the project's draft.</p>

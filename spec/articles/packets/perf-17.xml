@@ -1,7 +1,7 @@
 <packet id="perf-17">
   <title>Parsing XPath: each text once, and a cheaper parse (implementation)</title>
   <body>
-    <p>After <ref kind="decision" to="D12"/> (tree-sitter), <ref kind="decision" to="D232"/> (perf-3 for XML), <ref kind="decision" to="D324"/> and <ref kind="decision" to="D325"/>. XPath parsing is 30 % of compiling the EN 16931 Schematron (tree-sitter's <code>ts_parser_parse</code> 23 %). The official compiled stylesheet repeats its expressions: 3,228 test, select and match attributes, 1,049 distinct; the expanded Schematron less so (1,086 test and context attributes, 1,007 distinct).</p>
+    <p><status value="done" date="2026-10-28"/> After <ref kind="decision" to="D12"/> (tree-sitter), <ref kind="decision" to="D232"/> (perf-3 for XML), <ref kind="decision" to="D324"/> and <ref kind="decision" to="D325"/>. XPath parsing is 30 % of compiling the EN 16931 Schematron (tree-sitter's <code>ts_parser_parse</code> 23 %). The official compiled stylesheet repeats its expressions: 3,228 test, select and match attributes, 1,049 distinct; the expanded Schematron less so (1,086 test and context attributes, 1,007 distinct).</p>
     <list>
       <item>
         <p><strong>Mechanism</strong>: profile first; parse each distinct expression text once per compilation where the static context is the same (an AST cache keyed by the text and the static context's identity; the lowering then takes a copy or shares an immutable AST, whichever the front end allows, <ref kind="decision" to="D71"/> and memory limits kept); then make the parse itself cheaper the way perf-3 did for XML (fewer tokens and nodes in the grammar, a cheaper walk), with the grammar's tests and every outcome unchanged.</p>

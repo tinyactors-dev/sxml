@@ -1,7 +1,7 @@
 <packet id="cli-2">
   <title>The sxml command's gaps: written files, csv, option hints (implementation)</title>
   <body>
-    <p>After <ref kind="decision" to="D44"/>, <ref kind="decision" to="D200"/>, <ref kind="decision" to="D205"/>. The command wrote nothing but EXPath File output.</p>
+    <p><status value="done" date="2026-10-20"/> After <ref kind="decision" to="D44"/>, <ref kind="decision" to="D200"/>, <ref kind="decision" to="D205"/>. The command wrote nothing but EXPath File output.</p>
     <list>
       <item>
         <p><strong>Specifications</strong>: XSLT 4.0 (2.4.6 base output URI, 26.2 result documents), the XQuery Update Facility 3.0 (6.1 fn:put), Serialization 4.0 (CSV output method); the rules of <code>docs/CLI.md</code> (<ref kind="decision" to="D44"/>: one intent, one action; files only where the command line names them; <code>--force</code> to replace).</p>

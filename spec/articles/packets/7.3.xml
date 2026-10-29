@@ -1,6 +1,7 @@
 <packet id="7.3">
   <title>xsl:evaluate (implementation; proposed, <ref kind="decision" to="D183"/>)</title>
   <body>
+    <p><status value="done" date="2026-10-19"/></p>
     <list>
       <item>
         <p><strong>Specifications</strong>: XSLT 4.0, 10.5 "Dynamic XPath Evaluation" (the xpath, context-item, with-params, namespace-context, base-uri, schema-aware and as attributes; XTDE3160, XTDE3165, XTDE3170, XTDE3175).</p>

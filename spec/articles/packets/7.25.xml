@@ -1,7 +1,7 @@
 <packet id="7.25">
   <title>tree-sitter WebAssembly language files in the JavaScript package (book, tests, implementation)</title>
   <body>
-    <p>After <ref kind="decision" to="D288"/>'s delayed (a). The owner (2026-10-20): an easy fix; the book, the tests, then the implementation.</p>
+    <p><status value="done" date="2026-10-20"/> After <ref kind="decision" to="D288"/>'s delayed (a). The owner (2026-10-20): an easy fix; the book, the tests, then the implementation.</p>
     <list>
       <item>
         <p><strong>Owns</strong>: <code>bindings/javascript</code> (the shim's code language exports, <code>src/linker.ts</code>, <code>src/index.ts</code>'s code languages, the test and the language modules' build), the host shim's <code>source_code_languages</code>.</p>

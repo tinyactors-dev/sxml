@@ -1,6 +1,7 @@
 <packet id="7.23">
   <title>More source code languages, a registration API, run-time languages (design and implementation)</title>
   <body>
+    <p><status value="done" date="2026-10-20"/></p>
     <list>
       <item>
         <p><strong>Owner</strong> (2026-10-20, answering <ref kind="decision" to="D285"/>'s proposal): TypeScript, TSX and Markdown built in; a public API to register tree-sitter languages; new languages at run time from tree-sitter language files, loaded by the host. Order: the book, the tests, the implementation.</p>

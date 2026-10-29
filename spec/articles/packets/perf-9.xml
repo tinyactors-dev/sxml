@@ -1,7 +1,7 @@
 <packet id="perf-9">
   <title>Required literals in regex search (implementation)</title>
   <body>
-    <p>After <ref kind="decision" to="D310"/> (perf-7). The same profile puts 12.9 % in <code>sxml_regex_matcher_scan</code> under <code>fn:replace</code>. SchXslt's patterns have the shape <code>(\W*)\$name(\W*)</code>: they can match the empty string before a <code>$</code>, so perf-7's start filter skips nothing and every position is attempted, though no match exists unless the literal <code>$name</code> occurs.</p>
+    <p><status value="done" date="2026-10-28"/> After <ref kind="decision" to="D310"/> (perf-7). The same profile puts 12.9 % in <code>sxml_regex_matcher_scan</code> under <code>fn:replace</code>. SchXslt's patterns have the shape <code>(\W*)\$name(\W*)</code>: they can match the empty string before a <code>$</code>, so perf-7's start filter skips nothing and every position is attempted, though no match exists unless the literal <code>$name</code> occurs.</p>
     <list>
       <item>
         <p><strong>Mechanism</strong>: at compile time, find a literal that every match must contain (a required literal, as other engines keep a "required character" or "must-have string"); at search time, find its next occurrence first and attempt only start positions from which a match could reach it, and give up at once when it does not occur. One mechanism for <code>matches</code>, <code>replace</code>, <code>tokenize</code>, <code>analyze-string</code> and <code>fn:regex</code>'s functions; errors, step limits and step counts as <ref kind="decision" to="D310"/> settled (a skipped position counts one step).</p>

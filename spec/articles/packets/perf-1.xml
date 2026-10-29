@@ -1,7 +1,7 @@
 <packet id="perf-1">
   <title>Evaluator performance (implementation)</title>
   <body>
-    <p>After <ref kind="decision" to="D182"/> (the evaluator runs about 4 million steps a second and has no index for joins), <ref kind="decision" to="D178"/> (QT4 app-Demos itunes is quadratic by its own text, 72 s) and <ref kind="decision" to="D185"/> (<code>match="$var"</code> membership is a linear scan).</p>
+    <p><status value="done" date="2026-10-19"/> After <ref kind="decision" to="D182"/> (the evaluator runs about 4 million steps a second and has no index for joins), <ref kind="decision" to="D178"/> (QT4 app-Demos itunes is quadratic by its own text, 72 s) and <ref kind="decision" to="D185"/> (<code>match="$var"</code> membership is a linear scan).</p>
     <list>
       <item>
         <p><strong>Mechanism</strong>: general mechanisms of the one IR and evaluator, no language-specific machinery: a benchmark set (<code>tests/bench/</code>), axis steps that describe each node once, and filter indexes: an IR pass (the optimizer seam, <ref kind="decision" to="D46"/>) gives a FILTER whose predicate needs "key = probe", "eq" or "is" a filter index, a for clause's where becomes such a FILTER, and the evaluator keeps the index in the evaluation memo (<ref kind="decision" to="D149"/>).</p>

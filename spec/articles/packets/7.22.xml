@@ -1,6 +1,7 @@
 <packet id="7.22">
   <title>Source code as XML: tree-sitter trees with highlights (design and implementation)</title>
   <body>
+    <p><status value="done" date="2026-10-20"/></p>
     <list>
       <item>
         <p><strong>Order</strong> (owner): the book first, then the grammars' own tests, then the implementation.</p>

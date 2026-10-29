@@ -1,7 +1,7 @@
 <packet id="fix-4">
   <title>Choice coercion and a stale error description (implementation)</title>
   <body>
-    <p>After <ref kind="decision" to="D316"/> and <ref kind="decision" to="D319"/>, which found the first, and <ref kind="decision" to="D310"/> (perf-7), which found the second.</p>
+    <p><status value="done" date="2026-10-28"/> After <ref kind="decision" to="D316"/> and <ref kind="decision" to="D319"/>, which found the first, and <ref kind="decision" to="D310"/> (perf-7), which found the second.</p>
     <list>
       <item>
         <p><strong>Choice coercion</strong>: a function parameter of type <code>(element(a) | xs:string)</code> given <code>xs:untypedAtomic("v")</code> raises XPTY0004 (<code>sxml xpath 'let $f := function($x as (element(a) | xs:string)) { $x } return $f(xs:untypedAtomic("v"))'</code>). XPath 4.0, 3.4.2 (coercion rules) tries the alternatives of a choice in order, so the untyped value is cast to xs:string. The coercion engine counts the unchanged item as the first alternative's success (<ref kind="decision" to="D319"/>).</p>

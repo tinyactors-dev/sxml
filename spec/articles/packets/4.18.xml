@@ -1,6 +1,6 @@
 <packet id="4.18">
   <title>Phase 4 review (review)</title>
   <body>
-    <p>After everything. Owns the gate boxes. A separate agent (<ref kind="decision" to="D11"/>) runs the rubric and re-checks each "done when"; open items go under "Proposed". <strong>Done</strong> 2026-10-19 (<ref kind="decision" to="D169"/>): numbers at 77bc5d5 and 8d2aa06, fuzzing with a new XSLT target, the step budget judged fair, <ref kind="decision" to="D71"/> through function pointers, XSLT error locations and err:XTMM9000 fixed, <code>sxml transform</code>'s relative references fixed, two helpers merged, <code>xslt.h</code> stable, the <ref kind="decision" to="D162"/> check; match="$var" membership and errors in included modules Proposed.</p>
+    <p><status value="done" date="2026-10-19"/> After everything. Owns the gate boxes. A separate agent (<ref kind="decision" to="D11"/>) runs the rubric and re-checks each "done when"; open items go under "Proposed". <strong>Done</strong> 2026-10-19 (<ref kind="decision" to="D169"/>): numbers at 77bc5d5 and 8d2aa06, fuzzing with a new XSLT target, the step budget judged fair, <ref kind="decision" to="D71"/> through function pointers, XSLT error locations and err:XTMM9000 fixed, <code>sxml transform</code>'s relative references fixed, two helpers merged, <code>xslt.h</code> stable, the <ref kind="decision" to="D162"/> check; match="$var" membership and errors in included modules Proposed.</p>
   </body>
 </packet>

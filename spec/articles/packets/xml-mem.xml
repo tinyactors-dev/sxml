@@ -1,7 +1,7 @@
 <packet id="xml-mem">
   <title>Bounded memory for XML parsing (design and implementation)</title>
   <body>
-    <p>After <ref kind="decision" to="D12"/> (tree-sitter parses XML, the owner's choice), <ref kind="decision" to="D199"/> (DTD and entities) and <ref kind="decision" to="D219"/> (parsing 106 MB took 3.98 GB resident, nearly all tree-sitter's syntax tree of the whole input).</p>
+    <p><status value="done" date="2026-10-19"/> After <ref kind="decision" to="D12"/> (tree-sitter parses XML, the owner's choice), <ref kind="decision" to="D199"/> (DTD and entities) and <ref kind="decision" to="D219"/> (parsing 106 MB took 3.98 GB resident, nearly all tree-sitter's syntax tree of the whole input).</p>
     <list>
       <item>
         <p><strong>Specifications</strong>: XML 1.0 (Fifth Edition) [1], [14], [22], [27], [39] to [44], 2.11, 4.3.3; 3 WFC: Element Type Match.</p>

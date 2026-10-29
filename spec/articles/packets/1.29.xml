@@ -1,6 +1,6 @@
 <packet id="1.29">
   <title>Phase 1 review (review)</title>
   <body>
-    <p>After everything. Owns the gate boxes. A separate agent (<ref kind="decision" to="D11"/>) runs the rubric and re-checks each "done when"; open items go under "Proposed". <strong>Done</strong> 2026-10-17 (<ref kind="decision" to="D98"/>, <ref kind="decision" to="D99"/>, <ref kind="decision" to="D100"/>): rubric pass, substrate fixes (base URI of parentless roots, parentless namespace nodes) and freeze; every gate check run locally because CI is refused for billing.</p>
+    <p><status value="done" date="2026-10-17"/> After everything. Owns the gate boxes. A separate agent (<ref kind="decision" to="D11"/>) runs the rubric and re-checks each "done when"; open items go under "Proposed". <strong>Done</strong> 2026-10-17 (<ref kind="decision" to="D98"/>, <ref kind="decision" to="D99"/>, <ref kind="decision" to="D100"/>): rubric pass, substrate fixes (base URI of parentless roots, parentless namespace nodes) and freeze; every gate check run locally because CI is refused for billing.</p>
   </body>
 </packet>

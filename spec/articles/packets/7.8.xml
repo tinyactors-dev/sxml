@@ -1,6 +1,7 @@
 <packet id="7.8">
   <title>EXPath Binary (implementation)</title>
   <body>
+    <p><status value="done" date="2026-10-19"/></p>
     <list>
       <item>
         <p><strong>Specifications</strong>: EXPath Binary Module 4.0, as the QT4 bin- sets test it (namespace <code>http://expath.org/ns/binary</code>; the bin: functions and their errors bin:differing-length-arguments, bin:index-out-of-range, bin:negative-size, bin:octet-out-of-range, bin:non-numeric-character, bin:unknown-encoding, bin:conversion-error, bin:unknown-significance-order).</p>

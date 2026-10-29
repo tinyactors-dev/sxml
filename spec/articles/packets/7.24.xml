@@ -1,7 +1,7 @@
 <packet id="7.24">
   <title>Invisible XML for large inputs (book, tests, implementation)</title>
   <body>
-    <p>After <ref kind="decision" to="D283"/> (7.21: about 3 to 6 MB/s and linear, but 80 to 200 bytes of memory for each input character). The owner: usable on tens to hundreds of MB; the book, the tests, then the implementation; one parser (<ref kind="decision" to="D215"/>).</p>
+    <p><status value="done" date="2026-10-20"/> After <ref kind="decision" to="D283"/> (7.21: about 3 to 6 MB/s and linear, but 80 to 200 bytes of memory for each input character). The owner: usable on tens to hundreds of MB; the book, the tests, then the implementation; one parser (<ref kind="decision" to="D215"/>).</p>
     <list>
       <item>
         <p><strong>Owns</strong>: 7.21's files and <code>src/ixml_tokens.c</code>.</p>

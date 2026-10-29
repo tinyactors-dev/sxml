@@ -1,6 +1,7 @@
 <packet id="7.6">
   <title>XSLT streaming (design and implementation, two packets)</title>
   <body>
+    <p><status value="done" date="2026-10-20"/></p>
     <list>
       <item>
         <p><strong>Specifications</strong>: XSLT 4.0, 18 "Streaming" (xsl:source-document streamable="yes", xsl:merge with streamable sources, xsl:fork, streamable modes and accumulators, burst-mode functions such as fn:snapshot and fn:copy-of) and 19 "Streamability" (postures, sweeps, the streamability rules of each construct, guaranteed streamability, XTSE3430); XSLT 4.0, 27 (the streaming conformance feature).</p>

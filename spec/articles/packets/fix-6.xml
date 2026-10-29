@@ -1,7 +1,7 @@
 <packet id="fix-6">
   <title>The book's memory example counts allocations differently (book, tests)</title>
   <body>
-    <p>After <ref kind="decision" to="D257"/> (the book shows real output). <code>docs/book/src/c.md</code> shows <code>allocations: 195, still live: 0</code> for its memory example; agents in this session saw 197 (7.28, cli-4) and 196 (perf-17) on different commits, and the same on base commits without their changes, so the count has drifted with later packets and may also depend on the setup (allocator growth, a cache's first use, the environment).</p>
+    <p><status value="done" date="2026-10-28"/> After <ref kind="decision" to="D257"/> (the book shows real output). <code>docs/book/src/c.md</code> shows <code>allocations: 195, still live: 0</code> for its memory example; agents in this session saw 197 (7.28, cli-4) and 196 (perf-17) on different commits, and the same on base commits without their changes, so the count has drifted with later packets and may also depend on the setup (allocator growth, a cache's first use, the environment).</p>
     <list>
       <item>
         <p><strong>Mechanism</strong>: first find out why the count is what it is and whether it is stable for one build (run the example many times, under the release and the debug-gcc builds, with and without TZ and LANG); if it varies within one build, find the cause and make the example deterministic or show only what is stable (a count that matters to the reader, <ref kind="decision" to="D257"/>); if it only drifted, update the book with <code>tools/check-book-examples.sh --update</code> and check that the text around it is still true.</p>

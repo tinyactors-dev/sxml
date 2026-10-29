@@ -399,7 +399,7 @@ with 0 leaks. Golden: `sxml_javascript_xquery.c` and its TypeScript
 counterpart.
 
 ### 6.6 Android library (implementation; assemble here, devices: owner)
-After 6.3 and 6.5. Owns:
+**Paused** 2026-10-20 After 6.3 and 6.5. Owns:
 
 - `bindings/kotlin/android/`: a Gradle project, AGP with `externalNativeBuild`
   running the top-level CMake with `SXML_BUILD_TESTS=OFF`,
@@ -468,9 +468,9 @@ passes on macOS, with 0 leaks. This is also the first macOS build of the
 library (D123's known risk).
 
 ### 6.10 Device CI (write here; the owner enables it)
-After 6.6 and 6.9's scripts. Owns new `.github/workflows/bindings.yml`,
-disabled as D123 asks (`workflow_dispatch` only) until the owner turns CI back
-on. The jobs:
+**Paused** 2026-10-20 After 6.6 and 6.9's scripts. Owns new
+`.github/workflows/bindings.yml`, disabled as D123 asks (`workflow_dispatch`
+only) until the owner turns CI back on. The jobs:
 
 - Linux: the `kotlin/jvm` and `swift/linux` ctests;
 - Android: `reactivecircus/android-emulator-runner` on an ubuntu runner with
@@ -483,7 +483,7 @@ The workflow is checked here with `actionlint`, if that can be fetched, and not
 run.
 
 ### 6.11 Documentation and release steps (here; publishing: owner)
-After 6.6 and 6.8. Owns:
+**Paused** 2026-10-20 After 6.6 and 6.8. Owns:
 
 - `bindings/kotlin/README.md` and `bindings/swift/README.md`, written after the
   JavaScript README's sections;
@@ -495,9 +495,9 @@ After 6.6 and 6.8. Owns:
 The owner publishes.
 
 ### 6.12 Phase 6 review (gate)
-After everything. Checks the parity lists, ownership, the JNI rules, the
-licence notes of shipped data, sizes and the gate below. Records a D-record.
-The device boxes are deferred to the owner's machine (D181).
+**Paused** 2026-10-20 After everything. Checks the parity lists, ownership, the
+JNI rules, the licence notes of shipped data, sizes and the gate below. Records
+a D-record. The device boxes are deferred to the owner's machine (D181).
 
 ## Gate (proposed in D238)
 

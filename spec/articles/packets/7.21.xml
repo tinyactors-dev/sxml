@@ -1,7 +1,7 @@
 <packet id="7.21">
   <title>Fast Invisible XML (book, tests, implementation)</title>
   <body>
-    <p>After <ref kind="decision" to="D215"/> (7.18: the Earley parser, right recursion quadratic, every item a step). The owner: high performance; book first, then conformance and benchmarks, then the implementation.</p>
+    <p><status value="done" date="2026-10-20"/> After <ref kind="decision" to="D215"/> (7.18: the Earley parser, right recursion quadratic, every item a step). The owner: high performance; book first, then conformance and benchmarks, then the implementation.</p>
     <list>
       <item>
         <p><strong>Owns</strong>: <code>docs/book/src/ixml*.md</code>, <code>docs/book/examples/ixml/</code>, <code>tests/bench/run-ixml-bench.py</code>, <code>tests/bench/ixml/</code>, <code>src/ixml.c</code>, <code>src/ixml_earley.c</code>, <code>src/ixml_tables.c</code>, <code>src/ixml_internal.h</code>, <code>src/function_library_ixml.c</code>, <code>tests/ixml_test.c</code>.</p>

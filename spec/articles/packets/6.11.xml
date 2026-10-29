@@ -1,7 +1,7 @@
 <packet id="6.11">
   <title>Documentation and release steps (here; publishing: owner)</title>
   <body>
-    <p>After <ref kind="packet" to="6.6"/> and <ref kind="packet" to="6.8"/>. Owns:</p>
+    <p><status value="paused" date="2026-10-20"/> After <ref kind="packet" to="6.6"/> and <ref kind="packet" to="6.8"/>. Owns:</p>
     <list>
       <item>
         <p><code>bindings/kotlin/README.md</code> and <code>bindings/swift/README.md</code>, written after the JavaScript README's sections;</p>

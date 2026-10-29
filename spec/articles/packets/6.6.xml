@@ -1,7 +1,7 @@
 <packet id="6.6">
   <title>Android library (implementation; assemble here, devices: owner)</title>
   <body>
-    <p>After <ref kind="packet" to="6.3"/> and <ref kind="packet" to="6.5"/>. Owns:</p>
+    <p><status value="paused" date="2026-10-20"/> After <ref kind="packet" to="6.3"/> and <ref kind="packet" to="6.5"/>. Owns:</p>
     <list>
       <item>
         <p><code>bindings/kotlin/android/</code>: a Gradle project, AGP with <code>externalNativeBuild</code> running the top-level CMake with <code>SXML_BUILD_TESTS=OFF</code>, <code>SXML_BUILD_APPS=OFF</code> and <code>SXML_BUILD_KOTLIN=ON</code> for the four ABIs;</p>

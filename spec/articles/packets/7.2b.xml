@@ -1,7 +1,7 @@
 <packet id="7.2b">
   <title>Core size audit (build)</title>
   <body>
-    <p>After 7.14b and <ref kind="decision" to="D208"/>. The core <code>sxml.wasm</code> was 2,294,051 bytes stripped, over <ref kind="decision" to="D207"/>'s 2,200,000 / 770,000.</p>
+    <p><status value="done" date="2026-10-19"/> After 7.14b and <ref kind="decision" to="D208"/>. The core <code>sxml.wasm</code> was 2,294,051 bytes stripped, over <ref kind="decision" to="D207"/>'s 2,200,000 / 770,000.</p>
     <list>
       <item>
         <p><strong>Owns</strong>: the DTD validation feature (<code>include/sxml/schema.h</code>, additive; <code>src/schema_from_dtd.c</code>, <code>src/dtd_internal.h</code>), the loader's dtd-validation place in <code>src/processor.c</code>, single hunks in <code>src/optional_feature*.c/h</code>, <code>bindings/javascript/CMakeLists.txt</code> and <code>tests/xpath_test.c</code>.</p>

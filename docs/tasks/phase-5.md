@@ -100,15 +100,16 @@ structure.
 ## Packets
 
 ### 5.1 Schema API, substrate additions and plan (design)
-After the Phase 3 gate (D164). Owns `include/sxml/schema.h`, the D165 additions
-to `types.h`, `tree.h`, `xdm.h` and `processor.h`, the declaration in
-`src/types_internal.h`, `third_party/xsdtests`, this file. **Done** 2026-10-18
-(D165): the header, the substrate additions (facets and complex content types
-in type descriptions, the derived typed value contract, the SCHEMA_DOCUMENT
-resource kind), the suite vendored, this plan.
+**Done** 2026-10-18 After the Phase 3 gate (D164). Owns
+`include/sxml/schema.h`, the D165 additions to `types.h`, `tree.h`, `xdm.h` and
+`processor.h`, the declaration in `src/types_internal.h`,
+`third_party/xsdtests`, this file. **Done** 2026-10-18 (D165): the header, the
+substrate additions (facets and complex content types in type descriptions, the
+derived typed value contract, the SCHEMA_DOCUMENT resource kind), the suite
+vendored, this plan.
 
 ### 5.2 Schema components and compile stages (design, build)
-After 5.1. Owns new `src/schema_internal.h`, stub files
+**Done** 2026-10-18 After 5.1. Owns new `src/schema_internal.h`, stub files
 `src/schema_simple_type.c`, `src/schema_complex_type.c`,
 `src/schema_identity.c`, `src/schema_assertion.c`, `src/schema_validate.c`. The
 component model of XSD 1.1 Part 1, 2.2, index-addressed in one arena per schema
@@ -142,8 +143,8 @@ alternative and identity seams; the three schemas in text form),
 components, reports) with `tests/schema_components_test.c`, and the five stubs.
 
 ### 5.3 XSD test driver (implementation)
-After 5.1. Owns new `tests/xsd/driver/`, `tests/xsd/slice.txt`,
-`tests/xsd/slice-baseline.txt`, new `tools/run-xsd.sh`,
+**Done** 2026-10-18 After 5.1. Owns new `tests/xsd/driver/`,
+`tests/xsd/slice.txt`, `tests/xsd/slice-baseline.txt`, new `tools/run-xsd.sh`,
 `tools/conformance-report.py` (its XSD section), `docs/QT4_CATALOG.md` (an XSTS
 section). Program `sxml-xsd-test` on the CLI framework, a sibling of sxml-qt4
 and sxml-xslt-test (D117), linking `sxml_qt4_driver_library` for reports and
@@ -167,8 +168,8 @@ run, "XSD not implemented"; `tests/xsd/slice.txt`, 147 tests, baseline 0;
 `tools/run-xsd.sh` (45 s) and the XSD11 dashboard section.
 
 ### 5.4 Schema document reader and assembly (implementation)
-After 5.2. Owns `src/schema.c` (the `sxml_schema` quintet and the find
-functions), `src/schema_read.c`, `src/schema_assemble.c`,
+**Done** 2026-10-18 After 5.2. Owns `src/schema.c` (the `sxml_schema` quintet
+and the find functions), `src/schema_read.c`, `src/schema_assemble.c`,
 `src/schema_resolve.c`, new `src/schema_text.c` (the text form of D167),
 `tests/schema_read_test.c`, `tests/schema_test.c`. Schema documents through the
 XML parser into arena trees (D12; the reader walks a tree, as `src/xslt_read.c`
@@ -195,9 +196,9 @@ compiling schemas; schema tests 15,163 of 15,329 (98.9 %), slice 110. Not done:
 src-redefine 6.2.2 and 7.2.2.
 
 ### 5.5 Simple types and facets (implementation)
-After 5.2. Owns `src/schema_simple_type.c`, `src/types.c` (the
-`sxml_type_registry_register_schema_type` of D165 and describing registered
-schema types), `src/cast.c`, `src/cast_lexical.c`, `src/regex.c`,
+**Done** 2026-10-18 After 5.2. Owns `src/schema_simple_type.c`, `src/types.c`
+(the `sxml_type_registry_register_schema_type` of D165 and describing
+registered schema types), `src/cast.c`, `src/cast_lexical.c`, `src/regex.c`,
 `src/regex_internal.h`, `tests/schema_simple_type_test.c`, `tests/cast_test.c`,
 `tests/regex_test.c`, `tests/types_test.c`. Simple type definitions:
 restriction, list and union (Part 2, 4.1), facet applicability by primitive
@@ -224,17 +225,17 @@ NIST 100 %, MS-Regex 100 %, MS-DataTypes 99.7 %, MS-SimpleType 96.4 %; the ≥ 9
 % of the instance tests is measured once 5.7 validates.
 
 ### 5.6 Complex types and content models (implementation)
-After 5.2. Owns `src/schema_complex_type.c`, new `src/schema_content_model.c`,
-`tests/schema_content_model_test.c`. Complex type definitions: simple and
-complex content by extension and restriction (cos-ct-extends,
-derivation-ok-restriction; restriction of content checked as language inclusion
-of the two automata, XSD 1.1 Part 1, 3.4.6.4), attribute uses and wildcards
-(cos-aw-union, cos-aw-intersect), defaultAttributes, registration of the
-complex type (content type variety and simple content type). Content models:
-the particle tree compiled to a deterministic automaton whose transitions are
-element declarations and wildcards, with counters for maxOccurs beyond a small
-bound (so large values cost a counter, not states, within
-`maximum_content_model_state_count`), Unique Particle Attribution
+**Done** 2026-10-18 After 5.2. Owns `src/schema_complex_type.c`, new
+`src/schema_content_model.c`, `tests/schema_content_model_test.c`. Complex type
+definitions: simple and complex content by extension and restriction
+(cos-ct-extends, derivation-ok-restriction; restriction of content checked as
+language inclusion of the two automata, XSD 1.1 Part 1, 3.4.6.4), attribute
+uses and wildcards (cos-aw-union, cos-aw-intersect), defaultAttributes,
+registration of the complex type (content type variety and simple content
+type). Content models: the particle tree compiled to a deterministic automaton
+whose transitions are element declarations and wildcards, with counters for
+maxOccurs beyond a small bound (so large values cost a counter, not states,
+within `maximum_content_model_state_count`), Unique Particle Attribution
 (cos-nonambig, with XSD 1.1's rule that an element particle wins over a
 wildcard), Element Declarations Consistent (cos-element-consistent), XSD 1.1
 all groups (counted members, wildcards, maxOccurs above 1), open content
@@ -251,7 +252,7 @@ COMPLEX_TYPES and content models with unit tests; the groups' schema tests pass
 are measured once 5.7 validates.
 
 ### 5.7 Validation and the post-schema-validation infoset (implementation)
-After 5.4, 5.5, 5.6. Owns `src/schema_validate.c`, new
+**Done** 2026-10-18 After 5.4, 5.5, 5.6. Owns `src/schema_validate.c`, new
 `src/schema_validate_internal.h`, `src/xdm_node.c` (typed values),
 `tests/schema_validate_test.c`, `tests/xdm_node_test.c`. The schema validator
 as a tree builder (`schema.h`): element assessment (cvc-elt, cvc-type,
@@ -283,56 +284,58 @@ MS 95.0 %, Sun 93.9 %; XSD in scope 40,755 of 41,518, slice 147. Not done:
 inherited attributes for type alternatives (5.9).
 
 ### 5.8 Identity constraints (implementation)
-After 5.7. Owns `src/schema_identity.c`, `tests/schema_identity_test.c`.
-xs:unique, xs:key, xs:keyref and XSD 1.1's `ref` (Part 1, 3.11): the selector
-and field XPath subsets checked on the XPath front end's AST (c-selector-xpath,
-c-fields-xpath; xpathDefaultNamespace), evaluated by the evaluator over the
-subtree the 5.7 recorder keeps for the declaring element; key sequences
-compared by typed value equality (Part 1, 3.11.4, with XSD 1.1's identity of
-values), node tables carried up to ancestors for keyref
-(cvc-identity-constraint). Done when MS-IdentityConstraint, Sun IdConstrDefs
-and IBM identityConstraint and xpathDefaultNSonKeyKeyRefUnique ≥ 80%. **Done**
-2026-10-18 (D177): subsets on the AST, compilation with `xpath.h`, unique, key
-and keyref on the recorded subtree with node tables from descendants; the four
-groups 100 % (MS 1,058, Sun 48, IBM 18 and 26).
+**Done** 2026-10-18 After 5.7. Owns `src/schema_identity.c`,
+`tests/schema_identity_test.c`. xs:unique, xs:key, xs:keyref and XSD 1.1's
+`ref` (Part 1, 3.11): the selector and field XPath subsets checked on the XPath
+front end's AST (c-selector-xpath, c-fields-xpath; xpathDefaultNamespace),
+evaluated by the evaluator over the subtree the 5.7 recorder keeps for the
+declaring element; key sequences compared by typed value equality (Part 1,
+3.11.4, with XSD 1.1's identity of values), node tables carried up to ancestors
+for keyref (cvc-identity-constraint). Done when MS-IdentityConstraint, Sun
+IdConstrDefs and IBM identityConstraint and xpathDefaultNSonKeyKeyRefUnique ≥
+80%. **Done** 2026-10-18 (D177): subsets on the AST, compilation with
+`xpath.h`, unique, key and keyref on the recorded subtree with node tables from
+descendants; the four groups 100 % (MS 1,058, Sun 48, IBM 18 and 26).
 
 ### 5.9 Assertions and type alternatives (implementation)
-After 5.7. Owns `src/schema_assertion.c`, `tests/schema_assertion_test.c`.
-xs:assert on complex types and xs:assertion facets on simple types (Part 1,
-3.13; Part 2, 4.3.13: `$value`), and conditional type assignment
-(xs:alternative, Part 1, 3.12): XPath compiled with `xpath.h` in the schema
-document's static context (namespaces, xpathDefaultNamespace, the base URI, the
-F&O function library), so the XPath 2.0 of XSD 1.1 is read by the XPath 4.0
-front end (a superset; XSD 1.1 allows it as an extension); evaluated on the
-recorded subtree (assertions: the element with its validated descendants,
-comments and processing instructions excluded; alternatives: the element with
-its attributes and inherited attributes, no children). Simple type assertions
-are checked by validation; casting to a type with assertions in a schema-aware
-expression evaluates them as a second step of the cast (5.11), never from
-inside `src/cast.c`. Done when Saxon Assert and CTA, IBM assert, assertion,
-CTA, typeAlternatives, typeAlternativesMixed ≥ 80%. **Done** 2026-10-18 (D175):
-tests compiled with `xpath.h` in XPath Valid's static context; assertions on an
-assertion copy of the recorded subtree, assertion facets with `$value` (list
-items, union members), simpleContent assertion facets on the simple content
-type, type alternatives with inherited attributes, type table equivalence. The
-six test sets 448 of 448 (100 %); XSD in scope 41,037 of 41,518.
+**Done** 2026-10-18 After 5.7. Owns `src/schema_assertion.c`,
+`tests/schema_assertion_test.c`. xs:assert on complex types and xs:assertion
+facets on simple types (Part 1, 3.13; Part 2, 4.3.13: `$value`), and
+conditional type assignment (xs:alternative, Part 1, 3.12): XPath compiled with
+`xpath.h` in the schema document's static context (namespaces,
+xpathDefaultNamespace, the base URI, the F&O function library), so the XPath
+2.0 of XSD 1.1 is read by the XPath 4.0 front end (a superset; XSD 1.1 allows
+it as an extension); evaluated on the recorded subtree (assertions: the element
+with its validated descendants, comments and processing instructions excluded;
+alternatives: the element with its attributes and inherited attributes, no
+children). Simple type assertions are checked by validation; casting to a type
+with assertions in a schema-aware expression evaluates them as a second step of
+the cast (5.11), never from inside `src/cast.c`. Done when Saxon Assert and
+CTA, IBM assert, assertion, CTA, typeAlternatives, typeAlternativesMixed ≥ 80%.
+**Done** 2026-10-18 (D175): tests compiled with `xpath.h` in XPath Valid's
+static context; assertions on an assertion copy of the recorded subtree,
+assertion facets with `$value` (list items, union members), simpleContent
+assertion facets on the simple content type, type alternatives with inherited
+attributes, type table equivalence. The six test sets 448 of 448 (100 %); XSD
+in scope 41,037 of 41,518.
 
 ### 5.10 `sxml validate` (implementation)
-After 5.7. Owns new `apps/sxml/command_validate.c`, `apps/sxml/program.c` (one
-table entry), `docs/CLI.md` (the command enters the table and its section,
-D44), `tests/cli/` (golden tests). Exactly the design below. Done when its
-golden tests pass under `debug`, `debug-gcc` and `wasm`, the WebAssembly budget
-holds or its growth is reported under "Proposed", and validating the suite's
-`msData/particles` instances through the CLI agrees with the driver. **Done**
-2026-10-18 (D176): `apps/sxml/command_validate.c` on the public API, the
-framework's required options, 26 golden tests, the docs/CLI.md section; debug,
-debug-gcc and wasm pass; the CLI's WebAssembly budget raised and reported under
-"Proposed"; the 514 particles instance tests agree with sxml-xsd-test (hinted
-documents given as `--schema`, since neither follows hints).
+**Done** 2026-10-18 After 5.7. Owns new `apps/sxml/command_validate.c`,
+`apps/sxml/program.c` (one table entry), `docs/CLI.md` (the command enters the
+table and its section, D44), `tests/cli/` (golden tests). Exactly the design
+below. Done when its golden tests pass under `debug`, `debug-gcc` and `wasm`,
+the WebAssembly budget holds or its growth is reported under "Proposed", and
+validating the suite's `msData/particles` instances through the CLI agrees with
+the driver. **Done** 2026-10-18 (D176): `apps/sxml/command_validate.c` on the
+public API, the framework's required options, 26 golden tests, the docs/CLI.md
+section; debug, debug-gcc and wasm pass; the CLI's WebAssembly budget raised
+and reported under "Proposed"; the 514 particles instance tests agree with
+sxml-xsd-test (hinted documents given as `--schema`, since neither follows
+hints).
 
 ### 5.11 Schema-aware XPath and XQuery (design and implementation)
-After 5.7. Owns `include/sxml/xpath.h` (one field, with a record),
-`src/xpath_static.c`, `src/xquery_static.c`, `src/xquery_lower.c`,
+**Done** 2026-10-18 After 5.7. Owns `include/sxml/xpath.h` (one field, with a
+record), `src/xpath_static.c`, `src/xquery_static.c`, `src/xquery_lower.c`,
 `src/function_library_json.c` (the xsd-validation option),
 `src/function_library_type.c`, new `src/function_library_schema.c`,
 `tests/qt4/driver/` (schema environments), `tests/xquery_schema_test.c`. Each
@@ -374,78 +377,79 @@ delayed feature replaces its one rejection point (D162):
   315; XP40 30,924 and XQ40 41,261 passed, 0 errors.
 
 ### 5.12 Schema-aware XSLT (implementation)
-After 5.11. Owns `src/xslt_read.c` (the XTSE1650 and XTSE1660 places),
-`src/xslt_lower.c`, `src/xslt_lower_construct.c`, `src/xslt_static.c`,
-`src/function_library_xslt.c`, `tests/xslt/driver/` (schema_aware feature and
-schema environments), `tests/xslt_schema_test.c`. xsl:import-schema (namespace,
-schema-location, an inline xs:schema read as a NODE document; XTSE0220),
-validation and type attributes of xsl:element, xsl:attribute, xsl:copy,
-xsl:copy-of, xsl:document, xsl:result-document, literal result elements and
-xsl:source-document, default-validation, typed modes, validation of fn:doc and
-fn:document results (XTTE1510, XTTE1512, XTTE1515, XTTE1540, XTTE1550,
-XTTE1555, XTSE1520, XTSE1530), type-available and element-available for schema
-types, the system property is-schema-aware. Done when the in-scope XSLT 4.0
-cases with feature schema_aware (about 690, mostly attr- and decl- sets) pass ≥
-60% and the XT40 count has not dropped. **Done** 2026-10-19 (D179):
-`src/xslt_schema.c` (xsl:import-schema), the validate row with XSLT's rules for
-every validation and type attribute, default-validation,
+**Done** 2026-10-18 After 5.11. Owns `src/xslt_read.c` (the XTSE1650 and
+XTSE1660 places), `src/xslt_lower.c`, `src/xslt_lower_construct.c`,
+`src/xslt_static.c`, `src/function_library_xslt.c`, `tests/xslt/driver/`
+(schema_aware feature and schema environments), `tests/xslt_schema_test.c`.
+xsl:import-schema (namespace, schema-location, an inline xs:schema read as a
+NODE document; XTSE0220), validation and type attributes of xsl:element,
+xsl:attribute, xsl:copy, xsl:copy-of, xsl:document, xsl:result-document,
+literal result elements and xsl:source-document, default-validation, typed
+modes, validation of fn:doc and fn:document results (XTTE1510, XTTE1512,
+XTTE1515, XTTE1540, XTTE1550, XTTE1555, XTSE1520, XTSE1530), type-available and
+element-available for schema types, the system property is-schema-aware. Done
+when the in-scope XSLT 4.0 cases with feature schema_aware (about 690, mostly
+attr- and decl- sets) pass ≥ 60% and the XT40 count has not dropped. **Done**
+2026-10-19 (D179): `src/xslt_schema.c` (xsl:import-schema), the validate row
+with XSLT's rules for every validation and type attribute, default-validation,
 input-type-annotations, typed modes, fn:document's xsd-validation,
 is-schema-aware, the driver's schema environments. 615 of the 679 in-scope
 schema_aware cases (90.6 %); XT40 8,642 passed (was 7,990).
 
 ### 5.13 Conformance sweeps (implementation, repeatable)
-After 5.7. As 2.19 and 4.17, over the XSD contributor groups and then the
-schema-aware QT4 and XSLT sets. Each sweep claims its files in `docs/LOG.md`.
-**Sweep 1** done 2026-10-18 (D178): D174's QT4 outcome rules removed and their
-cases fixed (group by tuples, leaf predicates in the filter task); validation
-descriptions that name what failed; configured schema documents located by the
-library; one XPath record compiler; src-redefine 6.2.2 and 7.2.2, open content
-and empty content, override defaults, simple bases in the registry, year -0000,
-src-ct, wildcard subset. XSD in scope 41,483 of 41,518, XP40 30,931, XQ40
-41,273 (0 errors), XT40 7,992. **Sweep 2** done 2026-10-18 (D180): XT40's six
-errors cleared at their causes (built-in types restated by the schema for
-schema documents, the stand-in xml.xsd only without another document of the
-namespace, invalid sources judged as the transformation's error);
-validate-items a row of its own (sxml.wasm in budget); xslt.h's
-in_scope_schemas comment accepted. XT40 8,650 (0 errors), XP40 30,931, XQ40
-41,273, XSD 41,483. **Sweep 3** done 2026-10-20 (D277): the 32 XSD11 failures
-by cause, 21 fixed by XSD 1.1's rules (src-attribute.5, src-redefine.1,
-attribute types, required uses in restrictions, simple content of
-xs:anySimpleType, fixed values as values, Element Declarations Consistent with
-wildcards, wildcard unions, xml:lang), 11 left as 1.0 rules or disputed;
+**Done** 2026-10-20 After 5.7. As 2.19 and 4.17, over the XSD contributor
+groups and then the schema-aware QT4 and XSLT sets. Each sweep claims its files
+in `docs/LOG.md`. **Sweep 1** done 2026-10-18 (D178): D174's QT4 outcome rules
+removed and their cases fixed (group by tuples, leaf predicates in the filter
+task); validation descriptions that name what failed; configured schema
+documents located by the library; one XPath record compiler; src-redefine 6.2.2
+and 7.2.2, open content and empty content, override defaults, simple bases in
+the registry, year -0000, src-ct, wildcard subset. XSD in scope 41,483 of
+41,518, XP40 30,931, XQ40 41,273 (0 errors), XT40 7,992. **Sweep 2** done
+2026-10-18 (D180): XT40's six errors cleared at their causes (built-in types
+restated by the schema for schema documents, the stand-in xml.xsd only without
+another document of the namespace, invalid sources judged as the
+transformation's error); validate-items a row of its own (sxml.wasm in budget);
+xslt.h's in_scope_schemas comment accepted. XT40 8,650 (0 errors), XP40 30,931,
+XQ40 41,273, XSD 41,483. **Sweep 3** done 2026-10-20 (D277): the 32 XSD11
+failures by cause, 21 fixed by XSD 1.1's rules (src-attribute.5,
+src-redefine.1, attribute types, required uses in restrictions, simple content
+of xs:anySimpleType, fixed values as values, Element Declarations Consistent
+with wildcards, wildcard unions, xml:lang), 11 left as 1.0 rules or disputed;
 content recovery after cvc-complex-type.2.4; no xsi:schemaLocation in the CLI
 (the library follows no hints). XSD 41,507 of 41,518; schema-aware XQ40 and
 XT40 sets unchanged.
 
 ### 5.14 Phase 5 review (review)
-After everything. Owns the gate boxes. A separate agent (D11) runs the rubric
-and re-checks each "done when"; open items go under "Proposed". **Done**
-2026-10-19 (D182), except the confirming full runs and fuzzing, deferred to the
-owner's machine: numbers at 02303a7 and 3b0812a, a new schema fuzz target, both
-step budgets judged fair, no driver reclassifies (the XSD driver's "not run"
-for an unsupported feature fixed), D71 through component graphs and function
-pointers, NCName, whitespace and token helpers merged (fifteen files), an
-allocation-failure loop for schema.h, `schema.h` stable, five accepted designs
-out of Proposed.
+**Done** 2026-10-19 After everything. Owns the gate boxes. A separate agent
+(D11) runs the rubric and re-checks each "done when"; open items go under
+"Proposed". **Done** 2026-10-19 (D182), except the confirming full runs and
+fuzzing, deferred to the owner's machine: numbers at 02303a7 and 3b0812a, a new
+schema fuzz target, both step budgets judged fair, no driver reclassifies (the
+XSD driver's "not run" for an unsupported feature fixed), D71 through component
+graphs and function pointers, NCName, whitespace and token helpers merged
+(fifteen files), an allocation-failure loop for schema.h, `schema.h` stable,
+five accepted designs out of Proposed.
 
 ### 5.16 Schema location hints (design and implementation)
-After 5.13 sweep 3 (D277). Owns the additive field of `include/sxml/schema.h`
-(with D278), `src/schema_assemble.c`, `src/function_library_schema.c`, the
-use-xsi-schema-location hunks of `src/function_library_json.c`,
-`src/function_library_node.c`, `src/function_library_xslt.c` and
-`src/function_library_core_internal.h`, `apps/sxml/command_validate.c`,
-`tests/cli/` (validate_hints*), `tests/xsd/driver/`, `third_party/w3c-xlink/`,
-the book's "Schema hints in documents". XSD 1.1 Part 1, 4.3.2: the hints of an
-instance join the assembly when the host asks; fn:xsd-validator's
-use-xsi-schema-location works; `sxml validate` follows hints with a flag;
-xlink.xsd vendored so that the introspection set runs. \**Done\*\* 2026-10-20
-(D278): `schema_location_hint_node`, hints only for namespaces the schema
-lacks; fn:xsd-validator, fn:doc, fn:doc-available, fn:parse-xml and
-fn:document; XQuery validate and XSLT validation keep ignoring hints; `sxml
-validate --use-schema-location`; the XSD driver through the library; the QT4
-driver's schema-location-hint. XSD11 41,507 to 41,599 (the 92 introspection
-tests), 11 failed unchanged; QT4 schema-aware XQ40 11,691 to 11,696; XT40
-schema-aware 4,084 to 4,087; none lost.
+**Done** 2026-10-20 After 5.13 sweep 3 (D277). Owns the additive field of
+`include/sxml/schema.h` (with D278), `src/schema_assemble.c`,
+`src/function_library_schema.c`, the use-xsi-schema-location hunks of
+`src/function_library_json.c`, `src/function_library_node.c`,
+`src/function_library_xslt.c` and `src/function_library_core_internal.h`,
+`apps/sxml/command_validate.c`, `tests/cli/` (validate_hints*),
+`tests/xsd/driver/`, `third_party/w3c-xlink/`, the book's "Schema hints in
+documents". XSD 1.1 Part 1, 4.3.2: the hints of an instance join the assembly
+when the host asks; fn:xsd-validator's use-xsi-schema-location works; `sxml
+validate` follows hints with a flag; xlink.xsd vendored so that the
+introspection set runs. \**Done\*\* 2026-10-20 (D278):
+`schema_location_hint_node`, hints only for namespaces the schema lacks;
+fn:xsd-validator, fn:doc, fn:doc-available, fn:parse-xml and fn:document;
+XQuery validate and XSLT validation keep ignoring hints; `sxml validate
+--use-schema-location`; the XSD driver through the library; the QT4 driver's
+schema-location-hint. XSD11 41,507 to 41,599 (the 92 introspection tests), 11
+failed unchanged; QT4 schema-aware XQ40 11,691 to 11,696; XT40 schema-aware
+4,084 to 4,087; none lost.
 
 ## `sxml validate` (design for 5.10; docs/CLI.md gets it when it works)
 

@@ -215,11 +215,12 @@ lists new files, plus the existing files the packet changes beyond single
 shared-table entries.
 
 ### 7.1 Phase 7 plan (design)
-After the Phase 4 gate (D162). Owns this file, D183, PLAN.md's Phase 7 row and
-the glossary terms of D183. **Done** 2026-10-19 (D183).
+**Done** 2026-10-19 After the Phase 4 gate (D162). Owns this file, D183,
+PLAN.md's Phase 7 row and the glossary terms of D183. **Done** 2026-10-19
+(D183).
 
 ### 7.2 Optional features and the size budget (design, build)
-After the owner's size decision (D183 Proposed).
+**Done** 2026-10-19 After the owner's size decision (D183 Proposed).
 
 - **Specifications**: none. This is an engineering mechanism.
 - **Owns**: `include/sxml/processor.h` (option 2: `sxml_optional_feature`,
@@ -242,8 +243,8 @@ After the owner's size decision (D183 Proposed).
   the core), `sxml-full.wasm` 2,005,513; budgets 2,100,000 and 3,000,000.
 
 ### 7.2b Core size audit (build)
-After 7.14b and D208. The core `sxml.wasm` was 2,294,051 bytes stripped, over
-D207's 2,200,000 / 770,000.
+**Done** 2026-10-19 After 7.14b and D208. The core `sxml.wasm` was 2,294,051
+bytes stripped, over D207's 2,200,000 / 770,000.
 
 - **Owns**: the DTD validation feature (`include/sxml/schema.h`, additive;
   `src/schema_from_dtd.c`, `src/dtd_internal.h`), the loader's dtd-validation
@@ -258,9 +259,9 @@ D207's 2,200,000 / 770,000.
   741,943, no budget raised; counts unchanged.
 
 ### 7.2c Per-language part lists (build; packet size-2)
-After 7.2b and D225. The part registries were global, so the core `sxml.wasm`
-linked XQuery's lowering parts (about 75 KB, D189) and the XSLT-only library
-and evaluator parts (D225).
+**Done** 2026-10-19 After 7.2b and D225. The part registries were global, so
+the core `sxml.wasm` linked XQuery's lowering parts (about 75 KB, D189) and the
+XSLT-only library and evaluator parts (D225).
 
 - **Owns**: `cmake/SxmlParts.cmake`, the registry lines of `CMakeLists.txt`,
   the registry declarations in `src/function_library_parts_internal.h`,
@@ -278,6 +279,8 @@ and evaluator parts (D225).
   and evaluator_template, at 5664da8); QT4 and XT40 unchanged.
 
 ### 7.4 XSLT backwards-compatible behaviour and XPath 1.0 compatibility mode (implementation)
+**Done** 2026-10-19
+
 - **Specifications**:
 
   - XPath 4.0, 2.2.1 (XPath 1.0 compatibility mode in the static context) and
@@ -325,6 +328,8 @@ xs:numeric question put to the owner. **Done** 2026-10-19: XT40 8,940 to 8,943
 about 7.2 KB, the EXSLT part 1.2 KB of the core module.
 
 ### 7.6 XSLT streaming (design and implementation, two packets)
+**Done** 2026-10-20
+
 - **Specifications**: XSLT 4.0, 18 "Streaming" (xsl:source-document
   streamable="yes", xsl:merge with streamable sources, xsl:fork, streamable
   modes and accumulators, burst-mode functions such as fn:snapshot and
@@ -489,6 +494,8 @@ about 7.2 KB, the EXSLT part 1.2 KB of the core module.
   the memory test's peak is under 64 MB.
 
 ### 7.7 XQuery Update Facility 3.0 and 4.0 (design and implementation, three packets)
+**Done** 2026-10-19
+
 - **Specifications**: XQuery Update Facility 3.0:
 
   - 2 (extensions to the processing model: updating expressions, pending update
@@ -567,6 +574,8 @@ about 7.2 KB, the EXSLT part 1.2 KB of the core module.
 - **Gate**: ≥ 85 % of the 825 (less the 27 static-typing cases).
 
 ### 7.8 EXPath Binary (implementation)
+**Done** 2026-10-19
+
 - **Specifications**: EXPath Binary Module 4.0, as the QT4 bin- sets test it
   (namespace `http://expath.org/ns/binary`; the bin: functions and their errors
   bin:differing-length-arguments, bin:index-out-of-range, bin:negative-size,
@@ -589,6 +598,8 @@ about 7.2 KB, the EXSLT part 1.2 KB of the core module.
   binary cases.
 
 ### 7.9 EXPath File (design and implementation)
+**Done** 2026-10-19
+
 - **Specifications**: EXPath File Module 4.0, as the QT4 expath-file set tests
   it (namespace `http://expath.org/ns/file`; file:exists, file:list,
   file:read-text, file:write, file:create-dir, file:delete, file:path-to-uri,
@@ -616,6 +627,8 @@ about 7.2 KB, the EXSLT part 1.2 KB of the core module.
   JavaScript modules. The CLI's Windows file system is not written yet.
 
 ### 7.10 HTML5 parsing: fn:parse-html and fn:html-doc (implementation, two packets)
+**Done** 2026-10-19
+
 - **Specifications**:
 
   - F&O 4.0, fn:parse-html and fn:html-doc (the options: method, html-version,
@@ -663,6 +676,8 @@ about 7.2 KB, the EXSLT part 1.2 KB of the core module.
   keep them.
 
 ### 7.11 fn:transform (implementation)
+**Done** 2026-10-19
+
 - **Specifications**: F&O 4.0, fn:transform (the options map:
   stylesheet-location, stylesheet-node, stylesheet-text, package-name,
   initial-mode, initial-template, initial-function, source-node,
@@ -695,6 +710,8 @@ about 7.2 KB, the EXSLT part 1.2 KB of the core module.
   (transform-009). The rest is D203's "Not done".
 
 ### 7.12 XQuery and XPath Full Text 3.0 (design and implementation, three packets)
+**Done** 2026-10-20
+
 - **Specifications**: XQuery and XPath Full Text 3.0 (W3C Recommendation,
   2015):
 
@@ -786,6 +803,8 @@ about 7.2 KB, the EXSLT part 1.2 KB of the core module.
     comment of `sxml_full_text_feature()` in `xquery.h` (Proposed).
 
 ### 7.15 Full UCA collations (implementation, two packets)
+**Done** 2026-10-19
+
 - **Specifications**: F&O 4.0, 5.2.4 "The Unicode Collation Algorithm" (the URI
   parameters fallback, lang, version, strength, maxVariable, alternate,
   backwards, normalization, caseLevel, caseFirst, numeric, reorder; FOCH0002);
@@ -848,6 +867,8 @@ about 7.2 KB, the EXSLT part 1.2 KB of the core module.
   (non-ignorable and shifted) passes in a unit test.
 
 ### 7.16 A timezone database (implementation)
+**Done** 2026-10-19
+
 - **Specifications**:
 
   - F&O 4.0, fn:civil-timezone (places as IANA zone names, glossary
@@ -886,6 +907,8 @@ about 7.2 KB, the EXSLT part 1.2 KB of the core module.
   default place in the dynamic context.
 
 ### 7.17 Calendars and languages in the formatting functions (implementation)
+**Done** 2026-10-19
+
 - **Specifications**:
 
   - F&O 4.0, 9.9.4.8 (the calendars: AD, ISO, AH, AME, AM, AP, AS, BE, CB, CE,
@@ -935,6 +958,8 @@ about 7.2 KB, the EXSLT part 1.2 KB of the core module.
   +32,103, the CLI +366,194 (embedded names).
 
 ### 7.18 Invisible XML (implementation)
+**Done** 2026-10-19
+
 - **Specifications**: Invisible XML Specification 1.0 (invisiblexml.org, 2022:
   the ixml grammar, marks and insertions, ambiguity reported as
   `ixml:state="ambiguous"`, failures as `ixml:state="failed"`); F&O 4.0,
@@ -969,18 +994,20 @@ about 7.2 KB, the EXSLT part 1.2 KB of the core module.
   for 4 bytes.
 
 ### 7.19 Phase 7 review (review)
-After every packet the owner accepted. Owns the gate boxes. A separate agent
-(D11) runs the rubric and re-checks each "done when" and the size budgets. Open
-items go under "Proposed". **Done** 2026-10-20 (D237): the gate below, with
-whole release runs of the four suites; three gate boxes ticked by agent review,
-one open for 7.11's XT40 cases, the fuzzing box deferred to the owner's machine
-(D181). Fixed: an undefined pointer offset found by fuzzing
+**Done** 2026-10-20 After every packet the owner accepted. Owns the gate boxes.
+A separate agent (D11) runs the rubric and re-checks each "done when" and the
+size budgets. Open items go under "Proposed". **Done** 2026-10-20 (D237): the
+gate below, with whole release runs of the four suites; three gate boxes ticked
+by agent review, one open for 7.11's XT40 cases, the fuzzing box deferred to
+the owner's machine (D181). Fixed: an undefined pointer offset found by fuzzing
 (`src/xml_input.c`), the iXML driver's four error outcomes, EXPath File's
 four-parameter functions and its clang-tidy findings, Full Text's copy of the
 XML buffer, two stale record citations; added the fuzz targets `ixml_fuzz` and
 `full_text_fuzz`.
 
 ### 7.20 Sweep: 7.11's open cases and the larger duplicates (implementation)
+**Done** 2026-10-20
+
 - **Cases**: XT40 transform-004 (a static fn:transform, FOXT0004),
   transform-401 (a `~record` pattern), transform-009 (an assertion the XT40
   driver did not check). Close 7.11's gate, or record exactly why a case cannot
@@ -1006,7 +1033,8 @@ XML buffer, two stale record citations; added the fuzz targets `ixml_fuzz` and
 ## Bindings
 
 ### js-1 JavaScript bindings for XQuery, XSLT and XSD validation (implementation)
-After 7.2 (D189), D207 and D208. The package covered XPath only.
+**Done** 2026-10-19 After 7.2 (D189), D207 and D208. The package covered XPath
+only.
 
 - **Specifications**: XQuery 4.0 (5 Modules and Prologs, 5.16, 5.22), the
   XQuery Update Facility 3.0 (2.2, 3.2.2, 6.1), XSLT 4.0 (2.4, 23, 26), XSD 1.1
@@ -1030,7 +1058,8 @@ After 7.2 (D189), D207 and D208. The package covered XPath only.
   `sxml-full.wasm` 3,666,545 to 6,570,723 (budget 7,000,000 / 2,450,000).
 
 ### cli-2 The sxml command's gaps: written files, csv, option hints (implementation)
-After D44, D200, D205. The command wrote nothing but EXPath File output.
+**Done** 2026-10-20 After D44, D200, D205. The command wrote nothing but EXPath
+File output.
 
 - **Specifications**: XSLT 4.0 (2.4.6 base output URI, 26.2 result documents),
   the XQuery Update Facility 3.0 (6.1 fn:put), Serialization 4.0 (CSV output
@@ -1053,9 +1082,9 @@ After D44, D200, D205. The command wrote nothing but EXPath File output.
 ## Performance
 
 ### perf-1 Evaluator performance (implementation)
-After D182 (the evaluator runs about 4 million steps a second and has no index
-for joins), D178 (QT4 app-Demos itunes is quadratic by its own text, 72 s) and
-D185 (`match="$var"` membership is a linear scan).
+**Done** 2026-10-19 After D182 (the evaluator runs about 4 million steps a
+second and has no index for joins), D178 (QT4 app-Demos itunes is quadratic by
+its own text, 72 s) and D185 (`match="$var"` membership is a linear scan).
 
 - **Mechanism**: general mechanisms of the one IR and evaluator, no
   language-specific machinery: a benchmark set (`tests/bench/`), axis steps
@@ -1075,10 +1104,11 @@ D185 (`match="$var"` membership is a linear scan).
   QT4 XQ40 and XT40 unchanged case by case.
 
 ### perf-2 Evaluator performance, second round (implementation)
-After D224 (perf-1: its benchmarks, and what it left: describe_node 15 % and
-the machine loop 12 % of XMark-All, atomization, reference counts and small
-sequences, numeric index keys, hoisting of path MAPs, quantified expressions
-and sorts, the `$V[. instance of gnode()]` check per `match="$var"` test).
+**Done** 2026-10-19 After D224 (perf-1: its benchmarks, and what it left:
+describe_node 15 % and the machine loop 12 % of XMark-All, atomization,
+reference counts and small sequences, numeric index keys, hoisting of path
+MAPs, quantified expressions and sorts, the `$V[. instance of gnode()]` check
+per `match="$var"` test).
 
 - **Mechanism**: profile first (callgrind), then general mechanisms of the one
   IR and evaluator for the hot spots; D223's rule (no IR pass moves STREAM
@@ -1096,9 +1126,9 @@ and sorts, the `$V[. instance of gnode()]` check per `match="$var"` test).
   9.30 to 3.91; QT4 XQ40 and XT40 unchanged case by case.
 
 ### xml-mem Bounded memory for XML parsing (design and implementation)
-After D12 (tree-sitter parses XML, the owner's choice), D199 (DTD and entities)
-and D219 (parsing 106 MB took 3.98 GB resident, nearly all tree-sitter's syntax
-tree of the whole input).
+**Done** 2026-10-19 After D12 (tree-sitter parses XML, the owner's choice),
+D199 (DTD and entities) and D219 (parsing 106 MB took 3.98 GB resident, nearly
+all tree-sitter's syntax tree of the whole input).
 
 - **Specifications**: XML 1.0 (Fifth Edition) [1], [14], [22], [27], [39] to
   [44], 2.11, 4.3.3; 3 WFC: Element Type Match.
@@ -1116,8 +1146,9 @@ tree of the whole input).
   CPU 25.0 s to 19.7 s; xmlconf, QT4 and XT40 unchanged case by case.
 
 ### perf-3 XML parsing speed (implementation)
-After D12 (tree-sitter parses XML, the owner's choice), D222 (segmented
-parsing) and D224, D229 (the benchmarks; parsing a quarter of XMark-All).
+**Done** 2026-10-19 After D12 (tree-sitter parses XML, the owner's choice),
+D222 (segmented parsing) and D224, D229 (the benchmarks; parsing a quarter of
+XMark-All).
 
 - **Mechanism**: profile parsing alone (callgrind, 10 MB and 100 MB); fewer
   tokens and nodes in the grammar and its scanner, a cheaper walk; tree-sitter,
@@ -1133,11 +1164,11 @@ parsing) and D224, D229 (the benchmarks; parsing a quarter of XMark-All).
   8.88; QT4 and XT40 unchanged case by case.
 
 ### perf-4 Laziness, joins and the step limit (implementation)
-After D224, D229, D232 and D257 (writing the book's performance chapter found
-three things): `head(filter(1 to 1e9, ...))` and `exists((1 to 1e9)[. = 999])`
-read the whole range; the chapter's join of 2,000 orders takes 12 s although
-D224's filter index exists for it; the default step limit takes about 75 s to
-trigger.
+**Done** 2026-10-20 After D224, D229, D232 and D257 (writing the book's
+performance chapter found three things): `head(filter(1 to 1e9, ...))` and
+`exists((1 to 1e9)[. = 999])` read the whole range; the chapter's join of 2,000
+orders takes 12 s although D224's filter index exists for it; the default step
+limit takes about 75 s to trigger.
 
 - **Mechanism**: one general mechanism for stopping early (head, exists, empty,
   `[1]`, some/every, boolean()), on the one IR and evaluator, with D71, honest
@@ -1160,16 +1191,17 @@ trigger.
   instructions; QT4 XQ40 and XT40 unchanged case by case.
 
 ### perf-5 Slices without copies (implementation)
-After D34 (sequence representations), D143 (reverse of a range in O(1)) and
-D259 (item demands). Running SchXslt 1.10.1 on sxml to compile the EN 16931
-Schematron rules (2026-10-28) found that recursing over the rest of a sequence
-is quadratic: `make_span` in `src/function_library_sequence.c` copies every
-item after the start into a new vector unless the input is an integer range, so
-`fn:tail`, `fn:subsequence` and `$s[position() > 1]` cost the length of the
-rest. Measured (release, x86_64 Xeon 2.1 GHz): one recursive walk over 780
-elements takes 106 ms with `$items[position() > 1]`, 28 ms with `tail($items)`,
-32 ms with `subsequence($items, 2)`. SchXslt's `schxslt:replace-params` walks
-780 parameters this way for each of 1,042 attributes: about 110 s of its expand
+**Done** 2026-10-28 After D34 (sequence representations), D143 (reverse of a
+range in O(1)) and D259 (item demands). Running SchXslt 1.10.1 on sxml to
+compile the EN 16931 Schematron rules (2026-10-28) found that recursing over
+the rest of a sequence is quadratic: `make_span` in
+`src/function_library_sequence.c` copies every item after the start into a new
+vector unless the input is an integer range, so `fn:tail`, `fn:subsequence` and
+`$s[position() > 1]` cost the length of the rest. Measured (release, x86_64
+Xeon 2.1 GHz): one recursive walk over 780 elements takes 106 ms with
+`$items[position() > 1]`, 28 ms with `tail($items)`, 32 ms with
+`subsequence($items, 2)`. SchXslt's `schxslt:replace-params` walks 780
+parameters this way for each of 1,042 attributes: about 110 s of its expand
 stage (8 min 56 s in all, 1 min 39 s once its own per-level re-sort is removed;
 about 9 s of that is `fn:replace`). The compiled rules themselves pass all
 1,133 checks of the EN 16931 UBL unit tests.
@@ -1204,8 +1236,8 @@ about 9 s of that is `fn:replace`). The compiled rules themselves pass all
   552 to 458 s; QT4 XP40, XQ40 and XT40 whole: 0 outcomes differ.
 
 ### perf-6 Compile each regex once (implementation)
-After D53, D105 and D114 (the regex engine and its library part) and the
-SchXslt measurements of perf-5. `compile_pattern` in
+**Done** 2026-10-28 After D53, D105 and D114 (the regex engine and its library
+part) and the SchXslt measurements of perf-5. `compile_pattern` in
 `src/function_library_regex.c` parses and compiles the pattern and creates a
 matcher on every call of `fn:matches`, `fn:replace`, `fn:tokenize` and
 `fn:analyze-string`, also when the pattern and flags are literals. Measured
@@ -1240,12 +1272,13 @@ pattern `"\$AMOUNT"`; SchXslt's expand stage of EN 16931 makes about 810,000
   (compiling under 1 %); QT4 and XT40 regex sets unchanged case by case.
 
 ### perf-7 Faster regex matching (implementation)
-After D53, D105 (the backtracking matcher) and D308 (perf-6: compiling is now
-under 5 % of a regex-heavy workload; matching is the rest). Measured (release,
-x86_64 Xeon 2.1 GHz): 200,000 calls of `matches("abc_def ghi " || .,
-"\w+\s\w+\s\d+")` take 0.80 s, and 0.71 s with explicit ranges `[a-z_]+ [a-z]+
-[0-9]+`, against 0.12 s for the same loop with `contains`: about 3 microseconds
-a match of a 15-character string, whatever the character classes.
+**Done** 2026-10-28 After D53, D105 (the backtracking matcher) and D308
+(perf-6: compiling is now under 5 % of a regex-heavy workload; matching is the
+rest). Measured (release, x86_64 Xeon 2.1 GHz): 200,000 calls of
+`matches("abc_def ghi " || ., "\w+\s\w+\s\d+")` take 0.80 s, and 0.71 s with
+explicit ranges `[a-z_]+ [a-z]+ [0-9]+`, against 0.12 s for the same loop with
+`contains`: about 3 microseconds a match of a 15-character string, whatever the
+character classes.
 
 - **Mechanism**: profile first (callgrind on `tests/bench/regex-reuse.xq` and a
   new matching benchmark), then general mechanisms of the one regex engine for
@@ -1271,15 +1304,15 @@ a match of a 15-character string, whatever the character classes.
   case.
 
 ### perf-8 Cheap coercion of function arguments (implementation)
-After D85 (coercion), D281 (XSLT coercion casts), D309 and D310. A callgrind
-profile of SchXslt's expand stage of EN 16931 (with SchXslt's sort-once fix,
-the step bound raised in a scratch build; 75.3 x 10^9 instructions, 10.5 s)
-puts 33 % in `sxml_evaluator_coerce`, called 8.1 million times from
-`sxml_make_leaf_value`: about 3,000 instructions a coercion. Each one creates
-and finishes a sequence builder (4.1 million), atomizes (2.7 million), casts
-(1.4 million, mostly xs:untypedAtomic attribute values to xs:string) and
-matches the sequence type (3.4 million), even when the argument is one item
-that already has the required type.
+**Done** 2026-10-28 After D85 (coercion), D281 (XSLT coercion casts), D309 and
+D310. A callgrind profile of SchXslt's expand stage of EN 16931 (with SchXslt's
+sort-once fix, the step bound raised in a scratch build; 75.3 x 10^9
+instructions, 10.5 s) puts 33 % in `sxml_evaluator_coerce`, called 8.1 million
+times from `sxml_make_leaf_value`: about 3,000 instructions a coercion. Each
+one creates and finishes a sequence builder (4.1 million), atomizes (2.7
+million), casts (1.4 million, mostly xs:untypedAtomic attribute values to
+xs:string) and matches the sequence type (3.4 million), even when the argument
+is one item that already has the required type.
 
 - **Mechanism**: profile first, then general fast paths in the one coercion
   (XPath 4.0, 3.4.3 "Coercion Rules"; XSLT 4.0 and XQuery 4.0 use the same): an
@@ -1305,11 +1338,11 @@ that already has the required type.
   case by case.
 
 ### perf-9 Required literals in regex search (implementation)
-After D310 (perf-7). The same profile puts 12.9 % in `sxml_regex_matcher_scan`
-under `fn:replace`. SchXslt's patterns have the shape `(\W*)\$name(\W*)`: they
-can match the empty string before a `$`, so perf-7's start filter skips nothing
-and every position is attempted, though no match exists unless the literal
-`$name` occurs.
+**Done** 2026-10-28 After D310 (perf-7). The same profile puts 12.9 % in
+`sxml_regex_matcher_scan` under `fn:replace`. SchXslt's patterns have the shape
+`(\W*)\$name(\W*)`: they can match the empty string before a `$`, so perf-7's
+start filter skips nothing and every position is attempted, though no match
+exists unless the literal `$name` occurs.
 
 - **Mechanism**: at compile time, find a literal that every match must contain
   (a required literal, as other engines keep a "required character" or
@@ -1333,15 +1366,15 @@ and every position is attempted, though no match exists unless the literal
   0.186 s; regex sets and 18,000 random regexes unchanged.
 
 ### perf-10 Casts that keep the string, and the coercions perf-8 left (implementation)
-After D316 (perf-8). With perf-5 to perf-9, SchXslt's expand stage of EN 16931
-(sort-once fix, no step bound in the CLI since D314) takes 7.7–8.5 s; unpatched
-SchXslt takes 4 min 51 s (8 min 56 s this morning). D316 left three costs: a
-cast of xs:untypedAtomic to xs:string costs about 1,600 instructions, though
-the result is the same string (XPath 4.0, 19.1 casting from xs:untypedAtomic;
-F&O 4.0, 19.1.1); about 0.7 million single items against unions, choices and
-enumerations still run the coercion engine; about 0.7 million multi-item values
-still run the full matcher, some twice when a slice base fails D309's
-whole-base match and is matched again item by item.
+**Done** 2026-10-28 After D316 (perf-8). With perf-5 to perf-9, SchXslt's
+expand stage of EN 16931 (sort-once fix, no step bound in the CLI since D314)
+takes 7.7–8.5 s; unpatched SchXslt takes 4 min 51 s (8 min 56 s this morning).
+D316 left three costs: a cast of xs:untypedAtomic to xs:string costs about
+1,600 instructions, though the result is the same string (XPath 4.0, 19.1
+casting from xs:untypedAtomic; F&O 4.0, 19.1.1); about 0.7 million single items
+against unions, choices and enumerations still run the coercion engine; about
+0.7 million multi-item values still run the full matcher, some twice when a
+slice base fails D309's whole-base match and is matched again item by item.
 
 - **Mechanism**: profile first (callgrind on SchXslt's expand stage and
   `tests/bench/coercion.xq`); a cast between string-like types whose lexical
@@ -1364,8 +1397,8 @@ whole-base match and is matched again item by item.
   case.
 
 ### fix-4 Choice coercion and a stale error description (implementation)
-After D316 and D319, which found the first, and D310 (perf-7), which found the
-second.
+**Done** 2026-10-28 After D316 and D319, which found the first, and D310
+(perf-7), which found the second.
 
 - **Choice coercion**: a function parameter of type `(element(a) | xs:string)`
   given `xs:untypedAtomic("v")` raises XPTY0004 (`sxml xpath 'let $f :=
@@ -1392,9 +1425,9 @@ handles the error. QT4 XP40, XQ40, XT40 whole: 0 outcomes differ; SchXslt
 expand unchanged in output and instructions.
 
 ### perf-11 Cheaper node atomization (implementation)
-After D316 and D319. In SchXslt's expand stage of EN 16931 (47.78 x 10^9
-instructions after perf-10), node atomization in coercion is the largest
-coercion cost: 3.19 x 10^9 (6.7 %), in `src/xdm_node.c`.
+**Done** 2026-10-28 After D316 and D319. In SchXslt's expand stage of EN 16931
+(47.78 x 10^9 instructions after perf-10), node atomization in coercion is the
+largest coercion cost: 3.19 x 10^9 (6.7 %), in `src/xdm_node.c`.
 
 - **Mechanism**: profile first (callgrind on the expand stage,
   `tests/bench/coercion.xq` and xmark-all); a general fast path for the common
@@ -1415,8 +1448,8 @@ coercion cost: 3.19 x 10^9 (6.7 %), in `src/xdm_node.c`.
   (70 % of what is left) are outside the packet's files: proposed in D322.
 
 ### perf-12 Compiling large stylesheets (implementation)
-After D224, D259 and D322. Validating one EN 16931 invoice with the official
-pre-compiled stylesheet (900 KB of XSLT, from
+**Done** 2026-10-28 After D224, D259 and D322. Validating one EN 16931 invoice
+with the official pre-compiled stylesheet (900 KB of XSLT, from
 ConnectingEurope/eInvoicing-EN16931) costs 2.68 x 10^9 instructions, about 0.5
 s, and 79 % of it is compiling the stylesheet: reading 41 % (tree-sitter's XML
 parse 23 %), XPath parsing 25 %, IR passes 32 %; the validation itself 20 %.
@@ -1448,11 +1481,11 @@ this.
   57.1 to 6.2; IR text identical; XP40, XQ40, XT40 0 outcomes differ.
 
 ### perf-13 Compiling XSLT and Schematron: the component graph, value templates, the Schematron front end (implementation)
-After D320, D323 and D324 (perf-12, whose Proposed entry names the first two).
-With perf-12, validating one EN 16931 invoice with the pre-compiled stylesheet
-takes 0.29–0.37 s (2.08 x 10^9 instructions); validating it with `sxml validate
---schematron` from the `.sch` sources takes 0.59–0.73 s, the Schematron compile
-0.53–0.59 s (D323).
+**Done** 2026-10-28 After D320, D323 and D324 (perf-12, whose Proposed entry
+names the first two). With perf-12, validating one EN 16931 invoice with the
+pre-compiled stylesheet takes 0.29–0.37 s (2.08 x 10^9 instructions);
+validating it with `sxml validate --schematron` from the `.sch` sources takes
+0.59–0.73 s, the Schematron compile 0.53–0.59 s (D323).
 
 - **Known costs**: XSLT's component graph grows with the square of the
   stylesheet (`add_named_edges` in `src/xslt_lower_control.c`,
@@ -1482,10 +1515,10 @@ takes 0.29–0.37 s (2.08 x 10^9 instructions); validating it with `sxml validat
   Schematron 463 of 463, VEFA 1,133 of 1,133.
 
 ### perf-14 Running compiled Schematron (implementation)
-After D315, D323 and D325. On one EN 16931 UBL invoice, evaluating the
-Schematron that sxml compiles from the `.sch` sources costs 1.21 x 10^9
-instructions; evaluating the official stylesheet compiled from the same rules
-by the ISO skeleton costs 0.55 x 10^9 (D325). The same rules, the same
+**Done** 2026-10-28 After D315, D323 and D325. On one EN 16931 UBL invoice,
+evaluating the Schematron that sxml compiles from the `.sch` sources costs 1.21
+x 10^9 instructions; evaluating the official stylesheet compiled from the same
+rules by the ISO skeleton costs 0.55 x 10^9 (D325). The same rules, the same
 evaluator: the difference is in the stylesheet AST that `src/schematron*`
 builds (how patterns become modes, rules become templates and assertions become
 conditions, D315), or in how the lowering treats it.
@@ -1513,11 +1546,11 @@ conditions, D315), or in how the lowering treats it.
   shared file changed.
 
 ### perf-15 Template rules indexed by node kind and name (implementation)
-After D144, D149, D326 (perf-14, whose Proposed entry this is). In both EN
-16931 stylesheets, sxml's compiled Schematron and the official one, match
-functions are about 92 % of evaluation steps: APPLY_TEMPLATES tries every rule
-of the mode in order for every item, and most rules cannot match the item's
-node kind or name. Any stylesheet with many template rules pays this.
+**Done** 2026-10-28 After D144, D149, D326 (perf-14, whose Proposed entry this
+is). In both EN 16931 stylesheets, sxml's compiled Schematron and the official
+one, match functions are about 92 % of evaluation steps: APPLY_TEMPLATES tries
+every rule of the mode in order for every item, and most rules cannot match the
+item's node kind or name. Any stylesheet with many template rules pays this.
 
 - **Mechanism**: profile first; at compile time, give each mode an index of its
   rules by what their pattern requires of the item (node kind, and the expanded
@@ -1549,13 +1582,13 @@ node kind or name. Any stylesheet with many template rules pays this.
   outcomes differ; suite 463/463, VEFA 1,133/1,133.
 
 ### fix-5 Default priorities of union patterns (implementation)
-After D144, D149 and D327 (perf-15 found it; the base does the same).
-`<xsl:template match="a[@n] | b">` gets one default priority (0) instead of
-being treated as one rule per alternative. With a second rule `match="a"`, an
-`a` with `@n` gets the second rule (the tie at 0 goes to the later rule); XSLT
-3.0, 6.5 makes the union's `a[@n]` branch a rule of priority 0.5, which wins.
-Reproduction: a stylesheet with those two rules applied to `<r><a
-n="1"/><a/></r>` prints "plain plain"; XSLT 3.0 gives "union plain".
+**Done** 2026-10-28 After D144, D149 and D327 (perf-15 found it; the base does
+the same). `<xsl:template match="a[@n] | b">` gets one default priority (0)
+instead of being treated as one rule per alternative. With a second rule
+`match="a"`, an `a` with `@n` gets the second rule (the tie at 0 goes to the
+later rule); XSLT 3.0, 6.5 makes the union's `a[@n]` branch a rule of priority
+0.5, which wins. Reproduction: a stylesheet with those two rules applied to
+`<r><a n="1"/><a/></r>` prints "plain plain"; XSLT 3.0 gives "union plain".
 
 - **Mechanism**: first check XSLT 4.0's text for default priorities of union
   patterns (6.5 or wherever 4.0 puts it, and its changes appendix) and the XT40
@@ -1578,12 +1611,12 @@ n="1"/><a/></r>` prints "plain plain"; XSLT 3.0 gives "union plain".
   (12,185 passed); suite 463/463, VEFA 1,133/1,133.
 
 ### perf-16 IR passes after perf-12: item demands and child walks (implementation)
-After D259 (item demands), D324 and D327. Validating one EN 16931 invoice with
-`sxml validate --schematron` costs 1.61 x 10^9 instructions, 87 % of it
-compiling the `.sch`; the IR passes are 31 %, led by `sxml_ir_set_item_demands`
-(12.4 % inclusive, 4.2 % self) and `push_every_child` (6.5 % self), with
-`children_of` and `make_owners` behind them (`src/ir.c`,
-`src/ir_loop_passes.c`).
+**Done** 2026-10-28 After D259 (item demands), D324 and D327. Validating one EN
+16931 invoice with `sxml validate --schematron` costs 1.61 x 10^9 instructions,
+87 % of it compiling the `.sch`; the IR passes are 31 %, led by
+`sxml_ir_set_item_demands` (12.4 % inclusive, 4.2 % self) and
+`push_every_child` (6.5 % self), with `children_of` and `make_owners` behind
+them (`src/ir.c`, `src/ir_loop_passes.c`).
 
 - **Mechanism**: profile first (callgrind on that run, the pre-compiled invoice
   run and perf-12's growth series); find why item demands and the child walks
@@ -1606,11 +1639,12 @@ compiling the `.sch`; the IR passes are 31 %, led by `sxml_ir_set_item_demands`
   463/463, VEFA 1,133/1,133.
 
 ### perf-17 Parsing XPath: each text once, and a cheaper parse (implementation)
-After D12 (tree-sitter), D232 (perf-3 for XML), D324 and D325. XPath parsing is
-30 % of compiling the EN 16931 Schematron (tree-sitter's `ts_parser_parse` 23
-%). The official compiled stylesheet repeats its expressions: 3,228 test,
-select and match attributes, 1,049 distinct; the expanded Schematron less so
-(1,086 test and context attributes, 1,007 distinct).
+**Done** 2026-10-28 After D12 (tree-sitter), D232 (perf-3 for XML), D324 and
+D325. XPath parsing is 30 % of compiling the EN 16931 Schematron (tree-sitter's
+`ts_parser_parse` 23 %). The official compiled stylesheet repeats its
+expressions: 3,228 test, select and match attributes, 1,049 distinct; the
+expanded Schematron less so (1,086 test and context attributes, 1,007
+distinct).
 
 - **Mechanism**: profile first; parse each distinct expression text once per
   compilation where the static context is the same (an AST cache keyed by the
@@ -1634,12 +1668,12 @@ select and match attributes, 1,049 distinct; the expanded Schematron less so
   XQ40, XT40 0 outcomes differ; suite 463/463, VEFA 1,133/1,133.
 
 ### fix-6 The book's memory example counts allocations differently (book, tests)
-After D257 (the book shows real output). `docs/book/src/c.md` shows
-`allocations: 195, still live: 0` for its memory example; agents in this
-session saw 197 (7.28, cli-4) and 196 (perf-17) on different commits, and the
-same on base commits without their changes, so the count has drifted with later
-packets and may also depend on the setup (allocator growth, a cache's first
-use, the environment).
+**Done** 2026-10-28 After D257 (the book shows real output).
+`docs/book/src/c.md` shows `allocations: 195, still live: 0` for its memory
+example; agents in this session saw 197 (7.28, cli-4) and 196 (perf-17) on
+different commits, and the same on base commits without their changes, so the
+count has drifted with later packets and may also depend on the setup
+(allocator growth, a cache's first use, the environment).
 
 - **Mechanism**: first find out why the count is what it is and whether it is
   stable for one build (run the example many times, under the release and the
@@ -1657,8 +1691,8 @@ use, the environment).
   no longer repeats the number.
 
 ### fix-7 Schematron: predeclared prefixes, findings in other documents, real schemas read with warnings (implementation, book)
-After D315, D323, D326 and book-30. Three changes the owner asked for on
-2026-10-29, in this order, in the same files.
+**Done** 2026-10-29 After D315, D323, D326 and book-30. Three changes the owner
+asked for on 2026-10-29, in this order, in the same files.
 
 1. **Prefixes** (the orchestrator's research of ISO/IEC 19757-3:2025): 5.4.10
    says prefixes in query expressions are defined by `ns`, but every binding
@@ -1722,13 +1756,13 @@ After D315, D323, D326 and book-30. Three changes the owner asked for on
   sxml.wasm not built here (no WASI SDK); the package typechecks.
 
 ### wasm-1 Build and test the JavaScript package after this round (tests)
-The owner (2026-10-29): sxml.wasm can be built in this environment.
-wasi-sdk-34, the version `mise.toml` pins, is installed at `/opt/wasi-sdk` (the
-toolchain file's default); the `wasm` preset configures. Since 7.29, 7.28,
-fix-7 and perf-17, the JavaScript package was written and typechecked but never
-built or run here: the `locations` option (D318), the Schematron API and its
-warnings and documents (D323, D331), and the size budget after perf-17's parser
-tables (about +206 KB, D329).
+**Done** 2026-10-29 The owner (2026-10-29): sxml.wasm can be built in this
+environment. wasi-sdk-34, the version `mise.toml` pins, is installed at
+`/opt/wasi-sdk` (the toolchain file's default); the `wasm` preset configures.
+Since 7.29, 7.28, fix-7 and perf-17, the JavaScript package was written and
+typechecked but never built or run here: the `locations` option (D318), the
+Schematron API and its warnings and documents (D323, D331), and the size budget
+after perf-17's parser tables (about +206 KB, D329).
 
 - **Mechanism**: build the `wasm` preset; run the package's tests and
   `javascript/size_budget` the way the repository does (ctest and the package's
@@ -1747,9 +1781,9 @@ tables (about +206 KB, D329).
   release ctest pass; one test fix (7.29's locations test, e68e524).
 
 ### 7.21 Fast Invisible XML (book, tests, implementation)
-After D215 (7.18: the Earley parser, right recursion quadratic, every item a
-step). The owner: high performance; book first, then conformance and
-benchmarks, then the implementation.
+**Done** 2026-10-20 After D215 (7.18: the Earley parser, right recursion
+quadratic, every item a step). The owner: high performance; book first, then
+conformance and benchmarks, then the implementation.
 
 - **Owns**: `docs/book/src/ixml*.md`, `docs/book/examples/ixml/`,
   `tests/bench/run-ixml-bench.py`, `tests/bench/ixml/`, `src/ixml.c`,
@@ -1763,6 +1797,8 @@ benchmarks, then the implementation.
   3.2 s), right recursion linear; suite 886/907 and QT4 unchanged.
 
 ### 7.22 Source code as XML: tree-sitter trees with highlights (design and implementation)
+**Done** 2026-10-20
+
 - **Order** (owner): the book first, then the grammars' own tests, then the
   implementation.
 - **Mechanism**: tree-sitter grammars vendored with their highlights queries
@@ -1784,6 +1820,8 @@ benchmarks, then the implementation.
   +1,990,621 to 9,693,235 bytes, budgets raised.
 
 ### 7.23 More source code languages, a registration API, run-time languages (design and implementation)
+**Done** 2026-10-20
+
 - **Owner** (2026-10-20, answering D285's proposal): TypeScript, TSX and
   Markdown built in; a public API to register tree-sitter languages; new
   languages at run time from tree-sitter language files, loaded by the host.
@@ -1802,9 +1840,10 @@ benchmarks, then the implementation.
   package, the native wasm store, the host shim.
 
 ### 7.24 Invisible XML for large inputs (book, tests, implementation)
-After D283 (7.21: about 3 to 6 MB/s and linear, but 80 to 200 bytes of memory
-for each input character). The owner: usable on tens to hundreds of MB; the
-book, the tests, then the implementation; one parser (D215).
+**Done** 2026-10-20 After D283 (7.21: about 3 to 6 MB/s and linear, but 80 to
+200 bytes of memory for each input character). The owner: usable on tens to
+hundreds of MB; the book, the tests, then the implementation; one parser
+(D215).
 
 - **Owns**: 7.21's files and `src/ixml_tokens.c`.
 - **Done when**: the book's performance chapter states the targets and passes
@@ -1819,8 +1858,8 @@ book, the tests, then the implementation; one parser (D215).
   and QT4 fn-invisible-xml 16/16 unchanged.
 
 ### 7.25 tree-sitter WebAssembly language files in the JavaScript package (book, tests, implementation)
-After D288's delayed (a). The owner (2026-10-20): an easy fix; the book, the
-tests, then the implementation.
+**Done** 2026-10-20 After D288's delayed (a). The owner (2026-10-20): an easy
+fix; the book, the tests, then the implementation.
 
 - **Owns**: `bindings/javascript` (the shim's code language exports,
   `src/linker.ts`, `src/index.ts`'s code languages, the test and the language
@@ -1836,9 +1875,9 @@ tests, then the implementation.
   list.
 
 ### 7.26 tree-sitter functions in a tree-sitter namespace (design and implementation)
-After D285, D288, D293 and D306. The owner (2026-10-22): expose tree-sitter as
-`tree-sitter:`, not as `sxml:code-*`. Today `sxml:parse-code` and
-`sxml:code-languages` live in `urn:sxml` (D285).
+**Done** 2026-10-22 After D285, D288, D293 and D306. The owner (2026-10-22):
+expose tree-sitter as `tree-sitter:`, not as `sxml:code-*`. Today
+`sxml:parse-code` and `sxml:code-languages` live in `urn:sxml` (D285).
 
 - **Design**: a well-known namespace for the tree-sitter functions, bound to
   the prefix `tree-sitter` as `bin` and `file` are (name.h, additive after D99,
@@ -1868,12 +1907,12 @@ only in records (DECISIONS, LOG, QUEUE's history, the 0.2.0 CHANGELOG section,
 the 7.22 and 7.26 entries here).
 
 ### 7.27 Schematron as a front end to the XSLT AST (design)
-The owner accepted Schematron on 2026-10-28, as a front end beside XSLT and
-XQuery, not by generating XSLT text. The owner settled the open points in D313
-(edition 2025, bindings, outputs, exit status, order with XSD, SchXslt as a
-test reference only): the design follows them. No phase covered it (PLAN.md
-names XSD only): the packet's decision record brings it into Phase 7. Evidence
-from 2026-10-28 (see D309, D310 and the queue):
+**Done** 2026-10-28 The owner accepted Schematron on 2026-10-28, as a front end
+beside XSLT and XQuery, not by generating XSLT text. The owner settled the open
+points in D313 (edition 2025, bindings, outputs, exit status, order with XSD,
+SchXslt as a test reference only): the design follows them. No phase covered it
+(PLAN.md names XSD only): the packet's decision record brings it into Phase 7.
+Evidence from 2026-10-28 (see D309, D310 and the queue):
 
 - the official pre-compiled EN 16931 stylesheets pass all 1,133 checks of the
   EN 16931 UBL unit tests on sxml;
@@ -1965,9 +2004,9 @@ lets once per context node; XSLT's compiler gets a report sink in 7.28; any
 follow.
 
 ### 7.28 Schematron as a front end to the XSLT AST (implementation)
-After the owner's review of 7.27 (D315, D313), after 7.29 (the locations a
-validation keeps; both touch `apps/sxml/`), after 7.30's suite exists
-(`tests/schematron/`, gate 6) and cli-4 (which holds `apps/sxml/` and
+**Done** 2026-10-28 After the owner's review of 7.27 (D315, D313), after 7.29
+(the locations a validation keeps; both touch `apps/sxml/`), after 7.30's suite
+exists (`tests/schematron/`, gate 6) and cli-4 (which holds `apps/sxml/` and
 `docs/CLI.md`). Implements `include/sxml/schematron.h` as D315 (revised)
 designs it, against ISO/IEC 19757-3:2025 (the owner's copy; cite clauses, copy
 no text); a change to the header needs a record first.
@@ -2106,14 +2145,14 @@ read (D323, "Proposed"), so ctest runs the UBL unit tests only; the JavaScript
 additions are not built (no WASI SDK).
 
 ### 7.29 Source locations for parsed input documents (design and implementation)
-After D87, D313 and perf-8 (which holds `src/evaluator.c` and
-`src/evaluator_function.c`). D313 settles the behaviour: a processor setting
-`AUTOMATIC` (the zero value), `ALWAYS`, `NEVER`; under `AUTOMATIC` documents a
-host parses keep locations, and where sxml parses for a program the compiled
-program decides (it calls `fn:location`, can reach functions dynamically, or is
-a validation); dynamic errors that name an input node print its line and
-column; `--locations=` in the sxml command, the same three values in
-JavaScript. Today `sxml_processor_parse_document` sets `keeps_locations =
+**Done** 2026-10-28 After D87, D313 and perf-8 (which holds `src/evaluator.c`
+and `src/evaluator_function.c`). D313 settles the behaviour: a processor
+setting `AUTOMATIC` (the zero value), `ALWAYS`, `NEVER`; under `AUTOMATIC`
+documents a host parses keep locations, and where sxml parses for a program the
+compiled program decides (it calls `fn:location`, can reach functions
+dynamically, or is a validation); dynamic errors that name an input node print
+its line and column; `--locations=` in the sxml command, the same three values
+in JavaScript. Today `sxml_processor_parse_document` sets `keeps_locations =
 false` (`src/processor.c`), so `fn:location` is the empty sequence for every
 input document; the arena tree and the parser already support locations.
 
@@ -2144,12 +2183,12 @@ a node's line; `createProcessor({ locations })` (not built here: no WASI SDK).
 XT40 identical case by case.
 
 ### cli-4 No step limit in the sxml command (implementation)
-After D313 (the owner: the sxml command sets no evaluation step limit). Today
-the command leaves `maximum_evaluation_step_count` at 0, the library's default
-of 10^8 steps (D89, D259), about 2 s of work after perf-5 to perf-7; a long
-batch job such as a Schematron compile cannot finish, and there is no option to
-raise it. The library's default stays for embedders and the JavaScript package;
-the drivers keep their own bounds (D166, D178).
+**Done** 2026-10-28 After D313 (the owner: the sxml command sets no evaluation
+step limit). Today the command leaves `maximum_evaluation_step_count` at 0, the
+library's default of 10^8 steps (D89, D259), about 2 s of work after perf-5 to
+perf-7; a long batch job such as a Schematron compile cannot finish, and there
+is no option to raise it. The library's default stays for embedders and the
+JavaScript package; the drivers keep their own bounds (D166, D178).
 
 - **Mechanism**: the command's processor configuration asks for no step bound.
   If the header has no way to say "no bound" (0 means the default), use the
@@ -2169,12 +2208,12 @@ the drivers keep their own bounds (D166, D178).
   pages and docs/CLI.md updated.
 
 ### 7.30 A Schematron conformance suite (tests)
-The owner (2026-10-28): the standard (ISO/IEC 19757-3:2025, bought by the
-owner) cannot be committed, so sxml writes a comprehensive conformance suite of
-its own from it. No public Schematron conformance suite of that scope is known;
-check (SchXslt's own tests, schematron.com, the Schematron community's
-repositories) and record what exists and its licence before writing; reuse with
-attribution what a licence allows.
+**Done** 2026-10-28 The owner (2026-10-28): the standard (ISO/IEC 19757-3:2025,
+bought by the owner) cannot be committed, so sxml writes a comprehensive
+conformance suite of its own from it. No public Schematron conformance suite of
+that scope is known; check (SchXslt's own tests, schematron.com, the Schematron
+community's repositories) and record what exists and its licence before
+writing; reuse with attribution what a licence allows.
 
 - **Whom it serves**: 7.28 (its gate), every later change to Schematron in
   sxml, and other implementations if the owner publishes it. Who pays: test
@@ -2235,6 +2274,8 @@ numbers keep their places in the waves above. They start only when the owner
 accepts them.
 
 ### 7.3 xsl:evaluate (implementation; proposed, D183)
+**Done** 2026-10-19
+
 - **Specifications**: XSLT 4.0, 10.5 "Dynamic XPath Evaluation" (the xpath,
   context-item, with-params, namespace-context, base-uri, schema-aware and as
   attributes; XTDE3160, XTDE3165, XTDE3170, XTDE3175).
@@ -2258,6 +2299,8 @@ accepts them.
   checks in json-doc and unparsed-text-available (2 cases).
 
 ### 7.5 disable-output-escaping (implementation; proposed, D183)
+**Done** 2026-10-19
+
 - **Specifications**: XSLT 4.0, 26.2 "Disabling Output Escaping" (deprecated,
   optional, and its permission to drop the marker when the result is not
   serialized); Serialization 4.0, 2 (the phases).
@@ -2282,6 +2325,8 @@ accepts them.
   any more).
 
 ### 7.13 XML 1.1 input (implementation; proposed, D183)
+**Done** 2026-10-19
+
 - **Specifications**: XML 1.1 (Second Edition), 2.2 (Char, RestrictedChar: C0
   controls only as character references, C1 controls as references), 2.11 (line
   ends with NEL and LINE SEPARATOR), 4.3.4 (version), 2.13 (normalization
@@ -2317,6 +2362,8 @@ XML_1.1 cases now run. The grammar is unchanged: a 1.1 pre-pass in `src/xml.c`
 instead of scanner state.
 
 ### 7.14 DTD processing: entities, defaults, validation (design and implementation, two packets; proposed, D183)
+**Done** 2026-10-19
+
 - **Specifications**: XML 1.0 (Fifth Edition):
 
   - 2.8 (the external subset and its conditional sections), 4.1 to 4.4

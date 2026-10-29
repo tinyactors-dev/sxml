@@ -1,7 +1,7 @@
 <packet id="perf-2">
   <title>Evaluator performance, second round (implementation)</title>
   <body>
-    <p>After <ref kind="decision" to="D224"/> (perf-1: its benchmarks, and what it left: describe_node 15 % and the machine loop 12 % of XMark-All, atomization, reference counts and small sequences, numeric index keys, hoisting of path MAPs, quantified expressions and sorts, the <code>$V[. instance of gnode()]</code> check per <code>match="$var"</code> test).</p>
+    <p><status value="done" date="2026-10-19"/> After <ref kind="decision" to="D224"/> (perf-1: its benchmarks, and what it left: describe_node 15 % and the machine loop 12 % of XMark-All, atomization, reference counts and small sequences, numeric index keys, hoisting of path MAPs, quantified expressions and sorts, the <code>$V[. instance of gnode()]</code> check per <code>match="$var"</code> test).</p>
     <list>
       <item>
         <p><strong>Mechanism</strong>: profile first (callgrind), then general mechanisms of the one IR and evaluator for the hot spots; <ref kind="decision" to="D223"/>'s rule (no IR pass moves STREAM bindings), <ref kind="decision" to="D71"/> and honest step counts kept.</p>

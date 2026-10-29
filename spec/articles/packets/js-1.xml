@@ -1,7 +1,7 @@
 <packet id="js-1">
   <title>JavaScript bindings for XQuery, XSLT and XSD validation (implementation)</title>
   <body>
-    <p>After <ref kind="packet" to="7.2"/> (<ref kind="decision" to="D189"/>), <ref kind="decision" to="D207"/> and <ref kind="decision" to="D208"/>. The package covered XPath only.</p>
+    <p><status value="done" date="2026-10-19"/> After <ref kind="packet" to="7.2"/> (<ref kind="decision" to="D189"/>), <ref kind="decision" to="D207"/> and <ref kind="decision" to="D208"/>. The package covered XPath only.</p>
     <list>
       <item>
         <p><strong>Specifications</strong>: XQuery 4.0 (5 Modules and Prologs, 5.16, 5.22), the XQuery Update Facility 3.0 (2.2, 3.2.2, 6.1), XSLT 4.0 (2.4, 23, 26), XSD 1.1 Part 1 (4.2, 5.2, appendix C), through the stable <code>xquery.h</code>, <code>xslt.h</code> and <code>schema.h</code>.</p>

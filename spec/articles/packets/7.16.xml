@@ -1,6 +1,7 @@
 <packet id="7.16">
   <title>A timezone database (implementation)</title>
   <body>
+    <p><status value="done" date="2026-10-19"/></p>
     <list>
       <item>
         <p><strong>Specifications</strong>:</p>

@@ -1,7 +1,7 @@
 <packet id="perf-3">
   <title>XML parsing speed (implementation)</title>
   <body>
-    <p>After <ref kind="decision" to="D12"/> (tree-sitter parses XML, the owner's choice), <ref kind="decision" to="D222"/> (segmented parsing) and <ref kind="decision" to="D224"/>, <ref kind="decision" to="D229"/> (the benchmarks; parsing a quarter of XMark-All).</p>
+    <p><status value="done" date="2026-10-19"/> After <ref kind="decision" to="D12"/> (tree-sitter parses XML, the owner's choice), <ref kind="decision" to="D222"/> (segmented parsing) and <ref kind="decision" to="D224"/>, <ref kind="decision" to="D229"/> (the benchmarks; parsing a quarter of XMark-All).</p>
     <list>
       <item>
         <p><strong>Mechanism</strong>: profile parsing alone (callgrind, 10 MB and 100 MB); fewer tokens and nodes in the grammar and its scanner, a cheaper walk; tree-sitter, the segments and the incremental events kept.</p>

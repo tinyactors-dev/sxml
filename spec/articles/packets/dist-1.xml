@@ -1,7 +1,7 @@
 <packet id="dist-1">
   <title>A mise task that builds the sxml command for every platform (build)</title>
   <body>
-    <p>After <ref kind="decision" to="D255"/>.</p>
+    <p><status value="done" date="2026-10-20"/> After <ref kind="decision" to="D255"/>.</p>
     <list>
       <item>
         <p><strong>Mechanism</strong>: <code>mise.toml</code> pins cmake, ninja, zig, node and the WASI SDK; <code>tools/dist.sh</code> is the one implementation behind the tasks <code>mise run dist</code>, <code>dist:&lt;target&gt;</code>, <code>dist:checksums</code>, <code>dist:verify</code> and <code>install</code>. The native targets are cross-compiled from Linux with <code>zig cc</code> through one toolchain file, <code>cmake/toolchains/zig.cmake</code>; wasm32-wasi uses <code>cmake/wasi-sdk.cmake</code>. No library or header changes.</p>

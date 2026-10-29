@@ -1,7 +1,7 @@
 <packet id="perf-4">
   <title>Laziness, joins and the step limit (implementation)</title>
   <body>
-    <p>After <ref kind="decision" to="D224"/>, <ref kind="decision" to="D229"/>, <ref kind="decision" to="D232"/> and <ref kind="decision" to="D257"/> (writing the book's performance chapter found three things): <code>head(filter(1 to 1e9, ...))</code> and <code>exists((1 to 1e9)[. = 999])</code> read the whole range; the chapter's join of 2,000 orders takes 12 s although <ref kind="decision" to="D224"/>'s filter index exists for it; the default step limit takes about 75 s to trigger.</p>
+    <p><status value="done" date="2026-10-20"/> After <ref kind="decision" to="D224"/>, <ref kind="decision" to="D229"/>, <ref kind="decision" to="D232"/> and <ref kind="decision" to="D257"/> (writing the book's performance chapter found three things): <code>head(filter(1 to 1e9, ...))</code> and <code>exists((1 to 1e9)[. = 999])</code> read the whole range; the chapter's join of 2,000 orders takes 12 s although <ref kind="decision" to="D224"/>'s filter index exists for it; the default step limit takes about 75 s to trigger.</p>
     <list>
       <item>
         <p><strong>Mechanism</strong>: one general mechanism for stopping early (head, exists, empty, <code>[1]</code>, some/every, boolean()), on the one IR and evaluator, with <ref kind="decision" to="D71"/>, honest step counts and the errors XPath 4.0, 2.4.3 lets be skipped; the filter index extended in general to the join's shape; the step rate measured and the default limit decided without touching the drivers' budgets (<ref kind="decision" to="D166"/>, <ref kind="decision" to="D178"/>).</p>

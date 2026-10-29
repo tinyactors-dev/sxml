@@ -1,7 +1,7 @@
 <packet id="7.2c">
   <title>Per-language part lists (build; packet size-2)</title>
   <body>
-    <p>After <ref kind="packet" to="7.2b"/> and <ref kind="decision" to="D225"/>. The part registries were global, so the core <code>sxml.wasm</code> linked XQuery's lowering parts (about 75 KB, <ref kind="decision" to="D189"/>) and the XSLT-only library and evaluator parts (<ref kind="decision" to="D225"/>).</p>
+    <p><status value="done" date="2026-10-19"/> After <ref kind="packet" to="7.2b"/> and <ref kind="decision" to="D225"/>. The part registries were global, so the core <code>sxml.wasm</code> linked XQuery's lowering parts (about 75 KB, <ref kind="decision" to="D189"/>) and the XSLT-only library and evaluator parts (<ref kind="decision" to="D225"/>).</p>
     <list>
       <item>
         <p><strong>Owns</strong>: <code>cmake/SxmlParts.cmake</code>, the registry lines of <code>CMakeLists.txt</code>, the registry declarations in <code>src/function_library_parts_internal.h</code>, <code>src/xpath_lower_internal.h</code> and <code>src/evaluator_machine_internal.h</code>, single hunks where each language names its lists, <code>tests/part_registry_test.c</code>, the size baseline.</p>

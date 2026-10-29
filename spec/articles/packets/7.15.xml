@@ -1,6 +1,7 @@
 <packet id="7.15">
   <title>Full UCA collations (implementation, two packets)</title>
   <body>
+    <p><status value="done" date="2026-10-19"/></p>
     <list>
       <item>
         <p><strong>Specifications</strong>: F&amp;O 4.0, 5.2.4 "The Unicode Collation Algorithm" (the URI parameters fallback, lang, version, strength, maxVariable, alternate, backwards, normalization, caseLevel, caseFirst, numeric, reorder; FOCH0002); UTS #10 (UCA, version 16.0, matching sxml's Unicode 16.0.0 tables) with its DUCET; UTS #35, Part 5 (CLDR collation: the root collation, tailoring rule syntax, the case and numeric options).</p>
