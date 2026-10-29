@@ -467,7 +467,7 @@ describe('source locations', () => {
   // program that cannot ask does not; 'always' and 'never' decide alone.
   const text = '<a>\n  <b/>\n</a>';
   const lineOf = (processor: Processor, document: Value): string => {
-    const value = processor.evaluate('string(location(/a/b)?line-number)', { context: document });
+    const value = processor.evaluate('location(/a/b)?line-number', { context: document });
     const line = value.toString();
     value.dispose();
     return line;
