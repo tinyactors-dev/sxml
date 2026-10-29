@@ -431,13 +431,18 @@ typedef struct sxml_schematron_error {
     /* The document and the place in it. */
     uint32_t document;
     sxml_ast_source_span source_span;
+    /* A warning (code "compatibility", D331): a known deviation of real
+       rule sets, read as they mean it. It goes to the sink only, is no
+       error, and never stops compilation. */
+    bool is_warning;
 } sxml_schematron_error;
 
 /*
  * Reports error: to the configuration's report sink, and, the first, into
  * its error record. Returns SXML_STATUS_OK when compilation goes on (a
  * sink), SXML_STATUS_STATIC_ERROR with the null sink, the sink's status
- * when it stops. Defined in src/schematron_read.c.
+ * when it stops. A warning goes to the sink only (the null sink drops
+ * it) and is not counted. Defined in src/schematron_read.c.
  */
 SXML_NODISCARD sxml_status sxml_schematron_report_error(sxml_schematron_compilation *compilation,
                                                         const sxml_schematron_error *error);

@@ -4401,6 +4401,196 @@ static sxml_status check_syntax(schematron_builder *builder, sxml_schematron_pla
     return status;
 }
 
+/* ------------------------------------------- Pattern variables shared */
+
+/* Whether an XPath AST binds name itself (a for, let or quantified
+   variable, a positional variable or an inline function's parameter):
+   then a reference to name in it may be to that binding. */
+static bool expression_binds(const sxml_ast *ast, sxml_byte_view name) {
+    for (uint32_t node_number = 1; node_number < ast->node_count; node_number += 1) {
+        const sxml_ast_kind kind = ast->nodes[node_number].kind;
+        if (kind != SXML_AST_KIND_VARIABLE_NAME_AND_TYPE && kind != SXML_AST_KIND_POSITIONAL_VARIABLE) {
+            continue;
+        }
+        const sxml_ast_node *child = sxml_ast_get_node(ast, ast->nodes[node_number].first_child);
+        if (child->kind == SXML_AST_KIND_NCNAME &&
+            sxml_byte_view_equals(sxml_ast_get_text(ast, child->payload.name.local_name), name)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/* The name of an XSLT variable or parameter node; 0 for other nodes. */
+static sxml_name_identifier bound_name(const sxml_xslt_ast *ast, sxml_xslt_ast_node_index node) {
+    const sxml_xslt_ast_kind kind = sxml_xslt_ast_get_node(ast, node)->kind;
+    if (kind != SXML_XSLT_AST_KIND_VARIABLE && kind != SXML_XSLT_AST_KIND_PARAM) {
+        return (sxml_name_identifier){.index = 0};
+    }
+    const sxml_xslt_ast_attribute_index attribute = sxml_xslt_ast_find_attribute(
+        ast, (sxml_xslt_ast_attribute_query){.node = node, .kind = SXML_XSLT_AST_ATTRIBUTE_NAME});
+    const sxml_xslt_ast_value value = sxml_xslt_ast_get_attribute(ast, attribute)->value;
+    return attribute.value != 0 && value.kind == SXML_XSLT_AST_VALUE_KIND_NAME
+               ? value.payload.name
+               : (sxml_name_identifier){.index = 0};
+}
+
+/* Whether name is bound where node is: by a variable or parameter before
+   it or before one of its ancestors (XSLT 4.0, 9.9), up to the
+   declarations, which are the stylesheet's globals. */
+static bool is_bound_at(const sxml_xslt_ast *ast, sxml_xslt_ast_node_index node, sxml_name_identifier name) {
+    sxml_xslt_ast_node_index current = node;
+    while (current.value != 0) {
+        const sxml_xslt_ast_node *entry = sxml_xslt_ast_get_node(ast, current);
+        if ((entry->flags & SXML_XSLT_AST_NODE_FLAG_DECLARATION) != 0 || entry->parent.value == 0) {
+            return false;
+        }
+        for (sxml_xslt_ast_node_index sibling = sxml_xslt_ast_get_node(ast, entry->parent)->first_child;
+             sibling.value != 0 && sibling.value != current.value;
+             sibling = sxml_xslt_ast_get_node(ast, sibling)->next_sibling) {
+            if (bound_name(ast, sibling).index == name.index) {
+                return true;
+            }
+        }
+        current = entry->parent;
+    }
+    return false;
+}
+
+/* The schematron document of an XSLT module. */
+static uint32_t document_of_module(const schematron_builder *builder, sxml_xslt_ast_module_index module) {
+    const sxml_schematron_compilation *compilation = builder->compilation;
+    for (uint32_t document = 0; document < compilation->documents.count; document += 1) {
+        if (sxml_schematron_document_at(compilation, document)->module.value == module.value) {
+            return document;
+        }
+    }
+    return 0;
+}
+
+/* The pattern let a reference may read: the index in
+   builder->pattern_variables of the first compiled pattern's let of that
+   written name, unless a global of the stylesheet has the name; SIZE_MAX
+   when none. */
+static size_t shared_variable_of(const schematron_builder *builder, sxml_byte_view name) {
+    const sxml_schematron_compilation *compilation = builder->compilation;
+    sxml_name_identifier written_name = {.index = 0};
+    if (sxml_name_pool_intern_name(compilation->name_pool,
+                                   &(sxml_name_request){.namespace_uri = {.index = SXML_NAMESPACE_NONE},
+                                                        .local_name = name},
+                                   &written_name) != SXML_STATUS_OK) {
+        return SIZE_MAX;
+    }
+    const pattern_variable *variables = builder->pattern_variables.elements;
+    size_t found = SIZE_MAX;
+    for (size_t variable_index = 0; variable_index < builder->pattern_variables.count; variable_index += 1) {
+        if (variables[variable_index].written_name.index == written_name.index &&
+            (found == SIZE_MAX || variables[variable_index].pattern < variables[found].pattern)) {
+            found = variable_index;
+        }
+    }
+    if (found == SIZE_MAX) {
+        return SIZE_MAX;
+    }
+    const sxml_xslt_ast *ast = builder->ast;
+    for (sxml_xslt_ast_node_index declaration = sxml_xslt_ast_get_node(ast, builder->root)->first_child;
+         declaration.value != 0; declaration = sxml_xslt_ast_get_node(ast, declaration)->next_sibling) {
+        if (bound_name(ast, declaration).index == written_name.index) {
+            return SIZE_MAX;
+        }
+    }
+    return found;
+}
+
+/* A pattern's let read where it is not in scope: by another pattern, a
+   schema or phase variable or an XSLT declaration. 3.23 scopes a
+   pattern's variables to the pattern, but real rule sets declare their
+   global variables in a pattern of lets (as SchXslt makes every pattern
+   variable global). Each such reference is a compatibility warning, and
+   the name becomes a global that refers to the first compiled pattern's
+   let (D331). */
+static sxml_status share_pattern_variables(schematron_builder *builder) {
+    if (builder->pattern_variables.count == 0) {
+        return SXML_STATUS_OK;
+    }
+    sxml_schematron_compilation *compilation = builder->compilation;
+    sxml_xslt_ast *ast = builder->ast;
+    sxml_schematron_array shared = {.elements = NULL, .count = 0, .capacity = 0};
+    sxml_status status = SXML_STATUS_OK;
+    const uint32_t expression_count = ast->expression_count;
+    for (uint32_t expression_number = 1; status == SXML_STATUS_OK && expression_number < expression_count;
+         expression_number += 1) {
+        const sxml_xslt_ast_expression *expression =
+            sxml_xslt_ast_get_expression(ast, (sxml_xslt_ast_expression_index){.value = expression_number});
+        const sxml_ast *tree = expression->ast;
+        if (tree == NULL) {
+            continue;
+        }
+        for (uint32_t node_number = 1; status == SXML_STATUS_OK && node_number < tree->node_count;
+             node_number += 1) {
+            if (tree->nodes[node_number].kind != SXML_AST_KIND_VARIABLE_REFERENCE) {
+                continue;
+            }
+            const sxml_ast_node *name_node = sxml_ast_get_node(tree, tree->nodes[node_number].first_child);
+            if (name_node->kind != SXML_AST_KIND_NCNAME) {
+                continue;
+            }
+            const sxml_byte_view name = sxml_ast_get_text(tree, name_node->payload.name.local_name);
+            const size_t variable_index = shared_variable_of(builder, name);
+            const pattern_variable *variables = builder->pattern_variables.elements;
+            if (variable_index == SIZE_MAX || expression_binds(tree, name) ||
+                is_bound_at(ast, expression->node, variables[variable_index].written_name)) {
+                continue;
+            }
+            const sxml_xslt_ast_node *holder = sxml_xslt_ast_get_node(ast, expression->node);
+            const sxml_ast_source_span span = tree->nodes[node_number].source_span.line_number != 0
+                                                  ? tree->nodes[node_number].source_span
+                                                  : expression->source_span;
+            status = sxml_schematron_report_error(
+                compilation,
+                &(sxml_schematron_error){
+                    .code = "compatibility",
+                    .is_xpath = false,
+                    .description = "a variable of another pattern; the first compiled pattern's "
+                                   "let of the name is read (3.23 scopes a pattern's variables to "
+                                   "the pattern)",
+                    .subject = name,
+                    .document = document_of_module(builder, holder->module),
+                    .source_span = span,
+                    .is_warning = true});
+            bool is_shared = false;
+            const size_t *listed = shared.elements;
+            for (size_t shared_index = 0; shared_index < shared.count; shared_index += 1) {
+                is_shared = is_shared || listed[shared_index] == variable_index;
+            }
+            if (status == SXML_STATUS_OK && !is_shared) {
+                status = sxml_schematron_array_push(compilation, &shared,
+                                                    SXML_SCHEMATRON_ELEMENT_OF(variable_index));
+            }
+        }
+    }
+    /* The globals: name := $synthesized. */
+    const size_t *listed = shared.elements;
+    const pattern_variable *variables = builder->pattern_variables.elements;
+    for (size_t shared_index = 0; status == SXML_STATUS_OK && shared_index < shared.count; shared_index += 1) {
+        const pattern_variable variable = variables[listed[shared_index]];
+        sxml_byte_view select = no_text;
+        status = make_reference_text(
+            builder, (reference_text){.before = "$", .name = variable.global_name, .after = ""}, &select);
+        sxml_xslt_ast_node_index node = {.value = 0};
+        if (status == SXML_STATUS_OK) {
+            status = add_global(builder,
+                                (global_request){.name = variable.written_name,
+                                                 .select = select,
+                                                 .as = no_text,
+                                                 .kind = SXML_XSLT_AST_KIND_VARIABLE},
+                                &node);
+        }
+    }
+    sxml_schematron_array_release(compilation, &shared);
+    return status;
+}
+
 /* Every expression the compiled stylesheet does not hold is parsed:
    patterns not compiled (an instance with its parameters), abstract
    rules outside abstract patterns, the phases not chosen (7.2). */
@@ -4745,6 +4935,9 @@ sxml_status sxml_schematron_build(sxml_schematron_compilation *compilation) {
     builder.has_instance = false;
     if (status == SXML_STATUS_OK) {
         status = emit_validate(&builder);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = share_pattern_variables(&builder);
     }
     if (status == SXML_STATUS_OK) {
         status = check_uncompiled(&builder);

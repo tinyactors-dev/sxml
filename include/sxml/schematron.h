@@ -118,6 +118,16 @@
  * - schematron:syntax: an element of the Schematron namespace where the
  *   schema does not allow it, without an attribute it needs or with a
  *   value its grammar does not allow (Annex A).
+ * One code is a warning, not an error: schematron:compatibility, a known
+ * deviation of real rule sets that is read as its authors mean it (D331),
+ * each occurrence with the clause it deviates from: a parameter named
+ * twice in one pattern instance (the first value is used; 5.4.11, Annex
+ * B), a pattern's variable read where 3.23 does not scope it (by another
+ * pattern, a variable outside patterns or an XSLT declaration: the first
+ * compiled pattern's let of the name is read), a rule's let after its
+ * assertions (evaluated before them, as every rule let is; Annex A). A
+ * warning goes to the report sink only (the null sink drops it), is not
+ * put in the error record, and does not make compilation fail.
  * Errors in expressions keep the codes of XPath and XSLT (XPST0003,
  * XPST0008, XTSE0010, ...). Every error's location names the schematron
  * document's absolute URI with the line and column of the element or
@@ -362,8 +372,9 @@ typedef struct sxml_schematron_configuration {
        schematron:parameter. Borrowed for the call. */
     sxml_schematron_parameter_view parameters;
     /* Receives every error compilation finds (code, description, the
-       location in a schematron document; see the top of this header);
-       the null sink stops at the first. Borrowed for the call. */
+       location in a schematron document; see the top of this header),
+       and every schematron:compatibility warning; the null sink stops at
+       the first error and drops warnings. Borrowed for the call. */
     sxml_schema_report_sink report_sink;
     /* Receives the first error, or the location of a limit reached; may
        be NULL. Borrowed for the call. */

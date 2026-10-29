@@ -351,13 +351,19 @@ documents its `include` and `extends href` elements name (kind
 values. If the schema has errors, a `SchemaError` is thrown with every
 one in its `reports`, with codes such as `'schematron:syntax'` or
 `'err:XPST0003'`. The schema's `title`, `schemaVersion`,
-`schematronEdition`, `queryBinding` and `phase` are on the result.
+`schematronEdition`, `queryBinding` and `phase` are on the result, and
+its `warnings`: reports with the code `'schematron:compatibility'` for
+the deviations of real rule sets that are read as meant (a parameter
+named twice in one pattern instance, a pattern's `let` read by another
+pattern, a rule's `let` after its assertions).
 
 `schematron.validate(input, { uri, firedRules, svrl })` checks XML text
 (parsed with its locations) or a node and gives `{ valid, phase,
 findings, svrl }`. Each finding has its `kind`, `id`, `role`, `flag`,
 `severity`, `isError`, `message`, `diagnostics`, `properties`,
-`patternId`, `test`, `path`, the node's `lineNumber` and `columnNumber`,
+`patternId`, `test`, `path`, the `document` its node is in (the URI of
+a subordinate document for a pattern with `documents`), the node's
+`lineNumber` and `columnNumber` there,
 and the assertion's `schemaLineNumber` and `schemaColumnNumber`. `valid`
 is false when a finding is an error: its severity is `fatal` or
 `error`, or without a severity its role or a flag is, or it has neither.

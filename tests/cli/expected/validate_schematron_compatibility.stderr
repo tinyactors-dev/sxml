@@ -1,0 +1,4 @@
+schematron/compatibility.sch:19:7: warning: schematron:compatibility: a let after the assertions of its rule; it is evaluated before them (Annex A puts a rule's lets first): total
+schematron/compatibility.sch:14:5: warning: schematron:compatibility: a parameter is named twice in one pattern instance; the first value is used (5.4.11 and Annex B make it an error): element
+schematron/compatibility.sch:9:41: warning: schematron:compatibility: a variable of another pattern; the first compiled pattern's let of the name is read (3.23 scopes a pattern's variables to the pattern): limit
+schematron/compatibility.sch:9:77: warning: schematron:compatibility: a variable of another pattern; the first compiled pattern's let of the name is read (3.23 scopes a pattern's variables to the pattern): limit

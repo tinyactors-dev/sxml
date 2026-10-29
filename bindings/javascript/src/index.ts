@@ -1565,9 +1565,12 @@ export class Processor {
       ]);
       const status = exports.sxml_javascript_schematron_compile(address, request);
       const reports = schemaReports(this.sideResults(request / 4 + 10));
+      const warnings = reports.filter(isSchematronWarning);
       if (status !== status_ok) {
         const failure = this.failure();
-        throw failure instanceof SxmlError ? new SchemaError(failure, reports) : failure;
+        throw failure instanceof SxmlError
+          ? new SchemaError(failure, reports.filter((report) => !isSchematronWarning(report)))
+          : failure;
       }
       const description = scratch.words([0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
       exports.sxml_javascript_schematron_describe(address, description);
@@ -1580,6 +1583,7 @@ export class Processor {
         schematronEdition: field(2),
         queryBinding: field(3),
         phase: field(4),
+        warnings,
       });
     } catch (exception) {
       compiled.dispose();
@@ -2334,6 +2338,12 @@ export class Stylesheet {
 
 // ------------------------------------------------------------------- XSD
 
+/** A Schematron compile report that is a warning, not an error: a known
+ *  deviation of real rule sets, read as its authors mean it. */
+function isSchematronWarning(report: SchemaReport): boolean {
+  return report.code === 'schematron:compatibility';
+}
+
 /** The SCHEMA_REPORT side results as reports. */
 function schemaReports(results: SideResult[]): SchemaReport[] {
   return results
@@ -2431,6 +2441,11 @@ export class Schematron {
   queryBinding = '';
   /** The phase compiled ('#DEFAULT' resolved). */
   phase = '';
+  /** The schema's warnings (code 'schematron:compatibility'): a parameter
+   *  named twice in one pattern instance, a pattern's let read by another
+   *  pattern, a rule's let after its assertions. Read as their authors
+   *  mean them; each names the clause it deviates from. */
+  warnings: readonly SchemaReport[] = [];
 
   /** @internal Use Processor.compileSchematron(). */
   constructor(processor: Processor, address: number) {
@@ -2439,7 +2454,15 @@ export class Schematron {
   }
 
   /** @internal */
-  describe(fields: { title: string; schemaVersion: string; schematronEdition: string; queryBinding: string; phase: string }): void {
+  describe(fields: {
+    title: string;
+    schemaVersion: string;
+    schematronEdition: string;
+    queryBinding: string;
+    phase: string;
+    warnings: SchemaReport[];
+  }): void {
+    this.warnings = Object.freeze(fields.warnings);
     this.title = fields.title;
     this.schemaVersion = fields.schemaVersion;
     this.schematronEdition = fields.schematronEdition;

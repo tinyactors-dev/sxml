@@ -195,6 +195,9 @@ typedef struct sxml_validate_error {
     uint32_t line_number;
     uint32_t column_number;
     size_t byte_offset;
+    /* A warning of the Schematron schema (schematron:compatibility,
+       D331): reported, but no error. */
+    bool is_warning;
 } sxml_validate_error;
 
 /* The SCHEMA documents of the command line. */
@@ -443,11 +446,21 @@ static sxml_byte_view sxml_validate_description(const sxml_schema_report *report
     return description;
 }
 
+/* A Schematron compile report that is a warning, not an error
+   (include/sxml/schematron.h: schematron:compatibility, D331). */
+static bool sxml_validate_is_warning(const sxml_schema_report *report) {
+    return sxml_byte_view_equals(report->code.namespace_uri, SXML_TEXT("urn:sxml:schematron")) &&
+           sxml_byte_view_equals(report->code.local_name, SXML_TEXT("compatibility"));
+}
+
 static sxml_status sxml_validate_receive_report(void *state, const sxml_schema_report *report) {
     sxml_validate_run *run = state;
-    run->error_count += 1;
     const sxml_byte_view description = sxml_validate_description(report);
     const bool is_rules_error = run->rules.is_compiling;
+    const bool is_warning = is_rules_error && sxml_validate_is_warning(report);
+    if (!is_warning) {
+        run->error_count += 1;
+    }
     const bool is_schema_error =
         run->file.byte_count == 0 || run->is_compiling_hints || is_rules_error;
     const sxml_byte_view name =
@@ -470,10 +483,14 @@ static sxml_status sxml_validate_receive_report(void *state, const sxml_schema_r
                      .description = description,
                      .line_number = report->location.line_number,
                      .column_number = report->location.column_number,
-                     .byte_offset = report->location.byte_offset});
+                     .byte_offset = report->location.byte_offset,
+                     .is_warning = is_warning});
     }
     sxml_cli_writer *error = run->invocation->standard_error;
     sxml_validate_write_place(run, name, &report->location);
+    if (is_warning) {
+        sxml_cli_writer_write(error, SXML_TEXT("warning: "));
+    }
     if (report->code.local_name.byte_count > 0) {
         if (prefix.byte_count > 0) {
             sxml_cli_writer_write_escaped(error, prefix);
@@ -514,18 +531,30 @@ static void sxml_validate_write_json_location(sxml_cli_writer *output,
     sxml_cli_writer_write_decimal(output, error->byte_offset);
 }
 
-/* ,"errors":[...] for the errors kept, when there are any. */
-static void sxml_validate_write_json_errors(const sxml_validate_run *run) {
+/* ,"errors":[...] for the errors kept, or with warnings ,"warnings":[...]
+   for the warnings kept, when there are any. */
+typedef struct sxml_validate_json_list {
+    const char *member;
+    bool lists_warnings;
+} sxml_validate_json_list;
+
+static void sxml_validate_write_json_list(const sxml_validate_run *run,
+                                          sxml_validate_json_list list) {
     sxml_cli_writer *output = run->invocation->standard_output;
-    if (run->first_error == NULL) {
-        return;
-    }
-    sxml_cli_writer_write(output, SXML_TEXT(",\"errors\":["));
+    bool is_first = true;
     for (const sxml_validate_error *error = run->first_error; error != NULL;
          error = error->next) {
-        if (error != run->first_error) {
+        if (error->is_warning != list.lists_warnings) {
+            continue;
+        }
+        if (is_first) {
+            sxml_cli_writer_write(output, SXML_TEXT(",\""));
+            sxml_cli_writer_write(output, sxml_byte_view_from_c_string(list.member));
+            sxml_cli_writer_write(output, SXML_TEXT("\":["));
+        } else {
             sxml_cli_writer_write_byte(output, ',');
         }
+        is_first = false;
         sxml_cli_writer_write_byte(output, '{');
         if (error->document.byte_count > 0) {
             sxml_cli_writer_write(output, SXML_TEXT("\"document\":"));
@@ -547,7 +576,14 @@ static void sxml_validate_write_json_errors(const sxml_validate_run *run) {
         sxml_cli_writer_write_json_string(output, error->description);
         sxml_cli_writer_write_byte(output, '}');
     }
-    sxml_cli_writer_write_byte(output, ']');
+    if (!is_first) {
+        sxml_cli_writer_write_byte(output, ']');
+    }
+}
+
+static void sxml_validate_write_json_errors(const sxml_validate_run *run) {
+    sxml_validate_write_json_list(run,
+                                  (sxml_validate_json_list){.member = "errors", .lists_warnings = false});
 }
 
 /* The diagnostic fields of a not well-formed or failed file: line,
@@ -1201,6 +1237,8 @@ static void sxml_validate_write_json_schematron(sxml_validate_run *run,
     sxml_cli_writer_write(output, SXML_TEXT(",\"status\":"));
     sxml_cli_writer_write_json_string(output, sxml_validate_outcome_name(outcome));
     sxml_validate_write_json_errors(run);
+    sxml_validate_write_json_list(run,
+                                  (sxml_validate_json_list){.member = "warnings", .lists_warnings = true});
     sxml_cli_writer_write_byte(output, '}');
 }
 
@@ -1834,9 +1872,14 @@ const sxml_cli_command sxml_validate_command = {
         "--phase names and the values --schematron-param gives its schema\n"
         "parameters; each of its errors is reported as\n"
         "  SCH:LINE:COLUMN: CODE: description\n"
-        "and then no FILE is read. --schema may then be left out. The rules\n"
-        "run over each FILE (over its validated copy when it is valid against\n"
-        "the XSD schema); each finding is reported as\n"
+        "and then no FILE is read. A deviation of real rule sets that sxml\n"
+        "reads as meant (a parameter named twice in one pattern instance, a\n"
+        "pattern's let read by another pattern, a rule's let after its\n"
+        "assertions) is reported as\n"
+        "  SCH:LINE:COLUMN: warning: schematron:compatibility: description\n"
+        "and is no error. With --schematron, --schema may be left out. The\n"
+        "rules run over each FILE (over its validated copy when it is valid\n"
+        "against the XSD schema); each finding is reported as\n"
         "  FILE:LINE:COLUMN: ID LEVEL: MESSAGE (SCH:LINE:COLUMN)\n"
         "where FILE is the document the finding is in (for a pattern with\n"
         "documents, the document it names), ID the assertion's id (else\n"

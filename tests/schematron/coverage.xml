@@ -868,8 +868,9 @@
     <test set="phases" case="phase-non-ascii-id"/>
   </requirement>
   <requirement id="r-A-order" clause="Annex-A" kind="shall">
-    <text>The schema's children come in the grammar's order.</text>
+    <text>Children come in the grammar's order: the schema's, and a rule's lets before its assertions.</text>
     <test set="static-errors" case="error-ns-after-pattern"/>
+    <test set="variables" case="let-after-assertion"/>
   </requirement>
   <requirement id="r-A-once" clause="Annex-A" kind="shall">
     <text>At most one diagnostics and one properties element.</text>

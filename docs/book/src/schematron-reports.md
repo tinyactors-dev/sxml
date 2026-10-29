@@ -175,6 +175,45 @@ An error inside text that a placeholder brought in is reported where
 that text is written: at the `value` of the `param`, not at the rule
 that uses it.
 
+## Warnings
+
+Some schemas in use were written for processors that read the standard
+loosely, and break one of three of its rules: a pattern holds variables
+that other patterns read, a rule's `let` follows an assertion, or a
+pattern instance names one parameter twice. sxml reads such a schema as
+its authors meant it, and says so: each place is a warning that names
+the rule of the standard it breaks. `older.sch` is written that way:
+
+`older.sch`:
+
+```xml
+{{#include ../examples/scxml/older.sch}}
+```
+
+```console
+$ sxml validate --schematron=older.sch flag.scxml; echo "exit status $?"
+older.sch:15:7: warning: schematron:compatibility: a let after the assertions of its rule; it is evaluated before them (Annex A puts a rule's lets first): names
+older.sch:13:47: warning: schematron:compatibility: a variable of another pattern; the first compiled pattern's let of the name is read (3.23 scopes a pattern's variables to the pattern): state-ids
+exit status 0
+```
+
+A warning goes to standard error as an error does, with `warning:`
+before its code, `schematron:compatibility`, and it does not change the
+exit status: `flag.scxml` is valid. The JSON report lists the warnings
+in the `schematron` object:
+
+```console
+$ sxml validate --schematron=older.sch --format=json flag.scxml > older.json
+$ sxml xpath 'json-doc("older.json")?schematron?warnings?* ! `{?line}:{?column}: {?code}`'
+"15:7: schematron:compatibility"
+"13:47: schematron:compatibility"
+```
+
+To make the warnings go away, write the schema as the standard asks:
+variables that every pattern reads are `let` children of `schema`, and
+a rule's `let` elements come before its assertions. Nothing else is
+read loosely: any other break of the standard is an error.
+
 ## Query bindings
 
 A schema's `queryBinding` attribute names the language of its

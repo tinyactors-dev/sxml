@@ -441,12 +441,20 @@ typedef struct compile_errors {
 
 static sxml_status count_compile_error(void *state, const sxml_schema_report *report) {
     compile_errors *errors = state;
-    errors->error_count += 1;
+    /* schematron:compatibility is a warning (D331). */
+    const bool is_warning =
+        sxml_byte_view_equals(report->code.local_name, sxml_byte_view_from_c_string("compatibility")) &&
+        sxml_byte_view_equals(report->code.namespace_uri,
+                              sxml_byte_view_from_c_string("urn:sxml:schematron"));
+    if (!is_warning) {
+        errors->error_count += 1;
+    }
     if (errors->prints_errors) {
-        (void)fprintf(stderr, "%.*s:%u:%u: %.*s:%.*s: %.*s\n",
+        (void)fprintf(stderr, "%.*s:%u:%u: %s%.*s:%.*s: %.*s\n",
                       (int)report->location.source_name.byte_count,
                       (const char *)report->location.source_name.bytes,
                       report->location.line_number, report->location.column_number,
+                      is_warning ? "warning: " : "",
                       (int)report->code.namespace_prefix.byte_count,
                       (const char *)report->code.namespace_prefix.bytes,
                       (int)report->code.local_name.byte_count,

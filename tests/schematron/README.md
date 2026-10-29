@@ -2,7 +2,7 @@
 
 Test cases for Schematron as ISO/IEC 19757-3:2025 (the fourth edition)
 defines it, written for sxml (packet 7.30) and usable by any Schematron
-processor. 519 cases in 18 test sets; `coverage.xml` maps the standard's
+processor. 520 cases in 18 test sets; `coverage.xml` maps the standard's
 requirements to them.
 
 ## Layout

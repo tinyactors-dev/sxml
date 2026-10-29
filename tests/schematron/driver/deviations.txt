@@ -4,3 +4,6 @@
 edition-other-value D315 any schematronEdition is accepted and reported (8b, best-effort validation of other editions), where 5.5.15 requires 2025
 binding-xpath2-no-maps D315 xpath2 is read by the XPath 4.0 front end (version 2.0 changes nothing a 4.0 processor does, D197), so a map constructor is accepted
 error-context-is-expression D315 a rule context that is no pattern but an expression is wrapped as an expression rule context under every binding (the owner's amendment 3a), so count(item) fails at validation (XTTE0570), not at compile time
+abstract-param-duplicate D331 a parameter named twice in one pattern instance is read with a compatibility warning, the first value used (5.4.11, Annex B make it an error; real rule sets have it)
+let-pattern-not-visible-elsewhere D331 a pattern's let read by another pattern is read with a compatibility warning, the first compiled pattern's let of the name (3.23 scopes it to its pattern; real rule sets declare globals so)
+let-after-assertion D331 a rule's let after its assertions is read with a compatibility warning and evaluated before them (Annex A puts lets first; real rule sets have it)

@@ -165,6 +165,18 @@
     </result>
   </test-case>
 
+  <test-case name="let-after-assertion" since="2020">
+    <description>A rule's let after an assertion: the grammar puts a rule's lets before its assertions.</description>
+    <spec clause="Annex-A"/>
+    <spec clause="5.4.15"/>
+    <dependency type="query-binding" value="xslt3"/>
+    <schema file="let-after-assertion.sch"/>
+    <instance file="let-after-assertion.xml"/>
+    <result>
+      <schema-error clause="Annex-A"/>
+    </result>
+  </test-case>
+
   <test-case name="let-rule-uses-global" since="2020">
     <description>A rule variable may use a schema variable.</description>
     <spec clause="6.6"/>

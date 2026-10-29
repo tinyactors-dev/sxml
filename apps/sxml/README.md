@@ -830,7 +830,15 @@ are read as XSLT 4.0 and XPath 4.0; any other binding is the error
 it and CODE is `schematron:` followed by the rule of the standard
 (`syntax`, `include`, `reference`, `parameter`, `variable`,
 `query-binding`) or the code of an XPath or XSLT error (`err:XPST0003`);
-all of them, not only the first. Then no FILE is read.
+all of them, not only the first. Then no FILE is read. Three deviations
+of real rule sets from the standard are read as their authors mean
+them, each occurrence reported as `SCH:LINE:COLUMN: warning:
+schematron:compatibility: description` with the clause it deviates
+from: a parameter named twice in one pattern instance (the first value
+is used), a pattern's `let` read by another pattern or outside patterns
+(the first pattern's `let` of the name is read), and a rule's `let`
+after its assertions (evaluated before them). Warnings do not change
+the exit status.
 
 The rules run over each FILE, parsed with its line numbers; with
 `--schema`, over the validated copy of a FILE that is valid against the
@@ -864,7 +872,9 @@ With `--format=json`, one JSON object on standard output gives the
 - The `schematron` has its `document`, the `phase` compiled, the
   `edition` (its `schematronEdition`, any value, `null` without one) and
   its `status`; one that does not compile has `errors` as above, with
-  `code` such as `schematron:syntax`, and `files` is empty.
+  `code` such as `schematron:syntax`, and `files` is empty. Its
+  `warnings`, when there are any, have the fields of `errors`, with the
+  code `schematron:compatibility`.
 - With `--schematron`, each FILE has `findings` and the `phase` in force
   (under `#ANY`, the phase chosen for it). A finding has `kind`
   (`failed-assert` or `successful-report`), `id`, `role`, `flag`,

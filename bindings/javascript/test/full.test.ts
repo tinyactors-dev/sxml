@@ -634,6 +634,26 @@ describe('Schematron', () => {
     });
   });
 
+  test('reads the deviations of real rule sets with warnings', () => {
+    withProcessor((processor) => {
+      const schematron = processor.compileSchematron({
+        text: `<sch:schema xmlns:sch="http://purl.oclc.org/dsdl/schematron" queryBinding="xslt2">
+<sch:pattern><sch:rule context="line">
+<sch:assert test="$quantity &gt; 0">Positive.</sch:assert>
+<sch:let name="quantity" value="number(@quantity)"/>
+</sch:rule></sch:pattern>
+</sch:schema>`,
+        uri: 'urn:older.sch',
+      });
+      assert.deepEqual(
+        schematron.warnings.map(({ code, lineNumber }) => [code, lineNumber]),
+        [['schematron:compatibility', 4]],
+      );
+      assert.equal(schematron.validate('<order><line quantity="0"/></order>').findings.length, 1);
+      schematron.dispose();
+    });
+  });
+
   test('throws a SchemaError with every compile error', () => {
     withProcessor((processor) => {
       assert.throws(

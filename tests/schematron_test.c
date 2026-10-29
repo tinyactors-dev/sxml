@@ -539,6 +539,81 @@ static void test_reports_name_their_document(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
 }
 
+/* The known deviations of real rule sets compile, each occurrence a
+   schematron:compatibility warning with its place; anything else stays
+   an error; the null sink drops warnings (D331). */
+static void test_compatibility_warnings(sxml_test_state *state) {
+    fixture test_fixture;
+    SXML_TEST_EXPECT(state, fixture_create(0, &test_fixture) == SXML_STATUS_OK);
+    static const char schema[] = SCHEMA_START
+        "  <sch:pattern id='globals'>\n"
+        "    <sch:let name='limit' value='2'/>\n"
+        "  </sch:pattern>\n"
+        "  <sch:pattern abstract='true' id='bounded'>\n"
+        "    <sch:rule context='$element'><sch:assert test='number(@n) le $limit'>Too big.</sch:assert>"
+        "</sch:rule>\n"
+        "  </sch:pattern>\n"
+        "  <sch:pattern is-a='bounded' id='items'>\n"
+        "    <sch:param name='element' value='item'/>\n"
+        "    <sch:param name='element' value='other'/>\n"
+        "  </sch:pattern>\n"
+        "  <sch:pattern id='late'>\n"
+        "    <sch:rule context='doc'>\n"
+        "      <sch:assert test='$count gt 0'>Empty.</sch:assert>\n"
+        "      <sch:let name='count' value='count(item)'/>\n"
+        "    </sch:rule>\n"
+        "  </sch:pattern>\n"
+        "</sch:schema>";
+    received_lines warnings;
+    memset(&warnings, 0, sizeof(warnings));
+    sxml_schematron *schematron = NULL;
+    SXML_TEST_EXPECT(state, compile(&test_fixture, &(compile_request){.text = schema, .errors = &warnings},
+                                    &schematron) == SXML_STATUS_OK);
+    for (size_t line_index = 0; line_index < warnings.line_count; line_index += 1) {
+        note(state, warnings.lines[line_index]);
+    }
+    SXML_TEST_EXPECT(state, warnings.line_count == 3);
+    SXML_TEST_EXPECT(state, has_line(&warnings, "schematron:compatibility 10:5"));
+    SXML_TEST_EXPECT(state, has_line(&warnings, "schematron:compatibility 15:7"));
+    SXML_TEST_EXPECT(state, has_line(&warnings, "schematron:compatibility 6:61"));
+    received_lines reports;
+    memset(&reports, 0, sizeof(reports));
+    sxml_schematron_outcome outcome;
+    memset(&outcome, 0, sizeof(outcome));
+    SXML_TEST_EXPECT(state,
+                     validate(&test_fixture,
+                              &(validation_request){.instance_text = "<doc><item n='1'/><item n='3'/></doc>",
+                                                    .schematron = schematron,
+                                                    .reports = &reports},
+                              &outcome) == SXML_STATUS_OK);
+    for (size_t line_index = 0; line_index < reports.line_count; line_index += 1) {
+        note(state, reports.lines[line_index]);
+    }
+    /* The first parameter wins (item), the shared let is 2. */
+    SXML_TEST_EXPECT(state, reports.line_count == 1 &&
+                                has_line(&reports, "failed-assert  /Q{}doc[1]/Q{}item[2] 1 @6 error Too big."));
+    sxml_schematron_destroy(schematron);
+    schematron = NULL;
+    /* The null sink: compiles all the same. */
+    SXML_TEST_EXPECT(state, compile(&test_fixture, &(compile_request){.text = schema, .errors = NULL},
+                                    &schematron) == SXML_STATUS_OK);
+    sxml_schematron_destroy(schematron);
+    schematron = NULL;
+    /* A let after a rule, in its pattern, stays an error. */
+    static const char wrong[] = SCHEMA_START
+        "  <sch:pattern>\n"
+        "    <sch:rule context='doc'><sch:assert test='true()'>Never.</sch:assert></sch:rule>\n"
+        "    <sch:let name='late' value='1'/>\n"
+        "  </sch:pattern>\n"
+        "</sch:schema>";
+    received_lines errors;
+    memset(&errors, 0, sizeof(errors));
+    SXML_TEST_EXPECT(state, compile(&test_fixture, &(compile_request){.text = wrong, .errors = &errors},
+                                    &schematron) == SXML_STATUS_STATIC_ERROR);
+    SXML_TEST_EXPECT(state, has_line(&errors, "schematron:syntax 4:5"));
+    SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
+}
+
 static void test_dynamic_error_names_its_assertion(sxml_test_state *state) {
     fixture test_fixture;
     SXML_TEST_EXPECT(state, fixture_create(0, &test_fixture) == SXML_STATUS_OK);
@@ -888,6 +963,7 @@ static const sxml_test_case schematron_test_cases[] = {
      .function = test_configured_parameters_replace_schema_parameters},
     {.name = "reports_carry_both_locations", .function = test_reports_carry_both_locations},
     {.name = "reports_name_their_document", .function = test_reports_name_their_document},
+    {.name = "compatibility_warnings", .function = test_compatibility_warnings},
     {.name = "dynamic_error_names_its_assertion",
      .function = test_dynamic_error_names_its_assertion},
     {.name = "edition_2025_constructs", .function = test_edition_2025_constructs},

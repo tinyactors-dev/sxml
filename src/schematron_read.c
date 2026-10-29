@@ -609,27 +609,56 @@ sxml_schematron_inherited sxml_schematron_inherited_of(
 
 /* -------------------------------------------------------------- Errors */
 
-static sxml_status deliver_report(sxml_schematron_compilation *compilation,
-                                  const sxml_schema_report *report,
-                                  const sxml_error_record *record_form) {
+/* Remembers a report's code and place; *is_repeated when the same one
+   was reported before (an element read again, an expression copied). */
+static sxml_status remember_report(sxml_schematron_compilation *compilation,
+                                   const sxml_schema_report *report, bool *is_repeated) {
     const sxml_schema_report *reported = compilation->reported.elements;
+    *is_repeated = false;
     for (size_t report_index = 0; report_index < compilation->reported.count; report_index += 1) {
         const sxml_schema_report *earlier = &reported[report_index];
         if (earlier->location.line_number == report->location.line_number &&
             earlier->location.column_number == report->location.column_number &&
             sxml_byte_view_equals(earlier->location.source_name, report->location.source_name) &&
             sxml_byte_view_equals(earlier->code.local_name, report->code.local_name)) {
-            /* The same error at the same place: an element read again. */
+            *is_repeated = true;
             return SXML_STATUS_OK;
         }
     }
     const sxml_schema_report key = {.code = report->code,
                                     .description = no_text,
                                     .location = report->location};
-    const sxml_status pushed = sxml_schematron_array_push(compilation, &compilation->reported,
-                                                          SXML_SCHEMATRON_ELEMENT_OF(key));
-    if (pushed != SXML_STATUS_OK) {
-        return pushed;
+    return sxml_schematron_array_push(compilation, &compilation->reported,
+                                      SXML_SCHEMATRON_ELEMENT_OF(key));
+}
+
+/* A warning to the sink, once per place (D331). */
+static sxml_status deliver_warning(sxml_schematron_compilation *compilation,
+                                   const sxml_schema_report *report) {
+    const sxml_schema_report_sink sink = compilation->configuration->report_sink;
+    if (sink.operations == NULL || sink.operations->receive == NULL) {
+        return SXML_STATUS_OK;
+    }
+    bool is_repeated = false;
+    sxml_status status = remember_report(compilation, report, &is_repeated);
+    if (status != SXML_STATUS_OK || is_repeated) {
+        return status;
+    }
+    status = sink.operations->receive(sink.state, report);
+    if (status != SXML_STATUS_OK) {
+        compilation->stop_status = status;
+    }
+    return status;
+}
+
+static sxml_status deliver_report(sxml_schematron_compilation *compilation,
+                                  const sxml_schema_report *report,
+                                  const sxml_error_record *record_form) {
+    bool is_repeated = false;
+    const sxml_status remembered = remember_report(compilation, report, &is_repeated);
+    if (remembered != SXML_STATUS_OK || is_repeated) {
+        /* The same error at the same place: an element read again. */
+        return remembered;
     }
     compilation->error_count += 1;
     const sxml_schematron_configuration *configuration = compilation->configuration;
@@ -690,6 +719,11 @@ sxml_status sxml_schematron_report_error(sxml_schematron_compilation *compilatio
         }
         report_description = sxml_schematron_buffer_text(&compilation->description);
     }
+    if (error->is_warning) {
+        return deliver_warning(compilation, &(sxml_schema_report){.code = code,
+                                                                  .description = report_description,
+                                                                  .location = location});
+    }
     return deliver_report(compilation,
                           &(sxml_schema_report){.code = code,
                                                 .description = report_description,
@@ -722,6 +756,8 @@ typedef struct place_error {
        element's. */
     sxml_ast_source_span attribute_span;
     sxml_byte_view subject;
+    /* A compatibility warning (D331), not an error. */
+    bool is_warning;
 } place_error;
 
 static sxml_status report_at(sxml_schematron_compilation *compilation, place_error error) {
@@ -735,7 +771,8 @@ static sxml_status report_at(sxml_schematron_compilation *compilation, place_err
                                  .source_span = error.attribute_span.line_number != 0
                                                     ? error.attribute_span
                                                     : sxml_schematron_element_span(compilation,
-                                                                                   error.place)});
+                                                                                   error.place),
+                                 .is_warning = error.is_warning});
 }
 
 /* ----------------------------------------------------------- Inclusion */
@@ -2178,7 +2215,31 @@ static sxml_status check_child(schema_reader *reader, sxml_schematron_child chil
         const bool is_once = child.element_kind == SXML_SCHEMATRON_ELEMENT_TITLE ||
                              child.element_kind == SXML_SCHEMATRON_ELEMENT_DIAGNOSTICS ||
                              child.element_kind == SXML_SCHEMATRON_ELEMENT_PROPERTIES;
-        if (role.rank < parent->last_rank || (is_once && role.rank == parent->last_rank)) {
+        const bool is_late_rule_let =
+            child.element_kind == SXML_SCHEMATRON_ELEMENT_LET &&
+            (parent->production == SXML_PRODUCTION_RULE ||
+             parent->production == SXML_PRODUCTION_ABSTRACT_RULE) &&
+            role.rank < parent->last_rank;
+        if (is_late_rule_let) {
+            /* Real rule sets write a rule's let after its assertions; it is
+               evaluated before them as every rule let is (D331). */
+            status = report_at(compilation,
+                               (place_error){.code = "compatibility",
+                                             .description = "a let after the assertions of its "
+                                                            "rule; it is evaluated before them "
+                                                            "(Annex A puts a rule's lets first)",
+                                             .place = child.place,
+                                             .attribute_span = {.line_number = 0},
+                                             .subject = trimmed_attribute(
+                                                 compilation,
+                                                 (sxml_schematron_attribute_query){
+                                                     .place = child.place,
+                                                     .attribute_kind = SXML_SCHEMATRON_ATTRIBUTE_NAME}),
+                                             .is_warning = true});
+            if (status != SXML_STATUS_OK) {
+                return status;
+            }
+        } else if (role.rank < parent->last_rank || (is_once && role.rank == parent->last_rank)) {
             status = report_at(compilation,
                                (place_error){.code = "syntax",
                                              .description = "an element out of the order of the "
@@ -2368,8 +2429,15 @@ static bool is_position_before(const void *state, sxml_sort_pair pair) {
 
 /* 5.4.11: names distinct within the scope of a pattern or schema. Each
    parameter whose name an earlier one has is reported, in order. */
+/* Parameters to check: an instance's repeats are warnings (D331). */
+typedef struct distinct_check {
+    const sxml_schematron_array *parameters;
+    bool is_instance;
+} distinct_check;
+
 static sxml_status check_distinct_parameters(sxml_schematron_compilation *compilation,
-                                             const sxml_schematron_array *parameters) {
+                                             distinct_check check) {
+    const sxml_schematron_array *parameters = check.parameters;
     const sxml_schematron_place *places = parameters->elements;
     if (parameters->count < 2U) {
         return SXML_STATUS_OK;
@@ -2407,7 +2475,20 @@ static sxml_status check_distinct_parameters(sxml_schematron_compilation *compil
     sxml_sort_in_place(&sort);
     for (size_t parameter_index = 0; status == SXML_STATUS_OK && parameter_index < parameters->count;
          parameter_index += 1) {
-        if (named[parameter_index].is_repeated) {
+        if (named[parameter_index].is_repeated && check.is_instance) {
+            /* Real rule sets name a parameter twice in one instance; the
+               first value is used, as SchXslt does (D331). */
+            status = report_at(compilation,
+                               (place_error){.code = "compatibility",
+                                             .description = "a parameter is named twice in one "
+                                                            "pattern instance; the first value is "
+                                                            "used (5.4.11 and Annex B make it an "
+                                                            "error)",
+                                             .place = places[parameter_index],
+                                             .attribute_span = {.line_number = 0},
+                                             .subject = named[parameter_index].name,
+                                             .is_warning = true});
+        } else if (named[parameter_index].is_repeated) {
             status = report_at(compilation,
                                (place_error){.code = "parameter",
                                              .description = "a parameter is named twice in one "
@@ -2446,7 +2527,8 @@ static sxml_status check_instance(sxml_schematron_compilation *compilation,
         status = collect_parameters(compilation, abstract_pattern->place, &declared);
     }
     if (status == SXML_STATUS_OK) {
-        status = check_distinct_parameters(compilation, &given);
+        status = check_distinct_parameters(
+            compilation, (distinct_check){.parameters = &given, .is_instance = true});
     }
     const sxml_schematron_place *given_places = given.elements;
     const sxml_schematron_place *declared_places = declared.elements;
@@ -2606,7 +2688,8 @@ static sxml_status check_references(schema_reader *reader) {
        schema-param-value) unless the configuration gives one, and every
        configured name a schema parameter (5.4.11). */
     if (status == SXML_STATUS_OK) {
-        status = check_distinct_parameters(compilation, &index->schema_parameters);
+        status = check_distinct_parameters(
+            compilation, (distinct_check){.parameters = &index->schema_parameters, .is_instance = false});
     }
     const sxml_schematron_place *parameters = index->schema_parameters.elements;
     const sxml_schematron_parameter_view configured = compilation->configuration->parameters;

@@ -39,9 +39,14 @@ xpath31 and xpath4) is compiled after the XSD schema, with the phase
 --phase names and the values --schematron-param gives its schema
 parameters; each of its errors is reported as
   SCH:LINE:COLUMN: CODE: description
-and then no FILE is read. --schema may then be left out. The rules
-run over each FILE (over its validated copy when it is valid against
-the XSD schema); each finding is reported as
+and then no FILE is read. A deviation of real rule sets that sxml
+reads as meant (a parameter named twice in one pattern instance, a
+pattern's let read by another pattern, a rule's let after its
+assertions) is reported as
+  SCH:LINE:COLUMN: warning: schematron:compatibility: description
+and is no error. With --schematron, --schema may be left out. The
+rules run over each FILE (over its validated copy when it is valid
+against the XSD schema); each finding is reported as
   FILE:LINE:COLUMN: ID LEVEL: MESSAGE (SCH:LINE:COLUMN)
 where FILE is the document the finding is in (for a pattern with
 documents, the document it names), ID the assertion's id (else
