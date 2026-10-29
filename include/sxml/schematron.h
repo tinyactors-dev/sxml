@@ -82,9 +82,13 @@
  * ...) fails the compilation with schematron:query-binding at the
  * attribute (6.5: an implementation fails with an error).
  *
- * Expressions see the namespaces the sch:ns elements declare, besides
- * XPath's predeclared ones, and not the XML namespace declarations of the
- * schematron documents (5.4.10); an XSLT declaration sees both.
+ * Expressions see the prefixes of the function library, xs, fn, math,
+ * map, array and err (every binding makes them available, Annexes H to
+ * L), xml, and the namespaces the sch:ns elements declare, which win for
+ * a prefix both bind; not the XML namespace declarations of the
+ * schematron documents (5.4.10; D331). An XSLT declaration sees its own
+ * namespace declarations, and for a prefix they leave unbound the ones
+ * expressions see.
  *
  * Errors: errors of Schematron itself carry codes in the namespace
  * urn:sxml:schematron, shown with the prefix "schematron" (the standard

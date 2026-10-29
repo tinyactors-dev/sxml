@@ -1074,6 +1074,57 @@ static sxml_status collect_namespaces(schematron_builder *builder, sxml_schematr
     return status;
 }
 
+/* The namespaces every query expression sees (D331): the prefixes of the
+   function library, which every binding makes available without sch:ns
+   ("All namespaces, prefixes, functions and operators defined by" the
+   functions specification "shall be available": Annexes C, H to L), then
+   the sch:ns bindings of declared (5.4.10), which win for a prefix both
+   bind. xml is bound by XPath itself. */
+typedef struct namespace_sets {
+    const sxml_schematron_array *declared;
+    sxml_schematron_array *bindings;
+} namespace_sets;
+
+static sxml_status collect_query_namespaces(schematron_builder *builder, namespace_sets sets) {
+    typedef struct predeclared_namespace {
+        const char *prefix;
+        uint32_t namespace_uri;
+    } predeclared_namespace;
+    /* F&O 4.0, 1.5 "Namespaces and prefixes". */
+    static const predeclared_namespace predeclared[] = {
+        {"xs", SXML_NAMESPACE_XML_SCHEMA},       {"fn", SXML_NAMESPACE_FUNCTIONS},
+        {"math", SXML_NAMESPACE_MATH_FUNCTIONS}, {"map", SXML_NAMESPACE_MAP_FUNCTIONS},
+        {"array", SXML_NAMESPACE_ARRAY_FUNCTIONS}, {"err", SXML_NAMESPACE_ERRORS},
+    };
+    sxml_schematron_compilation *compilation = builder->compilation;
+    const sxml_namespace_binding *declared = sets.declared->elements;
+    sxml_status status = SXML_STATUS_OK;
+    for (size_t predeclared_index = 0;
+         status == SXML_STATUS_OK && predeclared_index < sizeof(predeclared) / sizeof(predeclared[0]);
+         predeclared_index += 1) {
+        sxml_namespace_binding binding = {
+            .namespace_prefix = {.index = 0},
+            .namespace_uri = {.index = predeclared[predeclared_index].namespace_uri}};
+        status = sxml_name_pool_intern_namespace_prefix(
+            compilation->name_pool, sxml_byte_view_from_c_string(predeclared[predeclared_index].prefix),
+            &binding.namespace_prefix);
+        bool is_declared = false;
+        for (size_t declared_index = 0; declared_index < sets.declared->count; declared_index += 1) {
+            is_declared = is_declared ||
+                          declared[declared_index].namespace_prefix.index == binding.namespace_prefix.index;
+        }
+        if (status == SXML_STATUS_OK && !is_declared) {
+            status = sxml_schematron_array_push(compilation, sets.bindings, SXML_SCHEMATRON_ELEMENT_OF(binding));
+        }
+    }
+    for (size_t declared_index = 0; status == SXML_STATUS_OK && declared_index < sets.declared->count;
+         declared_index += 1) {
+        status = sxml_schematron_array_push(compilation, sets.bindings,
+                                            SXML_SCHEMATRON_ELEMENT_OF(declared[declared_index]));
+    }
+    return status;
+}
+
 /* The two static contexts of a document: its expressions' (default mode
    the validation's, so the stylesheet's default mode is) and its XSLT
    declarations' (the unnamed mode). */
@@ -4615,10 +4666,15 @@ sxml_status sxml_schematron_build(sxml_schematron_compilation *compilation) {
     builder.scratch = sxml_xml_buffer_empty(compilation->allocator);
     builder.renamed_text = sxml_xml_buffer_empty(compilation->allocator);
     builder.parsed_expressions = sxml_ast_memo_empty(compilation->allocator);
+    sxml_schematron_array declared_array = {.elements = NULL, .count = 0, .capacity = 0};
     sxml_schematron_array bindings_array = {.elements = NULL, .count = 0, .capacity = 0};
     sxml_status status = intern_builder_names(&builder);
     if (status == SXML_STATUS_OK) {
-        status = collect_namespaces(&builder, &bindings_array);
+        status = collect_namespaces(&builder, &declared_array);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = collect_query_namespaces(
+            &builder, (namespace_sets){.declared = &declared_array, .bindings = &bindings_array});
     }
     const sxml_namespace_binding_view bindings = {.namespace_bindings = bindings_array.elements,
                                                   .namespace_binding_count = bindings_array.count};
@@ -4694,11 +4750,15 @@ sxml_status sxml_schematron_build(sxml_schematron_compilation *compilation) {
         status = check_uncompiled(&builder);
     }
     if (status == SXML_STATUS_OK) {
-        status = fill_table(&builder, bindings);
+        /* SVRL lists the sch:ns bindings only (Annex D). */
+        status = fill_table(&builder,
+                            (sxml_namespace_binding_view){.namespace_bindings = declared_array.elements,
+                                                          .namespace_binding_count = declared_array.count});
     }
     if (builder.ast != NULL) {
         sxml_xslt_ast_seal(builder.ast);
     }
+    sxml_schematron_array_release(compilation, &declared_array);
     sxml_schematron_array_release(compilation, &bindings_array);
     sxml_schematron_array_release(compilation, &builder.schema_parameters);
     sxml_schematron_array_release(compilation, &builder.instance_parameters);

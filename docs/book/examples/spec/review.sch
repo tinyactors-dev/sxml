@@ -3,7 +3,6 @@
 <schema xmlns="http://purl.oclc.org/dsdl/schematron" queryBinding="xslt3"
         schematronEdition="2025">
   <title>Review of a Vane draft</title>
-  <ns prefix="xs" uri="http://www.w3.org/2001/XMLSchema"/>
 
   <let name="keywords" value="('MUST', 'MUST NOT', 'REQUIRED', 'SHALL',
     'SHALL NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED', 'NOT RECOMMENDED',

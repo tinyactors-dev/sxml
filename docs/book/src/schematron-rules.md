@@ -19,9 +19,9 @@ It finds three things in draft -01:
 
 ```console
 $ sxml validate --schematron=review.sch vane.xml
-vane.xml:116:7: open-issue info: Open issue issue-1 of AM: Should an owner be able to change the duration? (review.sch:35:7)
-vane.xml:123:7: anchored: A requirement needs an anchor: the SHOULD in "Security Considerations" has none. (review.sch:30:7)
-vane.xml:125:7: open-issue info: Open issue issue-2 of AB: This needs a requirement anchor of its own. (review.sch:35:7)
+vane.xml:116:7: open-issue info: Open issue issue-1 of AM: Should an owner be able to change the duration? (review.sch:34:7)
+vane.xml:123:7: anchored: A requirement needs an anchor: the SHOULD in "Security Considerations" has none. (review.sch:29:7)
+vane.xml:125:7: open-issue info: Open issue issue-2 of AB: This needs a requirement anchor of its own. (review.sch:34:7)
 ```
 
 and every mistake of the broken copy that the XSD schema does not
@@ -30,12 +30,12 @@ catch:
 ```console
 $ sed -e 's|<bcp14>MAY</bcp14> report|MAY report|' -e 's|target="term-percentage"|target="term-share"|' -e 's|<xref target="RFC6238"/>|one-time passwords|' vane.xml > broken.xml
 $ sxml validate --schematron=review.sch broken.xml
-broken.xml:118:7: bare-keyword: MAY without bcp14 markup. (review.sch:21:7)
-broken.xml:116:7: open-issue info: Open issue issue-1 of AM: Should an owner be able to change the duration? (review.sch:35:7)
-broken.xml:123:7: anchored: A requirement needs an anchor: the SHOULD in "Security Considerations" has none. (review.sch:30:7)
-broken.xml:125:7: open-issue info: Open issue issue-2 of AB: This needs a requirement anchor of its own. (review.sch:35:7)
-broken.xml:54:11: used warning: The dt term-percentage is defined, and nothing refers to it. (review.sch:43:7)
-broken.xml:169:9: used warning: The reference RFC6238 is defined, and nothing refers to it. (review.sch:43:7)
+broken.xml:118:7: bare-keyword: MAY without bcp14 markup. (review.sch:20:7)
+broken.xml:116:7: open-issue info: Open issue issue-1 of AM: Should an owner be able to change the duration? (review.sch:34:7)
+broken.xml:123:7: anchored: A requirement needs an anchor: the SHOULD in "Security Considerations" has none. (review.sch:29:7)
+broken.xml:125:7: open-issue info: Open issue issue-2 of AB: This needs a requirement anchor of its own. (review.sch:34:7)
+broken.xml:54:11: used warning: The dt term-percentage is defined, and nothing refers to it. (review.sch:42:7)
+broken.xml:169:9: used warning: The reference RFC6238 is defined, and nothing refers to it. (review.sch:42:7)
 ```
 
 The findings come pattern by pattern, in the order of the schema, and
@@ -156,7 +156,7 @@ both requirements:
 ```console
 $ sed -e 's|<group id="paragraphs">|<pattern id="paragraphs">|' -e 's|</group>|</pattern>|' review.sch > first-rule.sch
 $ sxml validate --schematron=first-rule.sch vane.xml
-vane.xml:123:7: anchored: A requirement needs an anchor: the SHOULD in "Security Considerations" has none. (first-rule.sch:30:7)
+vane.xml:123:7: anchored: A requirement needs an anchor: the SHOULD in "Security Considerations" has none. (first-rule.sch:29:7)
 ```
 
 Use a pattern when the rules are cases of one check, ordered from the
@@ -184,13 +184,15 @@ $ sxml xpath 'json-doc("review.json")?files?*?findings?*[exists(?diagnostics?*)]
 
 ## Namespaces
 
-The expressions of a schema know only the prefixes that `ns` elements
-declare: not the namespace declarations of the schema document, and
-not even `xs`, `fn` or `map`, which XQuery declares for you. Functions
-without a prefix, such as `tokenize` and `max`, are found as always.
-The diagnostic calls `xs:integer`, so `review.sch` declares the prefix
-`xs` with an `ns` element; without it, the schema does not compile
+The expressions of a schema know two kinds of prefixes: those of the
+function library, which every query binding of Schematron makes
+available (`xs`, `fn`, `math`, `map`, `array` and `err`), and those
+that `ns` elements declare. They do not know the namespace declarations
+of the schema document. The diagnostic calls `xs:integer`, and
+`review.sch` needs no `ns` element for it; a prefix for the names of a
+document does need one, and without it the schema does not compile
 ([Reports, Errors and Exit Statuses](schematron-reports.md) shows the
-error). The draft has no namespace, so its
-names need none; the state machine's rules, in the next chapter, need
-two.
+error). An `ns` element may bind one of the library's prefixes to
+another namespace, and then its binding counts. The draft has no
+namespace, so its names need none; the state machine's rules, in the
+next chapter, need two.

@@ -71,16 +71,16 @@ does with a finding is its own choice: print it, return it to the user
 who uploaded the draft, or refuse the draft when `error_finding_count`
 is not 0.
 
-A schema with an error never gets to the draft. Without the `ns`
-element for `xs`, the diagnostic's `xs:integer` has an undeclared
-prefix, and the sink receives the error, with its place; then the
+A schema with an error never gets to the draft. With `vane:integer` in
+place of `xs:integer`, the diagnostic has a prefix that no `ns` element
+declares, and the sink receives the error, with its place; then the
 create call fails with the first error in its record:
 
 ```console
-$ sed 's/prefix="xs"/prefix="x"/' review.sch > bad-review.sch
+$ sed 's/xs:integer/vane:integer/' review.sch > bad-review.sch
 $ ./build/schematron bad-review.sch; echo "exit status $?"
-bad-review.sch:51:68: XPST0081: the namespace prefix is not declared
-SXML_STATUS_STATIC_ERROR err:XPST0081 at 51:68: the namespace prefix is not declared
+bad-review.sch:50:68: XPST0081: the namespace prefix is not declared
+SXML_STATUS_STATIC_ERROR err:XPST0081 at 50:68: the namespace prefix is not declared
 exit status 1
 ```
 

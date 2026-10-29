@@ -428,14 +428,14 @@
   </test-case>
 
   <test-case name="rules-predeclared-xs-prefix" since="2020">
-    <description>The xs prefix is not declared by ns: whether the binding predeclares it is the query language's matter.</description>
+    <description>The xs prefix is not declared by ns: the binding makes the prefixes of its functions specification available, xs among them, so the schema is correct and the instance valid.</description>
     <spec clause="5.4.10"/>
     <spec clause="Annex-J"/>
     <dependency type="query-binding" value="xslt3"/>
     <schema file="rules-predeclared-xs-prefix.sch"/>
     <instance file="rules-predeclared-xs-prefix.xml"/>
     <result>
-      <implementation-defined clause="5.4.10 Annex-J">Every prefix in a query shall be declared by ns; XPath and XSLT predeclare xs. A processor that keeps XPath's predeclared prefixes finds nothing; one that applies 5.4.10 strictly rejects the schema.</implementation-defined>
+      <findings/>
     </result>
   </test-case>
   <test-case name="rules-identical-findings-two-patterns" since="2020">

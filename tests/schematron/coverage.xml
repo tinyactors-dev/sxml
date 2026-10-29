@@ -297,7 +297,7 @@
     <test set="name-value-of" case="name-prefixed"/>
     <test set="static-errors" case="error-undeclared-prefix"/>
     <test set="static-errors" case="error-xmlns-not-used-for-queries"/>
-    <test set="patterns-rules" case="rules-predeclared-xs-prefix"/>
+    <test set="schema-structure" case="ns-undeclared-other-prefix"/>
     <test set="patterns-rules" case="rules-context-namespaced-attribute"/>
     <test set="variables" case="let-namespace-prefix"/>
     <test set="name-value-of" case="value-of-namespaced-attribute"/>
@@ -977,6 +977,14 @@
     <test set="query-bindings" case="instance-dtd-id"/>
     <test set="query-bindings" case="instance-cdata"/>
     <test set="query-bindings" case="instance-utf16"/>
+  </requirement>
+  <requirement id="r-HJ-namespaces" clause="Annex-J" kind="shall">
+    <text>The namespaces and prefixes the functions specification defines are available (also Annexes H, I, K, L); ns may bind those prefixes too.</text>
+    <test set="schema-structure" case="ns-predeclared-prefixes"/>
+    <test set="schema-structure" case="ns-predeclared-prefix-rebound"/>
+    <test set="schema-structure" case="ns-predeclared-in-xslt-function"/>
+    <test set="schema-structure" case="ns-predeclared-xpath31"/>
+    <test set="patterns-rules" case="rules-predeclared-xs-prefix"/>
   </requirement>
   <requirement id="r-HJ-context" clause="Annex-J" kind="shall">
     <text>The rule context is an XSLT pattern: root, elements, attributes, comments, PIs; text nodes at user option.</text>

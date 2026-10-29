@@ -310,6 +310,80 @@
     </result>
   </test-case>
 
+  <test-case name="ns-predeclared-prefixes" since="2020">
+    <description>The prefixes of the function library (xs, fn, math, map, array, err) are available in queries without ns: every binding makes the namespaces and prefixes of its functions specification available.</description>
+    <spec clause="5.4.10"/>
+    <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
+    <schema file="ns-predeclared-prefixes.sch"/>
+    <instance file="ns-predeclared-prefixes.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Two: 2.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="ns-predeclared-prefix-rebound" since="2020">
+    <description>An ns element may bind a prefix of the function library to another namespace; its binding is then the one queries use.</description>
+    <spec clause="5.4.10"/>
+    <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
+    <schema file="ns-predeclared-prefix-rebound.sch"/>
+    <instance file="ns-predeclared-prefix-rebound.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{urn:example:n}item[2]">
+          <message>Only one.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="ns-predeclared-in-xslt-function" since="2020">
+    <description>An xsl:function of the schema uses xs without declaring it: the prefixes of the function library are available to the XSLT the binding allows too.</description>
+    <spec clause="Annex-J"/>
+    <dependency type="query-binding" value="xslt3"/>
+    <schema file="ns-predeclared-in-xslt-function.sch"/>
+    <instance file="ns-predeclared-in-xslt-function.xml"/>
+    <result>
+      <findings>
+        <finding kind="failed-assert" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Too large.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="ns-predeclared-xpath31" since="2020">
+    <description>Under xpath31 the map and xs prefixes are available without ns.</description>
+    <spec clause="5.4.10"/>
+    <spec clause="Annex-L"/>
+    <dependency type="query-binding" value="xpath31"/>
+    <schema file="ns-predeclared-xpath31.sch"/>
+    <instance file="ns-predeclared-xpath31.xml"/>
+    <result>
+      <findings>
+        <finding kind="successful-report" location="/Q{}doc[1]/Q{}item[2]">
+          <message>Two.</message>
+        </finding>
+      </findings>
+    </result>
+  </test-case>
+
+  <test-case name="ns-undeclared-other-prefix" since="2020">
+    <description>A prefix that is not one of the function library's needs ns, even when the schema document declares it with xmlns.</description>
+    <spec clause="5.4.10"/>
+    <dependency type="query-binding" value="xslt3"/>
+    <schema file="ns-undeclared-other-prefix.sch"/>
+    <instance file="ns-undeclared-other-prefix.xml"/>
+    <result>
+      <schema-error clause="5.4.10"/>
+    </result>
+  </test-case>
+
   <test-case name="struct-utf16" since="2020">
     <description>A schema encoded in UTF-16, with non-ASCII text in a message.</description>
     <spec clause="5.1"/>
