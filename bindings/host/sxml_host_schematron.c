@@ -9,7 +9,7 @@
  *   {"findings":[{"kind","id","role","flag","severity","isError",
  *     "message","diagnostics":[{"id","language","text"}],
  *     "properties":[{"id","role","scheme","text"}],"patternId","test",
- *     "path","sourceName","lineNumber","columnNumber","schemaSourceName",
+ *     "path","sourceName","document","lineNumber","columnNumber","schemaSourceName",
  *     "schemaLineNumber","schemaColumnNumber"}...],
  *    "valid":true|false,"phase":"...","svrl":"..."}
  *
@@ -301,6 +301,7 @@ static sxml_status sxml_host_receive_finding(void *state, const sxml_schematron_
         {"test", report->test_text},
         {"path", report->node_path},
         {"sourceName", report->node_location.source_name},
+        {"document", report->document_uri},
         {"schemaSourceName", report->schema_location.source_name}};
     for (size_t member_index = 0; member_index < sizeof(members) / sizeof(members[0]);
          member_index += 1) {

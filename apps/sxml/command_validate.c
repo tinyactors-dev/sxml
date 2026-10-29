@@ -241,6 +241,9 @@ typedef struct sxml_validate_schematron {
     size_t finding_count;
     /* The phase in force for the file being validated (#ANY chooses). */
     sxml_byte_view phase_in_force;
+    /* The URI of the file being validated, owned by the validation;
+       findings in another document name that document (D331). */
+    sxml_byte_view file_uri;
     /* --format=svrl: the SVRL of the one FILE on standard output. */
     bool writes_svrl;
     /* The name of an included document, valid until the next one. */
@@ -1325,6 +1328,18 @@ static void sxml_validate_write_json_field(sxml_cli_writer *writer,
     }
 }
 
+/* The document a finding is in, as the command shows files: FILE as the
+   command line gave it, or a subordinate document or one fn:doc read by
+   its path from the working directory (D331). */
+static sxml_byte_view sxml_validate_finding_document(const sxml_validate_run *run,
+                                                     const sxml_schematron_report *report) {
+    if (report->document_uri.byte_count == 0 ||
+        sxml_byte_view_equals(report->document_uri, run->rules.file_uri)) {
+        return run->file;
+    }
+    return sxml_query_file_of_uri(run->invocation, report->document_uri);
+}
+
 /* One finding as a JSON object, into the file's findings. */
 static sxml_status sxml_validate_write_json_finding(sxml_validate_run *run,
                                                    const sxml_schematron_report *report) {
@@ -1347,6 +1362,8 @@ static sxml_status sxml_validate_write_json_finding(sxml_validate_run *run,
     sxml_cli_writer_write(&writer, report->is_error ? SXML_TEXT(",\"error\":true")
                                                     : SXML_TEXT(",\"error\":false"));
     sxml_validate_write_json_field(&writer, (sxml_validate_json_field){"message", report->message});
+    sxml_validate_write_json_field(
+        &writer, (sxml_validate_json_field){"document", sxml_validate_finding_document(run, report)});
     if (report->node_location.line_number != 0) {
         sxml_cli_writer_write(&writer, SXML_TEXT(",\"line\":"));
         sxml_cli_writer_write_decimal(&writer, report->node_location.line_number);
@@ -1395,11 +1412,12 @@ static sxml_status sxml_validate_write_json_finding(sxml_validate_run *run,
 }
 
 /* One finding in text, on standard error:
-   FILE:LINE:COLUMN: ID LEVEL: MESSAGE (SCH:LINE:COLUMN). */
+   FILE:LINE:COLUMN: ID LEVEL: MESSAGE (SCH:LINE:COLUMN), FILE the
+   document the finding is in. */
 static void sxml_validate_write_text_finding(const sxml_validate_run *run,
                                              const sxml_schematron_report *report) {
     sxml_cli_writer *error = run->invocation->standard_error;
-    sxml_cli_writer_write_escaped(error, run->file);
+    sxml_cli_writer_write_escaped(error, sxml_validate_finding_document(run, report));
     sxml_cli_writer_write_byte(error, ':');
     if (report->node_location.line_number != 0) {
         sxml_cli_writer_write_decimal(error, report->node_location.line_number);
@@ -1507,6 +1525,7 @@ static void sxml_validate_file_rules(sxml_validate_run *run, sxml_byte_view cont
     memset(&outcome, 0, sizeof(outcome));
     run->rules.finding_count = 0;
     run->rules.findings.byte_count = 0;
+    run->rules.file_uri = uri;
     status = sxml_schematron_validate_node(
         run->rules.schematron,
         &(sxml_schematron_validation_request){
@@ -1522,6 +1541,7 @@ static void sxml_validate_file_rules(sxml_validate_run *run, sxml_byte_view cont
             .reports_fired_rules = false},
         &outcome);
     run->rules.phase_in_force = outcome.phase_id;
+    run->rules.file_uri = (sxml_byte_view){.bytes = NULL, .byte_count = 0};
     if (has_copy) {
         sxml_item_release(validated);
     }
@@ -1818,12 +1838,14 @@ const sxml_cli_command sxml_validate_command = {
         "run over each FILE (over its validated copy when it is valid against\n"
         "the XSD schema); each finding is reported as\n"
         "  FILE:LINE:COLUMN: ID LEVEL: MESSAGE (SCH:LINE:COLUMN)\n"
-        "where ID is the assertion's id (else assert or report) and LEVEL its\n"
-        "severity, else its flag, else its role. A finding whose severity,\n"
-        "else role or flag, is fatal or error, or that has none of them,\n"
-        "makes the FILE invalid. With --format=json each FILE also lists its\n"
-        "\"findings\" and the \"phase\" in force; --format=svrl writes the SVRL\n"
-        "report of the one FILE on standard output.\n"
+        "where FILE is the document the finding is in (for a pattern with\n"
+        "documents, the document it names), ID the assertion's id (else\n"
+        "assert or report) and LEVEL its severity, else its flag, else its\n"
+        "role. A finding whose severity, else role or flag, is fatal or\n"
+        "error, or that has none of them, makes the FILE invalid. With\n"
+        "--format=json each FILE also lists its \"findings\" and the \"phase\"\n"
+        "in force; --format=svrl writes the SVRL report of the one FILE on\n"
+        "standard output.\n"
         "\n"
         "Exit status: 0 when every FILE is valid (or not known, with\n"
         "--mode=lax); 1 when the schema, the Schematron schema or a FILE is\n"

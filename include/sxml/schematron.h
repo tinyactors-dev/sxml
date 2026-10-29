@@ -253,6 +253,13 @@ typedef struct sxml_schematron_report {
        a severity, whose role or one of whose flag tokens is "fatal" or
        "error", or that has neither role nor flag. false for FIRED_RULE. */
     bool is_error;
+    /* The document the node is in: its document URI as its tree keeps
+       it, so the subordinate document's absolute URI for a pattern with
+       documents (5.4.12; SVRL's fired-rule document, Annex D) and the
+       URI of a document a rule reached with fn:doc; else the validated
+       document's; empty when its tree has none. node_location's line and
+       column are of this document (D331). */
+    sxml_byte_view document_uri;
 } sxml_schematron_report;
 
 /* The operations of a report sink. Tables are static const. */

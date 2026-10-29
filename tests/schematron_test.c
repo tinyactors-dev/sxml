@@ -50,7 +50,11 @@ static const char library_text[] =
     "  </sch:pattern>\n"
     "</sch:library>";
 
+static const char other_text[] = "<entries>\n  <entry ok='1'/>\n  <entry/>\n</entries>";
+
 static const sxml_resource_entry fixture_resources[] = {
+    {.uri = SXML_BYTE_VIEW_INITIALIZER("http://example.com/s/other.xml"),
+     .content = {.bytes = (const uint8_t *)other_text, .byte_count = sizeof(other_text) - 1}},
     {.uri = SXML_BYTE_VIEW_INITIALIZER("http://example.com/s/rule.sch"),
      .content = {.bytes = (const uint8_t *)included_text, .byte_count = sizeof(included_text) - 1}},
     {.uri = SXML_BYTE_VIEW_INITIALIZER("http://example.com/s/library.sch"),
@@ -467,6 +471,74 @@ static void test_reports_carry_both_locations(sxml_test_state *state) {
     SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
 }
 
+/* Each report's document URI and node line, "URI LINE". */
+static sxml_status receive_document(void *state, const sxml_schematron_report *report) {
+    received_lines *received = state;
+    if (received->line_count < SXML_TEST_MAXIMUM_LINE_COUNT) {
+        (void)snprintf(received->lines[received->line_count], SXML_TEST_LINE_BYTE_COUNT, "%.*s %u",
+                       (int)report->document_uri.byte_count,
+                       (const char *)report->document_uri.bytes, report->node_location.line_number);
+        received->line_count += 1;
+    }
+    return SXML_STATUS_OK;
+}
+
+static const sxml_schematron_report_sink_operations document_sink_operations = {
+    .receive = receive_document};
+
+/* A finding names the document its node is in: a subordinate document of
+   a pattern with documents (5.4.12) or the instance (D331). */
+static void test_reports_name_their_document(sxml_test_state *state) {
+    fixture test_fixture;
+    SXML_TEST_EXPECT(state, fixture_create(0, &test_fixture) == SXML_STATUS_OK);
+    static const char schema[] = SCHEMA_START
+        "  <sch:pattern id='other' documents=\"'other.xml'\">\n"
+        "    <sch:rule context='entry'><sch:assert test='@ok'>Not ok.</sch:assert></sch:rule>\n"
+        "  </sch:pattern>\n"
+        "  <sch:pattern id='instance'>\n"
+        "    <sch:rule context='item'><sch:assert test='@n'>No n.</sch:assert></sch:rule>\n"
+        "  </sch:pattern>\n"
+        "</sch:schema>";
+    sxml_schematron *schematron = NULL;
+    SXML_TEST_EXPECT(state,
+                     compile(&test_fixture, &(compile_request){.text = schema, .errors = NULL},
+                             &schematron) == SXML_STATUS_OK);
+    sxml_item instance;
+    SXML_TEST_REQUIRE(
+        state, sxml_processor_parse_document(
+                   test_fixture.processor,
+                   &(sxml_xml_parse_request){
+                       .input = TEXT("<doc>\n  <item/>\n</doc>"),
+                       .source_name = TEXT("instance.xml"),
+                       .document_uri = TEXT("http://example.com/s/instance.xml"),
+                       .base_uri = TEXT("http://example.com/s/instance.xml")},
+                   &instance) == SXML_STATUS_OK);
+    received_lines reports;
+    memset(&reports, 0, sizeof(reports));
+    sxml_schematron_outcome outcome;
+    memset(&outcome, 0, sizeof(outcome));
+    SXML_TEST_EXPECT(state,
+                     sxml_schematron_validate_node(
+                         schematron,
+                         &(sxml_schematron_validation_request){
+                             .node = instance,
+                             .report_sink = {.state = &reports,
+                                             .operations = &document_sink_operations},
+                             .svrl_output_stream = {.state = NULL, .operations = NULL},
+                             .error_record = NULL,
+                             .reports_fired_rules = false},
+                         &outcome) == SXML_STATUS_OK);
+    for (size_t line_index = 0; line_index < reports.line_count; line_index += 1) {
+        note(state, reports.lines[line_index]);
+    }
+    SXML_TEST_EXPECT(state, reports.line_count == 2);
+    SXML_TEST_EXPECT(state, has_line(&reports, "http://example.com/s/other.xml 3"));
+    SXML_TEST_EXPECT(state, has_line(&reports, "http://example.com/s/instance.xml 2"));
+    sxml_item_release(instance);
+    sxml_schematron_destroy(schematron);
+    SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
+}
+
 static void test_dynamic_error_names_its_assertion(sxml_test_state *state) {
     fixture test_fixture;
     SXML_TEST_EXPECT(state, fixture_create(0, &test_fixture) == SXML_STATUS_OK);
@@ -815,6 +887,7 @@ static const sxml_test_case schematron_test_cases[] = {
     {.name = "configured_parameters_replace_schema_parameters",
      .function = test_configured_parameters_replace_schema_parameters},
     {.name = "reports_carry_both_locations", .function = test_reports_carry_both_locations},
+    {.name = "reports_name_their_document", .function = test_reports_name_their_document},
     {.name = "dynamic_error_names_its_assertion",
      .function = test_dynamic_error_names_its_assertion},
     {.name = "edition_2025_constructs", .function = test_edition_2025_constructs},

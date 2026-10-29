@@ -461,6 +461,11 @@ export interface SchematronFinding {
   path: string;
   /** The node's place in the document (0 when the tree keeps none). */
   sourceName: string;
+  /** The URI of the document the node is in: a subordinate document's for
+   *  a pattern with documents, or one a rule read with doc(); else the
+   *  validated document's (empty when it has none). lineNumber and
+   *  columnNumber are of this document. */
+  document: string;
   lineNumber: number;
   columnNumber: number;
   /** The assertion's place in the Schematron schema. */

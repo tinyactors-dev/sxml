@@ -416,6 +416,8 @@ static void test_schematron_compile_describe_validate(sxml_test_state *state) {
                                                        "\"id\":\"small\""));
     SXML_TEST_EXPECT(state, output_contains(processor, "\"message\":\"\\\"2\\\" is large.\""));
     SXML_TEST_EXPECT(state, output_contains(processor, "\"lineNumber\":3"));
+    SXML_TEST_EXPECT(state,
+                     output_contains(processor, "\"document\":\"http://example.com/doc.xml\""));
     SXML_TEST_EXPECT(state, output_contains(processor, "\"schemaLineNumber\":4"));
     SXML_TEST_EXPECT(state, output_contains(processor, "\"valid\":false,\"phase\":\"#ALL\""));
     SXML_TEST_EXPECT(state, output_contains(processor, "\"svrl\":\"<?xml version=\\\"1.0\\\""));

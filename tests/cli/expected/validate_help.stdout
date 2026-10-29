@@ -43,12 +43,14 @@ and then no FILE is read. --schema may then be left out. The rules
 run over each FILE (over its validated copy when it is valid against
 the XSD schema); each finding is reported as
   FILE:LINE:COLUMN: ID LEVEL: MESSAGE (SCH:LINE:COLUMN)
-where ID is the assertion's id (else assert or report) and LEVEL its
-severity, else its flag, else its role. A finding whose severity,
-else role or flag, is fatal or error, or that has none of them,
-makes the FILE invalid. With --format=json each FILE also lists its
-"findings" and the "phase" in force; --format=svrl writes the SVRL
-report of the one FILE on standard output.
+where FILE is the document the finding is in (for a pattern with
+documents, the document it names), ID the assertion's id (else
+assert or report) and LEVEL its severity, else its flag, else its
+role. A finding whose severity, else role or flag, is fatal or
+error, or that has none of them, makes the FILE invalid. With
+--format=json each FILE also lists its "findings" and the "phase"
+in force; --format=svrl writes the SVRL report of the one FILE on
+standard output.
 
 Exit status: 0 when every FILE is valid (or not known, with
 --mode=lax); 1 when the schema, the Schematron schema or a FILE is

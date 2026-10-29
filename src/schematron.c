@@ -452,7 +452,8 @@ static sxml_status raise_subject_error(schematron_validation *validation, const 
     return SXML_STATUS_TYPE_ERROR;
 }
 
-/* The URI of the document a node is in, for SVRL's fired-rule document. */
+/* The URI of the document a node is in: the report's document_uri and
+   SVRL's fired-rule document (Annex D). */
 static sxml_byte_view document_uri_of(sxml_item node_item) {
     sxml_node_reference node = {.tree = NULL, .node_index = {.index = 0}, .namespace_number = 0};
     sxml_tree_description description;
@@ -629,7 +630,8 @@ static sxml_status deliver_item(schematron_validation *validation, sxml_item ite
         .node = subject,
         .node_location = node_location,
         .node_path = text_at(texts, 0),
-        .is_error = false};
+        .is_error = false,
+        .document_uri = document_uri_of(subject)};
     if (!is_rule) {
         report.is_error = is_error_finding(&report);
         validation->outcome->finding_count += 1;
@@ -650,7 +652,7 @@ static sxml_status deliver_item(schematron_validation *validation, sxml_item ite
             &(sxml_schematron_svrl_report){.report = &report,
                                            .entry = entry,
                                            .document_uri = is_rule && is_subordinate
-                                                               ? document_uri_of(subject)
+                                                               ? report.document_uri
                                                                : no_text});
     }
     return status;

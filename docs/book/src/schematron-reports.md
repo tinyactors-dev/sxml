@@ -17,8 +17,9 @@ The default format is one line per finding, on standard error:
 flag.scxml:92:3: reachable: No transition leads to the state archived. (flag.sch:34:7)
 ```
 
-From left to right: the document, the line and column of the finding's
-subject; the assertion's `id` (`assert` or `report` when it has none);
+From left to right: the document the finding's subject is in (the
+validated file, unless a rule looked into another), the line and column
+of the subject; the assertion's `id` (`assert` or `report` when it has none);
 its level, when it has one: its `severity`, else its `flag`, else its
 `role`; the message; and the place of the assertion in its schema file.
 Editors that read compiler output can jump to either place. When the
@@ -70,8 +71,9 @@ compiled. Each document in `files` has its status, the phase in force
 (under `#ANY`, the one its `when` chose), and its findings. A finding
 has every field there is: `kind` (`failed-assert` or
 `successful-report`), `id`, `role`, `flag`, `severity`, `error`, the
-`message`, the `line`, `column` and `byte_offset` of its node, its
-`path`, the `pattern`, the `test`, the `assertion`'s place in the
+`message`, the `document` its node is in (the validated file, or
+another one, [Rules Across Documents](schematron-documents.md)), the
+`line`, `column` and `byte_offset` of its node there, its `path`, the `pattern`, the `test`, the `assertion`'s place in the
 schema, and its `diagnostics` and `properties`.
 
 The book's tools read it like any JSON. A summary per document, for a

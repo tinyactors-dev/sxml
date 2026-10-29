@@ -625,6 +625,10 @@ describe('Schematron', () => {
           ['successful-report', 'many', 'warning', false, 'Many.', '/Q{}order[1]/Q{}line[2]', 3, 8],
         ],
       );
+      assert.deepEqual(
+        result.findings.map(({ document }) => document),
+        ['urn:order.xml', 'urn:order.xml'],
+      );
       assert.match(result.svrl ?? '', /<svrl:schematron-output/);
       schematron.dispose();
     });

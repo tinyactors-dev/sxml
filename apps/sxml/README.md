@@ -837,8 +837,10 @@ The rules run over each FILE, parsed with its line numbers; with
 XSD schema, so that typed values are compared as their types say (such a
 copy keeps no line numbers: findings then give the node's path). Each
 finding (a failed assert or a successful report) is reported on standard
-error as `FILE:LINE:COLUMN: ID LEVEL: MESSAGE (SCH:LINE:COLUMN)`: ID is
-the assertion's `id`, else `assert` or `report`; LEVEL its `severity`,
+error as `FILE:LINE:COLUMN: ID LEVEL: MESSAGE (SCH:LINE:COLUMN)`: FILE
+is the document the finding is in (for a pattern with `documents`, the
+document it names, by its path from the working directory, with its
+lines); ID is the assertion's `id`, else `assert` or `report`; LEVEL its `severity`,
 else its `flag`, else its `role`, left out when it has none;
 SCH:LINE:COLUMN the assertion in the Schematron schema. A finding is an
 error when its severity is `fatal` or `error`; without a severity, when
@@ -867,8 +869,10 @@ With `--format=json`, one JSON object on standard output gives the
   (under `#ANY`, the phase chosen for it). A finding has `kind`
   (`failed-assert` or `successful-report`), `id`, `role`, `flag`,
   `severity` (`null` when absent), `error` (true for an error finding),
-  `message`, `line`, `column` and `byte_offset` of its node in the FILE
-  (when known), `path` (the node as `fn:path` gives it), `pattern`,
+  `message`, `document` (the document its node is in: the FILE, or, for
+  a pattern with `documents` or a node a rule read with `doc`, that
+  document's path from the working directory), `line`, `column` and
+  `byte_offset` of its node in that document (when known), `path` (the node as `fn:path` gives it), `pattern`,
   `test`, `assertion` (`document`, `line`, `column`), `diagnostics`
   (`id`, `language`, `text`) and `properties` (`id`, `role`, `scheme`,
   `text`).

@@ -373,6 +373,8 @@ sxml_add_cli_test(validate_schematron_entity_limit EXIT_CODE 4 ARGUMENTS validat
 sxml_add_cli_test(validate_schematron_phase_alone EXIT_CODE 2 ARGUMENTS validate --phase=totals-only schematron/order.xml)
 sxml_add_cli_test(validate_schematron_param_malformed EXIT_CODE 2 ARGUMENTS validate --schematron=schematron/rules.sch --schematron-param=limit schematron/order.xml)
 sxml_add_cli_test(validate_schematron_svrl_two_files EXIT_CODE 2 ARGUMENTS validate --schematron=schematron/rules.sch --format=svrl schematron/order.xml schematron/bad-order.xml)
+sxml_add_cli_test(validate_schematron_documents EXIT_CODE 1 ARGUMENTS validate --schematron=schematron/stock.sch schematron/order.xml)
+sxml_add_cli_test(validate_schematron_documents_json EXIT_CODE 1 ARGUMENTS validate --schematron=schematron/stock.sch --format=json schematron/order.xml)
 sxml_add_cli_test(validate_schematron_include EXIT_CODE 1 ARGUMENTS validate --schematron=schematron/included.sch schematron/bad-order.xml)
 # An EN 16931 invoice (third_party/en16931, packet 7.28 gate 5): the
 # finding's line and column in text and JSON.
