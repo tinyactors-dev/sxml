@@ -1,0 +1,514 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Writing Results - The sxml Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Learn XPath 4.0, XQuery 4.0, XSLT 4.0 and XSD 1.1 with sxml, the small XML toolchain in portable C.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="style/sxml.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "coal";
+            window.path_to_searchindex_js = "searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The sxml Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml/edit/main/docs/book/src/xquery-serialization.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="writing-results"><a class="header" href="#writing-results">Writing Results</a></h1>
+<!-- examples: spec -->
+<p>A query computes a value: a sequence of nodes, atomic values, maps and
+arrays. To see it, or to save it, the value must be turned into text.
+That step is called <em>serialization</em>, and <em>XSLT and XQuery Serialization
+4.0</em> defines how it works. This section shows the choices you have, and
+writes the requirements index of the draft in each of the forms people
+and programs ask for.</p>
+<h2 id="output-methods"><a class="header" href="#output-methods">Output methods</a></h2>
+<p>The <em>output method</em> decides the overall form of the text. <code>sxml xquery</code>
+uses the <code>xml</code> method unless the query or the command line says
+otherwise. The same sequence, written by four methods:</p>
+<pre><code class="language-console">$ sxml xquery --context-item=vane.xml --expression='//t[@anchor = "req-7"]/bcp14, 7, 11, "req-7", &lt;ok/&gt;'
+&lt;bcp14&gt;MUST&lt;/bcp14&gt;7 11 req-7&lt;ok/&gt;
+$ sxml xquery --context-item=vane.xml --method=text --expression='//t[@anchor = "req-7"]/bcp14, 7, 11, "req-7", &lt;ok/&gt;'
+MUST7 11 req-7
+$ sxml xquery --context-item=vane.xml --method=adaptive --expression='//t[@anchor = "req-7"]/bcp14, 7, 11, "req-7", &lt;ok/&gt;'
+&lt;bcp14&gt;MUST&lt;/bcp14&gt;
+7
+11
+"req-7"
+&lt;ok/&gt;
+$ sxml xquery --context-item=vane.xml --method=json --expression='[//t[@anchor = "req-7"]/bcp14, 7, 11, "req-7"]'
+["&lt;bcp14&gt;MUST&lt;\/bcp14&gt;",7,11,"req-7"]
+</code></pre>
+<ul>
+<li><strong>xml</strong> writes nodes as XML, and atomic values as text, with a space
+between neighbouring atomic values.</li>
+<li><strong>text</strong> writes only the text: the string values of nodes, and the
+atomic values. Tags are left out.</li>
+<li><strong>adaptive</strong> writes each item on its own line, in a form that shows
+its type: strings in quotes, other atomic values as constructor calls.
+It's the method of <code>sxml xpath</code>, and the best for looking at results.</li>
+<li><strong>json</strong> writes maps, arrays, strings, numbers and booleans as JSON.</li>
+<li><strong>html</strong> and <strong>xhtml</strong> write HTML pages; <strong>csv</strong> writes rows of
+values.</li>
+</ul>
+<h2 id="output-declarations"><a class="header" href="#output-declarations">Output declarations</a></h2>
+<p>A query states how its result is written with <em>output declarations</em> in
+the prolog. Each one sets one <em>serialization parameter</em>. The prefix
+<code>output</code> is predeclared for them; every query file of this chapter so
+far started with two:</p>
+<pre><code class="language-console">$ sxml xquery --context-item=vane.xml --expression='
+    declare option output:method "text";
+    declare option output:item-separator ", ";
+    //t[@anchor][bcp14 = "MUST"]/@anchor ! string()'
+req-1, req-2, req-4, req-6, req-7
+</code></pre>
+<p><code>--method</code> on the command line replaces the method that the query
+declares, but keeps its other parameters. That's handy for looking at
+the result of a query that writes text or JSON:</p>
+<pre><code class="language-console">$ sxml xquery --method=xml --expression='declare option output:method "text"; &lt;a&gt;x&lt;/a&gt;'
+&lt;a&gt;x&lt;/a&gt;
+</code></pre>
+<p>A parameter that doesn't exist, or a value it doesn't allow, is an
+error:</p>
+<pre><code class="language-console">$ sxml xquery --expression='declare option output:indent "maybe"; 1'
+expression:1:1: err:SEPM0016: a serialization parameter has a value it does not permit
+$ sxml xquery --expression='declare option output:colour "blue"; 1'
+expression:1:1: err:XQST0109: an output declaration names no serialization parameter
+</code></pre>
+<p>Flags such as <code>indent</code> take <code>yes</code> or <code>no</code> (also <code>true</code> and <code>false</code>, and
+<code>1</code> and <code>0</code>).</p>
+<h2 id="xml"><a class="header" href="#xml">XML</a></h2>
+<p>The parameters you'll use most with the <code>xml</code> method are <code>indent</code>,
+<code>omit-xml-declaration</code> and the doctype. Many xml2rfc drafts start with
+a document type declaration that names a file of character entities,
+and a query that writes a new draft can write it too:</p>
+<pre><code class="language-console">$ sxml xquery --expression='
+    declare option output:indent "yes";
+    declare option output:omit-xml-declaration "no";
+    declare option output:doctype-system "rfc2629-xhtml.ent";
+    &lt;rfc version="3" docName="draft-example-vane-protocol-02"&gt;&lt;front&gt;&lt;title&gt;The Vane Protocol&lt;/title&gt;&lt;/front&gt;&lt;/rfc&gt;'
+&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;!DOCTYPE rfc SYSTEM "rfc2629-xhtml.ent"&gt;
+&lt;rfc version="3" docName="draft-example-vane-protocol-02"&gt;
+  &lt;front&gt;
+    &lt;title&gt;The Vane Protocol&lt;/title&gt;
+  &lt;/front&gt;
+&lt;/rfc&gt;
+</code></pre>
+<p>Indenting adds whitespace between elements. sxml leaves an element alone
+when it has text of its own, but a paragraph that happens to consist of
+elements only, here a keyword followed by a cross reference, would get
+line breaks inside it, which change its text. <code>suppress-indentation</code>
+names elements whose content stays as it is:</p>
+<pre><code class="language-console">$ sxml xquery --expression='
+    declare option output:indent "yes";
+    &lt;section&gt;&lt;t&gt;&lt;bcp14&gt;MUST&lt;/bcp14&gt;&lt;xref target="term-flag"&gt;flags&lt;/xref&gt;&lt;/t&gt;&lt;/section&gt;'
+&lt;section&gt;
+  &lt;t&gt;
+    &lt;bcp14&gt;MUST&lt;/bcp14&gt;
+    &lt;xref target="term-flag"&gt;flags&lt;/xref&gt;
+  &lt;/t&gt;
+&lt;/section&gt;
+$ sxml xquery --expression='
+    declare option output:indent "yes";
+    declare option output:suppress-indentation "t";
+    &lt;section&gt;&lt;t&gt;&lt;bcp14&gt;MUST&lt;/bcp14&gt;&lt;xref target="term-flag"&gt;flags&lt;/xref&gt;&lt;/t&gt;&lt;/section&gt;'
+&lt;section&gt;
+  &lt;t&gt;&lt;bcp14&gt;MUST&lt;/bcp14&gt;&lt;xref target="term-flag"&gt;flags&lt;/xref&gt;&lt;/t&gt;
+&lt;/section&gt;
+</code></pre>
+<p><code>cdata-section-elements</code> names elements whose text is written in CDATA
+sections, as xml2rfc authors write code, so that <code>&lt;</code> and <code>&amp;</code> need no
+escaping:</p>
+<pre><code class="language-console">$ sxml xquery --context-item=vane.xml --expression='
+    declare option output:cdata-section-elements "sourcecode";
+    //sourcecode'
+&lt;sourcecode type="abnf" name="vane.abnf"&gt;&lt;![CDATA[
+message        = rollout-update / kill-update / status-request
+rollout-update = "ROLLOUT" SP flag-key SP percentage CRLF
+kill-update    = "KILL" SP flag-key CRLF
+status-request = "STATUS" SP flag-key CRLF
+flag-key       = 1*32(ALPHA / DIGIT / "-")
+percentage     = 1*3DIGIT
+]]&gt;&lt;/sourcecode&gt;
+</code></pre>
+<p>The parser doesn't keep CDATA sections (they are only another way to
+write text), so without the parameter the same element comes out as
+plain text. For this ABNF that is harmless, as it has no <code>&lt;</code> or <code>&amp;</code>;
+for code with comparisons in it, the CDATA section keeps it readable.</p>
+<p><code>encoding</code> chooses the character encoding, UTF-8 by default. A
+character that the encoding can't hold is written as a character
+reference, such as <code>&amp;#x2713;</code>.</p>
+<h2 id="xhtml-and-html"><a class="header" href="#xhtml-and-html">XHTML and HTML</a></h2>
+<p>The XHTML page of the index, <code>index-page.xq</code> from <a href="xquery-constructors.html">Building
+XML</a>, is written by the <code>xml</code> method unless it
+says otherwise. The <code>xhtml</code> method writes XML too, by the rules HTML
+browsers need: a <code>&lt;!DOCTYPE html&gt;</code> at the start and a <code>meta</code> element for
+the encoding:</p>
+<pre><code class="language-console">$ sxml xquery --context-item=vane.xml --method=xhtml index-page.xq | head -5
+&lt;!DOCTYPE html&gt;
+&lt;html xmlns="http://www.w3.org/1999/xhtml"&gt;
+  &lt;head&gt;
+    &lt;meta charset="UTF-8"/&gt;
+    &lt;title&gt;Requirements of draft-example-vane-protocol-01&lt;/title&gt;
+</code></pre>
+<p>The <code>html</code> method writes HTML5 by the rules of HTML: empty elements such
+as <code>&lt;br&gt;</code> and <code>&lt;meta&gt;</code> without a slash, the doctype, and the <code>meta</code>
+element:</p>
+<pre><code class="language-console">$ sxml xquery --context-item=vane.xml --expression='
+    declare option output:method "html";
+    declare option output:indent "yes";
+    &lt;html&gt;&lt;head&gt;&lt;title&gt;Vane&lt;/title&gt;&lt;/head&gt;&lt;body&gt;&lt;p&gt;{ count(//t[@anchor]) } requirements.&lt;br/&gt;{ count(//cref) } editorial notes.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;'
+&lt;!DOCTYPE html&gt;
+&lt;html&gt;
+  &lt;head&gt;
+    &lt;meta charset="UTF-8"&gt;
+    &lt;title&gt;Vane&lt;/title&gt;
+  &lt;/head&gt;
+  &lt;body&gt;
+    &lt;p&gt;11 requirements.&lt;br&gt;2 editorial notes.&lt;/p&gt;
+  &lt;/body&gt;
+&lt;/html&gt;
+</code></pre>
+<h2 id="json"><a class="header" href="#json">JSON</a></h2>
+<p>The <code>json</code> method writes one item: a map or an array, usually. Maps
+become objects, arrays become arrays, the empty sequence becomes <code>null</code>,
+and numbers and booleans are what you'd expect. The entries of
+<code>spec.xqm</code> are records, which are maps, so the index as JSON is one
+array of them (here the first two, to keep it short):</p>
+<pre><code class="language-console">$ sxml xquery --context-item=vane.xml --expression='
+    import module namespace spec = "urn:example:spec" at "spec.xqm";
+    declare option output:method "json";
+    declare option output:indent "yes";
+    array { spec:requirements(/)[position() le 2] ! spec:entry(.) }'
+[
+  {
+    "anchor": "req-1",
+    "number": 1,
+    "section": "2",
+    "keyword": "MUST",
+    "text": "A flag MUST be in exactly one of the states \"stable\", \"rolling-out\" and \"paused\"."
+  },
+  {
+    "anchor": "req-2",
+    "number": 2,
+    "section": "2",
+    "keyword": "MUST",
+    "text": "A flag MUST start in the state \"stable\" when it is created."
+  }
+]
+</code></pre>
+<p>Note <code>array { ... }</code>: a sequence of records in a map or at the top would
+be a sequence, not one value, and JSON has no sequences. A sequence of
+more than one item at the top is an error, unless you ask for <em>JSON
+lines</em>, one JSON value on each line, which many tools read one line at
+a time:</p>
+<pre><code class="language-console">$ sxml xquery --method=json --expression='{ "a": 1 }, { "b": 2 }'
+expression: err:SERE0023: the JSON method cannot write a sequence of more than one item
+$ sxml xquery --context-item=vane.xml --expression='
+    import module namespace spec = "urn:example:spec" at "spec.xqm";
+    declare option output:method "json";
+    declare option output:json-lines "yes";
+    spec:requirements(/) ! spec:entry(.) ! map:remove(., "text")'
+{"anchor":"req-1","number":1,"section":"2","keyword":"MUST"}
+{"anchor":"req-2","number":2,"section":"2","keyword":"MUST"}
+{"anchor":"req-3","number":3,"section":"2","keyword":"SHOULD"}
+{"anchor":"req-4","number":4,"section":"3.1","keyword":"MUST"}
+{"anchor":"req-5","number":5,"section":"3.1","keyword":"MUST NOT"}
+{"anchor":"req-9","number":6,"section":"3.1","keyword":"MAY"}
+{"anchor":"req-6","number":7,"section":"3.2","keyword":"MUST"}
+{"anchor":"req-10","number":8,"section":"3.2","keyword":"SHOULD NOT"}
+{"anchor":"req-7","number":9,"section":"4","keyword":"MUST"}
+{"anchor":"req-8","number":10,"section":"4","keyword":"SHOULD"}
+{"anchor":"req-11","number":11,"section":"4","keyword":"MAY"}
+</code></pre>
+<p>A node in a JSON result is written as a string of its XML. By default,
+the <code>/</code> of end tags is escaped as <code>\/</code>, which JSON allows; set
+<code>escape-solidus</code> to <code>no</code> to keep it plain, or <code>json-node-output-method</code>
+to <code>text</code> to write only the text of the node:</p>
+<pre><code class="language-console">$ sxml xquery --context-item=vane.xml --expression='
+    declare option output:method "json";
+    declare option output:escape-solidus "no";
+    { "keyword": //t[@anchor = "req-7"]/bcp14 }'
+{"keyword":"&lt;bcp14&gt;MUST&lt;/bcp14&gt;"}
+$ sxml xquery --context-item=vane.xml --expression='
+    declare option output:method "json";
+    declare option output:json-node-output-method "text";
+    { "keyword": //t[@anchor = "req-7"]/bcp14 }'
+{"keyword":"MUST"}
+</code></pre>
+<h2 id="csv"><a class="header" href="#csv">CSV</a></h2>
+<p>The <code>csv</code> method writes each array of a sequence as a row. Values with a
+comma or a quote in them are quoted, and a quote inside is doubled. The
+index for a spreadsheet, with a header row:</p>
+<pre><code class="language-console">$ sxml xquery --context-item=vane.xml --expression='
+    import module namespace spec = "urn:example:spec" at "spec.xqm";
+    declare option output:method "csv";
+    ["anchor", "section", "keyword", "text"],
+    spec:requirements(/) ! spec:entry(.) ! [?anchor, ?section, ?keyword, ?text]'
+anchor,section,keyword,text
+req-1,2,MUST,"A flag MUST be in exactly one of the states ""stable"", ""rolling-out"" and ""paused""."
+req-2,2,MUST,"A flag MUST start in the state ""stable"" when it is created."
+req-3,2,SHOULD,"A rolling-out flag SHOULD return to the state ""stable"" ten minutes after its rollout step began."
+req-4,3.1,MUST,A service MUST check the guardrail metrics of a flag before it applies the percentage of a rollout request.
+req-5,3.1,MUST NOT,A service MUST NOT roll out a flag while it is in a pause (Section 4).
+req-9,3.1,MAY,A service MAY ask an owner for a time-based one-time password [RFC6238] before a rollout.
+req-6,3.2,MUST,A service MUST answer a status request with the state of the flag and the number of failed checks since its last rollout step.
+req-10,3.2,SHOULD NOT,An SDK SHOULD NOT send more than one status request per second for a flag; it uses its cached answer in between.
+req-7,4,MUST,"After three failed checks in a row, a service MUST put the flag in a pause."
+req-8,4,SHOULD,A pause SHOULD last five minutes.
+req-11,4,MAY,A service MAY report a pause to the owners of the flag as soon as it begins.
+</code></pre>
+<p><code>?anchor</code> and the others are lookups on the context item, the entry, so
+each row takes four fields of one record. <code>csv-separator</code> chooses
+another separator, such as <code>";"</code>.</p>
+<h2 id="serializing-inside-a-query"><a class="header" href="#serializing-inside-a-query">Serializing inside a query</a></h2>
+<p><code>serialize</code> turns a value into a string inside the query, with the
+parameters in a map. That's how a query writes XML into a string, or
+JSON into an XML attribute:</p>
+<pre><code class="language-console">$ sxml xquery --context-item=vane.xml --method=text --expression='
+    serialize(//t[@anchor = "req-7"]/bcp14),
+    serialize({ "anchor": "req-7", "keywords": array { //t[@anchor = "req-7"]/bcp14/string() } }, { "method": "json" })'
+&lt;bcp14&gt;MUST&lt;/bcp14&gt; {"anchor":"req-7","keywords":["MUST"]}
+$ sxml xquery --context-item=vane.xml --expression='&lt;requirement keywords="{ serialize(array { //t[@anchor = "req-7"]/bcp14/string() }, { "method": "json" }) }"/&gt;'
+&lt;requirement keywords="[&amp;quot;MUST&amp;quot;]"/&gt;
+</code></pre>
+<p><code>parse-xml</code> and <code>parse-json</code> go the other way.</p>
+<h2 id="saving-the-result"><a class="header" href="#saving-the-result">Saving the result</a></h2>
+<p><code>--output=FILE</code> writes the result to a file instead of standard output.
+The file is written only when the query succeeds, and a file that exists
+is kept unless you add <code>--force</code>:</p>
+<pre><code class="language-console">$ sxml xquery --context-item=vane.xml --output=requirements.xml index.xq
+$ grep -c '&lt;requirement ' requirements.xml
+11
+$ sxml xquery --context-item=vane-00.xml --output=requirements.xml index.xq
+sxml xquery: 'requirements.xml' exists; give --force to replace it
+$ sxml xquery --context-item=vane-00.xml --output=requirements.xml --force index.xq
+$ grep -c '&lt;requirement ' requirements.xml
+8
+</code></pre>
+<p>A query that writes several files uses <code>fn:put</code>, in the next section,
+or XSLT's <code>xsl:result-document</code>, in <a href="xslt-packages.html">Many Outputs, Functions and
+Packages</a>.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="xquery-inputs.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="xquery-updates.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="xquery-inputs.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="xquery-updates.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="style/sxml.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

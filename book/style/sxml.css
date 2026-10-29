@@ -1,0 +1,100 @@
+/* The book in the look of sxml.tinyactors.dev (the tinyactors design
+   system): vellum paper, graphite ink, pine as the one accent, and umber
+   stock for the dark theme. The fonts are the website's (/fonts/); where
+   they are missing, as under `mdbook serve`, the fallbacks apply. */
+@font-face{font-family:'Newsreader';src:url('/fonts/Newsreader-400.woff2') format('woff2');font-weight:200 800;font-style:normal;font-display:swap}
+@font-face{font-family:'Newsreader';src:url('/fonts/Newsreader-400-italic.woff2') format('woff2');font-weight:200 800;font-style:italic;font-display:swap}
+@font-face{font-family:'IBM Plex Sans';src:url('/fonts/IBMPlexSans-400.woff2') format('woff2');font-weight:400;font-display:swap}
+@font-face{font-family:'IBM Plex Sans';src:url('/fonts/IBMPlexSans-600.woff2') format('woff2');font-weight:600;font-display:swap}
+@font-face{font-family:'IBM Plex Mono';src:url('/fonts/IBMPlexMono-400.woff2') format('woff2');font-weight:400;font-display:swap}
+@font-face{font-family:'IBM Plex Mono';src:url('/fonts/IBMPlexMono-500.woff2') format('woff2');font-weight:500;font-display:swap}
+
+:root{
+    --mono-font:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+    --code-font-size:0.86em;
+}
+html{font-family:'IBM Plex Sans',system-ui,sans-serif}
+.content main{font:400 1.8rem/1.6 'Newsreader',Georgia,serif}
+.content main h1,.content main h2{font-family:'Newsreader',Georgia,serif;font-weight:400;letter-spacing:-0.02em}
+.content main h3,.content main h4,.content main table{font-family:'IBM Plex Sans',system-ui,sans-serif}
+.content main h3,.content main h4{font-weight:600}
+.content main table{font-size:1.5rem;line-height:1.5}
+.content main ul,.content main ol{padding-inline-start:1.6em}
+.menu-title{font-family:'IBM Plex Mono',ui-monospace,monospace;font-weight:500;letter-spacing:-0.02em}
+.chapter{font-size:1.5rem}
+pre,code{border-radius:2px}
+blockquote{border-radius:0}
+.sxml-home{font:500 1.4rem 'IBM Plex Mono',ui-monospace,monospace;letter-spacing:-0.04em;color:var(--icons)!important;text-decoration:none!important;margin-inline-end:10px;line-height:var(--menu-bar-height)}
+.sxml-home:hover{color:var(--icons-hover)!important}
+
+.light, html:not(.js){
+    --bg:#F4EEE2;
+    --fg:#2A2622;
+    --sidebar-bg:#FAF6EE;
+    --sidebar-fg:#2A2622;
+    --sidebar-non-existant:#978B7B;
+    --sidebar-active:#194D3D;
+    --sidebar-spacer:#DACEB8;
+    --scrollbar:#978B7B;
+    --icons:#766C60;
+    --icons-hover:#2A2622;
+    --links:#194D3D;
+    --inline-code-color:#2A2622;
+    --theme-popup-bg:#FAF6EE;
+    --theme-popup-border:#C9BAA0;
+    --theme-hover:#EEE7D9;
+    --quote-bg:#FAF6EE;
+    --quote-border:#DACEB8;
+    --warning-border:#94650F;
+    --table-border-color:#DACEB8;
+    --table-header-bg:#E7DECD;
+    --table-alternate-bg:#EEE7D9;
+    --searchbar-border-color:#C9BAA0;
+    --searchbar-bg:#FAF6EE;
+    --searchbar-fg:#2A2622;
+    --searchbar-shadow-color:#C9BAA0;
+    --searchresults-header-fg:#5C544B;
+    --searchresults-border-color:#C9BAA0;
+    --searchresults-li-bg:#EEE7D9;
+    --search-mark-bg:#D8E8DF;
+}
+.light code,.light pre,.light .hljs{background:#EEE7D9}
+.light :not(pre)>.hljs{color:#2A2622}
+
+.coal{
+    --bg:#18120D;
+    --fg:#F1E6D2;
+    --sidebar-bg:#201811;
+    --sidebar-fg:#CBBBA2;
+    --sidebar-non-existant:#7C6752;
+    --sidebar-active:#86C4AB;
+    --sidebar-spacer:#45362A;
+    --scrollbar:#7C6752;
+    --icons:#A38F76;
+    --icons-hover:#F1E6D2;
+    --links:#86C4AB;
+    --inline-code-color:#F1E6D2;
+    --theme-popup-bg:#201811;
+    --theme-popup-border:#5B4838;
+    --theme-hover:#31251B;
+    --quote-bg:#201811;
+    --quote-border:#45362A;
+    --warning-border:#D8A64E;
+    --table-border-color:#45362A;
+    --table-header-bg:#31251B;
+    --table-alternate-bg:#201811;
+    --searchbar-border-color:#5B4838;
+    --searchbar-bg:#201811;
+    --searchbar-fg:#F1E6D2;
+    --searchbar-shadow-color:#120D09;
+    --searchresults-header-fg:#A38F76;
+    --searchresults-border-color:#5B4838;
+    --searchresults-li-bg:#281E16;
+    --search-mark-bg:#12302A;
+}
+.coal code,.coal pre,.coal .hljs{background:#120D09}
+
+/* Figures (src/figures/, kept equal to the files the examples write by
+   tools/check-book-examples.sh) carry their own colours, so they sit on
+   paper in every theme. */
+.content main img[src^="figures/"]{display:block;max-width:100%;height:auto;margin:1.6em auto;padding:16px;background:#FFFFFF;border:1px solid var(--table-border-color);border-radius:2px;box-sizing:border-box}

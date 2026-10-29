@@ -1,0 +1,533 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Documenting the Machine in XHTML - The sxml Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Learn XPath 4.0, XQuery 4.0, XSLT 4.0 and XSD 1.1 with sxml, the small XML toolchain in portable C.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="style/sxml.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "coal";
+            window.path_to_searchindex_js = "searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The sxml Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml/edit/main/docs/book/src/scxml-xhtml.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="documenting-the-machine-in-xhtml"><a class="header" href="#documenting-the-machine-in-xhtml">Documenting the Machine in XHTML</a></h1>
+<!-- examples: scxml -->
+<p>The machine's annotations were written for people as much as for
+checks: each state and each event has a paragraph of XHTML, each data
+item names its type, and each payload names an element of
+<code>vane-data.xsd</code>. A stylesheet can put all of it on one page, together
+with what only the schema knows, such as what a flag key may look like.
+The page is XHTML, so the paragraphs of the machine can go into it as
+they are.</p>
+<h2 id="the-stylesheet"><a class="header" href="#the-stylesheet">The stylesheet</a></h2>
+<p><code>document.xsl</code>:</p>
+<pre><code class="language-xml">&lt;!-- An XHTML page about a Vane machine, from its annotations and from
+     the schema of its data, vane-data.xsd. --&gt;
+&lt;xsl:stylesheet version="4.0" expand-text="yes"
+    xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:html="http://www.w3.org/1999/xhtml"
+    xmlns:sc="http://www.w3.org/2005/07/scxml"
+    xmlns:vane="urn:example:vane"
+    xmlns:xs="http://www.w3.org/2001/XMLSchema"
+    xmlns:doc="urn:example:document"
+    exclude-result-prefixes="html sc vane xs doc"&gt;
+  &lt;xsl:output method="xhtml" html-version="5" indent="yes"/&gt;
+
+  &lt;!-- Where the published draft is, for links to its requirements. --&gt;
+  &lt;xsl:param name="draft" select="'vane.html'"/&gt;
+
+  &lt;xsl:variable name="schema" select="doc('vane-data.xsd')/xs:schema"/&gt;
+
+  &lt;xsl:template match="/sc:scxml"&gt;
+    &lt;html&gt;
+      &lt;head&gt;
+        &lt;title&gt;The {@name} machine&lt;/title&gt;
+      &lt;/head&gt;
+      &lt;body&gt;
+        &lt;h1&gt;The {@name} machine&lt;/h1&gt;
+        &lt;p&gt;It starts in the state &lt;a href="#{@initial}"&gt;{@initial}&lt;/a&gt;.
+          &lt;xsl:apply-templates select="@vane:implements"/&gt;&lt;/p&gt;
+        &lt;h2&gt;States&lt;/h2&gt;
+        &lt;xsl:apply-templates select="sc:state"/&gt;
+        &lt;h2&gt;Transitions&lt;/h2&gt;
+        &lt;table&gt;
+          &lt;tr&gt;&lt;th&gt;From&lt;/th&gt;&lt;th&gt;Event&lt;/th&gt;&lt;th&gt;Condition&lt;/th&gt;&lt;th&gt;To&lt;/th&gt;&lt;/tr&gt;
+          &lt;xsl:apply-templates select="sc:state/sc:transition"/&gt;
+        &lt;/table&gt;
+        &lt;h2&gt;Events&lt;/h2&gt;
+        &lt;dl&gt;
+          &lt;xsl:apply-templates select="vane:events/vane:event"/&gt;
+        &lt;/dl&gt;
+        &lt;h2&gt;Data&lt;/h2&gt;
+        &lt;table&gt;
+          &lt;tr&gt;&lt;th&gt;Item&lt;/th&gt;&lt;th&gt;Initial value&lt;/th&gt;&lt;th&gt;Type&lt;/th&gt;&lt;/tr&gt;
+          &lt;xsl:apply-templates select="sc:datamodel/sc:data"/&gt;
+        &lt;/table&gt;
+      &lt;/body&gt;
+    &lt;/html&gt;
+  &lt;/xsl:template&gt;
+
+  &lt;!-- A state: its own XHTML, copied without the machine's namespaces. --&gt;
+  &lt;xsl:template match="sc:state"&gt;
+    &lt;section id="{@id}"&gt;
+      &lt;h3&gt;{@id}&lt;/h3&gt;
+      &lt;xsl:copy-of select="html:div/node()" copy-namespaces="no"/&gt;
+      &lt;xsl:apply-templates select="@vane:implements"/&gt;
+    &lt;/section&gt;
+  &lt;/xsl:template&gt;
+
+  &lt;xsl:template match="sc:transition"&gt;
+    &lt;tr&gt;
+      &lt;td&gt;&lt;a href="#{../@id}"&gt;{../@id}&lt;/a&gt;&lt;/td&gt;
+      &lt;td&gt;{@event}&lt;/td&gt;
+      &lt;td&gt;&lt;xsl:if test="@cond"&gt;&lt;code&gt;{@cond}&lt;/code&gt;&lt;/xsl:if&gt;&lt;/td&gt;
+      &lt;td&gt;
+        &lt;xsl:choose&gt;
+          &lt;xsl:when test="@target"&gt;&lt;a href="#{@target}"&gt;{@target}&lt;/a&gt;&lt;/xsl:when&gt;
+          &lt;xsl:otherwise&gt;(stays)&lt;/xsl:otherwise&gt;
+        &lt;/xsl:choose&gt;
+      &lt;/td&gt;
+    &lt;/tr&gt;
+  &lt;/xsl:template&gt;
+
+  &lt;!-- An event: its XHTML description, and what its payload carries. --&gt;
+  &lt;xsl:template match="vane:event"&gt;
+    &lt;dt id="event-{@name}"&gt;{@name}&lt;/dt&gt;
+    &lt;dd&gt;
+      &lt;xsl:copy-of select="html:*" copy-namespaces="no"/&gt;
+      &lt;xsl:apply-templates select="@vane:payload"/&gt;
+    &lt;/dd&gt;
+  &lt;/xsl:template&gt;
+
+  &lt;xsl:template match="@vane:payload"&gt;
+    &lt;xsl:variable name="name" select="local-name-from-QName(resolve-QName(., ..))"/&gt;
+    &lt;p&gt;It carries a &lt;code&gt;{.}&lt;/code&gt;:&lt;/p&gt;
+    &lt;ul&gt;
+      &lt;xsl:for-each select="$schema/xs:element[@name = $name]//xs:element"&gt;
+        &lt;li&gt;&lt;code&gt;{@name}&lt;/code&gt;{if (@minOccurs = '0') then ' (optional)' else ''},
+          {doc:describe(@type)}&lt;/li&gt;
+      &lt;/xsl:for-each&gt;
+    &lt;/ul&gt;
+  &lt;/xsl:template&gt;
+
+  &lt;xsl:template match="sc:data"&gt;
+    &lt;tr&gt;
+      &lt;td&gt;{@id}&lt;/td&gt;
+      &lt;td&gt;{@expr}&lt;/td&gt;
+      &lt;td&gt;&lt;code&gt;{@vane:type}&lt;/code&gt;: {doc:describe(@vane:type)}&lt;/td&gt;
+    &lt;/tr&gt;
+  &lt;/xsl:template&gt;
+
+  &lt;!-- Links to the requirements of the draft. --&gt;
+  &lt;xsl:template match="@vane:implements"&gt;
+    &lt;span class="implements"&gt;Implements
+      &lt;xsl:for-each select="tokenize(.)"&gt;
+        &lt;a href="{$draft}#{.}"&gt;{.}&lt;/a&gt;
+        &lt;xsl:if test="position() ne last()"&gt;, &lt;/xsl:if&gt;
+      &lt;/xsl:for-each&gt;.&lt;/span&gt;
+  &lt;/xsl:template&gt;
+
+  &lt;!-- A type of vane-data.xsd in words: its documentation if it has
+       one, else its base type and facets. --&gt;
+  &lt;xsl:function name="doc:describe" as="xs:string"&gt;
+    &lt;xsl:param name="type" as="attribute()"/&gt;
+    &lt;xsl:variable name="name" select="resolve-QName($type, $type/..)"/&gt;
+    &lt;xsl:variable name="definition" select="
+      $schema/xs:simpleType[@name = local-name-from-QName($name)]
+        [namespace-uri-from-QName($name) eq string($schema/@targetNamespace)]"/&gt;
+    &lt;xsl:choose&gt;
+      &lt;xsl:when test="empty($definition)"&gt;{
+        if (namespace-uri-from-QName($name) eq 'http://www.w3.org/2001/XMLSchema')
+        then 'xs:' || local-name-from-QName($name) else 'an unknown type'}&lt;/xsl:when&gt;
+      &lt;xsl:when test="$definition/xs:annotation/xs:documentation"&gt;{
+        normalize-space($definition/xs:annotation/xs:documentation)}&lt;/xsl:when&gt;
+      &lt;xsl:otherwise&gt;
+        &lt;xsl:variable name="restriction" select="$definition/xs:restriction"/&gt;
+        &lt;xsl:sequence select="string-join((
+          $restriction/@base,
+          $restriction/xs:pattern/@value ! `matching {.}`,
+          $restriction/xs:minInclusive/@value ! `at least {.}`,
+          $restriction/xs:maxInclusive/@value ! `at most {.}`,
+          if ($restriction/xs:enumeration)
+          then 'one of ' || string-join($restriction/xs:enumeration/@value, ', ')
+          else ()
+        ), ', ')"/&gt;
+      &lt;/xsl:otherwise&gt;
+    &lt;/xsl:choose&gt;
+  &lt;/xsl:function&gt;
+&lt;/xsl:stylesheet&gt;
+</code></pre>
+<p>It reads two documents: the machine, its source, and the schema of the
+annotations, with <code>doc('vane-data.xsd')</code>. A schema is an XML document
+like any other, so a stylesheet can read the declarations in it, just
+as <code>check.xq</code> read the names of the payloads.</p>
+<p>The XHTML namespace is the default namespace of the stylesheet, so the
+literal result elements, <code>html</code>, <code>section</code>, <code>table</code>, are XHTML
+elements. The same namespace is bound to the prefix <code>html</code> too, for the
+patterns and paths that select the machine's XHTML: in a path, an
+unprefixed name would mean no namespace, not the default namespace of
+literal results. <code>exclude-result-prefixes</code> keeps the namespaces the
+page doesn't use out of it.</p>
+<p><code>xsl:output method="xhtml"</code> writes the page as XHTML: an XML document
+that browsers can also read as HTML, with the <code>&lt;!DOCTYPE html&gt;</code> of
+<code>html-version="5"</code> and a <code>meta</code> element for the encoding.</p>
+<h2 id="writing-the-page"><a class="header" href="#writing-the-page">Writing the page</a></h2>
+<p>The machine is the one <a href="scxml-checks.html">Checking What the Schema
+Cannot</a> fixed, <code>flag-fixed.scxml</code>:</p>
+<pre><code class="language-console">$ sxml transform --output=flag.html document.xsl flag-fixed.scxml
+$ sed -n '1,12p' flag.html
+&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;!DOCTYPE html&gt;
+&lt;html xmlns="http://www.w3.org/1999/xhtml"&gt;
+  &lt;head&gt;
+    &lt;meta charset="UTF-8"/&gt;
+    &lt;title&gt;The feature_flag machine&lt;/title&gt;
+  &lt;/head&gt;
+  &lt;body&gt;
+    &lt;h1&gt;The feature_flag machine&lt;/h1&gt;
+    &lt;p&gt;It starts in the state &lt;a href="#stable"&gt;stable&lt;/a&gt;.
+          &lt;span class="implements"&gt;Implements
+      &lt;a href="vane.html#req-1"&gt;req-1&lt;/a&gt;.&lt;/span&gt;&lt;/p&gt;
+</code></pre>
+<h2 id="the-machines-own-xhtml"><a class="header" href="#the-machines-own-xhtml">The machine's own XHTML</a></h2>
+<p>Each state's section has its heading, then the content of the state's
+<code>div</code>, copied with <code>xsl:copy-of</code>:</p>
+<pre><code class="language-console">$ sed -n '/&lt;section id="paused"&gt;/,/&lt;\/section&gt;/p' flag.html
+    &lt;section id="paused"&gt;&lt;h3&gt;paused&lt;/h3&gt;
+      &lt;p&gt;The service refuses every rollout for &lt;var&gt;pauseSeconds&lt;/var&gt; seconds.&lt;/p&gt;
+    &lt;span class="implements"&gt;Implements
+      &lt;a href="vane.html#req-5"&gt;req-5&lt;/a&gt;, &lt;a href="vane.html#req-8"&gt;req-8&lt;/a&gt;.&lt;/span&gt;&lt;/section&gt;
+</code></pre>
+<p>The <code>p</code> and the <code>var</code> inside it are copied as they are: they were
+XHTML in the machine, and they are XHTML on the page. A copied element
+takes along the namespace bindings in scope where it was, and in the
+machine the namespace <code>urn:example:vane</code> was in scope everywhere.
+<code>copy-namespaces="no"</code> leaves the bindings out that the copy doesn't
+use. Without it, each paragraph carries the vane namespace into the
+page:</p>
+<pre><code class="language-console">$ sed 's|&lt;xsl:copy-of select="html:div/node()" copy-namespaces="no"/&gt;|&lt;xsl:copy-of select="html:div/node()"/&gt;|' document.xsl &gt; keep.xsl
+$ sxml transform keep.xsl flag-fixed.scxml | sed -n '/&lt;section id="paused"&gt;/,/&lt;\/section&gt;/p'
+    &lt;section id="paused"&gt;&lt;h3&gt;paused&lt;/h3&gt;
+      &lt;p xmlns:vane="urn:example:vane"&gt;The service refuses every rollout for &lt;var&gt;pauseSeconds&lt;/var&gt; seconds.&lt;/p&gt;
+    &lt;span class="implements"&gt;Implements
+      &lt;a href="vane.html#req-5"&gt;req-5&lt;/a&gt;, &lt;a href="vane.html#req-8"&gt;req-8&lt;/a&gt;.&lt;/span&gt;&lt;/section&gt;
+</code></pre>
+<p>It is not wrong, but it is noise in a page meant for browsers. The
+<code>section</code> of a state is written on fewer lines than the rest: an
+element with text of its own is mixed content, and the serializer
+doesn't indent inside it, because new whitespace there would change
+the text.</p>
+<h2 id="a-table-of-transitions"><a class="header" href="#a-table-of-transitions">A table of transitions</a></h2>
+<p>The transitions are a table, one row for each, in document order, with
+links to the states' sections:</p>
+<pre><code class="language-console">$ sed -n '/&lt;h2&gt;Transitions/,/&lt;\/table&gt;/p' flag.html | head -26
+    &lt;h2&gt;Transitions&lt;/h2&gt;
+    &lt;table&gt;
+      &lt;tr&gt;
+        &lt;th&gt;From&lt;/th&gt;
+        &lt;th&gt;Event&lt;/th&gt;
+        &lt;th&gt;Condition&lt;/th&gt;
+        &lt;th&gt;To&lt;/th&gt;
+      &lt;/tr&gt;
+      &lt;tr&gt;
+        &lt;td&gt;&lt;a href="#stable"&gt;stable&lt;/a&gt;&lt;/td&gt;
+        &lt;td&gt;flag.archived&lt;/td&gt;
+        &lt;td&gt;&lt;/td&gt;
+        &lt;td&gt;&lt;a href="#archived"&gt;archived&lt;/a&gt;&lt;/td&gt;
+      &lt;/tr&gt;
+      &lt;tr&gt;
+        &lt;td&gt;&lt;a href="#stable"&gt;stable&lt;/a&gt;&lt;/td&gt;
+        &lt;td&gt;rollout.request&lt;/td&gt;
+        &lt;td&gt;&lt;/td&gt;
+        &lt;td&gt;&lt;a href="#checking"&gt;checking&lt;/a&gt;&lt;/td&gt;
+      &lt;/tr&gt;
+      &lt;tr&gt;
+        &lt;td&gt;&lt;a href="#stable"&gt;stable&lt;/a&gt;&lt;/td&gt;
+        &lt;td&gt;status.request&lt;/td&gt;
+        &lt;td&gt;&lt;/td&gt;
+        &lt;td&gt;(stays)&lt;/td&gt;
+      &lt;/tr&gt;
+</code></pre>
+<h2 id="events-and-their-payloads"><a class="header" href="#events-and-their-payloads">Events and their payloads</a></h2>
+<p>Each event is a term of a definition list, with its XHTML paragraph.
+For an event with a payload, the stylesheet finds the payload's
+declaration in the schema and lists its children:</p>
+<pre><code class="language-console">$ sed -n '/&lt;dt id="event-status.response"&gt;/,/&lt;\/dd&gt;/p' flag.html
+      &lt;dt id="event-status.response"&gt;status.response&lt;/dt&gt;
+      &lt;dd&gt;
+        &lt;p&gt;The service answers with the state.&lt;/p&gt;
+        &lt;p&gt;It carries a &lt;code&gt;vane:status&lt;/code&gt;:&lt;/p&gt;
+        &lt;ul&gt;
+          &lt;li&gt;&lt;code&gt;flag&lt;/code&gt;,
+          The key of a flag: the flag-key rule of the protocol's ABNF.&lt;/li&gt;
+          &lt;li&gt;&lt;code&gt;state&lt;/code&gt;,
+          xs:string, one of stable, rolling-out, paused&lt;/li&gt;
+          &lt;li&gt;&lt;code&gt;failed-checks&lt;/code&gt;,
+          xs:nonNegativeInteger&lt;/li&gt;
+          &lt;li&gt;&lt;code&gt;retry-after&lt;/code&gt; (optional),
+          A duration in whole seconds, at most one hour.&lt;/li&gt;
+        &lt;/ul&gt;
+      &lt;/dd&gt;
+</code></pre>
+<p><code>@vane:payload</code> is a QName in the machine, written with the machine's
+prefix. <code>resolve-QName</code> resolves it with the namespace bindings of its
+element, and the stylesheet compares only the local name with the
+schema's declarations; <a href="scxml-checks.html">Checking What the Schema
+Cannot</a> made sure that the payloads name elements of
+this schema.</p>
+<p>The types are described by the function <code>doc:describe</code>: the type's
+<code>xs:documentation</code> when it has one, else its base type and its facets
+in words. <code>vane:flag-key</code> and <code>vane:seconds</code> are documented in
+<code>vane-data.xsd</code>, so the page shows the schema's own sentences for
+<code>flag</code> and <code>retry-after</code>; <code>vane:state</code> and <code>vane:failure-count</code> are
+not, so <code>one of stable, rolling-out, paused</code> is the enumeration in
+words, and <code>xs:nonNegativeInteger</code> the base type. Without its
+documentation, <code>vane:flag-key</code> would read <code>xs:string, matching [A-Za-z0-9\-]{1,32}</code>, and <code>vane:seconds</code> <code>xs:positiveInteger, at most 3600</code>. The data items are described the same way:</p>
+<pre><code class="language-console">$ sed -n '/&lt;h2&gt;Data/,/&lt;\/table&gt;/p' flag.html | grep 'code&gt;'
+        &lt;td&gt;&lt;code&gt;vane:failure-count&lt;/code&gt;: xs:nonNegativeInteger&lt;/td&gt;
+        &lt;td&gt;&lt;code&gt;vane:failure-limit&lt;/code&gt;: xs:positiveInteger, at most 10&lt;/td&gt;
+        &lt;td&gt;&lt;code&gt;vane:seconds&lt;/code&gt;: A duration in whole seconds, at most one hour.&lt;/td&gt;
+        &lt;td&gt;&lt;code&gt;vane:seconds&lt;/code&gt;: A duration in whole seconds, at most one hour.&lt;/td&gt;
+</code></pre>
+<h2 id="links-to-the-draft"><a class="header" href="#links-to-the-draft">Links to the draft</a></h2>
+<p><code>vane:implements</code> becomes links to the requirements of the draft, in
+the form <code>vane.html#req-8</code>: a link into an HTML version of the
+draft, such as <a href="xslt-project.html">Project: Publishing the Specification</a>
+makes, in which each requirement's anchor is the <code>id</code> of its paragraph.
+The parameter <code>draft</code> says
+where the published draft is, relative to the page:</p>
+<pre><code class="language-console">$ sxml transform --param=draft=../spec/vane.html document.xsl flag-fixed.scxml | grep -m 2 'href="../spec'
+      &lt;a href="../spec/vane.html#req-1"&gt;req-1&lt;/a&gt;.&lt;/span&gt;&lt;/p&gt;
+      &lt;a href="../spec/vane.html#req-2"&gt;req-2&lt;/a&gt;.&lt;/span&gt;&lt;/section&gt;
+</code></pre>
+<p>The page is generated from the machine, so it can't fall behind it:
+when the machine changes, the page is made again, and when the machine
+names a requirement, the page links to its text. <a href="scxml-drawing.html">Drawing the
+Machine</a> adds a picture.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="scxml-checks.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="scxml-drawing.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="scxml-checks.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="scxml-drawing.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="style/sxml.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

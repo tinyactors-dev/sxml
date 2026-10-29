@@ -1,0 +1,375 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Parsing Text with Invisible XML - The sxml Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Learn XPath 4.0, XQuery 4.0, XSLT 4.0 and XSD 1.1 with sxml, the small XML toolchain in portable C.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="style/sxml.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "coal";
+            window.path_to_searchindex_js = "searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The sxml Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml/edit/main/docs/book/src/ixml.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="parsing-text-with-invisible-xml"><a class="header" href="#parsing-text-with-invisible-xml">Parsing Text with Invisible XML</a></h1>
+<!-- examples: ixml -->
+<p>A great deal of data is text with a structure that only a person can
+see: a log line, a date written in words, a configuration file, a small
+language of your own. Invisible XML (iXML) makes that structure visible.
+You describe the text with a grammar, and the grammar turns every text
+it describes into an XML document, which the XPath, XQuery and XSLT of
+the earlier parts can query and transform. The examples of this part are
+in <code>docs/book/examples/ixml</code>.</p>
+<h2 id="a-first-grammar"><a class="header" href="#a-first-grammar">A first grammar</a></h2>
+<p>This grammar describes a date such as <code>2026-10-20</code>:</p>
+<p><code>date.ixml</code>:</p>
+<pre><code>date: year, -"-", month, -"-", day.
+year: digit, digit, digit, digit.
+month: digit, digit.
+day: digit, digit.
+-digit: ["0"-"9"].
+</code></pre>
+<p>Each <em>rule</em> names a part of the text and says what it is made of, in
+order, separated by commas: a <code>date</code> is a <code>year</code>, a hyphen, a <code>month</code>, a
+hyphen and a <code>day</code>. A quoted string matches itself, and <code>["0"-"9"]</code>
+matches one character in a range. The first rule describes the whole
+text.</p>
+<p>The function <code>invisible-xml</code> compiles a grammar into a parser, which is
+itself a function: give it a text, and it returns a document.</p>
+<pre><code class="language-console">$ sxml xpath --method=xml 'invisible-xml(unparsed-text("date.ixml"))("2026-10-20")'
+&lt;date&gt;&lt;year&gt;2026&lt;/year&gt;&lt;month&gt;10&lt;/month&gt;&lt;day&gt;20&lt;/day&gt;&lt;/date&gt;
+</code></pre>
+<p>Every rule became an element, except <code>digit</code>: the <code>-</code> before its name
+<em>hides</em> it, so its characters go straight into the element around it.
+The hyphens between the parts are hidden too, by the <code>-</code> before each
+<code>"-"</code>. Without the marks, every digit would be an element of its own and
+the hyphens would be text.</p>
+<h2 id="compile-once-parse-many-times"><a class="header" href="#compile-once-parse-many-times">Compile once, parse many times</a></h2>
+<p>Compiling a grammar takes more work than parsing one short text with it.
+Keep the parser in a variable and call it for every text:</p>
+<pre><code class="language-console">$ sxml xpath 'let $parse := invisible-xml(unparsed-text("date.ixml")) for $text in ("2026-10-20", "1999-12-31") return $parse($text)/date/year/string()'
+"2026"
+"1999"
+</code></pre>
+<p>The result of the parser is a document node, so <code>$parse($text)/date</code>
+is its document element, and every path, function and FLWOR expression
+works on it.</p>
+<h2 id="running-a-grammar-from-the-command-line"><a class="header" href="#running-a-grammar-from-the-command-line">Running a grammar from the command line</a></h2>
+<p>The <code>sxml</code> command has no command of its own for Invisible XML: the
+<code>xquery</code> command runs it, with the grammar and the input as parameters.
+This query, kept in a file, works for any grammar and any input:</p>
+<p><code>ixml.xq</code>:</p>
+<pre><code class="language-xquery">(: Parses the file $input with the Invisible XML grammar in the file
+   $grammar and writes the XML, indented. :)
+declare option output:indent "yes";
+declare variable $grammar external;
+declare variable $input external;
+invisible-xml(unparsed-text($grammar))(unparsed-text($input))
+</code></pre>
+<pre><code class="language-console">$ sxml xquery --param=grammar=date.ixml --param=input=today.txt ixml.xq
+&lt;failed xmlns:ixml="http://invisiblexml.org/NS" ixml:state="failed"&gt;
+  &lt;line&gt;1&lt;/line&gt;
+  &lt;column&gt;11&lt;/column&gt;
+  &lt;position&gt;11&lt;/position&gt;
+  &lt;unexpected&gt;#a&lt;/unexpected&gt;
+&lt;/failed&gt;
+</code></pre>
+<p>The parse failed. <code>today.txt</code> holds the date and a line feed, as text
+files do, and the grammar says nothing about a line feed: after the day,
+at column 11, it expected the end of the text and found <code>#a</code>, the line
+feed. A failed parse is not an error. The parser returns a document whose
+element is <code>failed</code>, with the attribute <code>ixml:state="failed"</code>, and says
+where the parse stopped; <a href="ixml-errors.html">When a Parse Fails</a> has more
+on reading it.</p>
+<p>The grammar can allow the line feed. <code>dates.ixml</code> in the
+<a href="ixml-tasks.html#dates">next chapter's tasks</a> reads a date on each line;
+here it reads <code>dates.txt</code>:</p>
+<pre><code class="language-console">$ sxml xquery --param=grammar=dates.ixml --param=input=dates.txt ixml.xq
+&lt;dates&gt;
+  &lt;date&gt;
+    &lt;year&gt;2026&lt;/year&gt;
+    &lt;month&gt;10&lt;/month&gt;
+    &lt;day&gt;20&lt;/day&gt;
+  &lt;/date&gt;
+  &lt;date&gt;
+    &lt;day&gt;20&lt;/day&gt;
+    &lt;month&gt;10&lt;/month&gt;
+    &lt;year&gt;2026&lt;/year&gt;
+  &lt;/date&gt;
+  &lt;date&gt;
+    &lt;month&gt;07&lt;/month&gt;
+    &lt;day&gt;04&lt;/day&gt;
+    &lt;year&gt;1976&lt;/year&gt;
+  &lt;/date&gt;
+  &lt;date&gt;
+    &lt;day&gt;01&lt;/day&gt;
+    &lt;month&gt;05&lt;/month&gt;
+    &lt;year&gt;1886&lt;/year&gt;
+  &lt;/date&gt;
+&lt;/dates&gt;
+</code></pre>
+<p>To keep the result, add <code>--output=FILE</code>; to use it at once, put the
+parse in a query of its own, as the tasks in this part do.</p>
+<h2 id="errors-or-documents"><a class="header" href="#errors-or-documents">Errors or documents</a></h2>
+<p>By default a text that does not match gives the <code>failed</code> document, so a
+query can look at it and go on. With the option <code>fail-on-error</code>, the
+parser raises the error FOIX0002 instead:</p>
+<pre><code class="language-console">$ sxml xpath 'invisible-xml(unparsed-text("date.ixml"), {"fail-on-error": true()})("2026-1-20")'
+expression:1:1: err:FOIX0002: The input does not match the grammar, and fail-on-error is true (F&amp;O 4.0, fn:invisible-xml)
+</code></pre>
+<p>A grammar that is not a grammar is always an error, FOIX0001; the
+<a href="ixml-errors.html">errors chapter</a> shows the common ones.</p>
+<h2 id="a-grammar-is-xml-too"><a class="header" href="#a-grammar-is-xml-too">A grammar is XML too</a></h2>
+<p>Called without a grammar, <code>invisible-xml</code> returns the parser of iXML
+grammars themselves. Its result is the grammar in its XML form, which the
+specification defines and which <code>invisible-xml</code> accepts as well:</p>
+<pre><code class="language-console">$ sxml xpath --method=xml 'invisible-xml()("greeting: ""hello"".")'
+&lt;ixml&gt;&lt;rule name="greeting"&gt;&lt;alt&gt;&lt;literal string="hello"/&gt;&lt;/alt&gt;&lt;/rule&gt;&lt;/ixml&gt;
+$ sxml xpath --method=xml 'invisible-xml(invisible-xml()("greeting: ""hello"".")/ixml)("hello")'
+&lt;greeting&gt;hello&lt;/greeting&gt;
+</code></pre>
+<p>A program can therefore read a grammar, change it with XQuery or XSLT,
+and compile the changed grammar: add a rule, rename an element, or build
+a grammar from a table.</p>
+<h2 id="in-this-part"><a class="header" href="#in-this-part">In this part</a></h2>
+<ul>
+<li><a href="ixml-grammars.html">Writing Grammars</a>: rules, characters, repetition,
+marks, attributes, insertions, renaming, and what an ambiguous grammar
+does.</li>
+<li><a href="ixml-tasks.html">Real Tasks</a>: log files, semicolon-separated values,
+dates in many forms, a small programming language, and Markdown-like
+text.</li>
+<li><a href="ixml-errors.html">When a Parse Fails</a>: the <code>failed</code> document, grammar
+errors, and how to fix a grammar.</li>
+<li><a href="ixml-performance.html">Invisible XML Performance</a>: how large an input
+can be, and which grammars parse in time proportional to the input.</li>
+</ul>
+<p>sxml implements the Invisible XML Specification 1.0 with its errata and
+the renaming of the Community Group's draft of version 1.1, and
+<code>fn:invisible-xml</code> of F&amp;O 4.0. It passes every test of the iXML community
+test suite that it runs (Appendix B).</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="schematron-c.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="ixml-grammars.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="schematron-c.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="ixml-grammars.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="style/sxml.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

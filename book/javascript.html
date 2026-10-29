@@ -1,0 +1,595 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>sxml in JavaScript - The sxml Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Learn XPath 4.0, XQuery 4.0, XSLT 4.0 and XSD 1.1 with sxml, the small XML toolchain in portable C.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="style/sxml.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "coal";
+            window.path_to_searchindex_js = "searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The sxml Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml/edit/main/docs/book/src/javascript.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="sxml-in-javascript"><a class="header" href="#sxml-in-javascript">sxml in JavaScript</a></h1>
+<!-- examples: javascript -->
+<!-- requires: javascript -->
+<p>The <code>@tinyactors/sxml</code> package runs the sxml library in Node.js and in
+browsers, compiled to WebAssembly, with a small TypeScript wrapper and
+no dependencies. It speaks the same languages as the C library and the
+<code>sxml</code> command, and gives the same results. The examples are in
+<code>docs/book/examples/javascript</code>.</p>
+<h2 id="getting-the-package"><a class="header" href="#getting-the-package">Getting the package</a></h2>
+<p>The package is in the sxml repository, in <code>bindings/javascript</code>. It is
+not on npm yet; its README explains how to build it from the
+repository. It needs Node.js 22.18 or later, or any current browser.</p>
+<p>It comes with one WebAssembly module, <code>sxml.wasm</code>, which has everything
+the <code>sxml</code> command has but EXPath File: XML parsing, XPath 4.0 with the
+whole function library, XQuery 4.0, XSLT 4.0, XSD 1.1, Full Text, HTML,
+Invisible XML, EXPath Binary, collations, time zones, localization and
+serialization. <code>load()</code> loads it from beside the package's JavaScript;
+<code>load({ wasm })</code> loads it from elsewhere.</p>
+<h2 id="processors-and-values"><a class="header" href="#processors-and-values">Processors and values</a></h2>
+<p>As in C, everything starts with a processor. <code>parse</code> makes a document,
+<code>compile</code> compiles an expression once, and <code>evaluate</code> runs it with a
+context and variables. The examples read the Vane draft of <a href="xpath.html">Finding
+Things with XPath</a> and the traces of <a href="traces.html">Project: Comparing
+Traces Before and After a Change</a>; the example directory
+links to both files.</p>
+<p><code>hello.mjs</code>:</p>
+<pre><code class="language-js">import { readFileSync } from 'node:fs';
+import { load } from '@tinyactors/sxml';
+
+// Load the module, which has every language and feature.
+const sxml = await load();
+const processor = sxml.createProcessor();
+
+const draft = processor.parse(readFileSync('vane.xml', 'utf8'));
+
+// Compile once...
+const anchors = processor.compile('//t[bcp14 = $keyword]/@anchor ! string()', {
+  variables: ['keyword'],
+});
+
+// ...and evaluate as often as you like.
+for (const keyword of ['MUST', 'MAY']) {
+  const found = anchors.evaluate({ context: draft, variables: { keyword } });
+  console.log(`${keyword}:`, found.toString().split('\n'));
+}
+
+// Results serialize by any method; maps and arrays become JSON.
+const summary = processor.evaluate(
+  'array { for $keyword in distinct-values(//bcp14) return { "keyword": $keyword, "count": count(//bcp14[. = $keyword]) } }',
+  { context: draft });
+console.log(summary.serialize({ method: 'json' }));
+
+processor.dispose();
+</code></pre>
+<pre><code class="language-console">$ node hello.mjs
+MUST: [ '"req-1"', '"req-2"', '"req-4"', '"req-6"', '"req-7"' ]
+MAY: [ '"req-9"', '"req-11"' ]
+[{"keyword":"MUST","count":5},{"keyword":"SHOULD","count":3},{"keyword":"MUST NOT","count":1},{"keyword":"MAY","count":2},{"keyword":"SHOULD NOT","count":1}]
+</code></pre>
+<p><code>toString()</code> writes a value by the adaptive method, as the <code>sxml</code>
+command does, and <code>serialize</code> takes the parameters of <code>fn:serialize</code>.</p>
+<h2 id="xquery-xslt-and-xsd"><a class="header" href="#xquery-xslt-and-xsd">XQuery, XSLT and XSD</a></h2>
+<p><code>compileQuery</code>, <code>compileStylesheet</code> and <code>compileSchema</code> compile the
+other languages, again once, to run many times. JavaScript values
+become XPath values: strings are strings, numbers are doubles, objects
+are maps and arrays are arrays. So a query can take a whole OTLP file,
+parsed by <code>JSON.parse</code>, as a variable:</p>
+<p><code>languages.mjs</code>:</p>
+<pre><code class="language-js">import { readFileSync } from 'node:fs';
+import { load } from '@tinyactors/sxml';
+
+// The one module has XQuery, XSLT and XSD too.
+const sxml = await load();
+const processor = sxml.createProcessor();
+
+// XQuery over OTLP JSON: JavaScript objects and arrays become maps and
+// arrays, so the parsed file can be a variable.
+const query = processor.compileQuery(`
+  declare option output:method "json";
+  declare variable $request external;
+  array {
+    for member $resource in $request?resourceSpans
+    let $service := $resource?resource?attributes?*[?key = "service.name"]?value?stringValue
+    return { "service": $service, "spans": count($resource?scopeSpans?*?spans?*) }
+  }`);
+const request = JSON.parse(readFileSync('before.json', 'utf8'));
+console.log(query.run({ variables: { request } }));
+
+// XSLT: compile a stylesheet once, transform many documents.
+const draft = processor.parse(readFileSync('vane.xml', 'utf8'));
+const stylesheet = processor.compileStylesheet(`
+&lt;xsl:stylesheet version="4.0" expand-text="yes"
+    xmlns:xsl="http://www.w3.org/1999/XSL/Transform"&gt;
+  &lt;xsl:output method="text"/&gt;
+  &lt;xsl:template match="/"&gt;&lt;xsl:apply-templates select="//section[t/bcp14 = 'MUST']"/&gt;&lt;/xsl:template&gt;
+  &lt;xsl:template match="section"&gt;{name}: {count(t[bcp14 = 'MUST'])} MUST&amp;#10;&lt;/xsl:template&gt;
+&lt;/xsl:stylesheet&gt;`);
+process.stdout.write(stylesheet.transform({ source: draft }).output);
+
+// XSD: an invalid document is a result, not an exception.
+const schema = processor.compileSchema(`
+&lt;xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"&gt;
+  &lt;xs:element name="bcp14"&gt;
+    &lt;xs:simpleType&gt;
+      &lt;xs:restriction base="xs:token"&gt;
+        &lt;xs:enumeration value="MUST"/&gt;&lt;xs:enumeration value="SHOULD"/&gt;&lt;xs:enumeration value="MAY"/&gt;
+      &lt;/xs:restriction&gt;
+    &lt;/xs:simpleType&gt;
+  &lt;/xs:element&gt;
+&lt;/xs:schema&gt;`);
+const report = schema.validate('&lt;bcp14&gt;MIGHT&lt;/bcp14&gt;');
+console.log(report.validity, report.reports.map((each) =&gt; each.code));
+
+processor.dispose();
+</code></pre>
+<pre><code class="language-console">$ node languages.mjs
+[{"service":"storefront","spans":1},{"service":"vane","spans":12},{"service":"vane-console","spans":1}]
+Flag States: 2 MUST
+Rollout: 1 MUST
+Status: 1 MUST
+Pause: 1 MUST
+invalid [ 'cvc-enumeration-valid' ]
+</code></pre>
+<p>The Vane service recorded twelve of the fourteen spans; the backend SDK
+in the storefront and the console recorded one each, their calls to it.</p>
+<p><code>transform</code> also takes an initial mode or template, stylesheet
+parameters, and returns the result documents of <code>xsl:result-document</code>.
+An updating query hands each changed tree, and each document <code>fn:put</code>
+stores, to callbacks you give it.</p>
+<h2 id="resources-and-errors"><a class="header" href="#resources-and-errors">Resources and errors</a></h2>
+<p>A processor's <code>resolver</code> answers every request for a resource. It gets
+the kind of resource and its absolute URI, and returns a string, bytes,
+or <code>undefined</code> when there is no such resource. <code>json-doc</code> and
+<code>unparsed-text</code> ask for the kind <code>text</code>. In a browser, the resolver can
+answer from <code>fetch</code> results you loaded before, from IndexedDB, or from
+memory. Failures throw an <code>SxmlError</code> with the error code and location:</p>
+<p><code>resources.mjs</code>:</p>
+<pre><code class="language-js">import { readFileSync } from 'node:fs';
+import { load, SxmlError } from '@tinyactors/sxml';
+
+const sxml = await load();
+
+// The resolver is the only way an expression reaches anything outside.
+// This one serves one trace file, read once, under a URI of our choice.
+const files = new Map([
+  ['https://traces.example.org/staging/before.json', readFileSync('before.json', 'utf8')],
+]);
+const processor = sxml.createProcessor({
+  resolver: ({ kind, absoluteUri }) =&gt; (kind === 'text' ? files.get(absoluteUri) : undefined),
+});
+
+const services = processor.evaluate(
+  'json-doc("before.json")?resourceSpans?*?resource?attributes?*[?key = "service.name"]?value?stringValue',
+  { baseUri: 'https://traces.example.org/staging/' });
+console.log(services.toString().split('\n'));
+
+// Errors carry the code, the description and the location.
+try {
+  processor.evaluate('json-doc("after.json")', { baseUri: 'https://traces.example.org/staging/' });
+} catch (error) {
+  if (!(error instanceof SxmlError)) throw error;
+  console.log(error.code, error.lineNumber, error.columnNumber);
+}
+
+processor.dispose();
+</code></pre>
+<pre><code class="language-console">$ node resources.mjs
+[ '"storefront"', '"vane"', '"vane-console"' ]
+err:FOUT1170 1 1
+</code></pre>
+<h2 id="languages-from-tree-sitters-webassembly-files"><a class="header" href="#languages-from-tree-sitters-webassembly-files">Languages from tree-sitter's WebAssembly files</a></h2>
+<p><code>tree-sitter:parse</code> (see <a href="source-code.html">Source Code as XML</a>) knows a
+dozen languages. tree-sitter has grammars for hundreds more, and
+<code>tree-sitter build --wasm</code> compiles one to a WebAssembly language file,
+<code>tree-sitter-rust.wasm</code> for Rust; grammar repositories often ship that
+file with their releases. <code>sxml.loadCodeLanguage</code> links such a file into
+the running <code>sxml.wasm</code>, and <code>createProcessor({ codeLanguages })</code> gives
+the languages to a processor:</p>
+<pre><code class="language-js">const sxml = await load();
+const rust = await sxml.loadCodeLanguage({
+  wasm: fetch('/grammars/tree-sitter-rust.wasm'),
+  highlights: await (await fetch('/grammars/rust/highlights.scm')).text(),
+});
+const processor = sxml.createProcessor({ codeLanguages: [rust] });
+processor.evaluate('tree-sitter:parse("fn main() {}", "rust")//function_item/identifier ! string()');
+</code></pre>
+<ul>
+<li><code>wasm</code> is the file, as for <code>load({ wasm })</code>: a URL or path, the bytes,
+a <code>WebAssembly.Module</code> or a <code>fetch()</code> response.</li>
+<li><code>highlights</code>, <code>locals</code> and <code>injections</code> are the texts of the grammar's
+<code>queries/highlights.scm</code>, <code>locals.scm</code> and <code>injections.scm</code>, and
+<code>injectionRegex</code> is the <code>injection-regex</code> of its <code>tree-sitter.json</code>.
+The package reads no files of its own: in Node.js read them with
+<code>readFile</code>, in a browser <code>fetch</code> them. Without queries, the language
+parses but has no highlights.</li>
+<li><code>name</code> is the language's name in <code>tree-sitter:parse</code>. By default it is
+the <code>NAME</code> of the file's function <code>tree_sitter_NAME</code>. A language with
+the name of a built-in one replaces it in the processors it is given to.</li>
+<li>The grammar must be generated for tree-sitter's language ABI 13 to 15
+(tree-sitter 0.20 and later). A file that is not a tree-sitter
+language file, one that needs other WebAssembly libraries, or one whose
+external scanner calls C functions outside tree-sitter's list for
+language files, is refused, and the error says why.</li>
+<li>A loaded language stays in memory as long as its <code>sxml</code>; it can be
+given to any number of processors.</li>
+</ul>
+<p>To try it without a network, compile the JSON grammar from sxml's own
+sources as <code>tree-sitter build --wasm</code> does, with the WASI SDK that also
+builds <code>sxml.wasm</code>:</p>
+<p><code>code-language.mjs</code>:</p>
+<pre><code class="language-js">import { readFile } from 'node:fs/promises';
+import { load } from '@tinyactors/sxml';
+
+const sxml = await load();
+const wasm = await readFile('tree-sitter-json.wasm');
+
+// Link the language file into sxml.wasm, with a highlights query of our own.
+const json = await sxml.loadCodeLanguage({
+  name: 'my-json',
+  wasm,
+  highlights: '(number) @number\n[(true) (false)] @boolean\n',
+});
+console.log(json.name, json.abiVersion);
+
+// A processor knows the languages it is given, beside the built-in ones.
+const processor = sxml.createProcessor({ codeLanguages: [json] });
+const tree = processor.evaluate('tree-sitter:parse($code, "my-json")', {
+  variables: { code: '[1, true]' },
+});
+console.log(tree.serialize({ method: 'xml' }));
+
+// A query that does not fit the grammar is an error.
+try {
+  await sxml.loadCodeLanguage({ wasm, highlights: '(float) @number' });
+} catch (error) {
+  console.log(error.message);
+}
+
+processor.dispose();
+</code></pre>
+<pre><code class="language-console">$ "$WASI_SDK_PREFIX/bin/clang" --target=wasm32-wasip1 -fPIC -shared -Os -nostdlib \
+    -fvisibility=hidden -Wl,--no-entry -Wl,--allow-undefined -Wl,--export=tree_sitter_json \
+    -o tree-sitter-json.wasm "$SXML/third_party/tree-sitter-grammars/json/src/parser.c"
+$ node code-language.mjs
+my-json 14
+&lt;document xmlns:sxml="urn:sxml"&gt;&lt;array&gt;[&lt;number highlight="number"&gt;1&lt;/number&gt;, &lt;true highlight="boolean"&gt;true&lt;/true&gt;]&lt;/array&gt;&lt;/document&gt;
+sxml: the highlights query does not fit the grammar at byte 1
+</code></pre>
+<h2 id="large-outputs-and-inputs"><a class="header" href="#large-outputs-and-inputs">Large outputs and inputs</a></h2>
+<p>The methods that return a string hold the whole output twice: once in
+the module's memory, which never shrinks again, and once as the string.
+For a large output, give a sink instead. <code>value.serializeTo(sink)</code>,
+<code>query.runTo(sink)</code> and <code>transform({ output })</code> write the output a chunk
+at a time, 64 KiB by default (<code>createProcessor({ outputChunkByteCount })</code>). A sink is a function that gets each chunk as a <code>Uint8Array</code>, or an
+object with <code>write</code>, and optionally <code>close</code> and <code>abort</code>. Each chunk is
+copied out of the module, which reuses its buffer for the next one.
+<code>transform({ resultDocumentOutput })</code> chooses a sink for each
+<code>xsl:result-document</code> by its URI.</p>
+<p>On the input side, a resolver may answer an XML document with an
+iterable of chunks, such as a generator. sxml reads it as it parses.
+When a stylesheet's mode is streamable, <code>transform({ streamedSource })</code>
+reads the principal source this way and serializes the result as it is
+made, so neither the source nor the result is ever whole in memory.
+Here a generator makes an archive of 200,000 traces in the normal form
+of <a href="traces-tree.html">Spans as a Tree</a>, and a streamable mode picks the
+slow requests out of it, as in <a href="traces-streaming.html">Streaming Large Trace
+Files</a>:</p>
+<p><code>streaming.mjs</code>:</p>
+<pre><code class="language-js">import { closeSync, openSync, writeSync } from 'node:fs';
+import { load, textSink } from '@tinyactors/sxml';
+
+const sxml = await load();
+
+// A large trace archive that never exists whole: a generator of chunks
+// in the normal form of the traces project, read as it is parsed.
+function* archive(count) {
+  yield '&lt;traces&gt;';
+  for (let start = 1; start &lt;= count; start += 1000) {
+    let text = '';
+    for (let trace = start; trace &lt; start + 1000 &amp;&amp; trace &lt;= count; trace += 1) {
+      const query = 5 + ((trace * 7919) % 61);
+      text += `&lt;trace id="${trace}" route="GET /api/getFlags"&gt;`
+        + `&lt;span service="storefront" kind="client" duration="${query + 12}" peer="vane"&gt;`
+        + `&lt;span service="vane" kind="server" duration="${query + 10}"&gt;`
+        + `&lt;span service="vane" kind="client" duration="${query}" peer="postgresql" db="postgresql"/&gt;`
+        + '&lt;/span&gt;&lt;/span&gt;&lt;/trace&gt;';
+    }
+    yield text;
+  }
+  yield '&lt;/traces&gt;';
+}
+const processor = sxml.createProcessor({
+  resolver: ({ absoluteUri }) =&gt; (absoluteUri === 'urn:archive' ? archive(200_000) : undefined),
+});
+
+// A streamable mode reads the source as it arrives; the output goes to a
+// file a chunk at a time, written as each chunk is made.
+const stylesheet = processor.compileStylesheet(`
+&lt;xsl:stylesheet version="3.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform"&gt;
+  &lt;xsl:mode streamable="yes"/&gt;
+  &lt;xsl:output omit-xml-declaration="yes"/&gt;
+  &lt;xsl:template match="/traces"&gt;
+    &lt;slow&gt;
+      &lt;xsl:for-each select="trace/span[@duration &gt; 70]"&gt;
+        &lt;trace id="{../@id}"&gt;≥ 70 ms&lt;/trace&gt;
+      &lt;/xsl:for-each&gt;
+    &lt;/slow&gt;
+  &lt;/xsl:template&gt;
+&lt;/xsl:stylesheet&gt;`);
+const file = openSync('slow.xml', 'w');
+let byteCount = 0;
+stylesheet.transform({
+  streamedSource: 'urn:archive',
+  output: (chunk) =&gt; {
+    byteCount += chunk.byteLength;
+    writeSync(file, chunk);
+  },
+});
+closeSync(file);
+console.log(byteCount, 'bytes;', (sxml.exports.memory.buffer.byteLength / 2 ** 20).toFixed(0), 'MiB of module memory');
+
+// Text a chunk at a time: a character split between two chunks is decoded
+// once both arrived.
+const sizes = sxml.createProcessor({ outputChunkByteCount: 4 });
+const value = sizes.evaluate('"≥ 70 ms: 12 €"');
+const pieces = [];
+value.serializeTo(textSink((text) =&gt; pieces.push(text)), { method: 'text' });
+console.log(pieces);
+</code></pre>
+<pre><code class="language-console">$ node streaming.mjs
+813465 bytes; 10 MiB of module memory
+[ '≥ ', '70 m', 's: 1', '2 ', '€' ]
+</code></pre>
+<p>The evaluation runs synchronously inside WebAssembly, so a sink cannot
+make it wait. A sink that consumes each chunk at once, like <code>writeSync</code>
+to a file, a hash, or a parser fed by a decoder, keeps memory bounded by
+one chunk. Sinks that queue chunks hold them in JavaScript memory until
+the call returns. That includes <code>writableStreamSink</code> for a WHATWG
+<code>WritableStream</code>, <code>nodeStreamSink</code> for a Node.js stream and
+<code>outputReadableStream</code>. They still save the copy in the module's memory
+and the string. <code>textSink</code> decodes UTF-8 in TextDecoder's stream mode,
+so a character split between two chunks comes out whole.</p>
+<p>A long stream takes many evaluation steps. Every evaluation stops after
+a hundred million of them, the library's default for every program that
+embeds sxml (the <code>sxml</code> command alone sets no limit; see <a href="performance.html#the-step-limit">The step
+limit</a>), but a streamed document grants
+500 more for each element it reads, so a streamed transformation of a
+long input runs within the bound, while a loop that reads nothing more still stops. For other work
+that needs more, or to keep untrusted queries shorter, set the bound
+with <code>createProcessor({ maximumEvaluationStepCount })</code>.</p>
+<h2 id="memory"><a class="header" href="#memory">Memory</a></h2>
+<p>Processors, compiled expressions and values hold memory inside the
+WebAssembly module. Call <code>dispose()</code> when you are done with one;
+disposing a processor frees everything it made. Whatever is not disposed
+is freed when JavaScript's garbage collector collects it.</p>
+<p>The package's README, <code>bindings/javascript/README.md</code>, describes the
+whole API.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="c.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="performance.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="c.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="performance.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="style/sxml.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

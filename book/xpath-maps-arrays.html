@@ -1,0 +1,398 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Maps, Arrays and Records - The sxml Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Learn XPath 4.0, XQuery 4.0, XSLT 4.0 and XSD 1.1 with sxml, the small XML toolchain in portable C.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="style/sxml.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "coal";
+            window.path_to_searchindex_js = "searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The sxml Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml/edit/main/docs/book/src/xpath-maps-arrays.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="maps-arrays-and-records"><a class="header" href="#maps-arrays-and-records">Maps, Arrays and Records</a></h1>
+<!-- examples: spec -->
+<p>Documents are trees, but a lot of data is not: a lookup table, a list of
+rows, the response of a web service in JSON. XPath 4.0 has two
+structures for such data. A <strong>map</strong> associates keys with values, and an
+<strong>array</strong> is a list of values by position. Both are items, so they can
+be in sequences, be passed to functions and be put inside each other.</p>
+<h2 id="maps"><a class="header" href="#maps">Maps</a></h2>
+<p>A map is written with curly braces, with a key and a value for each
+entry:</p>
+<pre><code class="language-console">$ sxml xpath '{ "anchor": "req-7", "keyword": "MUST" }'
+{"anchor":"req-7","keyword":"MUST"}
+</code></pre>
+<p>(You can also write <code>map { ... }</code>, as XPath 3.1 required.) The <code>?</code>
+operator looks up a key:</p>
+<pre><code class="language-console">$ sxml xpath 'let $requirement := { "anchor": "req-7", "keyword": "MUST" } return $requirement?keyword'
+"MUST"
+</code></pre>
+<p>A key that is not in the map gives the empty sequence, and <code>?*</code> gives
+all the values:</p>
+<pre><code class="language-console">$ sxml xpath 'let $requirement := { "anchor": "req-7", "keyword": "MUST" } return ($requirement?anchor, $requirement?section, "and", $requirement?*)'
+"req-7"
+"and"
+"req-7"
+"MUST"
+</code></pre>
+<p>The keys are atomic values: strings, numbers, dates and so on. A map is
+also a function from its keys to its values, so <code>$requirement("keyword")</code>
+is the same lookup; that is how the month map of
+<a href="xpath-values.html">Values and Types</a> was used. Maps are values, so they
+never change. Functions in the <code>map</code> namespace make new maps from old
+ones:</p>
+<pre><code class="language-console">$ sxml xpath '{ "anchor": "req-7" } =&gt; map:put("keyword", "MUST") =&gt; map:remove("anchor")'
+{"keyword":"MUST"}
+$ sxml xpath 'map:keys({ "MUST": 5, "MAY": 2 }), map:size({ "MUST": 5, "MAY": 2 })'
+"MUST"
+"MAY"
+2
+</code></pre>
+<h2 id="building-maps-from-documents"><a class="header" href="#building-maps-from-documents">Building maps from documents</a></h2>
+<p>Maps are a good way to index a document. An <code>xref</code> without text, such as
+<code>&lt;xref target="RFC2119"/&gt;</code>, gets its text from what it points to: a
+renderer writes "[RFC2119]" for a reference and "Section 4" for a
+section. A map from anchor to that text is the lookup table such a
+renderer needs. <code>map:merge</code> combines many maps into one:</p>
+<pre><code class="language-console">$ sxml xpath --context-item=vane.xml 'map:merge(//section ! { @anchor: string(name) })'
+{"intro":"Introduction","terminology":"Terminology","states":"Flag States","messages":"Messages","rollout":"Rollout","status":"Status","pause":"Pause","security":"Security Considerations","iana":"IANA Considerations"}
+</code></pre>
+<p>The key <code>@anchor</code> is an attribute, which becomes its value when it is
+used as a key. Now the whole table: sections numbered as in
+<a href="xpath-paths.html">Paths, Steps and Predicates</a>, references in brackets,
+and terms by their text:</p>
+<pre><code class="language-console">$ sxml xpath --context-item=vane.xml 'let $text := map:merge((//section ! { @anchor: "Section " || string-join(ancestor-or-self::section ! (count(preceding-sibling::section) + 1), ".") }, //reference ! { @anchor: `[{@anchor}]` }, //dt ! { @anchor: string() })) return ($text?pause, $text?RFC2119, $text?term-percentage, map:size($text))'
+"Section 4"
+"[RFC2119]"
+"Percentage"
+17
+</code></pre>
+<p>Every element with an anchor can go into one map, here from anchor to
+the element's name. Its keys are the targets an <code>xref</code> may name, so
+an <code>xref</code> whose target is not a key points at nothing:</p>
+<pre><code class="language-console">$ sxml xpath --context-item=vane.xml 'map:merge(//*[@anchor] ! { @anchor: name() }) =&gt; map:size()'
+33
+$ sxml xpath --context-item=vane.xml 'let $kinds := map:merge(//*[@anchor] ! { @anchor: name() }) return count(//xref[empty($kinds(@target))])'
+0
+</code></pre>
+<p>Thirty-three anchors, and no dangling reference. <code>map:merge</code> keeps the
+first value when two maps have the same key; with the option
+<code>{ "duplicates": "reject" }</code> it raises an error instead, which makes it
+a check that the anchors are unique. Key words are not unique, so this
+fails:</p>
+<pre><code class="language-console">$ sxml xpath --context-item=vane.xml 'map:merge(//t[@anchor] ! { string(bcp14): string(@anchor) }, { "duplicates": "reject" })'
+expression:1:1: err:FOJS0003: Duplicate keys are rejected by the duplicates option
+</code></pre>
+<p>When several items share a key, <code>map:build</code> groups them. Here, the
+requirements by key word:</p>
+<pre><code class="language-console">$ sxml xpath --context-item=vane.xml 'map:build(//t[@anchor], fn { string(bcp14) }, fn { string(@anchor) })'
+{"MUST":("req-1","req-2","req-4","req-6","req-7"),"SHOULD":("req-3","req-8"),"MUST NOT":"req-5","MAY":("req-9","req-11"),"SHOULD NOT":"req-10"}
+</code></pre>
+<p>The value of an entry can be any sequence, as here. <code>fn { ... }</code> is a
+small function; the next section explains them.</p>
+<h2 id="arrays"><a class="header" href="#arrays">Arrays</a></h2>
+<p>An array is written with square brackets. Unlike a sequence, an array
+keeps its members apart, even when a member is itself a sequence:</p>
+<pre><code class="language-console">$ sxml xpath '[1, 2, (3, 4)]'
+[1,2,(3,4)]
+$ sxml xpath '[1, 2, (3, 4)]?3'
+3
+4
+</code></pre>
+<p><code>?3</code> looks up the third member. <code>array { ... }</code> makes an array with one
+member for each item of a sequence, and <code>?*</code> turns an array back into a
+sequence. A reference has one or more authors, and an array of arrays
+keeps each reference's authors together, which a flat sequence could
+not:</p>
+<pre><code class="language-console">$ sxml xpath --context-item=vane.xml 'array { //reference ! array { .//author/@surname ! string() } }'
+[["Bradner"],["Crocker","Overell"],["Leiba"],["M'Raihi","Machani","Pei","Rydell"]]
+$ sxml xpath --context-item=vane.xml 'let $authors := array { //reference[@anchor = "RFC6238"]//author/@surname ! string() } return ($authors?1, array:size($authors), $authors?*[last()])'
+"M'Raihi"
+4
+"Rydell"
+</code></pre>
+<p><code>for member</code> goes through the members of an array:</p>
+<pre><code class="language-console">$ sxml xpath --context-item=vane.xml 'for member $authors in array { //reference ! array { .//author/@surname ! string() } } return string-join($authors?*, " and ")'
+"Bradner"
+"Crocker and Overell"
+"Leiba"
+"M'Raihi and Machani and Pei and Rydell"
+</code></pre>
+<h2 id="json"><a class="header" href="#json">JSON</a></h2>
+<p>Maps and arrays are exactly what JSON is made of, which makes JSON easy
+to read and write. The <code>json</code> output method writes maps and arrays as
+JSON. Tools that check an implementation against a specification often
+want its requirements as JSON; here is the list, an array with a map
+for each requirement, written to a file with <code>--output</code>:</p>
+<pre><code class="language-console">$ sxml xpath --context-item=vane.xml --method=json --output=xpath-requirements.json 'array { //t[@anchor] ! { "anchor": string(@anchor), "keyword": string(bcp14), "section": string(ancestor::section[1]/name) } }'
+$ cat xpath-requirements.json
+[{"anchor":"req-1","keyword":"MUST","section":"Flag States"},{"anchor":"req-2","keyword":"MUST","section":"Flag States"},{"anchor":"req-3","keyword":"SHOULD","section":"Flag States"},{"anchor":"req-4","keyword":"MUST","section":"Rollout"},{"anchor":"req-5","keyword":"MUST NOT","section":"Rollout"},{"anchor":"req-9","keyword":"MAY","section":"Rollout"},{"anchor":"req-6","keyword":"MUST","section":"Status"},{"anchor":"req-10","keyword":"SHOULD NOT","section":"Status"},{"anchor":"req-7","keyword":"MUST","section":"Pause"},{"anchor":"req-8","keyword":"SHOULD","section":"Pause"},{"anchor":"req-11","keyword":"MAY","section":"Pause"}]
+</code></pre>
+<p>That turned part of an XML document into JSON in one line. (<code>--output</code>
+does not replace a file that exists; add <code>--force</code> to run it again.)
+Reading it back gives maps and arrays again. <code>json-doc</code> reads a JSON
+file, and <code>parse-json</code> reads JSON text:</p>
+<pre><code class="language-console">$ sxml xpath 'json-doc("xpath-requirements.json")?*[?keyword = "MAY"]?anchor'
+"req-9"
+"req-11"
+$ sxml xpath 'parse-json(unparsed-text("xpath-requirements.json"))?3'
+{"anchor":"req-3","keyword":"SHOULD","section":"Flag States"}
+$ sxml xpath 'parse-json('"'"'{"anchor": "req-7", "states": ["checking", "paused"]}'"'"')?states?2'
+"paused"
+</code></pre>
+<p><code>?*</code> gives the members of the array, and the predicate <code>[?keyword = "MAY"]</code> looks up <code>keyword</code> in each. (The <code>'"'"'</code> in the last command is
+how a shell puts a single quote inside single quotes. In a query file,
+you don't need it.) <a href="formats.html">JSON, CSV and HTML</a> has much more on
+JSON.</p>
+<h2 id="records"><a class="header" href="#records">Records</a></h2>
+<p>A <em>record type</em> describes maps with known keys, like a struct in other
+languages. Use it where a sequence type is allowed, to check that a map
+has the shape you expect:</p>
+<pre><code class="language-console">$ sxml xpath 'let $requirement as record(anchor as xs:string, keyword as xs:string, section as xs:string) := { "anchor": "req-7", "keyword": "MUST", "section": "Pause" } return $requirement?section'
+"Pause"
+$ sxml xpath 'let $requirement as record(anchor as xs:string, keyword as xs:string, section as xs:string) := { "anchor": "req-7", "keyword": "MUST" } return $requirement?section'
+expression:1:5: err:XPTY0004: The value does not match the required type (XPath 4.0, section 3.4, coercion rules)
+</code></pre>
+<p>The second map has no <code>section</code>, so it is not a value of the record
+type. A record type also converts its fields, as a function signature
+converts its arguments: a field declared <code>xs:string</code> turns a node into
+its string. So the requirement can be made from the paragraph's nodes:</p>
+<pre><code class="language-console">$ sxml xpath --context-item=vane.xml 'let $requirement as record(anchor as xs:string, keyword as xs:string, section as xs:string) := //t[@anchor = "req-7"] ! { "anchor": @anchor, "keyword": bcp14, "section": ancestor::section[1]/name } return $requirement'
+{"anchor":"req-7","keyword":"MUST","section":"Pause"}
+</code></pre>
+<p>And the JSON file we wrote has exactly that shape, so its members can be
+checked as records when they are read:</p>
+<pre><code class="language-console">$ sxml xpath 'let $requirements as record(anchor as xs:string, keyword as xs:string, section as xs:string)* := json-doc("xpath-requirements.json")?* return $requirements[?section = "Rollout"]?anchor'
+"req-4"
+"req-5"
+"req-9"
+</code></pre>
+<p>Records shine in XQuery and XSLT, where function signatures can use
+them.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="xpath-functions.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="xpath-higher-order.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="xpath-functions.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="xpath-higher-order.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="style/sxml.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

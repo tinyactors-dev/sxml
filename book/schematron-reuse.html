@@ -1,0 +1,463 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Abstract Patterns, Includes and Libraries - The sxml Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Learn XPath 4.0, XQuery 4.0, XSLT 4.0 and XSD 1.1 with sxml, the small XML toolchain in portable C.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="style/sxml.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "coal";
+            window.path_to_searchindex_js = "searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The sxml Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml/edit/main/docs/book/src/schematron-reuse.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="abstract-patterns-includes-and-libraries"><a class="header" href="#abstract-patterns-includes-and-libraries">Abstract Patterns, Includes and Libraries</a></h1>
+<!-- examples: scxml -->
+<p>Three rules of <code>flag.sch</code> have one shape: an attribute holds a list of
+names, and each name must be one of a set of known names. A transition's
+events must be declared, its targets must be states, and a
+<code>vane:implements</code> attribute must name requirements of the draft. And
+rules written for one machine are worth sharing with the next: Vane
+will have more machines than the flag's lifecycle. This chapter writes
+the shape once, as an <em>abstract pattern</em>, puts it in a <em>library</em> that
+other schemas can use, and splits a schema into files. It works in the
+<code>scxml</code> directory.</p>
+<h2 id="a-library-of-rules"><a class="header" href="#a-library-of-rules">A library of rules</a></h2>
+<p><code>vane-rules.sch</code>:</p>
+<pre><code class="language-xml">&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;!-- Rules that the schemas of Vane's machines share. --&gt;
+&lt;library xmlns="http://purl.oclc.org/dsdl/schematron"&gt;
+
+  &lt;!-- Each name in a list must be one of the known names.
+       $context: the elements; $names: the attribute with the list;
+       $known: the known names; $what: what a name names, as a string. --&gt;
+  &lt;pattern abstract="true" id="names"&gt;
+    &lt;param name="context"/&gt;
+    &lt;param name="names"/&gt;
+    &lt;param name="known"/&gt;
+    &lt;param name="what"/&gt;
+    &lt;rule context="$context" visit-each="tokenize($names)"&gt;
+      &lt;let name="known-names" value="$known ! string()"/&gt;
+      &lt;assert id="known-name" test=". = $known-names"&gt;&lt;value-of select="."/&gt;
+        names no &lt;value-of select="$what"/&gt;.&lt;/assert&gt;
+    &lt;/rule&gt;
+  &lt;/pattern&gt;
+
+  &lt;!-- A state or an event says in XHTML what it is for. --&gt;
+  &lt;rules&gt;
+    &lt;rule abstract="true" id="has-documentation"&gt;
+      &lt;assert id="documentation" severity="warning" test=".//h:p"&gt;The &lt;name/&gt;
+        &lt;value-of select="(@id, @name)[1]"/&gt; has no documentation.&lt;/assert&gt;
+    &lt;/rule&gt;
+  &lt;/rules&gt;
+&lt;/library&gt;
+</code></pre>
+<p>A <code>library</code> holds parts of schemas, but is not a schema: it is never
+compiled on its own, only taken into one. This one has two parts.</p>
+<p><strong>An abstract pattern.</strong> A pattern with <code>abstract="true"</code> is a template:
+it is not run as it is, but each pattern that names it with <code>is-a</code>
+makes a copy of it, with values for its parameters. The <code>param</code>
+elements declare the parameters, and <code>$context</code>, <code>$names</code>, <code>$known</code> and
+<code>$what</code> in its expressions are <em>placeholders</em>: in each copy, they are
+replaced by the text of the values, before the expressions are
+compiled. A placeholder can stand for any part of an expression, even
+for the rule's context, which a variable cannot.</p>
+<p><strong>An abstract rule.</strong> A rule with <code>abstract="true"</code>, in <code>rules</code>, is a
+piece of a rule: its variables and assertions. A rule takes them with
+<code>extends rule="..."</code>, as if they were written in it. <code>has-documentation</code>
+asserts that the element has an XHTML paragraph somewhere inside, as the
+machine's states and events have since <a href="scxml-xhtml.html">Documenting the Machine in
+XHTML</a>.</p>
+<h2 id="a-schema-made-of-parts"><a class="header" href="#a-schema-made-of-parts">A schema made of parts</a></h2>
+<p><code>names.sch</code> uses the library, and includes one more file:</p>
+<p><code>names.sch</code>:</p>
+<pre><code class="language-xml">&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;!-- The names a Vane machine uses, checked with the shared rules of
+     vane-rules.sch. --&gt;
+&lt;schema xmlns="http://purl.oclc.org/dsdl/schematron" queryBinding="xslt3"
+        schematronEdition="2025"&gt;
+  &lt;title&gt;Names of a Vane machine&lt;/title&gt;
+  &lt;ns prefix="sc" uri="http://www.w3.org/2005/07/scxml"/&gt;
+  &lt;ns prefix="vane" uri="urn:example:vane"/&gt;
+  &lt;ns prefix="h" uri="http://www.w3.org/1999/xhtml"/&gt;
+
+  &lt;!-- The abstract pattern and the abstract rule. --&gt;
+  &lt;extends href="vane-rules.sch"/&gt;
+
+  &lt;!-- The draft the machine implements. --&gt;
+  &lt;param name="draft" value="'vane.xml'"/&gt;
+
+  &lt;!-- Only the states and the transitions between them. --&gt;
+  &lt;phase id="graph"&gt;
+    &lt;active pattern="states"/&gt;
+    &lt;active pattern="targets"/&gt;
+  &lt;/phase&gt;
+
+  &lt;include href="reachable.sch"/&gt;
+
+  &lt;pattern is-a="names" id="events"&gt;
+    &lt;param name="context" value="sc:transition[@event]"/&gt;
+    &lt;param name="names" value="@event"/&gt;
+    &lt;param name="known" value="//vane:event/@name"/&gt;
+    &lt;param name="what" value="'declared event'"/&gt;
+  &lt;/pattern&gt;
+
+  &lt;pattern is-a="names" id="targets"&gt;
+    &lt;param name="context" value="sc:transition[@target]"/&gt;
+    &lt;param name="names" value="@target"/&gt;
+    &lt;param name="known" value="//(sc:state | sc:final)/@id"/&gt;
+    &lt;param name="what" value="'state'"/&gt;
+  &lt;/pattern&gt;
+
+  &lt;pattern is-a="names" id="requirements"&gt;
+    &lt;param name="context" value="*[@vane:implements]"/&gt;
+    &lt;param name="names" value="@vane:implements"/&gt;
+    &lt;param name="known" value="doc($draft)//t/@anchor"/&gt;
+    &lt;param name="what" value="'requirement of the draft'"/&gt;
+  &lt;/pattern&gt;
+
+  &lt;pattern id="documented"&gt;
+    &lt;rule context="sc:state | vane:event"&gt;
+      &lt;extends rule="has-documentation"/&gt;
+    &lt;/rule&gt;
+  &lt;/pattern&gt;
+&lt;/schema&gt;
+</code></pre>
+<p><code>reachable.sch</code>:</p>
+<pre><code class="language-xml">&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;!-- Every state can be reached from the initial state. --&gt;
+&lt;pattern xmlns="http://purl.oclc.org/dsdl/schematron" id="states"&gt;
+  &lt;let name="reachable" value="
+    let $states := //(sc:state | sc:final)
+    return fold-left(1 to count($states), string(/sc:scxml/@initial),
+      fn($reached, $pass) {
+        distinct-values(($reached,
+          $states[@id = $reached]//sc:transition/@target ! tokenize(.)))
+      })"/&gt;
+  &lt;rule context="sc:state"&gt;
+    &lt;assert id="reachable" test="@id = $reachable"&gt;No transition leads
+      to the state &lt;value-of select="@id"/&gt;.&lt;/assert&gt;
+  &lt;/rule&gt;
+&lt;/pattern&gt;
+</code></pre>
+<ul>
+<li><code>extends href="vane-rules.sch"</code> at the top of the schema takes the
+library's children into the schema, as if they were written there.</li>
+<li><code>include href="reachable.sch"</code> puts the element of another file in
+its own place: here a whole pattern, the reachable states of
+<code>flag.sch</code>. The included file has no namespace declarations of its
+own (<code>ns</code> belongs to the schema), so its expressions use the prefixes
+of the schema that includes it.</li>
+<li>The patterns <code>events</code>, <code>targets</code> and <code>requirements</code> are <em>instances</em> of
+the abstract pattern <code>names</code>. Each gives the four parameters, and its
+<code>id</code> names it in reports.</li>
+<li><code>documented</code> gives one rule, for states and events, the assertion of
+<code>has-documentation</code>.</li>
+</ul>
+<pre><code class="language-console">$ sxml validate --schematron=names.sch flag.scxml
+flag.scxml:92:3: reachable: No transition leads to the state archived. (reachable.sch:12:5)
+flag.scxml:75:5: known-name: flag.evaluated names no declared event. (vane-rules.sch:15:7)
+</code></pre>
+<p>Each finding names the file and the line of the assertion that made it:
+the included pattern in <code>reachable.sch</code>, the abstract pattern in the
+library. The <code>id</code> of the instance, <code>events</code>, is in the JSON and SVRL
+reports, as the finding's pattern.</p>
+<p>A careless copy of the fixed machine, with an event that lost its
+documentation and a transition to a state whose name is misspelled,
+gets a finding from each kind of part:</p>
+<pre><code class="language-console">$ sed -e 's|&lt;p xmlns="http://www.w3.org/1999/xhtml"&gt;An owner pulls the kill switch.&lt;/p&gt;||' -e 's/target="paused"/target="pause"/' flag-fixed.scxml &gt; careless.scxml
+$ sxml validate --schematron=names.sch careless.scxml
+careless.scxml:77:3: reachable: No transition leads to the state paused. (reachable.sch:12:5)
+careless.scxml:60:5: known-name: pause names no state. (vane-rules.sch:15:7)
+careless.scxml:13:5: documentation warning: The vane:event kill.request has no documentation. (vane-rules.sch:23:7)
+</code></pre>
+<h2 id="placeholders-are-text"><a class="header" href="#placeholders-are-text">Placeholders are text</a></h2>
+<p>Because a placeholder is replaced by text, the value of a parameter is
+a piece of an expression, not a value. Two things follow, and both are
+visible in <code>names.sch</code> and the library:</p>
+<ul>
+<li>A string must be written as a string literal, with its quotes:
+<code>value="'declared event'"</code>. Without them, <code>declared event</code> would be
+read as XPath, and would not compile.</li>
+<li>The text is compiled where the placeholder stands, and evaluated
+there. <code>$known</code>, such as <code>//vane:event/@name</code>, is a path, and in the
+assertion the context item is the visited name, a string, where a
+path cannot start. So the abstract rule evaluates <code>$known</code> once, in a
+variable, while the context is still the element, and the assertion
+compares with the variable. Writing <code>test=". = $known"</code> would fail
+with <code>XPTY0004</code> as soon as the rule runs.</li>
+</ul>
+<h2 id="lists-of-targets"><a class="header" href="#lists-of-targets">Lists of targets</a></h2>
+<p>The instance <code>targets</code> checks each name of a transition's <code>target</code>,
+which SCXML allows to be a list. <a href="xsd-11.html">XSD 1.1 Features</a> checked
+<code>two-targets.scxml</code>, whose transition enters two states, with an XSD
+assertion, which could only say that it failed. The phase <code>graph</code> runs
+the two patterns about states and transitions, and leaves out the
+events and documentation that this small machine does not have:</p>
+<pre><code class="language-console">$ sxml validate --schematron=names.sch --phase=graph two-targets.scxml; echo "exit status $?"
+exit status 0
+$ sed 's/motor light/motor lights/' two-targets.scxml | sxml validate --schematron=names.sch --phase=graph -
+-:11:3: reachable: No transition leads to the state light. (reachable.sch:12:5)
+-:6:5: known-name: lights names no state. (vane-rules.sch:15:7)
+</code></pre>
+<p>The rule names the wrong target and its transition, and the other
+pattern adds what follows from it: <code>light</code> can no longer be reached.</p>
+<h2 id="schema-parameters"><a class="header" href="#schema-parameters">Schema parameters</a></h2>
+<p>A <code>param</code> child of the schema is a <em>schema parameter</em>: a placeholder for
+the whole schema, with a default. <code>names.sch</code> reads the draft through
+<code>$draft</code>, <code>'vane.xml'</code>, so the same rules can check a machine against
+another version of the draft. <code>--schematron-param</code> gives it another
+value. Draft -00 already has every requirement the machine names:</p>
+<pre><code class="language-console">$ sxml validate --schematron=names.sch --schematron-param=draft="'vane-00.xml'" flag-fixed.scxml; echo "exit status $?"
+exit status 0
+</code></pre>
+<p>The value is expression text, as in the schema, so the file name needs
+its quotes inside the shell's. Without them, <code>vane-00.xml</code> is a path
+that selects children named <code>vane-00.xml</code>, of which there are none,
+<code>doc</code> of nothing is nothing, and every requirement looks unknown:</p>
+<pre><code class="language-console">$ sxml validate --schematron=names.sch --schematron-param=draft=vane-00.xml flag-fixed.scxml
+flag-fixed.scxml:1:1: known-name: req-1 names no requirement of the draft. (vane-rules.sch:15:7)
+flag-fixed.scxml:40:3: known-name: req-2 names no requirement of the draft. (vane-rules.sch:15:7)
+flag-fixed.scxml:45:5: known-name: req-6 names no requirement of the draft. (vane-rules.sch:15:7)
+flag-fixed.scxml:50:3: known-name: req-4 names no requirement of the draft. (vane-rules.sch:15:7)
+flag-fixed.scxml:60:5: known-name: req-7 names no requirement of the draft. (vane-rules.sch:15:7)
+flag-fixed.scxml:63:3: known-name: req-3 names no requirement of the draft. (vane-rules.sch:15:7)
+flag-fixed.scxml:77:3: known-name: req-5 names no requirement of the draft. (vane-rules.sch:15:7)
+flag-fixed.scxml:77:3: known-name: req-8 names no requirement of the draft. (vane-rules.sch:15:7)
+</code></pre>
+<p>When the same check must vary with the document, use a variable; when
+it varies with the situation the schema is used in, such as which draft
+or which limit, use a schema parameter; when the same shape of rule
+applies to different elements, use an abstract pattern.</p>
+<h2 id="which-to-use"><a class="header" href="#which-to-use">Which to use</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>To share</th><th>Write</th><th>Take it with</th></tr></thead><tbody>
+<tr><td>A rule's assertions, in rules of different contexts</td><td>an abstract rule, in <code>rules</code></td><td><code>extends rule="ID"</code></td></tr>
+<tr><td>A whole pattern, with different elements and expressions</td><td>an abstract pattern, with <code>param</code></td><td>a pattern with <code>is-a="ID"</code> and its <code>param</code> values</td></tr>
+<tr><td>A pattern, phase or diagnostics, as it is, from another file</td><td>the element alone in a file</td><td><code>include href="FILE"</code></td></tr>
+<tr><td>Many of these, as one set of rules for many schemas</td><td>a <code>library</code></td><td><code>extends href="FILE"</code> at the top of the schema</td></tr>
+</tbody></table>
+</div>
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="schematron-documents.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="schematron-reports.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="schematron-documents.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="schematron-reports.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="style/sxml.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

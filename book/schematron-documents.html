@@ -1,0 +1,412 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Rules Across Documents - The sxml Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Learn XPath 4.0, XQuery 4.0, XSLT 4.0 and XSD 1.1 with sxml, the small XML toolchain in portable C.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="style/sxml.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "coal";
+            window.path_to_searchindex_js = "searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The sxml Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml/edit/main/docs/book/src/schematron-documents.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="rules-across-documents"><a class="header" href="#rules-across-documents">Rules Across Documents</a></h1>
+<!-- examples: codegen -->
+<p>The rules so far looked into one document, and twice into a second one:
+the draft and the schema of the machine's data, read with <code>doc</code>. This
+chapter makes a rule between two documents its main subject, and runs
+XSD and Schematron together. It works in the <code>codegen</code> directory of
+<a href="codegen.html">Project: Generating Vane's SDKs from a Schema</a>, which
+generates Vane's SDK clients from a description of its API. You need
+only two of its files here:</p>
+<ul>
+<li><code>api.xml</code> lists Vane's remote functions, each a <code>query</code> or a
+<code>command</code>, with the names of its input and output types and the
+clients that offer it (<code>browser</code>, <code>node</code>, <code>console</code>);</li>
+<li><code>vane-api.xsd</code> declares those types, as XSD complex types.</li>
+</ul>
+<p><code>api.xsd</code>, the schema of <code>api.xml</code>, checks that the names are
+identifiers, that no two functions share a name and that each has a
+client. One rule is left that it cannot check, because it is about
+another document: each type that <code>api.xml</code> names must be a complex type
+of <code>vane-api.xsd</code>. The generator checks it while it runs, and stops at
+the first type it cannot find:</p>
+<pre><code class="language-console">$ sed -e 's/input="FlagsRequest"/input="Flags"/' -e 's/output="KillResult"/output="KillResults"/' -e '/killFlag/s/clients="console"/clients="console browser"/' api.xml &gt; mistakes.xml
+$ sxml xquery --param=api-file=mistakes.xml --output=mistakes-program.xml program.xq
+typescript.xqm:248:10: ts:unknown-type: The function getFlags uses the type Flags, which the schema doesn't declare
+</code></pre>
+<p><code>mistakes.xml</code> has two wrong type names, and one more mistake that the
+next sections find. A rule finds all of them before the generator
+runs.</p>
+<h2 id="a-rule-between-two-documents"><a class="header" href="#a-rule-between-two-documents">A rule between two documents</a></h2>
+<p><code>api.sch</code>:</p>
+<pre><code class="language-xml">&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;!-- Rules of an API description that api.xsd cannot say: they need
+     another document, the XSD schema of the values. --&gt;
+&lt;schema xmlns="http://purl.oclc.org/dsdl/schematron" queryBinding="xslt3"
+        schematronEdition="2025"&gt;
+  &lt;title&gt;Rules of an API description&lt;/title&gt;
+  &lt;ns prefix="api" uri="https://example.org/api"/&gt;
+
+  &lt;!-- The schema of the values, which the description names. --&gt;
+  &lt;let name="types" value="doc(resolve-uri(/api:api/@types, base-uri(/)))"/&gt;
+  &lt;let name="complex-types" value="$types/xs:schema/xs:complexType/@name ! string()"/&gt;
+  &lt;!-- The type names the functions use. --&gt;
+  &lt;let name="used-types" value="/api:api/*/(@input | @output) ! string()"/&gt;
+
+  &lt;pattern id="types"&gt;
+    &lt;rule context="api:query | api:command" visit-each="@input | @output"&gt;
+      &lt;assert id="type-exists" test=". = $complex-types"&gt;The &lt;name/&gt;
+        type &lt;value-of select="."/&gt; of &lt;value-of select="../@name"/&gt;
+        is no complex type of &lt;value-of select="/api:api/@types"/&gt;.&lt;/assert&gt;
+    &lt;/rule&gt;
+  &lt;/pattern&gt;
+
+  &lt;!-- Rules over the schema of the values: its findings are in that
+       document. --&gt;
+  &lt;pattern id="used" documents="/api:api/@types"&gt;
+    &lt;rule context="xs:schema/xs:complexType"&gt;
+      &lt;assert id="type-used" test="@name = ($used-types, //xs:element/@type)"&gt;The
+        complex type &lt;value-of select="@name"/&gt; is used by no function and
+        by no other type.&lt;/assert&gt;
+    &lt;/rule&gt;
+  &lt;/pattern&gt;
+
+  &lt;pattern id="clients"&gt;
+    &lt;rule context="api:command"&gt;
+      &lt;report id="browser-command" test="data(@clients) = 'browser'"&gt;The
+        command &lt;value-of select="@name"/&gt; changes flags, and a browser
+        page must not call it.&lt;/report&gt;
+    &lt;/rule&gt;
+  &lt;/pattern&gt;
+&lt;/schema&gt;
+</code></pre>
+<p><code>api.xml</code> names its schema of values in its <code>types</code> attribute, so the
+schema's variables read that document, rather than a fixed file:
+<code>resolve-uri</code> resolves the name against the base URI of the description
+(<code>base-uri(/)</code>), so <code>types="vane-api.xsd"</code> means the file next to
+<code>api.xml</code>, wherever it is. <code>$complex-types</code> is the list of names that
+the types may have, and <code>$used-types</code> the names the functions use. All
+three are evaluated once per description. The prefix <code>xs</code> needs no <code>ns</code>
+element: it is one of the prefixes every Schematron query knows.</p>
+<p>The rule of the pattern <code>types</code> visits the two attributes of each
+function that name types. The items are attribute nodes, so each
+finding is reported at its attribute, with its column, and <code>name</code> in
+the message says which of the two it is. The last two findings come
+from the next pattern, in the other document:</p>
+<pre><code class="language-console">$ sxml validate --schematron=api.sch api.xml; echo "exit status $?"
+exit status 0
+$ sxml validate --schematron=api.sch mistakes.xml; echo "exit status $?"
+mistakes.xml:3:26: type-exists: The input type Flags of getFlags is no complex type of vane-api.xsd. (api.sch:17:7)
+mistakes.xml:15:48: type-exists: The output type KillResults of killFlag is no complex type of vane-api.xsd. (api.sch:17:7)
+vane-api.xsd:73:3: type-used: The complex type FlagsRequest is used by no function and by no other type. (api.sch:27:7)
+vane-api.xsd:143:3: type-used: The complex type KillResult is used by no function and by no other type. (api.sch:27:7)
+exit status 1
+</code></pre>
+<p>Both wrong names are reported at once, at their places, before any code
+is generated. The generator keeps its own check: a program should not
+trust its input because some other tool ran first. The rule is for the
+person who edits <code>api.xml</code>, and runs in the editor or the build.</p>
+<h2 id="rules-over-the-other-document"><a class="header" href="#rules-over-the-other-document">Rules over the other document</a></h2>
+<p>The pattern <code>used</code> turns the question around: is every complex type of
+<code>vane-api.xsd</code> used, by a function or by another type? Its <code>documents</code>
+attribute names the documents its rules run over instead of the
+description: it is evaluated at the description's root, and a relative
+name is resolved against the description's base URI, so here it is the
+file that <code>types</code> names. The rule's context, <code>xs:schema/xs:complexType</code>,
+is matched in that document, and <code>//xs:element</code> in its test is that
+document's too, while <code>$used-types</code>, a variable of the schema, was
+evaluated at the description.</p>
+<p>A finding of such a pattern is in the other document, and says so: the
+two wrong names in <code>mistakes.xml</code> left <code>FlagsRequest</code> and <code>KillResult</code>
+unused, and their findings name <code>vane-api.xsd</code>, with the lines and
+columns of the types there. The JSON report names the document of
+every finding in its <code>document</code> field:</p>
+<pre><code class="language-console">$ sxml validate --schematron=api.sch --format=json mistakes.xml &gt; mistakes.json
+$ sxml xpath 'json-doc("mistakes.json")?files?*?findings?* ! `{?document}:{?line}: {?id}`'
+"mistakes.xml:3: type-exists"
+"mistakes.xml:15: type-exists"
+"vane-api.xsd:73: type-used"
+"vane-api.xsd:143: type-used"
+</code></pre>
+<p>SVRL says it as the standard asks: each <code>svrl:fired-rule</code> of the
+pattern carries the URI of its document in its <code>document</code> attribute,
+and the findings follow the rule that fired.</p>
+<h2 id="xsd-and-schematron-together"><a class="header" href="#xsd-and-schematron-together">XSD and Schematron together</a></h2>
+<p>The last pattern of <code>api.sch</code> reports a command that the frontend SDK
+would offer: commands change flags, and a browser page must not call
+them. <code>mistakes.xml</code> gives <code>killFlag</code> the clients <code>console browser</code>.
+And yet <code>api.sch</code> alone did not report it.</p>
+<p>The reason is types. Read from the file, <code>@clients</code> is one untyped
+string, <code>"console browser"</code>, which is not equal to <code>"browser"</code>. In
+<code>api.xsd</code>, <code>clients</code> is a list of identifiers. <code>--schema</code> together with
+<code>--schematron</code> validates each document against the XSD schema first,
+and then runs the rules over the validated copy, whose values have the
+types the schema gives them. There, <code>data(@clients)</code> is a sequence of
+two names, and <code>=</code> compares each of them:</p>
+<pre><code class="language-console">$ sxml validate --schema=api.xsd --schematron=api.sch mistakes.xml; echo "exit status $?"
+mistakes.xml:/Q{https://example.org/api}api[1]/Q{https://example.org/api}query[1]/@input: type-exists: The input type Flags of getFlags is no complex type of vane-api.xsd. (api.sch:17:7)
+mistakes.xml:/Q{https://example.org/api}api[1]/Q{https://example.org/api}command[2]/@output: type-exists: The output type KillResults of killFlag is no complex type of vane-api.xsd. (api.sch:17:7)
+vane-api.xsd:73:3: type-used: The complex type FlagsRequest is used by no function and by no other type. (api.sch:27:7)
+vane-api.xsd:143:3: type-used: The complex type KillResult is used by no function and by no other type. (api.sch:27:7)
+mistakes.xml:/Q{https://example.org/api}api[1]/Q{https://example.org/api}command[2]: browser-command: The command killFlag changes flags, and a browser page must not call it. (api.sch:35:7)
+exit status 1
+</code></pre>
+<p>The validated copy keeps no line numbers, so its findings name their
+nodes by path, as <code>fn:path</code> writes it; <code>vane-api.xsd</code> is read as a file,
+and keeps its lines. A rule written for typed data
+should say so: run it with its XSD schema, as here, or write the test so
+that it works on text too (<code>tokenize(@clients) = 'browser'</code>).</p>
+<p>A document that the XSD schema finds invalid has no validated copy.
+Its rules still run, over the document as it was read, with line
+numbers, so one command reports every mistake. The copy of <code>api.xml</code>
+that <a href="codegen.html">Project: Generating Vane's SDKs from a Schema</a> broke
+in three ways gets three XSD errors and two findings: the type name
+with a space in it, and the type that this left unused:</p>
+<pre><code class="language-console">$ sed 's/name="evaluateFlags"/name="getFlags"/; s/output="KillResult"/output="Kill result"/; /rollOutFlag/s/clients="console"/clients=""/' api.xml &gt; twice.xml
+$ sxml validate --schema=api.xsd --schematron=api.sch twice.xml
+twice.xml:12:74: cvc-minLength-valid: attribute 'clients' has the value '', which is not valid for type 'clients': the value is shorter than the minLength facet (XSD 1.1 Part 2, 4.3.2.4); the minLength facet is '1'
+twice.xml:15:48: cvc-pattern-valid: attribute 'output' has the value 'Kill result', which is not valid for type 'identifier': the value matches no pattern facet (XSD 1.1 Part 2, 4.3.4.4); the pattern facet is '[A-Za-z][A-Za-z0-9]*'
+twice.xml:6:3: cvc-identity-constraint.4.1: element 'Q{https://example.org/api}query': its key sequence is that of an earlier member (unique 'Q{https://example.org/api}function-name')
+twice.xml:15:48: type-exists: The output type Kill result of killFlag is no complex type of vane-api.xsd. (api.sch:17:7)
+vane-api.xsd:143:3: type-used: The complex type KillResult is used by no function and by no other type. (api.sch:27:7)
+</code></pre>
+<p>The XSD errors come first, then the findings. The exit status is 1 if
+either finds an error.</p>
+<h2 id="where-cross-document-rules-go"><a class="header" href="#where-cross-document-rules-go">Where cross-document rules go</a></h2>
+<p>A rule between two documents could be written on either side. Put it
+where the reference is: <code>api.xml</code> names the types, so <code>api.sch</code> checks
+them, as <code>flag.sch</code> checks the requirements that the machine names. The
+document that is referred to does not know who refers to it, and should
+not have to.</p>
+<p>Each <code>doc</code> call reads a document once per validation, however many
+rules use it, and the variable that holds it is evaluated once.
+<code>sxml validate</code> reads the documents that <code>doc</code> names as local files; in a program, the processor's
+resource resolver decides what a schema may read, as for any query
+(<a href="files.html">Files and the Outside World</a>).</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="schematron-machine.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="schematron-reuse.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="schematron-machine.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="schematron-reuse.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="style/sxml.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

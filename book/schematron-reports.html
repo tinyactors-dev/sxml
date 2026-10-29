@@ -1,0 +1,455 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Reports, Errors and Exit Statuses - The sxml Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Learn XPath 4.0, XQuery 4.0, XSLT 4.0 and XSD 1.1 with sxml, the small XML toolchain in portable C.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="style/sxml.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "coal";
+            window.path_to_searchindex_js = "searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The sxml Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml/edit/main/docs/book/src/schematron-reports.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="reports-errors-and-exit-statuses"><a class="header" href="#reports-errors-and-exit-statuses">Reports, Errors and Exit Statuses</a></h1>
+<!-- examples: scxml -->
+<p>A finding is read by a person in a terminal, by a script in a build, or
+by another tool. <code>sxml validate</code> writes the same findings in three
+formats for them, and says with its exit status how the validation
+went. This chapter reads the reports of <code>flag.sch</code> from <a href="schematron-machine.html">Checking the
+State Machine</a>, in the <code>scxml</code> directory, and
+then looks at what happens when the schema itself is wrong.</p>
+<h2 id="text"><a class="header" href="#text">Text</a></h2>
+<p>The default format is one line per finding, on standard error:</p>
+<pre><code>flag.scxml:92:3: reachable: No transition leads to the state archived. (flag.sch:34:7)
+</code></pre>
+<p>From left to right: the document the finding's subject is in (the
+validated file, unless a rule looked into another), the line and column
+of the subject; the assertion's <code>id</code> (<code>assert</code> or <code>report</code> when it has none);
+its level, when it has one: its <code>severity</code>, else its <code>flag</code>, else its
+<code>role</code>; the message; and the place of the assertion in its schema file.
+Editors that read compiler output can jump to either place. When the
+rules run over the typed copy of a document (with <code>--schema</code>, <a href="schematron-documents.html">Rules
+Across Documents</a>), the line and column are
+replaced by the node's path.</p>
+<h2 id="exit-statuses"><a class="header" href="#exit-statuses">Exit statuses</a></h2>
+<p><code>sxml validate</code> exits with:</p>
+<div class="table-wrapper"><table><thead><tr><th>Status</th><th>When</th></tr></thead><tbody>
+<tr><td>0</td><td>Every document is valid: no XSD error and no error finding. Warnings and other findings may have been reported.</td></tr>
+<tr><td>1</td><td>A document is invalid or not well-formed, or the XSD schema or the Schematron schema has errors (an unsupported query binding included).</td></tr>
+<tr><td>2</td><td>The command line is wrong.</td></tr>
+<tr><td>3</td><td>A schema or a document cannot be read.</td></tr>
+<tr><td>4</td><td>A limit was exceeded, or the validation needs a feature that sxml does not have yet.</td></tr>
+</tbody></table>
+</div>
+<p>A finding is an <em>error finding</em>, which makes its document invalid, when
+its severity is <code>fatal</code> or <code>error</code>; without a severity, when its role
+or one of its flags is <code>fatal</code> or <code>error</code>, or when it has none of the
+three. The other statuses look like this:</p>
+<pre><code class="language-console">$ sxml validate --schematron=flag.sch missing.scxml; echo "exit status $?"
+sxml validate: cannot read 'missing.scxml'
+exit status 3
+$ sxml validate --phase=machine flag.scxml; echo "exit status $?"
+sxml validate: --phase and --schematron-param need --schematron
+Usage: sxml validate [--schema=SCHEMA]... [--schematron=SCH] [--phase=PHASE] [--schematron-param=NAME=VALUE]... [--use-schema-location] [--mode=MODE] [--format=FORMAT] FILE...
+Try 'sxml validate --help'.
+exit status 2
+</code></pre>
+<h2 id="json"><a class="header" href="#json">JSON</a></h2>
+<p><code>--format=json</code> writes one JSON object on standard output, for all the
+documents of the command:</p>
+<pre><code class="language-console">$ sxml validate --schematron=flag.sch --format=json flag-fixed.scxml
+{"schematron":{"document":"flag.sch","phase":"#ALL","edition":"2025","status":"valid"},"files":[{"file":"flag-fixed.scxml","status":"valid","findings":[],"phase":"#ALL"}]}
+</code></pre>
+<p><code>schematron</code> describes the schema: its file, the phase compiled, the
+edition it says it follows (<code>schematronEdition</code>), and whether it
+compiled. Each document in <code>files</code> has its status, the phase in force
+(under <code>#ANY</code>, the one its <code>when</code> chose), and its findings. A finding
+has every field there is: <code>kind</code> (<code>failed-assert</code> or
+<code>successful-report</code>), <code>id</code>, <code>role</code>, <code>flag</code>, <code>severity</code>, <code>error</code>, the
+<code>message</code>, the <code>document</code> its node is in (the validated file, or
+another one, <a href="schematron-documents.html">Rules Across Documents</a>), the
+<code>line</code>, <code>column</code> and <code>byte_offset</code> of its node there, its <code>path</code>, the <code>pattern</code>, the <code>test</code>, the <code>assertion</code>'s place in the
+schema, and its <code>diagnostics</code> and <code>properties</code>.</p>
+<p>The book's tools read it like any JSON. A summary per document, for a
+build log:</p>
+<pre><code class="language-console">$ sxml validate --schematron=flag.sch --format=json flag.scxml flag-fixed.scxml &gt; report.json
+$ sxml xpath 'json-doc("report.json")?files?* ! `{?file}: {?status}, {count(?findings?*[?error])} errors, {count(?findings?*[not(?error)])} warnings`'
+"flag.scxml: invalid, 2 errors, 2 warnings"
+"flag-fixed.scxml: valid, 0 errors, 0 warnings"
+</code></pre>
+<p>New versions of sxml may add fields to the object, but do not change
+the ones it has.</p>
+<h2 id="svrl"><a class="header" href="#svrl">SVRL</a></h2>
+<p>SVRL, the Schematron Validation Report Language, is the report format
+that the Schematron standard describes, in XML. Other Schematron tools
+write it and read it, so it is the format to keep or to pass on.
+<code>--format=svrl</code> writes the report of one document on standard output:</p>
+<pre><code class="language-console">$ sxml validate --schematron=flag.sch --format=svrl flag.scxml &gt; flag.svrl; echo "exit status $?"
+exit status 1
+$ head -4 flag.svrl
+&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;svrl:schematron-output xmlns:svrl="http://purl.oclc.org/dsdl/svrl" title="Rules of a Vane machine" phase="#ALL" schematronEdition="2025"&gt;
+  &lt;svrl:ns-prefix-in-attribute-values uri="http://www.w3.org/2005/07/scxml" prefix="sc"/&gt;
+  &lt;svrl:ns-prefix-in-attribute-values uri="urn:example:vane" prefix="vane"/&gt;
+</code></pre>
+<p>After the namespaces come the patterns, each an <code>svrl:active-pattern</code>,
+then for each node a rule fired on an <code>svrl:fired-rule</code>, and each
+finding as an <code>svrl:failed-assert</code> or <code>svrl:successful-report</code>, with
+its id, the node's path in <code>location</code>, the test, and the message in
+<code>svrl:text</code>. The report says which rules ran, not only what failed:
+the fired rules are how a reviewer sees that a rule applied at all.
+It is XML, so XPath reads it:</p>
+<pre><code class="language-console">$ sxml xpath --context-item=flag.svrl 'count(//*:fired-rule), //*:active-pattern/@id/string()'
+36
+"states"
+"events"
+"data"
+"requirements"
+"draft"
+$ sxml xpath --context-item=flag.svrl '//*:failed-assert ! `{@id}: {*:text}`'
+"reachable: No transition leads to the state archived."
+"used: Nothing handles, sends or raises the event flag.archived."
+"declared: The event flag.evaluated is not declared in vane:events."
+"implemented: Nothing in the machine implements the draft's req-1."
+</code></pre>
+<h2 id="errors-in-the-schema"><a class="header" href="#errors-in-the-schema">Errors in the schema</a></h2>
+<p>A schema is compiled before any document is read. sxml checks it
+against the grammar of Schematron and the rules of the standard, and
+compiles each context and test, and reports every error it finds, each
+at its place, before it gives up. This schema has a mistake in each
+rule:</p>
+<p><code>broken.sch</code>:</p>
+<pre><code class="language-xml">&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;!-- A schema with a mistake on every rule. --&gt;
+&lt;schema xmlns="http://purl.oclc.org/dsdl/schematron" queryBinding="xslt3"&gt;
+  &lt;ns prefix="sc" uri="http://www.w3.org/2005/07/scxml"/&gt;
+  &lt;pattern id="mistakes"&gt;
+    &lt;rule context="sc:state["&gt;
+      &lt;assert test="@id"&gt;A state has an id.&lt;/assert&gt;
+    &lt;/rule&gt;
+    &lt;rule context="sc:transition"&gt;
+      &lt;assert test="vane:known(@event)"&gt;The event is known.&lt;/assert&gt;
+    &lt;/rule&gt;
+    &lt;rule context="sc:data"&gt;
+      &lt;assert test="@expr" diagnostics="hint"&gt;A data item has a value.&lt;/assert&gt;
+      &lt;check test="@id"/&gt;
+    &lt;/rule&gt;
+  &lt;/pattern&gt;
+&lt;/schema&gt;
+</code></pre>
+<pre><code class="language-console">$ sxml validate --schematron=broken.sch flag.scxml; echo "exit status $?"
+broken.sch:14:7: schematron:syntax: an element of the Schematron namespace that the grammar does not define (Annex A)
+broken.sch:13:28: schematron:reference: diagnostics names no diagnostic (5.5.2): hint
+broken.sch:6:20: err:XTSE0340: the text is not a pattern (XSLT 4.0, 6.3.1)
+exit status 1
+</code></pre>
+<p>Codes that start with <code>schematron:</code> are the standard's own rules: the
+grammar (<code>syntax</code>), ids that name nothing (<code>reference</code>), <code>include</code>,
+<code>parameter</code>, <code>variable</code>, <code>phase</code> and <code>query-binding</code>. The others are the
+codes of XPath and XSLT: <code>XTSE0340</code> is a context that is no pattern,
+here because its predicate is not closed.</p>
+<p>The second rule calls a function with the prefix <code>vane</code>, which the
+schema does not declare, and the first run does not say so. Compiling
+has two steps: reading the schema and parsing each expression, which
+finds the errors above; then compiling the whole as a stylesheet, which
+finds names that are not declared and types that do not fit, and runs
+only when the first step found nothing. Fix the three mistakes, and the
+fourth appears:</p>
+<pre><code class="language-console">$ sed -e 's/"sc:state\["/"sc:state"/' -e 's/ diagnostics="hint"//' -e '/&lt;check /d' broken.sch &gt; less-broken.sch
+$ sxml validate --schematron=less-broken.sch flag.scxml
+less-broken.sch:10:16: err:XPST0081: the namespace prefix is not declared
+</code></pre>
+<p>An error inside text that a placeholder brought in is reported where
+that text is written: at the <code>value</code> of the <code>param</code>, not at the rule
+that uses it.</p>
+<h2 id="warnings"><a class="header" href="#warnings">Warnings</a></h2>
+<p>Some schemas in use were written for processors that read the standard
+loosely, and break one of three of its rules: a pattern holds variables
+that other patterns read, a rule's <code>let</code> follows an assertion, or a
+pattern instance names one parameter twice. sxml reads such a schema as
+its authors meant it, and says so: each place is a warning that names
+the rule of the standard it breaks. <code>older.sch</code> is written that way:</p>
+<p><code>older.sch</code>:</p>
+<pre><code class="language-xml">&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;!-- Written as older rule sets often are: one pattern holds the
+     variables that the others read, and a let follows an assertion. --&gt;
+&lt;schema xmlns="http://purl.oclc.org/dsdl/schematron" queryBinding="xslt2"&gt;
+  &lt;ns prefix="sc" uri="http://www.w3.org/2005/07/scxml"/&gt;
+
+  &lt;pattern id="variables"&gt;
+    &lt;let name="state-ids" value="//sc:state/@id | //sc:final/@id"/&gt;
+  &lt;/pattern&gt;
+
+  &lt;pattern id="initial"&gt;
+    &lt;rule context="sc:scxml"&gt;
+      &lt;assert id="initial-exists" test="@initial = $state-ids"&gt;The
+        initial state &lt;value-of select="@initial"/&gt; is no state.&lt;/assert&gt;
+      &lt;let name="names" value="//sc:state/@id ! string()"/&gt;
+      &lt;assert id="distinct" test="count($names) = count(distinct-values($names))"&gt;Two
+        states have one name.&lt;/assert&gt;
+    &lt;/rule&gt;
+  &lt;/pattern&gt;
+&lt;/schema&gt;
+</code></pre>
+<pre><code class="language-console">$ sxml validate --schematron=older.sch flag.scxml; echo "exit status $?"
+older.sch:15:7: warning: schematron:compatibility: a let after the assertions of its rule; it is evaluated before them (Annex A puts a rule's lets first): names
+older.sch:13:47: warning: schematron:compatibility: a variable of another pattern; the first compiled pattern's let of the name is read (3.23 scopes a pattern's variables to the pattern): state-ids
+exit status 0
+</code></pre>
+<p>A warning goes to standard error as an error does, with <code>warning:</code>
+before its code, <code>schematron:compatibility</code>, and it does not change the
+exit status: <code>flag.scxml</code> is valid. The JSON report lists the warnings
+in the <code>schematron</code> object:</p>
+<pre><code class="language-console">$ sxml validate --schematron=older.sch --format=json flag.scxml &gt; older.json
+$ sxml xpath 'json-doc("older.json")?schematron?warnings?* ! `{?line}:{?column}: {?code}`'
+"15:7: schematron:compatibility"
+"13:47: schematron:compatibility"
+</code></pre>
+<p>To make the warnings go away, write the schema as the standard asks:
+variables that every pattern reads are <code>let</code> children of <code>schema</code>, and
+a rule's <code>let</code> elements come before its assertions. Nothing else is
+read loosely: any other break of the standard is an error.</p>
+<h2 id="query-bindings"><a class="header" href="#query-bindings">Query bindings</a></h2>
+<p>A schema's <code>queryBinding</code> attribute names the language of its
+expressions. The standard defines bindings for XSLT 1.0 to 3.0 and
+XPath 1.0 to 3.1, and the 2025 edition adds <code>xslt4</code> and <code>xpath4</code>. sxml
+reads all of them, and a schema without the attribute, as XPath 4.0 and
+XSLT 4.0, the languages it implements: there is no XPath 1.0
+compatibility mode. Under an XSLT binding (<code>xslt</code>, <code>xslt2</code>, <code>xslt3</code>,
+<code>xslt4</code>), a schema can hold XSLT declarations, as <code>flag.sch</code> does with
+<code>xsl:function</code> and <code>xsl:import-schema</code>; under an XPath binding they are
+ignored. Most schemas written for other processors use <code>xslt2</code> or
+<code>xslt3</code> and run unchanged.</p>
+<p>Any other binding, such as <code>xquery</code>, is refused with an error at the
+attribute:</p>
+<pre><code class="language-console">$ sed 's/queryBinding="xslt3"/queryBinding="xquery"/' flag.sch &gt; xquery.sch
+$ sxml validate --schematron=xquery.sch flag.scxml; echo "exit status $?"
+xquery.sch:7:9: schematron:query-binding: the query binding is not supported; sxml reads xslt, xslt2, xslt3, xslt4, xpath, xpath2, xpath3, xpath31 and xpath4 (6.5): xquery
+exit status 1
+</code></pre>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="schematron-reuse.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="schematron-c.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="schematron-reuse.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="schematron-c.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="style/sxml.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

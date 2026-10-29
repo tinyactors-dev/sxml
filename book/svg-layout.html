@@ -1,0 +1,1038 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Computing a Layout - The sxml Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Learn XPath 4.0, XQuery 4.0, XSLT 4.0 and XSD 1.1 with sxml, the small XML toolchain in portable C.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="style/sxml.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "coal";
+            window.path_to_searchindex_js = "searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The sxml Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml/edit/main/docs/book/src/svg-layout.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="computing-a-layout"><a class="header" href="#computing-a-layout">Computing a Layout</a></h1>
+<!-- examples: svg -->
+<p>A layout says where each box goes and which way each line runs. The
+method of this chapter is the one most tools for such diagrams follow:
+the <em>layered</em> method of Sugiyama, Tagawa and Toda, which Graphviz's
+<code>dot</code> and the layered algorithm of the Eclipse Layout Kernel (ELK) are
+built on. It puts the nodes in layers, one under the other, so that the
+edges point down; it orders each layer so that few edges cross; and only
+then does it work out coordinates. ELK adds an idea this chapter uses
+throughout: the order of the description, its <em>model order</em>, is
+information. Wherever two choices are equally good, the one that keeps
+the order the author wrote wins, so the author steers the drawing by
+the order of the nodes and edges and never moves a box by hand (Sören
+Domrös, Max Riepe and Reinhard von Hanxleden, <em>Model Order in Sugiyama
+Layouts</em>, IVAPP 2023).</p>
+<p>The method has five phases:</p>
+<ol>
+<li><strong>Break the cycles.</strong> Turn some edges round, so that no path leads
+in a circle.</li>
+<li><strong>Assign layers.</strong> Give every node a layer, so that every edge
+points down.</li>
+<li><strong>Order the layers.</strong> Sort each layer, so that few edges cross.</li>
+<li><strong>Place.</strong> Work out the x of every box.</li>
+<li><strong>Route.</strong> Draw the path of every edge.</li>
+</ol>
+<p>Each phase is a function of the library module <code>draw.xqm</code>, namespace
+<code>urn:example:draw</code>. We'll read the module a part at a time and run each
+part as we go; <a href="svg-xquery.html">Writing SVG with XQuery</a> shows how it
+draws.</p>
+<h2 id="breaking-cycles"><a class="header" href="#breaking-cycles">Breaking cycles</a></h2>
+<p>Layers only work if every edge can point down, and an edge that closes
+a circle cannot: some edge of the circle has to point up. A state
+machine has circles everywhere. <code>states.xml</code> has four states of a
+feature flag, and two transitions lead back to <code>stable</code>:</p>
+<p><code>states.xml</code>:</p>
+<pre><code class="language-xml">&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;!-- Three states of a feature flag and a fourth that nothing leads to.
+     Every state has an incoming edge except archived. --&gt;
+&lt;diagram title="Flag states"&gt;
+  &lt;node id="stable" label="stable"/&gt;
+  &lt;node id="checking" label="checking"/&gt;
+  &lt;node id="rolling-out" label="rolling-out"/&gt;
+  &lt;node id="archived" label="archived"/&gt;
+  &lt;edge from="stable" to="checking" label="rollout.request"/&gt;
+  &lt;edge from="checking" to="rolling-out" label="check.passed"/&gt;
+  &lt;edge from="checking" to="stable" label="check.failed"/&gt;
+  &lt;edge from="rolling-out" to="stable" label="step.done"/&gt;
+  &lt;edge from="archived" to="stable" label="kill.request"/&gt;
+&lt;/diagram&gt;
+</code></pre>
+<p>The first phase picks the edges to turn round. Drawn upward, they still
+point where they go, but for the layout they point down like the
+others. Finding the fewest such edges is a hard problem, so layout
+tools use a heuristic. Ours is a <em>depth-first search</em>, the one Graphviz
+uses: start at a node, follow its first edge, and the first edge of the
+node that leads to, and so on, and come back to try the next edge only
+when a node has no edges left to follow. The nodes on the way from the
+start to where the search is now are its <em>path</em>. An edge to a node on
+the path closes a circle; that edge is turned round.</p>
+<pre><code class="language-xquery">(:~ One step of the depth-first search of draw:reversed: visit a node,
+    then follow its edges in their order, and note each edge that leads
+    back to a node the search is still inside. :)
+declare %private function draw:visit(
+  $diagram as element(diagram),
+  $id as xs:string,
+  $search as map(*)
+) as map(*) {
+  let $inside := map:put($search, "path", ($search?path, $id))
+  let $done := fold-left(
+    for $edge at $position in $diagram/edge
+    where $edge/@from = $id and $edge/@to != $id
+    return [ $position, $edge/@to/string() ],
+    map:put($inside, "seen", ($inside?seen, $id)),
+    fn($search, $edge) {
+      if ($edge(2) = $search?path) then map:put($search, "back", ($search?back, $edge(1)))
+      else if ($edge(2) = $search?seen) then $search
+      else draw:visit($diagram, $edge(2), $search)
+    }
+  )
+  return map:put($done, "path", $search?path)
+};
+
+(:~ Phase 1. The positions of the edges to reverse so that no path leads
+    in a circle. A depth-first search starts from each node not yet seen,
+    in the order of the description, and follows the edges in their
+    order; an edge back to a node on the way it came closes a circle,
+    and is reversed. A diagram without circles keeps all its edges as
+    they are, and in one with circles the order of the description
+    decides which edge turns: the first node is on top. :)
+declare function draw:reversed($diagram as element(diagram)) as xs:integer* {
+  sort(fold-left($diagram/node/@id/string(),
+    { "seen": (), "path": (), "back": () },
+    fn($search, $id) {
+      if ($id = $search?seen) then $search else draw:visit($diagram, $id, $search)
+    }
+  )?back)
+};
+</code></pre>
+<p><code>draw:visit</code> calls itself: an XQuery function may be <em>recursive</em>, and
+the search is easiest to say that way. The state of the search is a map
+with three entries, passed from one step to the next: the nodes seen,
+the path, and the positions of the edges found to turn. <code>map:put</code>
+returns a new map with one entry changed; maps are values, and the old
+one is still there, which is why <code>draw:visit</code> can give back the path as
+it found it, <code>$search?path</code>, when it is done with a node. <code>fold-left</code>
+carries the map through the edges of a node and, in <code>draw:reversed</code>,
+through the nodes of the description. In a module, <code>draw:</code> is the
+module's prefix, and <code>%private</code> keeps <code>draw:visit</code> out of the module's
+interface.</p>
+<p>The search starts at the first node of the description and follows the
+edges in their order, and that is where the model order comes in.
+Here, the search starts at <code>stable</code> and goes down to <code>checking</code> and
+<code>rolling-out</code>; the edges from them back to <code>stable</code> close circles. An
+<code>import module</code> declaration in the query names the module's namespace
+and file:</p>
+<pre><code class="language-console">$ sxml xquery --method=adaptive --context-item=states.xml --expression='import module namespace draw = "urn:example:draw" at "draw.xqm"; for $position in draw:reversed(/diagram) return /diagram/edge[$position] ! `{@from} -&gt; {@to}`'
+"checking -&gt; stable"
+"rolling-out -&gt; stable"
+</code></pre>
+<p>The Vane diagram has no circles, and the search turns nothing round:</p>
+<pre><code class="language-console">$ sxml xquery --context-item=diagram.xml --expression='import module namespace draw = "urn:example:draw" at "draw.xqm"; count(draw:reversed(/diagram))'
+0
+</code></pre>
+<h2 id="the-graph-to-lay-out"><a class="header" href="#the-graph-to-lay-out">The graph to lay out</a></h2>
+<p>The phases after the first work on a graph of their own: the nodes,
+the edges with the reversed ones turned round, and one more thing. An
+edge label needs room, and a label drawn halfway along a line lands on
+whatever happens to be there. ELK gives every label a <em>label vertex</em>: a
+small node of its own, put in the middle of its edge, that the layers,
+the order and the places treat like any other. A labelled edge becomes
+two links, one to its label vertex and one from it.</p>
+<p>A vertex and a link are maps with fixed entries, and a <em>record type</em>
+says which entries those are and what they hold. <code>declare record</code> names
+the type and also declares a function of the same name that makes one.
+The module starts with the sizes of the drawing and its records:</p>
+<pre><code class="language-xquery">(: The sizes of the drawing, in SVG user units. :)
+declare variable $draw:box-height := 40;
+declare variable $draw:box-min-width := 100;
+declare variable $draw:gap-across := 30;
+declare variable $draw:gap-down := 24;
+declare variable $draw:track-gap := 10;
+declare variable $draw:loop-width := 26;
+declare variable $draw:padding := 20;
+
+(:~ The width of a text in a sans-serif font of the given size: an
+    estimate, from the average width of a letter. :)
+declare function draw:text-width($text as xs:string?, $size as xs:integer) as xs:integer {
+  xs:integer(ceiling(string-length($text) * $size * 0.56))
+};
+
+(: A vertex of the layered graph: a node of the diagram, the label of an
+   edge, or a bend where an edge crosses a layer. Edges run along its x;
+   left and right are how far it reaches on either side of that line. :)
+declare record draw:vertex(
+  id as xs:string,
+  kind as xs:string,
+  key as xs:decimal,
+  left as xs:integer,
+  right as xs:integer,
+  height as xs:integer
+);
+
+(: A link of the layered graph: one step of the edge at that position
+   in the description, from an upper vertex to a lower one. :)
+declare record draw:link(from as xs:string, to as xs:string, edge as xs:integer);
+
+(: A point, and a box: the top left corner and the size. :)
+declare record draw:place(x as xs:integer, y as xs:integer);
+declare record draw:box(x as xs:integer, y as xs:integer, width as xs:integer, height as xs:integer);
+
+(: The route of an edge: an SVG path, and where its label goes. :)
+declare record draw:route(path as xs:string, label as draw:place?);
+
+(: A computed layout: the size of the drawing, a box per node id, and a
+   route per edge, by the edge's position in the description. :)
+declare record draw:layout(
+  width as xs:integer,
+  height as xs:integer,
+  boxes as map(xs:string, draw:box),
+  routes as map(xs:integer, draw:route)
+);
+</code></pre>
+<p>A record is a map, so <code>?x</code> reads an entry. The type checks what goes in:</p>
+<pre><code class="language-console">$ sxml xquery --method=adaptive --expression='import module namespace draw = "urn:example:draw" at "draw.xqm"; draw:place(110, 20), draw:place(110, 20)?x'
+{"x":110,"y":20}
+110
+$ sxml xquery --method=adaptive --expression='import module namespace draw = "urn:example:draw" at "draw.xqm"; draw:place(1.5, 20)'
+expression:1:66: err:XPTY0004: The value does not match the required type (XPath 4.0, section 3.4, coercion rules)
+</code></pre>
+<p>A box is as wide as its label needs. The width of a text depends on the
+font, which the layout doesn't have, so <code>draw:text-width</code> estimates it
+from the average width of a letter. Here is the graph:</p>
+<pre><code class="language-xquery">(:~ The graph to lay out: a vertex per node, sized for its label (and its
+    loops, drawn to its right), a vertex for the label of every edge
+    between two nodes, and the edges as links, the reversed ones turned
+    round. A label is a vertex of its own so that it gets a place of its
+    own, as ELK's label dummies do. A vertex's key is its place in the
+    description; a label sits just after the node its edge leaves. :)
+declare function draw:graph($diagram as element(diagram)) as map(*) {
+  let $reversed := draw:reversed($diagram)
+  let $order := map:merge(for $node at $n in $diagram/node return { $node/@id: $n })
+  let $nodes := (
+    for $node at $n in $diagram/node
+    let $ends := max((count($diagram/edge[@from = $node/@id and @to != $node/@id]),
+                      count($diagram/edge[@to = $node/@id and @from != $node/@id])))
+    let $width := max(($draw:box-min-width, draw:text-width($node/@label, 14) + 24,
+                       ($ends + 1) * 16))
+    let $loops := $diagram/edge[@from = $node/@id and @to = $node/@id]
+    let $loop-width := if (empty($loops)) then 0 else
+      $draw:loop-width + max((0, $loops/@label ! (draw:text-width(., 12) + 4)))
+    return draw:vertex($node/@id, "node", $n, $width idiv 2,
+                       $width - $width idiv 2 + $loop-width, $draw:box-height)
+  )
+  let $steps := (
+    for $edge at $e in $diagram/edge
+    where $edge/@from != $edge/@to
+    let $ends := if ($e = $reversed) then ($edge/@to, $edge/@from) else ($edge/@from, $edge/@to)
+    let $label := $edge/@label ! draw:vertex(`label-{ $e }`, "label",
+      $order($edge/@from) + 0.5, 1, draw:text-width(., 12) + 6, 16)
+    return {
+      "labels": $label,
+      "links": if (exists($label)) then (
+        draw:link($ends[1], $label?id, $e), draw:link($label?id, $ends[2], $e)
+      ) else draw:link($ends[1], $ends[2], $e)
+    }
+  )
+  return { "vertices": ($nodes, $steps?labels), "links": $steps?links }
+};
+</code></pre>
+<p>A node with a loop, an edge to itself, reserves room for the loop on its
+right; loops never get into the layers. The key of a vertex is its
+place in the description, and a label vertex takes the key of the node
+its edge leaves, plus a half, so that it sorts just after it. Here are
+the links of <code>states.xml</code>: the turned edges now point from <code>stable</code>
+down to their label vertices, and from those down to where they came
+from:</p>
+<pre><code class="language-console">$ sxml xquery --method=adaptive --context-item=states.xml --expression='import module namespace draw = "urn:example:draw" at "draw.xqm"; draw:graph(/diagram)?links ! `{?from} -&gt; {?to}`'
+"stable -&gt; label-1"
+"label-1 -&gt; checking"
+"checking -&gt; label-2"
+"label-2 -&gt; rolling-out"
+"stable -&gt; label-3"
+"label-3 -&gt; checking"
+"stable -&gt; label-4"
+"label-4 -&gt; rolling-out"
+"archived -&gt; label-5"
+"label-5 -&gt; stable"
+</code></pre>
+<h2 id="layers"><a class="header" href="#layers">Layers</a></h2>
+<p>The layer of a vertex is the length of the longest path that leads to
+it: a vertex nothing leads to is in layer 0, and every other one is one
+layer below the lowest of the vertices that lead to it. Every link then
+points down. The layers are a map from vertex id to layer, and the
+module finds them the way you would by hand: start with every vertex in
+layer 0, and move vertices down until no link points up or sideways.
+<code>while-do</code> holds the state of that loop, the map, and calls its third
+argument as long as its second one says there is more to do.
+<code>map:build</code> makes each new map from the ids and a function that gives
+each id its layer:</p>
+<pre><code class="language-xquery">(:~ Phase 2. The layer of every vertex: the length of the longest path
+    that leads to it, so that every link goes down. A vertex that nothing
+    leads to then moves down to just above the highest vertex it leads
+    to, so that its links stay short. :)
+declare function draw:layers($graph as map(*)) as map(xs:string, xs:integer) {
+  let $ids := $graph?vertices?id
+  let $links := $graph?links
+  let $longest := while-do(
+    map:build($ids, value := fn { 0 }),
+    fn($layers) { some $link in $links satisfies $layers($link?to) &lt;= $layers($link?from) },
+    fn($layers) {
+      map:build($ids, value := fn($id) {
+        max((0, $links[?to = $id] ! ($layers(?from) + 1)))
+      })
+    }
+  )
+  let $lowered := map:build($ids, value := fn($id) {
+    if (empty($links[?to = $id]) and exists($links[?from = $id]))
+    then min($links[?from = $id] ! $longest(?to)) - 1
+    else $longest($id)
+  })
+  let $top := min(map:items($lowered))
+  return map:build($ids, value := fn($id) { $lowered($id) - $top })
+};
+
+(:~ The graph with a bend vertex wherever a link passes a layer, so that
+    every link joins two neighbouring layers. :)
+declare function draw:proper($graph as map(*), $layers as map(xs:string, xs:integer)) as map(*) {
+  let $keys := map:build($graph?vertices, fn($vertex) { $vertex?id }, fn($vertex) { $vertex?key })
+  let $steps := (
+    for $link in $graph?links
+    let $from := $layers($link?from)
+    let $to := $layers($link?to)
+    let $bends := ($from + 1 to $to - 1) ! `bend-{ $link?edge }-{ . }`
+    let $chain := ($link?from, $bends, $link?to)
+    return {
+      "bends": $bends ! draw:vertex(., "bend", $keys($link?from) + 0.5, 1, 1, 0),
+      "layers": for $bend at $b in $bends return { $bend: $from + $b },
+      "links": for $step in 1 to count($chain) - 1
+        return draw:link($chain[$step], $chain[$step + 1], $link?edge)
+    }
+  )
+  return {
+    "vertices": ($graph?vertices, $steps?bends),
+    "links": $steps?links,
+    "layers": map:merge(($layers, $steps?layers))
+  }
+};
+</code></pre>
+<p>The longest path puts every vertex that nothing leads to in layer 0,
+even one that only leads to something far below. So a second step
+lowers such a vertex to just above the highest vertex it leads to, and
+its links stay short. In the Vane diagram the two SDKs are in layer 0,
+their <code>HTTP</code> labels in layer 1, the API in layer 2:</p>
+<pre><code class="language-console">$ sxml xquery --method=adaptive --context-item=diagram.xml --expression='import module namespace draw = "urn:example:draw" at "draw.xqm"; draw:layers(draw:graph(/diagram))'
+{"browser":0,"node":0,"api":2,"flags":3,"registry":4,"cache":4,"postgresql":6,"redis":6,"label-1":1,"label-2":1,"label-6":5,"label-7":5}
+</code></pre>
+<p>A link that skips layers is a problem for the next phase, which only
+compares neighbouring layers. <code>draw:proper</code> breaks such a link up: it
+adds a <em>bend vertex</em> in every layer the link passes, so that every link
+joins two neighbouring layers. In <code>states.xml</code> the edge from
+<code>rolling-out</code> back to <code>stable</code> passes two layers:</p>
+<pre><code class="language-console">$ sxml xquery --method=adaptive --context-item=states.xml --expression='import module namespace draw = "urn:example:draw" at "draw.xqm"; let $graph := draw:graph(/diagram) return draw:proper($graph, draw:layers($graph))?vertices[?kind = "bend"]?id'
+"bend-4-4"
+"bend-4-5"
+</code></pre>
+<h2 id="order"><a class="header" href="#order">Order</a></h2>
+<p>Two links between the same two layers cross when their upper ends are
+in one order and their lower ends in the other. The third phase sorts
+the vertices of each layer so that few links cross. The method is a
+<em>layer sweep</em>: go down the layers, and sort each by the positions of
+the vertices above it, then go up again and sort each by the vertices
+below it. A vertex's sort key is its <em>barycentre</em>, the mean position of
+its neighbours in the other layer, so that it moves towards them.</p>
+<pre><code class="language-xquery">(:~ The number of links between two layers that cross: two links cross
+    when their upper ends and their lower ends are in opposite orders. :)
+declare function draw:crossings($links as draw:link*, $positions as map(xs:string, xs:integer)) as xs:integer {
+  count(
+    for $first at $f in $links
+    for $second in $links[position() &gt; $f]
+    where ($positions($first?from) - $positions($second?from))
+        * ($positions($first?to) - $positions($second?to)) &lt; 0
+    return 1
+  )
+};
+
+(:~ The positions of the ids of a sequence of layers: map from id to its
+    place in its layer, from 1. :)
+declare function draw:positions($orders as array(xs:string)*) as map(xs:string, xs:integer) {
+  map:merge(for $layer in $orders for member $id at $p in $layer return { $id: $p })
+};
+
+(:~ One layer, sorted by the barycentre of each vertex: the mean position
+    of its neighbours in the layer next to it. A vertex without
+    neighbours there keeps its own position, and the sort is stable, so
+    a tie keeps the order the layer had. :)
+declare function draw:sort-layer(
+  $layer as array(xs:string),
+  $neighbours as fn(xs:string) as xs:string*,
+  $positions as map(xs:string, xs:integer)
+) as array(xs:string) {
+  let $own := draw:positions($layer)
+  return array {
+    sort($layer?*, (), fn($id) {
+      let $around := $neighbours($id)
+      return if (empty($around)) then $own($id) else avg($around ! $positions(.))
+    })
+  }
+};
+
+(:~ Phase 3. The vertices of every layer, top to bottom, in the order
+    that crosses the fewest links. The first order is the order of the
+    description; then sweeps go down the layers, sorting each by the one
+    above, and up again, sorting each by the one below. The best order
+    any sweep finds is kept, and the first one wins a tie. :)
+declare function draw:orders($proper as map(*)) as array(xs:string)* {
+  let $layers := $proper?layers
+  let $links := $proper?links
+  let $vertices := $proper?vertices
+  let $count := max(map:items($layers)) + 1
+  let $first := (0 to $count - 1) ! (
+    let $layer := .
+    return array { sort($vertices[$layers(?id) = $layer], (), fn($v) { $v?key })?id }
+  )
+  let $total := fn($orders) {
+    let $positions := draw:positions($orders)
+    return sum(for $layer in 0 to $count - 2
+      return draw:crossings($links[$layers(?from) = $layer], $positions))
+  }
+  let $above := fn($id) { $links[?to = $id]?from }
+  let $below := fn($id) { $links[?from = $id]?to }
+  let $sweep := fn($orders, $down) {
+    let $range := if ($down) then 2 to $count else reverse(1 to $count - 1)
+    return fold-left($range, $orders, fn($done, $index) {
+      let $positions := draw:positions($done)
+      let $sorted := draw:sort-layer($done[$index],
+        if ($down) then $above else $below, $positions)
+      return ($done[position() &lt; $index], $sorted, $done[position() &gt; $index])
+    })
+  }
+  let $result := fold-left(1 to 8, { "best": $first, "crossings": $total($first), "now": $first },
+    fn($state, $pass) {
+      let $next := $sweep($state?now, $pass mod 2 = 1)
+      let $crossings := $total($next)
+      return if ($crossings &lt; $state?crossings)
+        then { "best": $next, "crossings": $crossings, "now": $next }
+        else map:put($state, "now", $next)
+    })
+  return $result?best
+};
+</code></pre>
+<p>The model order matters twice here. The first order of every layer is
+the order of the keys, the order of the description. And <code>sort</code>, with
+the key function as its third argument, is <em>stable</em>: two vertices with
+the same barycentre keep the order they had. The result is the order
+with the fewest crossings that any sweep found, and on a tie the
+earlier one wins, so the order of the description stays whenever no
+sweep does better. Here are the layers of <code>states.xml</code>, top to bottom:</p>
+<pre><code class="language-console">$ sxml xquery --method=adaptive --context-item=states.xml --expression='import module namespace draw = "urn:example:draw" at "draw.xqm"; let $graph := draw:graph(/diagram) return draw:orders(draw:proper($graph, draw:layers($graph)))'
+["archived"]
+["label-5"]
+["stable"]
+["label-1","label-3","label-4"]
+["checking","bend-4-4"]
+["label-2","bend-4-5"]
+["rolling-out"]
+</code></pre>
+<h2 id="places"><a class="header" href="#places">Places</a></h2>
+<p>Now coordinates. Each vertex wants to be at the mean x of its
+neighbours, so that its links are short and steep, but the vertices of
+a layer must keep their order and a gap between them. Finding the x
+closest to what each one wants, under those rules, is a small classic.
+Subtract from each wanted x the room the vertices before it need; the
+rule "at least that far right of the one before" becomes "never smaller
+than the one before". Then go along the layer, and wherever a value is
+smaller than the one before, pool the two into one block at their mean,
+and keep pooling backwards while blocks are out of order. This is
+<em>isotonic regression</em> by <em>pooling adjacent violators</em>, and it gives the
+closest positions there are:</p>
+<pre><code class="language-xquery">(:~ The x of each vertex of one layer, in its order, as close as it can
+    be to where it wants to be while keeping the gap to its neighbours.
+    Shifting each x by the room the vertices before it need turns the
+    gaps into "never smaller than the one before"; the closest such
+    sequence comes from pooling neighbours that are out of order into a
+    block at their mean (isotonic regression by pooling adjacent
+    violators). :)
+declare function draw:pack($widths as array(xs:integer)*, $wants as xs:decimal*) as xs:decimal* {
+  let $offsets := fold-left(2 to count($widths), 0, fn($offsets, $i) {
+    $offsets, $offsets[last()] + $widths[$i - 1](2) + $draw:gap-across + $widths[$i](1)
+  })
+  let $targets := for $i in 1 to count($wants) return $wants[$i] - $offsets[$i]
+  let $blocks := fold-left($targets, (), fn($blocks, $target) {
+    while-do(
+      ($blocks, { "sum": $target, "count": 1 }),
+      fn($all) {
+        count($all) &gt; 1 and $all[last() - 1]?sum div $all[last() - 1]?count
+                          &gt; $all[last()]?sum div $all[last()]?count
+      },
+      fn($all) {
+        let $a := $all[last() - 1]
+        let $b := $all[last()]
+        return ($all[position() &lt; last() - 1],
+                { "sum": $a?sum + $b?sum, "count": $a?count + $b?count })
+      }
+    )
+  })
+  let $pooled := $blocks ! (let $mean := ?sum div ?count return (1 to ?count) ! $mean)
+  return for $i in 1 to count($wants) return $pooled[$i] + $offsets[$i]
+};
+
+(:~ Phase 4. The x of every vertex. The vertices start packed from the
+    left; then passes go down and up the layers, each vertex wanting to
+    be at the mean x of its neighbours in the layer just done. A bend has
+    one neighbour on each side, so it lines up, and long edges come out
+    straight. :)
+declare function draw:xs($proper as map(*), $orders as array(xs:string)*) as map(xs:string, xs:decimal) {
+  let $vertices := map:build($proper?vertices, fn($v) { $v?id })
+  let $links := $proper?links
+  let $widths := fn($layer) { $layer?* ! [ $vertices(.)?left, $vertices(.)?right ] }
+  let $start := map:merge(
+    for $layer in $orders
+    let $packed := draw:pack($widths($layer), $layer?* ! 0)
+    for member $id at $p in $layer
+    return { $id: $packed[$p] }
+  )
+  let $count := count($orders)
+  return fold-left(1 to 8, $start, fn($xs, $pass) {
+    let $down := $pass mod 2 = 1
+    let $range := if ($down) then 2 to $count else reverse(1 to $count - 1)
+    return fold-left($range, $xs, fn($xs, $index) {
+      let $layer := $orders[$index]
+      let $wants := $layer?* ! (
+        let $id := .
+        let $around := if ($down) then $links[?to = $id]?from else $links[?from = $id]?to
+        return if (empty($around)) then $xs($id) else avg($around ! $xs(.))
+      )
+      let $packed := draw:pack($widths($layer), $wants)
+      return map:merge((for member $id at $p in $layer return { $id: $packed[$p] }, $xs))
+    })
+  })
+};
+</code></pre>
+<p>Two boxes 100 wide that both want to be at 100 can't be: they need 130
+between their centres, 50 + 30 + 50, so they share the difference, 65
+each way:</p>
+<pre><code class="language-console">$ sxml xquery --method=adaptive --expression='import module namespace draw = "urn:example:draw" at "draw.xqm"; draw:pack(([50, 50], [50, 50]), (100, 100))'
+35
+165
+</code></pre>
+<p><code>draw:xs</code> runs this for each layer in passes down and up the layers.
+A bend vertex has one neighbour above and one below, and so lines up
+with them, and the long edge it belongs to comes out nearly straight.</p>
+<h2 id="routes"><a class="header" href="#routes">Routes</a></h2>
+<p>The last phase draws the edges, <em>orthogonally</em>, as ELK does by
+default: every edge is made of horizontal and vertical lines. It leaves
+the bottom of its upper box and enters the top of its lower one; where
+several edges meet a side, their ends are spread along it in the order
+of where they go, so that they don't cross at the box. It runs straight
+down through its label (the label to its right) and through its bends,
+and turns only in the gap between two layers: down from where it is,
+across, and down to where it goes. A label or a bend that is within a
+few units of the line above it moves onto it, and a box with one edge
+coming in takes the edge where it arrives, so that short jogs don't
+appear.</p>
+<p>The horizontal parts in one gap must not lie on top of each other, so
+each gets a <em>track</em> of its own, one above the other, and the gap is as
+high as its tracks need. Which segment goes above which decides how
+many lines cross: the one above crosses the other's horizontal on its
+way down if it goes down inside the other's span, and the one below
+crosses the first one's horizontal on its way in if it comes in inside
+that span. <code>draw:tracks</code> puts each pair the way that crosses less,
+then gives each segment the track below the lowest of those that must
+be above it, the same longest path as the layers. A loop is a bracket
+on the right of its box:</p>
+<pre><code class="language-xquery">(:~ The path of an edge from a node to itself: a bracket on the right of
+    the box, and the place of its label beside it. :)
+declare function draw:loop($box as draw:box) as draw:route {
+  let $side := $box?x + $box?width
+  return draw:route(
+    draw:path((
+      draw:place($side, $box?y + 12),
+      draw:place($side + $draw:loop-width - 10, $box?y + 12),
+      draw:place($side + $draw:loop-width - 10, $box?y + $box?height - 12),
+      draw:place($side, $box?y + $box?height - 12)
+    )),
+    draw:place($side + $draw:loop-width - 4, $box?y + $box?height idiv 2 + 4)
+  )
+};
+
+(:~ The SVG path through a sequence of points: straight lines, here
+    always horizontal or vertical. A point where the path does not turn
+    is left out. :)
+declare function draw:path($points as draw:place*) as xs:string {
+  let $turns := $points[
+    let $i := position()
+    return $i = (1, last()) or not(
+      ($points[$i - 1]?x = ?x and ?x = $points[$i + 1]?x) or
+      ($points[$i - 1]?y = ?y and ?y = $points[$i + 1]?y))
+  ]
+  return string-join((
+    `M { $turns[1]?x } { $turns[1]?y }`,
+    $turns[position() &gt; 1] ! `L { ?x } { ?y }`
+  ), " ")
+};
+
+(:~ The track of each horizontal segment in the gap between two layers,
+    from 0 at the top. A segment runs from where its edge comes down, x1,
+    to where it goes on down, x2. Two segments whose spans overlap need
+    different tracks, and their order decides how often they cross: the
+    one above crosses the other's horizontal with its way down when its
+    x2 is inside the other's span, and the one below crosses with its
+    way in when its x1 is inside the first one's span. Each pair goes
+    the way that crosses less (on a tie, the first segment above), and a
+    segment's track is one below the lowest of those that must be above
+    it. :)
+declare function draw:tracks($segments as map(*)*) as xs:integer* {
+  let $inside := fn($x, $segment) {
+    $x &gt;= min(($segment?x1, $segment?x2)) - 6 and $x &lt;= max(($segment?x1, $segment?x2)) + 6
+  }
+  let $overlap := fn($a, $b) {
+    $inside($a?x1, $b) or $inside($a?x2, $b) or $inside($b?x1, $a) or $inside($b?x2, $a)
+  }
+  let $cost := fn($above, $below) {
+    count(($inside($above?x2, $below)[.], $inside($below?x1, $above)[.]))
+  }
+  let $count := count($segments)
+  let $above := for $i in 1 to $count return array {
+    for $j in 1 to $count
+    where $j != $i and $overlap($segments[$i], $segments[$j])
+    let $up := $cost($segments[$j], $segments[$i])
+    let $down := $cost($segments[$i], $segments[$j])
+    where $up &lt; $down or ($up = $down and $j &lt; $i)
+    return $j
+  }
+  let $tracks := fold-left(1 to $count, (1 to $count) ! 0, fn($tracks, $pass) {
+    for $i in 1 to $count
+    return max((0, for $j in $above[$i]?* return $tracks[$j] + 1))
+  })
+  return $tracks ! min((., $count - 1))
+};
+</code></pre>
+<p>Two segments that overlap, one from 10 to 100 and one from 50 to 200.
+With the first one above, its way down at 100 crosses the second's
+horizontal, and the second's way in at 50 crosses the first's: two
+crossings. The other way round there are none, so the second segment
+takes the upper track, 0, and the first the one below it. A third, far
+away from both, shares the upper track:</p>
+<pre><code class="language-console">$ sxml xquery --method=adaptive --expression='import module namespace draw = "urn:example:draw" at "draw.xqm"; draw:tracks(({"x1": 10, "x2": 100}, {"x1": 50, "x2": 200}, {"x1": 300, "x2": 400})), draw:path((draw:place(90, 60), draw:place(90, 80), draw:place(150, 80), draw:place(150, 124))), draw:loop(draw:box(20, 20, 100, 40))?path'
+1
+0
+0
+"M 90 60 L 90 80 L 150 80 L 150 124"
+"M 120 32 L 136 32 L 136 48 L 120 48"
+</code></pre>
+<h2 id="the-whole-layout"><a class="header" href="#the-whole-layout">The whole layout</a></h2>
+<p><code>draw:layout</code> runs the five phases and turns the results into a record:
+the size of the drawing, a box per node and a route per edge, by the
+edge's position in the description. The y of every layer waits for
+the tracks, since each gap is as high as its tracks need. A reversed
+edge is routed the other way round, from its end to its start, so that its arrow points the way
+the edge goes.</p>
+<pre><code class="language-xquery">(:~ The layout of a diagram: all five phases. Phase 5, the routes, are
+    orthogonal: an edge leaves the bottom of its upper box and enters the
+    top of its lower one, at points spread along the side in the order of
+    the other ends, so that edges on one side do not cross there. It runs
+    straight down through its label and its bends, and turns only in the
+    gaps between layers, each turn on a track of its own; a gap is as
+    high as its tracks need. A reversed edge is drawn the other way round,
+    so that its arrow points where the edge goes. :)
+declare function draw:layout($diagram as element(diagram)) as draw:layout {
+  let $graph := draw:graph($diagram)
+  let $proper := draw:proper($graph, draw:layers($graph))
+  let $orders := draw:orders($proper)
+  let $xs := draw:xs($proper, $orders)
+  let $vertices := map:build($proper?vertices, fn($v) { $v?id })
+  let $links := $proper?links
+  let $layers := $proper?layers
+  let $shift := $draw:padding - min($proper?vertices ! ($xs(?id) - ?left))
+  let $x := fn($id) { xs:integer(round($xs($id) + $shift)) }
+  let $node := fn($id) { $vertices($id)?kind = "node" }
+  let $port-x := fn($id, $other, $bottom) {
+    let $left := $x($id) - $vertices($id)?left
+    let $width := 2 * $vertices($id)?left
+    let $ends := sort(if ($bottom) then $links[?from = $id]?to else $links[?to = $id]?from,
+                      (), fn($end) { $xs($end) })
+    return $left + $width * index-of($ends, $other)[1] idiv (count($ends) + 1)
+  }
+  (: A label or bend that is within a few units of where its edge comes
+     down lines up with it, layer by layer, so the edge doesn't jog. :)
+  let $lined-up := fold-left($orders, {}, fn($lined-up, $layer) {
+    map:merge(($lined-up,
+      for member $id in $layer
+      where not($node($id))
+      let $from := $links[?to = $id]?from
+      let $above := if ($node($from)) then $port-x($from, $id, true()) else $lined-up($from)
+      return { $id: if (abs($above - $x($id)) &lt;= 12) then $above else $x($id) }
+    ))
+  })
+  let $segments := (
+    for $link in $links
+    let $from := $link?from
+    let $to := $link?to
+    let $x1 := if ($node($from)) then $port-x($from, $to, true()) else $lined-up($from)
+    let $alone := count($links[?to = $to]) = 1
+    let $x2 := if (not($node($to))) then $lined-up($to)
+      else if ($alone and abs($x1 - $x($to)) &lt;= $vertices($to)?left - 10) then $x1
+      else $port-x($to, $from, false())
+    return { "link": $link, "gap": $layers($from), "x1": $x1, "x2": $x2 }
+  )
+  let $turns := $segments[?x1 != ?x2]
+  let $tracks := map:merge(
+    for $turns-in-gap in $turns
+    group by $gap := $turns-in-gap?gap
+    let $numbers := draw:tracks($turns-in-gap)
+    return { $gap: $numbers }
+  )
+  let $track := fn($segment) {
+    let $in-gap := $turns[?gap = $segment?gap]
+    let $i := (for $other at $p in $in-gap
+               where deep-equal($other?link, $segment?link) return $p)[1]
+    return $tracks($segment?gap)[$i]
+  }
+  let $heights := $orders ! max((0, ?* ! $vertices(.)?height))
+  let $gaps := for $gap in 0 to count($orders) - 2
+    return max(($draw:gap-down, (max((-1, $tracks($gap))) + 2) * $draw:track-gap))
+  let $tops := fold-left(1 to count($heights), (), fn($tops, $layer) {
+    $tops, if ($layer = 1) then $draw:padding
+           else $tops[last()] + $heights[$layer - 1] + $gaps[$layer - 1]
+  })
+  let $band := fn($id) {
+    let $layer := $layers($id) + 1
+    return ($tops[$layer], $tops[$layer] + $heights[$layer])
+  }
+  let $boxes := map:merge(
+    for $vertex in $proper?vertices[?kind = "node"]
+    let $top := $band($vertex?id)[1] + ($heights[$layers($vertex?id) + 1] - $vertex?height) idiv 2
+    return { $vertex?id: draw:box($x($vertex?id) - $vertex?left, $top, 2 * $vertex?left, $vertex?height) }
+  )
+  let $leave := fn($id) { if ($node($id)) then $boxes($id)?y + $boxes($id)?height else $band($id)[2] }
+  let $enter := fn($id) { if ($node($id)) then $boxes($id)?y else $band($id)[1] }
+  let $reversed := draw:reversed($diagram)
+  let $routes := map:merge((
+    for $edge at $e in $diagram/edge
+    where $edge/@from = $edge/@to
+    return { $e: draw:loop($boxes($edge/@from)) },
+    for $edge at $e in $diagram/edge
+    where $edge/@from != $edge/@to
+    let $steps := sort($segments[?link?edge = $e], (), fn($segment) { $segment?gap })
+    let $points := (
+      for $segment in $steps
+      let $from := $segment?link?from
+      let $to := $segment?link?to
+      let $y := $band($from)[2] + ($track($segment) + 1) * $draw:track-gap
+      return (
+        draw:place($segment?x1, $leave($from)),
+        if ($segment?x1 != $segment?x2)
+          then (draw:place($segment?x1, $y), draw:place($segment?x2, $y)) else (),
+        draw:place($segment?x2, $enter($to))
+      )
+    )
+    let $label := $steps[starts-with(?link?to, "label-")] ! (
+      let $id := ?link?to
+      return draw:place($lined-up($id) + 5, sum($band($id)) idiv 2 + 4)
+    )
+    return { $e: draw:route(
+      draw:path(if ($e = $reversed) then reverse($points) else $points),
+      $label
+    ) }
+  ))
+  let $width := max($proper?vertices ! ($x(?id) + ?right)) + $draw:padding
+  let $height := $tops[last()] + $heights[last()] + $draw:padding
+  return draw:layout($width, $height, $boxes, $routes)
+};
+</code></pre>
+<pre><code class="language-console">$ sxml xquery --method=adaptive --context-item=diagram.xml --expression='import module namespace draw = "urn:example:draw" at "draw.xqm"; draw:layout(/diagram)?boxes'
+{"browser":{"x":20,"y":20,"width":126,"height":40},"node":{"x":176,"y":20,"width":102,"height":40},"api":{"x":105,"y":124,"width":100,"height":40},"flags":{"x":104,"y":188,"width":102,"height":40},"registry":{"x":20,"y":252,"width":126,"height":40},"cache":{"x":176,"y":252,"width":102,"height":40},"postgresql":{"x":32,"y":356,"width":102,"height":40},"redis":{"x":177,"y":356,"width":100,"height":40}}
+</code></pre>
+<p>These are the boxes in <code>diagram.svg</code>: the <code>rect</code> of <code>registry</code> has the
+<code>x</code>, <code>y</code> and width of its box.</p>
+<h2 id="the-layout-as-xml"><a class="header" href="#the-layout-as-xml">The layout as XML</a></h2>
+<p>Maps and records are what XQuery computes with, but another tool can't
+read them. <code>layout.xq</code> writes the layout as XML: the description again,
+with the size of the drawing on <code>diagram</code>, the box on each <code>node</code>, and
+the path (<code>d</code>) and the place of the label on each <code>edge</code>:</p>
+<p><code>layout.xq</code>:</p>
+<pre><code class="language-xquery">xquery version "4.0";
+(: The layout of a diagram (the context item) as XML: the description
+   with the size of the drawing, the box of every node, and the path of
+   every edge, with the place of its label. :)
+import module namespace draw = "urn:example:draw" at "draw.xqm";
+declare option output:indent "yes";
+
+let $diagram := /diagram
+let $layout := draw:layout($diagram)
+return &lt;diagram&gt;{
+  $diagram/@*,
+  attribute width { $layout?width },
+  attribute height { $layout?height },
+  for $node in $diagram/node
+  let $box := $layout?boxes($node/@id)
+  return &lt;node&gt;{
+    $node/@*,
+    for $name in ("x", "y", "width", "height")
+    return attribute { $name } { $box($name) }
+  }&lt;/node&gt;,
+  for $edge at $position in $diagram/edge
+  let $route := $layout?routes($position)
+  return &lt;edge&gt;{
+    $edge/@*,
+    attribute d { $route?path },
+    $route?label ! (attribute label-x { ?x }, attribute label-y { ?y })
+  }&lt;/edge&gt;
+}&lt;/diagram&gt;
+</code></pre>
+<p>Attributes are copied from the description and made with computed
+attribute constructors: <code>attribute { $name } { … }</code> takes its name from
+an expression, which is how the four numbers of a box get their names.
+An edge between two modules has no <code>label</code> in the description, so it
+has no label place either: <code>$route?label ! (…)</code> makes the attributes
+only when there is one.</p>
+<pre><code class="language-console">$ sxml xquery --context-item=diagram.xml layout.xq
+&lt;diagram title="Vane" width="299" height="416"&gt;
+  &lt;node id="browser" label="@vane/browser" x="20" y="20" width="126" height="40"/&gt;
+  &lt;node id="node" label="@vane/node" x="176" y="20" width="102" height="40"/&gt;
+  &lt;node id="api" label="vane/api" x="105" y="124" width="100" height="40"/&gt;
+  &lt;node id="flags" label="vane/flags" x="104" y="188" width="102" height="40"/&gt;
+  &lt;node id="registry" label="vane/registry" x="20" y="252" width="126" height="40"/&gt;
+  &lt;node id="cache" label="vane/cache" x="176" y="252" width="102" height="40"/&gt;
+  &lt;node id="postgresql" label="postgresql" kind="store" x="32" y="356" width="102" height="40"/&gt;
+  &lt;node id="redis" label="redis" kind="store" x="177" y="356" width="100" height="40"/&gt;
+  &lt;edge from="browser" to="api" label="HTTP" d="M 83 60 L 83 70 L 123 70 L 123 110 L 138 110 L 138 124" label-x="128" label-y="96"/&gt;
+  &lt;edge from="node" to="api" label="HTTP" d="M 227 60 L 227 70 L 187 70 L 187 110 L 171 110 L 171 124" label-x="192" label-y="96"/&gt;
+  &lt;edge from="api" to="flags" d="M 155 164 L 155 188"/&gt;
+  &lt;edge from="flags" to="registry" d="M 138 228 L 138 238 L 83 238 L 83 252"/&gt;
+  &lt;edge from="flags" to="cache" d="M 172 228 L 172 238 L 227 238 L 227 252"/&gt;
+  &lt;edge from="registry" to="postgresql" label="SQL" d="M 83 292 L 83 356" label-x="88" label-y="328"/&gt;
+  &lt;edge from="cache" to="redis" label="Redis" d="M 227 292 L 227 356" label-x="232" label-y="328"/&gt;
+&lt;/diagram&gt;
+</code></pre>
+<p><a href="svg-xslt.html">Drawing with XSLT</a> draws from this file. First, the
+drawing in XQuery itself.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="svg.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="svg-xquery.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="svg.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="svg-xquery.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="style/sxml.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

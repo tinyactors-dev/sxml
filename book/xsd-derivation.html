@@ -1,0 +1,461 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Deriving Types - The sxml Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Learn XPath 4.0, XQuery 4.0, XSLT 4.0 and XSD 1.1 with sxml, the small XML toolchain in portable C.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="style/sxml.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "coal";
+            window.path_to_searchindex_js = "searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The sxml Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml/edit/main/docs/book/src/xsd-derivation.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="deriving-types"><a class="header" href="#deriving-types">Deriving Types</a></h1>
+<!-- examples: spec -->
+<p>Simple types are derived by restriction, as <a href="xsd-simple-types.html">Simple Types and
+Facets</a> showed. Complex types can be derived too,
+in two ways: <em>extension</em> adds content to a type, and <em>restriction</em>
+narrows it. A derived type can be used wherever its base type is
+expected, which gives XSD something like the subclasses of
+object-oriented languages.</p>
+<h2 id="extension"><a class="header" href="#extension">Extension</a></h2>
+<p><code>vane.xsd</code> already has two extensions, of a simple type. A <code>title</code> is
+an <code>xs:string</code> with an <code>abbrev</code> attribute, and a <code>sourcecode</code> is an
+<code>xs:string</code> with a <code>type</code> and a <code>name</code>:</p>
+<pre><code class="language-xml">  &lt;xs:complexType name="title"&gt;
+    &lt;xs:simpleContent&gt;
+      &lt;xs:extension base="xs:string"&gt;
+        &lt;xs:attribute name="abbrev" type="xs:string"/&gt;
+      &lt;/xs:extension&gt;
+    &lt;/xs:simpleContent&gt;
+  &lt;/xs:complexType&gt;
+</code></pre>
+<p><code>xs:simpleContent</code> with <code>xs:extension</code> adds attributes to a simple
+type, and the result is a complex type with simple content.</p>
+<p>An editor who works on the draft keeps a worksheet: the paragraphs to
+look at, some source code, and the day the next draft is due. Its
+schema, <code>xsd-derivation.xsd</code>, includes <code>vane.xsd</code> and derives new
+types from the draft's:</p>
+<p><code>xsd-derivation.xsd</code>:</p>
+<pre><code class="language-xml">&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;!-- An editor's worksheet for the draft: blocks of the draft to work on,
+     and the day the next draft is due. It derives types from vane.xsd's
+     and makes the blocks a substitution group. --&gt;
+&lt;xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"&gt;
+
+  &lt;xs:include schemaLocation="vane.xsd"/&gt;
+
+  &lt;!-- Restriction: a requirement is a paragraph whose anchor is required. --&gt;
+  &lt;xs:complexType name="requirement" mixed="true"&gt;
+    &lt;xs:complexContent&gt;
+      &lt;xs:restriction base="text"&gt;
+        &lt;xs:group ref="inline" minOccurs="0" maxOccurs="unbounded"/&gt;
+        &lt;xs:attribute name="anchor" type="anchor" use="required"/&gt;
+      &lt;/xs:restriction&gt;
+    &lt;/xs:complexContent&gt;
+  &lt;/xs:complexType&gt;
+
+  &lt;!-- Extension: a changed requirement also says since which draft. --&gt;
+  &lt;xs:complexType name="changed-requirement" mixed="true" final="#all"&gt;
+    &lt;xs:complexContent&gt;
+      &lt;xs:extension base="requirement"&gt;
+        &lt;xs:attribute name="since" type="draft-name" use="required"/&gt;
+      &lt;/xs:extension&gt;
+    &lt;/xs:complexContent&gt;
+  &lt;/xs:complexType&gt;
+
+  &lt;!-- A substitution group: t, dl and sourcecode can stand in for block. --&gt;
+  &lt;xs:element name="block" abstract="true"/&gt;
+  &lt;xs:element name="t" type="text" substitutionGroup="block"/&gt;
+  &lt;xs:element name="dl" type="definition-list" substitutionGroup="block"/&gt;
+  &lt;xs:element name="sourcecode" type="sourcecode" substitutionGroup="block"/&gt;
+
+  &lt;xs:element name="worksheet"&gt;
+    &lt;xs:complexType&gt;
+      &lt;xs:sequence&gt;
+        &lt;xs:element ref="block" maxOccurs="unbounded"/&gt;
+        &lt;xs:element name="due" type="xs:date" nillable="true"/&gt;
+      &lt;/xs:sequence&gt;
+    &lt;/xs:complexType&gt;
+  &lt;/xs:element&gt;
+&lt;/xs:schema&gt;
+</code></pre>
+<p><code>changed-requirement</code> extends <code>requirement</code> with a <code>since</code> attribute
+that names the draft that changed it. An extension's content is the
+base type's content followed by its own, and its attributes are the
+base type's and its own. Here only an attribute is added, so a changed
+requirement has the mixed content of every paragraph.</p>
+<h2 id="restriction"><a class="header" href="#restriction">Restriction</a></h2>
+<p>A restriction of a complex type allows a subset of what its base type
+allows. It writes out the whole content again, narrowed. <code>requirement</code>
+is a <code>text</code> whose <code>anchor</code> is required: every requirement is a valid
+paragraph, but not every paragraph is a requirement. sxml checks, when
+it compiles the schema, that a restriction really narrows. Making the
+anchor optional again in a restriction of <code>requirement</code> is an error:</p>
+<pre><code class="language-console">$ echo '&lt;xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"&gt;
+  &lt;xs:include schemaLocation="xsd-derivation.xsd"/&gt;
+  &lt;xs:complexType name="loose-requirement" mixed="true"&gt;
+    &lt;xs:complexContent&gt;
+      &lt;xs:restriction base="requirement"&gt;
+        &lt;xs:group ref="inline" minOccurs="0" maxOccurs="unbounded"/&gt;
+        &lt;xs:attribute name="anchor" type="anchor"/&gt;
+      &lt;/xs:restriction&gt;
+    &lt;/xs:complexContent&gt;
+  &lt;/xs:complexType&gt;
+&lt;/xs:schema&gt;' | sxml validate --schema=- xsd-worksheet.xml
+-:3:3: derivation-ok-restriction.3: The attributes of a restriction are not allowed by its base
+</code></pre>
+<h2 id="choosing-the-type-in-the-document-xsitype"><a class="header" href="#choosing-the-type-in-the-document-xsitype">Choosing the type in the document: xsi:type</a></h2>
+<p>The worksheet declares its paragraphs as <code>t</code> with the type <code>text</code>. In
+the document, the attribute <code>xsi:type</code> says that a paragraph has a type
+derived from <code>text</code>. <code>xsi</code> is the namespace
+<code>http://www.w3.org/2001/XMLSchema-instance</code>, which XSD reserves for
+attributes that talk to the validator:</p>
+<p><code>xsd-worksheet.xml</code>:</p>
+<pre><code class="language-xml">&lt;worksheet xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"&gt;
+  &lt;t xsi:type="requirement" anchor="req-3"&gt;A rolling-out flag
+  &lt;bcp14&gt;SHOULD&lt;/bcp14&gt; return to the state "stable" ten minutes after
+  its rollout step began.&lt;/t&gt;
+  &lt;t xsi:type="changed-requirement" anchor="req-7"
+     since="draft-example-vane-protocol-01"&gt;After three failed checks in
+  a row, a service &lt;bcp14&gt;MUST&lt;/bcp14&gt; put the flag in a pause.&lt;/t&gt;
+  &lt;t&gt;Check the pause section against the state machine.&lt;/t&gt;
+  &lt;sourcecode type="abnf"&gt;percentage = 1*3DIGIT&lt;/sourcecode&gt;
+  &lt;due xsi:nil="true"/&gt;
+&lt;/worksheet&gt;
+</code></pre>
+<pre><code class="language-console">$ sxml validate --schema=xsd-derivation.xsd xsd-worksheet.xml
+</code></pre>
+<p>Each <code>t</code> is validated by the type its <code>xsi:type</code> names, or by <code>text</code>
+when it has none. These mistakes show the rules:</p>
+<p><code>bad-worksheet.xml</code>:</p>
+<pre><code class="language-xml">&lt;worksheet xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"&gt;
+  &lt;t xsi:type="requirement"&gt;A flag &lt;bcp14&gt;MUST&lt;/bcp14&gt; start stable.&lt;/t&gt;
+  &lt;t xsi:type="changed-requirement" anchor="req-8"&gt;A pause
+  &lt;bcp14&gt;SHOULD&lt;/bcp14&gt; last five minutes.&lt;/t&gt;
+  &lt;t xsi:type="xs:string" xmlns:xs="http://www.w3.org/2001/XMLSchema"&gt;Plain.&lt;/t&gt;
+  &lt;block/&gt;
+  &lt;figure&gt;A drawing of the states.&lt;/figure&gt;
+  &lt;due/&gt;
+&lt;/worksheet&gt;
+</code></pre>
+<pre><code class="language-console">$ sxml validate --schema=xsd-derivation.xsd bad-worksheet.xml
+bad-worksheet.xml:2:3: cvc-complex-type.4: element 't' lacks the required attribute 'anchor'
+bad-worksheet.xml:3:3: cvc-complex-type.4: element 't' lacks the required attribute 'since'
+bad-worksheet.xml:5:6: cvc-elt.4.3: xsi:type gives element 't' type 'xs:string', which is not validly derived from its declared type, type 'text'
+bad-worksheet.xml:6:3: cvc-elt.2: element 'block' has an abstract declaration
+bad-worksheet.xml:7:3: cvc-complex-type.2.4: element 'figure' is not allowed here; expected 'block' or 'due'
+bad-worksheet.xml:8:3: cvc-datatype-valid.1.2.1: element 'due' has the value '', which is not valid for type 'xs:date'
+</code></pre>
+<ul>
+<li>The first paragraph says it is a requirement, but has no anchor.</li>
+<li>The second is a changed requirement without its <code>since</code>.</li>
+<li>The third names a type that isn't derived from <code>text</code> at all.
+sxml ignores that <code>xsi:type</code>, and validates the paragraph as <code>text</code>.</li>
+</ul>
+<p>The last three are about the substitution group and <code>xsi:nil</code>, below.</p>
+<p>Types derived from the declared type are what make queries over mixed
+content easy. With the schema's types, <code>element(*, requirement)</code>
+matches every element whose type is <code>requirement</code> or derived from it,
+so the changed requirement counts too:</p>
+<pre><code class="language-console">$ sxml xquery --method=adaptive --context-item=xsd-worksheet.xml --expression='
+    import schema default element namespace "" at "xsd-derivation.xsd";
+    (validate { / })//t[. instance of element(*, requirement)]/@anchor/string()'
+"req-3"
+"req-7"
+</code></pre>
+<p>A type can be <em>abstract</em> too. <code>abstract="true"</code> on a complex type
+means that no element may have that type itself, only a type derived
+from it; it is a type that exists to be derived from. Made abstract,
+<code>requirement</code> can no longer be named in <code>xsi:type</code>, while
+<code>changed-requirement</code> still can:</p>
+<pre><code class="language-console">$ sed 's/&lt;xs:complexType name="requirement" mixed="true"&gt;/&lt;xs:complexType name="requirement" mixed="true" abstract="true"&gt;/' \
+    xsd-derivation.xsd &gt; abstract.xsd
+$ sxml validate --schema=abstract.xsd xsd-worksheet.xml
+xsd-worksheet.xml:2:3: cvc-type.2: the type of element 't' is abstract: type 'requirement'
+</code></pre>
+<h2 id="substitution-groups"><a class="header" href="#substitution-groups">Substitution groups</a></h2>
+<p><code>xsi:type</code> keeps one element name and varies the type. A <em>substitution
+group</em> varies the element name instead: a global element declares that
+it can stand in for another, the <em>head</em> of the group, wherever the head
+is allowed. In the worksheet, <code>t</code>, <code>dl</code> and <code>sourcecode</code> are members of
+the group whose head is <code>block</code>, and the worksheet's content model
+names only <code>block</code>.</p>
+<p><code>block</code> is <code>abstract="true"</code>, so it can't appear itself; only its
+members can. That was the fourth mistake above. The fifth, a <code>figure</code>,
+is no member of the group, and the message names the head, <code>block</code>,
+which stands for every member. A member's type must be the head's type
+or derived from it; <code>block</code> has no type, which means <code>xs:anyType</code>, so
+any type will do.</p>
+<p>In XQuery and XSLT, <code>schema-element(block)</code> matches the head and all
+its members:</p>
+<pre><code class="language-console">$ sxml xquery --method=adaptive --context-item=xsd-worksheet.xml --expression='
+    import schema default element namespace "" at "xsd-derivation.xsd";
+    (validate { / })/worksheet/*[. instance of schema-element(block)] ! name()'
+"t"
+"t"
+"t"
+"sourcecode"
+</code></pre>
+<p>In <code>vane.xsd</code>, a section's blocks are a choice of three local
+elements. A substitution group is the open alternative: another schema
+that includes this one can add a member, a <code>table</code> say, and every
+content model that allows a <code>block</code> allows it too, without a change.</p>
+<h2 id="nothing-explicitly"><a class="header" href="#nothing-explicitly">Nothing, explicitly</a></h2>
+<p>An element that is required but has no value can be declared
+<code>nillable="true"</code>. The document then says <code>xsi:nil="true"</code>, and the
+element must be empty: the worksheet's <code>due</code> is there, but no day is
+set yet. That's different from an empty element, which is an empty
+string, and an empty string is not a date: the sixth mistake.</p>
+<p>In XPath, <code>nilled</code> tells a nilled element from others:</p>
+<pre><code class="language-console">$ sxml xquery --method=adaptive --context-item=xsd-worksheet.xml --expression='
+    import schema default element namespace "" at "xsd-derivation.xsd";
+    (validate { / })//due ! nilled(.)'
+true()
+</code></pre>
+<h2 id="controlling-derivation"><a class="header" href="#controlling-derivation">Controlling derivation</a></h2>
+<p>A schema can forbid what others may do with its types. <code>final</code> on a
+type forbids deriving from it (<code>final="extension"</code>, <code>"restriction"</code> or
+<code>"#all"</code>), and <code>block</code> on a type or element forbids using derived types
+in documents, through <code>xsi:type</code> or substitution. <code>changed-requirement</code>
+is final, so a schema that extends it is in error:</p>
+<pre><code class="language-console">$ echo '&lt;xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"&gt;
+  &lt;xs:include schemaLocation="xsd-derivation.xsd"/&gt;
+  &lt;xs:complexType name="reviewed-requirement" mixed="true"&gt;
+    &lt;xs:complexContent&gt;
+      &lt;xs:extension base="changed-requirement"&gt;
+        &lt;xs:attribute name="reviewer" type="xs:string"/&gt;
+      &lt;/xs:extension&gt;
+    &lt;/xs:complexContent&gt;
+  &lt;/xs:complexType&gt;
+&lt;/xs:schema&gt;' | sxml validate --schema=- xsd-worksheet.xml
+-:3:3: cos-ct-extends.1.1: The base type's final forbids extension
+</code></pre>
+<p>Use them for types whose meaning would break if someone extended them,
+or for elements that must have exactly their declared type.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="xsd-complex-types.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="xsd-namespaces.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="xsd-complex-types.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="xsd-namespaces.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="style/sxml.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

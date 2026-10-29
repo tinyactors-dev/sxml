@@ -1,0 +1,519 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Complex Types and Content Models - The sxml Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Learn XPath 4.0, XQuery 4.0, XSLT 4.0 and XSD 1.1 with sxml, the small XML toolchain in portable C.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="style/sxml.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "coal";
+            window.path_to_searchindex_js = "searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The sxml Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml/edit/main/docs/book/src/xsd-complex-types.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="complex-types-and-content-models"><a class="header" href="#complex-types-and-content-models">Complex Types and Content Models</a></h1>
+<!-- examples: spec -->
+<p>A <em>complex type</em> describes an element that has attributes, children,
+or both. Its <em>content model</em> says which children it may have, how
+many, and in which order. This section reads the rest of <code>vane.xsd</code>
+from the top, and finds every kind of content XSD has in the draft.</p>
+<h2 id="elements-and-their-declarations"><a class="header" href="#elements-and-their-declarations">Elements and their declarations</a></h2>
+<p><code>xs:element</code> <em>declares</em> an element: its name and its type. An element
+declared directly in <code>xs:schema</code> is <em>global</em>: it can be the document
+element, and other declarations can refer to it with <code>ref</code>. The others
+are <em>local</em>: they exist only inside the content model where they are
+declared. In <code>vane.xsd</code>, <code>rfc</code> is the only global element, and every
+other element is local.</p>
+<p>A type can be <em>named</em>, with <code>xs:complexType name="section"</code> at the top
+level, and used by name, <code>type="section"</code>; or <em>anonymous</em>, written
+inside the element declaration, as for <code>rfc</code> and <code>middle</code>. Name a type
+when it's used in more than one place, or when you want to refer to it
+from XQuery or XSLT. <code>vane.xsd</code> names most of its types: <code>front</code> is
+used by the draft and by every reference, <code>text</code> by every paragraph,
+<code>dt</code> and <code>dd</code>, and <code>section</code> by sections at every depth.</p>
+<p>Local declarations can give the same name different types in different
+places. <code>t</code> in a section has the type <code>text</code>; <code>name</code> in a section is a
+plain string; and <code>front</code> declares its own <code>title</code>, which is not the
+<code>title</code> of anything else.</p>
+<h2 id="sequences-choices-and-all"><a class="header" href="#sequences-choices-and-all">Sequences, choices and all</a></h2>
+<p>Here are the front matter and the section:</p>
+<pre><code class="language-xml">  &lt;!-- Sections --&gt;
+
+  &lt;xs:complexType name="section"&gt;
+    &lt;xs:sequence&gt;
+      &lt;xs:element name="name" type="xs:string"/&gt;
+      &lt;xs:choice minOccurs="0" maxOccurs="unbounded"&gt;
+        &lt;xs:element name="t" type="text"/&gt;
+        &lt;xs:element name="dl" type="definition-list"/&gt;
+        &lt;xs:element name="sourcecode" type="sourcecode"/&gt;
+      &lt;/xs:choice&gt;
+      &lt;xs:element name="section" type="section" minOccurs="0" maxOccurs="unbounded"/&gt;
+    &lt;/xs:sequence&gt;
+    &lt;xs:attribute name="anchor" type="anchor" use="required"/&gt;
+  &lt;/xs:complexType&gt;
+</code></pre>
+<pre><code class="language-xml">  &lt;xs:complexType name="front"&gt;
+    &lt;xs:sequence&gt;
+      &lt;xs:element name="title" type="title"/&gt;
+      &lt;xs:element name="seriesInfo" type="series-info" minOccurs="0" maxOccurs="unbounded"/&gt;
+      &lt;xs:element name="author" type="author" maxOccurs="unbounded"/&gt;
+      &lt;xs:element name="date" type="date"/&gt;
+      &lt;xs:element name="area" type="xs:string" minOccurs="0" maxOccurs="unbounded"/&gt;
+      &lt;xs:element name="keyword" type="xs:string" minOccurs="0" maxOccurs="unbounded"/&gt;
+      &lt;xs:element name="abstract" minOccurs="0"&gt;
+        &lt;xs:complexType&gt;
+          &lt;xs:sequence&gt;
+            &lt;xs:element name="t" type="text" maxOccurs="unbounded"/&gt;
+          &lt;/xs:sequence&gt;
+        &lt;/xs:complexType&gt;
+      &lt;/xs:element&gt;
+    &lt;/xs:sequence&gt;
+  &lt;/xs:complexType&gt;
+</code></pre>
+<p>Three <em>model groups</em> combine the children:</p>
+<ul>
+<li><code>xs:sequence</code>: the children in this order. The front matter has a
+title, then the series information, the authors, the date, and the
+rest.</li>
+<li><code>xs:choice</code>: exactly one of the alternatives, each time the choice
+occurs. After its <code>name</code>, a section has any number of blocks, each a
+paragraph, a definition list or source code, in any order; then its
+subsections. Groups nest freely, so a choice inside a sequence is
+common.</li>
+<li><code>xs:all</code>: each child at most once, in any order. <code>vane.xsd</code> has
+none, but xml2rfc's address is a good use: an email, a phone number
+and a web address, in whatever order the author wrote them.</li>
+</ul>
+<p><code>minOccurs</code> and <code>maxOccurs</code> on an element or a group say how often it
+may occur. Both are 1 by default; <code>minOccurs="0"</code> makes it optional, and
+<code>maxOccurs="unbounded"</code> removes the upper limit. A draft has one or more
+authors and zero or more keywords; on the section's choice, the two
+attributes let the choice repeat.</p>
+<p><code>xsd-author.xsd</code> describes an author with a fuller address:</p>
+<p><code>xsd-author.xsd</code>:</p>
+<pre><code class="language-xml">&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;!-- An author with more of xml2rfc's address: an xs:all, whose children
+     may come in any order, and an attribute group shared by two types. --&gt;
+&lt;xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"&gt;
+
+  &lt;!-- The names of a person, as xml2rfc writes them. --&gt;
+  &lt;xs:attributeGroup name="names"&gt;
+    &lt;xs:attribute name="fullname" type="xs:string" use="required"/&gt;
+    &lt;xs:attribute name="initials" type="xs:string"/&gt;
+    &lt;xs:attribute name="surname" type="xs:string" use="required"/&gt;
+  &lt;/xs:attributeGroup&gt;
+
+  &lt;xs:complexType name="address"&gt;
+    &lt;xs:all&gt;
+      &lt;xs:element name="email" type="xs:string"/&gt;
+      &lt;xs:element name="phone" type="xs:string" minOccurs="0"/&gt;
+      &lt;xs:element name="uri" type="xs:anyURI" minOccurs="0"/&gt;
+    &lt;/xs:all&gt;
+  &lt;/xs:complexType&gt;
+
+  &lt;xs:element name="author"&gt;
+    &lt;xs:complexType&gt;
+      &lt;xs:sequence&gt;
+        &lt;xs:element name="organization" type="xs:string" minOccurs="0"/&gt;
+        &lt;xs:element name="address" type="address" minOccurs="0"/&gt;
+      &lt;/xs:sequence&gt;
+      &lt;xs:attributeGroup ref="names"/&gt;
+    &lt;/xs:complexType&gt;
+  &lt;/xs:element&gt;
+
+  &lt;!-- A contact of the working group: the same names, no address. --&gt;
+  &lt;xs:element name="contact"&gt;
+    &lt;xs:complexType&gt;
+      &lt;xs:attributeGroup ref="names"/&gt;
+      &lt;xs:attribute name="role" type="xs:token" default="chair"/&gt;
+    &lt;/xs:complexType&gt;
+  &lt;/xs:element&gt;
+&lt;/xs:schema&gt;
+</code></pre>
+<p>The address may list its children in any order, but each only once:</p>
+<pre><code class="language-console">$ echo '&lt;author fullname="Ada Byron" surname="Byron"&gt;&lt;address&gt;&lt;uri&gt;https://example.com/&lt;/uri&gt;&lt;email&gt;ada@example.com&lt;/email&gt;&lt;/address&gt;&lt;/author&gt;' | sxml validate --schema=xsd-author.xsd -
+$ echo '&lt;author fullname="Ada Byron" surname="Byron"&gt;&lt;address&gt;&lt;email&gt;ada@example.com&lt;/email&gt;&lt;phone&gt;1&lt;/phone&gt;&lt;phone&gt;2&lt;/phone&gt;&lt;/address&gt;&lt;/author&gt;' | sxml validate --schema=xsd-author.xsd -
+-:1:101: cvc-complex-type.2.4: element 'phone' is not allowed here; expected 'uri'
+</code></pre>
+<h2 id="attributes"><a class="header" href="#attributes">Attributes</a></h2>
+<p><code>xs:attribute</code> declares an attribute of a complex type, always with a
+simple type. Attributes are optional unless <code>use="required"</code>: every
+section must have an <code>anchor</code>, while a paragraph may have one. A
+<code>default</code> value is added when the attribute is missing; a <code>fixed</code> value
+is added too, and an attribute that is there must have exactly that
+value. The <code>version</code> of <code>rfc</code> is fixed at 3.</p>
+<p>The default is part of the validated document. A contact of
+<code>xsd-author.xsd</code> that doesn't say its role has the role <code>chair</code> after
+validation, and a draft that doesn't say its version has version 3, an
+integer:</p>
+<pre><code class="language-console">$ sxml xquery --method=adaptive --expression='
+    import schema default element namespace "" at "xsd-author.xsd";
+    (validate { &lt;contact fullname="Grace Hopper" surname="Hopper"/&gt; })/@role/string()'
+"chair"
+$ sxml xquery --method=adaptive --expression='
+    import schema default element namespace "" at "vane.xsd";
+    let $draft := validate {
+      &lt;rfc&gt;
+        &lt;front&gt;&lt;title&gt;T&lt;/title&gt;&lt;author fullname="A B" surname="B"/&gt;&lt;date year="2026"/&gt;&lt;/front&gt;
+        &lt;middle&gt;&lt;section anchor="intro"&gt;&lt;name&gt;Introduction&lt;/name&gt;&lt;/section&gt;&lt;/middle&gt;
+      &lt;/rfc&gt;
+    }
+    return ($draft/@version/string(), type-of(data($draft/@version)))'
+"3"
+"xs:integer"
+</code></pre>
+<h2 id="four-kinds-of-content"><a class="header" href="#four-kinds-of-content">Four kinds of content</a></h2>
+<p>The content of a complex type is one of four kinds, and the draft has
+all four:</p>
+<ul>
+<li><strong>Element-only</strong>: children, and no text except whitespace between
+them. That's <code>front</code>, <code>section</code> and <code>rfc</code>.</li>
+<li><strong>Mixed</strong>: children with text between them, with <code>mixed="true"</code>.
+That's <code>text</code>, the type of every paragraph, which allows the inline
+elements anywhere in its text, as often as you like.</li>
+<li><strong>Simple</strong>: text of a simple type, plus attributes, with
+<code>xs:simpleContent</code>. A <code>title</code> is a string with an <code>abbrev</code> attribute;
+a <code>sourcecode</code> is a string with a <code>type</code> and a <code>name</code>.</li>
+<li><strong>Empty</strong>: no content at all, only attributes. A complex type with no
+model group is empty, as <code>date</code> and <code>seriesInfo</code> are.</li>
+</ul>
+<p>Here are the mixed and the simple types:</p>
+<pre><code class="language-xml">  &lt;!-- Text: paragraphs and the inline elements in them --&gt;
+
+  &lt;xs:group name="inline"&gt;
+    &lt;xs:choice&gt;
+      &lt;xs:element name="xref" type="xref"/&gt;
+      &lt;xs:element name="bcp14" type="keyword"/&gt;
+      &lt;xs:element name="em" type="xs:string"/&gt;
+      &lt;xs:element name="strong" type="xs:string"/&gt;
+      &lt;xs:element name="tt" type="xs:string"/&gt;
+      &lt;xs:element name="cref" type="cref"/&gt;
+    &lt;/xs:choice&gt;
+  &lt;/xs:group&gt;
+
+  &lt;xs:complexType name="xref" mixed="true"&gt;
+    &lt;xs:attribute name="target" type="anchor" use="required"/&gt;
+  &lt;/xs:complexType&gt;
+
+  &lt;xs:complexType name="cref" mixed="true"&gt;
+    &lt;xs:attribute name="anchor" type="anchor"/&gt;
+    &lt;xs:attribute name="source" type="xs:string"/&gt;
+  &lt;/xs:complexType&gt;
+
+  &lt;xs:complexType name="text" mixed="true"&gt;
+    &lt;xs:group ref="inline" minOccurs="0" maxOccurs="unbounded"/&gt;
+    &lt;xs:attribute name="anchor" type="anchor"/&gt;
+  &lt;/xs:complexType&gt;
+
+  &lt;xs:complexType name="definition-list"&gt;
+    &lt;xs:sequence maxOccurs="unbounded"&gt;
+      &lt;xs:element name="dt" type="text"/&gt;
+      &lt;xs:element name="dd" type="text"/&gt;
+    &lt;/xs:sequence&gt;
+  &lt;/xs:complexType&gt;
+
+  &lt;xs:complexType name="sourcecode"&gt;
+    &lt;xs:simpleContent&gt;
+      &lt;xs:extension base="xs:string"&gt;
+        &lt;xs:attribute name="type" type="xs:token"/&gt;
+        &lt;xs:attribute name="name" type="xs:string"/&gt;
+      &lt;/xs:extension&gt;
+    &lt;/xs:simpleContent&gt;
+  &lt;/xs:complexType&gt;
+</code></pre>
+<p><code>xref</code> and <code>cref</code> are mixed types without a model group: text, but no
+child elements. That's how xml2rfc writes them: <code>&lt;xref target="term-flag"&gt;flag&lt;/xref&gt;</code> has the text a reader sees, and
+<code>&lt;xref target="RFC2119"/&gt;</code> has none, so the renderer writes the
+reference's name.</p>
+<h2 id="mistakes-in-content"><a class="header" href="#mistakes-in-content">Mistakes in content</a></h2>
+<p>This draft breaks a rule of each kind:</p>
+<p><code>bad-content.xml</code>:</p>
+<pre><code class="language-xml">&lt;rfc version="2"&gt;
+  &lt;front&gt;
+    &lt;author fullname="Ada Byron" surname="Byron"/&gt;
+    &lt;title&gt;Vane in Brief&lt;/title&gt;
+    &lt;date year="2026"&gt;October&lt;/date&gt;
+    See the mailing list.
+  &lt;/front&gt;
+  &lt;middle&gt;
+    &lt;section&gt;
+      &lt;name&gt;Introduction&lt;/name&gt;
+      &lt;t keyword="MUST"&gt;A flag &lt;bcp14&gt;MUST&lt;/bcp14&gt; start stable.&lt;/t&gt;
+      &lt;name&gt;Again&lt;/name&gt;
+    &lt;/section&gt;
+  &lt;/middle&gt;
+&lt;/rfc&gt;
+</code></pre>
+<pre><code class="language-console">$ sxml validate --schema=vane.xsd bad-content.xml
+bad-content.xml:1:6: cvc-au: attribute 'version' has the value '2', not its fixed value '3'
+bad-content.xml:3:5: cvc-complex-type.2.4: element 'author' is not allowed here; expected 'title'
+bad-content.xml:4:5: cvc-complex-type.2.4: element 'title' is not allowed here; expected 'author' or 'date'
+bad-content.xml:5:23: cvc-complex-type.2.1: the text 'October' is not allowed: element 'date' has empty content
+bad-content.xml:5:37: cvc-complex-type.2.3: the text '     See the mailing list.   ' is not allowed: element 'front' has element-only content
+bad-content.xml:9:5: cvc-complex-type.4: element 'section' lacks the required attribute 'anchor'
+bad-content.xml:11:10: cvc-complex-type.3.2.2: attribute 'keyword' is not allowed on element 't'
+bad-content.xml:12:7: cvc-complex-type.2.4: element 'name' is not allowed here; expected 't', 'dl', 'sourcecode' or 'section'
+</code></pre>
+<p>Read them in order:</p>
+<ul>
+<li>The version is 2, not the fixed 3.</li>
+<li>The author comes before the title. sxml takes the title as missing,
+goes on after the author, and then finds the title too late.</li>
+<li>The date has text, but its type is empty: the month belongs in the
+<code>month</code> attribute.</li>
+<li>The front matter has text between its elements; only whitespace is
+allowed there.</li>
+<li>The section has no anchor, which is required.</li>
+<li>The paragraph has an attribute that <code>text</code> doesn't declare. Unlike
+elements in some other schema languages, attributes must be declared
+too.</li>
+<li>The section has a second <code>name</code>, after a paragraph, where only
+blocks and subsections may come.</li>
+</ul>
+<p><code>cvc-complex-type.2.4</code> is the message you'll see most. It says which
+element came where it isn't allowed, and lists the elements that the
+content model would accept at that point, which usually shows you the
+fix.</p>
+<h2 id="reusing-parts-of-content-models"><a class="header" href="#reusing-parts-of-content-models">Reusing parts of content models</a></h2>
+<p>When several types share attributes or children, name the shared part
+once. <code>xs:group</code> names a model group, and <code>xs:attributeGroup</code> a set of
+attributes:</p>
+<ul>
+<li><code>vane.xsd</code> names the inline elements <code>inline</code>, and <code>text</code> refers to
+the group with <code>&lt;xs:group ref="inline" .../&gt;</code>. A schema for more of
+xml2rfc would refer to it from the other places that allow inline
+text, such as list items and table cells.</li>
+<li><code>xsd-author.xsd</code> names the attributes of a person <code>names</code>, and both
+<code>author</code> and <code>contact</code> refer to them.</li>
+</ul>
+<pre><code class="language-console">$ echo '&lt;contact surname="Hopper"/&gt;' | sxml validate --schema=xsd-author.xsd -
+-:1:1: cvc-complex-type.4: element 'contact' lacks the required attribute 'fullname'
+</code></pre>
+<p>A reference to a group is the same as writing its content in that
+place. Groups share parts; the next section shows how types share more,
+by deriving one type from another.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="xsd-simple-types.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="xsd-derivation.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="xsd-simple-types.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="xsd-derivation.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="style/sxml.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

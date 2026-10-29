@@ -1,0 +1,734 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Project: Editing a Specification Without Rewriting It - The sxml Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Learn XPath 4.0, XQuery 4.0, XSLT 4.0 and XSD 1.1 with sxml, the small XML toolchain in portable C.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="style/sxml.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "coal";
+            window.path_to_searchindex_js = "searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The sxml Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml/edit/main/docs/book/src/xquery-project.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="project-editing-a-specification-without-rewriting-it"><a class="header" href="#project-editing-a-specification-without-rewriting-it">Project: Editing a Specification Without Rewriting It</a></h1>
+<!-- examples: spec -->
+<p>Let's put the whole chapter to work. A specification lives a long time,
+and most of its changes are small: a keyword becomes stronger, a
+requirement is added, a reference comes in, a term gets a better name.
+Each of those is a change to a few nodes. Retyping the text around them,
+by hand or by asking a language model to rewrite the section, puts every
+other sentence at risk, and leaves the reviewers to find out which words
+moved.</p>
+<p>In this project we'll build a small toolkit for the Vane draft that
+works the other way:</p>
+<ul>
+<li><code>edit.xqm</code>, a module of updating functions, one for each kind of edit;
+each changes only the nodes it names;</li>
+<li><code>check.xq</code>, which finds the mistakes the schema cannot see, and fails
+so that a script stops;</li>
+<li><code>changes.xq</code>, which lists what changed in the requirements between two
+versions, as text for people and JSON for tools.</li>
+</ul>
+<p>At the end we'll make draft -02 in three commands, check it, and read
+the whole change as a diff of a few lines. Everything runs in the
+specification project's directory, with <code>spec.xqm</code> from
+<a href="xquery-modules.html">Functions and Modules</a> underneath.</p>
+<h2 id="the-edits"><a class="header" href="#the-edits">The edits</a></h2>
+<p><code>edit.xqm</code>:</p>
+<pre><code class="language-xquery">(:~ Edits of a draft in the xml2rfc version 3 vocabulary. Each function
+    is an updating function that changes only the nodes it names, and
+    keeps the draft's line breaks and indentation, so that a diff of the
+    draft before and after shows the edit and nothing else. :)
+module namespace edit = "urn:example:edit";
+
+import module namespace spec = "urn:example:spec" at "spec.xqm";
+
+(: The whitespace in the constructors below is the draft's indentation. :)
+declare boundary-space preserve;
+
+(:~ The keywords of BCP 14. :)
+declare type edit:keyword as enum(
+  "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+  "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED",
+  "MAY", "OPTIONAL"
+);
+
+(:~ An RFC to add to the references. :)
+declare record edit:rfc(
+  number as xs:integer,
+  title as xs:string,
+  authors as xs:string+,
+  year as xs:integer,
+  month as xs:string,
+  normative as xs:boolean := false()
+);
+
+(:~ The next requirement anchor that the draft has never used. :)
+declare function edit:next-anchor($draft as document-node()) as xs:string {
+  let $numbers := $draft//@anchor[matches(., "^req-[0-9]+$")] ! xs:integer(substring-after(., "req-"))
+  return "req-" || (max(($numbers, 0)) + 1)
+};
+
+(:~ The next version of the draft: its name, as both places write it,
+    and its date. :)
+declare updating function edit:new-version($draft as document-node(), $date as xs:date) {
+  let $name := string($draft/rfc/@docName)
+  let $version := xs:integer(tokenize($name, "-")[last()]) + 1
+  let $new-name := replace($name, "[0-9]+$", format-integer($version, "00"))
+  return (
+    replace value of node $draft/rfc/@docName with $new-name,
+    replace value of node $draft/rfc/front/seriesInfo[@name = "Internet-Draft"]/@value with $new-name,
+    replace value of node $draft/rfc/front/date/@year with year-from-date($date),
+    replace value of node $draft/rfc/front/date/@month with format-date($date, "[MNn]"),
+    replace value of node $draft/rfc/front/date/@day with day-from-date($date)
+  )
+};
+
+(:~ Makes a paragraph with a keyword a requirement: it gets the next
+    anchor. :)
+declare updating function edit:give-anchor($paragraph as element(t)) {
+  insert node attribute anchor { edit:next-anchor(root($paragraph)) } into $paragraph
+};
+
+(:~ Adds a requirement after another one, with the next anchor and on
+    lines of its own. :)
+declare updating function edit:add-requirement($after as element(t), $requirement as element(t)) {
+  insert nodes (
+    edit:indentation($after),
+    $requirement transform with {
+      insert node attribute anchor { edit:next-anchor(root($after)) } into .
+    }
+  ) after $after
+};
+
+(:~ Changes the keyword of a requirement. :)
+declare updating function edit:set-keyword($requirement as element(t), $keyword as edit:keyword) {
+  replace value of node exactly-one($requirement/bcp14) with $keyword
+};
+
+(:~ Renames a term: its definition, its anchor, and every cross
+    reference to it with its text. :)
+declare updating function edit:rename-term($term as element(dt), $name as xs:string) {
+  let $anchor := "term-" || lower-case(replace(normalize-space($name), " ", "-"))
+  return (
+    replace value of node $term with $name,
+    replace value of node $term/@anchor with $anchor,
+    for $xref in root($term)//xref[@target = $term/@anchor]
+    return (
+      replace value of node $xref/@target with $anchor,
+      if (exists($xref/node())) then replace value of node $xref with lower-case($name) else ()
+    )
+  )
+};
+
+(:~ Removes an editorial note, and the line break in front of it. :)
+declare updating function edit:remove-note($note as element(cref)) {
+  delete nodes ($note, $note/preceding-sibling::node()[1][self::text()][normalize-space() = ""])
+};
+
+(:~ Adds an RFC to the normative or informative references. :)
+declare updating function edit:add-reference($draft as document-node(), $rfc as edit:rfc) {
+  let $references := $draft//references[@anchor = (if ($rfc?normative) then "normative" else "informative")]
+  let $last := exactly-one($references/reference[last()])
+  let $reference :=
+        &lt;reference anchor="RFC{ $rfc?number }" target="https://www.rfc-editor.org/info/rfc{ $rfc?number }"&gt;
+          &lt;front&gt;
+            &lt;title&gt;{ $rfc?title }&lt;/title&gt;{
+              for $author in $rfc?authors
+              let $names := tokenize($author)
+              return (text { "&amp;#10;            " }, &lt;author fullname="{ $author }" initials="{ head($names) }" surname="{ foot($names) }"/&gt;)
+            }
+            &lt;date year="{ $rfc?year }" month="{ $rfc?month }"/&gt;
+          &lt;/front&gt;
+          &lt;seriesInfo name="RFC" value="{ $rfc?number }"/&gt;
+        &lt;/reference&gt;
+  return insert nodes (edit:indentation($last), $reference) after $last
+};
+
+(:~ The line break and indentation in front of a node. :)
+declare %private function edit:indentation($node as node()) as text()? {
+  $node/preceding-sibling::node()[1][self::text()][normalize-space() = ""]
+};
+</code></pre>
+<p>Let's read it from the top.</p>
+<ul>
+<li>The module imports <code>spec.xqm</code>, as a query does: modules build on each
+other.</li>
+<li><code>declare boundary-space preserve</code> keeps the whitespace written in the
+constructors, so that a new reference is indented like the draft's
+own references.</li>
+<li><code>edit:keyword</code> is an enumeration, so a misspelled keyword is an error
+at the call. <code>edit:rfc</code> is a record with a default: a reference is
+informative unless the caller says otherwise.</li>
+<li><code>edit:next-anchor</code> is an ordinary function. It finds the anchor that
+has never been used, so that anchors stay names given once.</li>
+<li>Every other public function is an updating function, and does one
+kind of edit. They insert the indentation of their neighbours with the
+nodes they add, which keeps the diff to the lines that matter.</li>
+</ul>
+<h2 id="trying-the-pieces"><a class="header" href="#trying-the-pieces">Trying the pieces</a></h2>
+<p>Ordinary functions can be tried on their own:</p>
+<pre><code class="language-console">$ sxml xquery --context-item=vane.xml --method=adaptive --expression='
+    import module namespace edit = "urn:example:edit" at "edit.xqm";
+    edit:next-anchor(/), edit:next-anchor(doc("vane-00.xml")),
+    edit:rfc(5424, "The Syslog Protocol", "R. Gerhards", 2009, "March")'
+"req-12"
+"req-9"
+{"number":5424,"title":"The Syslog Protocol","authors":"R. Gerhards","year":2009,"month":"March","normative":false()}
+</code></pre>
+<p>Updating functions are tried as updating queries. As in
+<a href="xquery-updates.html">Updating Documents</a>, compare the result with the
+draft as sxml writes it:</p>
+<pre><code class="language-console">$ sxml serialize vane.xml &gt; before.xml
+$ sxml xquery --context-item=vane.xml --expression='
+    import module namespace edit = "urn:example:edit" at "edit.xqm";
+    edit:rename-term(//dt[@anchor = "term-percentage"], "Rollout Percentage")' &gt; after.xml
+$ diff before.xml after.xml
+51c51
+&lt;           &lt;dt anchor="term-percentage"&gt;Percentage&lt;/dt&gt;
+---
+&gt;           &lt;dt anchor="term-rollout-percentage"&gt;Rollout Percentage&lt;/dt&gt;
+89c89
+&lt;         &lt;xref target="term-percentage"&gt;percentage&lt;/xref&gt; of a rollout
+---
+&gt;         &lt;xref target="term-rollout-percentage"&gt;rollout percentage&lt;/xref&gt; of a rollout
+</code></pre>
+<p>The types of the parameters guard the edits. BCP 14 has no MIGHT:</p>
+<pre><code class="language-console">$ sxml xquery --context-item=vane.xml --expression='
+    import module namespace edit = "urn:example:edit" at "edit.xqm";
+    edit:set-keyword(//t[@anchor = "req-3"], "MIGHT")'
+expression:3:5: err:XPTY0004: The value does not match the required type (XPath 4.0, section 3.4, coercion rules)
+</code></pre>
+<p>One thing the types can't see. All the edits of one query see the
+draft as it was before the query, so two requirements added in one query
+both get the next anchor, the same one. The schema finds that, as its
+<code>xs:unique</code> on anchors forbids it:</p>
+<pre><code class="language-console">$ sxml xquery --context-item=vane.xml --output=twice.xml --expression='
+    import module namespace edit = "urn:example:edit" at "edit.xqm";
+    edit:add-requirement(//t[@anchor = "req-11"], &lt;t&gt;A service &lt;bcp14&gt;MAY&lt;/bcp14&gt; log each rollout.&lt;/t&gt;),
+    edit:add-requirement(//t[@anchor = "req-8"], &lt;t&gt;A service &lt;bcp14&gt;MAY&lt;/bcp14&gt; log each pause.&lt;/t&gt;)'
+$ sxml validate --schema=vane.xsd twice.xml
+twice.xml:118:7: cvc-identity-constraint.4.1: element 't': its key sequence is that of an earlier member (unique 'anchor')
+</code></pre>
+<p>Add one requirement per command, as the session below does.</p>
+<h2 id="the-check"><a class="header" href="#the-check">The check</a></h2>
+<p>A schema says what a valid draft looks like: which elements go where,
+which keywords exist, that anchors are unique and cross references
+point to anchors. It can't say that every term is used, that no MUST
+was written without its markup, or that a paragraph with a keyword has
+an anchor. Those rules need a query:</p>
+<p><code>check.xq</code>:</p>
+<pre><code class="language-xquery">(:~ Checks a draft for the mistakes its schema cannot see. It writes a
+    line for each problem and fails with the error spec:check when it
+    finds any, so that a script stops. :)
+import module namespace spec = "urn:example:spec" at "spec.xqm";
+
+declare option output:method "text";
+declare option output:item-separator "&amp;#10;";
+
+declare variable $anchors := spec:anchor-map(/);
+
+(: The paragraph of BCP 14's boilerplate quotes the keywords on purpose. :)
+declare variable $boilerplate := //t[xref/@target = "RFC2119"];
+
+declare variable $problems := (
+  for $xref in //xref[not(map:contains($anchors, @target))]
+  return `{$xref/ancestor::*[@anchor][1]/@anchor}: a cross reference to the missing anchor {$xref/@target}`,
+
+  for $defined in //(dt | reference)[@anchor]
+  where empty(//xref[@target = $defined/@anchor])
+  return `{$defined/@anchor}: {if ($defined/self::dt) then "a term" else "a reference"} that nothing refers to`,
+
+  for $text in //t[not(. is $boilerplate)]//text()[not(ancestor::bcp14 | ancestor::cref)]
+  for $word in tokenize($text, "[^A-Z]+")[. = $spec:keywords]
+  return `{$text/ancestor::*[@anchor][1]/@anchor}: {$word} without bcp14 markup`,
+
+  for $paragraph in //t[bcp14][not(@anchor)]
+  return `{$paragraph/ancestor::section[1]/@anchor}: a requirement without an anchor ({$paragraph/bcp14})`
+);
+
+if (empty($problems))
+then `{/rfc/@docName}: no problems`
+else (
+  (: fn:message writes each problem on standard error, before the error. :)
+  $problems ! message(text { . }),
+  error(xs:QName("spec:check"), `{count($problems)} problem(s) in {/rfc/@docName}`)
+)
+</code></pre>
+<p><code>$problems</code> is a sequence of lines, made by four FLWOR expressions one
+after another. When it is empty, the query writes one line; otherwise
+it writes each problem with <code>fn:message</code>, on standard error, and raises
+<code>spec:check</code>, which ends the query with exit status 1. Draft -01 has the
+one problem we know of:</p>
+<pre><code class="language-console">$ sxml xquery --context-item=vane.xml check.xq; echo "exit status $?"
+security: a requirement without an anchor (SHOULD)
+check.xq:35:3: spec:check: 1 problem(s) in draft-example-vane-protocol-01
+exit status 1
+</code></pre>
+<p>To see the other checks at work, break a copy of the draft in three
+places: a keyword loses its markup, a cross reference names a term that
+doesn't exist, and the one-time password reference is no longer cited:</p>
+<pre><code class="language-console">$ sed -e 's|&lt;bcp14&gt;MAY&lt;/bcp14&gt; report|MAY report|' -e 's|target="term-percentage"|target="term-share"|' -e 's|&lt;xref target="RFC6238"/&gt;|one-time passwords|' vane.xml &gt; broken.xml
+$ sxml xquery --context-item=broken.xml check.xq; echo "exit status $?"
+req-4: a cross reference to the missing anchor term-share
+term-percentage: a term that nothing refers to
+RFC6238: a reference that nothing refers to
+req-11: MAY without bcp14 markup
+security: a requirement without an anchor (SHOULD)
+check.xq:35:3: spec:check: 5 problem(s) in draft-example-vane-protocol-01
+exit status 1
+</code></pre>
+<p>The renamed target counts twice, as it should: the reference is
+dangling, and the term <code>term-percentage</code> lost its only use.</p>
+<p>Rules like these, each a sentence about one place in the document, can
+also be written in Schematron, the schema language for rules between
+values, which reports each problem with its line and a level of its
+own: <a href="schematron.html">Checking Rules with Schematron</a> starts from these
+checks.</p>
+<h2 id="the-changes"><a class="header" href="#the-changes">The changes</a></h2>
+<p>Reviewers of a new version want to know what changed in the
+requirements, not in the commas. Requirements are matched by anchor,
+which is why anchors never change:</p>
+<p><code>changes.xq</code>:</p>
+<pre><code class="language-xquery">(:~ What changed in the requirements between two versions of a draft:
+    requirements added, removed, with another keyword, or with other
+    text. Requirements are matched by anchor, which never changes. :)
+import module namespace spec = "urn:example:spec" at "spec.xqm";
+
+declare option output:method "text";
+declare option output:item-separator "&amp;#10;";
+
+declare variable $old as xs:string external := "vane-00.xml";
+declare variable $new as xs:string external := "vane.xml";
+(:~ "text" or "json". :)
+declare variable $format as enum("text", "json") external := "text";
+
+declare record local:change(anchor as xs:string, change as xs:string, old as xs:string?, new as xs:string?);
+
+(:~ The text of a requirement with its keyword left out, so that a new
+    keyword alone is not also a new text. :)
+declare function local:wording($entry as spec:entry) as xs:string {
+  replace($entry?text, $entry?keyword, "...")
+};
+
+declare variable $old-entries := spec:requirements(doc($old)) ! spec:entry(.);
+declare variable $new-entries := spec:requirements(doc($new)) ! spec:entry(.);
+
+declare variable $changes := (
+  for $entry in $new-entries
+  let $before := $old-entries[?anchor = $entry?anchor]
+  return
+    if (empty($before)) then
+      local:change($entry?anchor, "added", (), $entry?text)
+    else (
+      if ($before?keyword ne $entry?keyword)
+      then local:change($entry?anchor, "keyword", $before?keyword, $entry?keyword) else (),
+      if (local:wording($before) ne local:wording($entry))
+      then local:change($entry?anchor, "text", $before?text, $entry?text) else ()
+    ),
+  for $entry in $old-entries[not(?anchor = $new-entries?anchor)]
+  return local:change($entry?anchor, "removed", $entry?text, ())
+);
+
+if ($format eq "json")
+then serialize(array { $changes }, { "method": "json", "indent": true() })
+else
+  for $change in $changes
+  return switch ($change?change)
+    case "added" return `{$change?anchor} added: {$change?new}`
+    case "removed" return `{$change?anchor} removed: {$change?old}`
+    case "keyword" return `{$change?anchor} keyword: {$change?old} -&gt; {$change?new}`
+    default return (`{$change?anchor} text: {$change?old}`, `    now: {$change?new}`)
+</code></pre>
+<p>The entries come from <code>spec:entry</code>, so the text is the text a reader
+sees, on one line. A keyword change and a text change are told apart by
+<code>local:wording</code>, which leaves the keyword out, so a new keyword is not
+also reported as new text. From -00 to -01:</p>
+<pre><code class="language-console">$ sxml xquery changes.xq
+req-9 added: A service MAY ask an owner for a time-based one-time password [RFC6238] before a rollout.
+req-10 added: An SDK SHOULD NOT send more than one status request per second for a flag; it uses its cached answer in between.
+req-7 text: After five failed checks in a row, a service MUST put the flag in a pause.
+    now: After three failed checks in a row, a service MUST put the flag in a pause.
+req-8 text: A pause SHOULD last one minute.
+    now: A pause SHOULD last five minutes.
+req-11 added: A service MAY report a pause to the owners of the flag as soon as it begins.
+</code></pre>
+<p>Nothing was removed in -01; the other way round, three requirements
+were:</p>
+<pre><code class="language-console">$ sxml xquery --param=old=vane.xml --param=new=vane-00.xml changes.xq | grep removed
+req-9 removed: A service MAY ask an owner for a time-based one-time password [RFC6238] before a rollout.
+req-10 removed: An SDK SHOULD NOT send more than one status request per second for a flag; it uses its cached answer in between.
+req-11 removed: A service MAY report a pause to the owners of the flag as soon as it begins.
+</code></pre>
+<p><code>$format</code> is an enumeration too, so the command line can only ask for
+what the query can write:</p>
+<pre><code class="language-console">$ sxml xquery --param=format=xml changes.xq
+changes.xq: err:FORG0001: the value is not in the value space of the target type
+</code></pre>
+<p>The JSON form follows in the session.</p>
+<h2 id="an-edit-session"><a class="header" href="#an-edit-session">An edit session</a></h2>
+<p>Now the real work: draft -02. The working group decided three things.
+The SHOULD in Security Considerations becomes a requirement, and the
+note asking for it goes. The service should log every failed check,
+with syslog. And a rolling-out flag <em>must</em> return to stable when its
+step is over, not only <em>should</em>. Each decision is one command, and each
+command writes a new file with <code>--output</code>, so every step can be looked
+at:</p>
+<pre><code class="language-console">$ sxml xquery --context-item=vane.xml --output=step-1.xml --expression='
+    import module namespace edit = "urn:example:edit" at "edit.xqm";
+    edit:new-version(/, xs:date("2026-11-30")),
+    edit:give-anchor(//section[@anchor = "security"]/t[bcp14]),
+    edit:remove-note(//cref[@anchor = "issue-2"])'
+$ sxml xquery --context-item=step-1.xml --output=step-2.xml --expression='
+    import module namespace edit = "urn:example:edit" at "edit.xqm";
+    edit:add-requirement(//t[@anchor = "req-11"],
+      &lt;t&gt;A service &lt;bcp14&gt;SHOULD&lt;/bcp14&gt; log every failed check with syslog &lt;xref target="RFC5424"/&gt;.&lt;/t&gt;),
+    edit:add-reference(/, edit:rfc(5424, "The Syslog Protocol", "R. Gerhards", 2009, "March"))'
+$ sxml xquery --context-item=step-2.xml --output=drafts/vane-02.xml --expression='
+    import module namespace edit = "urn:example:edit" at "edit.xqm";
+    edit:set-keyword(//t[@anchor = "req-3"], "MUST")'
+</code></pre>
+<p>The second command adds a requirement and the reference it cites in one
+query: they belong together, and they touch different nodes. Is the new
+draft valid, and does it pass the check?</p>
+<pre><code class="language-console">$ sxml validate --schema=vane.xsd drafts/vane-02.xml; echo "exit status $?"
+exit status 0
+$ sxml xquery --context-item=drafts/vane-02.xml check.xq
+draft-example-vane-protocol-02: no problems
+</code></pre>
+<p>What changed in the requirements, as JSON for the issue tracker:</p>
+<pre><code class="language-console">$ sxml xquery --param=old=vane.xml --param=new=drafts/vane-02.xml --param=format=json changes.xq
+[
+  {
+    "anchor": "req-3",
+    "change": "keyword",
+    "old": "SHOULD",
+    "new": "MUST"
+  },
+  {
+    "anchor": "req-13",
+    "change": "added",
+    "old": null,
+    "new": "A service SHOULD log every failed check with syslog [RFC5424]."
+  },
+  {
+    "anchor": "req-12",
+    "change": "added",
+    "old": null,
+    "new": "Vane messages travel in clear text on the network. Deployments SHOULD carry Vane over an encrypted link."
+  }
+]
+</code></pre>
+<p>And the whole change, for the reviewers, is this diff:</p>
+<pre><code class="language-console">$ diff before.xml drafts/vane-02.xml
+5c5
+&lt;      numbers sections and requirements in document order. --&gt;&lt;rfc version="3" category="std" ipr="trust200902" submissionType="IETF" docName="draft-example-vane-protocol-01"&gt;
+---
+&gt;      numbers sections and requirements in document order. --&gt;&lt;rfc version="3" category="std" ipr="trust200902" submissionType="IETF" docName="draft-example-vane-protocol-02"&gt;
+8c8
+&lt;     &lt;seriesInfo name="Internet-Draft" value="draft-example-vane-protocol-01"/&gt;
+---
+&gt;     &lt;seriesInfo name="Internet-Draft" value="draft-example-vane-protocol-02"/&gt;
+17c17
+&lt;     &lt;date year="2026" month="October" day="21"/&gt;
+---
+&gt;     &lt;date year="2026" month="November" day="30"/&gt;
+69c69
+&lt;       &lt;t anchor="req-3"&gt;A rolling-out flag &lt;bcp14&gt;SHOULD&lt;/bcp14&gt; return to the
+---
+&gt;       &lt;t anchor="req-3"&gt;A rolling-out flag &lt;bcp14&gt;MUST&lt;/bcp14&gt; return to the
+116a117
+&gt;       &lt;t anchor="req-13"&gt;A service &lt;bcp14&gt;SHOULD&lt;/bcp14&gt; log every failed check with syslog &lt;xref target="RFC5424"/&gt;.&lt;/t&gt;
+120c121
+&lt;       &lt;t&gt;Vane messages travel in clear text on the network. Deployments
+---
+&gt;       &lt;t anchor="req-12"&gt;Vane messages travel in clear text on the network. Deployments
+122,123c123
+&lt;       &lt;cref anchor="issue-2" source="AB"&gt;This needs a requirement anchor of
+&lt;       its own.&lt;/cref&gt;&lt;/t&gt;
+---
+&gt;       &lt;/t&gt;
+175a176,183
+&gt;         &lt;/reference&gt;
+&gt;         &lt;reference anchor="RFC5424" target="https://www.rfc-editor.org/info/rfc5424"&gt;
+&gt;           &lt;front&gt;
+&gt;             &lt;title&gt;The Syslog Protocol&lt;/title&gt;
+&gt;             &lt;author fullname="R. Gerhards" initials="R." surname="Gerhards"/&gt;
+&gt;             &lt;date year="2009" month="March"/&gt;
+&gt;           &lt;/front&gt;
+&gt;           &lt;seriesInfo name="RFC" value="5424"/&gt;
+</code></pre>
+<p>Every changed line is one that a decision named. The other lines of
+the draft are as they were, and nobody had to read them again. The
+new version sits with the others, ready for the queries of
+<a href="xquery-inputs.html">Documents, Parameters and the Context</a>:</p>
+<pre><code class="language-console">$ sxml xquery --method=adaptive --expression='collection("drafts") ! string(rfc/@docName)'
+"draft-example-vane-protocol-00"
+"draft-example-vane-protocol-01"
+"draft-example-vane-protocol-02"
+$ sxml xquery --param=today=2026-11-30 --param=drafts=drafts/vane-02.xml expiry.xq
+draft-example-vane-protocol-02: published 2026-11-30, expires 2027-06-03
+</code></pre>
+<h2 id="what-we-built"><a class="header" href="#what-we-built">What we built</a></h2>
+<p>The three tools are short because the module does the work, and they
+agree with each other because the rules are written once: what a
+requirement is, how it is numbered and what its text is live in
+<code>spec.xqm</code>, and the edits, the check and the list of changes all use
+them. Along the way, the project used most of this chapter:</p>
+<ul>
+<li>library modules that import each other, with record types, enumeration
+types, typed functions, a private helper and an error code of their
+own;</li>
+<li>updating functions that insert, delete and replace exactly the nodes
+of one decision, and <code>transform with</code> inside one of them;</li>
+<li>FLWOR expressions with <code>where</code>, joins of two versions by anchor, and
+<code>switch</code> on the kind of change;</li>
+<li>external variables with a type and a default, and an enumeration that
+limits them;</li>
+<li><code>fn:message</code> and <code>error</code> for a check that a script can rely on;</li>
+<li>serialization as text and as JSON, and <code>--output</code> for each step.</li>
+</ul>
+<p><a href="xslt-project.html">Project: Publishing the Specification</a> takes the
+draft the rest of the way, to HTML and RFC-style text, with XSLT, and
+runs this chapter's check before it publishes.</p>
+<h2 id="summary"><a class="header" href="#summary">Summary</a></h2>
+<p>XQuery adds to XPath what you need to write programs:</p>
+<ul>
+<li>FLWOR expressions iterate, filter, sort, group, number and join;</li>
+<li>constructors build XML, and output declarations write it as XML,
+XHTML, HTML, text, JSON or CSV;</li>
+<li><code>switch</code>, <code>typeswitch</code>, sequence types and <code>try</code>/<code>catch</code> deal with
+untidy data;</li>
+<li>functions, which can be recursive, and library modules organize a
+program, and external variables make it a tool;</li>
+<li>updates change documents, or copies of them, one named node at a
+time.</li>
+</ul>
+<p>Next, a different way to think about turning documents into other
+documents: XSLT.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="xquery-4.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="xslt.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="xquery-4.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="xslt.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="style/sxml.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

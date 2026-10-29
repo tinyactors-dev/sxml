@@ -1,0 +1,464 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Values and Types - The sxml Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Learn XPath 4.0, XQuery 4.0, XSLT 4.0 and XSD 1.1 with sxml, the small XML toolchain in portable C.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="style/sxml.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "coal";
+            window.path_to_searchindex_js = "searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The sxml Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml/edit/main/docs/book/src/xpath-values.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="values-and-types"><a class="header" href="#values-and-types">Values and Types</a></h1>
+<!-- examples: spec -->
+<p>Every atomic value in XPath has a type. You rarely have to write a type
+down, but knowing they exist explains most of the surprises you'll meet.</p>
+<h2 id="literals"><a class="header" href="#literals">Literals</a></h2>
+<p>Numbers and strings can be written directly. The way a number is
+written decides its type:</p>
+<pre><code class="language-console">$ sxml xpath '42, 3.14, 1e3, "MUST", true()'
+42
+3.14
+1.0e3
+"MUST"
+true()
+</code></pre>
+<p><code>42</code> is an <code>xs:integer</code>, <code>3.14</code> an <code>xs:decimal</code> and <code>1e3</code> an
+<code>xs:double</code>. Integers and decimals are exact: sxml computes with them
+digit by digit, however large they get. Doubles are the floating-point
+numbers of most programming languages, with their usual rounding:</p>
+<pre><code class="language-console">$ sxml xpath '0.1 + 0.2, 0.1e0 + 0.2e0'
+0.3
+3.0000000000000004e-1
+$ sxml xpath '9999999999999999999 + 1'
+10000000000000000000
+</code></pre>
+<p>sxml writes doubles in exponent notation, so you can always tell them
+apart. <code>true()</code> and <code>false()</code> are the two booleans; they are functions
+because <code>true</code> alone would be the name of an element.</p>
+<p><code>type-of</code> tells you the type of any value:</p>
+<pre><code class="language-console">$ sxml xpath 'type-of(1), type-of(1.0), type-of("1"), type-of(1e0)'
+"xs:integer"
+"xs:decimal"
+"xs:string"
+"xs:double"
+</code></pre>
+<h2 id="arithmetic"><a class="header" href="#arithmetic">Arithmetic</a></h2>
+<p><code>+</code>, <code>-</code> and <code>*</code> are what you expect. Division is <code>div</code>, because <code>/</code>
+already separates steps. <code>idiv</code> divides whole numbers and <code>mod</code> gives
+the remainder:</p>
+<pre><code class="language-console">$ sxml xpath '7 div 2, 7 idiv 2, 7 mod 2'
+3.5
+3
+1
+</code></pre>
+<p><code>count</code> returns an integer, so arithmetic on counts is exact. What share
+of the draft's eleven requirements are MUSTs?</p>
+<pre><code class="language-console">$ sxml xpath --context-item=vane.xml 'count(//bcp14[. = "MUST"]), count(//bcp14[. = "MUST"]) div count(//t[@anchor]), count(//bcp14[. = "MUST"]) * 100 idiv count(//t[@anchor])'
+5
+0.4545454545454545454545454545454545
+45
+</code></pre>
+<p>Five of eleven: dividing two integers with <code>div</code> gives a decimal, with as
+many digits as sxml keeps, and <code>idiv</code> gives the whole percentage.
+<a href="xpath-functions.html">Functions and Operators</a> shows how to write such a
+number nicely.</p>
+<p>Dividing an integer or a decimal by zero is an error. Dividing a double
+by zero gives infinity, as floating-point numbers do:</p>
+<pre><code class="language-console">$ sxml xpath '1 div 0'
+expression:1:1: err:FOAR0001: division by zero (F&amp;O 4.0, op:numeric-divide, op:numeric-integer-divide, op:numeric-mod)
+$ sxml xpath '1e0 div 0'
+INF
+</code></pre>
+<h2 id="untyped-values"><a class="header" href="#untyped-values">Untyped values</a></h2>
+<p>A plain XML document has no types in it. The <code>year</code> attribute of
+<code>&lt;date year="1997" month="March"/&gt;</code> is just the characters <code>1</code>, <code>9</code>,
+<code>9</code>, <code>7</code>. XPath gives such values the type <code>xs:untypedAtomic</code>; <code>data</code>
+takes the value out of a node:</p>
+<pre><code class="language-console">$ sxml xpath --context-item=vane.xml 'type-of((//reference)[1]//date/@year), type-of(data((//reference)[1]//date/@year))'
+"attribute()"
+"xs:untypedAtomic"
+</code></pre>
+<p>An untyped value is converted when it is used:</p>
+<ul>
+<li>in arithmetic, it becomes an <code>xs:double</code>;</li>
+<li>compared with a number using <code>=</code> or <code>&lt;</code>, it becomes a number too;</li>
+<li>compared with a string, it is compared as a string.</li>
+</ul>
+<p>That is why the age of each reference, at the draft's date in 2026,
+comes out as doubles:</p>
+<pre><code class="language-console">$ sxml xpath --context-item=vane.xml '//reference ! (2026 - .//date/@year)'
+2.9e1
+1.8e1
+9.0e0
+1.5e1
+</code></pre>
+<p>RFC 2119 is 29 years old. When you want exact arithmetic, convert the
+values first with a <em>constructor function</em>, named after the type:</p>
+<pre><code class="language-console">$ sxml xpath --context-item=vane.xml '//reference ! (2026 - xs:integer(.//date/@year))'
+29
+18
+9
+15
+</code></pre>
+<p>Constructor functions exist for every type: <code>xs:string</code>, <code>xs:integer</code>,
+<code>xs:decimal</code>, <code>xs:double</code>, <code>xs:boolean</code>, <code>xs:date</code>, <code>xs:dateTime</code>,
+<code>xs:duration</code>, <code>xs:gYear</code> and many more. When the text is not a valid
+value of the type, they raise an error:</p>
+<pre><code class="language-console">$ sxml xpath 'xs:integer("three")'
+expression:1:1: err:FORG0001: the value is not in the lexical space or value space of the target type
+</code></pre>
+<p><code>castable as</code> asks first, and <code>cast as</code> is another way to write the
+conversion:</p>
+<pre><code class="language-console">$ sxml xpath '"three" castable as xs:integer, "3" cast as xs:integer'
+false()
+3
+</code></pre>
+<p><a href="xsd.html">Validating with XSD</a> shows how a schema gives the values of a
+document their types, so that a year is a year without any conversion.</p>
+<h2 id="two-kinds-of-comparison"><a class="header" href="#two-kinds-of-comparison">Two kinds of comparison</a></h2>
+<p>XPath has two sets of comparison operators, and the difference matters.</p>
+<p>The <em>general comparisons</em>, <code>=</code>, <code>!=</code>, <code>&lt;</code>, <code>&lt;=</code>, <code>&gt;</code> and <code>&gt;=</code>, compare
+sequences. They are true if <em>any</em> pair of items compares true:</p>
+<pre><code class="language-console">$ sxml xpath --context-item=vane.xml '//bcp14 = "SHALL"'
+false()
+$ sxml xpath --context-item=vane.xml '//bcp14 = ("MUST", "SHALL")'
+true()
+</code></pre>
+<p>The first asks "does any key word say SHALL?". BCP 14 allows SHALL as
+another way to write MUST, and this draft never uses it. The second asks
+whether any key word is MUST or SHALL. This is what makes predicates
+over documents so convenient: a reference may have several dates or
+authors, and a test such as <code>[.//date/@year &lt; 2000]</code> is true if one of
+them matches. Here the untyped year is compared with a number, as a
+number:</p>
+<pre><code class="language-console">$ sxml xpath --context-item=vane.xml '//reference[.//date/@year &lt; 2000]/@anchor/string()'
+"RFC2119"
+$ sxml xpath --context-item=vane.xml '//reference[.//date/@year = (1997, 2017)]/@anchor/string()'
+"RFC2119"
+"RFC8174"
+</code></pre>
+<p>The two references of BCP 14 are from 1997 and 2017. It also means <code>!=</code>
+is not the opposite of <code>=</code>: <code>//bcp14 != "MUST"</code> is true, because there
+are key words that are not MUST.</p>
+<pre><code class="language-console">$ sxml xpath --context-item=vane.xml '//bcp14 != "MUST"'
+true()
+</code></pre>
+<p>The <em>value comparisons</em>, <code>eq</code>, <code>ne</code>, <code>lt</code>, <code>le</code>, <code>gt</code> and <code>ge</code>, compare
+exactly one item with one item, and they are strict about types. An
+untyped value is compared as a string, so comparing an attribute with a
+number is an error:</p>
+<pre><code class="language-console">$ sxml xpath --context-item=vane.xml '/rfc/front/date/@year eq 2026'
+expression:1:1: err:XPTY0004: the compared items belong to different type families (XPath 4.0, section 4.11.1; F&amp;O 4.0, fn:compare)
+$ sxml xpath --context-item=vane.xml 'xs:integer(/rfc/front/date/@year) eq 2026'
+true()
+</code></pre>
+<p>Use general comparisons in predicates over documents, and value
+comparisons when you know you have single values of known types.</p>
+<p>Strings compare by their characters. Numbers compare as numbers. That
+makes a difference, as anyone who has sorted RFC numbers as text knows:</p>
+<pre><code class="language-console">$ sxml xpath '"RFC10" lt "RFC9", 10 lt 9'
+true()
+false()
+</code></pre>
+<h2 id="dates-times-and-durations"><a class="header" href="#dates-times-and-durations">Dates, times and durations</a></h2>
+<p>Dates, times and durations are types of their own, with arithmetic that
+knows about calendars. The draft writes its date the xml2rfc way, with
+the month as a word:</p>
+<pre><code class="language-xml">    &lt;date year="2026" month="October" day="21"/&gt;
+</code></pre>
+<p>To make an <code>xs:date</code> from it, we need the month's number. A <em>map</em> is a
+lookup table, written with curly braces, and calling it with a key gives
+the value; <a href="xpath-maps-arrays.html">Maps, Arrays and Records</a> explains
+maps fully. <code>format-integer</code> writes the numbers with two digits, and the
+string between backticks is a <em>string template</em>, which puts the values
+of the expressions in curly braces into a string:</p>
+<pre><code class="language-console">$ sxml xpath --context-item=vane.xml 'let $months := { "January": 1, "February": 2, "March": 3, "April": 4, "May": 5, "June": 6, "July": 7, "August": 8, "September": 9, "October": 10, "November": 11, "December": 12 } let $date := /rfc/front/date return xs:date(`{$date/@year}-{format-integer($months($date/@month), "00")}-{format-integer($date/@day, "00")}`)'
+xs:date("2026-10-21")
+</code></pre>
+<p>sxml writes dates as constructor calls, so you can paste a result back
+into an expression. <code>let</code> binds a name to a value; it comes back in
+<a href="xpath-functions.html">Functions and Operators</a>.</p>
+<p>The previous version of the draft is in <code>vane-00.xml</code>. <code>doc</code> reads
+another document, so one expression can look at both. Here are both
+dates, -00 first, and the time between them (this time the map has only
+the two months it needs):</p>
+<pre><code class="language-console">$ sxml xpath --context-item=vane.xml 'let $months := { "July": 7, "October": 10 } let $dates := (doc("vane-00.xml"), /) ! rfc/front/date ! xs:date(`{@year}-{format-integer($months(@month), "00")}-{format-integer(@day, "00")}`) return ($dates, $dates[2] - $dates[1])'
+xs:date("2026-07-06")
+xs:date("2026-10-21")
+xs:dayTimeDuration("P107D")
+</code></pre>
+<p>Subtracting two dates gives a duration. Durations are written as in ISO
+8601: <code>P107D</code> is 107 days. Adding a duration to a date gives a date. An
+Internet-Draft expires 185 days after it is posted, and a month later is
+a month later, whatever its length:</p>
+<pre><code class="language-console">$ sxml xpath 'xs:date("2026-10-21") + xs:dayTimeDuration("P185D")'
+xs:date("2027-04-24")
+$ sxml xpath 'xs:date("2026-01-31") + xs:yearMonthDuration("P1M")'
+xs:date("2026-02-28")
+$ sxml xpath 'xs:dateTime("2026-10-21T09:30:00Z") + xs:dayTimeDuration("PT90M")'
+xs:dateTime("2026-10-21T11:00:00Z")
+</code></pre>
+<p><code>PT90M</code> is 90 minutes: the <code>T</code> separates the date part of a duration
+from its time part.</p>
+<h2 id="effective-boolean-values"><a class="header" href="#effective-boolean-values">Effective boolean values</a></h2>
+<p>A predicate or an <code>if</code> needs true or false. When the value is something
+else, XPath takes its <em>effective boolean value</em>: the empty sequence is
+false, a sequence that starts with a node is true, a string is true unless
+it is empty, a number is true unless it is zero or NaN.</p>
+<pre><code class="language-console">$ sxml xpath --context-item=vane.xml 'boolean(//t[@anchor = "req-12"]), boolean(//cref), boolean(""), boolean("false"), boolean(0)'
+false()
+true()
+false()
+true()
+false()
+</code></pre>
+<p>There is no req-12, so the first is false; the draft has editorial
+notes, so the second is true. Note the fourth one: the string <code>"false"</code>
+is not empty, so it is true. This is what lets a predicate such as
+<code>[@anchor]</code> mean "has an anchor": the path finds the attribute or
+nothing.</p>
+<h2 id="sequence-types"><a class="header" href="#sequence-types">Sequence types</a></h2>
+<p>Sometimes you write a type down: in <code>instance of</code>, in a function's
+signature, or in a variable declaration in XQuery. A <em>sequence type</em> is an
+item type with an optional occurrence indicator: <code>?</code> for zero or one,
+<code>*</code> for any number, <code>+</code> for one or more.</p>
+<pre><code class="language-console">$ sxml xpath '"MUST" instance of xs:string+, () instance of xs:string?'
+true()
+true()
+$ sxml xpath --context-item=vane.xml '//t[bcp14][not(@anchor)] instance of element(t)?, //bcp14 instance of element(bcp14)+'
+true()
+true()
+</code></pre>
+<p>The draft has at most one paragraph with a key word and no anchor (it
+has exactly one), and one or more <code>bcp14</code> elements. <code>element(bcp14)</code> is
+the type of elements named <code>bcp14</code>; <code>node()</code>, <code>attribute()</code>, <code>text()</code>
+and the other kind tests are types too. You'll use sequence types
+throughout XQuery and XSLT.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="xpath-paths.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="xpath-functions.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="xpath-paths.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="xpath-functions.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="style/sxml.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

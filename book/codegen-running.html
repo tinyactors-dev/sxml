@@ -1,0 +1,469 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Running the Generated Code - The sxml Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Learn XPath 4.0, XQuery 4.0, XSLT 4.0 and XSD 1.1 with sxml, the small XML toolchain in portable C.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="style/sxml.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "coal";
+            window.path_to_searchindex_js = "searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The sxml Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml/edit/main/docs/book/src/codegen-running.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="running-the-generated-code"><a class="header" href="#running-the-generated-code">Running the Generated Code</a></h1>
+<!-- examples: codegen -->
+<!-- requires: javascript -->
+<p>Generated code is only as good as what it does when it runs. In this
+section we'll start a small Vane service with the generated handler,
+and call it with the generated clients, the way the two SDKs and the
+console do. The examples need Node.js 22.18 or later, which runs
+TypeScript files directly by removing their types; the generated code
+uses no TypeScript feature that needs more than that. The files that
+<code>generate.sh</code> makes are in the <code>generated</code> directory of the examples
+(the next section shows the script).</p>
+<h2 id="the-services-own-code"><a class="header" href="#the-services-own-code">The service's own code</a></h2>
+<p>The generated interface says what the service must do; the service's
+code does it. The real Vane service keeps its flags in PostgreSQL, in
+its registry module; this one keeps three in an array:</p>
+<p><code>vane.ts</code>:</p>
+<pre><code class="language-ts">// The Vane service's remote functions, written by hand against the
+// generated interface. The real service keeps its flags in PostgreSQL;
+// this one keeps three in an array, so the example needs no database.
+import type { Implementation } from "./generated/server.ts";
+import type { FlagConfig, FlagStatus } from "./generated/types.ts";
+
+interface Flag extends FlagConfig {
+  owners: string[];
+  failedChecks: number;
+}
+
+const flags: Flag[] = [
+  {
+    key: "new-checkout", state: "rolling-out", percentage: 20,
+    rules: [{ attribute: "country", values: ["nl"], percentage: 100 }],
+    owners: ["ada@example.com"], failedChecks: 0,
+  },
+  { key: "dark-mode", state: "stable", percentage: 100, rules: [], owners: ["grace@example.com"], failedChecks: 0 },
+  { key: "beta-banner", state: "paused", percentage: 5, rules: [], owners: ["ada@example.com"], failedChecks: 3 },
+];
+
+function find(key: string): Flag {
+  const flag = flags.find((flag) =&gt; flag.key === key);
+  if (flag === undefined) throw new Error(`no flag has the key ${key}`);
+  return flag;
+}
+
+function checkOwner(flag: Flag, owner: string) {
+  if (!flag.owners.includes(owner)) throw new Error(`${owner} doesn't own ${flag.key}`);
+}
+
+/** A user's place from 0 to 99 for a flag: a hash of the flag and the user,
+    so the user stays in the share while the percentage grows. */
+function place(flag: string, user: string): number {
+  let hash = 2166136261;
+  for (const character of `${flag}/${user}`) {
+    hash = Math.imul(hash ^ (character.codePointAt(0) ?? 0), 16777619) &gt;&gt;&gt; 0;
+  }
+  return hash % 100;
+}
+
+function status(flag: Flag): FlagStatus {
+  const { key, state, failedChecks } = flag;
+  return state === "paused" ? { flag: key, state, failedChecks, retryAfter: 300 } : { flag: key, state, failedChecks };
+}
+
+export const vane: Implementation = {
+  async getFlags() {
+    // What an SDK needs to evaluate a flag: no owners, no counts.
+    return { flags: flags.map(({ key, state, percentage, rules }) =&gt; ({ key, state, percentage, rules })) };
+  },
+  async evaluateFlags({ user, attributes }) {
+    return {
+      evaluations: flags.map((flag) =&gt; {
+        const rule = flag.rules?.find((rule) =&gt;
+          attributes?.some(({ name, value }) =&gt; name === rule.attribute &amp;&amp; rule.values?.includes(value)));
+        return { flag: flag.key, on: place(flag.key, user) &lt; (rule?.percentage ?? flag.percentage) };
+      }),
+    };
+  },
+  async getStatus({ flag }) {
+    return status(find(flag));
+  },
+  async rollOutFlag({ flag: key, percentage, owner }) {
+    const flag = find(key);
+    checkOwner(flag, owner);
+    if (flag.state === "paused") throw new Error(`${key} is paused`);
+    Object.assign(flag, { state: "rolling-out", percentage, failedChecks: 0 });
+    return status(flag);
+  },
+  async killFlag({ flag: key, owner }) {
+    const flag = find(key);
+    checkOwner(flag, owner);
+    Object.assign(flag, { state: "stable", percentage: 0, rules: [] });
+    return { flag: key, killed: true };
+  },
+};
+</code></pre>
+<p>The parameters need no type annotations: the interface gives them.
+Mistype a property name, or return a status without its failed checks,
+and the TypeScript compiler finds it, because the types come from the
+schema. The service's flags have more than the API shows, an owner list
+and a count of failed checks, so <code>getFlags</code> copies only the four
+properties of a <code>FlagConfig</code>. Forget that, and the generated handler's
+output check refuses the answer with "is not allowed": the service
+can't hand its owners' addresses to every SDK by mistake.</p>
+<p><code>evaluateFlags</code> is what the frontend SDK asks for. A rule whose
+attribute and value match the user gives the percentage; otherwise the
+flag's own percentage does, and <code>place</code> puts the user in the share or
+out of it, by a hash of the flag and the user, so the same user gets the
+same answer on every call. The backend SDK does the same evaluation
+itself, on the flags that <code>getFlags</code> gave it.</p>
+<h2 id="the-sdks-on-top"><a class="header" href="#the-sdks-on-top">The SDKs on top</a></h2>
+<p>The generated clients are the transport of the SDKs: they send a call,
+check what goes and what comes back, and nothing more. What makes an
+SDK, such as a cache, is written by hand on top of them. Here is a
+piece of the backend SDK. The Vane protocol says that an SDK sends at
+most one status request per second for a flag and uses its cached
+answer in between:</p>
+<p><code>sdk.ts</code>:</p>
+<pre><code class="language-ts">// A piece of the backend SDK, written by hand on the generated client:
+// it asks the service for the status of a flag at most once a second,
+// and uses its cached answer in between, as the protocol asks of an SDK.
+import { getStatus } from "./generated/node.ts";
+import type { FlagStatus } from "./generated/types.ts";
+
+const answers = new Map&lt;string, { time: number; status: Promise&lt;FlagStatus&gt; }&gt;();
+
+export function flagStatus(flag: string, now: number = Date.now()): Promise&lt;FlagStatus&gt; {
+  const answer = answers.get(flag);
+  if (answer !== undefined &amp;&amp; now - answer.time &lt; 1000) return answer.status;
+  const status = getStatus({ flag });
+  answers.set(flag, { time: now, status });
+  return status;
+}
+</code></pre>
+<h2 id="calling-it"><a class="header" href="#calling-it">Calling it</a></h2>
+<p><code>demo.ts</code> starts the service on a free port, points the clients at it,
+and calls the functions as their callers would. To show what the SDK's
+cache saves, it counts the status requests that the service answers:
+<code>Implementation</code> is an ordinary interface, so an object that wraps one
+method of <code>vane</code> is an implementation too. Then it tries two calls that
+should fail:</p>
+<p><code>demo.ts</code>:</p>
+<pre><code class="language-ts">// Starts the service, and calls it the way the SDKs and the console do.
+import { createServer } from "node:http";
+import { createHandler, type Implementation } from "./generated/server.ts";
+import { evaluateFlags } from "./generated/browser.ts";
+import { getFlags } from "./generated/node.ts";
+import { killFlag, rollOutFlag } from "./generated/console.ts";
+import type { EvaluationContext } from "./generated/types.ts";
+import { settings } from "./runtime.ts";
+import { flagStatus } from "./sdk.ts";
+import { vane } from "./vane.ts";
+
+// The service, with a count of the status requests it answers.
+let statusRequests = 0;
+const service: Implementation = {
+  ...vane,
+  getStatus(input) {
+    statusRequests += 1;
+    return vane.getStatus(input);
+  },
+};
+
+const server = createServer(createHandler(service));
+server.listen(0);
+await new Promise((resolve) =&gt; server.once("listening", resolve));
+const address = server.address();
+settings.endpoint = `http://localhost:${typeof address === "object" ? address?.port : 0}/api`;
+
+async function show(label: string, result: Promise&lt;unknown&gt;) {
+  try {
+    console.log(label, JSON.stringify(await result));
+  } catch (error) {
+    console.log(label, "failed:", (error as Error).message);
+  }
+}
+
+// The backend SDK downloads every flag; the frontend SDK asks about one user.
+const user: EvaluationContext = { environment: "staging", user: "user-7", attributes: [{ name: "country", value: "nl" }] };
+await show("getFlags", getFlags({ environment: "staging" }));
+await show("evaluateFlags", evaluateFlags(user));
+
+// The backend SDK asks for a status twice; the service answers once.
+await show("flagStatus", flagStatus("beta-banner"));
+await show("flagStatus", flagStatus("beta-banner"));
+console.log("status requests:", statusRequests);
+
+// The console pulls the kill switch, and the flag is off for everyone.
+await show("killFlag", killFlag({ flag: "new-checkout", owner: "ada@example.com" }));
+await show("evaluateFlags", evaluateFlags(user));
+
+// Values the types allow but the schema doesn't: the client refuses them.
+await show("rollOutFlag", rollOutFlag({ flag: "new-checkout", percentage: 150, owner: "ada" }));
+
+// A request that skips the client: the service refuses it.
+const response = await fetch(`${settings.endpoint}/killFlag`, {
+  method: "POST",
+  body: JSON.stringify({ flag: "New Checkout", owner: "ada@example.com", force: true }),
+});
+console.log("fetch", response.status, await response.text());
+
+server.close();
+</code></pre>
+<pre><code class="language-console">$ node demo.ts
+getFlags {"flags":[{"key":"new-checkout","state":"rolling-out","percentage":20,"rules":[{"attribute":"country","values":["nl"],"percentage":100}]},{"key":"dark-mode","state":"stable","percentage":100,"rules":[]},{"key":"beta-banner","state":"paused","percentage":5,"rules":[]}]}
+evaluateFlags {"evaluations":[{"flag":"new-checkout","on":true},{"flag":"dark-mode","on":true},{"flag":"beta-banner","on":false}]}
+flagStatus {"flag":"beta-banner","state":"paused","failedChecks":3,"retryAfter":300}
+flagStatus {"flag":"beta-banner","state":"paused","failedChecks":3,"retryAfter":300}
+status requests: 1
+killFlag {"flag":"new-checkout","killed":true}
+evaluateFlags {"evaluations":[{"flag":"new-checkout","on":false},{"flag":"dark-mode","on":true},{"flag":"beta-banner","on":false}]}
+rollOutFlag failed: input.percentage: must be at most 100; input.owner: must match [^@ ]+@[^@ ]+
+fetch 400 {"problems":["input.flag: must match [a-z0-9][a-z0-9-]*","input.force: is not allowed"]}
+</code></pre>
+<p>The backend SDK gets every flag with its rules, but no owners. The user
+<code>user-7</code> from the Netherlands gets <code>new-checkout</code> from its country rule
+and <code>dark-mode</code> from its 100 percent; <code>beta-banner</code> is rolled out to 5
+percent, and this user's place isn't in them. The two status calls give
+the same answer, <code>beta-banner</code> paused after three failed checks, to be
+asked about again in 300 seconds, and the service answered only one of
+them. After the
+console's kill, <code>new-checkout</code> is off for this user too: a kill sets the
+percentage to 0 and drops the rules.</p>
+<p>The next call has the right TypeScript types, strings and a number,
+but values that the schema's facets refuse, a percentage of 150 and an
+owner without a domain, and the client stops it before it goes over the
+network. The last request doesn't use a client at all, as a request
+from another program wouldn't, and the service refuses it with the same
+rules, and an answer that says why: a flag key is written in lowercase,
+and a kill has no <code>force</code>.</p>
+<p>The frontend SDK uses <code>browser.ts</code> the same way in a browser page, with
+<code>settings.endpoint</code> left at <code>/api</code>, and the service runs the same
+handler, whatever framework serves the requests.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="codegen-printer.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="codegen-pipeline.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="codegen-printer.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="codegen-pipeline.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="style/sxml.js"></script>
+
+
+
+    </div>
+    </body>
+</html>
